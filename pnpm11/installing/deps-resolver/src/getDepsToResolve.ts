@@ -215,7 +215,11 @@ function getRangeOfLockedPackage (
     const npmAlias = unwrapPackageName(wantedDep.alias, bareSpecifier)
     return npmAlias.pkgName === name ? npmAlias.bareSpecifier : undefined
   }
-  if (registryName == null) return bareSpecifier
+  if (registryName == null) {
+    // A range names the alias's own package. A git or tarball specifier may
+    // resolve to a package of any name.
+    return name === wantedDep.alias || semver.validRange(bareSpecifier) == null ? bareSpecifier : undefined
+  }
   // A registry-qualified entry may only satisfy a spec of the same named
   // registry. A plain semver range means a default/scope-registry dep, which
   // the qualified entry must never be substituted for.

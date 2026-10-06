@@ -945,3 +945,78 @@ fn optional_peer_also_in_deps_is_installed_with_auto_install_peers() {
 fn optional_peer_also_in_deps_is_installed_without_auto_install_peers() {
     assert_optional_peer_also_in_deps_is_installed(false);
 }
+
+/// Older pnpm versions resolved the optional peer of
+/// `@pnpm.e2e/has-optional-peer-range-also-in-deps` to its parent's
+/// `npm:` alias of `@pnpm.e2e/foo@1.2.0`. Changing overrides re-resolves
+/// the tree, and the dependency must not be looked up as
+/// `@pnpm.e2e/bravo-dep@1.2.0`, which does not exist.
+/// Covers <https://github.com/pnpm/pnpm/issues/16654>.
+#[test]
+fn changing_overrides_re_resolves_a_dependency_locked_to_an_aliased_optional_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/aliases-optional-peer-of-dep": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let child = "@pnpm.e2e/has-optional-peer-range-also-in-deps@1.0.0";
+    let peers_suffix = "(@pnpm.e2e/foo@1.2.0)";
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let read_lockfile_value = || -> serde_json::Value {
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml")
+    };
+    let mut lockfile = read_lockfile_value();
+    let fresh_dependencies = lockfile["snapshots"][child]["dependencies"].clone();
+    assert!(fresh_dependencies.is_object(), "the fresh resolve records the dependency");
+    lockfile["packages"][child]["peerDependencies"] =
+        serde_json::json!({ "@pnpm.e2e/bravo-dep": "^1.0.0" });
+    lockfile["packages"][child]["peerDependenciesMeta"] =
+        serde_json::json!({ "@pnpm.e2e/bravo-dep": { "optional": true } });
+    let snapshots = lockfile["snapshots"].as_object_mut().expect("snapshots map");
+    snapshots.remove(child);
+    snapshots.insert(
+        format!("{child}{peers_suffix}"),
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/bravo-dep": "@pnpm.e2e/foo@1.2.0" },
+        }),
+    );
+    lockfile["snapshots"]["@pnpm.e2e/aliases-optional-peer-of-dep@1.0.0"]["dependencies"]["@pnpm.e2e/has-optional-peer-range-also-in-deps"] =
+        serde_json::Value::String(format!("1.0.0{peers_suffix}"));
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).expect("serialize lockfile"))
+        .expect("write pnpm-lock.yaml");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("overrides:\n  '@pnpm.e2e/bar@<100': 100.0.0\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(read_lockfile_value()["snapshots"][child]["dependencies"], fresh_dependencies);
+
+    drop((root, mock_instance));
+}
