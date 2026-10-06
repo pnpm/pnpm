@@ -183,3 +183,18 @@ fn rebuild_accepts_a_lockfile_resolved_with_other_hooks_and_settings() {
         "a rebuild leaves the lockfile alone",
     );
 }
+
+#[test]
+fn rebuild_still_checks_the_manifests_against_the_lockfile() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = hooked_install_options(temp_dir.path(), &[FOO], Some("hooks-1"));
+    install_with_hook(&options);
+
+    // A rebuild materializes the lockfile, so it must not fetch and build
+    // a dependency the manifest no longer declares.
+    let options = hooked_install_options(temp_dir.path(), &[], Some("hooks-1"));
+    let error = run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+        .expect_err("a rebuild of a lockfile the manifest no longer matches");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("ERR_PNPM_OUTDATED_LOCKFILE"));
+}

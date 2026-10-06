@@ -547,10 +547,11 @@ fn rebuild_options(selected_names: Option<Vec<String>>) -> RebuildOptions {
         // project's own deferred scripts is `pnpm rebuild --pending`.
         pending_projects: Vec::new(),
         // The embedder rebuilds the lockfile it just installed or restored,
-        // so only what changes the build output, the patches, has to match
-        // the configuration — as in pnpm v11's `rebuild`. Comparing the
-        // rest, like `pnpmfileChecksum`, fails a rebuild of a lockfile
-        // resolved with other `readPackage` hooks or settings.
+        // so of the settings it records only the patches, which change the
+        // build output, have to match the configuration — as in pnpm v11's
+        // `rebuild`. Comparing the rest, like `pnpmfileChecksum`, fails a
+        // rebuild of a lockfile resolved with other `readPackage` hooks or
+        // settings.
         check_lockfile_patches_only: true,
     }
 }

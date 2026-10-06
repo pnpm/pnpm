@@ -228,7 +228,7 @@ pub(crate) struct FreshnessScope {
     /// unfiltered workspace install may, since only it sees the
     /// complete project list.
     pub(crate) prune_stale_importers: bool,
-    /// Check only the lockfile's patches. See
+    /// Check only the lockfile's patches of the settings it records. See
     /// [`pnpm_deps_restorer::RebuildOptions::check_lockfile_patches_only`].
     pub(crate) patches_only: bool,
 }
@@ -265,7 +265,7 @@ pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<(), FreshnessCheckError> {
-    if inputs.scope.ignore_manifest_check || inputs.scope.patches_only {
+    if inputs.scope.ignore_manifest_check {
         return Ok(());
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
@@ -313,25 +313,8 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
-    if inputs.scope.patches_only {
-        return patches::check_lockfile_patches(lockfile, inputs.config).map(|()| Vec::new());
-    }
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
-        inputs.pnpmfile_hook,
-        lockfile.pnpmfile_checksum.as_deref(),
-    )
-    .await;
-    check_lockfile_settings_drift(
-        lockfile,
-        inputs.config,
-        inputs.catalogs,
-        CheckLockfileSettingsDriftOptions {
-            parsed_overrides: parsed_overrides_opt.as_deref(),
-            pnpmfile_checksum: super::pnpmfile_checksum_check(inputs, pnpmfile_checksum.as_deref()),
-            dedupe_peers: inputs.config.dedupe_peers,
-        },
-    )?;
+    settings::check_settings(lockfile, inputs, parsed_overrides_opt.as_deref()).await?;
 
     if inputs.scope.ignore_manifest_check {
         return Ok(Vec::new());
@@ -528,7 +511,7 @@ pub(crate) fn check_lockfile_settings_drift(
     .map_err(FreshnessCheckError::Stale)
 }
 
-mod patches;
+mod settings;
 
 #[cfg(test)]
 mod tests;
