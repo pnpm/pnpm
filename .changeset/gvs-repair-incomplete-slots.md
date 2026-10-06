@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-With `enableGlobalVirtualStore`, `pnpm install` now repairs a package in the global virtual store that an interrupted install left without some of its dependency links or package files. Before, a project whose `node_modules` already recorded that package skipped it, and the package failed at runtime with `Cannot find module` until `pnpm install --force` [#16642](https://github.com/pnpm/pnpm/issues/16642).
+With `enableGlobalVirtualStore`, an install that updates `node_modules` now repairs a package in the global virtual store that an interrupted install left without some of its dependency links or package files. Before, such an install kept the incomplete package if the project's `node_modules` already recorded it [#16642](https://github.com/pnpm/pnpm/issues/16642).
