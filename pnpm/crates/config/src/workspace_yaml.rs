@@ -1,6 +1,8 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+use readable::ReadSettings;
+pub(crate) use readable::settings_reader;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
@@ -416,6 +418,8 @@ mod resolved;
 mod reset;
 
 mod settings;
+
+mod readable;
 
 mod error;
 

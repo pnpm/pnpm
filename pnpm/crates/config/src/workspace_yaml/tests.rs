@@ -91,3 +91,5 @@ mod registry_network_concurrency;
 mod publish_wait_timeout;
 
 mod env_placeholders;
+
+mod readable_settings;

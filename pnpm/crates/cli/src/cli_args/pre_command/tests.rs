@@ -1,7 +1,8 @@
 use super::{
-    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
-    locked_package_manager_to_fetch, pre_command_plan_from_input, switch_target,
+    CliArgs, CliCommand, ConfigLoad, KeyIssueReporting, PackageManagerToSync, PinRoots,
+    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
+    load_pre_command_config, locked_package_manager_to_fetch, pre_command_plan_from_input,
+    switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
@@ -336,8 +337,9 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
     switch.paths.dir = dir.clone();
     let input = PreCommandInput { switch, ..pre_command_input(&dir) };
 
-    let config = load_pre_command_config(&input, &ConfigOverrides::default(), &dir, false)
-        .expect("load the pre-command config");
+    let config =
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::default())
+            .expect("load the pre-command config");
 
     assert_eq!(
         config.store_dir.root(),
@@ -879,6 +881,50 @@ fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
     assert_ne!(env_root.as_path(), root.path());
 }
 
+/// A setting this pnpm cannot read may be one the pinned pnpm reads, so it
+/// does not stop the switch (pnpm/pnpm#16675).
+#[test]
+fn pre_command_plan_switches_past_a_setting_this_pnpm_cannot_read() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), UNREADABLE_LOCKFILE_SETTING);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+#[test]
+fn pre_command_plan_reports_a_setting_it_cannot_read_when_it_does_not_switch() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(
+        root.path(),
+        &format!("pmOnFail: warn\n{UNREADABLE_LOCKFILE_SETTING}"),
+    );
+
+    let error = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect_err("the unreadable setting is reported");
+
+    let message = format!("{error:?}");
+    eprintln!("{message}");
+    assert!(message.contains("Failed to parse pnpm-workspace.yaml"));
+}
+
+const UNREADABLE_LOCKFILE_SETTING: &str = "lockfile:\n  recordsSomethingNew: true\n";
+
 /// `pnpm fetch` has only the lockfile to go on, so it installs the pnpm the
 /// env document records whenever a command in the project would switch to
 /// it (pnpm/pnpm#11808).
@@ -1075,6 +1121,10 @@ fn write_dev_engine_manifest(root: &Path, version: &str) {
             r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}","onFail":"download"}}}}}}"#,
         ),
     );
+}
+
+fn write_workspace_manifest(root: &Path, content: &str) {
+    fs::write(root.join("pnpm-workspace.yaml"), content).expect("write pnpm-workspace.yaml");
 }
 
 fn write_manifest(root: &Path, content: &str) {

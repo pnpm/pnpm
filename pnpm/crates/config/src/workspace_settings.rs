@@ -2,8 +2,9 @@ use super::{
     Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, Path, PathBuf, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
     collect_explicit_settings, default_pnpm_home_dir, fs, note_declared_registries,
-    resolve_configured_state_dir,
+    resolve_configured_state_dir, workspace_yaml::settings_reader,
 };
+use pnpm_env_replace::SystemEnv;
 
 impl Config {
     /// Apply the workspace layer and anchor paths to its location. A missing file
@@ -213,7 +214,8 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let mut settings = crate::workspace_yaml::parse_settings::<Sys>(&text)
+                    let read = settings_reader::<Sys>(self.skip_unreadable_workspace_settings);
+                    let mut settings = read(&text)
                         .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                             path: yaml_path,
                             source,
@@ -227,17 +229,20 @@ impl Config {
                 }
             }
         } else {
-            WorkspaceSettings::find_and_load(start_dir)?
-                .map(|(path, settings)| {
-                    let base_dir = path
-                        .parent()
-                        .unwrap_or(start_dir)
-                        .to_path_buf();
-                    (base_dir, Some(settings))
-                })
-                .filter(|(base_dir, settings)| {
-                    workspace_includes_start_dir(base_dir, start_dir, settings.as_ref())
-                })
+            WorkspaceSettings::find_and_read(
+                start_dir,
+                settings_reader::<SystemEnv>(self.skip_unreadable_workspace_settings),
+            )?
+            .map(|(path, settings)| {
+                let base_dir = path
+                    .parent()
+                    .unwrap_or(start_dir)
+                    .to_path_buf();
+                (base_dir, Some(settings))
+            })
+            .filter(|(base_dir, settings)| {
+                workspace_includes_start_dir(base_dir, start_dir, settings.as_ref())
+            })
         };
         Ok(workspace_yaml)
     }

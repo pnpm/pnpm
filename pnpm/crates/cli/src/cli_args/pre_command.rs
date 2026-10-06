@@ -103,11 +103,66 @@ fn pre_command_plan_from_input(
         return Ok(None);
     }
     let dir = canonicalize_dir(&input.switch.paths.dir)?;
-    let config = load_pre_command_config(input, config_overrides, &dir, false)?;
+    let config = match load_pre_command_config(input, config_overrides, &dir, ConfigLoad::default())
+    {
+        Ok(config) => config,
+        Err(error) => {
+            return switch_past_unreadable_settings(input, config_overrides, &dir, process_state)
+                .map(Some)
+                .ok_or(error);
+        }
+    };
+    let pin = resolve_pin(input, config_overrides, &dir, process_state, config)?;
+    let (config, package_manager_to_sync) = match pin.action {
+        PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
+        PreCommandAction::Continue { config, package_manager_to_sync } => {
+            (config, package_manager_to_sync)
+        }
+    };
 
+    report_config_warnings(input, &config, pin.running_matches_pin)?;
+    check_manifest_runtimes(input, &config, pin.manifest)?;
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, pin.env_root, package_manager)
+    }))
+}
+
+/// Switch to the pinned pnpm when the configuration fails to load only
+/// because of settings this pnpm cannot read, which the pinned one may.
+/// `None` leaves the failure to be reported.
+fn switch_past_unreadable_settings(
+    input: &PreCommandInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    process_state: SwitchProcessState,
+) -> Option<PreCommandPlan> {
+    let load = ConfigLoad { resolve_store: false, skip_unreadable_settings: true };
+    let config = load_pre_command_config(input, config_overrides, dir, load).ok()?;
+    match resolve_pin(input, config_overrides, dir, process_state, config).ok()?.action {
+        PreCommandAction::Switch(plan) => Some(PreCommandPlan::Switch(plan)),
+        PreCommandAction::Continue { .. } => None,
+    }
+}
+
+/// What the project's pin asks of this invocation, and what was read to
+/// decide it.
+struct PinReading {
+    action: PreCommandAction,
+    manifest: Option<Value>,
+    env_root: PathBuf,
+    running_matches_pin: bool,
+}
+
+fn resolve_pin(
+    input: &PreCommandInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    process_state: SwitchProcessState,
+    config: Config,
+) -> miette::Result<PinReading> {
     let roots = PinRoots {
-        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
-        env: config.root_project_manifest_dir(&dir).to_path_buf(),
+        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
+        env: config.root_project_manifest_dir(dir).to_path_buf(),
     };
     let manifest = read_root_manifest(&roots.manifest);
 
@@ -115,19 +170,8 @@ fn pre_command_plan_from_input(
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
     let outcome =
         resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
-    let (config, package_manager_to_sync) =
-        match plan_pin_action(outcome, input, config_overrides, &dir, config)? {
-            PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
-            PreCommandAction::Continue { config, package_manager_to_sync } => {
-                (config, package_manager_to_sync)
-            }
-        };
-
-    report_config_warnings(input, &config, running_matches_pin)?;
-    check_manifest_runtimes(input, &config, manifest)?;
-    Ok(package_manager_to_sync.map(|package_manager| {
-        env_lockfile_sync_plan(input, config, roots.env, package_manager)
-    }))
+    let action = plan_pin_action(outcome, input, config_overrides, dir, config)?;
+    Ok(PinReading { action, manifest, env_root: roots.env, running_matches_pin })
 }
 
 fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
@@ -148,9 +192,13 @@ fn plan_pin_action(
     dir: &Path,
     config: Config,
 ) -> miette::Result<PreCommandAction> {
+    let load = ConfigLoad {
+        resolve_store: true,
+        skip_unreadable_settings: config.skip_unreadable_workspace_settings,
+    };
     match outcome {
         PinOutcome::Switch(target) => {
-            let mut config = load_pre_command_config(input, config_overrides, dir, true)?;
+            let mut config = load_pre_command_config(input, config_overrides, dir, load)?;
             // A global command does not act on the project. Without a
             // workspace, the approvals go to the project, as a regular
             // install's do.
@@ -161,7 +209,7 @@ fn plan_pin_action(
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config = load_pre_command_config(input, config_overrides, dir, true)?;
+            let config = load_pre_command_config(input, config_overrides, dir, load)?;
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
         }
         PinOutcome::Sync(None) => {
@@ -216,6 +264,15 @@ fn emit_npmrc_warnings(warnings: &[String]) {
     }
 }
 
+/// What [`load_pre_command_config`] reads.
+#[derive(Clone, Copy, Default)]
+struct ConfigLoad {
+    /// Place the store, which a switch or a sync uses.
+    resolve_store: bool,
+    /// See [`Config::skip_unreadable_workspace_settings`].
+    skip_unreadable_settings: bool,
+}
+
 /// Load the configuration the pre-command pass reads, with the global
 /// CLI flags that reach it applied. A failed load still prints the
 /// `.npmrc` warnings it collected, since they often explain the failure.
@@ -223,7 +280,7 @@ fn load_pre_command_config(
     input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
-    resolve_store: bool,
+    load: ConfigLoad,
 ) -> miette::Result<Config> {
     let switch = &input.switch;
     let mut config = seed_config(
@@ -231,11 +288,14 @@ fn load_pre_command_config(
         switch.ignore_workspace,
         config_overrides,
     );
-    config.skip_store_dir_resolution = !resolve_store;
+    config.skip_store_dir_resolution = !load.resolve_store;
+    config.skip_unreadable_workspace_settings = load.skip_unreadable_settings;
     let mut config = config
         .current_keeping_warnings::<Host>(dir)
         .map_err(|failure| {
-            if input.key_issues != KeyIssueReporting::Skip {
+            // A load that skips unreadable settings retries one that failed
+            // and printed these already.
+            if input.key_issues != KeyIssueReporting::Skip && !load.skip_unreadable_settings {
                 emit_npmrc_warnings(&failure.warnings);
             }
             miette::Report::new(failure.error)
