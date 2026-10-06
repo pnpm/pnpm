@@ -9,7 +9,7 @@ use pnpm_network::{
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 const OWNER_BODY_LIMIT: usize = 1024 * 1024;
 const OWNER_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -160,12 +160,7 @@ impl OwnerArgs {
         Ok(OwnerContext {
             config,
             http_client: build_http_client(config, redirect_guard.as_ref())?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),
         })

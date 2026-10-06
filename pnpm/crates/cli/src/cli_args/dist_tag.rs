@@ -19,10 +19,7 @@ use registry::{
 };
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DIST_TAGS_BODY_LIMIT: usize = 1024 * 1024;
 const DIST_TAG_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -207,12 +204,7 @@ impl DistTagArgs {
         Ok(DistTagContext {
             config,
             http_client: build_http_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),
         })

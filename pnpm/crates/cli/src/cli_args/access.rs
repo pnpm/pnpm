@@ -12,7 +12,7 @@ use registry::{
     normalize_registry_url, send_get, send_json, write_error_from_response,
 };
 use reqwest::{Method, Response, StatusCode};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {

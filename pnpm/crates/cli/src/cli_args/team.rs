@@ -4,8 +4,8 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
-    send_with_retry,
+    RedirectGuard, RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component,
+    redact_url_credentials, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use registry::{
@@ -14,7 +14,7 @@ use registry::{
     registry_error_from_response, registry_for_scope, registry_operation_error, team_url,
     team_user_url,
 };
-use reqwest::Response;
+use reqwest::{Method, Response};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -249,26 +249,43 @@ impl TeamArgs {
     }
 }
 
+/// Sends one team mutation: resolves the scope's auth header, applies it with
+/// the `--otp` alongside the JSON body when the endpoint takes one, and
+/// retries with the context's policy. The throttle guard is returned with the
+/// response so the caller keeps holding the concurrency slot while it reads
+/// the body (see [`send_with_retry`]).
+async fn send_team_mutation<'ctx>(
+    context: &'ctx TeamContext<'_>,
+    scope: &str,
+    method: Method,
+    url: String,
+    body: Option<String>,
+    operation: &'static str,
+) -> miette::Result<(ThrottledClientGuard<'ctx>, Response)> {
+    let auth_header = auth_header_for_registry(context, scope)?;
+    send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
+        let mut builder = client.request(method.clone(), &url);
+        if let Some(body) = &body {
+            builder = builder.header("content-type", "application/json").body(body.clone());
+        }
+        apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
+    })
+    .await
+    .map_err(|source| registry_operation_error(operation, source))
+}
+
 async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Result<String> {
     let spec = params.first().ok_or(TeamError::CreateScopeRequired)?;
     let st = parse_scope_team(spec)?;
     let team = st.team.as_deref().ok_or(TeamError::CreateNameRequired)?;
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = org_team_url(&registry_url, &st.scope);
     let body = serde_json::json!({ "name": team }).to_string();
 
     let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client
-                .put(&url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
-        })
-        .await
-        .map_err(|source| registry_operation_error("creating team", source))?;
+        send_team_mutation(context, &st.scope, Method::PUT, url, Some(body), "creating team")
+            .await?;
 
     if response.status().is_success() {
         return Ok(format!("+{}:{}", st.scope, team));
@@ -283,16 +300,10 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
     let team = st.team.as_deref().ok_or(TeamError::DestroyNameRequired)?;
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_url(&registry_url, &st.scope, team);
 
     let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client.delete(&url);
-            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
-        })
-        .await
-        .map_err(|source| registry_operation_error("destroying team", source))?;
+        send_team_mutation(context, &st.scope, Method::DELETE, url, None, "destroying team").await?;
 
     if response.status().is_success() {
         return Ok(format!("-{}:{}", st.scope, team));
@@ -310,20 +321,12 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
     let username = &params[1];
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
     let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client
-                .put(&url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
-        })
-        .await
-        .map_err(|source| registry_operation_error("adding user to team", source))?;
+        send_team_mutation(context, &st.scope, Method::PUT, url, Some(body), "adding user to team")
+            .await?;
 
     if response.status().is_success() {
         return Ok(format!("+{username} added to @{}:{team}", st.scope));
@@ -344,20 +347,18 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let username = &params[1];
 
     let registry_url = registry_for_scope(context, &st.scope);
-    let auth_header = auth_header_for_registry(context, &st.scope)?;
     let url = team_user_url(&registry_url, &st.scope, team);
     let body = serde_json::json!({ "user": username }).to_string();
 
-    let (_guard, response) =
-        send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client
-                .delete(&url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
-        })
-        .await
-        .map_err(|source| registry_operation_error("removing user from team", source))?;
+    let (_guard, response) = send_team_mutation(
+        context,
+        &st.scope,
+        Method::DELETE,
+        url,
+        Some(body),
+        "removing user from team",
+    )
+    .await?;
 
     if response.status().is_success() {
         return Ok(format!("-{username} removed from @{}:{team}", st.scope));

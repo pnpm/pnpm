@@ -1,6 +1,6 @@
 use super::{
-    AccessArgs, AccessError, Arc, Config, Context, Duration, IntoDiagnostic, Method, RedirectGuard,
-    Response, RetryOpts, StatusCode, ThrottledClient, ThrottledClientGuard, encode_uri_component,
+    AccessArgs, AccessError, Arc, Config, Context, IntoDiagnostic, Method, RedirectGuard, Response,
+    RetryOpts, StatusCode, ThrottledClient, ThrottledClientGuard, encode_uri_component,
     redact_and_sanitize, send_with_retry,
 };
 use futures_util::StreamExt as _;
@@ -48,12 +48,7 @@ pub(super) fn build_access_context<'a>(
     Ok(AccessContext {
         config,
         http_client: build_http_client(config, redirect_guard.as_ref())?,
-        retry_opts: RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        },
+        retry_opts: config.retry_opts(),
         registry,
         json: args.json,
         otp: args.otp.clone(),

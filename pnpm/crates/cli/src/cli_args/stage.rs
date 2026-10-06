@@ -42,7 +42,7 @@ use render::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use summarize_tarball::{create_tarball_filename, summarize_tarball};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
@@ -349,12 +349,7 @@ impl StageArgs {
             registry,
             auth_header,
             http_client: build_registry_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
             web_auth_fetch_options: WebAuthFetchOptions {
                 timeout: Some(config.fetch_timeout),

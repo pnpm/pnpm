@@ -8,7 +8,6 @@ use pnpm_network::{
 };
 use reqwest::Response;
 use serde_json::Value;
-use std::time::Duration;
 
 fn parse_stars_response(body: &Value) -> Option<String> {
     if let Some(arr) = body.as_array() {
@@ -51,12 +50,6 @@ impl StarsArgs {
         let auth_header =
             config.auth_headers.for_url(&config.registry).ok_or(StarsError::Unauthorized);
         let http_client = build_registry_client(config)?;
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
 
         let mut user = self.username.clone();
         if user.is_none() {
@@ -76,7 +69,7 @@ impl StarsArgs {
             registry_url: &config.registry,
             http_client: &http_client,
             auth_header: auth_header_val,
-            retry_opts,
+            retry_opts: config.retry_opts(),
         };
         fetch_stars(&request, &username, is_self).await
     }

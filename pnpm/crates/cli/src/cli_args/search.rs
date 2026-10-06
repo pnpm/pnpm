@@ -6,9 +6,8 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_network::{redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -103,15 +102,8 @@ impl SearchArgs {
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
 
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
-
         let (client, response) =
-            send_with_retry(&http_client, search_url.as_str(), retry_opts, |client| {
+            send_with_retry(&http_client, search_url.as_str(), config.retry_opts(), |client| {
                 let mut request = client.get(search_url.as_str());
                 if let Some(ref header) = auth_header {
                     request = request.header("authorization", header.as_str());

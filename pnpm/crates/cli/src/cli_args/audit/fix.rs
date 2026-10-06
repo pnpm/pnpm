@@ -14,8 +14,7 @@ use super::{
     PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
     Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
     normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
-    retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
-    severity_number,
+    satisfies_including_prerelease, send_with_retry, severity_name, severity_number,
 };
 use update::advisory_choices;
 
@@ -201,8 +200,7 @@ pub(crate) async fn fetch_publish_times(
     // print them (auth travels in the header instead).
     let url = redact_url_userinfo(&url);
     let authorization = config.auth_headers.for_url_with_package(&registry, Some(name));
-    let retry_opts = retry_opts_from_config(config);
-    let (_guard, response) = send_with_retry(http_client, &url, retry_opts, |client| {
+    let (_guard, response) = send_with_retry(http_client, &url, config.retry_opts(), |client| {
         // Full metadata: the abbreviated packument has no `time` field.
         let mut request = client.get(&url).header("accept", "application/json; q=1.0, */*");
         if let Some(value) = &authorization {

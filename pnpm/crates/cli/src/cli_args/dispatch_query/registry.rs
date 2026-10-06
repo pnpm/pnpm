@@ -4,6 +4,24 @@ use super::{
     UnpublishArgs, UnstarArgs, ViewArgs,
 };
 use crate::cli_args::reporter::CliReporter;
+use std::future::Future;
+
+/// The shared body of the registry commands whose output is sanitized before
+/// printing and only printed when the sanitized text is non-empty: `access`,
+/// `dist-tag`, `deprecate`, `undeprecate`, `team`, `owner`, and `unpublish`.
+fn sanitized_output<'a>(
+    fut: impl Future<Output = miette::Result<Option<String>>> + Send + 'a,
+) -> CommandFuture<'a> {
+    Box::pin(async move {
+        if let Some(output) = fut.await? {
+            let output = super::super::sanitize::sanitize(&output);
+            if !output.is_empty() {
+                println!("{output}");
+            }
+        }
+        Ok(())
+    })
+}
 
 // `whoami` is a read-only registry query: it resolves the default registry's
 // auth header from config and GETs `-/whoami`, with no lockfile or install
@@ -54,16 +72,7 @@ pub(in super::super) fn access<'a>(
     args: AccessArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    Ok(sanitized_output(args.run(cfg)))
 }
 
 pub(in super::super) fn dist_tag<'a>(
@@ -71,16 +80,7 @@ pub(in super::super) fn dist_tag<'a>(
     args: DistTagArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    Ok(sanitized_output(args.run(cfg)))
 }
 
 pub(in super::super) fn deprecate<'a>(
@@ -88,16 +88,7 @@ pub(in super::super) fn deprecate<'a>(
     args: DeprecateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    Ok(sanitized_output(args.run(cfg)))
 }
 
 pub(in super::super) fn undeprecate<'a>(
@@ -105,16 +96,7 @@ pub(in super::super) fn undeprecate<'a>(
     args: UndeprecateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    Ok(sanitized_output(args.run(cfg)))
 }
 
 pub(in super::super) fn unpublish<'a>(
@@ -122,19 +104,7 @@ pub(in super::super) fn unpublish<'a>(
     args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    async fn print_output<Reporter: pnpm_reporter::Reporter>(
-        args: UnpublishArgs,
-        cfg: &Config,
-    ) -> miette::Result<()> {
-        if let Some(output) = args.run::<Reporter>(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if !output.is_empty() {
-                println!("{output}");
-            }
-        }
-        Ok(())
-    }
-    Ok(Box::pin(print_output::<CliReporter>(args, cfg)))
+    Ok(sanitized_output(args.run::<CliReporter>(cfg)))
 }
 
 pub(in super::super) fn team<'a>(
@@ -142,16 +112,7 @@ pub(in super::super) fn team<'a>(
     args: TeamArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    Ok(sanitized_output(args.run(cfg)))
 }
 
 pub(in super::super) fn owner<'a>(
@@ -159,16 +120,9 @@ pub(in super::super) fn owner<'a>(
     args: OwnerArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
-            let output = super::super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
-            }
-            println!("{output}");
-        }
-        Ok(())
-    }))
+    // `OwnerArgs::run` takes `&self`, so wrap the call so the owned `args`
+    // lives inside the polled future.
+    Ok(sanitized_output(async move { args.run(cfg).await }))
 }
 
 // `ping` is a read-only connectivity check: it resolves the registry (and any
