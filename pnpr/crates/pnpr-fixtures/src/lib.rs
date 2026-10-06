@@ -206,9 +206,6 @@ fn restore_claimed_storage(claimed: &Path, storage: &Path) {
 }
 
 /// Remove `path` and its subtree, treating an absent path as removed.
-///
-/// Windows reports a tree absent right after the rename that claimed it,
-/// and that is the outcome every caller wants.
 fn remove_tree(path: &Path, what: &str) {
     match fs::remove_dir_all(path) {
         Ok(()) => {}
