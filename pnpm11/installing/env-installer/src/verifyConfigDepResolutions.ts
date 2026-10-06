@@ -92,10 +92,10 @@ function configDependencyKeys (env: EnvLockfile): Set<string> {
 }
 
 /**
- * The install verifier's options without `minimumReleaseAge`: that setting
- * gates the versions resolution picks, and a config dependency's version is
- * the one the workspace declares, so resolving a config dependency never
- * applies it either.
+ * The install verifier's options without `minimumReleaseAge`. Resolving a
+ * config dependency does not apply that setting, so verifying one must not
+ * either, or a clean frozen install would reject the lockfile that the
+ * resolving install wrote.
  */
 function configVerifierOptions (opts: ResolveAndInstallConfigDepsOpts): Parameters<typeof createNpmResolutionVerifier>[0] {
   return {

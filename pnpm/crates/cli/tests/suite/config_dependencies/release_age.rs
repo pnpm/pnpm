@@ -5,10 +5,8 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
-/// `minimumReleaseAge` gates the versions resolution picks, and a config
-/// dependency's version is the one the workspace declares. A clean install of
-/// a locked config dependency therefore succeeds however recently it was
-/// published, as it does when the config dependency is first added.
+/// Resolving a config dependency does not apply `minimumReleaseAge`, so a
+/// clean install of the locked config dependency must not apply it either.
 #[test]
 fn frozen_install_does_not_hold_locked_config_dependencies_to_minimum_release_age() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

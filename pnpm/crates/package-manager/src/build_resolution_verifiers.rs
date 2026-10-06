@@ -101,10 +101,10 @@ pub fn build_resolution_verifiers(
 /// Assemble the verifier list for the env lockfile's config dependencies.
 ///
 /// It enforces the same tarball-URL binding and `trustPolicy` checks as
-/// [`build_resolution_verifiers`], but not `minimumReleaseAge`: that setting
-/// gates the versions resolution picks, and a config dependency's version is
-/// the one the workspace declares, so resolving a config dependency never
-/// applies it either.
+/// [`build_resolution_verifiers`], but not `minimumReleaseAge`. Resolving a
+/// config dependency does not apply that setting, so verifying one must not
+/// either, or a clean frozen install would reject the lockfile that the
+/// resolving install wrote.
 pub fn build_config_dependency_resolution_verifiers(
     config: &Config,
     http_client: Arc<ThrottledClient>,
