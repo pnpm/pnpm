@@ -317,7 +317,6 @@ async fn one_metadata_attempt(
     url: &str,
     accept: &str,
 ) -> Result<MetadataDocument, FetchMetadataError> {
-    let started_at = Instant::now();
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
@@ -336,6 +335,7 @@ async fn one_metadata_attempt(
             uncacheable: false,
         });
     }
+    let started_at = client.acquired_at();
     document_from_response(client, response, opts, url, started_at).await
 }
 
