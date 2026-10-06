@@ -2,8 +2,8 @@
 use super::workspace_directory::ensure_workspace_directory_windows;
 use super::{
     ArchiveStoreProjection, Config, LockedCrate, PathBuf, add_cargo_checksum,
-    discover_workspace_roots, managed_config, parse_lockfile, update_managed_config,
-    workspace_root,
+    discover_workspace_roots, managed_config, parse_lockfile, sources_config,
+    update_managed_config, workspace_root,
 };
 #[cfg(unix)]
 use super::{
@@ -174,25 +174,63 @@ fn crate_store_slots_are_grouped_by_name_version_and_content() {
 #[test]
 fn appends_the_managed_config_without_changing_user_settings() {
     let existing = "[alias]\ncodecov = \"llvm-cov\"\n";
-    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
+    let updated = update_managed_config(existing).unwrap();
 
-    assert_eq!(updated, format!("{existing}\n{}\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])));
+    assert_eq!(updated, format!("{existing}\n{}\n", managed_config()));
 }
 
 #[test]
 fn replaces_only_the_existing_managed_config() {
     let existing = "before\n# >>> pnpm-managed cargo sources >>>\nstale\n# <<< pnpm-managed cargo sources <<<\nafter\n";
-    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
+    let updated = update_managed_config(existing).unwrap();
 
+    assert_eq!(updated, format!("before\n{}\nafter\n", managed_config()));
+}
+
+#[test]
+fn includes_the_sources_config_optionally() {
+    let parsed: toml::Table = toml::from_str(&managed_config()).unwrap();
+
+    let expected: toml::Table =
+        toml::from_str("[[include]]\npath = \"../.pnpm/crates/config.toml\"\noptional = true\n")
+            .unwrap();
+    assert_eq!(parsed["include"], expected["include"]);
+    eprintln!("The sources must stay out of .cargo/config.toml: {parsed:?}");
+    assert!(!parsed.contains_key("source"));
+}
+
+#[test]
+fn extends_the_include_tables_of_the_user() {
+    let existing = "[[include]]\npath = \"local.toml\"\n";
+    let updated = update_managed_config(existing).unwrap();
+
+    let parsed: toml::Table = toml::from_str(&updated).unwrap();
     assert_eq!(
-        updated,
-        format!("before\n{}\nafter\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])),
+        parsed["include"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
     );
 }
 
 #[test]
+fn rejects_an_inline_include_it_cannot_extend() {
+    let error = update_managed_config("include = [\"local.toml\"]\n").unwrap_err().to_string();
+
+    assert!(error.contains("[[include]]"), "{error}");
+}
+
+#[test]
+fn points_the_sources_at_the_directories_below_the_config() {
+    let parsed: toml::Table = toml::from_str(&sources_config(CRATES_IO_SPARSE_INDEX, &[])).unwrap();
+
+    assert_eq!(parsed["source"]["pnpm-crates-io"]["directory"].as_str(), Some("crates/crates-io"));
+}
+
+#[test]
 fn configures_the_selected_sparse_registry_as_the_vendored_source() {
-    let config = managed_config("https://registry.example.test/index/", &[]);
+    let config = sources_config("https://registry.example.test/index/", &[]);
 
     assert!(config.contains("[source.crates-io]\nreplace-with = \"pnpm-registry\""));
     assert!(config.contains("[source.pnpm-registry]"));
@@ -202,7 +240,7 @@ fn configures_the_selected_sparse_registry_as_the_vendored_source() {
 
 #[test]
 fn escapes_a_registry_url_that_is_not_a_bare_toml_string() {
-    let config = managed_config("https://registry.example.test/o'brien/index", &[]);
+    let config = sources_config("https://registry.example.test/o'brien/index", &[]);
 
     let parsed: toml::Table = toml::from_str(&config).expect("managed config is valid TOML");
     assert_eq!(
@@ -213,13 +251,8 @@ fn escapes_a_registry_url_that_is_not_a_bare_toml_string() {
 
 #[test]
 fn rejects_an_incomplete_managed_config() {
-    let error = update_managed_config(
-        "# >>> pnpm-managed cargo sources >>>\n",
-        CRATES_IO_SPARSE_INDEX,
-        &[],
-    )
-    .unwrap_err()
-    .to_string();
+    let error =
+        update_managed_config("# >>> pnpm-managed cargo sources >>>\n").unwrap_err().to_string();
 
     assert!(error.contains("incomplete"), "{error}");
 }
@@ -556,8 +589,7 @@ fn rejects_a_symlinked_cargo_config_parent() {
     fs::write(&external_config, "unchanged\n").unwrap();
     symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
 
-    let error =
-        write_cargo_config(workspace.path(), CRATES_IO_SPARSE_INDEX, &[]).unwrap_err().to_string();
+    let error = write_cargo_config(workspace.path()).unwrap_err().to_string();
 
     assert!(error.contains("must be a real directory"), "{error}");
     assert_eq!(fs::read_to_string(external_config).unwrap(), "unchanged\n");
@@ -574,13 +606,13 @@ fn config_write_stays_in_the_directory_pinned_before_a_parent_swap() {
     fs::write(outside.path().join("config.toml"), "unchanged\n").unwrap();
     symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
 
-    write_cargo_config_in(&cargo_dir, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
+    write_cargo_config_in(&cargo_dir).unwrap();
 
     assert_eq!(fs::read_to_string(outside.path().join("config.toml")).unwrap(), "unchanged\n");
     assert!(
         fs::read_to_string(pinned_path.join("config.toml"))
             .unwrap()
-            .contains(&managed_config(CRATES_IO_SPARSE_INDEX, &[])),
+            .contains(&managed_config()),
     );
 }
 
