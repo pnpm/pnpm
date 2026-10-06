@@ -115,8 +115,10 @@ test('rejects traversal in manifests and module requests', context => {
   const files = setup.add('example@1', { 'package.json': esm, 'index.js': "import '../../app.mjs'" })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+  setup.manifest.packages['example@1'].files['index.js'] = files['package.json']
   setup.manifest.packages['example@1'].files['../escape.js'] = files['index.js']
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
+  assert.equal(setup.run("console.log('unused package')").stdout.trim(), 'unused package')
 })
 
 test('does not intercept files outside registered project roots', context => {

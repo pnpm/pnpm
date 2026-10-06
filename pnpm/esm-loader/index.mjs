@@ -96,7 +96,7 @@ function moduleFormat (filename, store, manifests) {
   if (!owner) throw loaderError('ENOENT', `No package in store manifest: ${filename}`)
   for (let directory = path.dirname(filename); within(owner.root, directory); directory = path.dirname(directory)) {
     const manifestPath = path.join(directory, 'package.json')
-    if (!store.files.has(manifestPath)) continue
+    if (!store.file(manifestPath)) continue
     if (!manifests.has(manifestPath)) {
       manifests.set(manifestPath, store.filesystem.readJsonSync(manifestPath))
     }
@@ -118,6 +118,6 @@ function validateAttributes (format, attributes = {}, url) {
 
 function storedEntry (specifier, store, manifests) {
   const url = specifier.startsWith('file:') ? new URL(specifier) : path.isAbsolute(specifier) ? pathToFileURL(specifier) : null
-  if (!url || !store.files.has(fileURLToPath(url))) return null
+  if (!url || !store.file(fileURLToPath(url))) return null
   return { url: url.href, format: moduleFormat(fileURLToPath(url), store, manifests), shortCircuit: true }
 }
