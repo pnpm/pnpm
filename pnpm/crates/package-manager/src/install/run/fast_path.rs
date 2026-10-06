@@ -185,8 +185,10 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 /// slots of an unregistered project.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead. Loaded installs require durable
-/// registration because their blobs have no project hardlinks to protect them.
+/// surfaced as `tracing::warn!` instead. Loaded installs register the
+/// directory holding their store manifest, which prune reads, and require
+/// durable registration because their blobs have no project hardlinks to
+/// protect them.
 /// A frozen store is externally managed and must not receive registry writes.
 pub(crate) fn register_workspace_in_store(
     config: &Config,
@@ -196,7 +198,13 @@ pub(crate) fn register_workspace_in_store(
         return Ok(());
     }
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        return pnpm_store_dir::register_loaded_project(&config.store_dir, workspace_root)
+        let loader_dir = config.store_loader_dir(workspace_root);
+        std::fs::create_dir_all(&loader_dir)
+            .map_err(|error| InstallError::CreateStoreLoaderDir {
+                dir: loader_dir.clone(),
+                error,
+            })?;
+        return pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
             .map_err(InstallError::RegisterLoadedProject);
     }
     if config.frozen_store && !config.enable_global_virtual_store {

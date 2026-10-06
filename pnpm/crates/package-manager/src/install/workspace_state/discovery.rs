@@ -99,7 +99,12 @@ fn deps_status_from_state(
     if inputs.config.node_linker == pnpm_config::NodeLinker::Loaded
         && [pnpm_config::CAS_MANIFEST_FILENAME, pnpm_config::CAS_LOADER_FILENAME]
             .iter()
-            .any(|filename| !inputs.lockfile_root.join(filename).is_file())
+            .any(|filename| {
+                !inputs.config
+                    .store_loader_dir(inputs.lockfile_root)
+                    .join(filename)
+                    .is_file()
+            })
     {
         return cannot_check_deps();
     }

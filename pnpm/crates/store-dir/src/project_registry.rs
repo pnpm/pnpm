@@ -92,7 +92,8 @@ pub fn register_project(
 }
 
 /// Register a loader's ownership even when its store is inside the project.
-/// Pruning reads the manifest directly without recursively walking the registry link.
+/// Pruning reads the store manifest in the registered directory without
+/// recursively walking the registry link.
 pub fn register_loaded_project(
     store_dir: &StoreDir,
     project_dir: &Path,

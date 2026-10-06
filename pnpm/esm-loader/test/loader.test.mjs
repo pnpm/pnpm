@@ -315,17 +315,17 @@ test('runs a stored extensionless CommonJS bin as the main module', context => {
 test('unknown virtual package paths produce a loader ENOENT error', context => {
   const setup = fixture(context)
   delete setup.manifest.packages['.']
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
-  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
+  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   assert.throws(() => hooks.load(pathToFileURL(path.join(setup.root, '.pnpm-loader/unknown/index.js')).href, { conditions: [] }, () => assert.fail()), { code: 'ENOENT' })
 })
 
 test('caches verified virtual JSON without caching mutable workspace manifests', context => {
   const setup = fixture(context)
   const files = setup.add('example@1', { 'package.json': esm })
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
   setup.write('package.json', '{"name":"before"}')
-  const store = openStore(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  const store = openStore(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   const virtual = path.join(store.packages.get('example@1').root, 'package.json')
   assert.equal(store.filesystem.readJsonSync(virtual).name, 'example')
   const hash = files['package.json']

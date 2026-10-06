@@ -434,8 +434,10 @@ fn loaded_linker_runs_scripts_with_the_downloaded_node_runtime() {
         .with_arg("install")
         .assert()
         .success();
-    let manifest: Value =
-        serde_json::from_slice(&fs::read(workspace.join(".pnpm-store.json")).unwrap()).unwrap();
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+    )
+    .unwrap();
     assert_eq!(manifest["packages"][format!("node@runtime:{version}")]["resolution"], "node");
     command(&workspace)
         .with_env("PATH", &empty_path)

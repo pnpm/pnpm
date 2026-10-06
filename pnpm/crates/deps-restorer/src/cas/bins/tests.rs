@@ -11,8 +11,8 @@ fn stored_directories_bin_creates_commands_from_virtual_files() {
     std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
     std::fs::write(&blob, r#"{"name":"tool","directories":{"bin":"./commands"}}"#).unwrap();
     let config = pnpm_config::Config {
-        modules_dir: root.join(".pnpm"),
-        install_state_dir: root.join(".pnpm"),
+        modules_dir: root.join("node_modules"),
+        install_state_dir: root.join("node_modules/.pnpm"),
         ..pnpm_config::Config::default()
     };
     let manifest = StoreManifest {
@@ -54,9 +54,9 @@ fn stored_directories_bin_creates_commands_from_virtual_files() {
         &manifest,
     )
     .unwrap();
-    assert!(root.join(".pnpm/.bin/hello").is_file());
-    assert!(root.join(".pnpm/.bin/another").is_file());
-    assert!(!root.join(".pnpm-loader").exists());
+    assert!(root.join("node_modules/.bin/hello").is_file());
+    assert!(root.join("node_modules/.bin/another").is_file());
+    assert!(!root.join("node_modules/.pnpm/.pnpm-loader").exists());
 }
 
 #[test]

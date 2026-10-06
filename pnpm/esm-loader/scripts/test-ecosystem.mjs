@@ -31,7 +31,7 @@ if (runner !== 'node') fs.writeFileSync(runnerEntry, `await import(new URL(${JSO
 const auditPath = path.join(root, 'cas-loads.jsonl')
 const casArgs = runner === 'node' ? args : [runnerEntry, ...args]
 const cas = run(['--import', pathToFileURL(path.join(root, 'loader.mjs')).href, ...casArgs], {
-  cwd: path.join(root, 'repo', cwd), env: { ...env, ...auditEnvironment(root, auditPath), PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json') },
+  cwd: path.join(root, 'repo', cwd), env: { ...env, ...auditEnvironment(root, auditPath), PNPM_LOADER_MANIFEST: path.join(root, '.store-manifest.json') },
 })
 for (const [name, result] of Object.entries({ baseline, cas })) {
   fs.writeFileSync(path.join(root, name + '.stdout'), result.stdout)
