@@ -364,6 +364,22 @@ pub fn check_lockfile_settings(
     // while this compares the lockfile against itself. A lockfile that drifted
     // from the config is re-resolved either way, so running this first would
     // only risk naming the wrong reason.
+    check_patched_dep_paths(lockfile)
+}
+
+/// The part of [`check_lockfile_settings`] that decides what a build of the
+/// locked packages produces: the patches. A run that builds the locked
+/// packages without resolving or linking them, like pnpm's `rebuild`, needs
+/// nothing else to match.
+pub fn check_lockfile_patches(
+    lockfile: &Lockfile,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
+) -> Result<(), StalenessReason> {
+    check_recorded_patches(lockfile, patched_dependencies)?;
+    check_patched_dep_paths(lockfile)
+}
+
+fn check_patched_dep_paths(lockfile: &Lockfile) -> Result<(), StalenessReason> {
     match crate::check_patched_dep_paths(lockfile) {
         crate::PatchedDepPathsStatus::Stale => Err(StalenessReason::InconsistentPatchHashes),
         crate::PatchedDepPathsStatus::Indeterminate => Err(StalenessReason::UncheckablePatchHashes),
@@ -407,9 +423,16 @@ fn check_recorded_config(
         });
     }
 
+    check_recorded_patches(lockfile, check.patched_dependencies)
+}
+
+fn check_recorded_patches(
+    lockfile: &Lockfile,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
+) -> Result<(), StalenessReason> {
     let empty_patches: BTreeMap<String, String> = BTreeMap::new();
     let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
-    let config_patches = check.patched_dependencies.unwrap_or(&empty_patches);
+    let config_patches = patched_dependencies.unwrap_or(&empty_patches);
     if lockfile_patches != config_patches {
         return Err(StalenessReason::PatchedDependenciesChanged {
             lockfile: lockfile_patches.clone(),

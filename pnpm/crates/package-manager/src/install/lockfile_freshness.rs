@@ -116,6 +116,7 @@ async fn workspace_manifests_satisfy(
                 allow_missing_dependency_free_importers: true,
                 allow_unresolved_optional_dependencies: false,
                 prune_stale_importers: true,
+                patches_only: false,
             },
         },
     )
@@ -227,6 +228,9 @@ pub(crate) struct FreshnessScope {
     /// unfiltered workspace install may, since only it sees the
     /// complete project list.
     pub(crate) prune_stale_importers: bool,
+    /// Check only the lockfile's patches of the settings it records. See
+    /// [`pnpm_deps_restorer::RebuildOptions::check_lockfile_patches_only`].
+    pub(crate) patches_only: bool,
 }
 
 /// The first importer the lockfile records that no project claims.
@@ -309,22 +313,7 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
-    let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
-        inputs.pnpmfile_hook,
-        lockfile.pnpmfile_checksum.as_deref(),
-    )
-    .await;
-    check_lockfile_settings_drift(
-        lockfile,
-        inputs.config,
-        inputs.catalogs,
-        CheckLockfileSettingsDriftOptions {
-            parsed_overrides: parsed_overrides_opt.as_deref(),
-            pnpmfile_checksum: super::pnpmfile_checksum_check(inputs, pnpmfile_checksum.as_deref()),
-            dedupe_peers: inputs.config.dedupe_peers,
-        },
-    )?;
+    let parsed_overrides_opt = settings::check_settings(lockfile, inputs).await?;
 
     if inputs.scope.ignore_manifest_check {
         return Ok(Vec::new());
@@ -450,7 +439,16 @@ pub(crate) fn parse_config_overrides(
     config: &Config,
     catalogs: &Catalogs,
 ) -> Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>, FreshnessCheckError> {
-    match config.overrides.as_ref() {
+    parse_overrides(config.overrides.as_ref(), catalogs)
+}
+
+/// Parses an `overrides` map, from the config or the one a lockfile
+/// records. `None` when there are none.
+pub(crate) fn parse_overrides(
+    overrides: Option<&indexmap::IndexMap<String, String>>,
+    catalogs: &Catalogs,
+) -> Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>, FreshnessCheckError> {
+    match overrides {
         Some(map) if !map.is_empty() => Ok(Some(
             pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)
                 .map_err(FreshnessCheckError::InvalidOverrides)?,
@@ -520,6 +518,8 @@ pub(crate) fn check_lockfile_settings_drift(
     )
     .map_err(FreshnessCheckError::Stale)
 }
+
+mod settings;
 
 #[cfg(test)]
 mod tests;

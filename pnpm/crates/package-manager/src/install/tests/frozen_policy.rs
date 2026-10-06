@@ -374,6 +374,108 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     ));
 }
 
+/// The `@pnpm/napi` rebuild checks only the lockfile's patches, as pnpm
+/// v11's `rebuild` does: a `pnpmfileChecksum` that drifted, which fails
+/// the frozen install above, does not fail it, while drifted patches do.
+#[tokio::test]
+async fn patches_only_rebuild_checks_only_the_lockfile_patches() {
+    let pnpmfile_drift = text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .: {}"
+    };
+    let patches_drift = text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  is-positive: deadbeef"
+        "importers:"
+        "  .: {}"
+    };
+    rebuild_patches_only(pnpmfile_drift).await.expect("a pnpmfileChecksum drift is not checked");
+    assert!(matches!(
+        rebuild_patches_only(patches_drift).await,
+        Err(InstallError::LockfileConfigMismatch { setting: "patchedDependencies" })
+    ));
+}
+
+/// Rebuilds a project that has a `.pnpmfile.cjs`, which the lockfile
+/// does not record, against `lockfile`, checking only its patches.
+async fn rebuild_patches_only(lockfile: &str) -> Result<(), InstallError> {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest = PackageManifest::create_if_needed(project_root.join("package.json")).unwrap();
+    std::fs::write(
+        project_root.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage: pkg => pkg } }\n",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.install_state_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(lockfile).expect("parse lockfile");
+
+    Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::NoInstall,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+            dedicated: None,
+        },
+    }
+    .run_rebuild::<SilentReporter>(crate::RebuildOptions {
+        check_lockfile_patches_only: true,
+        ..Default::default()
+    })
+    .await
+}
+
 #[tokio::test]
 async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
     let dirs = InstallDirs::new();
