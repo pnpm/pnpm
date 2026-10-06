@@ -16,7 +16,7 @@ import semver from 'semver'
 
 import { extendGraph } from './extendGraph.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { getWantedDependencies, hasAlias, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ResolvedPkgsById } from './resolutionTypes.js'
 import type { DependenciesTree, UpdateMatchingFunction } from './resolveDependencies.js'
 import {
@@ -46,7 +46,9 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 
 export {
   getWantedDependencies,
+  hasAlias,
   type LinkedDependency,
+  type ManifestWantedDependency,
   type RangeSpecStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,

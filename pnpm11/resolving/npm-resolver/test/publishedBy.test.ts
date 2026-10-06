@@ -996,6 +996,7 @@ test('the release-age upgrade of a validated mirror records the full etag', asyn
   /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   expect(persistedMeta.etag).toBeUndefined()
   expect(persistedMeta.fullEtag).toBe('"full-etag"')
   // `modified` is the packument's own `time.modified`, identical in both

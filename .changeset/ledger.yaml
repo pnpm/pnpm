@@ -265,6 +265,10 @@
   dir: pnpm11/cache/api
   intents:
     - decode-registries-in-cache-list
+"@pnpm/cache.api@1100.0.49":
+  dir: pnpm11/cache/api
+  intents:
+    - indexed-metadata-mirror
 "@pnpm/cache.commands@1100.0.29":
   dir: pnpm11/cache/commands
   intents:
@@ -297,6 +301,10 @@
   dir: pnpm11/catalogs/resolver
   intents:
     - docs-catalogs-resolver-readme
+"@pnpm/catalogs.resolver@1100.1.2":
+  dir: pnpm11/catalogs/resolver
+  intents:
+    - aliasless-wanted-dependencies
 "@pnpm/catalogs.types@1100.0.1":
   dir: pnpm11/catalogs/types
   intents:
@@ -380,6 +388,11 @@
   dir: pnpm11/cli/meta
   intents:
     - homebrew-self-update
+"@pnpm/cli.parse-cli-args@1100.1.15":
+  dir: pnpm11/cli/parse-cli-args
+  intents:
+    - forward-config-flags-to-verify-deps-install
+    - location-global-skips-workspace
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -594,6 +607,15 @@
   intents:
     - validate-allow-unused-patches-setting
     - validate-ignored-optional-dependencies-and-required-scripts
+"@pnpm/config.reader@1102.3.4":
+  dir: pnpm11/config/reader
+  intents:
+    - auth-config-errors-and-warnings
+    - forward-config-flags-to-verify-deps-install
+    - location-global-skips-workspace
+    - node-download-mirrors-workspace
+    - redact-ignored-npmrc-key-userinfo
+    - validate-proxy-settings
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -632,6 +654,10 @@
   dir: pnpm11/core/constants
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/constants@1102.0.1":
+  dir: pnpm11/core/constants
+  intents:
+    - indexed-metadata-mirror
 "@pnpm/core-loggers@1100.2.3":
   dir: pnpm11/core/core-loggers
   intents:
@@ -760,6 +786,12 @@
     - licenses-all-installed-copies
     - licenses-hoisted-package-paths
     - webcontainer-async-fs-errors
+"@pnpm/deps.compliance.commands@1102.1.9":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - audit-artifact-signature
+    - audit-fix-override-respects-save-exact
+    - safe-license-terminal
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -780,6 +812,10 @@
   dir: pnpm11/deps/compliance/license-scanner
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.compliance.license-scanner@1101.0.10":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - fifty-flies-sleep
 "@pnpm/deps.compliance.license-scanner@1101.0.4":
   dir: pnpm11/deps/compliance/license-scanner
   intents:
@@ -948,6 +984,10 @@
   dir: pnpm11/deps/inspection/commands
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.inspection.commands@1101.0.10":
+  dir: pnpm11/deps/inspection/commands
+  intents:
+    - fifty-flies-sleep
 "@pnpm/deps.inspection.commands@1101.0.5":
   dir: pnpm11/deps/inspection/commands
   intents:
@@ -979,6 +1019,10 @@
   dir: pnpm11/deps/inspection/list
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.inspection.list@1101.0.10":
+  dir: pnpm11/deps/inspection/list
+  intents:
+    - fifty-flies-sleep
 "@pnpm/deps.inspection.list@1101.0.5":
   dir: pnpm11/deps/inspection/list
   intents:
@@ -1035,6 +1079,10 @@
   intents:
     - drop-modules-yaml-registries
     - registries-by-scope-by-prefix
+"@pnpm/deps.inspection.tree-builder@1101.0.10":
+  dir: pnpm11/deps/inspection/tree-builder
+  intents:
+    - fifty-flies-sleep
 "@pnpm/deps.inspection.tree-builder@1101.0.6":
   dir: pnpm11/deps/inspection/tree-builder
   intents:
@@ -1073,6 +1121,11 @@
   intents:
     - link-file-dep-inside-package
     - patched-engines-engine-strict
+"@pnpm/deps.path@1101.0.6":
+  dir: pnpm11/deps/path
+  intents:
+    - fifty-flies-sleep
+    - tarball-path-literal-plus
 "@pnpm/deps.peer-range@1100.1.0":
   dir: pnpm11/deps/peer-range
   intents:
@@ -1105,6 +1158,10 @@
   dir: pnpm11/deps/security/signatures
   intents:
     - webcontainer-async-fs-errors
+"@pnpm/deps.security.signatures@1102.0.9":
+  dir: pnpm11/deps/security/signatures
+  intents:
+    - audit-artifact-signature
 "@pnpm/deps.status@1100.1.12":
   dir: pnpm11/deps/status
   intents:
@@ -1236,6 +1293,10 @@
     - range-pin-respects-minimum-release-age
     - self-update-replaces-standalone-exe
     - x64-musl-switch-to-pnpm-10
+"@pnpm/engine.pm.commands@1102.1.8":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - setup-names-unchanged-config
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -1326,6 +1387,10 @@
   dir: pnpm11/__utils__/eslint-config
   intents:
     - eslint-config-perfectionist-rules
+"@pnpm/esm-loader@0.1.0":
+  dir: pnpm/esm-loader
+  intents:
+    - store-backed-module-loader
 "@pnpm/exe@11.13.1":
   dir: pnpm11/pnpm/artifacts/exe
   intents:
@@ -1431,6 +1496,11 @@
   intents:
     - run-after-failed-pre-run-install
     - verify-deps-check-selected-project-dependencies
+"@pnpm/exec.commands@1101.1.9":
+  dir: pnpm11/exec/commands
+  intents:
+    - dlx-require-command
+    - forward-config-flags-to-verify-deps-install
 "@pnpm/exec.esm-node-path-loader@1100.0.0":
   dir: pnpm11/exec/esm-node-path-loader
   intents:
@@ -1542,6 +1612,10 @@
     - git-dep-prepare-ignored-builds
     - prepare-lockfile-less-pnpm-workspace
     - webcontainer-async-fs-errors
+"@pnpm/exec.prepare-package@1100.0.42":
+  dir: pnpm11/exec/prepare-package
+  intents:
+    - fix-prepare-package-subpath-symlink
 "@pnpm/fetching.binary-fetcher@1102.0.13":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -1577,6 +1651,10 @@
     - fresh-shoes-deploy
     - injected-dep-unbuilt-publish-directory
     - webcontainer-async-fs-errors
+"@pnpm/fetching.directory-fetcher@1100.0.38":
+  dir: pnpm11/fetching/directory-fetcher
+  intents:
+    - safe-deploy-all-files
 "@pnpm/fetching.fetcher-base@1100.2.10":
   dir: pnpm11/fetching/fetcher-base
   intents:
@@ -1616,6 +1694,10 @@
   intents:
     - git-ssh-publickey-hint
     - webcontainer-async-fs-errors
+"@pnpm/fetching.git-fetcher@1102.0.24":
+  dir: pnpm11/fetching/git-fetcher
+  intents:
+    - validate-git-fetcher-repo-argument
 "@pnpm/fetching.git-fetcher@1102.0.9":
   dir: pnpm11/fetching/git-fetcher
   intents:
@@ -1662,6 +1744,10 @@
     - index-computed-integrity-tarballs
     - local-tarball-not-downloaded
     - webcontainer-async-fs-errors
+"@pnpm/fetching.tarball-fetcher@1102.1.8":
+  dir: pnpm11/fetching/tarball-fetcher
+  intents:
+    - bounded-tarball-memory
 "@pnpm/fetching.types@1100.0.3":
   dir: pnpm11/fetching/types
   intents:
@@ -1765,6 +1851,10 @@
   dir: pnpm11/fs/packlist
   intents:
     - webcontainer-async-fs-errors
+"@pnpm/fs.packlist@1100.0.8":
+  dir: pnpm11/fs/packlist
+  intents:
+    - fix-bundled-dependencies-symlink-traversal
 "@pnpm/fs.read-modules-dir@1100.0.2":
   dir: pnpm11/fs/read-modules-dir
   intents:
@@ -2317,6 +2407,12 @@
   dir: pnpm11/installing/deps-installer
   intents:
     - frozen-install-absent-workspace-project
+"@pnpm/installing.deps-installer@1104.2.4":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - aliasless-wanted-dependencies
+    - keep-locked-peer-dependencies
+    - lockfile-verification-variations
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -2431,6 +2527,12 @@
   dir: pnpm11/installing/deps-resolver
   intents:
     - frozen-lockfile-workspace-dependencies-meta
+"@pnpm/installing.deps-resolver@1102.2.7":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - aliasless-wanted-dependencies
+    - keep-locked-peer-dependencies
+    - required-peer-follows-its-provider
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -2539,6 +2641,10 @@
     - config-dep-tarball-from-packument
     - frozen-lockfile-package-manager-deps
     - registries-by-scope-by-prefix
+"@pnpm/installing.env-installer@1103.0.10":
+  dir: pnpm11/installing/env-installer
+  intents:
+    - config-dependency-resolution-verification
 "@pnpm/installing.env-installer@1103.0.2":
   dir: pnpm11/installing/env-installer
   intents:
@@ -3127,6 +3233,10 @@
     - move-components-into-monorepo
     - path-extender-posix-keeps-lines-between-sections
     - webcontainer-async-fs-errors
+"@pnpm/os.env.path-extender-posix@1100.0.1":
+  dir: pnpm11/os/env/path-extender-posix
+  intents:
+    - setup-path-guard-keeps-pnpm-home-first
 "@pnpm/os.env.path-extender-windows@1100.0.0":
   dir: pnpm11/os/env/path-extender-windows
   intents:
@@ -3234,6 +3344,10 @@
     - fix-add-exact-version
     - update-keeps-range-shape
     - update-peer-dependencies
+"@pnpm/pkg-manifest.utils@1100.4.9":
+  dir: pnpm11/pkg-manifest/utils
+  intents:
+    - fix-manifest-utils-prototype-pollution
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -3438,6 +3552,11 @@
   dir: pnpm11/registry-access/commands
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/registry-access.commands@1101.0.10":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - fix-unpublish-registry-path-boundary
+    - unpublish-registry-path-tarball-delete
 "@pnpm/registry-access.commands@1101.0.3":
   dir: pnpm11/registry-access/commands
   intents:
@@ -3554,6 +3673,10 @@
     - deploy-injected-deduped-peer
     - pack-app-dot-dot-dirs
     - publish-readme-file-names
+"@pnpm/releasing.commands@1101.2.8":
+  dir: pnpm11/releasing/commands
+  intents:
+    - bounded-publish-entries
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -3708,6 +3831,10 @@
     - add-link-peer-warning
     - inject-workspace-packages-relative-path
     - link-file-dep-inside-package
+"@pnpm/resolving.local-resolver@1101.2.6":
+  dir: pnpm11/resolving/local-resolver
+  intents:
+    - unsupported-protocol-specifier
 "@pnpm/resolving.npm-resolver@1102.1.3":
   dir: pnpm11/resolving/npm-resolver
   intents:
@@ -3803,6 +3930,11 @@
   intents:
     - release-age-upgrade-keeps-full-etag
     - revalidate-uncacheable-registry-metadata
+"@pnpm/resolving.npm-resolver@1104.2.5":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - indexed-metadata-mirror
+    - lockfile-verification-variations
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -3835,6 +3967,10 @@
   dir: pnpm11/resolving/registry/pkg-metadata-filter
   intents:
     - latest-falls-back-to-major-prerelease
+"@pnpm/resolving.registry.pkg-metadata-filter@1100.0.23":
+  dir: pnpm11/resolving/registry/pkg-metadata-filter
+  intents:
+    - indexed-metadata-mirror
 "@pnpm/resolving.registry.types@1100.1.6":
   dir: pnpm11/resolving/registry/types
   intents:
@@ -3951,6 +4087,12 @@
     - stream-large-gzip-tarballs
     - tidy-otters-heal
     - webcontainer-async-fs-errors
+"@pnpm/store.cafs@1100.3.7":
+  dir: pnpm11/store/cafs
+  intents:
+    - bounded-tarball-memory
+    - fix-bundled-dependencies-symlink-traversal
+    - tarball-parser-overflow-pax-validation
 "@pnpm/store.commands@1100.0.38":
   dir: pnpm11/store/commands
   intents:
@@ -4253,6 +4395,10 @@
   dir: pnpm11/worker
   intents:
     - redact-integrity-error-url
+"@pnpm/worker@1100.4.8":
+  dir: pnpm11/worker
+  intents:
+    - bounded-tarball-memory
 "@pnpm/workspace.commands@1100.1.31":
   dir: pnpm11/workspace/commands
   intents:
@@ -4405,6 +4551,10 @@
   dir: pnpm11/workspace/projects-reader
   intents:
     - webcontainer-async-fs-errors
+"@pnpm/workspace.projects-reader@1101.1.3":
+  dir: pnpm11/workspace/projects-reader
+  intents:
+    - fix-resolutions-warning-message
 "@pnpm/workspace.projects-sorter@1100.0.11":
   dir: pnpm11/workspace/projects-sorter
   intents:
@@ -5676,6 +5826,53 @@ pacquet@12.1.0:
     - wild-buttons-repeat
     - windows-console-ansi-colors
     - workspace-task-orchestration
+pacquet@12.10.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - audit-artifact-signature
+    - audit-fix-override-respects-save-exact
+    - bounded-tar-metadata
+    - cache-prune-legacy-metadata
+    - cas-install-mode
+    - cmd-shim-self-update-from-batch-kept-shim
+    - config-dependency-resolution-verification
+    - config-warnings-before-config-failure
+    - custom-resolution-shape
+    - dedupe-reads-registry-metadata
+    - devengines-warning-on-stderr
+    - empty-node-options
+    - exec-pinned-engine-binary
+    - fail-if-no-match-setting
+    - fatal-resolution-context
+    - fifty-flies-sleep
+    - fix-lockfile-repairs-missing-snapshot
+    - fix-missing-bin-parent
+    - fix-unpublish-registry-path-boundary
+    - forward-config-flags-to-verify-deps-install
+    - ghsa-jg5c-gvs-version-traversal
+    - global-config-read-skips-project
+    - indexed-metadata-mirror
+    - invalid-git-repository-error-code
+    - lockfile-include-resolution-settings
+    - lockfile-verification-variations
+    - max-sockets-metadata-priority
+    - pnpm11-switch-shebangless-bins
+    - redact-ignored-request-destination-userinfo
+    - reject-invalid-dependency-specifiers
+    - relink-reads-existing-links-first
+    - required-peer-follows-its-provider
+    - run-interrupted-script-not-a-failure
+    - run-regex-lookaround
+    - runtime-help-lists-set
+    - setup-names-unchanged-config
+    - setup-path-guard-keeps-pnpm-home-first
+    - smaller-arm64-linux-binary
+    - smaller-pack-collation-data
+    - tarball-path-literal-plus
+    - unpublish-registry-path-tarball-delete
+    - update-respects-save-prefix
+    - windows-invalid-local-path
+    - windows-job-breakaway
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
@@ -7398,3 +7595,38 @@ pnpm@11.28.4:
     - warn-optional-fetch-failure-v11
     - witty-bears-sing
     - x64-musl-switch-to-pnpm-10
+pnpm@11.28.5:
+  dir: pnpm11/pnpm
+  intents:
+    - audit-artifact-signature
+    - audit-fix-override-respects-save-exact
+    - auth-config-errors-and-warnings
+    - bounded-publish-entries
+    - bounded-tarball-memory
+    - config-dependency-resolution-verification
+    - devengines-warning-on-stderr
+    - dlx-require-command
+    - fifty-flies-sleep
+    - fix-bundled-dependencies-symlink-traversal
+    - fix-manifest-utils-prototype-pollution
+    - fix-prepare-package-subpath-symlink
+    - fix-resolutions-warning-message
+    - fix-unpublish-registry-path-boundary
+    - forward-config-flags-to-verify-deps-install
+    - indexed-metadata-mirror
+    - keep-locked-peer-dependencies
+    - location-global-skips-workspace
+    - lockfile-verification-variations
+    - node-download-mirrors-workspace
+    - redact-ignored-npmrc-key-userinfo
+    - required-peer-follows-its-provider
+    - safe-deploy-all-files
+    - safe-license-terminal
+    - setup-names-unchanged-config
+    - setup-path-guard-keeps-pnpm-home-first
+    - tarball-parser-overflow-pax-validation
+    - tarball-path-literal-plus
+    - unpublish-registry-path-tarball-delete
+    - unsupported-protocol-specifier
+    - validate-git-fetcher-repo-argument
+    - validate-proxy-settings

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "1100.3.6",
+  "version": "1100.3.7",
   "description": "A content-addressable filesystem for the packages storage",
   "keywords": [
     "pnpm",
@@ -38,11 +38,11 @@
     "@pnpm/store.file-mode": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "bz2": "catalog:",
     "is-gzip": "catalog:",
     "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
+    "seek-bzip": "catalog:",
     "semver": "catalog:",
     "strip-bom": "catalog:"
   },

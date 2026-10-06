@@ -241,6 +241,7 @@ impl super::RunExecution<'_> {
             RepeatInstallVerdict::Unchanged | RepeatInstallVerdict::UnchangedFrozen => false,
         };
         if changed
+            || self.malformed_declaration_blocks_repeat_install(scope)
             || pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
         {
             return Ok(RepeatInstallVerdict::Changed);

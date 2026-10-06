@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
@@ -86,6 +87,43 @@ test('console a warning when a project-level .npmrc has an unresolved env variab
   })
 
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console warnings before rethrowing a config error', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console warnings before rethrowing a config error when onlyInheritDlxSettingsFromLocal is true', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+    onlyInheritDlxSettingsFromLocal: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(console.warn).toHaveBeenCalledTimes(1)
+  const printed = jest.mocked(console.warn).mock.calls[0][0] as string
+  expect(printed.split('Failed to replace env in config: ${ENV_VAR_123}')).toHaveLength(2)
 })
 
 test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
@@ -208,6 +246,30 @@ describe('installConfigDepsAndLoadHooks', () => {
         err: simulatedError,
       })
     )
+  })
+
+  test('does not load installed config plugins after tolerated verification transport failure', async () => {
+    prepare()
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(new Error('401 Unauthorized'))
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    config.configDependencies = { 'pnpm-plugin-unverified': '1.0.0' }
+    fs.mkdirSync('node_modules/.pnpm-config/pnpm-plugin-unverified', { recursive: true })
+    fs.writeFileSync('node_modules/.pnpm-config/pnpm-plugin-unverified/pnpmfile.cjs', `
+      require('fs').writeFileSync('unverified-plugin-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+    await installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
+    expect(fs.existsSync('unverified-plugin-loaded')).toBe(false)
+  })
+
+  test('does not tolerate configuration dependency verification violations', async () => {
+    prepare()
+    const error = new PnpmError('BAD_CONFIG_DEP', 'Unapproved configuration dependency tarball')
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(error)
+    const { config, context } = buildBaseConfig()
+    await expect(installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true }))
+      .rejects.toBe(error)
   })
 
   test('throws when install fails and tolerateConfigDependenciesErrors is not set (default behaviour)', async () => {

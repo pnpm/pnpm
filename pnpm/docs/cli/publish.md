@@ -22,6 +22,9 @@ the registry metadata if the manifest has no `readme` value. It recognizes
 as `README.markdown` and `README.mdown`), and `README`. It prefers `README.md`,
 then another Markdown README, then `README`.
 
+When publishing a pre-built tarball, pnpm rejects manifests, README files, and
+archive metadata larger than 64 MiB.
+
 When publishing a package inside a [workspace](../workspaces.md), the LICENSE file
 from the root of the workspace is packed with the package (unless the package
 has a license of its own).

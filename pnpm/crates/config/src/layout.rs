@@ -2,7 +2,7 @@ use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
     Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, WantedLockfileSelection,
     WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
-    esm_node_path_loader, get_branches_containing_head, get_current_branch, store_path,
+    get_branches_containing_head, get_current_branch, store_path,
 };
 
 impl Config {
@@ -328,21 +328,6 @@ impl Config {
             .collect::<Vec<_>>()
             .join(":");
         env.insert("NODE_PATH".to_string(), node_path);
-    }
-
-    /// [`Config::extra_env`] with the `nodeOptions` setting applied as
-    /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
-    /// `extra_env` carries under a global virtual store.
-    pub fn extra_env_with_node_options(&self) -> HashMap<String, String> {
-        let mut extra_env = self.extra_env.clone();
-        if let Some(node_options) = &self.node_options {
-            let node_options = esm_node_path_loader::keep_esm_node_path_loader_option(
-                node_options,
-                self.extra_env.get("NODE_OPTIONS").map(String::as_str),
-            );
-            extra_env.insert("NODE_OPTIONS".to_string(), node_options);
-        }
-        extra_env
     }
 
     /// Clear both hoist patterns when [`virtual_store_only`] is set.

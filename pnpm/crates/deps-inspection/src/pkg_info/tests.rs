@@ -40,9 +40,12 @@ fn get_pkg_info_handles_missing_pkg_snapshot_without_crashing() {
         layout: crate::pkg_info::InspectionLayout {
             lockfile_dir: PathBuf::new(),
             modules_dir: PathBuf::new(),
+            relative_modules_dir: PathBuf::from("node_modules"),
             virtual_store_dir: PathBuf::from(".pnpm"),
             virtual_store_dir_max_length: 120,
             store_dir: None,
+            is_hoisted: false,
+            hoisted_dirs: std::collections::BTreeMap::new(),
         },
     };
     let edge = GraphEdge {
@@ -112,9 +115,12 @@ fn resolve_package_path_rejects_traversal_in_lockfile_derived_names() {
         layout: crate::pkg_info::InspectionLayout {
             lockfile_dir: dir.path().to_path_buf(),
             modules_dir: dir.path().join("node_modules"),
+            relative_modules_dir: PathBuf::from("node_modules"),
             virtual_store_dir: virtual_store_dir.clone(),
             virtual_store_dir_max_length: 120,
             store_dir: None,
+            is_hoisted: false,
+            hoisted_dirs: std::collections::BTreeMap::new(),
         },
     };
     let ctx = EdgeContext {
@@ -125,10 +131,28 @@ fn resolve_package_path_rejects_traversal_in_lockfile_derived_names() {
     };
 
     let dep_path = "..@1.0.0".parse().unwrap();
-    let path =
-        super::resolve_package_path(&env.layout, &dep_path, "../../../../escape", "alias", &ctx);
+    let path = super::resolve_package_path(
+        &env.layout,
+        &dep_path,
+        "../../../../escape",
+        "1.0.0",
+        "alias",
+        &ctx,
+    );
 
     assert_eq!(path, virtual_store_dir);
+
+    let mut hoisted_layout = env.layout;
+    hoisted_layout.is_hoisted = true;
+    let hoisted_path = super::resolve_package_path(
+        &hoisted_layout,
+        &dep_path,
+        "../../../../escape",
+        "1.0.0",
+        "alias",
+        &ctx,
+    );
+    assert_eq!(hoisted_path, virtual_store_dir);
 }
 
 #[test]
@@ -146,4 +170,172 @@ fn unsafe_path_components_are_detected_by_shape() {
         assert!(super::is_unsafe_path_component(r"\escape"));
         assert!(super::is_unsafe_path_component("C:evil"));
     }
+}
+
+#[test]
+fn resolve_package_path_uses_hoisted_dirs_when_linker_is_hoisted() {
+    let dir = tempfile::tempdir().unwrap();
+    let hoisted_pkg_dir = dir
+        .path()
+        .join("node_modules")
+        .join("foo");
+    std::fs::create_dir_all(&hoisted_pkg_dir).unwrap();
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::from([(
+            "foo@1.0.0".to_string(),
+            vec![hoisted_pkg_dir.clone()],
+        )]),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
+    assert_eq!(path, hoisted_pkg_dir);
+}
+
+#[test]
+fn resolve_package_path_probes_the_alias_when_hoisted_locations_are_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let aliased_pkg_dir = dir
+        .path()
+        .join("node_modules")
+        .join("bar");
+    std::fs::create_dir_all(&aliased_pkg_dir).unwrap();
+    std::fs::write(aliased_pkg_dir.join("package.json"), r#"{"name":"foo","version":"1.0.0"}"#)
+        .unwrap();
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::new(),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "bar", &ctx);
+    assert_eq!(path, aliased_pkg_dir);
+}
+
+#[test]
+fn resolve_package_path_keeps_every_segment_of_a_nested_modules_dir_when_hoisted() {
+    let dir = tempfile::tempdir().unwrap();
+    let project_dir = dir.path().join("packages/a");
+    let pkg_dir = project_dir.join("www/modules/foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(pkg_dir.join("package.json"), r#"{"name":"foo","version":"1.0.0"}"#).unwrap();
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("www/modules"),
+        relative_modules_dir: PathBuf::from("www/modules"),
+        virtual_store_dir: dir.path().join("www/modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::new(),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: project_dir,
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
+    assert_eq!(path, pkg_dir);
+}
+
+#[test]
+fn resolve_package_path_picks_the_hoisted_copy_node_resolves_from_the_parent() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_copy = dir.path().join("node_modules/foo");
+    let project_copy = dir.path().join("packages/a/node_modules/foo");
+    let parent_dir = dir.path().join("packages/a/node_modules/bar");
+    for created in [&root_copy, &project_copy, &parent_dir] {
+        std::fs::create_dir_all(created).unwrap();
+    }
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::from([(
+            "foo@1.0.0".to_string(),
+            vec![root_copy, project_copy.clone()],
+        )]),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: Some(parent_dir),
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
+    assert_eq!(path, project_copy);
+}
+
+#[test]
+fn resolve_package_path_picks_the_hoisted_copy_under_the_edge_alias() {
+    let dir = tempfile::tempdir().unwrap();
+    let foo_copy = dir.path().join("node_modules/foo");
+    let bar_copy = dir.path().join("node_modules/bar");
+    let scoped_copy = dir.path().join("node_modules/@scope/foo");
+    for created in [&foo_copy, &bar_copy, &scoped_copy] {
+        std::fs::create_dir_all(created).unwrap();
+    }
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::from([(
+            "foo@1.0.0".to_string(),
+            vec![scoped_copy.clone(), foo_copy.clone(), bar_copy.clone()],
+        )]),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let resolve =
+        |alias| super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", alias, &ctx);
+    assert_eq!(resolve("foo"), foo_copy);
+    assert_eq!(resolve("bar"), bar_copy);
+    assert_eq!(resolve("@scope/foo"), scoped_copy);
+
+    std::fs::remove_dir(&foo_copy).unwrap();
+    assert_ne!(resolve("foo"), foo_copy, "a copy on disk wins over a missing one under the alias");
 }

@@ -9,16 +9,37 @@ import type {
 import { assertValidDependencyAliases } from './validateDependencyAlias.js'
 
 export interface WantedDependency {
-  alias: string
+  alias?: string
   bareSpecifier: string // package reference
   dev: boolean
+  /** Whether this run is the one that adds the dependency to the project's manifest. */
   isNew?: boolean
   optional: boolean
+  injected?: boolean
   saveCatalogName?: string
+  /**
+   * `false` keeps the spec out of the manifest entirely: something other than the project
+   * declares it — a `packageExtensions` entry, a `readPackage` hook, or an override — and that
+   * declaration is not this run's to move. `true` marks a spec the run was asked for by name,
+   * which outranks such a declaration.
+   */
   saveSpec?: boolean
+  /**
+   * `false` keeps `--latest` from resolving past the specifier this dependency was given: the
+   * specifier is not the run's to move, so a resolution that ignores it would leave the lockfile
+   * claiming a version its own specifier rejects. A compatible update still applies, since that
+   * one honors the specifier.
+   */
   updateToLatestAllowed?: boolean
+  /** Whether this dependency's spec should be (re)written to the manifest. */
   updateSpec?: boolean
   prevSpecifier?: string
+}
+
+export type ManifestWantedDependency = WantedDependency & { alias: string }
+
+export function hasAlias<Dependency extends WantedDependency> (wantedDependency: Dependency): wantedDependency is Dependency & { alias: string } {
+  return wantedDependency.alias != null
 }
 
 export function getWantedDependencies (
@@ -27,7 +48,7 @@ export function getWantedDependencies (
     autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
   }
-): WantedDependency[] {
+): ManifestWantedDependency[] {
   assertValidDependencyAliases(pkg.dependencies, 'The current package')
   assertValidDependencyAliases(pkg.devDependencies, 'The current package')
   assertValidDependencyAliases(pkg.optionalDependencies, 'The current package')
@@ -62,7 +83,7 @@ function getWantedDependenciesFromGivenSet (
     peerDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
   }
-): WantedDependency[] {
+): ManifestWantedDependency[] {
   if (!deps) return []
   return Object.entries(deps).map(([alias, bareSpecifier]) => {
     let depType

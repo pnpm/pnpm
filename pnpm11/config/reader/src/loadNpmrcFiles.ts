@@ -11,6 +11,7 @@ import { findLocalPrefix } from './findLocalPrefix.js'
 import { type JsonAuthResult, readGlobalConfigAuth, readJsonAuthEnv } from './jsonAuth.js'
 import { isNpmrcReadableKey } from './localConfig.js'
 import { parseCAFileContents } from './parseCAFileContents.js'
+import { redactRegistryUrl } from './registryUrlUserinfo.js'
 import { rescopeUnscopedCreds } from './rescopeUnscopedCreds.js'
 
 export { findLocalPrefix } from './findLocalPrefix.js'
@@ -68,6 +69,8 @@ export interface LoadNpmrcConfigOpts {
    * must not reach this — repo-controlled config may never supply auth.
    */
   globalConfigAuth?: unknown
+  /** Receives the warnings as they are found, so they survive a throw. */
+  warnings?: string[]
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -76,7 +79,7 @@ interface ReadAndFilterNpmrcOptions {
 }
 
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
-  const warnings: string[] = []
+  const warnings = opts.warnings ?? []
   const env = opts.env ?? process.env as Record<string, string | undefined>
 
   const localPrefix = opts.dir
@@ -410,14 +413,14 @@ function hasEnvPlaceholder (value: string): boolean {
 const DOCS_URL = 'https://pnpm.io/npmrc'
 
 function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
-  warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
+  warnings.push(`Ignored project-level request destination "${redactRegistryUrl(key)}" in "${filePath}": ` +
     'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
     'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
     `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
 }
 
 function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: string[]): void {
-  warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
+  warnings.push(`Ignored project-level auth setting "${redactRegistryUrl(key)}" in "${filePath}": ` +
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
     `See ${DOCS_URL}`)

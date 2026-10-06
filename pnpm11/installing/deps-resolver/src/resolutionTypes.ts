@@ -13,7 +13,7 @@ import type {
 import type { PkgRequestFetchResult, StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import type { CatalogLookupMetadata } from './resolveDependencyTree.js'
 
@@ -103,6 +103,7 @@ export interface ResolutionContext extends RegistryContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  lockedPeersAreCurrent: boolean
   staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
   ignoreScripts?: boolean

@@ -187,6 +187,10 @@ async function verifyResolution (
   resolution: Resolution,
   entry: VerifiedEntry
 ): Promise<ResolutionVerification> {
+  if (isVariationsResolution(resolution)) {
+    return verifyVariationsResolution(settings, resolution, entry)
+  }
+
   if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
   // Network-free structural checks must run before registry metadata shortcuts.
@@ -221,6 +225,25 @@ async function verifyResolution (
     rawRevision: (resolution as { revision?: unknown }).revision,
     tarballUrl,
   })
+}
+
+function isVariationsResolution (resolution: Resolution): resolution is Resolution & { type: 'variations', variants?: Array<{ resolution?: Resolution }> } {
+  return resolution != null && typeof resolution === 'object' && (resolution as { type?: unknown }).type === 'variations'
+}
+
+async function verifyVariationsResolution (
+  settings: VerifierSettings,
+  resolution: { variants?: Array<{ resolution?: Resolution }> },
+  entry: VerifiedEntry
+): Promise<ResolutionVerification> {
+  for (const variant of resolution.variants ?? []) {
+    if (variant?.resolution) {
+      // eslint-disable-next-line no-await-in-loop -- sequential variant verification stops at first violation
+      const result = await verifyResolution(settings, variant.resolution, entry)
+      if (!result.ok) return result
+    }
+  }
+  return { ok: true }
 }
 
 function findRegistryEntryShapeViolation (version: string, rawTarball: unknown): ResolutionViolation | undefined {
@@ -317,6 +340,7 @@ type VerifierPolicy = {
   tarballUrlBinding: true
   revisionHistoryBinding: true
   integrityRequired: true
+  variationResolutionsVerified: true
   namedRegistriesRouting: string
   minimumReleaseAge: number
   minimumReleaseAgeExclude: string[]
@@ -339,6 +363,7 @@ function snapshotVerifierPolicy (
     revisionHistoryBinding: true,
     // Same cache identity rule for the missing-integrity structural check.
     integrityRequired: true,
+    variationResolutionsVerified: true,
     namedRegistriesRouting: createHash('sha256')
       .update(JSON.stringify(sortedRegistriesByPrefix))
       .digest('hex'),
@@ -377,6 +402,7 @@ function cachedRunEnforcedUnconditionalChecks (cached: Record<string, unknown>, 
   // The missing-integrity check is also unconditional; older cache records
   // without the flag cannot prove they rejected unverifiable tarballs.
   if (cached.integrityRequired !== true) return false
+  if (cached.variationResolutionsVerified !== true) return false
 
   return cached.namedRegistriesRouting === namedRegistriesRouting
 }

@@ -11,7 +11,7 @@ import { partition } from 'ramda'
 import { buildTree } from './childrenResolution.js'
 import { createResolutionContext } from './createResolutionContext.js'
 import { collectDirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   DependenciesTree,
@@ -115,6 +115,11 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  /**
+   * The wanted lockfile was written under the current hooks and settings, so
+   * a package reused from it keeps the peer dependencies it records.
+   */
+  lockedPeersAreCurrent?: boolean
   /**
    * Aliases whose lockfile pins are not reused, because an override that may
    * have produced them no longer applies.

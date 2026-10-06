@@ -9,7 +9,7 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
 
 export default [
     {
-        ignores: ["**/fixtures", "**/__fixtures__", "**/node_modules", "**/lib", ".claude/**", "bench-work-env/**", "**/example"],
+        ignores: ["**/fixtures", "**/__fixtures__", "**/node_modules", "**/lib", ".claude/**", "bench-work-env/**", "target/**", "**/example"],
     },
     ...eslintConfig,
     regexpPlugin.configs['flat/recommended'],

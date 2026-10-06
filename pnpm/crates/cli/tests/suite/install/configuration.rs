@@ -6,6 +6,84 @@ use super::{
 use super::{Pipe, enable_gvs_in_workspace_yaml};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
+#[test]
+fn install_rejects_a_non_string_dependency_before_writing_a_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"invalid-dependency","version":"1.0.0","dependencies":{"is-positive":42}}"#,
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["install", "--lockfile-only", "--offline", "--ignore-scripts"])
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "install silently dropped is-positive: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE"), "{stderr}");
+    assert!(stderr.contains("is-positive"), "{stderr}");
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
+fn frozen_install_rejects_a_newly_invalid_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"fixture","version":"1.0.0"}"#)
+        .expect("write initial package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"fixture","version":"1.0.0","dependencies":{"is-positive":42}}"#,
+    )
+    .expect("write invalid package.json");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--offline", "--ignore-scripts"])
+        .output()
+        .expect("run frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "frozen install accepted invalid manifest: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE"), "{stderr}");
+    assert!(stderr.contains("is-positive"), "{stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn read_package_hook_can_repair_a_non_string_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"fixture","version":"1.0.0","dependencies":{"local-dep":42}}"#,
+    )
+    .expect("write package.json");
+    fs::create_dir(workspace.join("dep")).expect("create local dependency");
+    fs::write(workspace.join("dep/package.json"), r#"{"name":"local-dep","version":"1.0.0"}"#)
+        .expect("write local dependency manifest");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage(pkg) { pkg.dependencies['local-dep'] = 'link:./dep'; return pkg } } }",
+    )
+    .expect("write readPackage hook");
+
+    pacquet
+        .with_args(["install", "--lockfile-only", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("hook-repaired dependency should be recorded");
+    assert!(lockfile.contains("local-dep:"), "{lockfile}");
+    assert!(lockfile.contains("link:dep"), "{lockfile}");
+
+    drop(root);
+}
+
 /// A build host that appends `--prod=false` to its install command is
 /// asking for devDependencies, the way nopt reads an explicit boolean
 /// value (pnpm/pnpm#14553).

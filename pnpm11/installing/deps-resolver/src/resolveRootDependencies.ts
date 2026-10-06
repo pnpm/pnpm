@@ -1,7 +1,8 @@
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 
-import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
+import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import { getHoistableRootDeps } from './hoistableRootDeps.js'
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'

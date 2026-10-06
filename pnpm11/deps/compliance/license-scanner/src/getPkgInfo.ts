@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { resolveLicense } from '@pnpm/deps.compliance.license-resolver'
-import { depPathToFilename, removeSuffix } from '@pnpm/deps.path'
+import { depPathToFilename, findHoistedPackageDirs } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
@@ -144,7 +144,7 @@ async function resolvePackageModulePath (
     manifest.name
   )
 
-  const hoistedPaths = findHoistedPaths(pkg.depPath, opts.hoistedLocations, lockfileDir)
+  const hoistedPaths = findHoistedPackageDirs(opts.hoistedLocations, pkg.depPath, lockfileDir)
   if (hoistedPaths.length) {
     return { packageModulePath: pickBestHoistedPath(hoistedPaths, opts.dir), hoistedPaths }
   }
@@ -160,20 +160,6 @@ async function resolvePackageModulePath (
   }
 
   return { packageModulePath: virtualStorePath, hoistedPaths }
-}
-
-function findHoistedPaths (
-  depPath: string,
-  hoistedLocations: Record<string, string[]> | undefined,
-  lockfileDir: string
-): string[] {
-  const locations = hoistedLocations?.[depPath] ??
-    hoistedLocations?.[removeSuffix(depPath)] ??
-    (depPath.startsWith('/') ? hoistedLocations?.[depPath.slice(1)] : hoistedLocations?.[`/${depPath}`]) ??
-    []
-  return locations
-    .map((location) => hoistedPackageDir(lockfileDir, location))
-    .filter((location): location is string => location != null)
 }
 
 function pickBestHoistedPath (hoistedPaths: string[], dir: string): string {
@@ -223,19 +209,6 @@ function extractRepository (manifest: PackageManifest): string | undefined {
   if (!manifest.repository) return undefined
   if (typeof manifest.repository === 'string') return manifest.repository
   return manifest.repository.url
-}
-
-/**
- * A lockfile-relative hoisted location resolved against `lockfileDir`, with
- * `/` and `\` both read as separators, or `undefined` for a location that
- * leaves it.
- */
-function hoistedPackageDir (lockfileDir: string, location: string | undefined): string | undefined {
-  if (location == null || path.isAbsolute(location) || location.startsWith('\\')) return undefined
-  const dir = path.join(lockfileDir, ...location.split(/[/\\]/))
-  const relative = path.relative(lockfileDir, dir)
-  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
-  return dir
 }
 
 async function matchesVirtualStore (candidate: string, expectedVirtualStorePath: string): Promise<boolean> {

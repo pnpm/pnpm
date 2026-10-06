@@ -4699,6 +4699,7 @@ dependencies = [
  "pnpm-registry",
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
+ "pnpm-resolving-deps-resolver",
  "pnpm-resolving-git-resolver",
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-npm-resolver",
@@ -4724,6 +4725,7 @@ dependencies = [
  "rayon",
  "reflink-copy",
  "regex",
+ "regress",
  "reqwest",
  "rmp-serde",
  "rustc-hash 2.1.3",
@@ -5945,6 +5947,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-reporter",
+ "pnpm-tarball",
  "pnpm-wasm-host",
  "pretty_assertions",
  "reqwest",
@@ -6126,6 +6129,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-local-spec",
  "pnpm-lockfile",
+ "pnpm-network",
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-patching",
@@ -7430,6 +7434,15 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "regress"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32eef8b209c3c1c15dbad02c1f30f9539f00dc7253e0cbcdaae442a50a09d7c1"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "replace_with"
@@ -8901,8 +8914,6 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tar"
 version = "0.4.46"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
 dependencies = [
  "filetime",
  "libc",

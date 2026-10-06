@@ -29,29 +29,33 @@ export async function getConfig (
     printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
-  const { config, context, warnings } = await _getConfig({
-    cliOptions,
-    globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
-    skipGlobalBinDirCheck: opts.skipGlobalBinDirCheck,
-    packageManager,
-    workspaceDir: opts.workspaceDir,
-    onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
-    forSelfUpdate: opts.forSelfUpdate,
-    ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
-  })
-  context.cliOptions = cliOptions
-  context.rawCliConfig = opts.rawCliConfig
-  applyDerivedConfig(config)
+  const warnings: string[] = []
+  try {
+    const { config, context } = await _getConfig({
+      cliOptions,
+      globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
+      skipGlobalBinDirCheck: opts.skipGlobalBinDirCheck,
+      packageManager,
+      workspaceDir: opts.workspaceDir,
+      onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
+      forSelfUpdate: opts.forSelfUpdate,
+      ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
+      warnings,
+    })
+    context.cliOptions = cliOptions
+    context.rawCliConfig = opts.rawCliConfig
+    applyDerivedConfig(config)
 
-  if (opts.excludeReporter) {
-    delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
+    if (opts.excludeReporter) {
+      delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
+    }
+
+    return { config, context }
+  } finally {
+    if (opts.printWarnings !== false && warnings.length > 0) {
+      console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
+    }
   }
-
-  if (opts.printWarnings !== false && warnings.length > 0) {
-    console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
-  }
-
-  return { config, context }
 }
 
 /**
@@ -80,8 +84,9 @@ export async function installConfigDepsAndLoadHooks (
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
+  let configDependenciesVerified = false
   if (config.configDependencies) {
-    await installConfigDeps(config, context, {
+    configDependenciesVerified = await installConfigDeps(config, context, {
       configDependencies: config.configDependencies,
       tolerateErrors: opts?.tolerateConfigDependenciesErrors,
     })
@@ -90,7 +95,7 @@ export async function installConfigDepsAndLoadHooks (
     return { config, context }
   }
   return {
-    config: await loadPnpmfileHooks(config, context, opts?.forSelfUpdate),
+    config: await loadPnpmfileHooks(config, context, { forSelfUpdate: opts?.forSelfUpdate, configDependenciesVerified }),
     context,
   }
 }
@@ -99,7 +104,7 @@ async function installConfigDeps (
   config: Config,
   context: ConfigContext,
   opts: { configDependencies: ConfigDependencies, tolerateErrors?: boolean }
-): Promise<void> {
+): Promise<boolean> {
   const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
   try {
     await resolveAndInstallConfigDeps(opts.configDependencies, {
@@ -110,8 +115,9 @@ async function installConfigDeps (
       rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
       frozenLockfile: config.frozenLockfile,
     })
+    return true
   } catch (err: unknown) {
-    if (!opts.tolerateErrors) {
+    if (!opts.tolerateErrors || isConfigDependencyVerificationError(err)) {
       throw err
     }
     const errorMessage = isError(err) ? err.message : String(err)
@@ -119,6 +125,7 @@ async function installConfigDeps (
       message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
       err,
     })
+    return false
   } finally {
     await store.ctrl.close()
   }
@@ -128,9 +135,9 @@ async function installConfigDeps (
  * Loads the pnpmfiles into `context` and runs their `updateConfig` hooks.
  * Returns the config the last hook produced.
  */
-async function loadPnpmfileHooks (config: Config, context: ConfigContext, forSelfUpdate: boolean | undefined): Promise<Config> {
-  config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !forSelfUpdate
-  const pnpmfiles = listConfiguredPnpmfiles(config, context)
+async function loadPnpmfileHooks (config: Config, context: ConfigContext, opts: { forSelfUpdate?: boolean, configDependenciesVerified: boolean }): Promise<Config> {
+  config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !opts.forSelfUpdate
+  const pnpmfiles = listConfiguredPnpmfiles(config, context, opts.configDependenciesVerified)
   const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, {
     globalPnpmfile: config.globalPnpmfile,
     pnpmfiles,
@@ -145,9 +152,9 @@ async function loadPnpmfileHooks (config: Config, context: ConfigContext, forSel
   return applyUpdateConfigHooks(config, context)
 }
 
-function listConfiguredPnpmfiles (config: Config, context: ConfigContext): string[] {
+function listConfiguredPnpmfiles (config: Config, context: ConfigContext, configDependenciesVerified: boolean): string[] {
   const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
-  if (config.configDependencies) {
+  if (configDependenciesVerified && config.configDependencies) {
     const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
     pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
   }
@@ -356,4 +363,8 @@ function applyDerivedConfig (config: Config): void {
     delete config.hoistPattern
     delete config.publicHoistPattern
   }
+}
+
+function isConfigDependencyVerificationError (error: unknown): boolean {
+  return isError(error) && 'code' in error && error.code === 'ERR_PNPM_BAD_CONFIG_DEP'
 }

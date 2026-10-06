@@ -3,10 +3,7 @@
 
 pub use selection::{compare_versions, name_ver_from_dep_path, resolve_package_nodes};
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
+use std::collections::{HashMap, HashSet};
 
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer, ProjectSnapshot};
 use pnpm_package_manifest::parse_manifest_bytes;

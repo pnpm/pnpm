@@ -1,9 +1,10 @@
 import type { AuditAdvisory, AuditLevelString } from '@pnpm/deps.compliance.audit'
+import type { RangeSpecStyle } from '@pnpm/types'
 import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy } from 'ramda'
 
-import { caretRangeForPatched } from './fix.js'
+import { patchedRangeForStyle } from './fix.js'
 
 const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
   info: chalk.dim,
@@ -45,7 +46,7 @@ interface RawRow {
   disabled?: boolean
 }
 
-export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGroup {
+export function getAuditFixChoices (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): AuditChoiceGroup {
   if (advisories.length === 0) {
     return []
   }
@@ -66,16 +67,16 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
   for (const severity of SEVERITY_ORDER) {
     const groupAdvisories = grouped[severity]
     if (!groupAdvisories?.length) continue
-    finalChoices.push(createSeverityChoiceGroup(severity, groupAdvisories))
+    finalChoices.push(createSeverityChoiceGroup(severity, groupAdvisories, rangeSpecStyle))
   }
 
   return finalChoices
 }
 
-function createSeverityChoiceGroup (severity: AuditLevelString, groupAdvisories: AuditAdvisory[]): AuditChoiceGroup[number] {
+function createSeverityChoiceGroup (severity: AuditLevelString, groupAdvisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): AuditChoiceGroup[number] {
   const rows: RawRow[] = [
     { raw: COLUMN_HEADER, key: '', disabled: true },
-    ...groupAdvisories.map(toRawRow),
+    ...groupAdvisories.map((advisory) => toRawRow(advisory, rangeSpecStyle)),
   ]
 
   const rendered = alignColumns(rows.map(r => r.raw))
@@ -104,12 +105,12 @@ function createSeverityChoiceGroup (severity: AuditLevelString, groupAdvisories:
   }
 }
 
-function toRawRow (advisory: AuditAdvisory): RawRow {
+function toRawRow (advisory: AuditAdvisory, rangeSpecStyle: RangeSpecStyle): RawRow {
   return {
     raw: [
       advisory.module_name,
       advisory.vulnerable_versions,
-      advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
+      advisory.patched_versions ? patchedRangeForStyle(advisory.patched_versions, rangeSpecStyle) : '',
       advisory.github_advisory_id ?? '',
     ],
     key: `${advisory.module_name}@${advisory.vulnerable_versions}`,

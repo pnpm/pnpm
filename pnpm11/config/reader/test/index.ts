@@ -62,6 +62,52 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+test('onlyInheritDlxSettingsFromLocal inherits nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
+    shamefullyHoist: true,
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  expect(config.nodeDownloadMirrors).toStrictEqual({ release: 'https://mirror.example/nodejs/' })
+  expect(config.shamefullyHoist).not.toBe(true)
+})
+
+test('onlyInheritDlxSettingsFromLocal does not inherit non-release nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example/nodejs/',
+      nightly: 'https://mirror.example/nightly/',
+    },
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  // Only the `release` channel publishes a signed SHASUMS256.txt, so a
+  // workspace may not redirect the unsigned channels for a runtime dlx runs.
+  expect(config.nodeDownloadMirrors?.release).toBe('https://mirror.example/nodejs/')
+  expect(config.nodeDownloadMirrors?.nightly).not.toBe('https://mirror.example/nightly/')
+})
+
 const runningNodeMajor = Number(process.versions.node.split('.')[0])
 
 test.each([
@@ -1780,6 +1826,31 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
   ]))
   const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
   expect(urlScopedWarning).toContain('https://pnpm.io/npmrc')
+})
+
+test('ignored project .npmrc warnings do not print the userinfo of URL-scoped keys', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', [
+    '//user:password@registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+    '//user:password@attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
+    '',
+  ].join('\n'), 'utf8')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+  ]))
+  expect(warnings.join('\n')).not.toContain('user:password')
 })
 
 test('project .npmrc does not expand env variables in auth values', async () => {
@@ -4860,6 +4931,45 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   ]
 
   expect(warnings).toEqual(expect.arrayContaining(expected))
+})
+
+test('collect warnings into the caller-provided array when config loading fails', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
+test('collect .npmrc warnings into the caller-provided array when pnpm_config__auth is malformed', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_authToken=${ENV_VAR_123}', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    env: { pnpm_config__auth: '{' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_AUTH_SETTING' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
 })
 
 test.each([

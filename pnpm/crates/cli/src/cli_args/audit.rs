@@ -18,8 +18,8 @@ pub(crate) use request::{
     root_included,
 };
 pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, is_range_subset, min_version_from_range,
-    patched_range_for_style, satisfies_including_prerelease, satisfies_safe,
+    infer_patched_versions, is_range_subset, min_version_from_range, patched_range_for_style,
+    satisfies_including_prerelease, satisfies_safe,
 };
 
 #[cfg(target_family = "wasm")]

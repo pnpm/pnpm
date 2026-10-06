@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import console from 'node:console'
 import process from 'node:process'
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
@@ -43,6 +43,7 @@ pnpm-process = { path = ${JSON.stringify(join(root, 'pnpm/crates/process'))} }
 serde_json = "=${lockedVersion('serde_json')}"
 `
 mkdirSync(join(generated, 'src'), { recursive: true })
+cpSync(join(root, 'vendor'), join(generated, 'vendor'), { recursive: true })
 writeFileSync(join(generated, 'Cargo.toml'), manifest)
 copyFileSync(join(root, 'Cargo.lock'), join(generated, 'Cargo.lock'))
 copyFileSync(join(directory, 'main.rs'), join(generated, 'src', 'main.rs'))

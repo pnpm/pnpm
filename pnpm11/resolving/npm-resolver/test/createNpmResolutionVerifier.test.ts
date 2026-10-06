@@ -514,6 +514,12 @@ test('createNpmResolutionVerifier() rejects a registry tarball with no integrity
   expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
+test.each([undefined, null])('createNpmResolutionVerifier() skips an absent resolution for lockfile repair: %s', async (resolution) => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(resolution as unknown as Resolution, { name: 'foo', version: '1.0.0' })
+  expect(result).toEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() rejects a canonical registry entry stripped down to {}', async () => {
   // A tampered lockfile can delete both the tarball URL and integrity from a canonical
   // registry entry; the URL is reconstructed from name+version, so it must still be rejected.
@@ -1073,5 +1079,77 @@ test('createNpmResolutionVerifier() routes to more specific scoped registry when
   )
 
   expect(result).toMatchObject({ ok: true })
+})
+
+test('createNpmResolutionVerifier() inspects and verifies inner resolutions in variations wrapper', async () => {
+  const meta = {
+    name: 'var-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'var-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/var-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+
+  // Matching inner resolution passes
+  const validResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            integrity: FAKE_INTEGRITY,
+            tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(validResult).toMatchObject({ ok: true })
+
+  // Mismatched inner tarball URL is rejected
+  const mismatchedResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            integrity: FAKE_INTEGRITY,
+            tarball: 'https://attacker.example/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(mismatchedResult).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+
+  // Missing integrity in variant is rejected
+  const missingIntegrityResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(missingIntegrityResult).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 

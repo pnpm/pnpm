@@ -1,3 +1,4 @@
+import { createReadStream, promises as fs } from 'node:fs'
 import { createGunzip, gunzipSync } from 'node:zlib'
 
 import { isError } from '@pnpm/error'
@@ -7,11 +8,13 @@ import type {
   FileWriteResult,
 } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
-import bz2 from 'bz2'
 import isGzip from 'is-gzip'
+import Bunzip from 'seek-bzip'
 
+import { type Bzip2Input, decodeBzip2, openBzip2Input } from './bzip2.js'
+import { createTarballFileWriterFactory, type TarballFileWriterFactory } from './createTarballFileWriter.js'
 import { parseJsonBufferSync } from './parseJson.js'
-import { createTarballParser, type OnTarballFile } from './parseTarball.js'
+import { type CreateTarballFileWriter, createTarballParser, type OnTarballFile } from './parseTarball.js'
 
 // chunkSize 128KB (8x the Node.js default of 16KB) reduces the number of
 // internal buffer allocations and copies during decompression. Benchmarks
@@ -20,11 +23,18 @@ const GUNZIP_CHUNK_SIZE = 128 * 1024
 
 /**
  * The largest decompressed archive held in memory whole. A larger gzip archive
- * is decompressed as a stream, so peak memory is bounded by its largest file.
+ * is decompressed as a stream. Large regular files are written in chunks;
+ * manifests and TAR metadata are read in memory.
  */
 export const MAX_IN_MEMORY_TARBALL_SIZE = 64 * 1024 * 1024
 
 type AddBufferToCafs = (buffer: Buffer, mode: number) => FileWriteResult
+
+type TarballImportOptions = {
+  readManifest?: boolean
+  ignore?: (filename: string) => boolean
+  storeDir: string
+}
 
 export function addFilesFromTarball (
   addBufferToCafs: AddBufferToCafs,
@@ -45,24 +55,87 @@ export function addFilesFromTarball (
 export async function addFilesFromTarballBounded (
   addBufferToCafs: AddBufferToCafs,
   tarballBuffer: Buffer,
-  readManifest?: boolean,
-  ignore?: (filename: string) => boolean
+  opts: TarballImportOptions
 ): Promise<AddToStoreResult> {
+  const { readManifest, ignore, storeDir } = opts
+  if (isBzip2(tarballBuffer)) return addFilesFromBzip2(addBufferToCafs, tarballBuffer, opts)
   const tarContent = isGzip(tarballBuffer)
     ? gunzipUpTo(tarballBuffer, MAX_IN_MEMORY_TARBALL_SIZE)
     : decompressTarball(tarballBuffer)
   if (tarContent != null) {
     return addFilesFromTarContent(addBufferToCafs, tarContent, readManifest, ignore)
   }
-  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, readManifest, ignore)
-  const parser = createTarballParser(filesIndexBuilder.addFile)
+  const writers = createTarballFileWriterFactory(storeDir)
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
   const gunzip = createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })
   gunzip.end(tarballBuffer)
-  for await (const chunk of gunzip) {
-    parser.push(chunk as Buffer)
+  try {
+    for await (const chunk of gunzip) parser.push(chunk as Buffer)
+    parser.end()
+    await writers.publish()
+    return filesIndexBuilder.result()
+  } finally {
+    gunzip.destroy()
+    writers.cleanup()
   }
-  parser.end()
-  return filesIndexBuilder.result()
+}
+
+export async function addFilesFromTarballFile (
+  addBufferToCafs: AddBufferToCafs,
+  tarballFile: string,
+  { readManifest, ignore, storeDir }: TarballImportOptions
+): Promise<AddToStoreResult> {
+  const handle = await fs.open(tarballFile, 'r')
+  const prefix = Buffer.alloc(3)
+  try {
+    await handle.read(prefix, 0, prefix.length, 0)
+  } finally {
+    await handle.close()
+  }
+  if (isBzip2(prefix)) {
+    const source = openBzip2Input(tarballFile)
+    try {
+      return await addFilesFromBzip2(addBufferToCafs, source.input, { readManifest, ignore, storeDir })
+    } finally {
+      source.close()
+    }
+  }
+  const source = createReadStream(tarballFile)
+  const stream = isGzip(prefix) ? source.pipe(createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })) : source
+  source.on('error', (error) => {
+    stream.destroy(error)
+  })
+  const writers = createTarballFileWriterFactory(storeDir)
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
+  try {
+    for await (const chunk of stream) parser.push(chunk as Buffer)
+    parser.end()
+    await writers.publish()
+    return filesIndexBuilder.result()
+  } finally {
+    source.destroy()
+    stream.destroy()
+    writers.cleanup()
+  }
+}
+
+async function addFilesFromBzip2 (
+  addBufferToCafs: AddBufferToCafs,
+  input: Buffer | Bzip2Input,
+  { readManifest, ignore, storeDir }: TarballImportOptions
+): Promise<AddToStoreResult> {
+  const writers = createTarballFileWriterFactory(storeDir)
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
+  try {
+    decodeBzip2(input, parser)
+    await writers.publish()
+    return filesIndexBuilder.result()
+  } finally {
+    writers.cleanup()
+  }
 }
 
 /**
@@ -82,7 +155,7 @@ function addFilesFromTarContent (
   })
   parser.push(tarContent)
   parser.end()
-  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, readManifest, ignore)
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore })
   for (const [relativePath, { mode, content }] of files) {
     filesIndexBuilder.addFile(relativePath, mode, content)
   }
@@ -91,17 +164,18 @@ function addFilesFromTarContent (
 
 interface FilesIndexBuilder {
   addFile: OnTarballFile
+  createFileWriter?: CreateTarballFileWriter
   result: () => AddToStoreResult
 }
 
 function createFilesIndexBuilder (
   addBufferToCafs: AddBufferToCafs,
-  readManifest?: boolean,
-  ignore?: (filename: string) => boolean
+  { readManifest, ignore, writers }: Pick<TarballImportOptions, 'readManifest' | 'ignore'> & { writers?: TarballFileWriterFactory }
 ): FilesIndexBuilder {
   const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
   return {
+    createFileWriter: (relativePath, mode, size) => createEntryWriter({ writers, filesIndex, readManifest, ignore }, { relativePath, mode, size }),
     addFile: (relativePath, mode, content) => {
       if (ignore?.(relativePath)) return
       if (readManifest && relativePath === 'package.json') {
@@ -118,6 +192,18 @@ function createFilesIndexBuilder (
       manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) as DependencyManifest : undefined,
     }),
   }
+}
+
+function createEntryWriter (
+  opts: { writers?: TarballFileWriterFactory, filesIndex: FilesIndex, readManifest?: boolean, ignore?: (filename: string) => boolean },
+  entry: { relativePath: string, mode: number, size: number }
+): ReturnType<CreateTarballFileWriter> {
+  if (opts.ignore?.(entry.relativePath)) return { write: () => {}, end: () => {} }
+  if (!opts.writers || entry.size <= MAX_IN_MEMORY_TARBALL_SIZE) return undefined
+  if (opts.readManifest && entry.relativePath === 'package.json') return undefined
+  return opts.writers.create(entry.mode, (file) => {
+    opts.filesIndex.set(entry.relativePath, { mode: entry.mode, size: entry.size, ...file })
+  })
 }
 
 /**
@@ -152,8 +238,7 @@ function decompressTarball (tarballBuffer: Buffer): Buffer {
     return gunzipSync(tarballBuffer, { chunkSize: GUNZIP_CHUNK_SIZE })
   }
   if (isBzip2(tarballBuffer)) {
-    const decompressed = bz2.decompress(tarballBuffer)
-    return Buffer.from(decompressed.buffer, decompressed.byteOffset, decompressed.byteLength)
+    return Bunzip.decode(tarballBuffer)
   }
   // When called from a worker thread, the buffer arrives as a Uint8Array
   // (structured clone converts Buffer → Uint8Array). The tarball parser relies on

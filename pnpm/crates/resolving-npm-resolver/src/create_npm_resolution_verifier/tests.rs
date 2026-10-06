@@ -15,7 +15,8 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, RegistryResolution, TarballResolution, TarballRevision,
+    LockfileResolution, PkgName, PlatformAssetResolution, RegistryResolution, TarballResolution,
+    TarballRevision, VariationsResolution,
 };
 use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,

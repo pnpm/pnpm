@@ -1,7 +1,7 @@
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { getWantedDependencies, type WantedDependency } from '@pnpm/installing.deps-resolver'
+import { getWantedDependencies, type ManifestWantedDependency } from '@pnpm/installing.deps-resolver'
 import { logger } from '@pnpm/logger'
 import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
@@ -78,7 +78,7 @@ function widenVulnerablePinnedSpecifiers (
     audit: NonNullable<StrictInstallOptions['packageVulnerabilityAudit']>
     hookOwnedAliases: Set<string> | undefined
     rootDir: ProjectRootDir
-    wantedDependencies: WantedDependency[]
+    wantedDependencies: ManifestWantedDependency[]
   }
 ): void {
   for (const dep of wantedDependencies) {
@@ -99,7 +99,7 @@ function widenVulnerablePinnedSpecifiers (
   }
 }
 
-function findPinnedVersion (catalogs: Catalogs, dep: WantedDependency): PinnedVersion | undefined {
+function findPinnedVersion (catalogs: Catalogs, dep: ManifestWantedDependency): PinnedVersion | undefined {
   let specifier: string | undefined = dep.bareSpecifier
   const catalogName = specifier ? parseCatalogProtocol(specifier) : null
   if (catalogName != null) {
@@ -118,7 +118,7 @@ function findPinnedVersion (catalogs: Catalogs, dep: WantedDependency): PinnedVe
 
 function widenPinnedSpecifier (
   opts: StrictInstallOptions,
-  { dep, pinned }: { dep: WantedDependency, pinned: PinnedVersion }
+  { dep, pinned }: { dep: ManifestWantedDependency, pinned: PinnedVersion }
 ): void {
   const { catalogName, npmAliasTarget, version } = pinned
   // The widened specifier keeps the npm alias shape so that it still names the

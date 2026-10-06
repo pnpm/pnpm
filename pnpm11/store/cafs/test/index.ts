@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 
-import { describe, expect, it, test } from '@jest/globals'
+import { describe, expect, it, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
@@ -14,7 +14,7 @@ import {
   createCafs,
   getFilePathByModeInCafs,
 } from '../src/index.js'
-import { createTarballParser } from '../src/parseTarball.js'
+import { createTarballParser, paddingOf } from '../src/parseTarball.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 
@@ -389,6 +389,45 @@ test('an entry whose size is not a number is rejected', () => {
   expect(() => parseTarballEntries(tarContent)).toThrow('Invalid file size for TAR header at offset 0')
 })
 
+test('paddingOf computes correct block padding without 32-bit truncation', () => {
+  expect(paddingOf(0)).toBe(0)
+  expect(paddingOf(512)).toBe(0)
+  expect(paddingOf(1)).toBe(511)
+  expect(paddingOf(511)).toBe(1)
+  expect(paddingOf(513)).toBe(511)
+  const fourGib = 4 * 1024 * 1024 * 1024
+  expect(paddingOf(fourGib)).toBe(0)
+  expect(paddingOf(fourGib + 1)).toBe(511)
+  expect(paddingOf(fourGib + 511)).toBe(1)
+  expect(paddingOf(fourGib + 512)).toBe(0)
+  expect(paddingOf(fourGib + 513)).toBe(511)
+})
+
+test('rejects PAX header with negative length', () => {
+  const tarContent = createTarballWithPaxHeader('-12 path=bad\n')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid length in PAX record: -12')
+})
+
+test('rejects PAX header with length exceeding buffer', () => {
+  const tarContent = createTarballWithPaxHeader('999999 path=bad\n')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid length in PAX record: 999999')
+})
+
+test('rejects PAX header without space delimiter', () => {
+  const tarContent = createTarballWithPaxHeader('1234567890')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing space delimiter')
+})
+
+test('rejects PAX header without newline terminator', () => {
+  const tarContent = createTarballWithPaxHeader('12 path=badX')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing newline terminator')
+})
+
+test('rejects PAX header with invalid or negative size', () => {
+  const negativeSizePax = createTarballWithPaxHeader('14 size=-1000\n')
+  expect(() => parseTarballEntries(negativeSizePax)).toThrow('Invalid size in PAX record: size=-1000')
+})
+
 test('nothing is written to the store from a malformed archive', () => {
   const storeDir = temporaryDirectory()
   const validEntry = createTarballWithEntry('package/index.js', 'module.exports = 1').subarray(0, 1024)
@@ -423,6 +462,112 @@ describe('addFilesFromTarballBounded', () => {
     const { filesIndex, manifest } = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(getLargeTarball(), true)
     expect(manifest?.name).toBe('large')
     expect(filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+  })
+
+  it('writes a large file without assembling its content in memory', async () => {
+    const tarball = getLargeTarball()
+    const concat = Buffer.concat
+    const spy = jest.spyOn(Buffer, 'concat').mockImplementation((buffers, size) => {
+      expect(size ?? buffers.reduce((sum, buffer) => sum + buffer.length, 0)).toBeLessThanOrEqual(MAX_IN_MEMORY_TARBALL_SIZE)
+      return concat(buffers, size)
+    })
+    const storeDir = temporaryDirectory()
+    try {
+      const { filesIndex } = await createCafs(storeDir).addFilesFromTarballBounded(tarball)
+      expect(filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+      expect(fs.readdirSync(storeDir)).toEqual(['files'])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('extracts a file-backed gzip archive with the same file digests and manifest', async () => {
+    const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
+    fs.writeFileSync(tarballFile, tarball)
+    const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
+    const actual = await createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true)
+    expect(digestsOf(actual.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(actual.manifest).toStrictEqual(expected.manifest)
+  })
+
+  it('removes an unfinished large file when a file-backed archive is truncated', async () => {
+    const tarballFile = path.join(temporaryDirectory(), 'truncated.tgz')
+    const header = createTarballWithEntry('package/large', '', { declaredSize: largeFileSize }).subarray(0, 512)
+    fs.writeFileSync(tarballFile, gzipSync(Buffer.concat([header, Buffer.alloc(1024)])))
+    const storeDir = temporaryDirectory()
+    await expect(createCafs(storeDir).addFilesFromTarballFile(tarballFile)).rejects.toThrow('Unexpected end of TAR archive')
+    expect(fs.readdirSync(storeDir)).toEqual([])
+  })
+
+  test.each(['package/package.json', 'package/metadata'])('rejects an oversized buffered entry %s before reading its content', async (entryPath) => {
+    const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+    const header = createTarballWithEntry(entryPath, '', { declaredSize: largeFileSize }).subarray(0, 512)
+    if (entryPath === 'package/metadata') {
+      header[156] = 'x'.charCodeAt(0)
+      header.fill(0x20, 148, 156)
+      const checksum = header.reduce((sum, value) => sum + value, 0)
+      header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8)
+    }
+    fs.writeFileSync(tarballFile, gzipSync(Buffer.concat([header, Buffer.alloc(1024)])))
+    await expect(createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' })
+  })
+
+  it('reuses and repairs a streamed CAS file without breaking project hardlinks', async () => {
+    const storeDir = temporaryDirectory()
+    const cafs = createCafs(storeDir)
+    const first = await cafs.addFilesFromTarballBounded(getLargeTarball())
+    const filePath = first.filesIndex.get('zeros.bin')!.filePath
+    const projectFile = path.join(temporaryDirectory(), 'linked-file')
+    fs.linkSync(filePath, projectFile)
+    const originalInode = fs.statSync(filePath).ino
+
+    await cafs.addFilesFromTarballBounded(getLargeTarball())
+    expect(fs.statSync(filePath).ino).toBe(originalInode)
+    expect(fs.statSync(projectFile).ino).toBe(originalInode)
+
+    fs.writeFileSync(filePath, 'corrupt')
+    await cafs.addFilesFromTarballBounded(getLargeTarball())
+    expect(fs.statSync(filePath).ino).toBe(originalInode)
+    expect(fs.statSync(projectFile).size).toBe(largeFileSize)
+    expect(crypto.hash('sha512', fs.readFileSync(projectFile), 'hex')).toBe(largeFileDigest)
+  })
+
+  it('extracts bzip2 archives from a buffer and a file with matching digests', async () => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures/package.tar.bz2')
+    const tarball = fs.readFileSync(tarballFile)
+    const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
+    const buffered = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, true)
+    const cloned = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(structuredClone(tarball), true)
+    const fromFile = await createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true)
+    expect(digestsOf(buffered.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(digestsOf(cloned.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(digestsOf(fromFile.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(buffered.manifest).toStrictEqual(expected.manifest)
+    expect(cloned.manifest).toStrictEqual(expected.manifest)
+    expect(fromFile.manifest).toStrictEqual(expected.manifest)
+  })
+
+  test.each([false, true])('streams a large bzip2 payload with file-backed input %s', async (fileBacked) => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures/large-zero-file.tar.bz2')
+    const cafs = createCafs(temporaryDirectory())
+    const result = fileBacked
+      ? await cafs.addFilesFromTarballFile(tarballFile)
+      : await cafs.addFilesFromTarballBounded(fs.readFileSync(tarballFile))
+    expect(result.filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+  })
+
+  test.each([
+    ['large-manifest.tar.bz2', false], ['large-manifest.tar.bz2', true],
+    ['large-metadata.tar.bz2', false], ['large-metadata.tar.bz2', true],
+  ])('bzip2 buffering limits reject %s with file-backed input %s', async (fixture, fileBacked) => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures', fixture)
+    const cafs = createCafs(temporaryDirectory())
+    const result = fileBacked
+      ? cafs.addFilesFromTarballFile(tarballFile, true)
+      : cafs.addFilesFromTarballBounded(fs.readFileSync(tarballFile), true)
+    await expect(result).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' })
   })
 
   it('streams a multi-member gzip archive whose last trailer understates its size', async () => {
@@ -517,6 +662,36 @@ function createTarballWithEntry (
   return Buffer.concat([header, contentBlock, endMarker])
 }
 
+function createTarballWithPaxHeader (
+  paxRecord: string | Buffer,
+  entryPath: string = 'package/index.js',
+  entryContent: string = 'module.exports = 1'
+): Buffer {
+  const paxPayload = typeof paxRecord === 'string' ? Buffer.from(paxRecord, 'utf8') : paxRecord
+  const paxBlock = Buffer.alloc(Math.ceil(paxPayload.length / 512) * 512, 0)
+  paxPayload.copy(paxBlock)
+
+  const paxHeader = Buffer.alloc(512, 0)
+  paxHeader.write('PaxHeader/test', 0, 14, 'utf8')
+  paxHeader.write('0000644\0', 100, 8, 'utf8')
+  paxHeader.write('0000000\0', 108, 8, 'utf8')
+  paxHeader.write('0000000\0', 116, 8, 'utf8')
+  paxHeader.write(paxPayload.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'utf8')
+  paxHeader.write('00000000000\0', 136, 12, 'utf8')
+  paxHeader[156] = 'x'.charCodeAt(0)
+  paxHeader.write('ustar\0', 257, 6, 'utf8')
+  paxHeader.write('00', 263, 2, 'utf8')
+  paxHeader.fill(' ', 148, 156)
+  let checksum = 0
+  for (const byte of paxHeader) {
+    checksum += byte
+  }
+  paxHeader.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'utf8')
+
+  const normalEntry = createTarballWithEntry(entryPath, entryContent)
+  return Buffer.concat([paxHeader, paxBlock, normalEntry])
+}
+
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
 const testOnPosix = process.platform === 'win32' ? test.skip : test
 
@@ -598,4 +773,25 @@ test('unpack should not fail when the tarball format seems to be not USTAR or GN
     fs.readFileSync(testFixtures.find('devextreme-17.1.6.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
+})
+
+test.each([
+  { control: '\x1b[31m', escaped: '\\x1B' },
+  { control: '\x9b31m', escaped: '\\x9B' },
+])('escapes terminal controls in oversized TAR entry diagnostics: $escaped', ({ control, escaped }) => {
+  const onFile = jest.fn()
+  const parser = createTarballParser(onFile, undefined, 16)
+  const header = createTarballWithEntry(`package/bad${control}name`, '', { declaredSize: 17 }).subarray(0, 512)
+  let error: unknown
+  try {
+    parser.push(header)
+  } catch (caught) {
+    error = caught
+  }
+  expect(error).toMatchObject({
+    code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE',
+    message: expect.stringContaining(escaped),
+  })
+  expect((error as Error).message).not.toContain(control[0])
+  expect(onFile).not.toHaveBeenCalled()
 })

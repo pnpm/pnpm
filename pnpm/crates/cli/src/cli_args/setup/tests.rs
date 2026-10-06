@@ -23,6 +23,19 @@ fn no_changes_when_settings_are_unchanged() {
     let report = report(ConfigFileChangeType::Skipped, "same", "same");
     assert_eq!(
         render_setup_output(&report),
+        "Configuration already up to date in /home/user/.bashrc\n\nNo changes to the environment were made. Everything is already up to date.",
+    );
+}
+
+#[test]
+fn no_changes_without_config_file() {
+    let report = PathExtenderReport {
+        config_file: None,
+        old_settings: "same".to_string(),
+        new_settings: "same".to_string(),
+    };
+    assert_eq!(
+        render_setup_output(&report),
         "No changes to the environment were made. Everything is already up to date.",
     );
 }

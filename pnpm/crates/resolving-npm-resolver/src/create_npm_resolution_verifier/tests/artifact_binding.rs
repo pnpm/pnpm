@@ -1,8 +1,9 @@
 use super::{
-    Arc, FAKE_INTEGRITY, Integrity, LockfileResolution, PkgName, REVISION_ONE_DIGEST,
-    REVISION_TWO_DIGEST, RegistryResolution, ResolutionVerification, TarballResolution,
-    TarballRevision, assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
-    now_at, observed_dist_stats_sink, revision_integrity, tarball_resolution,
+    Arc, FAKE_INTEGRITY, Integrity, LockfileResolution, PkgName, PlatformAssetResolution,
+    REVISION_ONE_DIGEST, REVISION_TWO_DIGEST, RegistryResolution, ResolutionVerification,
+    TarballResolution, TarballRevision, VariationsResolution, assert_eq,
+    create_npm_resolution_verifier, ctx, default_opts, fake_integrity, now_at,
+    observed_dist_stats_sink, revision_integrity, tarball_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -419,4 +420,128 @@ async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[tokio::test]
+async fn verifies_variations_resolution_matching_tarball_url() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "variations-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "variations-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/variations-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
+                integrity: Some(fake_integrity()),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+            targets: vec![],
+        }],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn rejects_variations_resolution_with_mismatched_tarball_url() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "variations-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "variations-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/variations-pkg/-/variations-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/variations-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: "https://attacker.example/variations-pkg-1.0.0.tgz".to_string(),
+                integrity: Some(fake_integrity()),
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+            targets: vec![],
+        }],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[tokio::test]
+async fn rejects_variations_resolution_with_missing_integrity() {
+    let opts = default_opts("https://registry.example/");
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Variations(VariationsResolution {
+        variants: vec![PlatformAssetResolution {
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: "https://registry.example/pkg-1.0.0.tgz".to_string(),
+                integrity: None,
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+            targets: vec![],
+        }],
+    });
+    let name: PkgName = "variations-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MISSING_TARBALL_INTEGRITY");
 }

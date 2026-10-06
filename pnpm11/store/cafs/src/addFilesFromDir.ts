@@ -140,6 +140,18 @@ function getStatIfContained (
       stat: getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null,
     }
   }
+  let realPath: string
+  try {
+    realPath = fs.realpathSync(absolutePath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      return { isSymbolicLink: false, stat: null }
+    }
+    throw err
+  }
+  if (!isSubdir(rootDir, realPath)) {
+    return { isSymbolicLink: false, stat: null }
+  }
   return { isSymbolicLink: false, stat: lstat }
 }
 

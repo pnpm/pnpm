@@ -248,7 +248,7 @@ If you did not expect this package to change, treat it as a potential supply-cha
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'pkgId' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'tarballFile' | 'storeDir' | 'filesIndexFile' | 'pkgId' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern'> & {
   storeIndex: StoreIndex
   url: string
 }
@@ -257,6 +257,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
   const message: TarballExtractMessage = {
     type: 'extract',
     buffer: opts.buffer,
+    tarballFile: opts.tarballFile,
     storeDir: opts.storeDir,
     integrity: opts.integrity,
     filesIndexFile: opts.filesIndexFile,

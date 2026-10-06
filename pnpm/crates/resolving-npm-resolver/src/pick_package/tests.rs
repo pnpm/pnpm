@@ -12,7 +12,9 @@ mod cache_partitions;
 
 mod cache_read_modes;
 
+mod corrupt_mirror;
 mod stable_range_mirror;
+
 mod version_selection;
 
 mod offline_store_pick;
@@ -38,7 +40,7 @@ use super::{
 };
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_path,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_paths,
         get_pkg_mirror_path, load_meta,
     },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},

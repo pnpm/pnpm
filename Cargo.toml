@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
+exclude = ["vendor/tar"]
 
 [workspace.package]
 authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -207,6 +208,7 @@ pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }
 regex = { version = "1.12.3" }
+regress = { version = "0.12.0" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
@@ -270,6 +272,7 @@ mockito = { version = "1.7.2" }
 # multiply on each step of a chain. Upstream has not released since 2.2.0
 # (February 2025); drop this once it does.
 [patch.crates-io]
+tar = { path = "vendor/tar" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 
 [workspace.metadata.workspaces]

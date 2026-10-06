@@ -2,6 +2,7 @@ import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.ty
 import type { TrustPolicy } from '@pnpm/types'
 import type { LimitFunction } from 'p-limit'
 
+import { retainsFullMeta } from './clearMeta.js'
 import { condenseMetaForCache, loadMeta, type MetaHeaders } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import type { PeekManifestFromStore, PickerOptions } from './pickMatchingVersion.js'
@@ -100,7 +101,7 @@ export interface MirrorSession {
 }
 
 export async function loadMetaCondensed (request: PickRequest): Promise<PackageMeta | null> {
-  const meta = await loadMeta(request.pkgMirror)
+  const meta = await loadMeta(request.pkgMirror, { condense: !retainsFullMeta(request.ctx) })
   return meta == null ? null : condenseMetaForCache(request.ctx, meta)
 }
 

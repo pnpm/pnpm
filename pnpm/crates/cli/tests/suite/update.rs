@@ -505,6 +505,23 @@ fn update_latest_preserves_tilde() {
     drop((root, anchor));
 }
 
+/// A range with no operator of its own that excludes the latest version is
+/// rewritten with the `savePrefix` setting.
+#[test]
+fn update_latest_applies_save_prefix_to_a_range_without_an_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "<100.1.0" }}"#));
+    append_workspace_yaml_key(&workspace, "savePrefix", "'~'");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("~101.0.0"));
+
+    drop((root, anchor));
+}
+
 /// A dist-tag already reaches the latest version, so `--latest` has nothing
 /// to rewrite either.
 #[test]

@@ -73,6 +73,9 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../../resolving/tarball-url"
     },
     {

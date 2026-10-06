@@ -225,7 +225,7 @@ virtual store. Disabling it produces slightly simpler command shims.
 * Default: **false**
 * Type: **Boolean**
 
-When deploying a package or installing a local package, all files of the package are copied. By default, if the package has a `"files"` field in the `package.json`, then only the listed files and directories are copied.
+When deploying a package or installing a local package, all files of the package are copied. By default, if the package has a `"files"` field in the `package.json`, then only the listed files and directories are copied. Symlinks that resolve outside the package directory cause the operation to fail.
 
 ### dedupeDirectDeps
 

@@ -1,6 +1,7 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { afterAll, expect, test } from '@jest/globals'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
@@ -395,4 +396,117 @@ test('succeeds with frozenLockfile when env lockfile is up-to-date', async () =>
   const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
   expect(manifest.name).toBe('@pnpm.e2e/foo')
   expect(manifest.version).toBe('100.0.0')
+})
+
+test.each([undefined, '2.0.0'])('rejects a config lockfile redirect before fetching its tarball (metadata version %s)', async (metadataVersion) => {
+  prepareEmpty()
+  let tarballRequests = 0
+  const server = http.createServer((request, response) => {
+    if (request.url === '/unapproved.tgz') {
+      tarballRequests++
+      response.end('unapproved archive')
+      return
+    }
+    response.setHeader('content-type', 'application/json')
+    response.end(JSON.stringify({
+      name: 'my-config',
+      versions: {
+        '2.0.0': {
+          name: 'my-config', version: '2.0.0',
+          dist: { integrity: 'sha512-ZGVm', tarball: `${registryUrl}unapproved.tgz` },
+        },
+        '1.0.0': {
+          name: 'my-config', version: '1.0.0',
+          dist: { integrity: 'sha512-YWJj', tarball: `${registryUrl}my-config/-/my-config-1.0.0.tgz` },
+        },
+      },
+    }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const registryUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`
+  try {
+    const lockfile = createEnvLockfile()
+    lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '1.0.0' }
+    lockfile.packages['my-config@1.0.0'] = {
+      version: metadataVersion,
+      resolution: { integrity: 'sha512-ZGVm', tarball: `${registryUrl}unapproved.tgz` },
+    }
+    lockfile.snapshots['my-config@1.0.0'] = {}
+    await writeEnvLockfile(process.cwd(), lockfile)
+    await expect(resolveAndInstallConfigDeps({ 'my-config': '1.0.0' }, createOpts(registryUrl)))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP' })
+    expect(tarballRequests).toBe(0)
+  } finally {
+    await promisify(server.close.bind(server))()
+  }
+})
+
+test.each(['1.0.0+sha512-YWJj', { integrity: '1.0.0+sha512-YWJj', tarball: 'https://approved.example/config.tgz' }])(
+  'rejects a config lockfile that replaces the configured integrity pin (%j)', async (specifier) => {
+    prepareEmpty()
+    const lockfile = createEnvLockfile()
+    lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '1.0.0' }
+    lockfile.packages['my-config@1.0.0'] = {
+      resolution: { integrity: 'sha512-ZGVm', tarball: 'https://unapproved.example/config.tgz' },
+    }
+    lockfile.snapshots['my-config@1.0.0'] = {}
+    await writeEnvLockfile(process.cwd(), lockfile)
+    await expect(resolveAndInstallConfigDeps({ 'my-config': specifier }, createOpts()))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP' })
+  }
+)
+
+test('rejects replacing the version of an integrity-pinned configuration dependency', async () => {
+  prepareEmpty()
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '2.0.0' }
+  lockfile.packages['my-config@2.0.0'] = { resolution: { integrity: 'sha512-ZGVm' } }
+  lockfile.snapshots['my-config@2.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+  await expect(resolveAndInstallConfigDeps({ 'my-config': '1.0.0+sha512-YWJj' }, createOpts()))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('configured integrity') })
+})
+
+test('rejects a git-hosted config lockfile entry before fetching it', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+  const fetchedIds: string[] = []
+  const fetchPackage = opts.store.fetchPackage
+  opts.store.fetchPackage = async (options) => {
+    fetchedIds.push(options.pkg.id)
+    return fetchPackage(options)
+  }
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '1.0.0' }
+  lockfile.packages['my-config@1.0.0'] = {
+    resolution: { integrity: 'sha512-ZGVm', tarball: `https://codeload.github.com/evil/config/tar.gz/${'a'.repeat(40)}` },
+  }
+  lockfile.snapshots['my-config@1.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+  await expect(resolveAndInstallConfigDeps({ 'my-config': '1.0.0' }, opts))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('must resolve from an npm registry') })
+  expect(fetchedIds).toStrictEqual([])
+})
+
+test('verifies config dependencies against the registry only when they need to be installed', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, opts)
+
+  const unreachableRegistry = 'http://127.0.0.1:1/'
+  const offlineOpts = {
+    ...opts,
+    registriesByScope: { default: unreachableRegistry },
+    minimumReleaseAge: 1440,
+    retry: { retries: 0 },
+    frozenLockfile: true,
+  }
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, offlineOpts)
+
+  const lockfile = (await readEnvLockfile(process.cwd()))!
+  lockfile.packages['@pnpm.e2e/foo@100.0.0'] = {
+    resolution: { integrity: 'sha512-ZGVm', tarball: `${unreachableRegistry}foo.tgz` },
+  }
+  await writeEnvLockfile(process.cwd(), lockfile)
+  await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, offlineOpts)).rejects.toThrow()
 })

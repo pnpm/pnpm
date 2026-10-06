@@ -1,7 +1,7 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
-import { condenseMetaForCache, prepareJsonForDisk, saveMetaBestEffort } from './metaMirror.js'
+import { condenseMetaForCache, encodeMirror, saveMetaBestEffort } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import type { PickPackageFromMetaOptions } from './pickPackageFromMeta.js'
 
@@ -138,8 +138,8 @@ export function upgradeMetaForCache (
 }
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
-// only has to carry `time` into the next install; otherwise the raw response
-// body is written and the unstripped meta is kept. Either way the abbreviated
+// only has to carry `time` into the next install; otherwise the unstripped
+// meta is written and kept. Either way the abbreviated
 // mirror now holds the full document, so its ETag is recorded as `fullEtag`.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
@@ -148,9 +148,11 @@ function persistUpgradedMeta (
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
   const fullEtag = upgradedFrom.etag
-  const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, undefined, { ...upgradedFrom, fullEtag })
-    : prepareJsonForDisk(metaForCache, undefined, { uncacheable: upgradedFrom.uncacheable, fullEtag })
-  saveMetaBestEffort(pkgMirror, jsonForDisk, upgradedFrom.uncacheable === true)
+  const content = encodeMirror(ctx, upgradedFrom, {
+    meta: metaForCache,
+    etag: undefined,
+    body: { uncacheable: upgradedFrom.uncacheable, fullEtag },
+  })
+  saveMetaBestEffort(pkgMirror, content, upgradedFrom.uncacheable === true)
   return metaForCache
 }

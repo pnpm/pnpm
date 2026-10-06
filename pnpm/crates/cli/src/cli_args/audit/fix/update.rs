@@ -1,10 +1,10 @@
 use super::{
     Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
-    PackageVersionGuard, PackumentPublishInfo, Range, Reporter, ResolutionObserver, State, Update,
-    Version, blue, caret_range_for_patched, color_severity, green, red,
-    resolve_minimum_release_age_excludes, satisfies_including_prerelease, severity_name,
-    severity_number, write_age_excludes,
+    PackageVersionGuard, PackumentPublishInfo, Range, RangeSpecStyle, Reporter, ResolutionObserver,
+    State, Update, Version, blue, color_severity, green, red, resolve_minimum_release_age_excludes,
+    satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
 };
+use crate::cli_args::audit::patched_range_for_style;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
 /// act on each: ones with a concrete vulnerable range (guarded against and
@@ -311,8 +311,9 @@ pub(crate) struct AuditFixObserver {
     pub(crate) age_excludes: Vec<String>,
 }
 
-pub(super) fn advisory_choices(
+pub(crate) fn advisory_choices(
     advisories: &BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
 ) -> (Vec<String>, Vec<String>) {
     let mut fixable: Vec<&AuditAdvisory> = advisories
         .values()
@@ -330,7 +331,7 @@ pub(super) fn advisory_choices(
         }
         let patched = advisory.patched_versions
             .as_deref()
-            .map(caret_range_for_patched)
+            .map(|versions| patched_range_for_style(versions, range_spec_style))
             .unwrap_or_default();
         labels.push(format!(
             "[{}] {} {} ❯ {} {}",
@@ -371,7 +372,10 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
             version: pnpm_package_manager::UpdateVersionOptions {
                 latest: false,
                 patches: false,
-                save_exact: false,
+                range_spec_style: RangeSpecStyle::from_save_options(
+                    state.config.save_exact,
+                    state.config.save_prefix.as_deref(),
+                ),
                 save: true,
             },
         },

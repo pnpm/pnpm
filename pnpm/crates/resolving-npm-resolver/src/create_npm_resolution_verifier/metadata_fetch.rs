@@ -40,11 +40,14 @@ impl NpmResolutionVerifier {
             )
         };
         let value = cell.get_or_init(|| async {
+            // A shared packument that turns out to hold a damaged mirror
+            // fragment falls through to the fetch below, which repairs it.
             if let Some(shared) = self.read_shared_meta(registry, name) {
-                return Ok(project_abbreviated_meta(
-                    &shared,
-                    self.metadata.registry_supports_time_field,
-                ));
+                let projection =
+                    project_abbreviated_meta(&shared, self.metadata.registry_supports_time_field);
+                if !shared.versions.has_corrupt_mirror_fragment() {
+                    return Ok(projection);
+                }
             }
             let opts = FetchFullMetadataCachedOptions {
                 registry,
@@ -212,7 +215,10 @@ impl NpmResolutionVerifier {
                         .or_else(|| cache.get(&format!("{key}:full:filtered")))
                 });
             if let Some(cached) = shared {
-                return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
+                let projection = project_trust_meta(cached.meta.as_ref());
+                if !cached.meta.versions.has_corrupt_mirror_fragment() {
+                    return Ok(Arc::new(projection));
+                }
             }
             // Project the packument to just the fields `fail_if_trust_downgraded`
             // reads before stashing in the cache. The full document — dependency

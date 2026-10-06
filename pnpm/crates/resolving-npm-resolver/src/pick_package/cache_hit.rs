@@ -16,11 +16,12 @@ use std::{path::Path, sync::Arc};
 /// re-fetching). Extracting it keeps the two call sites identical so
 /// the upgrade-and-persist side-effects can't drift.
 ///
-/// Returns `Ok(None)` when the hit must not be terminal: the entry is
-/// a registry-unverified disk promotion (see
-/// [`PackageMetaCache::set_unverified`]) whose pick failed, and the
-/// resolver isn't offline. The caller then falls through to the disk +
-/// network flow, whose fetch replaces the entry with a verified one.
+/// Returns `Ok(None)` when the hit must not be terminal, and the caller
+/// falls through to the disk + network flow that replaces the entry:
+/// either the entry is a registry-unverified disk promotion (see
+/// [`PackageMetaCache::set_unverified`]) whose pick failed and the
+/// resolver isn't offline, or the pick hydrated a damaged fragment of
+/// the mirror the entry came from.
 ///
 /// The argument list is wide because the helper consumes everything
 /// the per-call frame already computed (cache key, derived
@@ -117,6 +118,9 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     } else {
         (meta, picked)
     };
+    if meta.versions.has_corrupt_mirror_fragment() {
+        return Ok(None);
+    }
     if !ctx.cache_policy.offline
         && !registry_verified
         && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())

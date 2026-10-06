@@ -27,6 +27,7 @@ pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode
 mod address_guard;
 mod auth;
 mod error_chain;
+mod host_socket_limit;
 mod limited_body;
 mod origin_gate;
 mod priority_semaphore;
@@ -40,6 +41,7 @@ mod token_helper;
 
 mod url_encoding;
 
+use host_socket_limit::HostSocketLimit;
 use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
@@ -52,13 +54,13 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock},
     time::{Duration, Instant},
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Semaphore;
 
 /// Fallback `User-Agent` for the install client's no-config
 /// constructors ([`ThrottledClient::new_for_installs`]) and for the case where a
@@ -215,64 +217,6 @@ impl ClientPair {
     }
 }
 
-/// How the `maxSockets` configuration maps to a per-origin cap.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HostSocketCap {
-    Default,
-    Disabled,
-    Explicit(NonZeroUsize),
-}
-
-/// Per-origin concurrent-connection cap, mirroring undici's `connections`
-/// option (the `maxSockets` setting pnpm applies per registry origin).
-///
-/// When an explicit limit is configured, every origin is capped. When
-/// uncapped (the default), direct origins are bounded only by the global
-/// concurrency semaphore, while proxied origins share a cap of
-/// [`DEFAULT_MAX_SOCKETS`] to avoid exhausting proxy connection backlogs
-/// or tripping proxy rate limits.
-///
-/// Each distinct origin gets its own [`Semaphore`], minted on first
-/// request to that origin. Acquired *before* the global
-/// [`ThrottledClient::semaphore`] so a request waiting on a saturated
-/// origin does not hold a global concurrency slot.
-#[derive(Debug)]
-struct HostSocketLimit {
-    cap: HostSocketCap,
-    per_origin: Mutex<HashMap<String, Arc<Semaphore>>>,
-}
-
-impl HostSocketLimit {
-    fn new(setting: Option<usize>) -> Self {
-        let cap = match setting {
-            None => HostSocketCap::Default,
-            Some(0) => HostSocketCap::Disabled,
-            Some(n) => HostSocketCap::Explicit(
-                NonZeroUsize::new(n).expect("non-zero value expected for n > 0"),
-            ),
-        };
-        Self { cap, per_origin: Mutex::new(HashMap::new()) }
-    }
-
-    /// Acquire an owned permit for `origin`, or `None` when uncapped.
-    async fn acquire(&self, origin: &str, is_proxied: bool) -> Option<OwnedSemaphorePermit> {
-        let limit_num = match self.cap {
-            HostSocketCap::Disabled => return None,
-            HostSocketCap::Explicit(max) => max.get(),
-            HostSocketCap::Default if is_proxied => DEFAULT_MAX_SOCKETS,
-            HostSocketCap::Default => return None,
-        };
-        let semaphore = {
-            let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
-            Arc::clone(
-                map.entry(origin.to_string())
-                    .or_insert_with(|| Arc::new(Semaphore::new(limit_num))),
-            )
-        };
-        Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ProxyRouting {
     pub(crate) https: Option<reqwest::Url>,
@@ -333,7 +277,7 @@ pub struct ThrottledClientGuard<'a> {
     /// The per-origin `maxSockets` permit, held for the same request lifetime
     /// as `permit`. `None` when no `maxSockets` cap is configured or the URL
     /// had no parseable origin.
-    host_permit: Option<OwnedSemaphorePermit>,
+    host_permit: Option<Permit>,
     /// Counts the request against its origin's timeout cap. `None` when the
     /// URL had no parseable origin.
     origin_permit: Option<OriginPermit>,
@@ -344,7 +288,7 @@ pub struct ThrottledClientGuard<'a> {
 pub struct ThrottledResponse {
     response: reqwest::Response,
     _permit: Permit,
-    _host_permit: Option<OwnedSemaphorePermit>,
+    _host_permit: Option<Permit>,
     _origin_permit: Option<OriginPermit>,
     body_timeout: Duration,
     received_at: Instant,

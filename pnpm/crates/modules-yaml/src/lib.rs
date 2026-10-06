@@ -10,6 +10,8 @@
 //! parser for manifests written by old pnpm versions.
 
 pub use capabilities::{Clock, FsCreateDirAll, FsReadToString, FsWrite, Host};
+pub use hoisted_dir::hoisted_dir;
+
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
 use pipe_trait::Pipe;
@@ -32,6 +34,7 @@ pub const MODULES_FILENAME: &str = ".modules.yaml";
 pub const DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH: u64 = 120;
 
 mod capabilities;
+mod hoisted_dir;
 
 /// Newtype wrapper around a dependency-path string.
 ///

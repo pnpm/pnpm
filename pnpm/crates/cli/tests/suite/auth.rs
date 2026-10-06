@@ -2,6 +2,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
     fixtures::{minimal_tarball, sha512_integrity},
 };
 use std::{fs, path::Path, process::Command};
@@ -462,6 +463,61 @@ fn trusted_auth_env_warning_reaches_stderr() {
         assert!(!String::from_utf8_lossy(&output.stdout).contains(warning));
     }
     unauthorized.assert();
+}
+
+/// The unset variable is what makes `_auth` undecodable, so the warning
+/// naming it has to reach the user along with the error.
+#[test]
+fn config_warnings_reach_stderr_when_the_config_fails_to_load() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_config(root.path(), &workspace, "http://127.0.0.1:1", "");
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    let auth_file = root.path().join("auth.npmrc");
+    fs::write(&auth_file, "//registry.npmjs.org/:_auth=${PNPM_TEST_AUTH}:not-base64\n")
+        .expect("write auth file");
+    let mut command = install_command(&workspace, root.path())
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
+        .with_args(["install", "--ignore-scripts"]);
+    command.env_remove("PNPM_TEST_AUTH");
+
+    let output = command.output().expect("run pnpm install");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_AUTH_INVALID_BASE64");
+    assert!(
+        stderr.contains(
+            r#"Failed to replace env in config: ${PNPM_TEST_AUTH} in .npmrc key "_auth""#
+        ),
+        "{stderr}",
+    );
+}
+
+#[test]
+fn npmrc_warnings_reach_stderr_when_the_json_auth_setting_is_malformed() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_config(root.path(), &workspace, "http://127.0.0.1:1", "");
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    let auth_file = root.path().join("auth.npmrc");
+    fs::write(&auth_file, "//registry.npmjs.org/:_authToken=${PNPM_TEST_AUTH_TOKEN}\n")
+        .expect("write auth file");
+    let mut command = install_command(&workspace, root.path())
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
+        .with_env("pnpm_config__auth", "{")
+        .with_args(["install", "--ignore-scripts"]);
+    command.env_remove("PNPM_TEST_AUTH_TOKEN");
+
+    let output = command.output().expect("run pnpm install");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, "Invalid `_auth` setting");
+    assert!(
+        stderr.contains(
+            r#"Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken""#
+        ),
+        "{stderr}",
+    );
 }
 
 #[test]

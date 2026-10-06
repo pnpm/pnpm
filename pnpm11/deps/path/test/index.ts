@@ -104,8 +104,9 @@ test('depPathToFilename()', () => {
   expect(depPathToFilename('abcd/'.repeat(200), 120)).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+ab_e7c10c3598ebbc0ca640b6524c68e602') // cspell:disable-line
   expect(depPathToFilename('/JSONSteam@1.0.0', 120)).toBe('JSONSteam@1.0.0_533d3b11e9111b7a24f914844c021ddf') // cspell:disable-line
 
-  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toBe('foo@git+https+++github.com+something+foo+1234')
-  expect(depPathToFilename('foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo', 120)).toBe('foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo')
+  expect(depPathToFilename('foo@git+https://github.com/something/foo', 120)).toBe('foo@git+https+++github.com+something+foo')
+  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toBe('foo@git+https+++github.com+something+foo+1234_b1a78add6ab51a177ff8780d0f64b41d')
+  expect(depPathToFilename('foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo', 120)).toBe('foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo_160b2e15ba002509e0f467796aa2dfd1')
 })
 
 test('tryGetPackageId', () => {
@@ -202,7 +203,7 @@ test('depPathToFilename() escapes trailing dots and spaces', () => {
   expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++_f8a4bd4027dd0dda71549ddff4eb2bbb')
   expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+_58ccd8dce4811ac686d72920d5724090')
   expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++_532b5e0801878347427004a15da818ef')
-  expect(depPathToFilename('parent-pkg@file:++', 120)).toBe('parent-pkg@file+++')
+  expect(depPathToFilename('parent-pkg@file:++', 120)).toBe('parent-pkg@file+++_533e2d775a8ebec1166dcc5f3df4de30')
   expect(depPathToFilename('pkg@file:../project-2', 120)).toBe('pkg@file+..+project-2')
   expect(depPathToFilename('Parent-pkg@file:..', 120)).not.toBe(depPathToFilename('Parent-pkg@file:++', 120))
 })
@@ -232,4 +233,22 @@ test('packageRootLinkTarget() accepts only plain paths inside the package', () =
   ]) {
     expect(packageRootLinkTarget(reference)).toBeUndefined()
   }
+})
+
+test('depPathToFilename() hashes URLs whose escaping is ambiguous', () => {
+  const base = 'pkg@https://registry.example.com/objects/trusted'
+  expect(depPathToFilename(`${base}/package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz')
+  expect(depPathToFilename(`${base}+package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_5b1382866f68e516badc06db3d605b81')
+  expect(depPathToFilename(`${base}:package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_1536617e57923d7a634ea5063d52d423')
+  expect(depPathToFilename(`${base}?package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_56ed6c679663e41c52a329ea7ffc783f')
+  expect(depPathToFilename(`${base}#package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_30421c24d7ece624b64805feea2d87f4')
+  expect(depPathToFilename(`${base}\\package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_c28afc38506f4f342864ce00ee3373c8')
+  expect(depPathToFilename(`${base}+package.tgz`, 40)).toBe('pkg@htt_5b1382866f68e516badc06db3d605b81')
+  expect(depPathToFilename(`${base}/package.tgz`, 40)).toBe('pkg@htt_db0178b93a3dc73ecc84ba68ab60a4ab')
+})
+
+test('depPathToFilename() keeps registry versions with build metadata without a hash suffix', () => {
+  expect(depPathToFilename('foo@1.0.0+build.5', 120)).toBe('foo@1.0.0+build.5')
+  expect(depPathToFilename('esbuild@0.0.0-dev+abc(foo@1.0.0)', 120)).toBe('esbuild@0.0.0-dev+abc_foo@1.0.0')
+  expect(depPathToFilename('foo@work:1.0.0+build', 120)).toBe('foo@work+1.0.0+build')
 })

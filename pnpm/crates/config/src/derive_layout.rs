@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, ExplicitPaths, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir,
-    LinkProbe, LoadWorkspaceYamlError, NodeLinker, NpmrcAuth, default_pnpm_home_dir,
+    HashMap, LinkProbe, LoadWorkspaceYamlError, NodeLinker, NpmrcAuth, default_pnpm_home_dir,
     esm_node_path_loader,
 };
 
@@ -190,5 +190,29 @@ impl Config {
                         .join(".bin"),
                 ]
             })
+    }
+
+    /// The `nodeOptions` setting to export as `NODE_OPTIONS`. An empty value
+    /// only overrides lower-priority settings, so it yields `None` and the
+    /// child keeps the `NODE_OPTIONS` it inherits.
+    pub fn exported_node_options(&self) -> Option<&str> {
+        self.node_options
+            .as_deref()
+            .filter(|value| !value.is_empty())
+    }
+
+    /// [`Config::extra_env`] with the `nodeOptions` setting applied as
+    /// `NODE_OPTIONS`, preserving the ESM `NODE_PATH` loader flag the
+    /// `extra_env` carries under a global virtual store.
+    pub fn extra_env_with_node_options(&self) -> HashMap<String, String> {
+        let mut extra_env = self.extra_env.clone();
+        if let Some(node_options) = self.exported_node_options() {
+            let node_options = esm_node_path_loader::keep_esm_node_path_loader_option(
+                node_options,
+                self.extra_env.get("NODE_OPTIONS").map(String::as_str),
+            );
+            extra_env.insert("NODE_OPTIONS".to_string(), node_options);
+        }
+        extra_env
     }
 }

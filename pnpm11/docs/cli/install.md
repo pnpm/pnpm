@@ -7,6 +7,10 @@ Aliases: `i`
 
 `pnpm install` is used to install all dependencies for a project.
 
+Large package downloads use temporary disk space to keep memory usage bounded.
+Temporary download files are removed after extraction or a failed download.
+Package manifests and archive metadata that need buffering are limited to 64 MiB.
+
 In a CI environment, installation fails if a lockfile is present but needs an
 update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 

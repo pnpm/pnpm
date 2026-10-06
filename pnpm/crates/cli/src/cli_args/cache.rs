@@ -4,8 +4,9 @@ use miette::IntoDiagnostic;
 use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    get_registry_name, is_unreadable_registry_key, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, LEGACY_META_DIRS,
+    LEGACY_PRIVATE_META_ROOT, decode_registry_name, get_registry_name, is_unreadable_registry_key,
+    load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
@@ -30,9 +31,9 @@ pub enum CacheCommand {
     /// Deletes registry metadata cache directories that this version of pnpm
     /// can no longer read.
     ///
-    /// pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these
-    /// directories. Projects that use those versions refetch registry metadata
-    /// after a prune, and their offline installs fail until they do.
+    /// Older pnpm versions depend on these directories. Projects that use
+    /// those versions refetch registry metadata after a prune, and their
+    /// offline installs fail until they do.
     Prune {
         /// Lists what would be deleted without removing anything.
         #[arg(long)]
@@ -184,8 +185,11 @@ impl CacheCommand {
         let mut meta_files_by_path = IndexMap::new();
         for (file_path, full_path) in meta_file_paths {
             let Some(meta_object) = load_meta(&full_path) else { continue };
-            let (cached_versions, non_cached_versions) =
-                split_cached_versions(&meta_object, store_index.as_deref());
+            let Some((cached_versions, non_cached_versions)) =
+                split_cached_versions(&meta_object, store_index.as_deref())
+            else {
+                continue;
+            };
 
             // The output groups versions per registry.
             meta_files_by_path.insert(
@@ -228,11 +232,13 @@ impl CacheCommand {
         Ok(())
     }
 
-    /// Remove the mirror directories left behind by a pnpm that keyed them on
-    /// the registry's host alone.
+    /// Remove the mirror directories left behind by an older pnpm: every
+    /// directory of the [`LEGACY_META_DIRS`] roots and of
+    /// [`LEGACY_PRIVATE_META_ROOT`], and those of the current roots that are
+    /// keyed on the registry's host alone.
     ///
-    /// Only [`is_unreadable_registry_key`] decides what goes, so a mirror
-    /// this version could still read is never a candidate.
+    /// In a current root only [`is_unreadable_registry_key`] decides what
+    /// goes, so a mirror this version could still read is never a candidate.
     ///
     /// Prints each removed directory as `<meta-dir>/<registry-key>`, the name
     /// on disk rather than the decoded URL. `dry_run` prints the same list and
@@ -243,14 +249,20 @@ impl CacheCommand {
     /// user the rest. Every root is confined to the cache directory first; see
     /// [`confined_meta_root`].
     ///
-    /// The descriptor-scoped roots under `v11/metadata-private` are left alone,
+    /// The descriptor-scoped roots under `v12/metadata-private` are left alone,
     /// as every other `pnpm cache` subcommand leaves them alone.
     fn prune(config: &Config, dry_run: bool) -> miette::Result<()> {
         let mut outcome = PruneOutcome::default();
         match dunce::canonicalize(&config.cache_dir) {
             Ok(cache_dir) => {
                 for meta_dir in [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR] {
-                    outcome.prune_root(&cache_dir, meta_dir, dry_run);
+                    outcome.prune_root(&cache_dir, meta_dir, is_unreadable_registry_key, dry_run);
+                }
+                for meta_dir in LEGACY_META_DIRS
+                    .into_iter()
+                    .chain([LEGACY_PRIVATE_META_ROOT])
+                {
+                    outcome.prune_root(&cache_dir, meta_dir, |_| true, dry_run);
                 }
             }
             // No cache directory at all is nothing to reclaim, as an absent
@@ -277,7 +289,15 @@ impl PruneOutcome {
     ///
     /// A root that cannot be read is recorded rather than passed over: silence
     /// would report it as holding nothing stale when it was never read at all.
-    fn prune_root(&mut self, cache_dir: &Path, meta_dir: &str, dry_run: bool) {
+    /// `unreadable` decides which of its directories this version can no
+    /// longer read.
+    fn prune_root(
+        &mut self,
+        cache_dir: &Path,
+        meta_dir: &str,
+        unreadable: fn(&str) -> bool,
+        dry_run: bool,
+    ) {
         let root = match confined_meta_root(cache_dir, meta_dir) {
             Ok(None) => return,
             Ok(Some(root)) => root,
@@ -293,7 +313,7 @@ impl PruneOutcome {
             }
         };
         for entry in entries {
-            self.prune_entry(entry, meta_dir, dry_run);
+            self.prune_entry(entry, meta_dir, unreadable, dry_run);
         }
     }
 
@@ -307,7 +327,13 @@ impl PruneOutcome {
     /// and that `lstat` is the exception, as an already-removed directory is in
     /// [`remove_pruned_dir`]: a prune running alongside this one must not make
     /// it fail for reaching the same end first.
-    fn prune_entry(&mut self, entry: io::Result<fs::DirEntry>, meta_dir: &str, dry_run: bool) {
+    fn prune_entry(
+        &mut self,
+        entry: io::Result<fs::DirEntry>,
+        meta_dir: &str,
+        unreadable: fn(&str) -> bool,
+        dry_run: bool,
+    ) {
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
@@ -331,7 +357,7 @@ impl PruneOutcome {
             .file_name()
             .to_string_lossy()
             .into_owned();
-        if !is_unreadable_registry_key(&registry_key) {
+        if !unreadable(&registry_key) {
             return;
         }
         match remove_pruned_dir(&path, dry_run) {
@@ -496,13 +522,22 @@ fn walk_metadata_files(
 fn split_cached_versions(
     meta_object: &pnpm_registry::Package,
     store_index: Option<&StoreIndex>,
-) -> (Vec<String>, Vec<String>) {
+) -> Option<(Vec<String>, Vec<String>)> {
     let mut cached = Vec::new();
     let mut non_cached = Vec::new();
+    let mut read = 0;
     for (version, json_frag) in meta_object.versions.fragments() {
-        let Some(integrity) = version_integrity(json_frag.as_ref()) else { continue };
+        read += 1;
+        let manifest = serde_json::from_str::<serde_json::Value>(json_frag.as_ref()).ok()?;
+        let Some(integrity) = manifest
+            .get("dist")
+            .and_then(|dist| dist.get("integrity"))
+            .and_then(|integrity_value| integrity_value.as_str())
+        else {
+            continue;
+        };
         let key = pnpm_store_dir::store_index_key(
-            &integrity,
+            integrity,
             &format!("{}@{}", meta_object.name, version),
         );
         let is_cached = store_index.is_some_and(|index| index.contains_key(&key).unwrap_or(false));
@@ -512,14 +547,7 @@ fn split_cached_versions(
             non_cached.push(version.clone());
         }
     }
-    (cached, non_cached)
-}
-
-fn version_integrity(json_frag: &str) -> Option<String> {
-    let manifest = serde_json::from_str::<serde_json::Value>(json_frag).ok()?;
-    manifest
-        .get("dist")?
-        .get("integrity")?
-        .as_str()
-        .map(ToOwned::to_owned)
+    // A fragment that could not be read is skipped by `fragments`, and a
+    // partial version list would misreport the cache.
+    (read == meta_object.versions.len()).then_some((cached, non_cached))
 }

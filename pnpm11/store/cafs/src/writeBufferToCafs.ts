@@ -141,11 +141,7 @@ function overwriteFileInPlace (
   buffer: Buffer,
   integrity: Integrity
 ): boolean {
-  const stats = withFileLockRetry(() => fs.lstatSync(fileDest, { bigint: true, throwIfNoEntry: false }))
-  // A write-protected file refuses the write open, and on Windows that
-  // refusal would first spend the transient-lock retry budget.
-  if (!stats?.isFile() || (Number(stats.mode) & 0o222) === 0) return false
-  const fd = openSameFile(fileDest, stats)
+  const fd = openStoreFileForRepair(fileDest)
   if (fd == null) return false
   try {
     fs.ftruncateSync(fd, 0)
@@ -156,6 +152,12 @@ function overwriteFileInPlace (
     closeQuietly(fd)
   }
   return verifyFileIntegrity(fileDest, integrity)
+}
+
+export function openStoreFileForRepair (fileDest: string): number | null {
+  const stats = withFileLockRetry(() => fs.lstatSync(fileDest, { bigint: true, throwIfNoEntry: false }))
+  if (!stats?.isFile() || (Number(stats.mode) & 0o222) === 0) return null
+  return openSameFile(fileDest, stats)
 }
 
 /**
@@ -195,7 +197,7 @@ function openSameFile (fileDest: string, stats: fs.BigIntStats): number | null {
  * A close failure after a write is caught by the integrity verification
  * that follows it, and after a refused open there is nothing to lose.
  */
-function closeQuietly (fd: number): void {
+export function closeQuietly (fd: number): void {
   try {
     fs.closeSync(fd)
   } catch {}

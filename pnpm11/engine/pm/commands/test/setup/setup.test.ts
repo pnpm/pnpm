@@ -71,6 +71,21 @@ test('setup makes no changes', async () => {
   expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
 })
 
+test('setup names the shell config file when it makes no changes', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'skipped',
+      path: '~/.bashrc',
+    },
+    oldSettings: 'export PNPM_HOME=dir',
+    newSettings: 'export PNPM_HOME=dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Configuration already up to date in ~/.bashrc
+
+No changes to the environment were made. Everything is already up to date.`)
+})
+
 test('setup makes changes on POSIX', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     configFile: {

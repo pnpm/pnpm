@@ -3,14 +3,15 @@ import { interactivePromptPageSize } from '@pnpm/cli.utils'
 import type { AuditReport } from '@pnpm/deps.compliance.audit'
 import { isError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
+import type { RangeSpecStyle } from '@pnpm/types'
 import chalk from 'chalk'
 
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 
 type AuditFixCheckboxChoice = Separator | { name: string; value: string; short: string; disabled?: boolean | string }
 
-export async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditReport> {
-  const choiceGroups = getAuditFixChoices(Object.values(auditReport.advisories))
+export async function interactiveAuditFix (auditReport: AuditReport, rangeSpecStyle: RangeSpecStyle): Promise<AuditReport> {
+  const choiceGroups = getAuditFixChoices(Object.values(auditReport.advisories), rangeSpecStyle)
   if (choiceGroups.length === 0) {
     return auditReport
   }

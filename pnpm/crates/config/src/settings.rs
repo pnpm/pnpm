@@ -1176,7 +1176,7 @@ pub struct Config {
     /// (`sh` on POSIX, `cmd.exe` on Windows).
     pub script_shell: Option<String>,
 
-    /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
+    /// `nodeOptions` from `pnpm-workspace.yaml`. When nonempty, it is exported
     /// as `NODE_OPTIONS` to scripts and `pnpm exec` child processes.
     pub node_options: Option<String>,
 

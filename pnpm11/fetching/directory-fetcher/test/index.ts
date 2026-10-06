@@ -252,3 +252,43 @@ describe('fetch resolves symlinked files to their real locations', () => {
     expect(fetchResult.filesMap.get('src/index.js')).toBe(path.resolve('src/index.js'))
   })
 })
+
+
+test.each(['file', 'directory'])('all-files deployment rejects an external %s symlink', async (kind) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  try {
+    const pkgDir = path.join(tmp, 'package')
+    const outside = path.join(tmp, 'outside')
+    fs.mkdirSync(pkgDir)
+    fs.mkdirSync(outside)
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"test","version":"1.0.0"}')
+    fs.writeFileSync(path.join(outside, 'secret'), 'private')
+    const target = kind === 'file' ? path.join(outside, 'secret') : outside
+    fs.symlinkSync(target, path.join(pkgDir, 'linked'), kind === 'file' ? 'file' : 'junction')
+    const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: false })
+
+    await expect(fetcher.directory(unusedCafs, { directory: pkgDir, type: 'directory' }, { lockfileDir: tmp }))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PATH' })
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('all-files deployment follows internal symlinks under a symlinked package root', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  try {
+    const pkgDir = path.join(tmp, 'package')
+    const linkedRoot = path.join(tmp, 'linked-root')
+    fs.mkdirSync(pkgDir)
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"test","version":"1.0.0"}')
+    fs.writeFileSync(path.join(pkgDir, 'source'), 'public')
+    fs.symlinkSync(path.join(pkgDir, 'source'), path.join(pkgDir, 'linked'), 'file')
+    fs.symlinkSync(pkgDir, linkedRoot, 'junction')
+    const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: false })
+    const result = await fetcher.directory(unusedCafs, { directory: linkedRoot, type: 'directory' }, { lockfileDir: tmp })
+
+    expect(result.filesMap.get('linked')).toBe(path.join(linkedRoot, 'linked'))
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})

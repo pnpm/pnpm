@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
@@ -60,6 +61,7 @@ export interface BuildDependenciesTreeOptions {
   modulesDir?: string
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependenciesTree (
@@ -224,6 +226,8 @@ function createTreeOptions ({ treeOpts, modules, modulesDir, registriesByScope, 
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? treeOpts.virtualStoreDirMaxLength,
+    nodeLinker: modules?.nodeLinker ?? treeOpts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations && withCollapsedVariants(modules.hoistedLocations),
   }
 }
 

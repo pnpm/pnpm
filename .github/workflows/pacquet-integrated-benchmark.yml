@@ -407,7 +407,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
         with:
           tool: just
 

@@ -48,6 +48,7 @@ impl<'a> RunExecution<'a> {
         .await?;
         let manifests = std::mem::take(&mut loaded.manifests);
         let project_manifests = manifests.view(&scope.project_manifests);
+        self.validate_project_manifests(&project_manifests)?;
         let lockfiles = settle_wanted_lockfile::<Reporter>(
             self.install,
             &self.mode,

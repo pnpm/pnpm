@@ -301,7 +301,9 @@ fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
         "module.exports = 'parent'\n",
     );
     assert_eq!(
-        read("parent-pkg@file+++/node_modules/parent-pkg/index.js"),
+        read(
+            "parent-pkg@file+++_533e2d775a8ebec1166dcc5f3df4de30/node_modules/parent-pkg/index.js"
+        ),
         "module.exports = 'plus'\n",
     );
     assert_eq!(

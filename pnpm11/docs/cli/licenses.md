@@ -9,7 +9,7 @@ title: pnpm licenses
 
 Aliases: `ls`
 
-List licenses for installed packages.
+List licenses for installed packages. Terminal table output removes control characters from package metadata. JSON output preserves the metadata.
 
 Since v11.28.0, running `pnpm licenses list` inside a workspace package lists only the licenses of that package's dependencies. Use [`--recursive`](#--recursive--r) or [`--filter`](#--filter-package_selector) to include other workspace projects.
 

@@ -47,11 +47,11 @@ impl OriginLimits {
         origin: &str,
         is_proxied: bool,
         priority: u64,
-    ) -> (OriginPermit, Option<OwnedSemaphorePermit>) {
+    ) -> (OriginPermit, Option<Permit>) {
         let registry_slot = self.registries.acquire(url, priority).await;
         let mut origin_permit = self.timeouts.acquire(origin).await;
         origin_permit.registry_slot = registry_slot;
-        (origin_permit, self.sockets.acquire(origin, is_proxied).await)
+        (origin_permit, self.sockets.acquire(origin, is_proxied, priority).await)
     }
 }
 
