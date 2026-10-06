@@ -11,7 +11,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 
 import { handleIgnoredBuilds } from '../handleIgnoredBuilds.js'
-import { resolvedPackageVersionsForPrune } from '../resolvedPackageVersionsForPrune.js'
+import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from '../resolvedPackageVersionsForPrune.js'
 import {
   completeDependencySelectors,
   createNoPackageInDependenciesError,
@@ -51,6 +51,7 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     updatedProjects,
     ignoredBuilds,
     newLockfile,
+    wantedLockfile,
     resolutionPolicyViolations,
     dryRunResult,
   } = await mutateModules(mutatedImporters, {
@@ -63,6 +64,7 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     updatedProjects,
     updatedCatalogs,
     newLockfile,
+    wantedLockfile,
     resolutionPolicyViolations,
   })
   await handleIgnoredBuilds(ctx.opts, ignoredBuilds)
@@ -222,7 +224,7 @@ function createManifestsSaver (ctx: RecursiveContext): (result: BeforeLifecycleS
 
 async function persistManifests (
   { allProjects, manifestsByPath, opts, policyHandlers }: RecursiveContext,
-  { updatedProjects, updatedCatalogs, newLockfile, resolutionPolicyViolations }: BeforeLifecycleScriptsResult
+  { updatedProjects, updatedCatalogs, newLockfile, wantedLockfile, resolutionPolicyViolations }: BeforeLifecycleScriptsResult
 ): Promise<void> {
   // Only pick entries when we'll actually persist. Otherwise the
   // info log would claim entries were added that the workspace
@@ -237,6 +239,7 @@ async function persistManifests (
   promises.push(updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
     catalogPrune: opts.catalogPrune,
+    keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
     resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,

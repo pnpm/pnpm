@@ -112,6 +112,7 @@ export async function mutateModulesInSingleProject (
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
     newLockfile: result.newLockfile,
+    wantedLockfile: result.wantedLockfile,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
     dryRunResult: result.dryRunResult,
   }

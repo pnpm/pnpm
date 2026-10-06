@@ -2,8 +2,8 @@ use crate::{
     CommandLockfile, Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects,
     UpdateSeedPolicy,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
-        write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, lockfile_catalogs, post_install_prune,
+        write_workspace_catalogs, write_workspace_catalogs_selected,
     },
     defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
     package_manifest_prefix, selected_project_indices,
@@ -13,6 +13,7 @@ use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -84,8 +85,15 @@ impl Remove<'_> {
 
         persist_manifest::<Reporter>(manifest)?;
 
-        write_workspace_catalogs(remove.config, None, &Catalogs::new(), None, manifest)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
+        let kept_catalogs = written_lockfile_catalogs(remove)?;
+        write_workspace_catalogs(
+            remove.config,
+            None,
+            &Catalogs::new(),
+            kept_catalogs.as_ref(),
+            manifest,
+        )
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
 
         post_install_prune(remove.config, None, manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
@@ -131,11 +139,13 @@ impl Remove<'_> {
             .pipe(defer_ignored_builds)
             .map_err(RemoveError::Install)?;
 
+        let kept_catalogs = written_lockfile_catalogs(remove)?;
         finalize_selected_remove::<Reporter>(
             selected.projects,
             &selected_indices,
             remove.config,
             &workspace_root,
+            kept_catalogs.as_ref(),
             manifest,
         )?;
         if let Some(ignored_builds) = ignored_builds {
@@ -333,14 +343,34 @@ fn finalize_selected_remove<Reporter: self::Reporter>(
     selected_indices: &[usize],
     config: &'static Config,
     workspace_root: &std::path::Path,
+    kept_catalogs: Option<&Catalogs>,
     manifest: &PackageManifest,
 ) -> Result<(), RemoveError> {
     persist_selected_manifests::<Reporter>(projects, selected_indices)?;
-    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), None, projects)
-        .map_err(RemoveError::WriteWorkspaceManifest)?;
+    write_workspace_catalogs_selected(
+        config,
+        workspace_root,
+        &Catalogs::new(),
+        kept_catalogs,
+        projects,
+    )
+    .map_err(RemoveError::WriteWorkspaceManifest)?;
     post_install_prune(config, Some(workspace_root), manifest)
         .map_err(RemoveError::WriteWorkspaceManifest)?;
     Ok(())
+}
+
+/// The catalogs of the lockfile the removal's install left on disk, kept by
+/// the `catalogPrune` pass so a frozen install still matches that lockfile.
+fn written_lockfile_catalogs(remove: RemoveOptions<'_>) -> Result<Option<Catalogs>, RemoveError> {
+    if !remove.config.catalog_prune || !remove.config.lockfile {
+        return Ok(None);
+    }
+    let Some(lockfile_path) = remove.lockfile.path else { return Ok(None) };
+    Lockfile::load_from_path(lockfile_path)
+        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)
+        .map_err(RemoveError::WriteWorkspaceManifest)
+        .map(|lockfile| lockfile.as_ref().and_then(lockfile_catalogs))
 }
 
 fn persist_selected_manifests<Reporter: self::Reporter>(

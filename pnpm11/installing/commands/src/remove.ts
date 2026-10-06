@@ -21,7 +21,7 @@ import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
-import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -328,15 +328,17 @@ async function removeFromProject ({ opts, params, include, store }: RemoveContex
   await pruneWorkspaceManifest(opts, {
     allProjects: replaceUpdatedProjectManifest(allProjects ?? [], mutationResult.updatedProject),
     newLockfile: mutationResult.newLockfile,
+    wantedLockfile: mutationResult.wantedLockfile,
   })
 }
 
 async function pruneWorkspaceManifest (
   opts: RemoveCommandOptions,
-  { allProjects, newLockfile }: { allProjects: Project[], newLockfile: LockfileObject | undefined }
+  { allProjects, newLockfile, wantedLockfile }: { allProjects: Project[], newLockfile: LockfileObject | undefined, wantedLockfile: LockfileObject | undefined }
 ): Promise<void> {
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     catalogPrune: opts.catalogPrune,
+    keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
     resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
