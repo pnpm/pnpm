@@ -15,7 +15,6 @@
 //!
 use std::{collections::HashMap, sync::Arc};
 
-use pnpm_registry::Package;
 use ssri::Integrity;
 use tokio::sync::{Mutex, OnceCell};
 
@@ -56,6 +55,20 @@ pub(crate) struct AbbreviatedMetaProjection {
     pub version_time: Option<HashMap<String, String>>,
 }
 
+/// The fields of a full packument the trust check reads, one evidence
+/// rank per version instead of a manifest, so a projection kept for every
+/// package of a large lockfile stays small. Read through
+/// [`crate::TrustHistory`].
+#[derive(Debug)]
+pub(crate) struct TrustHistoryProjection {
+    pub name: String,
+    /// version → publish timestamp; `None` when the packument has no `time`.
+    pub time: Option<PublishedAtTimeMap>,
+    /// Every version whose manifest decodes, sorted by version, with its
+    /// trust evidence.
+    pub evidence: Vec<(String, Option<crate::TrustEvidence>)>,
+}
+
 #[derive(Debug, Default, Clone)]
 pub(crate) struct RegistryArtifactHistory {
     pub current: RegistryArtifact,
@@ -84,7 +97,7 @@ pub(crate) type SingleflightMap<Value> = Mutex<HashMap<String, Arc<OnceCell<Valu
 pub(crate) struct PublishedAtLookupContext {
     pub published_at: SingleflightMap<Result<Option<String>, String>>,
     pub full_meta: SingleflightMap<Result<Option<Arc<PublishedAtTimeMap>>, String>>,
-    pub full_meta_for_trust: SingleflightMap<Result<Arc<Package>, String>>,
+    pub full_meta_for_trust: SingleflightMap<Result<Arc<TrustHistoryProjection>, String>>,
     /// `Ok(projection)` on a successful fetch, `Err(reason)` on a fetch
     /// failure (auth/network/5xx). The error is carried as a value rather than
     /// discarded so the tarball-URL check can tell a transport failure apart

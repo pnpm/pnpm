@@ -225,11 +225,12 @@ impl TrustRejections {
         // the whole publish history every candidate is judged by.
         let full_meta = self.full_meta.get_or_insert_with(|| Arc::clone(meta));
         let version_str = version.version.to_string();
-        let downgrade = match fail_if_trust_downgraded(full_meta, &version_str, trust_check) {
-            Ok(()) => return Ok(false),
-            Err(downgrade @ TrustViolation::TrustDowngrade { .. }) => downgrade,
-            Err(violation) => return Err(Box::new(violation)),
-        };
+        let downgrade =
+            match fail_if_trust_downgraded(full_meta.as_ref(), &version_str, trust_check) {
+                Ok(()) => return Ok(false),
+                Err(downgrade @ TrustViolation::TrustDowngrade { .. }) => downgrade,
+                Err(violation) => return Err(Box::new(violation)),
+            };
         let blocked_key = blocked_packument_key(meta, version, &version_str);
         if repick_limit_reached(blocked_versions, blocked_key).is_some() {
             return Err(Box::new(self.first_downgrade.take().unwrap_or(downgrade)));

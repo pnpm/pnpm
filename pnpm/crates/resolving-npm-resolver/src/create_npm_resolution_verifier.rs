@@ -63,9 +63,7 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pnpm_registry::{
-    Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
-};
+use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
@@ -74,11 +72,13 @@ use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
-    fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
+    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    fetch_full_metadata_cached::fetch_full_metadata_projected,
+    get_trust_evidence,
     lookup_context::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
-        package_key, version_key,
+        TrustHistoryProjection, package_key, version_key,
     },
     named_registry::named_registry_tarball_prefixes,
     pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},

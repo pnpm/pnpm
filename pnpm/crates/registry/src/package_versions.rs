@@ -168,26 +168,45 @@ impl VersionSlot {
         corrupt_mirror_fragment: &AtomicBool,
     ) -> Option<Arc<PackageVersion>> {
         self.parsed
-            .get_or_init(|| {
-                let Some(json) = self.source.json() else {
-                    self.report_undecodable(version, corrupt_mirror_fragment);
-                    return None;
-                };
-                match serde_json::from_str::<PackageVersion>(&json) {
-                    Ok(parsed) => Some(Arc::new(parsed)),
-                    Err(error) => {
-                        tracing::warn!(
-                            target: "pnpm_registry",
-                            %error,
-                            version,
-                            "skipping registry version with an undecodable manifest",
-                        );
-                        self.report_decode_error(version, &json, corrupt_mirror_fragment);
-                        None
-                    }
-                }
-            })
+            .get_or_init(|| self.decode(version, corrupt_mirror_fragment))
             .clone()
+    }
+
+    /// The hydrated manifest when there is one, else a fresh decode that
+    /// the slot does not keep.
+    fn hydrated_or_decode(
+        &self,
+        version: &str,
+        corrupt_mirror_fragment: &AtomicBool,
+    ) -> Option<Arc<PackageVersion>> {
+        match self.parsed.get() {
+            Some(parsed) => parsed.clone(),
+            None => self.decode(version, corrupt_mirror_fragment),
+        }
+    }
+
+    fn decode(
+        &self,
+        version: &str,
+        corrupt_mirror_fragment: &AtomicBool,
+    ) -> Option<Arc<PackageVersion>> {
+        let Some(json) = self.source.json() else {
+            self.report_undecodable(version, corrupt_mirror_fragment);
+            return None;
+        };
+        match serde_json::from_str::<PackageVersion>(&json) {
+            Ok(parsed) => Some(Arc::new(parsed)),
+            Err(error) => {
+                tracing::warn!(
+                    target: "pnpm_registry",
+                    %error,
+                    version,
+                    "skipping registry version with an undecodable manifest",
+                );
+                self.report_decode_error(version, &json, corrupt_mirror_fragment);
+                None
+            }
+        }
     }
 
     /// Only bytes that are not JSON at all mean a damaged mirror. A
@@ -345,6 +364,19 @@ impl PackageVersions {
             .iter()
             .filter_map(|(version, slot)| {
                 Some((version, slot.hydrate(version, &self.corrupt_mirror_fragment)?))
+            })
+    }
+
+    /// [`Self::iter`] without filling the hydration cache: a version not
+    /// hydrated yet is decoded for the caller and kept nowhere else. A full
+    /// walk over a packument that outlives it, such as one in the
+    /// resolver's shared cache, would otherwise keep every manifest the
+    /// packument lists in memory.
+    pub fn iter_uncached(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
+        self.slots
+            .iter()
+            .filter_map(|(version, slot)| {
+                Some((version, slot.hydrated_or_decode(version, &self.corrupt_mirror_fragment)?))
             })
     }
 

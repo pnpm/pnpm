@@ -13,7 +13,9 @@ use mockito::Matcher;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
-use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
+use super::{
+    FetchFullMetadataCachedOptions, fetch_full_metadata_cached, fetch_full_metadata_projected,
+};
 use crate::{
     FetchMetadataError,
     mirror::{

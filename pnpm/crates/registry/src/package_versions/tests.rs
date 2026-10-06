@@ -72,6 +72,42 @@ fn undecodable_fragment_behaves_as_absent() {
     assert!(!package.versions.has_corrupt_mirror_fragment());
 }
 
+#[test]
+fn uncached_walk_reuses_hydrated_manifests_and_keeps_no_others() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}},
+                "2.0.0": {"name": "foo", "version": "2.0.0", "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-2.0.0.tgz"}},
+                "9.9.9": {"this is": "not a version manifest"}
+            }
+        }"#,
+    );
+    let hydrated = package.versions.get("1.0.0").expect("hydrate 1.0.0");
+
+    let walked: HashMap<_, _> = package.versions
+        .iter_uncached()
+        .map(|(version, manifest)| (version.as_str(), manifest))
+        .collect();
+
+    assert_eq!(walked.len(), 2);
+    assert!(std::sync::Arc::ptr_eq(&walked["1.0.0"], &hydrated));
+    let decoded = &walked["2.0.0"];
+    assert_eq!(decoded.version.to_string(), "2.0.0");
+    let hydrated_later = package.versions.get("2.0.0").expect("hydrate 2.0.0");
+    assert!(!std::sync::Arc::ptr_eq(decoded, &hydrated_later));
+}
+
+#[test]
+fn uncached_walk_reports_a_damaged_mirror_fragment() {
+    let versions = mirror_versions();
+
+    assert_eq!(versions.iter_uncached().count(), 1);
+    assert!(versions.has_corrupt_mirror_fragment());
+}
+
 /// A mirror-backed packument whose valid fragment sits before a
 /// damaged one, plus the two spans that address them.
 fn mirror_versions() -> crate::PackageVersions {

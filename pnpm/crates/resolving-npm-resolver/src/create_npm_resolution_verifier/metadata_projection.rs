@@ -1,89 +1,58 @@
 use super::{
-    Approver, Arc, DerivedPackuments, DistStats, HashMap, JsonValue, NpmUser, Package,
-    PackageDistribution, PackageVersion, Pipe, PublishedAtTimeMap,
+    Arc, DistStats, HashMap, JsonValue, Package, Pipe, PublishedAtTimeMap, TrustEvidence,
+    TrustHistory, TrustHistoryProjection, get_trust_evidence,
 };
 
-/// Build a [`Package`] that retains only the fields
-/// [`fail_if_trust_downgraded`] reads: the package name, the per-version
-/// `time` map, and per-version trust evidence (`_npmUser.approver`,
-/// `_npmUser.trustedPublisher`, and `dist.attestations.provenance`).
-/// Drops everything else — dependency
-/// graphs, scripts, READMEs — so the per-install trust-meta cache stays
-/// bounded by the trust-evidence footprint, not the full packument size.
+/// Project a packument to what [`fail_if_trust_downgraded`] reads from it.
+///
+/// The walk leaves `meta`'s hydration cache alone: `meta` may be the
+/// resolver's shared packument, which lives for the whole install.
 ///
 /// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
-pub(super) fn project_trust_meta(meta: &Package) -> Package {
-    // Borrowed `meta` so the shared-cache fast path (which only holds
-    // `Arc<Package>`) doesn't pay for a full deep-clone of the
-    // packument it's about to discard. Only the fields downstream
-    // reads are cloned out; the bulk of the document (per-version
-    // dependency maps, scripts, README) drops on the original.
-    let versions = meta.versions
-        .iter()
-        .map(|(version, manifest)| (version.clone(), project_trust_package_version(&manifest)))
+pub(super) fn project_trust_meta(meta: &Package) -> TrustHistoryProjection {
+    let time = meta.time
+        .as_ref()
+        .map(|time| {
+            time.iter()
+                .filter_map(|(version, value)| Some((version.clone(), value.as_str()?.to_owned())))
+                .collect()
+        });
+    let evidence = meta.versions
+        .iter_uncached()
+        .map(|(version, manifest)| (version.clone(), get_trust_evidence(&manifest)))
         .collect();
-    Package {
-        name: meta.name.clone(),
-        dist_tags: std::collections::HashMap::new(),
-        versions,
-        time: meta.time.clone(),
-        modified: meta.modified.clone(),
-        etag: meta.etag.clone(),
-        // `homepage` is only read by `outdated --long`, never by trust
-        // verification, so it is dropped here to keep the trust-meta cache
-        // bounded by the trust-evidence footprint (see the fn doc).
-        homepage: None,
-        mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
-        derived: DerivedPackuments::default(),
-    }
+    TrustHistoryProjection { name: meta.name.clone(), time, evidence }
 }
 
-pub(super) fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
-    let attestations = version.dist.attestations
-        .as_ref()
-        .and_then(|att| att.provenance.as_ref())
-        .map(|prov| pnpm_registry::AttestationsDist { provenance: Some(prov.clone()), url: None });
-    // `get_trust_evidence` only reads `npm_user.approver` (presence) and
-    // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`
-    // PII — including the approver's — so the projected cache entry
-    // doesn't hold per-version publisher metadata that downstream
-    // doesn't need.
-    let approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref());
-    let trusted_publisher =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref());
-    let npm_user = (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
-        name: None,
-        email: None,
-        approver: approver.map(|_| Approver { name: None, email: None }),
-        trusted_publisher: trusted_publisher.cloned(),
-    });
-    PackageVersion {
-        // `fail_if_trust_downgraded` keys off the outer `meta.versions`
-        // map and the version-level npm_user / attestations fields. The
-        // per-version `name`, `version`, and `dist` non-attestation fields
-        // are never read, so empty placeholders are fine — clone of the
-        // parsed semver keeps the typed shape valid without paying for
-        // the registry packument's dependency graph.
-        name: String::new(),
-        version: version.version.clone(),
-        dist: PackageDistribution {
-            integrity: None,
-            shasum: None,
-            tarball: String::new(),
-            revision: None,
-            revisions: None,
-            file_count: None,
-            unpacked_size: None,
-            attestations,
-        },
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        npm_user,
-        deprecated: None,
-        other: HashMap::new(),
+impl TrustHistory for TrustHistoryProjection {
+    fn package_name(&self) -> &str {
+        &self.name
+    }
+
+    fn has_publish_times(&self) -> bool {
+        self.time.is_some()
+    }
+
+    fn published_at(&self, version: &str) -> Option<&str> {
+        self.time
+            .as_ref()?
+            .get(version)
+            .map(String::as_str)
+    }
+
+    fn versions(&self) -> impl Iterator<Item = &str> {
+        self.evidence.iter().map(|(version, _)| version.as_str())
+    }
+
+    fn version_evidence(&self, version: &str) -> Option<Option<TrustEvidence>> {
+        let index = self.evidence
+            .binary_search_by(|(candidate, _)| candidate.as_str().cmp(version))
+            .ok()?;
+        Some(self.evidence[index].1)
+    }
+
+    fn prior_evidence(&self, version: &str) -> Option<Option<TrustEvidence>> {
+        self.version_evidence(version)
     }
 }
 
@@ -95,22 +64,19 @@ pub(super) fn project_abbreviated_meta(
     meta: &Package,
     include_time: bool,
 ) -> crate::lookup_context::AbbreviatedMetaProjection {
-    let version_artifacts = meta.versions
-        .iter()
-        .map(|(version, manifest)| (version.clone(), project_artifact_history(&manifest.dist)))
-        .collect();
-    let version_dist_stats = meta.versions
-        .iter()
-        .filter_map(|(version, manifest)| {
-            let stats = DistStats {
-                unpacked_size: manifest.dist.unpacked_size,
-                file_count: manifest.dist.file_count,
-            };
-            (stats.unpacked_size.is_some() || stats.file_count.is_some()).then(|| {
-                (version.clone(), stats)
-            })
-        })
-        .collect();
+    // One uncached pass: `meta` may be the resolver's shared packument.
+    let mut version_artifacts = HashMap::new();
+    let mut version_dist_stats = HashMap::new();
+    for (version, manifest) in meta.versions.iter_uncached() {
+        let stats = DistStats {
+            unpacked_size: manifest.dist.unpacked_size,
+            file_count: manifest.dist.file_count,
+        };
+        if stats.unpacked_size.is_some() || stats.file_count.is_some() {
+            version_dist_stats.insert(version.clone(), stats);
+        }
+        version_artifacts.insert(version.clone(), project_artifact_history(&manifest.dist));
+    }
     // `time` also carries package-level `created`/`modified` keys; keeping
     // them is harmless (lookups are by exact version) and cheaper than
     // filtering against the versions map.
