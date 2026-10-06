@@ -182,6 +182,15 @@ fn converted_deploy_lockfile(
     deploy_lockfile.pnpmfile_checksum = None;
     if let Some(settings) = deploy_lockfile.settings.as_mut() {
         settings.inject_workspace_packages = false;
+        // The deploy install turns both off (`create_deploy_install_config`),
+        // so a lockfile that records its resolution settings must agree.
+        let resolution = &mut settings.resolution;
+        if resolution.dedupe_injected_deps.is_some() {
+            resolution.dedupe_injected_deps = Some(false);
+        }
+        if resolution.dedupe_peer_dependents.is_some() {
+            resolution.dedupe_peer_dependents = Some(false);
+        }
     }
     deploy_lockfile.importers =
         HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
