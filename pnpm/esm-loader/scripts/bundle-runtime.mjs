@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 
 import esbuild from 'esbuild'
@@ -15,4 +16,6 @@ const result = await esbuild.build({
 })
 
 const output = result.outputFiles[0]
-fs.writeFileSync(output.path, output.contents)
+const tempPath = `${output.path}.${process.pid}.tmp`
+fs.writeFileSync(tempPath, output.contents)
+fs.renameSync(tempPath, output.path)
