@@ -13,6 +13,12 @@ When `true`, any missing non-optional peer dependencies are automatically instal
 
 The version picked is the highest one satisfying the peer range. Since an automatically installed peer is not a dependency the project declares, [`resolutionMode`](./other.md#resolutionmode) treats it as a subdependency rather than a direct one, so `lowest-direct` does not lower it.
 
+#### Optional Peer Dependencies
+
+pnpm does not download a missing optional peer dependency. If the workspace already has a version of that package that satisfies the optional peer range, pnpm resolves the optional peer to it. That version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
+
+pnpm also resolves optional peers this way when [`dedupePeerDependents`](#dedupepeerdependents) is `true`. To stop it, set both `autoInstallPeers` and `dedupePeerDependents` to `false`.
+
 #### Version Conflicts
 
 If there are conflicting version requirements for a peer dependency from different packages, pnpm will not install any version of the conflicting peer dependency automatically. Instead, a warning is printed. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, these requirements conflict, and no automatic installation will occur.
