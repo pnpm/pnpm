@@ -59,9 +59,7 @@ pub fn build_storage_at_with_substitutions(
     out: &Path,
     substitutions: &[(&str, &str)],
 ) {
-    if out.exists() {
-        fs::remove_dir_all(out).expect("clear existing registry fixture storage");
-    }
+    remove_tree(out, "clear existing registry fixture storage");
     fs::create_dir_all(out).expect("create registry fixture storage dir");
     build_storage(packages, out, substitutions);
 }
@@ -149,9 +147,7 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     fs::create_dir_all(storage.parent().expect("registry fixture storage has parent"))
         .expect("create generated registry fixture storage dir");
     let temp = generated.join(scratch_name("storage.tmp"));
-    if temp.exists() {
-        fs::remove_dir_all(&temp).expect("remove stale temp registry fixture storage");
-    }
+    remove_tree(&temp, "remove stale temp registry fixture storage");
     build_storage(packages, &temp, &[]);
     fs::write(temp.join(COMPLETE_FILE), "").expect("write registry fixture completion marker");
     publish_storage(generated, &temp, storage);
@@ -194,7 +190,7 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
         restore_claimed_storage(&claimed, storage);
         return;
     }
-    fs::remove_dir_all(&claimed).expect("remove unusable registry fixture storage");
+    remove_tree(&claimed, "remove unusable registry fixture storage");
 }
 
 /// Put a claimed tree back after it turned out to be complete.
@@ -205,7 +201,16 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
 /// longer go back is redundant rather than lost, and gets dropped.
 fn restore_claimed_storage(claimed: &Path, storage: &Path) {
     if fs::rename(claimed, storage).is_err() {
-        fs::remove_dir_all(claimed).expect("remove redundant registry fixture storage");
+        remove_tree(claimed, "remove redundant registry fixture storage");
+    }
+}
+
+/// Remove `path` and its subtree, treating an absent path as removed.
+fn remove_tree(path: &Path, what: &str) {
+    match fs::remove_dir_all(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => panic!("{what} at {}: {error}", path.display()),
     }
 }
 
@@ -213,7 +218,7 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
     match fs::rename(temp, storage) {
         Ok(()) => Ok(()),
         Err(_) if storage.join(COMPLETE_FILE).exists() => {
-            fs::remove_dir_all(temp).expect("remove redundant registry fixture storage");
+            remove_tree(temp, "remove redundant registry fixture storage");
             Ok(())
         }
         Err(err) => Err(err),
