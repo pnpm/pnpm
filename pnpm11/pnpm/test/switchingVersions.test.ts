@@ -8,7 +8,7 @@ import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import { execPnpmSync, spawnPnpm, waitForPnpmExit } from './utils/index.js'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
   prepare()
@@ -482,7 +482,12 @@ test('relinks the bins of a store slot that an older pnpm linked (pnpm/pnpm#1664
 test('concurrent commands relink the bins of a stale store slot once', async () => {
   const { env, binDir } = prepareSlotWithStaleBins()
 
-  await Promise.all(Array.from({ length: 4 }, () => execPnpm(['help'], { env })))
+  const results = await Promise.all(Array.from({ length: 4 }, () => waitForPnpmExit(spawnPnpm(['help'], { env }))))
+
+  for (const { status, stdout } of results) {
+    expect(status).toBe(0)
+    expect(stdout.toString()).toContain('Version 9.3.0')
+  }
 
   expect(fs.existsSync(path.join(binDir, '.pnpm-bins-linked'))).toBe(true)
 })
