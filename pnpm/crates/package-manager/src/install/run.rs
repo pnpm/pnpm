@@ -270,10 +270,12 @@ impl InstallView<'_> {
             options.selection.as_ref().map(|s| s.all_projects)
         });
         // A frozen install cannot rewrite the lockfile, so it keeps the
-        // entries the lockfile records even if no project on disk uses them.
+        // entries the lockfile records even if no project on disk references them.
         let kept_catalogs = if self.lockfile_policy.frozen {
-            lockfile_catalogs(self.context.config, &workspace_dir)
-                .map_err(InstallError::WriteWorkspaceManifest)?
+            self.context.lockfile
+                .get()
+                .map_err(InstallError::LoadWantedLockfile)?
+                .and_then(lockfile_catalogs)
         } else {
             None
         };

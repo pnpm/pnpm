@@ -11,7 +11,8 @@ use pnpm_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
 use crate::{
-    UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, update_workspace_manifest,
+    CatalogReferenceSources, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME,
+    update_workspace_manifest,
 };
 
 fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
@@ -58,7 +59,10 @@ fn run_cleanup(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: updated,
             catalog_prune: true,
-            all_projects: projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: projects,
+                ..Default::default()
+            },
             ..Default::default()
         },
     )
@@ -244,7 +248,8 @@ fn run_update_field(
 /// pacquet writer produces for the same inputs.
 mod remove_unused_catalogs {
     use super::{
-        PackageManifest, UpdateWorkspaceManifestOptions, catalogs, project, run_cleanup, run_with,
+        CatalogReferenceSources, PackageManifest, UpdateWorkspaceManifestOptions, catalogs,
+        project, run_cleanup, run_with,
     };
 
     /// TS: `remove the default catalog if it is empty`.
@@ -405,7 +410,7 @@ mod remove_unused_catalogs {
     }
 
     #[test]
-    fn keeps_the_kept_catalog_entries() {
+    fn keeps_unreferenced_entries_listed_in_kept_catalogs() {
         let consumer = project(serde_json::json!({ "dependencies": { "abc": "catalog:foo" } }));
         let kept = catalogs(&[("default", &[("bar", "3.2.1")]), ("foo", &[("ghi", "7.8.9")])]);
         let out = run_with(
@@ -415,8 +420,10 @@ mod remove_unused_catalogs {
             ),
             &UpdateWorkspaceManifestOptions {
                 catalog_prune: true,
-                all_projects: &[&consumer],
-                kept_catalogs: Some(&kept),
+                catalog_references: CatalogReferenceSources {
+                    all_projects: &[&consumer],
+                    kept_catalogs: Some(&kept),
+                },
                 ..Default::default()
             },
         );
