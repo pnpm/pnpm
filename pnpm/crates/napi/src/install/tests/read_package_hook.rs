@@ -174,9 +174,11 @@ fn rebuild_accepts_a_lockfile_resolved_with_other_hooks_and_settings() {
     }
 
     let mut options = hooked_install_options(temp_dir.path(), &[FOO], Some("hooks-1"));
-    options.overrides = Some(IndexMap::from([(BAR.to_string(), "100.0.0".to_string())]));
+    // An override of a direct dependency also rewrites its specifier in the
+    // manifest check, which has to apply the overrides the lockfile records.
+    options.overrides = Some(IndexMap::from([(FOO.to_string(), "100.1.0".to_string())]));
     run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
-        .expect("rebuild with overrides the lockfile does not record");
+        .expect("rebuild with an override the lockfile does not record");
 
     assert!(
         read_lockfile(&options).contains("pnpmfileChecksum: hooks-1"),

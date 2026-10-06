@@ -5,7 +5,8 @@
 use super::{
     super::{Config, Lockfile},
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    LockfileFreshnessInputs, check_lockfile_settings_drift,
+    LockfileFreshnessInputs, check_lockfile_settings_drift, parse_config_overrides,
+    parse_overrides,
 };
 use crate::RebuildOptions;
 use pnpm_config_parse_overrides::VersionOverride;
@@ -21,14 +22,19 @@ impl LockfileFreshnessInputs<'_, '_> {
 
 /// The settings the lockfile records must match the current ones: all of
 /// them, or only the patches when [`FreshnessScope::patches_only`] is set.
+///
+/// Returns the overrides the manifests are checked against the lockfile
+/// with: the current ones, or for a patches-only check the ones the
+/// lockfile records, as the overrides are allowed to have drifted.
 pub(super) async fn check_settings(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[VersionOverride]>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<Option<Vec<VersionOverride>>, FreshnessCheckError> {
     if inputs.scope.patches_only {
-        return check_lockfile_patches(lockfile, inputs.config);
+        check_lockfile_patches(lockfile, inputs.config)?;
+        return parse_overrides(lockfile.overrides.as_ref(), inputs.catalogs);
     }
+    let parsed_overrides = parse_config_overrides(inputs.config, inputs.catalogs)?;
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
         inputs.pnpmfile_hook,
         lockfile.pnpmfile_checksum.as_deref(),
@@ -39,14 +45,15 @@ pub(super) async fn check_settings(
         inputs.config,
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
-            parsed_overrides,
+            parsed_overrides: parsed_overrides.as_deref(),
             pnpmfile_checksum: super::super::pnpmfile_checksum_check(
                 inputs,
                 pnpmfile_checksum.as_deref(),
             ),
             dedupe_peers: inputs.config.dedupe_peers,
         },
-    )
+    )?;
+    Ok(parsed_overrides)
 }
 
 /// The lockfile's `patchedDependencies` must match the configured patch

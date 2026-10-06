@@ -313,8 +313,7 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
-    let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    settings::check_settings(lockfile, inputs, parsed_overrides_opt.as_deref()).await?;
+    let parsed_overrides_opt = settings::check_settings(lockfile, inputs).await?;
 
     if inputs.scope.ignore_manifest_check {
         return Ok(Vec::new());
@@ -440,7 +439,16 @@ pub(crate) fn parse_config_overrides(
     config: &Config,
     catalogs: &Catalogs,
 ) -> Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>, FreshnessCheckError> {
-    match config.overrides.as_ref() {
+    parse_overrides(config.overrides.as_ref(), catalogs)
+}
+
+/// Parses an `overrides` map, from the config or the one a lockfile
+/// records. `None` when there are none.
+pub(crate) fn parse_overrides(
+    overrides: Option<&indexmap::IndexMap<String, String>>,
+    catalogs: &Catalogs,
+) -> Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>, FreshnessCheckError> {
+    match overrides {
         Some(map) if !map.is_empty() => Ok(Some(
             pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)
                 .map_err(FreshnessCheckError::InvalidOverrides)?,
