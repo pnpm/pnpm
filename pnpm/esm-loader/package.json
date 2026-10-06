@@ -15,11 +15,15 @@
     "node": ">=26.10.0"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs && node scripts/bundle-runtime.mjs --check",
-    ".test": "node --test test/*.test.mjs && node scripts/bundle-runtime.mjs --check"
+    "prepare": "node scripts/bundle-runtime.mjs",
+    "test": "node --test test/*.test.mjs",
+    ".test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "enhanced-resolve": "5.25.1"
+    "enhanced-resolve": "catalog:"
+  },
+  "devDependencies": {
+    "esbuild": "catalog:"
   },
   "repository": {
     "type": "git",

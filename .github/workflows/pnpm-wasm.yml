@@ -55,7 +55,7 @@ jobs:
           shared-key: pnpm-wasm-sdk34-wabt1042
 
       - name: Install runtime and browser harness
-        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer --filter @pnpm/esm-loader
 
       - name: Build pnpm and the shared-library probe
         env:
