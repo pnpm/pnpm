@@ -44,7 +44,8 @@ use pnpm_config::Config;
 use crate::{
     PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
     catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
+        lockfile_catalogs, post_install_prune, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
 };
 
@@ -268,11 +269,22 @@ impl InstallView<'_> {
         let selected_projects = workspace_projects_override.or_else(|| {
             options.selection.as_ref().map(|s| s.all_projects)
         });
+        // A frozen install cannot rewrite the lockfile, so it keeps the
+        // entries the lockfile records even if no project on disk references them.
+        let kept_catalogs = if self.lockfile_policy.frozen {
+            self.context.lockfile
+                .get()
+                .map_err(InstallError::LoadWantedLockfile)?
+                .and_then(lockfile_catalogs)
+        } else {
+            None
+        };
         write_pruned_catalogs(
             self.context.config,
             self.context.manifest,
             &workspace_dir,
             selected_projects,
+            kept_catalogs.as_ref(),
         )?;
         Ok(WorkspaceManifestRollbackGuard::new(workspace_manifest_path, original_content))
     }
@@ -283,12 +295,14 @@ fn write_pruned_catalogs(
     manifest: &pnpm_package_manifest::PackageManifest,
     workspace_dir: &Path,
     selected_projects: Option<&[pnpm_workspace::Project]>,
+    kept_catalogs: Option<&pnpm_catalogs_types::Catalogs>,
 ) -> Result<(), InstallError> {
     if let Some(projects) = selected_projects {
         write_workspace_catalogs_selected(
             config,
             workspace_dir,
             &pnpm_catalogs_types::Catalogs::new(),
+            kept_catalogs,
             projects,
         )
     } else {
@@ -296,6 +310,7 @@ fn write_pruned_catalogs(
             config,
             Some(workspace_dir),
             &pnpm_catalogs_types::Catalogs::new(),
+            kept_catalogs,
             manifest,
         )
     }

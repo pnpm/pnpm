@@ -164,7 +164,6 @@ struct FetchAttempt<'a> {
 
 impl FetchAttempt<'_> {
     async fn run(&self) -> Result<Package, FetchMetadataError> {
-        let started_at = Instant::now();
         let opts = self.opts;
         let request = self.metadata_request();
         let (client, response) = send_metadata_request(&request).await?;
@@ -187,7 +186,7 @@ impl FetchAttempt<'_> {
                 error: error.without_url(),
             })?;
 
-        let decode = self.decoder(&response, started_at);
+        let decode = self.decoder(&response, client.acquired_at());
         let raw_body = response
             .text()
             .await

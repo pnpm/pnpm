@@ -1,5 +1,5 @@
 use super::{
-    AuthHeaders, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse, ThrottledClient,
+    AuthHeaders, Instant, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse, ThrottledClient,
     ThrottledClientGuard, UNPRIORITIZED, is_redirect_status, is_url_secure_for_credentials,
     read_limited_body, retry,
 };
@@ -193,7 +193,13 @@ impl ThrottledClient {
         }
         let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
         let client = clients.select(follow_redirects);
-        ThrottledClientGuard { permit, host_permit, origin_permit, client }
+        ThrottledClientGuard {
+            permit,
+            host_permit,
+            origin_permit,
+            client,
+            acquired_at: Instant::now(),
+        }
     }
 }
 

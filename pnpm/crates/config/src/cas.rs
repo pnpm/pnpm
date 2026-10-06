@@ -6,47 +6,32 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The modules layout the loaded linker overrode.
-///
-/// That linker forces `enableGlobalVirtualStore` on and points the modules
-/// dir at `.pnpm`, so these are the values to put back.
-#[derive(Debug, Clone)]
-pub struct LoadedLayoutDefaults {
-    pub modules_dir: PathBuf,
-    pub enable_global_virtual_store: bool,
-}
-
 impl Config {
     pub(super) fn apply_cas_layout(&mut self) {
         if self.node_linker == NodeLinker::Loaded {
-            self.loaded_layout_defaults.get_or_insert_with(|| LoadedLayoutDefaults {
-                modules_dir: self.modules_dir.clone(),
-                enable_global_virtual_store: self.enable_global_virtual_store,
-            });
+            self.global_virtual_store_before_loaded.get_or_insert(self.enable_global_virtual_store);
             self.enable_global_virtual_store = true;
-            if !self.explicit_settings.contains_key("modulesDir") {
-                self.modules_dir.set_file_name(".pnpm");
-            }
-        } else if let Some(defaults) = self.loaded_layout_defaults.take() {
-            if !self.explicit_settings.contains_key("modulesDir") {
-                self.modules_dir = defaults.modules_dir;
-                if self.modules_dir
-                    .file_name()
-                    .is_some_and(|name| name == ".pnpm")
-                {
-                    self.modules_dir.set_file_name("node_modules");
-                }
-            }
+        } else if let Some(global_store) = self
+            .global_virtual_store_before_loaded
+            .take()
+        {
             self.enable_global_virtual_store = self.explicit_settings
                 .get("enableGlobalVirtualStore")
                 .and_then(serde_json::Value::as_bool)
-                .unwrap_or(defaults.enable_global_virtual_store);
+                .unwrap_or(global_store);
         }
         self.follow_modules_dir_with_install_state_dir();
     }
 
+    /// The directory of the install rooted at `install_root` that holds
+    /// its store manifest and loader.
     #[must_use]
-    pub fn workspace_state_modules_dir(&self, root: &Path) -> std::path::PathBuf {
+    pub fn store_loader_dir(&self, install_root: &Path) -> PathBuf {
+        self.project_modules_dir(install_root, None).join(".pnpm")
+    }
+
+    #[must_use]
+    pub fn workspace_state_modules_dir(&self, root: &Path) -> PathBuf {
         if self.node_linker == NodeLinker::Loaded {
             self.modules_dir.clone()
         } else {
@@ -58,7 +43,9 @@ impl Config {
         if self.node_linker != NodeLinker::Loaded || self.virtual_store_only {
             return;
         }
-        let loader = self.lockfile_dir_for(project).join(CAS_LOADER_FILENAME);
+        let loader = self
+            .store_loader_dir(self.lockfile_dir_for(project))
+            .join(CAS_LOADER_FILENAME);
         let url = url::Url::from_file_path(&loader).expect("the install root is absolute");
         let option = format!("--import={url}");
         let previous = env

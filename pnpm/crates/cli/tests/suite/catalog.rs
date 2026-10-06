@@ -717,6 +717,51 @@ fn install_frozen_lockfile_prunes_unused_catalogs_when_lockfile_is_up_to_date() 
 }
 
 #[test]
+fn filtered_frozen_install_keeps_catalog_entries_the_lockfile_records() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\n\
+             catalogPrune: true\n\
+             catalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n",
+        ),
+    );
+    for (name, dependency) in [("a", FOO), ("b", "@pnpm.e2e/bar")] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create the package dir");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { dependency: "catalog:" },
+            })
+            .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(&workspace, &format!("  '{FOOBAR}': 100.0.0\n"));
+    fs::remove_dir_all(workspace.join("packages/b")).expect("remove project b");
+
+    run_ok(&workspace, &["--filter", "a", "install", "--frozen-lockfile", "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the entry the lockfile records must be preserved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains(FOOBAR),
+        "the entry the lockfile does not record must be pruned:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
 fn failed_resolution_rolls_back_pruned_workspace_catalogs() {
     let (root, workspace, anchor) = setup();
     write_manifest(

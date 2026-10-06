@@ -66,3 +66,63 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
         Some("^1.0.0"),
     );
 }
+
+#[tokio::test]
+async fn time_queued_for_a_permit_does_not_count_as_a_slow_request() {
+    static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record_warning(message: &str) {
+        WARNINGS
+            .lock()
+            .expect("warning recorder lock poisoned")
+            .push(message.to_string());
+    }
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::for_installs(
+        &pnpm_network::ProxyConfig::default(),
+        &pnpm_network::TlsConfig::default(),
+        &pnpm_network::PerRegistryTls::default(),
+        &pnpm_network::NetworkSettings {
+            network_concurrency: 1,
+            fetch_warn_timeout: std::time::Duration::from_millis(200),
+            ..pnpm_network::NetworkSettings::default()
+        },
+    )
+    .expect("client builds");
+    http_client.set_warning_handler(record_warning);
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        cache_dir: Some(cache.path()),
+        full_metadata: false,
+        filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let held = http_client.acquire().await;
+    let release_after_the_threshold = async {
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = fetch_full_metadata_cached("acme", &opts);
+    let (outcome, ()) = tokio::join!(fetch, release_after_the_threshold);
+
+    outcome.expect("server returns 200");
+    mock.assert_async().await;
+    assert_eq!(*WARNINGS.lock().expect("warning recorder lock poisoned"), Vec::<String>::new());
+}

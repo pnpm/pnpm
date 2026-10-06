@@ -315,17 +315,17 @@ test('runs a stored extensionless CommonJS bin as the main module', context => {
 test('unknown virtual package paths produce a loader ENOENT error', context => {
   const setup = fixture(context)
   delete setup.manifest.packages['.']
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
-  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
+  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   assert.throws(() => hooks.load(pathToFileURL(path.join(setup.root, '.pnpm-loader/unknown/index.js')).href, { conditions: [] }, () => assert.fail()), { code: 'ENOENT' })
 })
 
 test('caches verified virtual JSON without caching mutable workspace manifests', context => {
   const setup = fixture(context)
   const files = setup.add('example@1', { 'package.json': esm })
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
   setup.write('package.json', '{"name":"before"}')
-  const store = openStore(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  const store = openStore(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   const virtual = path.join(store.packages.get('example@1').root, 'package.json')
   assert.equal(store.filesystem.readJsonSync(virtual).name, 'example')
   const hash = files['package.json']
@@ -343,4 +343,30 @@ test('rejects package main paths escaping into physical workspace files', contex
   setup.add('example@1', { 'package.json': '{"main":"../../outside.cjs"}' })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import value from 'example'; console.log(value)", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+})
+
+test('resolves bundled dependencies from node_modules inside a stored package', context => {
+  const setup = fixture(context)
+  setup.add('example@1', {
+    'package.json': JSON.stringify({ name: 'example', main: 'index.js' }),
+    'index.js': "module.exports = require('bundled').default + require('declared')",
+    'node_modules/bundled/package.json': JSON.stringify({ name: 'bundled', type: 'module', exports: './index.js' }),
+    'node_modules/bundled/index.js': "import nested from 'nested'; export default 'bundled ' + nested",
+    'node_modules/nested/index.js': "module.exports = 'nested'",
+    'test/node_modules/fixture/index.js': 'module.exports = 1',
+  }, { declared: 'declared@1' })
+  setup.add('declared@1', { 'index.js': "module.exports = ' declared'" })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.equal(setup.run("import value from 'example'; console.log(value)").stdout, 'bundled nested declared\n')
+})
+
+test('does not resolve a package bundled in a sibling directory', context => {
+  const setup = fixture(context)
+  setup.add('example@1', {
+    'index.js': "module.exports = require('./lib')",
+    'lib/index.js': "module.exports = require('bundled')",
+    'vendor/node_modules/bundled/index.js': 'module.exports = 1',
+  })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY/)
 })

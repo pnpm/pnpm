@@ -402,6 +402,51 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts_in_the_g
     assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(true);
 }
 
+#[cfg(unix)]
+#[test]
+fn loaded_linker_runs_scripts_with_the_downloaded_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\nnodeLinker:\n  type: loaded\n", server.url())
+            .as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "scripts": { "test": "node && printf ran > runtime-ran" },
+            "devEngines": {
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let empty_path = root.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
+
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["packages"][format!("node@runtime:{version}")]["resolution"], "node");
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["run", "test"])
+        .assert()
+        .success();
+    assert!(workspace.join("runtime-ran").exists());
+}
+
 /// A filtered install that leaves the root project out still builds
 /// dependencies with the root project's runtime, the one that keys their
 /// slots and side-effects cache entries.

@@ -282,6 +282,7 @@ pub struct ThrottledClientGuard<'a> {
     /// URL had no parseable origin.
     origin_permit: Option<OriginPermit>,
     client: &'a Client,
+    acquired_at: Instant,
 }
 
 /// A response that retains the global and per-origin permits through body reads.
@@ -295,6 +296,14 @@ pub struct ThrottledResponse {
 }
 
 impl ThrottledClientGuard<'_> {
+    /// When the guard got its last concurrency permit. Time a request spent
+    /// queued for its permits is pnpm's own scheduling, so a measurement of
+    /// how long the registry took to answer starts here.
+    #[must_use]
+    pub fn acquired_at(&self) -> Instant {
+        self.acquired_at
+    }
+
     /// Transfer both concurrency permits to the response body owner.
     #[must_use]
     pub fn retain_for_body(
@@ -422,6 +431,7 @@ impl ThrottledClient {
             host_permit: None,
             origin_permit: None,
             client: &self.default_clients.follow_redirects,
+            acquired_at: Instant::now(),
         }
     }
 

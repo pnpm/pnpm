@@ -72,6 +72,68 @@ fn warns_when_metadata_request_exceeds_configured_timeout() {
     );
 }
 
+/// The time a request waits for a concurrency permit is pnpm's own
+/// queueing, not the registry being slow, so it does not count toward
+/// `fetchWarnTimeoutMs`.
+#[tokio::test]
+async fn time_queued_for_a_permit_does_not_count_as_a_slow_request() {
+    static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record_warning(message: &str) {
+        WARNINGS
+            .lock()
+            .expect("warning recorder lock poisoned")
+            .push(message.to_string());
+    }
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"name":"acme","dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{"name":"acme","version":"1.0.0","dist":{"tarball":"https://registry/acme-1.0.0.tgz","shasum":"0000000000000000000000000000000000000000"}}}}"#,
+        )
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::for_installs(
+        &pnpm_network::ProxyConfig::default(),
+        &pnpm_network::TlsConfig::default(),
+        &pnpm_network::PerRegistryTls::default(),
+        &pnpm_network::NetworkSettings {
+            network_concurrency: 1,
+            fetch_warn_timeout: Duration::from_millis(200),
+            ..pnpm_network::NetworkSettings::default()
+        },
+    )
+    .expect("client builds");
+    http_client.set_warning_handler(record_warning);
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        full_metadata: false,
+        etag: None,
+        modified: None,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let held = http_client.acquire().await;
+    let release_after_the_threshold = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = fetch_full_metadata("acme", &opts);
+    let (outcome, ()) = tokio::join!(fetch, release_after_the_threshold);
+
+    expect_modified(outcome.expect("server returns 200"));
+    mock.assert_async().await;
+    assert_eq!(*WARNINGS.lock().expect("warning recorder lock poisoned"), Vec::<String>::new());
+}
+
 /// The two constants repeat the media type as separate literals (Rust
 /// cannot build one string const from another without a macro), so
 /// guard against them drifting apart: the `Accept` header must offer
