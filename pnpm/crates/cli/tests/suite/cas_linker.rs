@@ -486,3 +486,64 @@ fn loaded_project_local_store_survives_prune_and_requires_registration() {
     assert_eq!(fs::read_to_string(&registry).unwrap(), "blocked registry");
     drop((root, mock_instance));
 }
+
+#[test]
+fn cas_loader_starts_when_a_package_ships_node_modules_files() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut tarball = tar::Builder::new(Vec::new());
+    for (path, body) in [
+        ("package/package.json", r#"{"name":"fixtures-in-node-modules","version":"1.0.0"}"#),
+        ("package/index.js", "module.exports = 'loaded'"),
+        ("package/test/node_modules/fixture.js", "module.exports = 'fixture'"),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        tarball.append_data(&mut header, path, body.as_bytes()).unwrap();
+    }
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut encoder, &tarball.into_inner().unwrap()).unwrap();
+    fs::write(workspace.join("dep.tgz"), encoder.finish().unwrap()).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"fixtures-in-node-modules":"file:dep.tgz"}}"#,
+    )
+    .unwrap();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).unwrap();
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
+    fs::write(yaml_path, yaml).unwrap();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm-store.json")).unwrap()).unwrap();
+    let files = manifest["packages"]
+        .as_object()
+        .unwrap()
+        .values()
+        .find_map(|package| {
+            package["files"]
+                .as_object()
+                .filter(|files| files.contains_key("index.js"))
+        })
+        .expect("the tarball dependency loads from CAS");
+    assert!(files.contains_key("test/node_modules/fixture.js"), "{files:?}");
+    let output = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["exec", "node", "-e", "console.log(require('fixtures-in-node-modules'))"])
+        .env_remove("NODE_OPTIONS")
+        .assert()
+        .success();
+    assert_eq!(String::from_utf8_lossy(&output.get_output().stdout).trim(), "loaded");
+    drop((root, mock_instance));
+}

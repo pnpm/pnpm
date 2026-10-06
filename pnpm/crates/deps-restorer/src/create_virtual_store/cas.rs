@@ -3,7 +3,7 @@ use super::{
     cas_paths_key,
 };
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, Prefix, SnapshotEntry};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
@@ -138,6 +138,8 @@ pub(crate) fn materialized_snapshots(
         .filter(|key| {
             config.node_linker_excluded.contains(&key.name.to_string())
                 || crate::snapshot_has_patch(key)
+                // A runtime's executables are native binaries, which the loader cannot run.
+                || key.suffix.prefix() == Prefix::Runtime
         })
         .cloned()
         .collect();

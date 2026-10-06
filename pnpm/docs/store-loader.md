@@ -15,7 +15,7 @@ nodeLinker:
 
 Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `.pnpm-store.json`, writes its bundled runtime to `.pnpm-store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
 
-`nodeLinker.excluded` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
+`nodeLinker.excluded` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages, runtimes such as `node@runtime:`, and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
 
 The mode enables the global virtual store. With the default layout, application state and bin shims live under `.pnpm`, and no application `node_modules` directory is created. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
 
@@ -130,7 +130,7 @@ Only declared dependencies are available through bare imports. There is no fallb
 
 This loader does not emulate a general filesystem. `import.meta.url`, `__filename`, `__dirname`, and `require.resolve()` for stored modules identify virtual locations. Passing them to ordinary `fs` APIs will not read store assets. Packages that read adjacent assets, scan directories, write into their package directory, or depend on a physical filename need materialization or a separate filesystem integration.
 
-Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
+Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. The loader ignores files under a package's own `node_modules` directory. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
 
 Use `.mjs` or `"type": "module"` for ESM. Stored `.js` files without a package type are treated as CommonJS; Node's syntax detection for ambiguous `.js` files is not implemented. The resolver is not a promise of complete Node resolution parity.
 
