@@ -205,15 +205,10 @@ fn restore_claimed_storage(claimed: &Path, storage: &Path) {
     }
 }
 
-/// Remove `path` and everything under it, accepting a path that is already
-/// gone.
+/// Remove `path` and its subtree, treating an absent path as removed.
 ///
-/// Every tree this module removes is one a competing publisher may remove
-/// first: the claim a discard takes, the claim a restore could not put
-/// back, and a temp tree the winner's publish made redundant. The tree
-/// being absent is the outcome each of those asked for, so `NotFound` is
-/// not a failure. Windows makes the difference visible, since it can
-/// report the claim gone right after the rename that took it.
+/// Windows reports a tree absent right after the rename that claimed it,
+/// and that is the outcome every caller wants.
 fn remove_tree(path: &Path, what: &str) {
     match fs::remove_dir_all(path) {
         Ok(()) => {}

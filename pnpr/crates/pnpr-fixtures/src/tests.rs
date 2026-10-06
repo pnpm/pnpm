@@ -263,10 +263,6 @@ fn tagging_an_unpublished_version_fails_loudly() {
     set_dist_tag(out.path(), "@pnpm.e2e/foo", "999.0.0", "latest");
 }
 
-/// The removal a discard ends with races every other publisher: the claim
-/// can be gone by the time it runs, and the tree being absent is what the
-/// discard wanted. Windows reports this; a panic here failed whole test
-/// runs.
 #[test]
 fn removing_a_tree_accepts_one_that_is_already_gone() {
     let root = TempDir::new().expect("create temp dir");
