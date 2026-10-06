@@ -159,12 +159,8 @@ snapshots:
 lockfileVersion: '9.0'
 
 settings:
-  autoDedupe: true
   autoInstallPeers: true
-  dedupeInjectedDeps: true
-  dedupePeerDependents: true
   excludeLinksFromLockfile: false
-  linkWorkspacePackages: false
 
 catalogs:
   default:

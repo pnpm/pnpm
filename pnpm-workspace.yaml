@@ -588,8 +588,12 @@ minimumReleaseAgeExclude:
   - write-yaml-file
   - http-proxy-middleware@3.0.7
 
-lockfile:
-  includeResolutionSettings: true
+# lockfile.includeResolutionSettings is off until devEngines pins a pnpm
+# release with pnpm/pnpm#16674: with it on, `pnpm deploy` in
+# pnpm/wasm/stage.mjs fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+# Restore it as:
+#   lockfile:
+#     includeResolutionSettings: true
 
 minimumReleaseAgeExcludePrune: true
 
