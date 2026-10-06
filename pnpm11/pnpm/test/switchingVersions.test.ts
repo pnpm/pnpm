@@ -8,7 +8,7 @@ import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
   prepare()
@@ -473,6 +473,21 @@ test('throws error if pnpm binary in store is corrupt', () => {
 })
 
 test('relinks the bins of a store slot that an older pnpm linked (pnpm/pnpm#16646)', () => {
+  const { env } = prepareSlotWithStaleBins()
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('concurrent commands relink the bins of a stale store slot once', async () => {
+  const { env, binDir } = prepareSlotWithStaleBins()
+
+  await Promise.all(Array.from({ length: 4 }, () => execPnpm(['help'], { env })))
+
+  expect(fs.existsSync(path.join(binDir, '.pnpm-bins-linked'))).toBe(true)
+})
+
+function prepareSlotWithStaleBins (): { env: Record<string, string>, binDir: string } {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const storeDir = path.resolve('store')
@@ -492,7 +507,5 @@ test('relinks the bins of a store slot that an older pnpm linked (pnpm/pnpm#1664
   for (const shim of fs.readdirSync(binDir)) {
     fs.writeFileSync(path.join(binDir, shim), isWindows() ? '@exit /b 1\r\n' : '#!/bin/sh\nexit 1\n')
   }
-
-  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
-  expect(stdout.toString()).toContain('Version 9.3.0')
-})
+  return { env, binDir }
+}
