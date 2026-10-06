@@ -238,9 +238,9 @@ catalog:
   '@commitlint/config-conventional': ^21.2.3
   '@commitlint/prompt-cli': ^21.2.3
   '@cyclonedx/cyclonedx-library': 10.3.0
-  '@emnapi/wasi-threads': 2.1.0
+  '@emnapi/wasi-threads': 2.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.7.2
+  '@inquirer/prompts': ^8.7.3
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
@@ -394,7 +394,7 @@ catalog:
   isexe: 4.0.0
   jest: 30.4.2
   jest-diff: 30.4.1
-  human-id: ^4.2.1
+  human-id: ^4.2.2
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
@@ -530,6 +530,7 @@ catalog:
   yaml: ^2.9.1
   yaml-tag: 1.1.0
   yauzl: ^3.4.0
+  enhanced-resolve: 5.26.0
 
 catalogMode: strict
 

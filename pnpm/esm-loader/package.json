@@ -19,7 +19,7 @@
     ".test": "node --test test/*.test.mjs && node scripts/bundle-runtime.mjs --check"
   },
   "dependencies": {
-    "enhanced-resolve": "5.25.1"
+    "enhanced-resolve": "catalog:"
   },
   "repository": {
     "type": "git",
