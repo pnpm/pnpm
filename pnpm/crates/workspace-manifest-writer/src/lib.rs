@@ -150,7 +150,8 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Package name → the versions the freshly resolved lockfile
     /// records. Present only when the lockfile covers every project the
     /// exclude lists govern; `None` disables the passes below that consult
-    /// it, mirroring the [`Self::all_projects`] guard of `catalogPrune`.
+    /// it, mirroring the [`CatalogReferenceSources::all_projects`] guard of
+    /// `catalogPrune`.
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
     pub prune_minimum_release_age_excludes: bool,
     pub prune_trust_policy_excludes: bool,
