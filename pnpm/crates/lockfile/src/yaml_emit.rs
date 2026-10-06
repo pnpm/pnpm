@@ -269,7 +269,8 @@ fn render_map(
         CollectionStyle::Flow => false,
     };
     if !renders_as_block {
-        return write_flow_mapping(map, level, ScalarLines::of_mapping(single_line));
+        let lines = if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline };
+        return write_flow_mapping(map, level, lines);
     }
     let spacing =
         if level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots")) {

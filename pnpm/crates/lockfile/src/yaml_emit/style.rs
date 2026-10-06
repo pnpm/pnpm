@@ -31,11 +31,3 @@ pub(super) enum ScalarLines {
     OneLine,
     Multiline,
 }
-
-impl ScalarLines {
-    /// The lines a mapping's keys and values may use, given whether the
-    /// mapping itself renders on one line.
-    pub(super) fn of_mapping(single_line: bool) -> Self {
-        if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline }
-    }
-}
