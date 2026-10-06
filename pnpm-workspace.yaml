@@ -588,6 +588,9 @@ minimumReleaseAgeExclude:
   - write-yaml-file
   - http-proxy-middleware@3.0.7
 
+lockfile:
+  includeResolutionSettings: true
+
 minimumReleaseAgeExcludePrune: true
 
 nodeVersion: 22.13.0
@@ -727,3 +730,10 @@ update:
     - write-file-atomic
 
 virtualStoreType: global
+
+autoDedupe: true
+
+registries:
+  https://registry.npmjs.com/:
+    scopes:
+      - '@pnpm'
