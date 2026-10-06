@@ -550,7 +550,7 @@ jobs:
         uses: $/.github/actions/wasm-toolchain
 
       - name: Install runtime dependencies
-        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm/esm-loader
 
       - name: Build and stage the @pnpm/wasm package
         env:

@@ -1123,6 +1123,10 @@ importers:
       enhanced-resolve:
         specifier: 'catalog:'
         version: 5.26.0
+    devDependencies:
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
 
   pnpm/npm/napi: {}
 

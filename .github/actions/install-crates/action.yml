@@ -23,16 +23,18 @@ runs:
       with:
         install: false
 
-    # `--filter pacquet` narrows the JavaScript half to the npm wrapper's own
-    # dependencies, which are a handful of packages. A filter does not narrow
-    # the Cargo half, so every crate `Cargo.lock` pins is installed either way.
+    # The filters narrow the JavaScript half to the npm wrapper's own
+    # dependencies and to `@pnpm/esm-loader`, whose `prepare` script generates
+    # the loader bundle that pnpm embeds at compile time. A filter does not
+    # narrow the Cargo half, so every crate `Cargo.lock` pins is installed
+    # either way.
     - name: Install dependencies
       shell: bash
       env:
         CONTAINER_BUILD: ${{ inputs.container-build }}
         HOST_OS: ${{ runner.os }}
       run: |
-        args=(install --frozen-lockfile --filter pacquet)
+        args=(install --frozen-lockfile --filter pacquet --filter @pnpm/esm-loader)
         if [ "$CONTAINER_BUILD" = 'true' ] && [ "$HOST_OS" = 'Linux' ]; then
           args+=(--store-dir "$GITHUB_WORKSPACE/.pnpm/store")
         fi
