@@ -1,71 +1,57 @@
-use super::{Deserialize, Deserializer, EnvVar, IgnoredAny, WorkspaceSettings, parse_settings};
+use super::{Deserialize, Deserializer, IgnoredAny, WorkspaceSettings};
 use serde::de::{MapAccess, Visitor};
 use serde_saphyr::Spanned;
-use std::fmt;
+use std::{fmt, ops::Range};
 
-/// How the settings of a `pnpm-workspace.yaml` are read from its text.
-pub(crate) type ReadSettings = fn(&str) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>>;
-
-/// [`parse_settings`], or [`parse_readable_settings`] when `skip_unreadable`.
-pub(crate) fn settings_reader<Sys: EnvVar>(skip_unreadable: bool) -> ReadSettings {
-    if skip_unreadable { parse_readable_settings::<Sys> } else { parse_settings::<Sys> }
-}
-
-/// [`parse_settings`], leaving out each top-level setting that does not
-/// parse.
+/// Read `text` with `read`, leaving out each top-level setting that `read`
+/// rejects on its own.
 ///
-/// A newer pnpm can give a setting a shape this one rejects, and the pnpm a
-/// project pins has to be reachable from the one that is running, so the
-/// pass that switches to it reads what it can.
+/// A newer pnpm can give a setting a shape or a value this one rejects, and
+/// the pnpm a project pins has to be reachable from the one that is running,
+/// so the pass that switches to it reads what it can.
 ///
-/// Fails with the error of the complete document when it is not a block
-/// mapping, or when an error does not point into a top-level setting.
-pub(crate) fn parse_readable_settings<Sys: EnvVar>(
+/// Fails with `read`'s error for the complete document when it is not a
+/// block mapping with one key per line, when no setting is rejected on its
+/// own, or when the settings left are still rejected together.
+pub(crate) fn read_readable_settings<Error>(
     text: &str,
-) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
-    let first_error = match parse_settings::<Sys>(text) {
+    read: impl Fn(&str) -> Result<WorkspaceSettings, Error>,
+) -> Result<WorkspaceSettings, Error> {
+    let error = match read(text) {
         Ok(settings) => return Ok(settings),
         Err(error) => error,
     };
     let Some(key_lines) = top_level_key_lines(text) else {
-        return Err(first_error);
+        return Err(error);
     };
     let mut lines: Vec<&str> = text.split_inclusive('\n').collect();
-    let mut failed_at = first_error.location();
-    for _ in 0..key_lines.len() {
-        let Some(setting) =
-            failed_at.and_then(|at| setting_lines(&key_lines, lines.len(), at.line()))
-        else {
-            break;
-        };
-        // Blanked rather than removed, so later errors keep their line.
-        lines[setting].fill("\n");
-        match parse_settings::<Sys>(&lines.concat()) {
-            Ok(settings) => return Ok(settings),
-            Err(error) => failed_at = error.location(),
+    let mut left_out_any = false;
+    for setting in setting_lines(&key_lines, lines.len()) {
+        if read(&lines[setting.clone()].concat()).is_err() {
+            // Blanked rather than removed, so what is left keeps its lines.
+            lines[setting].fill("\n");
+            left_out_any = true;
         }
     }
-    Err(first_error)
+    if !left_out_any {
+        return Err(error);
+    }
+    read(&lines.concat()).or(Err(error))
 }
 
-/// The 0-based line range, within `line_count`, of the top-level setting that
-/// `line` (1-based) is in.
-fn setting_lines(
-    key_lines: &[usize],
-    line_count: usize,
-    line: u64,
-) -> Option<std::ops::Range<usize>> {
-    let line = usize::try_from(line).ok()?.checked_sub(1)?;
-    let index = key_lines
-        .partition_point(|&start| start <= line)
-        .checked_sub(1)?;
-    let end = key_lines
-        .get(index + 1)
-        .copied()
-        .unwrap_or(line_count)
-        .min(line_count);
-    let start = key_lines[index];
-    (start < end).then_some(start..end)
+/// The 0-based line range of each top-level setting, given the line of each
+/// top-level key and the document's `line_count`.
+fn setting_lines(key_lines: &[usize], line_count: usize) -> impl Iterator<Item = Range<usize>> {
+    key_lines
+        .iter()
+        .enumerate()
+        .map(move |(index, &start)| {
+            let end = key_lines
+                .get(index + 1)
+                .copied()
+                .unwrap_or(line_count);
+            start..end.min(line_count)
+        })
 }
 
 /// The 0-based line of each top-level key, in document order, or `None`

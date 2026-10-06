@@ -3,9 +3,8 @@ use super::{
     LoadWorkspaceYamlError, Path, PathBuf, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
     collect_explicit_settings, default_pnpm_home_dir, fs, note_declared_registries,
     resolve_configured_state_dir,
-    workspace_yaml::{ReadSettings, settings_reader},
+    workspace_yaml::{parse_settings, read_readable_settings},
 };
-use pnpm_env_replace::SystemEnv;
 
 impl Config {
     /// Apply the workspace layer and anchor paths to its location. A missing file
@@ -208,23 +207,19 @@ impl Config {
         let workspace_yaml = if self.ignore_workspace {
             None
         } else if let Some(env_dir) = env_workspace_dir {
-            let read = settings_reader::<Sys>(self.skip_unreadable_workspace_settings);
-            Some(read_env_workspace_yaml(env_dir, read)?)
+            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_workspace_settings)?)
         } else {
-            WorkspaceSettings::find_and_read(
-                start_dir,
-                settings_reader::<SystemEnv>(self.skip_unreadable_workspace_settings),
-            )?
-            .map(|(path, settings)| {
-                let base_dir = path
-                    .parent()
-                    .unwrap_or(start_dir)
-                    .to_path_buf();
-                (base_dir, Some(settings))
-            })
-            .filter(|(base_dir, settings)| {
-                workspace_includes_start_dir(base_dir, start_dir, settings.as_ref())
-            })
+            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_workspace_settings)?
+                .map(|(path, settings)| {
+                    let base_dir = path
+                        .parent()
+                        .unwrap_or(start_dir)
+                        .to_path_buf();
+                    (base_dir, Some(settings))
+                })
+                .filter(|(base_dir, settings)| {
+                    workspace_includes_start_dir(base_dir, start_dir, settings.as_ref())
+                })
         };
         Ok(workspace_yaml)
     }
@@ -233,15 +228,20 @@ impl Config {
 /// Read the `pnpm-workspace.yaml` of the workspace dir an environment
 /// variable names. A missing file is silent, but the workspace dir still
 /// applies, because the user has said where the workspace lives.
-fn read_env_workspace_yaml(
+fn read_env_workspace_yaml<Sys: EnvVar>(
     env_dir: PathBuf,
-    read: ReadSettings,
+    skip_unreadable: bool,
 ) -> Result<(PathBuf, Option<WorkspaceSettings>), LoadWorkspaceYamlError> {
     let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
     match fs::read_to_string(&yaml_path) {
         Ok(text) => {
-            let mut settings = read(&text)
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source })?;
+            let read = parse_settings::<Sys>;
+            let mut settings =
+                if skip_unreadable { read_readable_settings(&text, read) } else { read(&text) }
+                    .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                        path: yaml_path,
+                        source,
+                    })?;
             settings.collect_key_issues(&text);
             Ok((env_dir, Some(settings)))
         }

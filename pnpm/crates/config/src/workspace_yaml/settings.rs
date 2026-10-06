@@ -4,13 +4,13 @@ use super::{
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
     LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
     NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod, Path,
-    PathBuf, PeerDependencyRules, Pipe, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
-    ReadSettings, RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
+    RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
     SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
     SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
     UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceKeyIssues, drop_placeholders, fs, redact_and_sanitize, resolvable_placeholders,
-    resolve_placeholders,
+    WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings, redact_and_sanitize,
+    resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -947,26 +947,38 @@ impl WorkspaceSettings {
     /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
     /// pnpm where `ENOENT` is the only silent case.
     pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::read_at(dir, parse_settings::<SystemEnv>)
+        Self::read_at(dir, false)
     }
 
-    /// [`Self::load_at`], reading the text with `read`.
-    fn read_at(dir: &Path, read: ReadSettings) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+    /// [`Self::load_at`], leaving out each top-level setting that does not
+    /// read on its own when `skip_unreadable`
+    /// (see [`read_readable_settings`]).
+    fn read_at(dir: &Path, skip_unreadable: bool) -> Result<Option<Self>, LoadWorkspaceYamlError> {
         let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let mut settings = text
-            .pipe_as_ref(read)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
+        let read = |text: &str| Self::read_valid(text, &path);
+        let mut settings =
+            if skip_unreadable { read_readable_settings(&text, read) } else { read(&text) }?;
+        settings.collect_key_issues(&text);
+        Ok(Some(settings))
+    }
+
+    /// Parse and validate the text of the `pnpm-workspace.yaml` at `path`.
+    fn read_valid(text: &str, path: &Path) -> Result<Self, LoadWorkspaceYamlError> {
+        let settings = parse_settings::<SystemEnv>(text)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                path: path.to_path_buf(),
+                source,
+            })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;
-        settings.reject_repo_controlled_trust_material(&path)?;
-        settings.collect_key_issues(&text);
-        Ok(Some(settings))
+        settings.reject_repo_controlled_trust_material(path)?;
+        Ok(settings)
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -975,16 +987,16 @@ impl WorkspaceSettings {
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
-        Self::find_and_read(start_dir, parse_settings::<SystemEnv>)
+        Self::find_and_read(start_dir, false)
     }
 
-    /// [`Self::find_and_load`], reading the text with `read`.
+    /// [`Self::find_and_load`], with [`Self::read_at`]'s `skip_unreadable`.
     pub(crate) fn find_and_read(
         start_dir: &Path,
-        read: ReadSettings,
+        skip_unreadable: bool,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
-            if let Some(settings) = Self::read_at(dir, read)? {
+            if let Some(settings) = Self::read_at(dir, skip_unreadable)? {
                 return Ok(Some((dir.join(WORKSPACE_MANIFEST_FILENAME), settings)));
             }
         }

@@ -1,7 +1,7 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
-pub(crate) use readable::{ReadSettings, settings_reader};
+pub(crate) use readable::read_readable_settings;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
@@ -30,7 +30,6 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
-use pipe_trait::Pipe;
 use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;

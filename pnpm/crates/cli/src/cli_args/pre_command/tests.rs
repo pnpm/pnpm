@@ -903,6 +903,25 @@ fn pre_command_plan_switches_past_a_setting_this_pnpm_cannot_read() {
 }
 
 #[test]
+fn pre_command_plan_switches_past_a_setting_this_pnpm_rejects() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), "tasks:\n  build:\n    concurrency: 0\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+#[test]
 fn pre_command_plan_reports_a_setting_it_cannot_read_when_it_does_not_switch() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "99.0.0");

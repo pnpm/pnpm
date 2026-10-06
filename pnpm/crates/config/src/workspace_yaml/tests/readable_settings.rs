@@ -1,5 +1,5 @@
-use super::{EnvVar, PmOnFail, assert_eq};
-use crate::workspace_yaml::readable::parse_readable_settings;
+use super::{EnvVar, PmOnFail, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs};
+use crate::workspace_yaml::{parse_settings, read_readable_settings};
 use pnpm_env_replace::SystemEnv;
 
 struct Env;
@@ -10,9 +10,24 @@ impl EnvVar for Env {
     }
 }
 
+fn read<Sys: EnvVar>(text: &str) -> Result<WorkspaceSettings, Box<serde_saphyr::Error>> {
+    read_readable_settings(text, parse_settings::<Sys>)
+}
+
+/// [`WorkspaceSettings::find_and_read`] over a file holding `text`, which
+/// validates as well as parses.
+fn find_and_read(text: &str) -> WorkspaceSettings {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), text).unwrap();
+    let (_, settings) = WorkspaceSettings::find_and_read(dir.path(), true)
+        .expect("read pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+    settings
+}
+
 #[test]
 fn a_setting_in_a_newer_shape_is_left_out() {
-    let settings = parse_readable_settings::<SystemEnv>(concat!(
+    let settings = read::<SystemEnv>(concat!(
         "pmOnFail: ignore\n",
         "lockfile:\n",
         "  includeResolutionSettings: true\n",
@@ -29,7 +44,7 @@ fn a_setting_in_a_newer_shape_is_left_out() {
 
 #[test]
 fn every_unreadable_setting_is_left_out() {
-    let settings = parse_readable_settings::<SystemEnv>(concat!(
+    let settings = read::<SystemEnv>(concat!(
         "nodeLinker: [hoisted]\n",
         "pmOnFail: warn\n",
         "ignoreScripts:\n",
@@ -44,14 +59,29 @@ fn every_unreadable_setting_is_left_out() {
 
 #[test]
 fn a_readable_document_is_read_whole() {
-    let settings = parse_readable_settings::<SystemEnv>("ignoreScripts: true\n").unwrap();
+    let settings = read::<SystemEnv>("ignoreScripts: true\n").unwrap();
 
     assert_eq!(settings.ignore_scripts, Some(true));
 }
 
 #[test]
+fn a_setting_that_fails_validation_is_left_out() {
+    let settings = find_and_read(concat!(
+        "pmOnFail: warn\n",
+        "tasks:\n",
+        "  build:\n",
+        "    concurrency: 0\n",
+        "ignoreScripts: true\n",
+    ));
+
+    assert_eq!(settings.tasks, None);
+    assert_eq!(settings.pm_on_fail, Some(PmOnFail::Warn));
+    assert_eq!(settings.ignore_scripts, Some(true));
+}
+
+#[test]
 fn a_document_that_is_not_yaml_still_fails() {
-    let error = parse_readable_settings::<SystemEnv>("pmOnFail: warn\nlockfile: [\n").unwrap_err();
+    let error = read::<SystemEnv>("pmOnFail: warn\nlockfile: [\n").unwrap_err();
 
     eprintln!("{error}");
     assert!(error.location().is_some());
@@ -59,22 +89,18 @@ fn a_document_that_is_not_yaml_still_fails() {
 
 #[test]
 fn a_flow_mapping_still_fails() {
-    parse_readable_settings::<SystemEnv>("{pmOnFail: warn, nodeLinker: [hoisted]}\n").unwrap_err();
+    read::<SystemEnv>("{pmOnFail: warn, nodeLinker: [hoisted]}\n").unwrap_err();
 }
 
 #[test]
 fn a_document_that_is_not_a_mapping_still_fails() {
-    parse_readable_settings::<SystemEnv>("- pmOnFail\n").unwrap_err();
+    read::<SystemEnv>("- pmOnFail\n").unwrap_err();
 }
 
-/// The error does not say which line the environment value broke, and it
-/// must not repeat the value, so nothing is left out.
 #[test]
-fn an_invalid_environment_value_still_fails() {
-    let error = parse_readable_settings::<Env>("pmOnFail: warn\nnodeLinker: ${PNPM_TEST_LINKER}\n")
-        .unwrap_err();
+fn an_invalid_environment_value_is_left_out() {
+    let settings = read::<Env>("pmOnFail: warn\nnodeLinker: ${PNPM_TEST_LINKER}\n").unwrap();
 
-    eprintln!("{error}");
-    assert!(error.to_string().contains("invalid environment-expanded value"));
-    assert!(!error.to_string().contains("not-a-linker"));
+    assert_eq!(settings.node_linker, None);
+    assert_eq!(settings.pm_on_fail, Some(PmOnFail::Warn));
 }
