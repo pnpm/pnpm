@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
 import { packageManager } from '@pnpm/cli.meta'
 import { isError } from '@pnpm/error'
 
@@ -13,24 +14,30 @@ export async function linkPnpmBins (installDir: string, binDir: string, pkgName:
 }
 
 /**
- * Written to a store slot's bin directory after its bins are linked, holding
- * the version of the pnpm that linked them. Releases older than 11.28.4 left
- * shims that run `node` on the pnpm v12 native binary
- * (https://github.com/pnpm/pnpm/issues/16646), so a slot without this pnpm's
- * marker is relinked.
+ * Holds the version of the pnpm that linked a store slot's bins. A slot without
+ * this pnpm's marker is relinked, which repairs shims linked by older releases
+ * (https://github.com/pnpm/pnpm/issues/16646).
  */
 const STORE_BINS_MARKER = '.pnpm-bins-linked'
 
-export function areStoreBinsCurrent (binDir: string): boolean {
+/** Links a store slot's bins unless this pnpm already did, under the slot's lock. */
+export async function ensureStoreBinsLinked (pnpmGvsPath: string, binDir: string, pkgName: string): Promise<void> {
+  if (areStoreBinsCurrent(binDir)) return
+  const lock = await lockGlobalVirtualStoreSlot(path.join(pnpmGvsPath, 'node_modules'))
+  try {
+    if (areStoreBinsCurrent(binDir)) return
+    await linkPnpmBins(pnpmGvsPath, binDir, pkgName)
+    fs.writeFileSync(path.join(binDir, STORE_BINS_MARKER), packageManager.version)
+  } finally {
+    await lock?.release()
+  }
+}
+
+function areStoreBinsCurrent (binDir: string): boolean {
   try {
     return fs.readFileSync(path.join(binDir, STORE_BINS_MARKER), 'utf8') === packageManager.version
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
-}
-
-export async function linkStoreBins (pnpmGvsPath: string, binDir: string, pkgName: string): Promise<void> {
-  await linkPnpmBins(pnpmGvsPath, binDir, pkgName)
-  fs.writeFileSync(path.join(binDir, STORE_BINS_MARKER), packageManager.version)
 }

@@ -4151,6 +4151,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../../bins/linker
+      '@pnpm/building.during-install':
+        specifier: workspace:*
+        version: link:../../../building/during-install
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../../building/policy

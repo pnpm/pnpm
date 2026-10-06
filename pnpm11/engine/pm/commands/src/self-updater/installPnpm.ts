@@ -29,7 +29,7 @@ import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
-import { areStoreBinsCurrent, linkPnpmBins, linkStoreBins } from './linkPnpmBins.js'
+import { ensureStoreBinsLinked, linkPnpmBins } from './linkPnpmBins.js'
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
 export { exePlatformPkgDirName, exePlatformPkgDirNameNext, linkExePlatformBinary, nativeTargetName } from './linkExePlatformBinary.js'
@@ -181,9 +181,7 @@ export async function installPnpmToStore (
   const binDir = path.join(pnpmGvsPath, 'bin')
 
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
-    if (!areStoreBinsCurrent(binDir)) {
-      await linkStoreBins(pnpmGvsPath, binDir, pkgName)
-    }
+    await ensureStoreBinsLinked(pnpmGvsPath, binDir, pkgName)
     return { binDir }
   }
 
@@ -206,7 +204,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    await linkStoreBins(pnpmGvsPath, binDir, pkgName)
+    await ensureStoreBinsLinked(pnpmGvsPath, binDir, pkgName)
 
     return { binDir }
   } finally {
