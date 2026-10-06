@@ -43,9 +43,12 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 2. Resolves the graph against the sparse index and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
 3. Verifies each locked `.crate` archive against its checksum and unpacks it into pnpm's store.
 4. Links the store slots into a Cargo [directory source](https://doc.rust-lang.org/cargo/reference/source-replacement.html) under `.pnpm/crates/crates-io`, generating the `.cargo-checksum.json` files Cargo expects.
-5. Writes a source-replacement block into `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone.
+5. Writes the source replacement for those crates into `.pnpm/crates/config.toml`.
+6. Adds an optional `[[include]]` of that file to `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone. If you list your own includes, write them as `[[include]]` tables too.
 
-`cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself.
+`cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself. Cargo 1.95 and later read the include.
+
+Without `.pnpm`, for example in a fresh clone, Cargo skips the include and fetches crates from their registry as usual.
 
 Crates are recorded in `Cargo.lock`, never in `pnpm-lock.yaml`. The two lockfiles stay independent.
 
