@@ -317,11 +317,10 @@ fn record_lockfile_only_deprecation(lockfile_path: &std::path::Path, package_key
     let mut lockfile = pnpm_lockfile::Lockfile::load_from_path(lockfile_path)
         .expect("load lockfile")
         .expect("lockfile present");
-    let (_, metadata) = lockfile.packages
+    let metadata = lockfile.packages
         .as_mut()
         .expect("packages")
-        .iter_mut()
-        .find(|(key, _)| key.to_string() == package_key)
+        .get_mut(&package_key.parse().expect("parse package key"))
         .unwrap_or_else(|| panic!("missing package {package_key}"));
     metadata.deprecated = Some("locked deprecation".to_string());
     lockfile.save_to_path(lockfile_path).expect("write lockfile");
