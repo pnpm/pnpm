@@ -20,14 +20,17 @@ export async function linkPnpmBins (installDir: string, binDir: string, pkgName:
  */
 const STORE_BINS_MARKER = '.pnpm-bins-linked'
 
-/** Links a store slot's bins unless this pnpm already did, under the slot's lock. */
+/** Links a store slot's bins unless this pnpm already did, under the slot's lock when it can be taken. */
 export async function ensureStoreBinsLinked (pnpmGvsPath: string, binDir: string, pkgName: string): Promise<void> {
   if (areStoreBinsCurrent(binDir)) return
   const lock = await lockGlobalVirtualStoreSlot(path.join(pnpmGvsPath, 'node_modules'))
   try {
     if (areStoreBinsCurrent(binDir)) return
     await linkPnpmBins(pnpmGvsPath, binDir, pkgName)
-    fs.writeFileSync(path.join(binDir, STORE_BINS_MARKER), packageManager.version)
+    // An unlocked link may have raced another one, so it is redone next time.
+    if (lock != null) {
+      fs.writeFileSync(path.join(binDir, STORE_BINS_MARKER), packageManager.version)
+    }
   } finally {
     await lock?.release()
   }
