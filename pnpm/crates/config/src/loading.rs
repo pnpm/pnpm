@@ -195,7 +195,7 @@ impl Config {
             .transpose()?
             .flatten();
         if let Some(global_settings) = global_settings.as_mut() {
-            global_settings.substitute_env_trusted::<Sys>();
+            global_settings.substitute_env_trusted::<Sys>()?;
         }
 
         Ok(global_settings)
@@ -219,7 +219,7 @@ impl Config {
     {
         let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         explicit.note(&env_settings);
-        env_settings.substitute_env_trusted::<Sys>();
+        env_settings.substitute_env_trusted_lossy::<Sys>();
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
         let env_registry_override = env_settings.registry.clone();
