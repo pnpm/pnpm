@@ -3,7 +3,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { getCurrentPackageName } from '@pnpm/cli.meta'
 import {
@@ -30,7 +29,7 @@ import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
-import { linkPnpmBins } from './linkPnpmBins.js'
+import { areStoreBinsCurrent, linkPnpmBins, linkStoreBins } from './linkPnpmBins.js'
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
 export { exePlatformPkgDirName, exePlatformPkgDirNameNext, linkExePlatformBinary, nativeTargetName } from './linkExePlatformBinary.js'
@@ -182,8 +181,8 @@ export async function installPnpmToStore (
   const binDir = path.join(pnpmGvsPath, 'bin')
 
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
-    if (!fs.existsSync(binDir)) {
-      await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+    if (!areStoreBinsCurrent(binDir)) {
+      await linkStoreBins(pnpmGvsPath, binDir, pkgName)
     }
     return { binDir }
   }
@@ -207,7 +206,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    await linkPnpmBins(pnpmGvsPath, binDir, pkgName)
+    await linkStoreBins(pnpmGvsPath, binDir, pkgName)
 
     return { binDir }
   } finally {
@@ -216,8 +215,6 @@ export async function installPnpmToStore (
     } catch {}
   }
 }
-
-function noop (_message: string) {}
 
 function findPnpmGvsPath (
   lockfile: LockfileObject,

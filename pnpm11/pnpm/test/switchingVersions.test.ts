@@ -471,3 +471,28 @@ test('throws error if pnpm binary in store is corrupt', () => {
   const { stderr } = execPnpmSync(['help'], { env })
   expect(stderr.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
 })
+
+test('relinks the bins of a store slot that an older pnpm linked (pnpm/pnpm#16646)', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const storeDir = path.resolve('store')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: storeDir }
+
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  execPnpmSync(['help'], { env, expectSuccess: true })
+
+  const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
+  const markerEntry = entries.find(entry => path.basename(entry) === '.pnpm-bins-linked')
+  if (!markerEntry) throw new Error('Could not find the bins marker in store')
+  const binDir = path.join(storeDir, path.dirname(markerEntry))
+  // Replace the shims with broken ones, as left by a pnpm that predates the marker.
+  fs.rmSync(path.join(binDir, '.pnpm-bins-linked'))
+  for (const shim of fs.readdirSync(binDir)) {
+    fs.writeFileSync(path.join(binDir, shim), isWindows() ? '@exit /b 1\r\n' : '#!/bin/sh\nexit 1\n')
+  }
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
