@@ -53,7 +53,9 @@ pub(crate) fn current_pkg_from_lockfile(
 
 /// The prior snapshot key recorded for child edge `alias` under
 /// `snapshot`'s dependency maps, when the recorded version still
-/// satisfies `bare_specifier`.
+/// satisfies `bare_specifier`. A bare range names the package `alias`
+/// itself, so a ref recorded as an `npm:` alias of another package never
+/// satisfies it.
 pub(crate) fn prior_child_key(
     snapshot: &SnapshotEntry,
     alias: &str,
@@ -76,7 +78,7 @@ pub(crate) fn prior_child_key(
         range.satisfies(version)
     } else {
         let range = bare_specifier.parse::<Range>().ok()?;
-        range.satisfies(key.suffix.version_semver()?)
+        key.name == name && range.satisfies(key.suffix.version_semver()?)
     };
     satisfied.then_some(key)
 }

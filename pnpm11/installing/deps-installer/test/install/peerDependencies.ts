@@ -2690,6 +2690,45 @@ test.each([true, false])('an optional peer that is also a regular dependency is 
   expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/16654
+test('changing overrides re-resolves a dependency that the lockfile records as an optional peer aliased to another package', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/aliases-optional-peer-of-dep@1.0.0'],
+    testDefaults()
+  )
+
+  // Older pnpm versions resolved the optional peer to the parent's aliased
+  // dependency. `@pnpm.e2e/bravo-dep@1.2.0` does not exist.
+  const lockfile = project.readLockfile()
+  const childKey = '@pnpm.e2e/has-optional-peer-range-also-in-deps@1.0.0'
+  const peersSuffix = '(@pnpm.e2e/foo@1.2.0)'
+  lockfile.packages[childKey] = {
+    ...lockfile.packages[childKey],
+    peerDependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' },
+    peerDependenciesMeta: { '@pnpm.e2e/bravo-dep': { optional: true } },
+  }
+  delete lockfile.snapshots[childKey]
+  delete lockfile.packages['@pnpm.e2e/bravo-dep@1.1.0']
+  delete lockfile.snapshots['@pnpm.e2e/bravo-dep@1.1.0']
+  lockfile.snapshots[`${childKey}${peersSuffix}`] = {
+    optionalDependencies: { '@pnpm.e2e/bravo-dep': '@pnpm.e2e/foo@1.2.0' },
+  }
+  lockfile.snapshots['@pnpm.e2e/aliases-optional-peer-of-dep@1.0.0'].dependencies!['@pnpm.e2e/has-optional-peer-range-also-in-deps'] = `1.0.0${peersSuffix}`
+  fs.writeFileSync(WANTED_LOCKFILE, JSON.stringify(lockfile))
+
+  await install(manifest, testDefaults({
+    lockfileOnly: true,
+    // The CLI's default. It makes the resolver look up the locked version in the registry.
+    minimumReleaseAge: 1440,
+    overrides: { '@pnpm.e2e/bar@<100': '100.0.0' },
+  }))
+
+  expect(project.readLockfile().snapshots[childKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.1.0' })
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/16615
 test('adding an unrelated dependency keeps the peer dependencies a locked package records', async () => {
   const project = prepareEmpty()
