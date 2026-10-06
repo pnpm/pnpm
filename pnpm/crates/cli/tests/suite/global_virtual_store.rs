@@ -348,6 +348,9 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
 /// project's interrupted install may have re-created it without its child
 /// links or package files, so a reinstall that keeps `node_modules` must
 /// still repair it (pnpm/pnpm#16642).
+///
+/// Each round also removes the project's direct link, so the frozen
+/// up-to-date check sees a broken tree and the install materializes.
 #[test]
 fn an_incomplete_slot_is_repaired_even_when_the_current_lockfile_records_it() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -368,8 +371,11 @@ fn an_incomplete_slot_is_repaired_even_when_the_current_lockfile_records_it() {
     let child_link = pkg_in_slot(&hash_dir, "@pnpm.e2e/dep-of-pkg-with-1-dep");
     let marker = pkg_in_slot(&hash_dir, "@pnpm.e2e/pkg-with-1-dep").join("package.json");
 
+    let direct_link = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
+
     eprintln!("Removing a child link from the slot...");
     pnpm_fs::remove_symlink_dir(&child_link).expect("remove the child link");
+    pnpm_fs::remove_symlink_dir(&direct_link).expect("remove the direct link");
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
@@ -381,6 +387,7 @@ fn an_incomplete_slot_is_repaired_even_when_the_current_lockfile_records_it() {
 
     eprintln!("Removing the slot's completion marker...");
     fs::remove_file(&marker).expect("remove the completion marker");
+    pnpm_fs::remove_symlink_dir(&direct_link).expect("remove the direct link");
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
