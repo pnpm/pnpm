@@ -130,7 +130,7 @@ Only declared dependencies are available through bare imports. There is no fallb
 
 This loader does not emulate a general filesystem. `import.meta.url`, `__filename`, `__dirname`, and `require.resolve()` for stored modules identify virtual locations. Passing them to ordinary `fs` APIs will not read store assets. Packages that read adjacent assets, scan directories, write into their package directory, or depend on a physical filename need materialization or a separate filesystem integration.
 
-Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. pnpm leaves files under a package's own `node_modules` directory out of the manifest. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
+Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. The loader ignores files under a package's own `node_modules` directory. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
 
 Use `.mjs` or `"type": "module"` for ESM. Stored `.js` files without a package type are treated as CommonJS; Node's syntax detection for ambiguous `.js` files is not implemented. The resolver is not a promise of complete Node resolution parity.
 

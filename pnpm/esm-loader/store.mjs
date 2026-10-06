@@ -99,6 +99,8 @@ function indexFiles (pkg, files, directories, storeDir) {
     if (!validFilename(name) || typeof hash !== 'string' || !/^[a-f0-9]{128}(?:-exec)?$/.test(hash)) {
       throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store file ${pkg.id}/${name}`)
     }
+    // Bundled dependencies are unsupported, so their files stay out of the virtual filesystem.
+    if (name.split('/').includes('node_modules')) continue
     const filename = path.join(pkg.root, name)
     files.set(filename, { blob: path.join(storeDir, 'files', hash.slice(0, 2), hash.slice(2)), hash: hash.slice(0, 128) })
     for (let parent = path.dirname(filename); within(pkg.root, parent); parent = path.dirname(parent)) {
@@ -109,7 +111,7 @@ function indexFiles (pkg, files, directories, storeDir) {
 
 function validFilename (name) {
   return name.length > 0 && !name.includes('\\') && !name.includes('\0') && !name.includes(':') &&
-    name.split('/').every(part => part !== '' && part !== '.' && part !== '..' && part !== 'node_modules')
+    name.split('/').every(part => part !== '' && part !== '.' && part !== '..')
 }
 
 export function within (root, filename) {

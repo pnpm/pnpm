@@ -488,7 +488,7 @@ fn loaded_project_local_store_survives_prune_and_requires_registration() {
 }
 
 #[test]
-fn cas_manifest_omits_files_under_a_package_node_modules() {
+fn cas_loader_starts_when_a_package_ships_node_modules_files() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -536,7 +536,7 @@ fn cas_manifest_omits_files_under_a_package_node_modules() {
                 .filter(|files| files.contains_key("index.js"))
         })
         .expect("the tarball dependency loads from CAS");
-    assert!(!files.contains_key("test/node_modules/fixture.js"), "{files:?}");
+    assert!(files.contains_key("test/node_modules/fixture.js"), "{files:?}");
     let output = Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
