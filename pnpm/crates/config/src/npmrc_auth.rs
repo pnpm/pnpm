@@ -271,12 +271,6 @@ impl NpmrcAuth {
     }
 }
 
-/// Normalize a registry URL for the purposes of nerf-darting: ensure a
-/// single trailing slash.
-fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
 #[cfg(test)]
 mod tests;
 

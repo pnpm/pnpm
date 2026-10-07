@@ -6,7 +6,7 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_network::{RetryOpts, normalize_registry_url, redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -97,7 +97,7 @@ impl SearchArgs {
         }
 
         let normalized_registry_url =
-            with_trailing_slash(self.registry.as_deref().unwrap_or(&config.registry));
+            normalize_registry_url(self.registry.as_deref().unwrap_or(&config.registry));
         let search_url = self.search_url(&normalized_registry_url, &query_string)?;
 
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
@@ -178,12 +178,6 @@ impl SearchArgs {
 
         Ok(formatted_packages.join("\n\n"))
     }
-}
-
-/// Add a trailing slash before joining so a registry with a path prefix
-/// keeps it.
-fn with_trailing_slash(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_owned() } else { format!("{registry_url}/") }
 }
 
 /// The registry's own explanation of a rejected search, when it sent one.

@@ -22,7 +22,10 @@ pub use retry::{
 };
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
+pub use url_encoding::{
+    encode_package_name, encode_uri_component, escaped_package_name, normalize_registry_url,
+    percent_decode_str,
+};
 
 mod address_guard;
 mod auth;

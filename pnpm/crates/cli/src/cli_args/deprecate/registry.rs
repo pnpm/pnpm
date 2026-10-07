@@ -1,10 +1,10 @@
 use super::{
-    BTreeMap, Config, Context, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT,
-    DeprecateContext, DeprecateError, Deserialize, IntoDiagnostic, LimitedBody, Response,
-    Serialize, StatusCode, ThrottledClient, encode_uri_component, parse_wanted_dependency,
-    pick_registry_for_package, read_limited_body, redact_url_credentials, retry_async, sanitize,
-    send_with_retry,
+    BTreeMap, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext,
+    DeprecateError, Deserialize, LimitedBody, Response, Serialize, StatusCode,
+    parse_wanted_dependency, pick_registry_for_package, read_limited_body, redact_url_credentials,
+    retry_async, sanitize, send_with_retry,
 };
+use pnpm_network::{escaped_package_name, normalize_registry_url};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct PackageMeta {
@@ -212,17 +212,6 @@ pub(crate) fn auth_header_for_registry(
     context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
 }
 
-pub(crate) fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for deprecate")
-}
-
 pub(crate) fn package_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
     let package_name = package_name_for_url(package_name)?;
     registry_endpoint_url(registry_url, &escaped_package_name(&package_name))
@@ -238,15 +227,4 @@ pub(crate) fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::R
         .and_then(|url| url.join(path))
         .map(|url| url.to_string())
         .map_err(|source| registry_operation_error("build registry URL", source))
-}
-
-pub(crate) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-pub(crate) fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
 }

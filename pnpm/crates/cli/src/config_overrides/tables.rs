@@ -1,6 +1,5 @@
-use super::{
-    ColorMode, ConfigOverrides, normalize_registry_url, parse_bool, parse_bool_or_enum, parse_enum,
-};
+use super::{ColorMode, ConfigOverrides, parse_bool, parse_bool_or_enum, parse_enum};
+use pnpm_network::normalize_registry_url;
 
 impl ConfigOverrides {
     pub(super) fn set_boolean_install_option(&mut self, key: &str, value: &str) -> bool {
@@ -89,7 +88,7 @@ impl ConfigOverrides {
     pub(super) fn set_network_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "registry" => {
-                self.registry = Some(normalize_registry_url(value));
+                self.registry = Some(normalize_registry_url(value).into_owned());
             }
             "scope" => {
                 self.scope = Some(value.to_string());

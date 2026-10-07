@@ -3,13 +3,13 @@
 
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::redact_url_credentials;
+use pnpm_network::{escaped_package_name, redact_url_credentials};
 use serde_json::Value;
 use url::Url;
 
 use crate::{
     capabilities::{OidcFetch, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    oidc::OidcHttpOptions,
 };
 
 #[cfg(test)]

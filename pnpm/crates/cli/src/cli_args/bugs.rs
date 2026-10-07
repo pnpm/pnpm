@@ -2,6 +2,7 @@ use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
+use pnpm_network::normalize_registry_url;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_registry::{PackageTag, PackageVersion};
@@ -87,7 +88,7 @@ impl BugsArgs {
         spec: &str,
     ) -> String {
         if let Some(registry) = &self.registry {
-            return normalize_registry_url(registry);
+            return normalize_registry_url(registry).into_owned();
         }
         let (package_name, _) = parse_package_spec(spec);
         let registry = pnpm_resolving_npm_resolver::pick_registry_for_package(
@@ -95,7 +96,7 @@ impl BugsArgs {
             package_name,
             Some(spec),
         );
-        normalize_registry_url(&registry)
+        normalize_registry_url(&registry).into_owned()
     }
 }
 
@@ -317,10 +318,6 @@ fn split_user_project(spec: &str) -> Option<(&str, &str)> {
 
 fn is_http_url(value: &str) -> bool {
     Url::parse(value).is_ok_and(|parsed| parsed.scheme() == "http" || parsed.scheme() == "https")
-}
-
-fn normalize_registry_url(url: &str) -> String {
-    if url.ends_with('/') { url.to_owned() } else { format!("{url}/") }
 }
 
 fn open_url<Sys: OpenUrl>(url: &str) {

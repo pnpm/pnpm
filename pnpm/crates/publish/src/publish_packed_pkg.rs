@@ -10,7 +10,7 @@ pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fe
 use std::collections::BTreeMap;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name, redact_url_credentials};
 use pnpm_network_web_auth::{
     Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
     OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
@@ -25,7 +25,7 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch},
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    oidc::OidcHttpOptions,
     provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,

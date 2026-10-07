@@ -612,7 +612,7 @@ async fn owner_add_registry_override() {
 #[test]
 fn normalize_registry_url_adds_trailing_slash() {
     assert_eq!(
-        super::normalize_registry_url("https://registry.example.com"),
+        pnpm_network::normalize_registry_url("https://registry.example.com"),
         "https://registry.example.com/",
     );
 }
@@ -620,7 +620,7 @@ fn normalize_registry_url_adds_trailing_slash() {
 #[test]
 fn normalize_registry_url_preserves_trailing_slash() {
     assert_eq!(
-        super::normalize_registry_url("https://registry.example.com/"),
+        pnpm_network::normalize_registry_url("https://registry.example.com/"),
         "https://registry.example.com/",
     );
 }
