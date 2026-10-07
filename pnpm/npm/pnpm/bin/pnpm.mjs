@@ -79,12 +79,13 @@ async function nativeBinary () {
   const { downloadPnpmExecutable } = await import(GET_PNPM).catch((err) => {
     fail(`This copy of the pnpm package is missing the downloader it needs: ${err.message}`)
   })
+  const signature = signaturePolicy()
   try {
     await downloadPnpmExecutable({
       version,
       destPath: DOWNLOADED_BINARY,
-      ...registryAccess(),
-      ...signaturePolicy(),
+      ...registryAccess({ readProjectNpmrc: signature.verifySignature !== false }),
+      ...signature,
     })
   } catch (err) {
     fail(`Could not download the pnpm ${version} binary: ${err.message}`)
@@ -94,19 +95,25 @@ async function nativeBinary () {
 
 /**
  * The registry to download from, and the headers to send it. Corepack's
- * `COREPACK_NPM_REGISTRY` wins. Otherwise the pnpm and npm settings from outside
- * the project decide: the environment and the user `.npmrc`. A project `.npmrc`
- * is not read, as pnpm does not read one when it switches to another version of
- * itself, so a repository cannot choose where the package manager comes from
- * (GHSA-j2hc-m6cf-6jm8). `get-pnpm` keeps the headers on that registry's
- * origin, so a download host it names never receives them.
+ * `COREPACK_NPM_REGISTRY` wins. Otherwise npm's sources decide, highest first:
+ * the environment, the project `.npmrc`, the user `.npmrc`.
+ *
+ * The project `.npmrc` is read only with `readProjectNpmrc`, which the caller
+ * passes while the download is checked against npm's signature. The signature
+ * pins the bytes, so a repository picks only where they come from. Unchecked,
+ * it would pick the binary itself, which is kept next to this wrapper and run
+ * in every later project (GHSA-j2hc-m6cf-6jm8). `get-pnpm` keeps the headers on
+ * the registry's origin, so a download host it names never receives them.
  */
-function registryAccess () {
+function registryAccess ({ readProjectNpmrc }) {
   const corepackRegistry = process.env.COREPACK_NPM_REGISTRY
   if (corepackRegistry) {
     return { registry: corepackRegistry, headers: corepackHeaders() }
   }
   const npmrc = readUserNpmrc()
+  if (readProjectNpmrc) {
+    Object.assign(npmrc, readNpmrc(path.join(projectDir(), '.npmrc'), projectEntry))
+  }
   const registry = npmrc['@pnpm:registry'] || settingFromEnv('registry') || npmrc.registry
   if (!registry) {
     return { registry: DEFAULT_REGISTRY, headers: corepackHeaders() }
@@ -133,9 +140,47 @@ function settingFromEnv (key) {
     env[`npm_config_${key}`] || env[`NPM_CONFIG_${upper}`] || undefined
 }
 
-/** The top-level settings of the user `.npmrc`, with `${VAR}` placeholders expanded. */
+/** The user `.npmrc`, with `${VAR}` placeholders expanded. */
 function readUserNpmrc () {
-  const file = settingFromEnv('userconfig') || path.join(os.homedir(), '.npmrc')
+  return readNpmrc(
+    settingFromEnv('userconfig') || path.join(os.homedir(), '.npmrc'),
+    (key, value) => [expandEnv(key), expandEnv(value)]
+  )
+}
+
+/**
+ * A project `.npmrc` entry, which is not expanded. One with a `${VAR}`
+ * placeholder in a registry setting or a credential is dropped, as pnpm drops
+ * it: a repository must not route the user's environment to a registry.
+ */
+function projectEntry (key, value, file) {
+  if (!key.includes('${') && !value.includes('${')) {
+    return [key, value]
+  }
+  if (key.startsWith('//') || key === 'registry' || key.endsWith(':registry')) {
+    console.error(`Ignored ${key} from ${file}: a project .npmrc cannot use environment variables in registry settings or credentials.`)
+  }
+  return undefined
+}
+
+/** Where pnpm reads the project `.npmrc`: the workspace root, or else the current directory. */
+function projectDir () {
+  const cwd = process.cwd()
+  for (let dir = cwd; ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) {
+      return dir
+    }
+    if (path.dirname(dir) === dir) {
+      return cwd
+    }
+  }
+}
+
+/**
+ * The top-level settings of the `.npmrc` at `file`, each passed through
+ * `parseEntry`, which returns the `[key, value]` to keep or `undefined`.
+ */
+function readNpmrc (file, parseEntry) {
   const settings = Object.create(null)
   let text
   try {
@@ -156,8 +201,10 @@ function readUserNpmrc () {
     if (separator === -1 || line.startsWith(';') || line.startsWith('#')) {
       continue
     }
-    const key = expandEnv(line.slice(0, separator).trim())
-    settings[key] = expandEnv(unquote(line.slice(separator + 1).trim()))
+    const entry = parseEntry(line.slice(0, separator).trim(), unquote(line.slice(separator + 1).trim()), file)
+    if (entry != null) {
+      settings[entry[0]] = entry[1]
+    }
   }
   return settings
 }

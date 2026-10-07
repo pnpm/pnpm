@@ -14,7 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { after, describe, it } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { URL, fileURLToPath } from 'node:url'
 
 import { INTEGRITY_KEYS, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
@@ -166,14 +166,42 @@ describe('corepack entry point', () => {
     assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
   })
 
-  it('does not let a project .npmrc choose the registry', async () => {
+  it('downloads from the registry the workspace .npmrc names, without expanding its credentials', async () => {
+    const fixture = await createFixture()
+    const userRegistry = await startRegistry({ payload: FAKE_BINARY })
+    after(userRegistry.close)
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:_authToken=\${FIXTURE_TOKEN}`,
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${userRegistry.url}/`])
+    const packageDir = path.join(fixture.projectDir, 'packages/a')
+    fs.mkdirSync(packageDir, { recursive: true })
+
+    const result = await runEntry({ ...fixture, projectDir: packageDir }, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      FIXTURE_TOKEN: 'user-token',
+    })
+    assert.match(result.stderr, /Ignored .*:_authToken from .*\.npmrc/)
+    assert.deepEqual(userRegistry.requests, [])
+    assert.deepEqual(new Set(fixture.requests.map(({ url, authorization }) => `${url} ${authorization}`)), new Set([
+      `/${packageName}/${VERSION} undefined`,
+      `/${packageName}/-/${VERSION}.tgz undefined`,
+    ]))
+  })
+
+  it('does not let a project .npmrc choose the registry of an unchecked download', async () => {
     const fixture = await createFixture()
     const projectRegistry = await startRegistry({ payload: FAKE_BINARY })
     after(projectRegistry.close)
     writeNpmrc(fixture, 'project/.npmrc', [`registry=${projectRegistry.url}/`])
     const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
 
-    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      COREPACK_INTEGRITY_KEYS: '0',
+    })
     assert.deepEqual(projectRegistry.requests, [])
     assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
   })
