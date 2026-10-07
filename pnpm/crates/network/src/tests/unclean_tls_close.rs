@@ -14,9 +14,9 @@ use std::{
 
 const DOCUMENT: &str = r#"{"name":"foo","dist-tags":{"latest":"1.0.0"}}"#;
 
-/// Serve one HTTPS response whose body ends only when the connection does,
-/// then close the TCP connection without a TLS `close_notify` alert.
-fn serve_close_delimited_once(
+/// Serve one HTTPS response, then close the TCP connection without a TLS
+/// `close_notify` alert.
+fn serve_then_close_uncleanly(
     extra_headers: &'static str,
     body: Vec<u8>,
 ) -> (SocketAddr, JoinHandle<()>) {
@@ -77,7 +77,7 @@ async fn fetch_text(address: SocketAddr) -> Result<String, reqwest::Error> {
 
 #[tokio::test]
 async fn close_delimited_body_ends_at_unclean_tls_close() {
-    let (address, server) = serve_close_delimited_once("", DOCUMENT.as_bytes().to_vec());
+    let (address, server) = serve_then_close_uncleanly("", DOCUMENT.as_bytes().to_vec());
     let body = fetch_text(address).await.expect("read body");
     server.join().expect("TLS server thread");
     assert_eq!(body, DOCUMENT);
@@ -88,38 +88,30 @@ async fn gzipped_close_delimited_body_ends_at_unclean_tls_close() {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(DOCUMENT.as_bytes()).expect("gzip document");
     let gzipped = encoder.finish().expect("finish gzip");
-    let (address, server) = serve_close_delimited_once("Content-Encoding: gzip\r\n", gzipped);
+    let (address, server) = serve_then_close_uncleanly("Content-Encoding: gzip\r\n", gzipped);
     let body = fetch_text(address).await.expect("read body");
     server.join().expect("TLS server thread");
     assert_eq!(body, DOCUMENT);
 }
 
 #[tokio::test]
-async fn truncated_body_without_tls_still_fails() {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind HTTP server");
-    let http_address = listener.local_addr().expect("HTTP server address");
-    let handle = std::thread::spawn(move || {
-        let (mut tcp, _) = listener.accept().expect("accept connection");
-        let mut request = Vec::new();
-        let mut buffer = [0; 1024];
-        while !request.ends_with(b"\r\n\r\n") {
-            let read = tcp.read(&mut buffer).expect("read request");
-            assert_ne!(read, 0, "client closed before sending the request");
-            request.extend_from_slice(&buffer[..read]);
-        }
-        tcp.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{\"name\"")
-            .expect("write truncated response");
-    });
-    let client = client_trusting_any_certificate();
-    let response = client
-        .acquire()
-        .await
-        .get(format!("http://{http_address}/foo"))
-        .send()
-        .await
-        .expect("receive response head");
-    let error = read_self_delimiting_text(response).await.expect_err("truncated body fails");
-    handle.join().expect("HTTP server thread");
+async fn cut_short_content_length_body_fails_at_unclean_tls_close() {
+    let (address, server) =
+        serve_then_close_uncleanly("Content-Length: 100\r\n", DOCUMENT.as_bytes().to_vec());
+    let error = fetch_text(address).await.expect_err("a cut-short body fails");
+    server.join().expect("TLS server thread");
+    eprintln!("body error: {error:?}");
+    assert!(error.is_body() || error.is_decode(), "expected a body error: {error:?}");
+}
+
+#[tokio::test]
+async fn cut_short_chunked_body_fails_at_unclean_tls_close() {
+    let (address, server) = serve_then_close_uncleanly(
+        "Transfer-Encoding: chunked\r\n",
+        format!("{:x}\r\n{DOCUMENT}\r\n", DOCUMENT.len()).into_bytes(),
+    );
+    let error = fetch_text(address).await.expect_err("a body without its last chunk fails");
+    server.join().expect("TLS server thread");
     eprintln!("body error: {error:?}");
     assert!(error.is_body() || error.is_decode(), "expected a body error: {error:?}");
 }
