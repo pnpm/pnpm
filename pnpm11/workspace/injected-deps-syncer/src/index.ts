@@ -187,14 +187,14 @@ async function syncInjectedBinLinks (
 }
 
 export interface SyncInjectedDepsOfModulesDirOptions {
+  /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
+  includeOnlyPackageFiles?: boolean
   /** The directory whose lockfile lists the injected dependencies. */
   lockfileDir: string
   /** The modules directory that holds the `.modules.yaml` of `lockfileDir`. */
   modulesDir: string
   /** The sources whose copies are synced. Copies of other sources keep their contents. */
   sourceDirs: ReadonlySet<string>
-  /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
-  includeOnlyPackageFiles?: boolean
 }
 
 /**

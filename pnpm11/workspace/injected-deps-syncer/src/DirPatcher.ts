@@ -376,10 +376,6 @@ export class DirPatcher {
     this.targetDir = targetDir
   }
 
-  /**
-   * `includeOnlyPackageFiles` reads the source the way the directory fetcher's
-   * option of the same name does.
-   */
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
     const fetchOptions: FetchFromDirOptions = {
       resolveSymlinks: false,
