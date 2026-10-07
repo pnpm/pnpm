@@ -1,5 +1,6 @@
 use super::{OwnerArgs, OwnerError};
 use pnpm_config::Config;
+use pnpm_network::normalize_registry_url;
 use serde_json::json;
 
 #[test]
@@ -79,12 +80,12 @@ fn error_registry_write_failed_includes_package() {
 }
 
 fn config_with_registry(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let url = normalize_registry_url(registry).into_owned();
     Config { registry: url, ..Config::default() }
 }
 
 fn config_with_registry_no_retries(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let url = normalize_registry_url(registry).into_owned();
     Config { registry: url, fetch_retries: 0, ..Config::default() }
 }
 

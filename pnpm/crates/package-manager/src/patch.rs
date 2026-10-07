@@ -1,6 +1,6 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, InstallPackageBySnapshotError, import_indexed_dir,
-    retry_config::retry_opts_from_config, tarball_url_and_integrity,
+    tarball_url_and_integrity,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -283,7 +283,7 @@ impl WritePackageForPatch<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
                 auth_headers: &self.config.auth_headers,
-                retry_opts: retry_opts_from_config(self.config),
+                retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
             },
             package: pnpm_tarball::TarballPackage {

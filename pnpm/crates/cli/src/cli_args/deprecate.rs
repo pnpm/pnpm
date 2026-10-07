@@ -20,10 +20,7 @@ use registry::{PackageMeta, put_package_meta};
 
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DEPRECATION_BODY_LIMIT: usize = 10 * 1024 * 1024;
 pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -175,12 +172,7 @@ impl DeprecateContext<'_> {
         Ok(DeprecateContext {
             config,
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp,
         })

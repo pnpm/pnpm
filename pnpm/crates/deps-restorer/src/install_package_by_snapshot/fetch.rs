@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     CreateVirtualDirBySnapshot, build_modules::exec_scripts_prepend_node_path,
-    create_virtual_store::requires_build_from_cas_paths, retry_config::retry_opts_from_config,
+    create_virtual_store::requires_build_from_cas_paths,
 };
 use pnpm_config::NodeLinker;
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
@@ -207,7 +207,7 @@ impl InstallPackageBySnapshot<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.fetching.http_client,
                 auth_headers: &config.auth_headers,
-                retry_opts: retry_opts_from_config(config),
+                retry_opts: config.retry_opts(),
                 offline: config.offline,
             },
             package: pnpm_tarball::TarballPackage {

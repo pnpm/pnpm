@@ -1,14 +1,16 @@
 //! `pacquet search` — search for packages in the registry.
 
-use crate::cli_args::{registry_client::build_registry_client, sanitize::sanitize};
+use crate::cli_args::{
+    registry_client::build_registry_client,
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body, sanitize},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, normalize_registry_url, redact_and_sanitize, send_with_retry};
+use pnpm_network::{normalize_registry_url, redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -102,13 +104,7 @@ impl SearchArgs {
 
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
-
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let (client, response) =
             send_with_retry(&http_client, search_url.as_str(), retry_opts, |client| {
@@ -182,23 +178,10 @@ impl SearchArgs {
 
 /// The registry's own explanation of a rejected search, when it sent one.
 async fn search_request_failed(response: reqwest::Response) -> SearchError {
-    let status = response.status();
-    let error_body = response
-        .text()
-        .await
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let detail =
-        if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
-    SearchError::SearchFailed {
-        status: status.as_u16(),
-        status_text: status
-            .canonical_reason()
-            .unwrap_or_default()
-            .to_string(),
-        detail,
-    }
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+    let detail = if body.is_empty() { String::new() } else { format!(". {body}") };
+    SearchError::SearchFailed { status: status.as_u16(), status_text, detail }
 }
 
 fn format_package(pkg: &SearchPackage) -> String {

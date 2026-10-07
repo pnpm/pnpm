@@ -1,6 +1,5 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, SymlinkPackageError, import_indexed_dir,
-    retry_config::retry_opts_from_config,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
     symlink_package,
 };
@@ -138,7 +137,7 @@ impl InstallPackageFromRegistry<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.fetching.http_client,
                 auth_headers: &config.auth_headers,
-                retry_opts: retry_opts_from_config(config),
+                retry_opts: config.retry_opts(),
                 offline: config.offline,
             },
             package: pnpm_tarball::TarballPackage {
