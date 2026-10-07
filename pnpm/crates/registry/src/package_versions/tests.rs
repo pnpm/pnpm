@@ -590,7 +590,7 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
 fn checking_mirror_fragments_reports_damage_without_hydrating() {
     let versions = mirror_versions();
 
-    assert!(versions.check_mirror_fragments());
+    assert!(versions.finds_corrupt_mirror_fragment());
     assert!(!versions.is_hydrated("1.0.0"));
 }
 
@@ -601,6 +601,6 @@ fn checking_intact_mirror_fragments_reports_nothing() {
     let versions =
         mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
 
-    assert!(!versions.check_mirror_fragments());
+    assert!(!versions.finds_corrupt_mirror_fragment());
     assert!(!versions.is_hydrated("1.0.0"));
 }
