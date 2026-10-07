@@ -260,7 +260,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.29
+  '@rushstack/worker-pool': 0.7.30
   '@stylistic/eslint-plugin': ^5.10.0
   '@tybys/wasm-util': 0.10.4
   '@types/adm-zip': ^0.5.8
@@ -401,7 +401,7 @@ catalog:
   human-id: ^4.2.2
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
-  keyv: 5.6.0
+  keyv: 6.0.0-rc.1
   lcov-result-merger: ^6.0.0
   # libnpmpublish 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
