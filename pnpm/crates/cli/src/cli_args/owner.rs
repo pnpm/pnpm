@@ -1,5 +1,8 @@
 use crate::cli_args::{
-    registry_client::{build_registry_client_with_otp_guard, resolve_registries_with_override},
+    registry_client::{
+        auth_header_for_package, build_registry_client_with_otp_guard, join_registry_endpoint,
+        resolve_registries_with_override, resolve_registry_for_package,
+    },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
 use clap::Args;
@@ -10,7 +13,6 @@ use pnpm_network::{
     RetryOpts, ThrottledClient, encode_package_name, encode_uri_component, read_limited_body,
     redact_url_credentials, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -249,11 +251,13 @@ struct OwnersEndpoint {
 }
 
 fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
-    let registry_url = pick_registry_for_package(&context.registries, package_name, None);
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&registry_url, Some(package_name));
+    let registry_url = resolve_registry_for_package(&context.registries, package_name, None);
+    let auth_header = auth_header_for_package(context.config, &registry_url, package_name);
     let escaped = encode_package_name(package_name);
-    OwnersEndpoint { url: format!("{registry_url}-/package/{escaped}/owners"), auth_header }
+    let path = format!("-/package/{escaped}/owners");
+    let url = join_registry_endpoint(&registry_url, &path)
+        .unwrap_or_else(|_| format!("{registry_url}{path}"));
+    OwnersEndpoint { url, auth_header }
 }
 
 fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report

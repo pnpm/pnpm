@@ -1,3 +1,4 @@
+use super::package_spec::PackageSpec;
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
@@ -88,7 +89,8 @@ impl BugsArgs {
         if let Some(registry) = &self.registry {
             return normalize_registry_url(registry).into_owned();
         }
-        let (package_name, _) = parse_package_spec(spec);
+        let parsed = PackageSpec::parse(spec);
+        let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
         let registry = pnpm_resolving_npm_resolver::pick_registry_for_package(
             registries,
             package_name,
@@ -118,8 +120,9 @@ async fn get_bugs_url_from_registry(
     http_client: &pnpm_network::ThrottledClient,
     auth_headers: &pnpm_network::AuthHeaders,
 ) -> miette::Result<String> {
-    let (package_name, tag) = parse_package_spec(spec);
-    let package_tag = match tag {
+    let parsed = PackageSpec::parse(spec);
+    let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
+    let package_tag = match parsed.as_ref().and_then(|parsed| parsed.version.as_deref()) {
         None => PackageTag::Latest,
         Some(tag_str) => tag_str.parse::<PackageTag>().unwrap_or(PackageTag::Latest),
     };
@@ -339,25 +342,6 @@ fn open_url<Sys: OpenUrl>(url: &str) {
 
     if let Err(err) = Sys::open_url(&clean_url_for_browser) {
         tracing::debug!(target: "pnpm_cli", %err, "could not open browser");
-    }
-}
-
-fn parse_package_spec(spec: &str) -> (&str, Option<&str>) {
-    let spec = spec.trim();
-    if let Some(stripped) = spec.strip_prefix('@') {
-        if let Some(at_pos) = stripped.rfind('@')
-            && at_pos > 0
-        {
-            let split_pos = at_pos + 1;
-            return (&spec[..split_pos], Some(&spec[split_pos + 1..]));
-        }
-        (spec, None)
-    } else if let Some(at_pos) = spec.rfind('@')
-        && at_pos > 0
-    {
-        (&spec[..at_pos], Some(&spec[at_pos + 1..]))
-    } else {
-        (spec, None)
     }
 }
 

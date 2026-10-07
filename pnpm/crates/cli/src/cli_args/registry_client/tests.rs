@@ -64,3 +64,35 @@ fn join_registry_endpoint_resolves_path_relative_to_registry() {
         "https://custom.registry.com/prefix/-/package/foo/dist-tags",
     );
 }
+
+#[test]
+fn resolve_registry_for_package_picks_and_normalizes() {
+    let mut registries = std::collections::HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org".to_string());
+    registries.insert("@my-scope".to_string(), "https://npm.pkg.github.com/my-org".to_string());
+
+    assert_eq!(
+        super::resolve_registry_for_package(&registries, "lodash", None),
+        "https://registry.npmjs.org/",
+    );
+    assert_eq!(
+        super::resolve_registry_for_package(&registries, "@my-scope/pkg", None),
+        "https://npm.pkg.github.com/my-org/",
+    );
+}
+
+#[test]
+fn package_endpoint_url_escapes_scoped_names() {
+    assert_eq!(
+        super::package_endpoint_url("https://registry.npmjs.org", "lodash").unwrap(),
+        "https://registry.npmjs.org/lodash",
+    );
+    assert_eq!(
+        super::package_endpoint_url("https://registry.npmjs.org/", "@scope/pkg").unwrap(),
+        "https://registry.npmjs.org/@scope%2fpkg",
+    );
+    assert_eq!(
+        super::package_endpoint_url("https://registry.org/prefix", "@scope/pkg").unwrap(),
+        "https://registry.org/prefix/@scope%2fpkg",
+    );
+}

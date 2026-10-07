@@ -1,5 +1,5 @@
 use super::{
-    BugsArgs, get_bugs_url_from_current_project, is_http_url, parse_package_spec, pick_bugs_url,
+    BugsArgs, get_bugs_url_from_current_project, is_http_url, pick_bugs_url,
     repository_to_issues_url, try_hosted_git_shorthand,
 };
 use pnpm_config::Config;
@@ -241,43 +241,6 @@ fn hosted_shorthand_returns_none_for_urls() {
 #[test]
 fn hosted_shorthand_returns_none_for_git_urls() {
     assert_eq!(try_hosted_git_shorthand("git@github.com:owner/repo.git"), None);
-}
-
-#[test]
-fn parse_spec_bare_name() {
-    assert_eq!(parse_package_spec("foo"), ("foo", None));
-}
-
-#[test]
-fn parse_spec_name_with_version() {
-    assert_eq!(parse_package_spec("foo@1.0.0"), ("foo", Some("1.0.0")));
-}
-
-#[test]
-fn parse_spec_scoped_package() {
-    assert_eq!(parse_package_spec("@scope/foo"), ("@scope/foo", None));
-}
-
-#[test]
-fn parse_spec_scoped_with_version() {
-    assert_eq!(parse_package_spec("@scope/foo@1.0.0"), ("@scope/foo", Some("1.0.0")));
-}
-
-#[test]
-fn parse_spec_scoped_with_tag() {
-    assert_eq!(parse_package_spec("@scope/foo@latest"), ("@scope/foo", Some("latest")));
-}
-
-#[test]
-fn parse_spec_trims_whitespace() {
-    assert_eq!(parse_package_spec("  foo  "), ("foo", None));
-}
-
-#[test]
-fn parse_spec_strips_version_from_name_with_version() {
-    let (name, tag) = parse_package_spec("react@18.2.0");
-    assert_eq!(name, "react");
-    assert_eq!(tag, Some("18.2.0"));
 }
 
 #[test]
