@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 
 import type { LifecycleLog } from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
@@ -308,13 +309,33 @@ function formatLifecycleScriptPrefix (
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog): string {
-  const line = cutLine(logObj.line, maxWidth)
+  const line = cutLine(logObj.line && printableScriptLine(logObj.line), maxWidth)
 
-  // TODO: strip only the non-color/style ansi escape codes
   if (logObj.stdio === 'stderr') {
     return chalk.gray(line)
   }
   return line
+}
+
+// eslint-disable-next-line no-control-regex -- an SGR (color) sequence starts with ESC
+const SGR_SEQUENCE = /\u001B\[[\d;:]*m/g
+// eslint-disable-next-line no-control-regex -- matching control characters is the point of this pattern
+const CONTROL_CHARACTERS_EXCEPT_TAB = /[\u0000-\u0008\u000A-\u001F\u007F-\u009F]/g
+
+const SGR_RESET = '\u001B[0m'
+
+/**
+ * Keeps the SGR (color) sequences of a script's output line when colors are
+ * on, followed by a reset so a color left open cannot reach the next line.
+ * Drops every other escape sequence and control character, so a script's
+ * cursor movement cannot move the reporter's cursor.
+ */
+function printableScriptLine (line: string): string {
+  const colors = chalk.level > 0 ? line.match(SGR_SEQUENCE) ?? [] : []
+  const printable = line.split(SGR_SEQUENCE)
+    .map((text, index) => stripVTControlCharacters(text).replace(CONTROL_CHARACTERS_EXCEPT_TAB, '') + (colors[index] ?? ''))
+    .join('')
+  return colors.length > 0 ? printable + SGR_RESET : printable
 }
 
 function cutLine (line: string | undefined, maxLength: number): string {

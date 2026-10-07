@@ -2,6 +2,8 @@
 //! relies on (`pretty-bytes`, `pretty-ms`, `cli-truncate`, `normalize-path`)
 //! and from `utils/formatPrefix.ts` / `utils/zooming.ts`.
 
+use std::borrow::Cow;
+
 /// `outputConstants.ts` [`PREFIX_MAX_LENGTH`].
 pub const PREFIX_MAX_LENGTH: usize = 40;
 
@@ -107,22 +109,61 @@ fn skip_csi(chars: &mut std::str::Chars<'_>) {
     }
 }
 
-/// Port of `cli-truncate(line, max)` for the plain (no embedded ANSI) script
-/// lines the lifecycle reporter cuts. Appends `...` when the line is shortened,
-/// matching cli-truncate's default end position.
+/// Port of `cli-truncate(line, max)`: cuts `line` to `max` columns, not
+/// counting ANSI escape sequences, and ends a shortened line with `…`.
 #[must_use]
 pub fn cut_line(line: &str, max: isize) -> String {
     if max <= 0 {
         return String::new();
     }
-    let max = max as usize;
-    if line.chars().count() <= max {
-        return line.to_string();
+    console::truncate_str(line, max as usize, "…").into_owned()
+}
+
+/// What a terminal shows of one line of script output: the last frame a
+/// `\r` redraw leaves. SGR (color) sequences are kept when `keep_colors`,
+/// followed by a reset so a color left open cannot reach the next line.
+/// Every other escape sequence and control character is dropped, so a
+/// child's cursor movement cannot move the reporter's cursor.
+#[must_use]
+pub fn printable_script_line(line: &str, keep_colors: bool) -> Cow<'_, str> {
+    if !line
+        .chars()
+        .any(|ch| ch.is_control() && ch != '\t')
+    {
+        return Cow::Borrowed(line);
     }
-    let keep = max.saturating_sub(1);
-    let mut out: String = line.chars().take(keep).collect();
-    out.push('…');
-    out
+    let frame = line
+        .rsplit('\r')
+        .map(|frame| printable_frame(frame, keep_colors))
+        .find(|frame| visible_width(frame) > 0)
+        .unwrap_or_default();
+    Cow::Owned(frame)
+}
+
+fn printable_frame(frame: &str, keep_colors: bool) -> String {
+    let mut printable = String::with_capacity(frame.len());
+    let mut colored = false;
+    for (part, is_escape) in console::AnsiCodeIterator::new(frame) {
+        if !is_escape {
+            printable.extend(
+                part.chars()
+                    .filter(|ch| !ch.is_control() || *ch == '\t'),
+            );
+        } else if keep_colors && is_sgr(part) {
+            printable.push_str(part);
+            colored = true;
+        }
+    }
+    if colored {
+        printable.push_str(SGR_RESET);
+    }
+    printable
+}
+
+const SGR_RESET: &str = "\u{1b}[0m";
+
+fn is_sgr(escape: &str) -> bool {
+    escape.starts_with("\u{1b}[") && escape.ends_with('m')
 }
 
 /// Port of `normalize-path`: backslashes to forward slashes.

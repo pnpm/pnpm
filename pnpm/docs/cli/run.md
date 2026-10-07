@@ -79,6 +79,7 @@ These environment variables may be used to get contextual information about the 
 These are the environment variables created by pnpm:
 
 * **npm_command** - contains the name of the executed command. If the executed command is `pnpm run`, then the value of this variable will be "run-script".
+* **FORCE_COLOR** - set to `1` when pnpm prints the script's output itself and pnpm's own output is in color. pnpm prints the output itself with [`--stream`](#--stream) or [`--parallel`](#--parallel), or when several scripts run at once. A `FORCE_COLOR` that is already set is kept.
 
 ## Options
 

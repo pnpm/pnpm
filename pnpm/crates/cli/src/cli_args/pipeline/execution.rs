@@ -5,6 +5,7 @@ use super::{
     cargo_cache, env, make_node_package_map_option, make_node_require_option,
     package_map_path_for_execution, pnp_path_for_execution, run_stages, sync_injected_deps,
 };
+use crate::cli_args::reporter::script_output_colors;
 
 #[derive(Clone, Copy)]
 pub(super) struct RunTaskOptions<'a, 'graph> {
@@ -408,6 +409,7 @@ fn pipeline_script_context<'a>(
         output: ScriptOutput::Streamed {
             dep_path: root_str,
             emit: if capture_output { capture::capturing_emit } else { options.reporting.emit },
+            color: script_output_colors(),
         },
         // The pipeline never bails, so there is no cancellation to
         // propagate into running children.

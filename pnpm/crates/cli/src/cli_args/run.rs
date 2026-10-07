@@ -5,7 +5,7 @@ pub(super) use listing::ScriptSelector;
 
 use super::{
     exec::{ExecArgs, ExecDirs, ExecError},
-    reporter::{ReporterType, reporter_emit, suppresses_info_output},
+    reporter::{ReporterType, reporter_emit, script_output_colors, suppresses_info_output},
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -268,7 +268,11 @@ impl RunArgs {
             extra_env: &extra_env,
             silent: suppresses_info_output(reporter),
             output: if interleaved {
-                ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
+                ScriptOutput::Streamed {
+                    dep_path: &dep_path,
+                    emit: reporter_emit(reporter),
+                    color: script_output_colors(),
+                }
             } else {
                 ScriptOutput::Inherit
             },
