@@ -697,6 +697,28 @@ test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() 
   })
 })
 
+test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() removes an optional peer declared only in peerDependenciesMeta with %s', (selector) => {
+  const overrider = createVersionsOverrider(parseOverrides({ [selector]: '-' }, {}), process.cwd())
+  const manifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: Object.freeze({
+      'unwanted-peer': { optional: true },
+      kept: { optional: true },
+    }),
+  }
+
+  expect(overrider(manifest)).toStrictEqual({
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: { kept: { optional: true } },
+  })
+  expect(manifest.peerDependenciesMeta).toStrictEqual({
+    'unwanted-peer': { optional: true },
+    kept: { optional: true },
+  })
+})
+
 test('createVersionsOverrider() removes dependencies', () => {
   const overrider = createVersionsOverrider([
     {
