@@ -12,6 +12,8 @@ export type ConfigDepResolverOpts = CreateFetchFromRegistryOptions & ResolverFac
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
+  /** The instant the `minimumReleaseAge` cutoff is computed from. Share it with the config dependency verifier. */
+  now?: number
 }
 
 /**
@@ -26,7 +28,7 @@ export function createConfigDepResolver (opts: ConfigDepResolverOpts): ResolveCo
     ...opts,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime ?? opts.ignoreMissingTimeField,
   })
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts, opts.now)
   return async (wantedDependency, resolveOpts) => {
     const result = await resolveFromNpm(wantedDependency, { ...resolveOpts, publishedBy, publishedByExclude })
     const violation = result?.policyViolation

@@ -13,6 +13,8 @@ import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { loadJsonFileSync } from 'load-json-file'
 
+import { bravoDepMatureUpTo101MinimumReleaseAge } from './utils/minimumReleaseAge.js'
+
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 function createOpts (registryUrl: string = registry) {
@@ -512,12 +514,6 @@ test('verifies config dependencies against the registry only when they need to b
   await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, offlineOpts)).rejects.toThrow()
 })
 
-// The mocked registry publishes @pnpm.e2e/bravo-dep 1.0.1 on 2022-02-22 and
-// 1.1.0 on 2022-05-01, so this cutoff admits 1.0.1 and not 1.1.0.
-function bravoDepMatureUpTo101MinimumReleaseAge (): number {
-  return Math.floor((Date.now() - Date.parse('2022-03-01T00:00:00Z')) / 60_000)
-}
-
 test('resolves a config dependency to a version older than minimumReleaseAge', async () => {
   prepareEmpty()
   const opts = { ...createOpts(), minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge() }
@@ -548,4 +544,15 @@ test('minimumReleaseAgeExclude admits a config dependency newer than minimumRele
   fs.rmSync('node_modules', { recursive: true })
   await resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '1.1.0' }, { ...opts, frozenLockfile: true })
   expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/bravo-dep/package.json').version).toBe('1.1.0')
+})
+
+test('rejects a config dependency whose optional dependency is newer than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const opts = {
+    ...createOpts(),
+    minimumReleaseAge: 100 * 365 * 24 * 60,
+    minimumReleaseAgeExclude: ['@pnpm.e2e/optional-platform-selector'],
+  }
+  await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/optional-platform-selector': '2.0.0' }, opts))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('minimumReleaseAge') })
 })

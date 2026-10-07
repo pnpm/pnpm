@@ -27,6 +27,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot resolve configDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
 
+  opts = { ...opts, now: opts.now ?? Date.now() }
   const resolveFromNpm = createConfigDepResolver(opts)
 
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)

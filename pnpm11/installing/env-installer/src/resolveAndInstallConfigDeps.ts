@@ -33,6 +33,7 @@ export async function resolveAndInstallConfigDeps (
   configDeps: ConfigDependencies,
   opts: ResolveAndInstallConfigDepsOpts
 ): Promise<void> {
+  opts = { ...opts, now: opts.now ?? Date.now() }
   const verify = createConfigDepsVerifier(configDeps, opts)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
   const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {

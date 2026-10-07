@@ -294,8 +294,10 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
-    options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
+    // Sampled before the verifiers so the resolution cutoff is never later
+    // than the verification cutoff.
     options.verification.resolution_policy = release_age_policy(config)?;
+    options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
     let store_index = store_index::StoreIndexSession::attach(
         &mut options,
         context.store.dir,
