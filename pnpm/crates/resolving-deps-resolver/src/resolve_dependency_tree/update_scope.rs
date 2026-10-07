@@ -54,28 +54,54 @@ impl VersionLine {
 }
 
 /// The packages a `pacquet update` targets, each mapped to the version
-/// lines its selectors scoped it to -- or to `None` when a selector named
-/// no single version, which targets the package at every version. See
-/// [`VersionLine`].
+/// lines its selectors scoped it to or the exact versions its caller named
+/// -- or to `None` when a selector named no single version, which targets
+/// the package at every version. See [`VersionLine`].
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<VersionLine>>>);
+pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<TargetedVersions>>>);
+
+/// The versions of a package that one target reaches.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum TargetedVersions {
+    Line(VersionLine),
+    Exact(node_semver::Version),
+}
+
+impl TargetedVersions {
+    fn covers(&self, version: &node_semver::Version) -> bool {
+        match self {
+            TargetedVersions::Line(line) => line.covers(version),
+            TargetedVersions::Exact(exact) => exact == version,
+        }
+    }
+}
 
 impl UpdateTargets {
     /// Add `name` as a target. `line` scopes it to one version line; `None`
     /// widens the target to every version, and never narrows one already
     /// recorded.
     pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
-        let lines = self.0
+        self.insert_targeted(name, line.map(TargetedVersions::Line));
+    }
+
+    /// Add `name` as a target at `version` alone. A target that already
+    /// covers every version of `name` stays that wide.
+    pub fn insert_version(&mut self, name: String, version: node_semver::Version) {
+        self.insert_targeted(name, Some(TargetedVersions::Exact(version)));
+    }
+
+    fn insert_targeted(&mut self, name: String, versions: Option<TargetedVersions>) {
+        let targeted = self.0
             .entry(name)
             .or_insert_with(|| Some(BTreeSet::new()));
-        match line {
+        match versions {
             // pnpm evaluates every selector that matches a dependency, so
             // one selector targeting every version makes the narrower ones
             // moot.
-            None => *lines = None,
-            Some(line) => {
-                if let Some(lines) = lines {
-                    lines.insert(line);
+            None => *targeted = None,
+            Some(versions) => {
+                if let Some(targeted) = targeted {
+                    targeted.insert(versions);
                 }
             }
         }
@@ -83,12 +109,12 @@ impl UpdateTargets {
 
     /// Add every target of `other`, with [`Self::insert`]'s widening rule.
     pub fn merge(&mut self, other: Self) {
-        for (name, lines) in other.0 {
-            match lines {
-                None => self.insert(name, None),
-                Some(lines) => {
-                    for line in lines {
-                        self.insert(name.clone(), Some(line));
+        for (name, targeted) in other.0 {
+            match targeted {
+                None => self.insert_targeted(name, None),
+                Some(targeted) => {
+                    for versions in targeted {
+                        self.insert_targeted(name.clone(), Some(versions));
                     }
                 }
             }
@@ -106,11 +132,11 @@ impl UpdateTargets {
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
-        let Some(lines) = self.0.get(name) else { return false };
-        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
-        lines
+        let Some(targeted) = self.0.get(name) else { return false };
+        let (Some(targeted), Some(version)) = (targeted.as_ref(), version) else { return true };
+        targeted
             .iter()
-            .any(|line| line.covers(version))
+            .any(|versions| versions.covers(version))
     }
 }
 
