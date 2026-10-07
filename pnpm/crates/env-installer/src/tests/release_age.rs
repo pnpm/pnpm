@@ -1,7 +1,7 @@
 use super::{
-    BTreeMap, ConfigDepError, ConfigDependency, ConfigDepsInstallOptions, Harness, SilentReporter,
-    TempDir, build_resolver, clean_spec, harness, integrity_of, options,
-    resolve_and_install_config_deps,
+    BTreeMap, ConfigDepError, ConfigDependency, ConfigDepsInstallOptions, EnvLockfile, Harness,
+    LockfileResolution, PackageKey, SilentReporter, TempDir, build_resolver, clean_spec, harness,
+    integrity_of, options, resolve_and_install_config_deps,
 };
 use std::path::Path;
 
@@ -58,4 +58,19 @@ async fn resolves_a_pinned_config_dep_newer_than_the_release_age_cutoff() {
     )
     .await
     .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let resolution = &env.packages[&key].resolution;
+    dbg!(resolution);
+    assert!(matches!(
+        resolution,
+        LockfileResolution::Registry(registry) if registry.integrity.to_string() == integrity,
+    ));
+    assert!(
+        root.path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json")
+            .exists(),
+        "the pinned config dependency is installed",
+    );
 }
