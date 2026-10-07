@@ -12,6 +12,7 @@
 
 pub(crate) use selectors::{matches_target, parse_declared_range};
 
+mod meta_only_peers;
 mod selectors;
 use selectors::{semver_satisfies, sort_by_specificity};
 
@@ -170,6 +171,7 @@ impl VersionsOverrider {
             self.override_group(manifest, group, &applicable_parent_scoped, manifest_dir);
         }
         self.override_peer_group(manifest, &applicable_parent_scoped, manifest_dir);
+        self.remove_meta_only_peers(manifest, &applicable_parent_scoped);
     }
 
     /// Apply overrides to the resolver's shared manifest value,
@@ -224,6 +226,7 @@ impl VersionsOverrider {
         .iter()
         .copied()
         .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
+            || self.has_meta_only_peer_removal(value, &applicable_parent_scoped)
     }
 
     fn group_has_override(

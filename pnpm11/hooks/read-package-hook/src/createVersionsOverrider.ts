@@ -218,6 +218,30 @@ function overrideDepsOfPkg (
     if (!manifest.dependencies) manifest.dependencies = {}
     _overrideDeps(manifest.dependencies, peerDependencies)
   }
+  if (peerDependenciesMeta) {
+    removeMetaOnlyPeers({ versionOverrides, genericVersionOverrides }, peerDependenciesMeta, peerDependencies)
+  }
+}
+
+/**
+ * Applies removal overrides to the `peerDependenciesMeta` names that
+ * `peerDependencies` does not declare. The resolver treats such an entry as an
+ * optional `*` peer.
+ */
+function removeMetaOnlyPeers (
+  overrides: {
+    versionOverrides: VersionOverrideWithParent[]
+    genericVersionOverrides: VersionOverride[]
+  },
+  peerDependenciesMeta: NonNullable<PackageManifest['peerDependenciesMeta']>,
+  peerDependencies: Dependencies | undefined
+): void {
+  for (const peerName of Object.keys(peerDependenciesMeta)) {
+    if (peerDependencies?.[peerName] != null) continue
+    if (pickVersionOverride(overrides, peerName, '*')?.newBareSpecifier === '-') {
+      delete peerDependenciesMeta[peerName]
+    }
+  }
 }
 
 interface ConvergeOptions {
