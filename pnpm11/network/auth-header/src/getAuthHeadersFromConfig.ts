@@ -1,11 +1,16 @@
 import { spawnSync } from 'node:child_process'
 
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig, type TokenHelper } from '@pnpm/types'
+
 
 export interface AuthHeaders {
   authHeaderValueByURI: Record<string, string>
   scopedAuthHeaderValueByURI: Record<string, Record<string, string>>
+  httpAuthHeaderValueByURI: Record<string, string>
+  scopedHttpAuthHeaderValueByURI: Record<string, Record<string, string>>
+  httpsUris: Set<string>
 }
 
 export type AuthHeadersByScope = Record<string, Record<string, string>>
@@ -16,17 +21,104 @@ export function getAuthHeadersFromCreds (
   const authHeaders: AuthHeaders = {
     authHeaderValueByURI: {},
     scopedAuthHeaderValueByURI: {},
+    httpAuthHeaderValueByURI: {},
+    scopedHttpAuthHeaderValueByURI: {},
+    httpsUris: new Set<string>(),
   }
   for (const [uri, registryConfig] of Object.entries(configByUri)) {
-    const normalizedUri = normalizeAuthKey(uri)
-    const header = credsToHeader(registryConfig[DEFAULT_REGISTRY_SCOPE])
-    if (header) {
-      authHeaders.authHeaderValueByURI[normalizedUri] = header
-    }
-    collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedAuthHeaderValueByURI)
+    recordRegistryConfigEntry(uri, registryConfig, authHeaders)
   }
   return authHeaders
 }
+
+function recordRegistryConfigEntry (
+  uri: string,
+  registryConfig: RegistryConfig,
+  authHeaders: AuthHeaders
+): void {
+  const normalizedUri = normalizeAuthKey(uri)
+  const header = credsToHeader(registryConfig[DEFAULT_REGISTRY_SCOPE])
+  if (uri.startsWith('http://')) {
+    recordHttpEntry({ header, normalizedUri, registryConfig, uri }, authHeaders)
+  } else {
+    recordDefaultEntry({ header, normalizedUri, registryConfig, uri }, authHeaders)
+  }
+}
+
+interface ProcessEntryOptions {
+  header?: string
+  normalizedUri: string
+  registryConfig: RegistryConfig
+  uri: string
+}
+
+function recordHttpEntry (
+  opts: ProcessEntryOptions,
+  authHeaders: AuthHeaders
+): void {
+  const { header, normalizedUri, registryConfig, uri } = opts
+  if (header) {
+    authHeaders.httpAuthHeaderValueByURI[normalizedUri] = header
+  }
+  collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedHttpAuthHeaderValueByURI)
+  collectNerfedAuthHeaders(
+    { header, registryConfig, uri },
+    authHeaders.httpAuthHeaderValueByURI,
+    authHeaders.scopedHttpAuthHeaderValueByURI
+  )
+}
+
+function recordDefaultEntry (
+  opts: ProcessEntryOptions,
+  authHeaders: AuthHeaders
+): void {
+  const { header, normalizedUri, registryConfig, uri } = opts
+  if (header) {
+    authHeaders.authHeaderValueByURI[normalizedUri] = header
+  }
+  collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedAuthHeaderValueByURI)
+  const nerfed = collectNerfedAuthHeaders(
+    { header, registryConfig, uri },
+    authHeaders.authHeaderValueByURI,
+    authHeaders.scopedAuthHeaderValueByURI
+  )
+  if (uri.startsWith('https://')) {
+    authHeaders.httpsUris.add(normalizedUri)
+    if (nerfed) {
+      authHeaders.httpsUris.add(nerfed)
+    }
+  }
+}
+
+interface RegistryConfigEntry {
+  registryConfig: RegistryConfig
+  uri: string
+  header?: string
+}
+
+function collectNerfedAuthHeaders (
+  entry: RegistryConfigEntry,
+  targetByUri: Record<string, string>,
+  targetScoped: Record<string, Record<string, string>>
+): string | undefined {
+  const { registryConfig, uri, header } = entry
+  if (!uri.startsWith('http://') && !uri.startsWith('https://')) return undefined
+  let nerfed: string | undefined
+  try {
+    nerfed = nerfDart(uri)
+  } catch {
+    // Malformed URIs cannot produce a nerf dart and are skipped for nerfed lookup.
+  }
+  if (nerfed) {
+    if (header) {
+      targetByUri[nerfed] ??= header
+    }
+    collectScopedAuthHeaders(registryConfig, nerfed, targetScoped)
+    return nerfed
+  }
+  return undefined
+}
+
 
 function collectScopedAuthHeaders (
   registryConfig: RegistryConfig,
@@ -53,6 +145,16 @@ export function getAuthHeadersByScope (authHeaders: AuthHeaders): AuthHeadersByS
     result[registryURI] ??= {}
     for (const [scope, authHeader] of Object.entries(scopedAuthHeaders)) {
       result[registryURI][scope] = authHeader
+    }
+  }
+  for (const [registryURI, authHeader] of Object.entries(authHeaders.httpAuthHeaderValueByURI)) {
+    result[registryURI] ??= {}
+    result[registryURI][DEFAULT_REGISTRY_SCOPE] ??= authHeader
+  }
+  for (const [registryURI, scopedAuthHeaders] of Object.entries(authHeaders.scopedHttpAuthHeaderValueByURI)) {
+    result[registryURI] ??= {}
+    for (const [scope, authHeader] of Object.entries(scopedAuthHeaders)) {
+      result[registryURI][scope] ??= authHeader
     }
   }
   return result

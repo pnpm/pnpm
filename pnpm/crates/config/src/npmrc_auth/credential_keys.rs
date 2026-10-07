@@ -132,7 +132,7 @@ fn split_creds_key_in<'a>(
     key: &'a str,
     suffixes: &[&'static str],
 ) -> Option<(&'a str, &'static str)> {
-    if !key.starts_with("//") {
+    if !key.starts_with("//") && !key.starts_with("http://") && !key.starts_with("https://") {
         return None;
     }
     for suffix in suffixes {

@@ -220,7 +220,11 @@ fn excluded_pnpm_keys() -> &'static HashSet<&'static str> {
 /// per-registry). Mirrors `isIniConfigKey`.
 #[must_use]
 pub fn is_ini_config_key(key: &str) -> bool {
-    key.starts_with('@') || key.starts_with("//") || NPM_AUTH_SETTINGS.contains(&key)
+    key.starts_with('@')
+        || key.starts_with("//")
+        || key.starts_with("http://")
+        || key.starts_with("https://")
+        || NPM_AUTH_SETTINGS.contains(&key)
 }
 
 /// Whether `kebab_key` is valid in a global config file. Mirrors

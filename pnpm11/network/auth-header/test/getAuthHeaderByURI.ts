@@ -51,8 +51,37 @@ test('getAuthHeaderByURI() when default ports are specified', () => {
     '//reg.com/': { '@': { authToken: 'abc123' } },
   })
   expect(getAuthHeaderByURI('https://reg.com:443/')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('http://reg.com:80/')).toBe('Bearer abc123')
+  // Scheme-less nerf dart credential is not sent over cleartext HTTP to remote host
+  expect(getAuthHeaderByURI('http://reg.com:80/')).toBeUndefined()
 })
+
+test('getAuthHeaderByURI() allows credential attachment when explicitly configured with an insecure URL', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://reg.com/': { '@': { authToken: 'abc123' } },
+  })
+  expect(getAuthHeaderByURI('http://reg.com:80/')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('http://reg.com/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+})
+
+test('getAuthHeaderByURI() allows credential attachment to loopback destinations', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//localhost:4873/': { '@': { authToken: 'local-token' } },
+    '//127.0.0.1:4873/': { '@': { authToken: 'v4-token' } },
+    '//[::1]:4873/': { '@': { authToken: 'v6-token' } },
+  })
+  expect(getAuthHeaderByURI('http://localhost:4873/')).toBe('Bearer local-token')
+  expect(getAuthHeaderByURI('http://127.0.0.1:4873/')).toBe('Bearer v4-token')
+  expect(getAuthHeaderByURI('http://[::1]:4873/')).toBe('Bearer v6-token')
+})
+
+test('getAuthHeaderByURI() basic auth requires secure transport unless loopback', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({})
+  expect(getAuthHeaderByURI('http://user:secret@reg.io/')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://user:secret@reg.io/')).toBe('Basic ' + btoa('user:secret'))
+  expect(getAuthHeaderByURI('http://user:secret@localhost/')).toBe('Basic ' + btoa('user:secret'))
+  expect(getAuthHeaderByURI('http://user:secret@127.0.0.1/')).toBe('Basic ' + btoa('user:secret'))
+})
+
 
 test('returns undefined when the auth header is not found', () => {
   expect(createGetAuthHeaderByURI({})('http://reg.com')).toBeUndefined()
@@ -110,4 +139,103 @@ test('getAuthHeaderByURI() basic auth in URL overrides package scope auth', () =
     },
   })
   expect(getAuthHeaderByURI('https://user:secret@reg.com/', { pkgName: '@orgA/pkg' })).toBe('Basic ' + btoa('user:secret'))
+})
+
+test('getAuthHeaderByURI() allows cleartext HTTP when registry is in allowedInsecureUris', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'lan-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/')).toBe('Bearer lan-token')
+  expect(getAuthHeaderByURI('http://other.lan/')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not allow cleartext HTTP when http entry only contains TLS settings', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'secure-token' } },
+    'http://insecure.lan/': { tls: { ca: 'some-ca' } },
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://insecure.lan/')).toBe('Bearer secure-token')
+})
+
+test('getAuthHeaderByURI() allows path-scoped credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+    '//insecure.lan/team/': { '@': { authToken: 'team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBe('Bearer team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+  expect(getAuthHeaderByURI('http://other.lan/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not allow root credentials when only path-scoped registry is allowed HTTP', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/team/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not leak unscoped HTTPS credentials when scoped HTTP credentials exist', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//reg.example/': { '@': { authToken: 'default-https' } },
+    'http://reg.example/': { '@http_pkg': { authToken: 'scoped-http' } },
+  })
+  expect(getAuthHeaderByURI('http://reg.example/pkg', { pkgName: '@http_pkg/foo' })).toBe('Bearer scoped-http')
+  expect(getAuthHeaderByURI('http://reg.example/pkg', { pkgName: '@other/foo' })).toBeUndefined()
+  expect(getAuthHeaderByURI('http://reg.example/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not allow HTTP credentials without port on a different port', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+  expect(getAuthHeaderByURI('http://insecure.lan:8080/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not collide HTTP and scheme-less credentials regardless of order', () => {
+  const orderA = createGetAuthHeaderByURI({
+    'http://reg.example/': { '@': { authToken: 'http-token' } },
+    '//reg.example/': { '@': { authToken: 'default-token' } },
+  })
+  expect(orderA('http://reg.example/pkg')).toBe('Bearer http-token')
+  expect(orderA('https://reg.example/pkg')).toBe('Bearer default-token')
+
+  const orderB = createGetAuthHeaderByURI({
+    '//reg.example/': { '@': { authToken: 'default-token' } },
+    'http://reg.example/': { '@': { authToken: 'http-token' } },
+  })
+  expect(orderB('http://reg.example/pkg')).toBe('Bearer http-token')
+  expect(orderB('https://reg.example/pkg')).toBe('Bearer default-token')
+})
+
+test('getAuthHeaderByURI() does not allow HTTPS-only child credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://insecure.lan/': { '@': { authToken: 'root-token' } },
+    'https://insecure.lan/team/': { '@': { authToken: 'https-team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://insecure.lan/team/pkg')).toBe('Bearer https-team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+})
+
+test('getAuthHeaderByURI() allows scheme-less child credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://insecure.lan/': { '@': { authToken: 'root-token' } },
+    '//insecure.lan/team/': { '@': { authToken: 'default-team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBe('Bearer default-team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
 })

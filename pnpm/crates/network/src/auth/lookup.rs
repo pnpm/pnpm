@@ -1,23 +1,28 @@
 use super::{
-    Arc, AuthEntry, AuthHeaders, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
-    execute_token_helper, is_url_secure_for_credentials, package_scope, run_token_helper_command,
+    Arc, AuthEntry, AuthHeaders, AuthKind, AuthMap, DEFAULT_REGISTRY_SCOPE, ParsedUrl,
+    TokenHelpers, builder::package_scope, execute_token_helper, is_url_secure_for_credentials,
+    run_token_helper_command,
 };
 
 impl AuthHeaders {
+    fn select_auth_maps(&self, is_secure: bool) -> (&AuthMap, &AuthMap) {
+        if is_secure {
+            (&self.default_auth, &self.http_auth)
+        } else {
+            (&self.http_auth, &self.default_auth)
+        }
+    }
+
     /// Resolve an `Authorization` header for `url`, preferring
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+        if self.transport_security.require_secure && !is_url_secure_for_credentials(url) {
             return None;
         }
         if let Some(hook) = &self.route_hook {
             return hook.authorize(url, pkg_name);
         }
-        // Append a trailing `/` before parsing. Without this, a URL like
-        // `https://npm.pkg.github.com/pnpm` (registry without
-        // trailing slash) would nerf-dart to `//npm.pkg.github.com/`
-        // and miss a `//npm.pkg.github.com/pnpm/` token.
         let mut owned: String;
         let url_with_slash = if url.ends_with('/') {
             url
@@ -28,72 +33,116 @@ impl AuthHeaders {
             owned.as_str()
         };
         let parsed = ParsedUrl::parse(url_with_slash)?;
+        self.resolve_credential_for_parsed(&parsed, url, pkg_name)
+    }
+
+    fn resolve_credential_for_parsed(
+        &self,
+        parsed: &ParsedUrl<'_>,
+        url: &str,
+        pkg_name: Option<&str>,
+    ) -> Option<String> {
         if let Some(basic) = parsed.basic_auth_header() {
-            return Some(basic);
+            return is_url_secure_for_credentials(url).then_some(basic);
         }
-        if let Some(scope) = package_scope(pkg_name)
-            && let Some(resolved) = self.lookup_with_port_fallback(&parsed, Some(scope))
-        {
-            return resolved;
+        let is_secure = is_url_secure_for_credentials(url);
+        let matched = package_scope(pkg_name)
+            .and_then(|scope| {
+                self.lookup_with_port_fallback(parsed, is_secure, Some(scope))
+                    .map(|(key, entry)| (key, entry, Some(scope)))
+            })
+            .or_else(|| {
+                self.lookup_with_port_fallback(parsed, is_secure, None)
+                    .map(|(key, entry)| (key, entry, None))
+            });
+        let (key, entry, scope) = matched?;
+        if !self.transport_security.allows(&key, entry.allow_insecure, is_secure, entry.origin) {
+            return None;
         }
-        self.lookup_with_port_fallback(&parsed, None)?
+        self.token_helpers.resolve_entry(&key, scope.unwrap_or(DEFAULT_REGISTRY_SCOPE), entry)
     }
 
     /// Look a URL's credential up, retrying without the port when the URL
     /// carries one — pnpm's `//host:port/` and `//host/` keys both apply.
     ///
     /// Returns `None` when no key matched (so the caller falls through to the
-    /// next candidate) and `Some(_)` when a key matched — even `Some(None)`, a
-    /// matched `tokenHelper` that failed to resolve. A match is final: pnpm's
-    /// most-specific key owns the decision, so a failed helper must not fall
-    /// back to a shorter prefix or a different scope and send another
-    /// credential.
-    pub(super) fn lookup_with_port_fallback(
-        &self,
+    /// next candidate) and `Some(_)` when a key matched. A match is final:
+    /// pnpm's most-specific key owns the decision, so a failed helper must
+    /// not fall back to a shorter prefix or a different scope and send
+    /// another credential.
+    pub(super) fn lookup_with_port_fallback<'a>(
+        &'a self,
         parsed: &ParsedUrl<'_>,
+        is_secure: bool,
         scope: Option<&str>,
-    ) -> Option<Option<String>> {
-        let lookup = |parsed: &ParsedUrl<'_>| match scope {
-            Some(scope) => self.lookup_scope_by_nerf(parsed, scope),
-            None => self.lookup_by_nerf(parsed),
-        };
-        if let Some(resolved) = lookup(parsed) {
-            return Some(resolved);
+    ) -> Option<(String, &'a AuthEntry)> {
+        let lookup = |parsed: &ParsedUrl<'_>| self.lookup_candidates(parsed, is_secure, scope);
+        if let Some(matched) = lookup(parsed) {
+            return Some(matched);
+        }
+        if !is_secure {
+            return None;
         }
         parsed.port?;
         lookup(&parsed.with_port_stripped())
     }
 
-    /// Walk package-scope keys for `scope` longest-prefix first. Returns
-    /// `None` when nothing matched and `Some(resolved)` when a key
-    /// matched (the inner `Option` is the resolved header, `None` if a
-    /// matched `tokenHelper` failed).
-    pub(super) fn lookup_scope_by_nerf(
-        &self,
+    fn lookup_candidates<'a>(
+        &'a self,
         parsed: &ParsedUrl<'_>,
+        is_secure: bool,
+        scope: Option<&str>,
+    ) -> Option<(String, &'a AuthEntry)> {
+        match scope {
+            Some(scope) => self.lookup_scope_by_nerf(parsed, is_secure, scope),
+            None => self.lookup_by_nerf(parsed, is_secure),
+        }
+    }
+
+    /// Walk package-scope keys for `scope` longest-prefix first. Returns
+    /// `None` when nothing matched and `Some((key, entry))` when a key
+    /// matched.
+    pub(super) fn lookup_scope_by_nerf<'a>(
+        &'a self,
+        parsed: &ParsedUrl<'_>,
+        is_secure: bool,
         scope: &str,
-    ) -> Option<Option<String>> {
-        let scoped_by_uri = self.scoped_by_scope.get(scope)?;
-        let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
+    ) -> Option<(String, &'a AuthEntry)> {
+        let (primary, fallback) = self.select_auth_maps(is_secure);
+        let max_scoped = primary
+            .max_scoped_parts(scope)
+            .max(fallback.max_scoped_parts(scope));
+        if max_scoped == 0 {
+            return None;
+        }
         let nerfed = parsed.nerf_dart();
         let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(max_scoped_parts);
+        let upper = parts.len().min(max_scoped);
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, scope, entry));
+            if let Some(entry) = primary
+                .get_scoped(scope, &key)
+                .or_else(|| fallback.get_scoped(scope, &key))
+            {
+                return Some((key, entry));
             }
         }
         None
     }
 
-    pub(super) fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<Option<String>> {
-        if self.by_uri.is_empty() {
+    pub(super) fn lookup_by_nerf<'a>(
+        &'a self,
+        parsed: &ParsedUrl<'_>,
+        is_secure: bool,
+    ) -> Option<(String, &'a AuthEntry)> {
+        let (primary, fallback) = self.select_auth_maps(is_secure);
+        let max_parts = primary.max_parts.max(fallback.max_parts);
+        if max_parts == 0 {
             return None;
         }
         let nerfed = parsed.nerf_dart();
         let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(self.max_parts);
+        let upper = parts.len().min(max_parts);
         // Walk from the longest meaningful prefix down to `//host/`.
         // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
         // `//host`. The exclusive upper bound at
@@ -103,8 +152,11 @@ impl AuthHeaders {
         // never match.
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = self.by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
+            if let Some(entry) = primary
+                .get_uri(&key)
+                .or_else(|| fallback.get_uri(&key))
+            {
+                return Some((key, entry));
             }
         }
         None
@@ -123,10 +175,10 @@ impl TokenHelpers {
         scope: &str,
         entry: &AuthEntry,
     ) -> Option<String> {
-        match entry {
-            AuthEntry::Header(value) => Some(value.clone()),
-            AuthEntry::TokenHelper(command) => {
-                let cache_key = format!("{scope}\u{0}{key}");
+        match &entry.kind {
+            AuthKind::Header(value) => Some(value.clone()),
+            AuthKind::TokenHelper(command) => {
+                let cache_key = format!("{:?}\u{0}{scope}\u{0}{key}", entry.origin);
                 // Take the per-key cell out under the global lock, then
                 // release it *before* running the helper.
                 let cell = {

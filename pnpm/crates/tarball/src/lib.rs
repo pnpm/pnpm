@@ -73,11 +73,7 @@ fn auth_header_for_package_download(
     package_url: &str,
     package_id: &str,
 ) -> Option<String> {
-    if package_id.starts_with("node@runtime:") {
-        auth_headers.for_secure_url_with_package(package_url, Some(package_id))
-    } else {
-        auth_headers.for_url_with_package(package_url, Some(package_id))
-    }
+    auth_headers.for_url_with_package(package_url, Some(package_id))
 }
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole

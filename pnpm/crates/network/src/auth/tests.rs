@@ -405,7 +405,35 @@ fn matches_explicit_port_token() {
 fn default_https_port_strips_for_lookup() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
     assert_eq!(headers.for_url("https://reg.com:443/").as_deref(), Some("Bearer abc123"));
-    assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), Some("Bearer abc123"));
+    assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), None);
+}
+
+#[test]
+fn explicit_insecure_url_allows_cleartext_http() {
+    let headers = build(&[("http://reg.com/", "Bearer insecure-token")]);
+    assert_eq!(headers.for_url("http://reg.com/pkg").as_deref(), Some("Bearer insecure-token"));
+}
+
+#[test]
+fn loopback_urls_allow_cleartext_http() {
+    let headers =
+        build(&[("//localhost/", "Bearer local-token"), ("//127.0.0.1/", "Bearer ip-token")]);
+    assert_eq!(headers.for_url("http://localhost:4873/pkg").as_deref(), Some("Bearer local-token"));
+    assert_eq!(headers.for_url("http://127.0.0.1:4873/pkg").as_deref(), Some("Bearer ip-token"));
+}
+
+#[test]
+fn basic_auth_rejected_over_cleartext_http_for_remote_hosts() {
+    let empty = AuthHeaders::default();
+    assert_eq!(empty.for_url("http://user:secret@reg.io/"), None);
+    assert_eq!(
+        empty.for_url("http://user:secret@localhost/"),
+        Some(format!("Basic {}", base64_encode("user:secret"))),
+    );
+    assert_eq!(
+        empty.for_url("http://user:secret@127.0.0.1/"),
+        Some(format!("Basic {}", base64_encode("user:secret"))),
+    );
 }
 
 #[test]
@@ -730,4 +758,186 @@ fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     dbg!(&redacted);
     assert!(!redacted.contains("user:pass"), "{redacted}");
     assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
+}
+
+#[test]
+fn trusted_http_registry_permits_path_scoped_credentials() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("//insecure.corp/team/".to_owned(), "Bearer team-token".to_owned()),
+            ("//insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(
+        headers.for_url("http://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+    assert_eq!(headers.for_url("http://other.corp/pkg"), None);
+}
+
+#[test]
+fn trusted_path_scoped_http_registry_does_not_permit_root_credential() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([("//insecure.corp/".to_owned(), "Bearer root-token".to_owned())]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/team/");
+
+    assert_eq!(headers.for_url("http://insecure.corp/team/pkg"), None);
+}
+
+#[test]
+fn scoped_http_credential_does_not_leak_unscoped_https_credential_on_collision() {
+    let headers = AuthHeaders::from_parts(
+        HashMap::from([("//reg.example/".to_owned(), "Bearer default-https".to_owned())]),
+        HashMap::from([(
+            "http://reg.example/".to_owned(),
+            HashMap::from([("@http_pkg".to_owned(), "Bearer scoped-http".to_owned())]),
+        )]),
+    );
+
+    assert_eq!(
+        headers
+            .for_url_with_package("http://reg.example/pkg", Some("@http_pkg/foo"))
+            .as_deref(),
+        Some("Bearer scoped-http"),
+    );
+    assert_eq!(headers.for_url_with_package("http://reg.example/pkg", Some("@other/foo")), None);
+    assert_eq!(headers.for_url("http://reg.example/pkg"), None);
+}
+
+#[test]
+fn token_helper_wins_over_static_header_in_builder() {
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        assert_eq!(command, ["echo", "helper-token"]);
+        Ok(TokenHelperOutput {
+            success: true,
+            stdout: "helper-token\n".to_owned(),
+            stderr: String::new(),
+        })
+    }
+
+    let headers = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::from([("//reg.example/".to_owned(), "Bearer static-token".to_owned())]),
+        HashMap::new(),
+        HashMap::from([(
+            "//reg.example/".to_owned(),
+            vec!["echo".to_owned(), "helper-token".to_owned()],
+        )]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+
+    assert_eq!(headers.for_url("https://reg.example/pkg").as_deref(), Some("Bearer helper-token"));
+}
+
+#[test]
+fn unported_trusted_http_registry_does_not_permit_different_port() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([("//insecure.corp/".to_owned(), "Bearer root-token".to_owned())]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+    assert_eq!(headers.for_url("http://insecure.corp:8080/pkg"), None);
+}
+
+#[test]
+fn http_and_schemeless_credentials_do_not_collide_regardless_of_order() {
+    let order_a = build(&[
+        ("http://reg.example/", "Bearer http-token"),
+        ("//reg.example/", "Bearer default-token"),
+    ]);
+    assert_eq!(order_a.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(order_a.for_url("https://reg.example/pkg").as_deref(), Some("Bearer default-token"));
+
+    let order_b = build(&[
+        ("//reg.example/", "Bearer default-token"),
+        ("http://reg.example/", "Bearer http-token"),
+    ]);
+    assert_eq!(order_b.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(order_b.for_url("https://reg.example/pkg").as_deref(), Some("Bearer default-token"));
+}
+
+#[test]
+fn https_only_child_credential_not_authorized_under_trusted_http_root() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("http://insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+            ("https://insecure.corp/team/".to_owned(), "Bearer https-team-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(headers.for_url("http://insecure.corp/team/pkg"), None);
+    assert_eq!(
+        headers.for_url("https://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer https-team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+}
+
+#[test]
+fn scheme_less_child_credential_authorized_under_trusted_http_root() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("http://insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+            ("//insecure.corp/team/".to_owned(), "Bearer default-team-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(
+        headers.for_url("http://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer default-team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+}
+
+#[test]
+fn http_and_https_token_helpers_at_same_registry_path_do_not_share_cached_token() {
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        let token = command
+            .get(1)
+            .cloned()
+            .unwrap_or_default();
+        Ok(TokenHelperOutput { success: true, stdout: token, stderr: String::new() })
+    }
+
+    let mut headers_a = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::from([
+            ("http://reg.example/".to_owned(), vec!["echo".to_owned(), "http-token".to_owned()]),
+            ("https://reg.example/".to_owned(), vec!["echo".to_owned(), "https-token".to_owned()]),
+        ]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+    headers_a.allow_insecure_host("http://reg.example/");
+
+    assert_eq!(headers_a.for_url("https://reg.example/pkg").as_deref(), Some("Bearer https-token"));
+    assert_eq!(headers_a.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+
+    let mut headers_b = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::from([
+            ("http://reg.example/".to_owned(), vec!["echo".to_owned(), "http-token".to_owned()]),
+            ("https://reg.example/".to_owned(), vec!["echo".to_owned(), "https-token".to_owned()]),
+        ]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+    headers_b.allow_insecure_host("http://reg.example/");
+
+    assert_eq!(headers_b.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(headers_b.for_url("https://reg.example/pkg").as_deref(), Some("Bearer https-token"));
 }

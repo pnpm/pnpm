@@ -213,7 +213,7 @@ function inheritReleaseNodeDownloadMirror (target: InheritableConfigPair, src: I
  * Whether the config key would be read from an INI config file.
  */
 export const isIniConfigKey = (key: string): boolean =>
-  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+  key.startsWith('@') || key.startsWith('//') || key.startsWith('http://') || key.startsWith('https://') || NPM_AUTH_SETTINGS.includes(key)
 
 /**
  * Whether the config key should be read from .npmrc files.
