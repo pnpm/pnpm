@@ -204,13 +204,13 @@ pub(super) fn switch_target(
 }
 
 fn effective_on_fail(config: &Config, pm: &WantedPackageManager) -> PmOnFail {
-    config.pm_on_fail.unwrap_or(match pm.on_fail.as_deref() {
-        Some("ignore") => PmOnFail::Ignore,
-        Some("warn") => PmOnFail::Warn,
-        Some("error") => PmOnFail::Error,
-        Some("download") | None => PmOnFail::Download,
-        Some(_) => PmOnFail::Download,
-    })
+    match (config.pm_on_fail, pm.on_fail.as_deref()) {
+        (Some(on_fail), _) => on_fail,
+        (None, Some("ignore")) => PmOnFail::Ignore,
+        (None, Some("warn")) => PmOnFail::Warn,
+        (None, Some("error")) => PmOnFail::Error,
+        (None, _) => PmOnFail::Download,
+    }
 }
 
 pub(super) fn resolve_input_pin(
