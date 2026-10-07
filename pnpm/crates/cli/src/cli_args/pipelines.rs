@@ -262,7 +262,12 @@ fn sync_dedicated_injected_deps(
             project_dir,
             sync.names.get(project_dir).map(String::as_str),
         );
-        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, sync.source_dirs)?;
+        sync_injected_deps_of_modules_dir(
+            project_dir,
+            &modules_dir,
+            sync.source_dirs,
+            !config.deploy_all_files,
+        )?;
     }
     Ok(())
 }

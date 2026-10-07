@@ -303,17 +303,18 @@ async function buildInstalledProjects (
   // own lifecycle scripts run. Here each project was installed and built on
   // its own, so the copies are synced once every project has been built.
   if (!opts.dryRun) {
-    await syncInjectedDepsOfInstalledProjects(manifestsByPath, installedModulesDirs)
+    await syncInjectedDepsOfInstalledProjects(manifestsByPath, installedModulesDirs, !opts.deployAllFiles)
   }
 }
 
 async function syncInjectedDepsOfInstalledProjects (
   manifestsByPath: ManifestsByPath,
-  installedModulesDirs: Map<ProjectRootDir, string>
+  installedModulesDirs: Map<ProjectRootDir, string>,
+  includeOnlyPackageFiles: boolean
 ): Promise<void> {
   const injectedSourceDirs = collectInjectedSourceDirs(manifestsByPath, installedModulesDirs.keys())
   const syncResults = await Promise.allSettled(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
-    syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: injectedSourceDirs })
+    syncInjectedDepsOfModulesDir({ includeOnlyPackageFiles, lockfileDir, modulesDir, sourceDirs: injectedSourceDirs })
   ))
   const syncFailure = syncResults.find((syncResult): syncResult is PromiseRejectedResult => syncResult.status === 'rejected')
   if (syncFailure != null) throw syncFailure.reason

@@ -193,6 +193,8 @@ export interface SyncInjectedDepsOfModulesDirOptions {
   modulesDir: string
   /** The sources whose copies are synced. Copies of other sources keep their contents. */
   sourceDirs: ReadonlySet<string>
+  /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
+  includeOnlyPackageFiles?: boolean
 }
 
 /**
@@ -211,7 +213,7 @@ export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModu
     // rather than emptying them.
     if (!await dirExists(sourceDir)) return
     const resolvedTargetDirs = targetDirs.map((targetDir) => path.resolve(opts.lockfileDir, targetDir))
-    const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
+    const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs, opts.includeOnlyPackageFiles)
     await Promise.all(patchers.map(patcher => patcher.apply()))
   }))
 }
