@@ -202,7 +202,7 @@ this process to be automatically completed.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 mergeGitBranchLockfilesBranchPattern:
 - main
 - release*

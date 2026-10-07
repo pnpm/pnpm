@@ -449,19 +449,15 @@ impl WorkEnv {
 impl WorkEnv {
     pub fn run(&self) {
         let registry_proxy = self.start_client_registry_proxy();
-        let client_registry = registry_proxy
-            .as_ref()
-            .map_or_else(
-                || self.registry.client.clone(),
-                |proxy| format!("http://{}/", proxy.addr),
-            );
+        let client_registry = match &registry_proxy {
+            Some(proxy) => format!("http://{}/", proxy.addr),
+            None => self.registry.client.clone(),
+        };
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
-        let pnpr_server_registry = pnpr_server_registry_proxy
-            .as_ref()
-            .map_or_else(
-                || self.registry.cache_populator.clone(),
-                |proxy| format!("http://{}/", proxy.addr),
-            );
+        let pnpr_server_registry = match &pnpr_server_registry_proxy {
+            Some(proxy) => format!("http://{}/", proxy.addr),
+            None => self.registry.cache_populator.clone(),
+        };
 
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);

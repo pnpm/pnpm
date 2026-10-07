@@ -156,7 +156,7 @@ The value is keyed by registry URL, so each secret is explicitly bound to the ho
 
 In the global `config.yaml`:
 
-```yaml
+```yaml title="config.yaml"
 _auth:
   https://registry.npmjs.org:
     "@":
@@ -252,7 +252,7 @@ to the matching registry URL.
 A client certificate to pass when accessing the registry. Values should be in
 PEM format (AKA "Base-64 encoded X.509 (.CER)"). For example:
 
-```test
+```ini
 cert="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 ```
 

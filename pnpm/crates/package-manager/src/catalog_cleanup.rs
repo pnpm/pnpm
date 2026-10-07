@@ -135,6 +135,23 @@ pub(crate) fn lockfile_catalogs(lockfile: &Lockfile) -> Option<Catalogs> {
     )
 }
 
+/// The catalog entries of the lockfile at `lockfile_path`, which
+/// `catalogPrune` keeps so a frozen install still matches that lockfile.
+/// `None` when `catalogPrune` is off, when `lockfile` is false (the file
+/// would be stale), or when there is no lockfile.
+pub(crate) fn written_lockfile_catalogs(
+    config: &Config,
+    lockfile_path: Option<&Path>,
+) -> Result<Option<Catalogs>, WriteWorkspaceCatalogsError> {
+    if !config.catalog_prune || !config.lockfile {
+        return Ok(None);
+    }
+    let Some(lockfile_path) = lockfile_path else { return Ok(None) };
+    Lockfile::load_from_path(lockfile_path)
+        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)
+        .map(|lockfile| lockfile.as_ref().and_then(lockfile_catalogs))
+}
+
 fn derive_workspace_dir(
     config: &Config,
     current_manifest: &PackageManifest,

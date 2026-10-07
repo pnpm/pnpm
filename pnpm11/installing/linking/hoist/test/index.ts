@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-import { hoist } from '@pnpm/installing.linking.hoist'
-import type { DepPath, ProjectId } from '@pnpm/types'
+import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
+import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 
@@ -274,6 +274,47 @@ test('recreates a link removed before ownership inspection', async () => {
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('removes the scope directory of several stale workspace links once', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-hoist-'))
+  try {
+    const modulesDir = path.join(root, 'node_modules')
+    const scopeDir = path.join(modulesDir, '@scope')
+    fs.mkdirSync(scopeDir, { recursive: true })
+    const previous: HoistedDependencies = {}
+    for (const name of ['a', 'b', 'c']) {
+      const projectDir = path.join(root, 'packages', name)
+      fs.mkdirSync(projectDir, { recursive: true })
+      fs.symlinkSync(projectDir, path.join(scopeDir, name), 'junction')
+      previous[`packages/${name}` as ProjectId] = { [`@scope/${name}`]: 'public' }
+    }
+    mockWindowsPendingDeleteRmdir()
+
+    await pruneStaleWorkspaceHoists(previous, {}, new Set(Object.keys(previous) as ProjectId[]), modulesDir, modulesDir)
+
+    expect(fs.existsSync(scopeDir)).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+/** Windows fails a removal of a directory whose delete is still pending. */
+function mockWindowsPendingDeleteRmdir (): void {
+  const rmdir = fs.promises.rmdir
+  const pendingRemovals = new Set<string>()
+  jest.spyOn(fs.promises, 'rmdir').mockImplementation(async (dir, ...rest) => {
+    if (pendingRemovals.has(String(dir))) {
+      throw Object.assign(new Error(`EPERM: operation not permitted, rmdir '${String(dir)}'`), { code: 'EPERM' })
+    }
+    pendingRemovals.add(String(dir))
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      await rmdir(dir, ...rest)
+    } finally {
+      pendingRemovals.delete(String(dir))
+    }
+  })
+}
 
 async function prepareStaleHoist () {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-concurrent-hoist-'))

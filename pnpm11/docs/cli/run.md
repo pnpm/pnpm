@@ -11,7 +11,7 @@ Runs a script defined in the package's manifest file.
 
 Let's say you have a `watch` script configured in your `package.json`, like so:
 
-```json
+```json title="package.json"
 "scripts": {
     "watch": "webpack --watch"
 }
@@ -53,7 +53,7 @@ long as you have a package installed, you can use it in a script like a regular
 command. For example, if you have `eslint` installed, you can write up a script
 like so:
 
-```json
+```json title="package.json"
 "lint": "eslint src --fix"
 ```
 
@@ -193,7 +193,7 @@ Record the result of the scripts executions into a `pnpm-exec-summary.json` file
 
 An example of a `pnpm-exec-summary.json` file:
 
-```json
+```json title="pnpm-exec-summary.json"
 {
   "executionStatus": {
     "/Users/zoltan/src/pnpm/pnpm/cli/command": {

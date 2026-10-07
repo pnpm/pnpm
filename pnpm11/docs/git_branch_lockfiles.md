@@ -9,7 +9,7 @@ Git branch lockfiles allows you to totally avoid lockfile merge conflicts and so
 
 You can turn on this feature by configuring the `pnpm-workspace.yaml` file.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 gitBranchLockfile: true
 ```
 
@@ -48,7 +48,7 @@ pnpm allows you to specify `--merge-git-branch-lockfiles` by matching the curren
 For instance, by the following setting in `pnpm-workspace.yaml` file, `pnpm install` will merge all git branch lockfiles when
 running in the `main` branch and the branch name starts with `release`.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 mergeGitBranchLockfilesBranchPattern:
 - main
 - release*

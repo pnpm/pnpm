@@ -11,7 +11,7 @@ for real use).
 A minimal config that hosts a private scope locally and routes everything else
 to the public npm registry:
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 registries:
@@ -54,7 +54,7 @@ pnpr keeps two kinds of data:
   `storage`; point it at a separate, ephemeral volume to keep cached upstream
   content off the durable disk.
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 #cache: ./cache
 ```
@@ -160,7 +160,7 @@ rather than being read as a username that happens to admit nobody:
 
 ### Hosted registries
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   private:
     type: hosted
@@ -200,7 +200,7 @@ cache namespace. It is either `public` (fetched anonymously, no credential)
 or private (carries a server-owned credential and an `access:` policy naming
 who may use it):
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   npmjs:
     type: upstream
@@ -266,7 +266,7 @@ resolves to the **first listed source whose `packages:` keys claim its name**,
 authoritatively — later sources are never consulted, and a name that no source
 claims is a definitive 404:
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   main:
     type: router
@@ -297,7 +297,7 @@ A team is a named list of usernames, declared on the registry that uses it and
 referenced from that registry's access lists as `team:<name>` — in the
 registry-level `access:` default and the per-package `packages:` rules alike:
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   corp:
     type: upstream
@@ -318,7 +318,7 @@ Teams are **registry-scoped**: a registry can only reference teams it declares
 itself, never another registry's. To share one roster between registries, use a
 YAML anchor:
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   private:
     type: hosted
@@ -350,7 +350,7 @@ refused — see [Team endpoints](endpoints.md#team-endpoints).
 Size limits for the [container image](container-images.md) surface, and the
 Bearer challenge it offers:
 
-```yaml
+```yaml title="pnpr.yaml"
 oci:
   bearerAuth: false
   maxBlobBytes: 10737418240   # 10 GiB
@@ -365,7 +365,7 @@ The exact browser origins allowed to call pnpr across origins. Cross-origin
 access stays off when the block is absent or its allowlist is empty. See
 [Browsing and discovery](discovery.md).
 
-```yaml
+```yaml title="pnpr.yaml"
 cors:
   allowedOrigins:
     - https://registry-ui.example.com
@@ -376,7 +376,7 @@ cors:
 By default users are stored in an htpasswd file and tokens in a local SQLite
 database:
 
-```yaml
+```yaml title="pnpr.yaml"
 auth:
   htpasswd:
     file: ./htpasswd
@@ -402,7 +402,7 @@ publishing alongside the password backend — see
 
 ## `secret`
 
-```yaml
+```yaml title="pnpr.yaml"
 secret: ${PNPR_SECRET}
 ```
 
@@ -428,7 +428,7 @@ pnpr exposes four independently deployable HTTP surfaces:
   `POST /-/pnpr/v0/verify-lockfile`). It is enabled by default; the CLI flag
   `--disable-resolver` overrides the setting:
 
-```yaml
+```yaml title="pnpr.yaml"
 resolver:
   enabled: true
 ```
@@ -438,7 +438,7 @@ resolver:
   concept. It is off by default and is a top-level peer of `resolver`, so an
   I/O-bound artifact tier can scale independently of a compute-bound resolver:
 
-```yaml
+```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
   compilerCaches:
@@ -459,7 +459,7 @@ artifacts:
   [`pnpm pipeline` run records](pipeline-runs.md), a peer of the artifact store.
   It is off by default:
 
-```yaml
+```yaml title="pnpr.yaml"
 pipeline:
   enabled: true
   workspaces:
@@ -485,7 +485,7 @@ official npm registry as public out of the box. If clients resolve against
 other registries that serve anonymously-readable content, declare them as
 public routes so their resolutions can be cached and shared across all callers:
 
-```yaml
+```yaml title="pnpr.yaml"
 routes:
   public:
     - registry: https://registry.mirror.example.com/
@@ -502,7 +502,7 @@ drops the whole rule (with a warning) rather than widening it.
 Local OSV checks can hide or reject known vulnerable npm versions without live
 OSV API calls:
 
-```yaml
+```yaml title="pnpr.yaml"
 osv:
   enabled: true
   path: ./osv/npm/all.zip
@@ -514,7 +514,7 @@ enabled from the CLI with `--osv` and `--osv-db`.
 
 ## `log`
 
-```yaml
+```yaml title="pnpr.yaml"
 log:
   type: stdout
   format: pretty   # or `json`
@@ -529,7 +529,7 @@ log:
 Any `${ENV_VAR}` in the config is substituted from the environment before
 parsing, so secrets can be kept out of the file:
 
-```yaml
+```yaml title="pnpr.yaml"
 s3:
   bucket: my-pnpr-packages
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}

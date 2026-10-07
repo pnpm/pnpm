@@ -176,7 +176,7 @@ fn sync_injected_deps_from_source(
     if source_not_yet_built(source_dir)? {
         return Ok(());
     }
-    patch_targets(source_dir, &resolved_targets)?;
+    patch_targets(source_dir, &resolved_targets, false)?;
 
     // Read from the project root, not `source_dir`: when `source_dir` is a
     // `publishConfig.directory`, `prepare` has already run by the time this
@@ -205,10 +205,13 @@ fn sync_injected_deps_from_source(
 /// whose lifecycle scripts run in their own install, so nothing else syncs
 /// those copies after the scripts run. Only the copies of the sources in
 /// `source_dirs` are synced. `source_dirs` holds lexically normalized paths.
+/// `include_only_package_files` selects the source files the install put in
+/// the copies, so the sync adds no file the install left out.
 pub fn sync_injected_deps_of_modules_dir(
     lockfile_dir: &Path,
     modules_dir: &Path,
     source_dirs: &HashSet<PathBuf>,
+    include_only_package_files: bool,
 ) -> Result<(), SyncInjectedDepsError> {
     let modules = read_workspace_modules(modules_dir)?;
     let Some(injected_deps) =
@@ -228,7 +231,7 @@ pub fn sync_injected_deps_of_modules_dir(
             .iter()
             .map(|target_dir| lockfile_dir.join(target_dir))
             .collect();
-        patch_targets(&source_dir, &resolved_targets)?;
+        patch_targets(&source_dir, &resolved_targets, include_only_package_files)?;
     }
     Ok(())
 }
@@ -478,9 +481,14 @@ fn source_not_yet_built(source_dir: &Path) -> Result<bool, SyncInjectedDepsError
 fn patch_targets(
     pkg_root_dir: &Path,
     resolved_targets: &[PathBuf],
+    include_only_package_files: bool,
 ) -> Result<(), SyncInjectedDepsError> {
-    for patcher in DirPatcher::from_multiple_targets(pkg_root_dir, resolved_targets)
-        .map_err(SyncInjectedDepsError::Patch)?
+    for patcher in DirPatcher::from_multiple_targets(
+        pkg_root_dir,
+        resolved_targets,
+        include_only_package_files,
+    )
+    .map_err(SyncInjectedDepsError::Patch)?
     {
         patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
     }

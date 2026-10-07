@@ -11,12 +11,11 @@ pub use python::{EcosystemIndex, PythonRegistryRoute};
 pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
 
 use super::LoadWorkspaceYamlError;
-use crate::workspace_yaml::{
-    normalize_registry_url, redact_registry_url, registry_url_has_userinfo,
-};
+use crate::workspace_yaml::{redact_registry_url, registry_url_has_userinfo};
 use ecosystems::DeclaredIndexes;
 use indexmap::IndexMap;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_network::normalize_registry_url;
 use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor, value::MapAccessDeserializer},
@@ -310,7 +309,7 @@ pub fn into_lookups(entries: IndexMap<String, RegistryEntry>) -> RegistryLookups
     for (registry, entry) in entries {
         match entry {
             RegistryEntry::ScopeRoute(url) => {
-                let url = normalize_registry_url(&url);
+                let url = normalize_registry_url(&url).into_owned();
                 if registry == "default" {
                     lookups.default_registry = Some(url);
                 } else {
@@ -342,7 +341,7 @@ fn extend_lookups_with_declarations(
     entries: IndexMap<String, RegistryDeclaration>,
 ) {
     for (registry, declaration) in entries {
-        let normalized = normalize_registry_url(&registry);
+        let normalized = normalize_registry_url(&registry).into_owned();
         if let Some(limit) = declaration.network_concurrency {
             lookups.network_concurrency_by_registry
                 .entry(normalized.clone())
@@ -449,7 +448,7 @@ pub fn to_resolved_declarations(
     let mut declared_keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for declared in declarations.keys() {
         declared_keys
-            .entry(normalize_registry_url(declared))
+            .entry(normalize_registry_url(declared).into_owned())
             .or_default()
             .push(declared.clone());
     }

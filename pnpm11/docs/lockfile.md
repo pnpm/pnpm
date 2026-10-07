@@ -112,7 +112,7 @@ importer and loses whichever graph it held.
 Since v11.25.0, a `packages:` entry may carry a `revision` field
 beside its integrity:
 
-```yaml
+```yaml title="pnpm-lock.yaml"
 packages:
   lodash@4.17.21:
     resolution:

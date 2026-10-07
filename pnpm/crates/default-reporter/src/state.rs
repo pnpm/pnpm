@@ -32,7 +32,8 @@ use crate::{
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
+        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, printable_script_line, relative,
+        visible_width, zoom_out,
     },
 };
 

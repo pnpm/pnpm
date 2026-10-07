@@ -353,6 +353,25 @@ fn dash_override_deletes_optional_peer_metadata() {
 }
 
 #[test]
+fn dash_override_deletes_an_optional_peer_declared_only_in_metadata() {
+    for selector in ["unwanted-peer", "my-app>unwanted-peer"] {
+        let overrides = parsed(&[(selector, "-")]);
+        let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+        let original = std::sync::Arc::new(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "peerDependenciesMeta": {
+                "unwanted-peer": { "optional": true },
+                "kept": { "optional": true },
+            },
+        }));
+        let updated = overrider.apply_to_arc(original, None);
+
+        assert_eq!(updated["peerDependenciesMeta"], json!({ "kept": { "optional": true } }));
+    }
+}
+
+#[test]
 fn convergence_override_rewrites_only_edges_its_version_satisfies() {
     let overrides = parsed(&[("form-data@", "4.0.6")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));

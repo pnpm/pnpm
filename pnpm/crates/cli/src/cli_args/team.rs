@@ -4,15 +4,14 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
-    send_with_retry,
+    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, normalize_registry_url,
+    redact_url_credentials, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use registry::{
-    TeamInfo, UserInfo, apply_auth_and_otp, auth_header_for_registry, build_http_client,
-    fetch_team_members, fetch_teams, normalize_registry_url, org_team_url,
-    registry_error_from_response, registry_for_scope, registry_operation_error, team_url,
-    team_user_url,
+    TeamInfo, UserInfo, apply_auth_and_otp, auth_header_for_registry, fetch_team_members,
+    fetch_teams, org_team_url, registry_error_from_response, registry_for_scope,
+    registry_operation_error, team_url, team_user_url,
 };
 use reqwest::Response;
 use serde::Deserialize;
@@ -234,12 +233,15 @@ impl TeamArgs {
             .into_iter()
             .collect();
         if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry));
+            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
         }
         let redirect_guard = self.otp.as_ref().map(|_| registry::redirect_guard(&registries));
         Ok(TeamContext {
             config,
-            http_client: build_http_client(config, redirect_guard.as_ref())?,
+            http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
+                config,
+                redirect_guard.as_ref(),
+            )?,
             retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),

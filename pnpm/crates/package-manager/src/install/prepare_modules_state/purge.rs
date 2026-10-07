@@ -199,19 +199,18 @@ fn previously_included(
 }
 
 fn selected_prune_importer_ids(context: &ExcludedGroupPrune<'_>) -> Option<HashSet<String>> {
-    context.requested_importer_ids.map(|requested| {
-        context.current_lockfile.map_or_else(
-            || requested.clone(),
-            |current| {
-                crate::materialization_closure(
-                    current,
-                    context.workspace_root,
-                    requested,
-                    &crate::GroupSelection::following_every_edge(context.included),
-                    &crate::SkippedSnapshots::new(),
-                )
-                .importer_ids
-            },
-        )
+    let requested = context.requested_importer_ids?;
+    Some(match context.current_lockfile {
+        Some(current) => {
+            crate::materialization_closure(
+                current,
+                context.workspace_root,
+                requested,
+                &crate::GroupSelection::following_every_edge(context.included),
+                &crate::SkippedSnapshots::new(),
+            )
+            .importer_ids
+        }
+        None => requested.clone(),
     })
 }

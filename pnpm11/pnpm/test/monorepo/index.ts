@@ -2485,6 +2485,39 @@ test('an injected dependency with a postinstall script is hard linked when share
   }
 })
 
+test('an injected dependency keeps only the files listed in its manifest when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/index.js', 'module.exports = 1', 'utf8')
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
 test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
   preparePackages([
     {

@@ -5,6 +5,7 @@ use super::{
 };
 use base64::Engine as _;
 use p256::{ecdsa::signature::Verifier, pkcs8::DecodePublicKey};
+use pnpm_network::normalize_registry_url;
 
 /// npm's public registry signing keys, mirrored from
 /// <https://registry.npmjs.org/-/npm/v1/keys>. `expires` is `None` for a
@@ -217,11 +218,11 @@ fn parse_signatures(raw: Option<&serde_json::Value>) -> Option<Vec<PackageSignat
 /// material, not identity, so they are stripped before comparing for the
 /// same reason.
 fn equal_registries(left: &str, right: &str) -> bool {
-    normalize_registry_url(left).eq_ignore_ascii_case(&normalize_registry_url(right))
+    canonical_registry_url(left).eq_ignore_ascii_case(&canonical_registry_url(right))
 }
 
-fn normalize_registry_url(registry: &str) -> String {
-    let with_slash = redact_and_sanitize(&with_trailing_slash(registry));
+fn canonical_registry_url(registry: &str) -> String {
+    let with_slash = redact_and_sanitize(&normalize_registry_url(registry));
     // URL normalization lowercases the host and drops a default port.
     url::Url::parse(&with_slash).map(String::from).unwrap_or(with_slash)
 }
@@ -320,7 +321,7 @@ async fn fetch_packument(
     config: &Config,
 ) -> Result<Option<Packument>, String> {
     let packument_url =
-        format!("{}{}", with_trailing_slash(registry), encode_package_name(&component.name));
+        format!("{}{}", normalize_registry_url(registry), encode_package_name(&component.name));
     let display_url = redact_and_sanitize(&packument_url);
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
@@ -410,8 +411,4 @@ pub(super) fn build_client(config: &Config) -> Result<ThrottledClient, SelfUpdat
     .map_err(|error| SelfUpdateError::EngineIdentityUnverifiable {
         message: format!("could not build the network client to verify the pnpm release: {error}"),
     })
-}
-
-fn with_trailing_slash(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }

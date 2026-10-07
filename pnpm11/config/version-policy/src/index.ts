@@ -50,10 +50,10 @@ export interface PublishedByPolicy {
  * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
  */
-export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
+export function getPublishedByPolicy (opts: PublishedByPolicyOptions, now: number = Date.now()): PublishedByPolicy {
   return {
     publishedBy: opts.minimumReleaseAge
-      ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+      ? new Date(now - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
     publishedByExclude: opts.minimumReleaseAgeExclude
       ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')

@@ -168,7 +168,7 @@ pub(super) fn spawn_in_dir(
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<ExitStatus, ExecError> {
     let mut cmd = command_in_dir(command, dirs, config, shell_mode)?;
-    let ScriptOutput::Streamed { dep_path, emit } = output else {
+    let ScriptOutput::Streamed { dep_path, emit, color } = output else {
         let mut child = spawn_child(&mut cmd, process_tracker)
             .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
         return child
@@ -177,6 +177,14 @@ pub(super) fn spawn_in_dir(
     };
     let wd = dirs.run.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    if color
+        && std::env::var_os("FORCE_COLOR").is_none()
+        && !cmd
+            .get_envs()
+            .any(|(name, _)| name == "FORCE_COLOR")
+    {
+        cmd.env("FORCE_COLOR", "1");
+    }
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)

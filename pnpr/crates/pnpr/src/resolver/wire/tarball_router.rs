@@ -163,17 +163,13 @@ impl TarballRouter {
 }
 
 pub(super) fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
-    tarball_basename(tarball_url)
-        .map_or_else(
-            || {
-                CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
-                    .map_or_else(
-                        |_| format!("{package}-{version}.tgz"),
-                        |name| name.tarball_name_for_version(version),
-                    )
-            },
-            str::to_string,
-        )
+    if let Some(basename) = tarball_basename(tarball_url) {
+        return basename.to_string();
+    }
+    match CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm) {
+        Ok(name) => name.tarball_name_for_version(version),
+        Err(_) => format!("{package}-{version}.tgz"),
+    }
 }
 
 pub(super) fn pnpr_tarball_url(

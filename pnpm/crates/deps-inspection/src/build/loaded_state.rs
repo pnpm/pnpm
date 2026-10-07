@@ -151,13 +151,11 @@ impl LoadedState {
         virtual_store_dir_max_length: usize,
         node_linker: pnpm_config::NodeLinker,
     ) -> crate::pkg_info::InspectionLayout {
-        let is_hoisted = self.modules
-            .as_ref()
-            .and_then(|modules| modules.node_linker)
-            .map_or_else(
-                || node_linker == pnpm_config::NodeLinker::Hoisted,
-                |linker| linker == pnpm_modules_yaml::NodeLinker::Hoisted,
-            );
+        let modules_linker = self.modules.as_ref().and_then(|modules| modules.node_linker);
+        let is_hoisted = match modules_linker {
+            Some(linker) => linker == pnpm_modules_yaml::NodeLinker::Hoisted,
+            None => node_linker == pnpm_config::NodeLinker::Hoisted,
+        };
         crate::pkg_info::InspectionLayout {
             lockfile_dir: lockfile_dir.to_path_buf(),
             modules_dir: self.modules_dir.clone(),

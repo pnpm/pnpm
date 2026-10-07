@@ -200,11 +200,10 @@ fn every_option(cli: &clap::Command) -> ArgTable {
 /// The options `command` accepts. An option only another command
 /// declares is undeclared here, so its width stays unknown.
 fn command_options(cli: &clap::Command, command: &str) -> ArgTable {
-    cli.find_subcommand(command)
-        .map_or_else(
-            || ArgTable::top_level(cli),
-            |subcommand| ArgTable::for_subcommand(cli, subcommand),
-        )
+    match cli.find_subcommand(command) {
+        Some(subcommand) => ArgTable::for_subcommand(cli, subcommand),
+        None => ArgTable::top_level(cli),
+    }
 }
 
 /// Whether `token` is an option no command declares that might take the

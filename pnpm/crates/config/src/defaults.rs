@@ -234,11 +234,10 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
-            .map_or_else(
-                || home_dir.join(".pnpm-cache"),
-                |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-            ),
+        "windows" => match read_dir_env::<Sys>("LOCALAPPDATA") {
+            Some(local_app_data) => PathBuf::from(local_app_data).join("pnpm-cache"),
+            None => home_dir.join(".pnpm-cache"),
+        },
         _ => home_dir.join(".cache/pnpm"),
     }
 }

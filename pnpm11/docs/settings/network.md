@@ -18,7 +18,7 @@ used instead.
 If your proxy URL contains a username and password, make sure to URL-encode them.
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 httpsProxy: "https://use%21r:pas%2As@my.proxy:1234/foo"
 ```
 

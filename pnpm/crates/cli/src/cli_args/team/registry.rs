@@ -1,10 +1,8 @@
 use super::{
-    Config, Deserialize, IntoDiagnostic, RedirectGuard, Response, TeamContext, TeamError,
-    ThrottledClient, encode_uri_component, pick_registry_for_package, redact_url_credentials,
-    sanitize, send_with_retry,
+    Deserialize, IntoDiagnostic, RedirectGuard, Response, TeamContext, TeamError,
+    encode_uri_component, pick_registry_for_package, redact_url_credentials, send_with_retry,
 };
-use futures_util::StreamExt as _;
-use miette::WrapErr;
+use pnpm_network::{normalize_registry_url, read_limited_body};
 
 const TEAM_BODY_LIMIT: usize = 1024 * 1024;
 
@@ -147,80 +145,6 @@ pub(super) fn apply_auth_and_otp(
     builder
 }
 
-pub(super) fn build_http_client(
-    config: &Config,
-    redirect_guard: Option<&RedirectGuard>,
-) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for team command")
-}
-
-pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-struct LimitedBody {
-    bytes: Vec<u8>,
-}
-
-impl LimitedBody {
-    /// Renders the body for embedding in a one-line error message: control
-    /// characters (including newlines) are stripped and the result is capped
-    /// at 500 characters, matching the TypeScript implementation.
-    fn into_display_string(self) -> String {
-        String::from_utf8_lossy(&self.bytes)
-            .chars()
-            .filter(|ch| !ch.is_control())
-            .take(500)
-            .collect()
-    }
-}
-
-async fn read_limited_body(
-    response: Response,
-    limit: usize,
-) -> Result<LimitedBody, reqwest::Error> {
-    let header_exceeds_limit = response
-        .content_length()
-        .is_some_and(|length| length > limit as u64);
-    let mut bytes = Vec::new();
-    let mut truncated = header_exceeds_limit;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        let remaining = limit.saturating_sub(bytes.len());
-        if chunk.len() > remaining {
-            bytes.extend_from_slice(&chunk[..remaining]);
-            truncated = true;
-            break;
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    if truncated {
-        let body = String::from_utf8_lossy(&bytes);
-        let mut body = sanitize::sanitize(&body).into_owned();
-        if !body.is_empty()
-            && !body
-                .chars()
-                .next_back()
-                .is_some_and(char::is_whitespace)
-        {
-            body.push(' ');
-        }
-        body.push_str("(response body truncated)");
-        Ok(LimitedBody { bytes: body.into_bytes() })
-    } else {
-        Ok(LimitedBody { bytes })
-    }
-}
-
 pub(super) fn registry_operation_error<ErrorType>(
     operation: &'static str,
     error: ErrorType,
@@ -245,7 +169,7 @@ pub(super) async fn registry_error_from_response(
         .unwrap_or_default()
         .to_string();
     let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
-        Ok(body) => body.into_display_string(),
+        Ok(body) => super::sanitize::body_display_string(&body),
         Err(_) => String::new(),
     };
 

@@ -1,5 +1,5 @@
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { CatalogSnapshots, LockfileObject } from '@pnpm/lockfile.types'
 import { resolvedPackageVersionsFromLockfile } from '@pnpm/lockfile.utils'
 
 export interface MinimumReleaseAgeExcludePruneOptions {
@@ -23,6 +23,20 @@ export function resolvedPackageVersionsForPrune (
     opts.sharedWorkspaceLockfile === false
   ) return undefined
   return resolvedPackageVersionsFromLockfile(newLockfile)
+}
+
+/**
+ * The catalogs of the lockfile the command leaves on disk, or `undefined` when
+ * the lockfile is disabled, as the wanted lockfile in memory can then be a
+ * stale copy.
+ */
+export function keptCatalogsForPrune (
+  opts: MinimumReleaseAgeExcludePruneOptions,
+  newLockfile: LockfileObject | undefined,
+  wantedLockfile?: LockfileObject
+): CatalogSnapshots | undefined {
+  if (opts.lockfile === false) return undefined
+  return (newLockfile ?? wantedLockfile)?.catalogs
 }
 
 /**

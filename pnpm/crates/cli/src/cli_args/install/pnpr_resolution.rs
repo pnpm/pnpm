@@ -264,10 +264,10 @@ async fn resolve_via_pnpr(
     let result = match prefetcher.as_ref() {
         Some(prefetcher) => {
             client.resolve_projects_streaming(opts, |pkg| {
-                let tarball = benchmark_registry_override.map_or_else(
-                    || pkg.tarball.clone(),
-                    |registry| registry.client_tarball_url(&pkg.tarball),
-                );
+                let tarball = match benchmark_registry_override {
+                    Some(registry) => registry.client_tarball_url(&pkg.tarball),
+                    None => pkg.tarball.clone(),
+                };
                 prefetcher.prefetch(
                     pkg.id,
                     tarball,

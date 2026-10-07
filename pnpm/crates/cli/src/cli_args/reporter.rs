@@ -160,6 +160,13 @@ pub(crate) fn selected_reporter() -> ReporterType {
     SELECTED_REPORTER.load(Ordering::Relaxed).into()
 }
 
+/// Whether a script whose output the reporter republishes should keep its
+/// colors: only a reporter that paints its own output in color shows them.
+pub(crate) fn script_output_colors() -> bool {
+    matches!(selected_reporter(), ReporterType::Default | ReporterType::AppendOnly)
+        && pnpm_default_reporter::output_colors_enabled()
+}
+
 /// The [`Reporter`] the CLI runs commands with: forwards each event to the
 /// [selected](select_reporter) sink.
 ///

@@ -20,7 +20,7 @@ pnpm change
 
 This prompts for the affected packages, their bump types, and a summary, then writes a file like `.changeset/calm-cats-resolve.md`:
 
-```markdown
+```markdown title=".changeset/calm-cats-resolve.md"
 ---
 "@example/core": minor
 ---
@@ -120,7 +120,7 @@ Private packages are never published, so no tarball could carry their changelog.
 
 `pnpm version -r` records every consumed intent in `.changeset/ledger.yaml`, a committed, append-only file:
 
-```yaml
+```yaml title=".changeset/ledger.yaml"
 "@example/core@1.3.0":
   dir: packages/core
   intents:

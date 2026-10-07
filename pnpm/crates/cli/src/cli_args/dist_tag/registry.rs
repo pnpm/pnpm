@@ -1,10 +1,10 @@
 use super::{
-    AuthType, BTreeMap, Config, Context, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT,
-    Deserialize, DistTagContext, DistTagError, IntoDiagnostic, RequestBuilder, Response,
-    StatusCode, ThrottledClient, encode_uri_component, parse_wanted_dependency,
-    pick_registry_for_package, read_limited_body, redact_url_credentials, retry_async, sanitize,
-    send_with_retry,
+    AuthType, BTreeMap, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT, Deserialize,
+    DistTagContext, DistTagError, RequestBuilder, Response, StatusCode, encode_uri_component,
+    parse_wanted_dependency, pick_registry_for_package, read_limited_body, redact_url_credentials,
+    retry_async, sanitize, send_with_retry,
 };
+use pnpm_network::{escaped_package_name, normalize_registry_url};
 
 pub(super) struct SetDistTagRequest<'a> {
     pub(super) package_name: &'a str,
@@ -272,17 +272,6 @@ pub(super) fn auth_header_for_registry(
     context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
 }
 
-pub(super) fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for dist-tag")
-}
-
 fn dist_tags_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
     let package_name = package_name_for_url(package_name)?;
     registry_endpoint_url(
@@ -313,15 +302,4 @@ fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<Strin
         .and_then(|url| url.join(path))
         .map(|url| url.to_string())
         .map_err(|source| registry_operation_error("build registry dist-tag URL", source))
-}
-
-pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
 }

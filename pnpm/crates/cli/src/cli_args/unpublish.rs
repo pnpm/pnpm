@@ -1,7 +1,7 @@
 use super::deprecate::{
     DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, PackageSpec,
-    auth_header_for_registry, fetch_package_meta, normalize_registry_url, package_url,
-    parse_package_spec, registry_for_package, registry_operation_error, registry_operation_failed,
+    auth_header_for_registry, fetch_package_meta, package_url, parse_package_spec,
+    registry_for_package, registry_operation_error, registry_operation_failed,
     registry_write_error, write_error_for_status,
 };
 use clap::Args;
@@ -10,7 +10,7 @@ use miette::Diagnostic;
 use mutation::{MutationContext, MutationRequest, send_mutation, web_auth_fetch_options};
 use node_semver::{Range, Version};
 use pnpm_config::Config;
-use pnpm_network::{read_limited_body, send_with_retry};
+use pnpm_network::{normalize_registry_url, read_limited_body, send_with_retry};
 use pnpm_network_web_auth::{
     Clock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError, OtpSession,
     PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,

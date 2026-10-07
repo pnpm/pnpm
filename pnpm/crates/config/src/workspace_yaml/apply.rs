@@ -1,9 +1,10 @@
 use super::{
     Config, LockfileSetting, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting,
-    StoreDir, UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar,
-    normalize_registry_url, overlay, overlay_some, overlay_tools, registries, resolve,
-    resolve_child_concurrency, warn_deprecated_pairing,
+    StoreDir, UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar, overlay,
+    overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
+    warn_deprecated_pairing,
 };
+use pnpm_network::normalize_registry_url;
 
 impl WorkspaceSettings {
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -170,7 +171,7 @@ impl WorkspaceSettings {
     pub(super) fn apply_registry_settings(&mut self, config: &mut Config) {
         let declared_prefixes = self.apply_registry_declarations(config);
         if let Some(v) = self.registry.take() {
-            config.registry = normalize_registry_url(&v);
+            config.registry = normalize_registry_url(&v).into_owned();
         }
         overlay_some(&mut config.scope, self.scope.take());
         overlay_some(&mut config.pnpr_server, self.pnpr_server.take());

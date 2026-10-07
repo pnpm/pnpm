@@ -5,6 +5,7 @@ use super::{
     env, make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution, run_stages, script_concurrency, task_summary_key,
 };
+use crate::cli_args::reporter::script_output_colors;
 
 /// The slots the tasks record into while they run.
 pub(super) struct RunSlots {
@@ -377,7 +378,7 @@ fn script_output(inherit_output: bool, root_str: &str, emit: fn(&LogEvent)) -> S
     if inherit_output {
         ScriptOutput::Inherit
     } else {
-        ScriptOutput::Streamed { dep_path: root_str, emit }
+        ScriptOutput::Streamed { dep_path: root_str, emit, color: script_output_colors() }
     }
 }
 

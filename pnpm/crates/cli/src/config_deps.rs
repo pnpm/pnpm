@@ -35,7 +35,9 @@ use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
+};
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
@@ -292,6 +294,9 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
+    // Sampled before the verifiers so the resolution cutoff is never later
+    // than the verification cutoff.
+    options.verification.resolution_policy = release_age_policy(config)?;
     options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
     let store_index = store_index::StoreIndexSession::attach(
         &mut options,
@@ -310,6 +315,17 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     drop(options);
     store_index.drain().await;
     result
+}
+
+/// The `minimumReleaseAge` cutoff that the install's resolution verifiers
+/// enforce on config dependencies, for resolving them.
+fn release_age_policy(config: &Config) -> Result<ResolutionPolicyOptions> {
+    let policy = pnpm_package_manager::PickPolicy::from_config(config).into_diagnostic()?;
+    Ok(ResolutionPolicyOptions {
+        published_by: policy.published_by,
+        published_by_exclude: policy.published_by_exclude,
+        ..ResolutionPolicyOptions::default()
+    })
 }
 
 struct EnvInstallerContext {
@@ -413,6 +429,7 @@ impl EnvInstallerContext {
             verification: ConfigDependencyVerification {
                 registries: &self.network.registries,
                 resolution_verifiers: Vec::new(),
+                resolution_policy: ResolutionPolicyOptions::default(),
             },
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: &self.network.http_client,

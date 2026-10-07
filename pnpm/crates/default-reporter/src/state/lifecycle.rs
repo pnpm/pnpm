@@ -1,7 +1,8 @@
 use super::{
     BlockPlacement, BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState,
     LifecycleStdio, RenderingContext, ReporterState, contains_path, cut_line, format_prefix,
-    format_prefix_no_trim, highlight_last_folder, lifecycle_ids, pretty_ms, visible_width,
+    format_prefix_no_trim, highlight_last_folder, lifecycle_ids, pretty_ms, printable_script_line,
+    visible_width,
 };
 use std::fmt::Write as _;
 
@@ -209,9 +210,10 @@ impl ReporterState {
             }
             LifecycleMessage::Script { script, .. } => format!("{prefix}$ {script}"),
             LifecycleMessage::Stdio { line, stdio, .. } => {
+                let line = printable_script_line(line, self.rendering.colors.enabled);
                 let line = match stdio {
-                    LifecycleStdio::Stderr => self.rendering.colors.grey(line),
-                    LifecycleStdio::Stdout => line.clone(),
+                    LifecycleStdio::Stderr => self.rendering.colors.grey(&line),
+                    LifecycleStdio::Stdout => line.into_owned(),
                 };
                 if self.options.lifecycle.hide_prefix { line } else { format!("{prefix}: {line}") }
             }
@@ -235,7 +237,8 @@ impl RenderingContext {
 
 impl RenderingContext {
     pub(super) fn format_indented_output(&self, line: &str, stdio: LifecycleStdio) -> String {
-        let cut = cut_line(line, self.width as isize - 2);
+        let line = printable_script_line(line, self.colors.enabled);
+        let cut = cut_line(&line, self.width as isize - 2);
         let line = match stdio {
             LifecycleStdio::Stderr => self.colors.grey(&cut),
             LifecycleStdio::Stdout => cut,

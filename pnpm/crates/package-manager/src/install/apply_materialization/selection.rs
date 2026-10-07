@@ -57,21 +57,19 @@ pub(super) fn project_anchor_importers(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted_lockfile: Option<&Lockfile>,
 ) -> HashSet<String> {
-    match inputs.projects.requested_ids {
-        Some(requested) => wanted_lockfile.map_or_else(
-            || requested.clone(),
-            |wanted| {
-                crate::materialization_closure(
-                    wanted,
-                    inputs.workspace_root,
-                    requested,
-                    &crate::GroupSelection::following_every_edge(inputs.groups.included),
-                    inputs.install_skipped,
-                )
-                .importer_ids
-            },
-        ),
-        None => inputs.projects.real_ids.clone(),
+    match (inputs.projects.requested_ids, wanted_lockfile) {
+        (Some(requested), Some(wanted)) => {
+            crate::materialization_closure(
+                wanted,
+                inputs.workspace_root,
+                requested,
+                &crate::GroupSelection::following_every_edge(inputs.groups.included),
+                inputs.install_skipped,
+            )
+            .importer_ids
+        }
+        (Some(requested), None) => requested.clone(),
+        (None, _) => inputs.projects.real_ids.clone(),
     }
 }
 pub(super) fn materialized_current_lockfile(

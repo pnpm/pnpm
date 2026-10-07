@@ -1,10 +1,10 @@
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
+use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
     RedirectGuard, RetryOpts, ThrottledClient, encode_package_name, encode_uri_component,
-    read_limited_body, redact_url_credentials, send_with_retry,
+    normalize_registry_url, read_limited_body, redact_url_credentials, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
@@ -130,36 +130,15 @@ impl OwnerArgs {
             .into_iter()
             .collect();
         if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry));
+            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
         }
-        // When an OTP is in play, restrict redirects to the configured registry
-        // origins so a cross-host redirect cannot forward the `npm-otp` header to
-        // another host — reqwest only strips standard auth headers, not custom
-        // ones, on cross-host redirects. Mirrors the `team`/`access` guard.
-        let redirect_guard = self.otp
-            .as_ref()
-            .map(|_| {
-                let origins: Vec<(String, String, Option<u16>)> = registries
-                    .values()
-                    .filter_map(|registry| {
-                        let url = reqwest::Url::parse(registry).ok()?;
-                        Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-                    })
-                    .collect();
-                let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-                    origins
-                        .iter()
-                        .any(|(scheme, host, port)| {
-                            target.scheme() == scheme
-                                && target.host_str() == Some(host.as_str())
-                                && target.port() == *port
-                        })
-                });
-                guard
-            });
+        let redirect_guard = self.otp.as_ref().map(|_| otp_redirect_guard(&registries));
         Ok(OwnerContext {
             config,
-            http_client: build_http_client(config, redirect_guard.as_ref())?,
+            http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
+                config,
+                redirect_guard.as_ref(),
+            )?,
             retry_opts: RetryOpts {
                 retries: config.fetch_retries,
                 factor: config.fetch_retry_factor,
@@ -276,27 +255,31 @@ struct OwnersEndpoint {
     auth_header: Option<String>,
 }
 
+fn otp_redirect_guard(registries: &HashMap<String, String>) -> RedirectGuard {
+    let origins: Vec<(String, String, Option<u16>)> = registries
+        .values()
+        .filter_map(|registry| {
+            let url = reqwest::Url::parse(registry).ok()?;
+            Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
+        })
+        .collect();
+    Arc::new(move |target: &reqwest::Url| -> bool {
+        origins
+            .iter()
+            .any(|(scheme, host, port)| {
+                target.scheme() == scheme
+                    && target.host_str() == Some(host.as_str())
+                    && target.port() == *port
+            })
+    })
+}
+
 fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
     let registry_url = pick_registry_for_package(&context.registries, package_name, None);
     let auth_header =
         context.config.auth_headers.for_url_with_package(&registry_url, Some(package_name));
     let escaped = encode_package_name(package_name);
     OwnersEndpoint { url: format!("{registry_url}-/package/{escaped}/owners"), auth_header }
-}
-
-fn build_http_client(
-    config: &Config,
-    redirect_guard: Option<&RedirectGuard>,
-) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for owner command")
 }
 
 fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report
@@ -328,10 +311,6 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         _ => OwnerError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
             .into(),
     }
-}
-
-fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 #[cfg(test)]

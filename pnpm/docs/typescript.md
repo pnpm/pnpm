@@ -13,7 +13,7 @@ You should not use TypeScript with [`preserveSymlinks`](https://www.typescriptla
 
 You might sometimes have issues if you have different versions of a `@types/` dependency in a workspace. These issues happen when a package requires these types without having the type dependency in dependencies. For instance, if you have `antd` in your dependencies, which relies on `@types/react`, you might get a compilation error if there are multiple versions of `@types/react` in your workspace. This is actually an issue on `antd`'s end because it should've added `@types/react` to `peerDependencies`. Luckily, you can fix this by extending `antd` with the missing peer dependency. You can do this either by adding this to your `pnpm-workspace.yaml`:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   antd:
     peerDependencies:

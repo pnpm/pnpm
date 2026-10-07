@@ -1,9 +1,8 @@
 use super::{
-    AccessArgs, AccessError, Arc, Config, Context, Duration, IntoDiagnostic, Method, RedirectGuard,
-    Response, RetryOpts, StatusCode, ThrottledClient, ThrottledClientGuard, encode_uri_component,
-    redact_and_sanitize, send_with_retry,
+    AccessArgs, AccessError, Arc, Config, Duration, Method, RedirectGuard, Response, RetryOpts,
+    StatusCode, ThrottledClient, ThrottledClientGuard, redact_and_sanitize, send_with_retry,
 };
-use futures_util::StreamExt as _;
+use pnpm_network::{normalize_registry_url, read_limited_body};
 
 const ACCESS_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
@@ -20,8 +19,9 @@ pub(super) fn build_access_context<'a>(
     args: &AccessArgs,
     config: &'a Config,
 ) -> miette::Result<AccessContext<'a>> {
-    let registry =
-        args.registry.as_deref().map_or_else(|| config.registry.clone(), normalize_registry_url);
+    let registry = args.registry
+        .as_deref()
+        .map_or_else(|| config.registry.clone(), |url| normalize_registry_url(url).into_owned());
 
     let redirect_guard = args.otp
         .as_ref()
@@ -47,7 +47,10 @@ pub(super) fn build_access_context<'a>(
 
     Ok(AccessContext {
         config,
-        http_client: build_http_client(config, redirect_guard.as_ref())?,
+        http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
+            config,
+            redirect_guard.as_ref(),
+        )?,
         retry_opts: RetryOpts {
             retries: config.fetch_retries,
             factor: config.fetch_retry_factor,
@@ -103,32 +106,6 @@ pub(super) async fn send_json<'client>(
     .await
 }
 
-fn build_http_client(
-    config: &Config,
-    redirect_guard: Option<&RedirectGuard>,
-) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for access command")
-}
-
-pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-pub(super) fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
-}
-
 pub(super) async fn fetch_error_from_response(response: Response, action: &str) -> miette::Report {
     let status = response.status();
     AccessError::RegistryFetchFailed {
@@ -152,7 +129,10 @@ pub(super) async fn write_error_from_response(
         .canonical_reason()
         .unwrap_or_default()
         .to_string();
-    let body = redact_and_sanitize(&read_error_body(response).await);
+    let body = match read_limited_body(response, ACCESS_ERROR_BODY_LIMIT).await {
+        Ok(body) => redact_and_sanitize(&super::super::sanitize::body_display_string(&body)),
+        Err(_) => String::new(),
+    };
 
     match status {
         StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),
@@ -166,37 +146,4 @@ pub(super) async fn write_error_from_response(
                 .into()
         }
     }
-}
-
-async fn read_error_body(response: Response) -> String {
-    let limit = ACCESS_ERROR_BODY_LIMIT;
-    let header_exceeds_limit = response
-        .content_length()
-        .is_some_and(|length| length > limit as u64);
-    let mut bytes = Vec::new();
-    let mut truncated = header_exceeds_limit;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let Ok(chunk) = chunk else { break };
-        let remaining = limit.saturating_sub(bytes.len());
-        if chunk.len() > remaining {
-            bytes.extend_from_slice(&chunk[..remaining]);
-            truncated = true;
-            break;
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    let mut body = String::from_utf8_lossy(&bytes).into_owned();
-    if truncated {
-        if !body.is_empty()
-            && !body
-                .chars()
-                .next_back()
-                .is_some_and(char::is_whitespace)
-        {
-            body.push(' ');
-        }
-        body.push_str("(response body truncated)");
-    }
-    body
 }

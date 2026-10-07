@@ -36,7 +36,7 @@ import {
   matchDependencies,
   type UpdateDepsMatcher,
 } from './recursive.js'
-import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import type { makeRunPacquet } from './runPacquet.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { createVulnerabilityUpdateMatching, preferNonvulnerablePackageVersions } from './vulnerabilityPreferences.js'
@@ -240,12 +240,13 @@ async function installSomeDependencies (
 ): Promise<DryRunInstallResult | undefined> {
   const { opts, allProjects } = ctx
   const saveManifests = createSaveManifestsOnce(ctx)
-  const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(createMutatedProject(ctx, dependencySelectors), {
+  const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(createMutatedProject(ctx, dependencySelectors), {
     ...ctx.installOpts,
     beforeLifecycleScripts: async (res) => saveManifests({
       updatedProject: res.updatedProjects[0],
       updatedCatalogs: res.updatedCatalogs,
       newLockfile: res.newLockfile,
+      wantedLockfile: res.wantedLockfile,
       resolutionPolicyViolations: res.resolutionPolicyViolations,
     }),
   })
@@ -253,6 +254,7 @@ async function installSomeDependencies (
     updatedProject,
     updatedCatalogs,
     newLockfile,
+    wantedLockfile,
     resolutionPolicyViolations,
   })
   await updateSingleProjectWorkspaceState({ opts, allProjects, manifest: updatedProject.manifest, updatedCatalogs })
@@ -283,6 +285,7 @@ interface ManifestsToSave {
   updatedProject?: { manifest: ProjectManifest }
   updatedCatalogs?: Catalogs
   newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
   resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 
@@ -290,7 +293,7 @@ function createSaveManifestsOnce (
   { opts, policyHandlers, writeProjectManifest }: SingleProjectInstallContext
 ): (manifests: ManifestsToSave) => Promise<void> {
   let manifestsSaved = false
-  return async ({ updatedProject, updatedCatalogs, newLockfile, resolutionPolicyViolations }) => {
+  return async ({ updatedProject, updatedCatalogs, newLockfile, wantedLockfile, resolutionPolicyViolations }) => {
     if (manifestsSaved) return
     manifestsSaved = true
     if (opts.save === false || opts.dryRun || !updatedProject) return
@@ -304,6 +307,7 @@ function createSaveManifestsOnce (
       updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
         catalogPrune: opts.catalogPrune,
+        keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
         resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
         minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
         trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
@@ -360,6 +364,7 @@ async function persistInstallManifests (
       updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
         catalogPrune: opts.catalogPrune,
+        keptCatalogs: keptCatalogsForPrune(opts, newLockfile),
         resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
         minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
         trustPolicyExcludePrune: opts.trustPolicyExcludePrune,

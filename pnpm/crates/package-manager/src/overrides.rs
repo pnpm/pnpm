@@ -12,6 +12,7 @@
 
 pub(crate) use selectors::{matches_target, parse_declared_range};
 
+mod meta_only_peers;
 mod selectors;
 use selectors::{semver_satisfies, sort_by_specificity};
 
@@ -170,6 +171,7 @@ impl VersionsOverrider {
             self.override_group(manifest, group, &applicable_parent_scoped, manifest_dir);
         }
         self.override_peer_group(manifest, &applicable_parent_scoped, manifest_dir);
+        self.remove_meta_only_peers(manifest, &applicable_parent_scoped);
     }
 
     /// Apply overrides to the resolver's shared manifest value,
@@ -224,6 +226,7 @@ impl VersionsOverrider {
         .iter()
         .copied()
         .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
+            || self.has_meta_only_peer_removal(value, &applicable_parent_scoped)
     }
 
     fn group_has_override(
@@ -309,12 +312,10 @@ impl VersionsOverrider {
                 continue;
             }
 
-            let new_spec = chosen.local_target
-                .as_ref()
-                .map_or_else(
-                    || chosen.inner.new_bare_specifier.clone(),
-                    |target| target.render(manifest_dir),
-                );
+            let new_spec = match &chosen.local_target {
+                Some(target) => target.render(manifest_dir),
+                None => chosen.inner.new_bare_specifier.clone(),
+            };
 
             map.insert(name, Value::String(new_spec));
         }
@@ -365,12 +366,10 @@ impl VersionsOverrider {
             remove_peer_dependency(value, &name);
             return;
         }
-        let new_spec = chosen.local_target
-            .as_ref()
-            .map_or_else(
-                || chosen.inner.new_bare_specifier.clone(),
-                |target| target.render(manifest_dir),
-            );
+        let new_spec = match &chosen.local_target {
+            Some(target) => target.render(manifest_dir),
+            None => chosen.inner.new_bare_specifier.clone(),
+        };
         if is_valid_peer_range(&new_spec) {
             insert_peer_dependency(value, name, new_spec);
             return;
@@ -400,14 +399,10 @@ impl VersionsOverrider {
             if chosen.inner.new_bare_specifier == "-" {
                 return Some("-".to_string());
             }
-            return Some(
-                chosen.local_target
-                    .as_ref()
-                    .map_or_else(
-                        || chosen.inner.new_bare_specifier.clone(),
-                        |target| target.render(Some(pkg_dir)),
-                    ),
-            );
+            return Some(match &chosen.local_target {
+                Some(target) => target.render(Some(pkg_dir)),
+                None => chosen.inner.new_bare_specifier.clone(),
+            });
         }
         self.converge_applies(dep_name, dep_spec)
             .then(|| self.converge[dep_name].new_bare_specifier.clone())

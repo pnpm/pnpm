@@ -217,10 +217,10 @@ fn check_field_specs(
             return Err(StalenessReason::DepSpecifierMismatch {
                 field: field_name,
                 name: (*name).to_string(),
-                lockfile: importer_dep.map_or_else(
-                    || "(absent)".to_string(),
-                    |dep| dep.specifier.clone(),
-                ),
+                lockfile: match importer_dep {
+                    Some(dep) => dep.specifier.clone(),
+                    None => "(absent)".to_string(),
+                },
                 manifest: (*manifest_spec).to_string(),
             });
         }

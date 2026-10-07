@@ -3,7 +3,7 @@ use crate::{
     UpdateSeedPolicy,
     catalog_cleanup::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
-        write_workspace_catalogs_selected,
+        write_workspace_catalogs_selected, written_lockfile_catalogs,
     },
     defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
     package_manifest_prefix, selected_project_indices,
@@ -84,8 +84,16 @@ impl Remove<'_> {
 
         persist_manifest::<Reporter>(manifest)?;
 
-        write_workspace_catalogs(remove.config, None, &Catalogs::new(), None, manifest)
+        let kept_catalogs = written_lockfile_catalogs(remove.config, remove.lockfile.path)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
+        write_workspace_catalogs(
+            remove.config,
+            None,
+            &Catalogs::new(),
+            kept_catalogs.as_ref(),
+            manifest,
+        )
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
 
         post_install_prune(remove.config, None, manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
@@ -136,6 +144,7 @@ impl Remove<'_> {
             &selected_indices,
             remove.config,
             &workspace_root,
+            remove.lockfile.path,
             manifest,
         )?;
         if let Some(ignored_builds) = ignored_builds {
@@ -333,11 +342,20 @@ fn finalize_selected_remove<Reporter: self::Reporter>(
     selected_indices: &[usize],
     config: &'static Config,
     workspace_root: &std::path::Path,
+    lockfile_path: Option<&std::path::Path>,
     manifest: &PackageManifest,
 ) -> Result<(), RemoveError> {
     persist_selected_manifests::<Reporter>(projects, selected_indices)?;
-    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), None, projects)
+    let kept_catalogs = written_lockfile_catalogs(config, lockfile_path)
         .map_err(RemoveError::WriteWorkspaceManifest)?;
+    write_workspace_catalogs_selected(
+        config,
+        workspace_root,
+        &Catalogs::new(),
+        kept_catalogs.as_ref(),
+        projects,
+    )
+    .map_err(RemoveError::WriteWorkspaceManifest)?;
     post_install_prune(config, Some(workspace_root), manifest)
         .map_err(RemoveError::WriteWorkspaceManifest)?;
     Ok(())

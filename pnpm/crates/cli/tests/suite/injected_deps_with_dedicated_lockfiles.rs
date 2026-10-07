@@ -128,3 +128,54 @@ fn an_injected_project_that_publishes_from_a_prepared_directory_gets_the_built_c
 
     drop((mock_instance, root));
 }
+
+#[test]
+fn an_injected_project_keeps_only_the_files_its_manifest_lists() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'shared'\n  - 'app'\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::create_dir_all(workspace.join("shared")).expect("mkdir shared");
+    fs::write(
+        workspace.join("shared/package.json"),
+        serde_json::json!({
+            "name": "shared",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        })
+        .to_string(),
+    )
+    .expect("write shared package.json");
+    fs::write(workspace.join("shared/index.js"), "module.exports = 1").expect("write index.js");
+    fs::write(workspace.join("shared/tsconfig.json"), "{}").expect("write tsconfig.json");
+    fs::create_dir_all(workspace.join("app")).expect("mkdir app");
+    fs::write(
+        workspace.join("app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "shared": "workspace:*" },
+            "dependenciesMeta": { "shared": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write app package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let copy = workspace.join("app/node_modules/shared");
+    assert!(copy.join("index.js").exists(), "{copy:?} should hold index.js");
+    for file in ["tsconfig.json", "pnpm-lock.yaml"] {
+        assert!(!copy.join(file).exists(), "{copy:?} should not hold {file}");
+    }
+
+    drop((mock_instance, root));
+}

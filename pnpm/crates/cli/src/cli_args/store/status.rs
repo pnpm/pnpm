@@ -79,10 +79,10 @@ fn packages_to_check(
                 .collect()
         })
         .unwrap_or_default();
-    let virtual_store_dir = modules_manifest.map_or_else(
-        || resolve_virtual_store_dir(config, lockfile_dir),
-        |manifest| PathBuf::from(&manifest.virtual_store_dir),
-    );
+    let virtual_store_dir = match modules_manifest {
+        Some(manifest) => PathBuf::from(&manifest.virtual_store_dir),
+        None => resolve_virtual_store_dir(config, lockfile_dir),
+    };
 
     let max_length = config.virtual_store_dir_max_length as usize;
     lockfile.snapshots

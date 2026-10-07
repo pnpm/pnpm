@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

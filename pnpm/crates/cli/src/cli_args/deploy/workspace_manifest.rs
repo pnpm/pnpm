@@ -3,6 +3,7 @@ use super::{
     install::configured_virtual_store_dir, relative_path,
 };
 use serde_json::{Map, Number, Value};
+use std::collections::BTreeMap;
 
 fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
     let mut manifest = Map::from_iter([
@@ -76,7 +77,8 @@ pub(super) fn deploy_workspace_settings(
     if !config.allow_builds.is_empty() {
         workspace_manifest.insert(
             "allowBuilds".to_string(),
-            serde_json::to_value(&config.allow_builds).into_diagnostic()?,
+            serde_json::to_value(config.allow_builds.iter().collect::<BTreeMap<_, _>>())
+                .into_diagnostic()?,
         );
         workspace_config.allow_builds.clone_from(&config.allow_builds);
     }

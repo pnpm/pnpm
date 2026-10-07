@@ -6,8 +6,10 @@
 //! integrity, breaking the lockfile's reproducibility promise.
 
 use crate::{
-    ConfigDepError, manifest_lockfile::package_metadata, options::ConfigDepsInstallOptions,
-    resolve_and_install_config_deps::resolve_options,
+    ConfigDepError,
+    manifest_lockfile::package_metadata,
+    options::ConfigDepsInstallOptions,
+    resolve_and_install_config_deps::{assert_no_policy_violation, resolve_options},
 };
 use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry};
 use pnpm_resolving_resolver_base::{ResolveResult, Resolver, WantedDependency};
@@ -114,13 +116,14 @@ async fn resolve_subdep(
         ..WantedDependency::default()
     };
     let result = resolver
-        .resolve(&wanted, &resolve_options(opts.root_dir))
+        .resolve(&wanted, &resolve_options(opts))
         .await
         .map_err(|error| ConfigDepError::Resolve {
             spec: format!("{subdep_name}@{subdep_spec}"),
             error,
         })?
         .ok_or_else(no_integrity)?;
+    assert_no_policy_violation(&result)?;
     let version = result.package.name_ver
         .as_ref()
         .ok_or_else(no_integrity)?
