@@ -255,6 +255,7 @@ impl<'a> OnDiskInputs<'a> {
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
             materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+            build_scope: linked.build_scope.as_ref(),
         }
     }
 

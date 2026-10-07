@@ -346,10 +346,22 @@ impl BuildModules<'_> {
         );
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
+            deferred_builds: self.deferred_builds(&requires_build_map),
             mutated_slots: !mutated_snapshot_keys.is_empty(),
             mutated_snapshot_keys,
         })
+    }
+
+    /// See [`BuildModulesOutput::deferred_builds`].
+    fn deferred_builds(&self, requires_build_map: &HashMap<PackageKey, bool>) -> Vec<String> {
+        deferred_builds(
+            requires_build_map
+                .iter()
+                .filter(|(snapshot_key, _)| {
+                    crate::build_scope::in_build_scope(self.graph.build_scope, snapshot_key)
+                }),
+            self.scripts.ignore,
+        )
     }
 
     fn requires_build_map(
@@ -429,6 +441,7 @@ impl BuildModules<'_> {
                 patches: self.graph.patches,
                 requires_build_map,
                 importers: self.graph.importers,
+                build_scope: self.graph.build_scope,
             },
             progress: crate::BuildProgress {
                 dep_graph: dep_states.graph.as_ref(),

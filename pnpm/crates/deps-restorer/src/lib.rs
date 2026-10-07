@@ -187,6 +187,7 @@ pub fn should_write_hoisted_package_map(config: &pnpm_config::Config) -> bool {
 }
 
 mod build_options;
+mod build_scope;
 
 mod materialization_options;
 
