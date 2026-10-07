@@ -22,7 +22,7 @@ use super::{
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
-    reporter::{ReporterFlags, ReporterType, reporter_emit},
+    reporter::{ReporterFlags, ReporterType, configure_color, reporter_emit},
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
@@ -47,6 +47,7 @@ use input::{
     package_manager_switch_disabled, should_skip_command, should_skip_command_name,
     should_skip_pm_handling,
 };
+use load_config::{ConfigLoad, load_pre_command_config};
 use lockfile::{
     ReadEnvLockfile, env_lockfile_sync, env_lockfile_sync_plan, locked_package_manager_to_fetch,
     locked_package_manager_version, locked_switch_source, read_env_lockfile, switch_env_root,
@@ -103,11 +104,66 @@ fn pre_command_plan_from_input(
         return Ok(None);
     }
     let dir = canonicalize_dir(&input.switch.paths.dir)?;
-    let config = load_pre_command_config(input, config_overrides, &dir, false)?;
+    let config = match load_pre_command_config(input, config_overrides, &dir, ConfigLoad::default())
+    {
+        Ok(config) => config,
+        Err(error) => {
+            return switch_past_unreadable_settings(input, config_overrides, &dir, process_state)
+                .map(Some)
+                .ok_or(error);
+        }
+    };
+    let pin = resolve_pin(input, config_overrides, &dir, process_state, config)?;
+    let (config, package_manager_to_sync) = match pin.action {
+        PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
+        PreCommandAction::Continue { config, package_manager_to_sync } => {
+            (config, package_manager_to_sync)
+        }
+    };
 
+    report_config_warnings(input, &config, pin.running_matches_pin)?;
+    check_manifest_runtimes(input, &config, pin.manifest)?;
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, pin.env_root, package_manager)
+    }))
+}
+
+/// Switch to the pinned pnpm when the configuration fails to load only
+/// because of settings this pnpm cannot read, which the pinned one may.
+/// `None` leaves the failure to be reported.
+fn switch_past_unreadable_settings(
+    input: &PreCommandInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    process_state: SwitchProcessState,
+) -> Option<PreCommandPlan> {
+    let load = ConfigLoad { resolve_store: false, skip_unreadable_settings: true };
+    let config = load_pre_command_config(input, config_overrides, dir, load).ok()?;
+    match resolve_pin(input, config_overrides, dir, process_state, config).ok()?.action {
+        PreCommandAction::Switch(plan) => Some(PreCommandPlan::Switch(plan)),
+        PreCommandAction::Continue { .. } => None,
+    }
+}
+
+/// What the project's pin asks of this invocation, and what was read to
+/// decide it.
+struct PinReading {
+    action: PreCommandAction,
+    manifest: Option<Value>,
+    env_root: PathBuf,
+    running_matches_pin: bool,
+}
+
+fn resolve_pin(
+    input: &PreCommandInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    process_state: SwitchProcessState,
+    config: Config,
+) -> miette::Result<PinReading> {
     let roots = PinRoots {
-        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
-        env: config.root_project_manifest_dir(&dir).to_path_buf(),
+        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
+        env: config.root_project_manifest_dir(dir).to_path_buf(),
     };
     let manifest = read_root_manifest(&roots.manifest);
 
@@ -115,19 +171,8 @@ fn pre_command_plan_from_input(
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
     let outcome =
         resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
-    let (config, package_manager_to_sync) =
-        match plan_pin_action(outcome, input, config_overrides, &dir, config)? {
-            PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
-            PreCommandAction::Continue { config, package_manager_to_sync } => {
-                (config, package_manager_to_sync)
-            }
-        };
-
-    report_config_warnings(input, &config, running_matches_pin)?;
-    check_manifest_runtimes(input, &config, manifest)?;
-    Ok(package_manager_to_sync.map(|package_manager| {
-        env_lockfile_sync_plan(input, config, roots.env, package_manager)
-    }))
+    let action = plan_pin_action(outcome, input, config_overrides, dir, config)?;
+    Ok(PinReading { action, manifest, env_root: roots.env, running_matches_pin })
 }
 
 fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
@@ -148,9 +193,13 @@ fn plan_pin_action(
     dir: &Path,
     config: Config,
 ) -> miette::Result<PreCommandAction> {
+    let load = ConfigLoad {
+        resolve_store: true,
+        skip_unreadable_settings: config.skip_unreadable_workspace_settings,
+    };
     match outcome {
         PinOutcome::Switch(target) => {
-            let mut config = load_pre_command_config(input, config_overrides, dir, true)?;
+            let mut config = load_pre_command_config(input, config_overrides, dir, load)?;
             // A global command does not act on the project. Without a
             // workspace, the approvals go to the project, as a regular
             // install's do.
@@ -161,7 +210,7 @@ fn plan_pin_action(
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config = load_pre_command_config(input, config_overrides, dir, true)?;
+            let config = load_pre_command_config(input, config_overrides, dir, load)?;
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
         }
         PinOutcome::Sync(None) => {
@@ -214,53 +263,6 @@ fn emit_npmrc_warnings(warnings: &[String]) {
     for warning in warnings {
         emit_config_warning(&redact_and_sanitize(warning));
     }
-}
-
-/// Load the configuration the pre-command pass reads, with the global
-/// CLI flags that reach it applied. A failed load still prints the
-/// `.npmrc` warnings it collected, since they often explain the failure.
-fn load_pre_command_config(
-    input: &PreCommandInput,
-    config_overrides: &ConfigOverrides,
-    dir: &Path,
-    resolve_store: bool,
-) -> miette::Result<Config> {
-    let switch = &input.switch;
-    let mut config = seed_config(
-        switch.paths.npmrc_auth_file.as_deref(),
-        switch.ignore_workspace,
-        config_overrides,
-    );
-    config.skip_store_dir_resolution = !resolve_store;
-    let mut config = config
-        .current_keeping_warnings::<Host>(dir)
-        .map_err(|failure| {
-            if input.key_issues != KeyIssueReporting::Skip {
-                emit_npmrc_warnings(&failure.warnings);
-            }
-            miette::Report::new(failure.error)
-        })
-        .wrap_err("load configuration")?;
-    config_overrides.apply(&mut config, dir);
-    if let Some(color) = switch.color {
-        config.color = color;
-    }
-    super::reporter::configure_color(config.color);
-    if config.ci {
-        pnpm_default_reporter::force_append_only();
-    }
-    if let Some(store_dir) = switch.paths.store_dir.as_deref() {
-        apply_store_dir_override::<Host>(&mut config, store_dir, dir)?;
-    }
-    if let Some(state_dir) = switch.paths.state_dir.as_deref() {
-        apply_state_dir_override::<Host>(&mut config, state_dir, dir);
-    }
-    // `--lockfile-dir` moves the lockfile the pin is recorded in, and
-    // `--offline` governs how that record is resolved. Both are
-    // install-family flags, and the record below is made for every
-    // command.
-    switch.pin_flags.apply_to(&mut config, dir);
-    Ok(config)
 }
 
 /// Switch to the pinned pnpm, unless the running one already is it — in
@@ -514,3 +516,5 @@ mod pin;
 mod execute;
 
 mod argv_plans;
+
+mod load_config;

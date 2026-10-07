@@ -258,6 +258,12 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
+    /// Leave out each top-level setting of `pnpm-workspace.yaml` that does
+    /// not parse or validate on its own, which a newer pnpm may give a shape
+    /// or a value this one rejects. Only for loading configuration that
+    /// decides whether to switch to the pnpm the project pins.
+    pub skip_unreadable_workspace_settings: bool,
+
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.
     /// [`Config::place_skipped_store_dir`] places it. A pinned store is never
