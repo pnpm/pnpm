@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-With `sharedWorkspaceLockfile: false`, an injected workspace package now holds only the files its `files` field selects, also when the package is installed in the same run. Files such as `tsconfig.json` no longer appear in the injected copy unless `deployAllFiles` is set [#16683](https://github.com/pnpm/pnpm/issues/16683).
+With `sharedWorkspaceLockfile: false`, an injected workspace package installed in the same run as its dependent now holds only the files its `files` field selects. The copy used to also hold other files of the project, such as `tsconfig.json` [#16683](https://github.com/pnpm/pnpm/issues/16683).
