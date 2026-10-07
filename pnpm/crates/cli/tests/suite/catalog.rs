@@ -1326,16 +1326,16 @@ fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
 fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    let dependency = lockfile.importers
+    lockfile.importers
         .get(importer)
         .and_then(|snapshot| snapshot.dependencies.as_ref())
         .and_then(|dependencies| {
             dependencies.get(&PkgName::parse(name).expect("parse the package name"))
-        });
-    match dependency {
-        Some(dependency) => dependency.version.to_string(),
-        None => panic!("{importer} has no resolved {name}"),
-    }
+        })
+        .map_or_else(
+            || panic!("{importer} has no resolved {name}"),
+            |dependency| dependency.version.to_string(),
+        )
 }
 
 /// The same move has to reach a project that keeps its own lockfile, where

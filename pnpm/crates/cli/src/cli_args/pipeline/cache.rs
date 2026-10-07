@@ -135,16 +135,16 @@ impl TaskCache {
         // runtime is a function of the directory, and a `--dir`
         // invocation must fingerprint the runtime the workspace's
         // scripts will actually get.
-        let node_version = Command::new("node")
+        let runtime_fingerprint = Command::new("node")
             .arg("--version")
             .current_dir(workspace_root)
             .output()
             .ok()
-            .filter(|output| output.status.success());
-        let runtime_fingerprint = match node_version {
-            Some(output) => String::from_utf8_lossy(&output.stdout).trim().to_string(),
-            None => "no-node".to_string(),
-        };
+            .filter(|output| output.status.success())
+            .map_or_else(
+                || "no-node".to_string(),
+                |output| String::from_utf8_lossy(&output.stdout).trim().to_string(),
+            );
         Ok(TaskCache {
             tasks_dir,
             state_dir,

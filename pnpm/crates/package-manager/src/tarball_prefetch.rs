@@ -344,10 +344,10 @@ impl PrefetchHttpClient {
     ) -> Self {
         Self {
             http_client: Arc::clone(http_client),
-            auth_headers: match auth_override {
-                Some(auth_headers) => Arc::clone(auth_headers),
-                None => Arc::clone(&config.auth_headers),
-            },
+            auth_headers: auth_override.map_or_else(
+                || Arc::clone(&config.auth_headers),
+                Arc::clone,
+            ),
             retry_opts: retry_opts_from_config(config),
             offline: config.offline,
         }

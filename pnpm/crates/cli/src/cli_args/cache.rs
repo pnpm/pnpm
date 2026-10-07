@@ -470,13 +470,18 @@ fn remove_pruned_dir(path: &Path, dry_run: bool) -> Result<(), String> {
 /// (`<registry>/@scope/name.jsonl`), so `parent()` would be wrong. Mirrors
 /// pnpm's cacheView walk to the top-most dir.
 fn cache_registry_name(file_path: &str) -> String {
-    match Path::new(file_path).components().next() {
-        Some(component) => component
-            .as_os_str()
-            .to_string_lossy()
-            .into_owned(),
-        None => ".".to_string(),
-    }
+    Path::new(file_path)
+        .components()
+        .next()
+        .map_or_else(
+            || ".".to_string(),
+            |component| {
+                component
+                    .as_os_str()
+                    .to_string_lossy()
+                    .into_owned()
+            },
+        )
 }
 
 /// The metadata file's modification time as an RFC 3339 timestamp.

@@ -69,16 +69,19 @@ fn applied_groups(inputs: &ApplyMaterializationInputs<'_, '_>) -> crate::GroupSe
         return groups.clone();
     }
     let included = inputs.projects.included;
-    let applied =
-        inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded);
-    match applied {
-        Some(lockfile) => crate::GroupSelection::classify(
-            lockfile,
-            included,
-            inputs.completion.config.peer_edge_options(),
-        ),
-        None => crate::GroupSelection::following_every_edge(included),
-    }
+    inputs.materialized.fresh_lockfile
+        .as_ref()
+        .or(inputs.resolution.loaded)
+        .map_or_else(
+            || crate::GroupSelection::following_every_edge(included),
+            |lockfile| {
+                crate::GroupSelection::classify(
+                    lockfile,
+                    included,
+                    inputs.completion.config.peer_edge_options(),
+                )
+            },
+        )
 }
 
 async fn link_apply_projects<Reporter: self::Reporter + 'static>(

@@ -920,13 +920,13 @@ snapshots:
         .collect();
 
     let path_of = |version: &str| {
-        let listed = is_positive_paths
+        is_positive_paths
             .iter()
-            .find(|(listed, _)| listed == version);
-        match listed {
-            Some((_, path)) => path.clone(),
-            None => panic!("is-positive@{version} missing from {is_positive_paths:?}"),
-        }
+            .find(|(listed, _)| listed == version)
+            .map_or_else(
+                || panic!("is-positive@{version} missing from {is_positive_paths:?}"),
+                |(_, path)| path.clone(),
+            )
     };
     assert_eq!(
         dunce::canonicalize(path_of("3.1.0")).expect("canonicalize reported path"),
