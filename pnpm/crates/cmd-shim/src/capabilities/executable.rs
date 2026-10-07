@@ -21,6 +21,17 @@ impl FsSetPermissions for Host {
     }
 }
 
+pub(super) fn set_executable<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
+    if is_executable_by_everyone(permission_bits(path)?) {
+        return Ok(());
+    }
+    #[cfg(unix)]
+    let permissions = Permissions::from_mode(0o755);
+    #[cfg(target_os = "wasi")]
+    let permissions = 0o755;
+    Sys::set_permissions(path, permissions)
+}
+
 pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     path: &Path,
     installed_modules_dir: Option<&Path>,
@@ -41,11 +52,8 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     {
         return Ok(());
     }
-    #[cfg(unix)]
-    let mode = fs::metadata(&target)?.permissions().mode();
-    #[cfg(target_os = "wasi")]
-    let mode = pnpm_fs::copy_permissions(&target)?;
-    if mode & 0o111 == 0o111 {
+    let mode = permission_bits(&target)?;
+    if is_executable_by_everyone(mode) {
         return Ok(());
     }
     #[cfg(unix)]
@@ -53,4 +61,17 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     #[cfg(target_os = "wasi")]
     let permissions = mode | 0o111;
     Sys::set_permissions(&target, permissions)
+}
+
+/// A file that passes needs no chmod. That is what lets an install reuse a
+/// file another user owns: only the owner may chmod it, even to its current mode.
+fn is_executable_by_everyone(mode: u32) -> bool {
+    mode & 0o111 == 0o111
+}
+
+fn permission_bits(path: &Path) -> io::Result<u32> {
+    #[cfg(unix)]
+    return Ok(fs::metadata(path)?.permissions().mode());
+    #[cfg(target_os = "wasi")]
+    return pnpm_fs::copy_permissions(path);
 }

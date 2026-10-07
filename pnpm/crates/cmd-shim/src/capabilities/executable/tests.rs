@@ -1,4 +1,4 @@
-use super::{FsSetPermissions, ensure_executable_bits};
+use super::{FsSetPermissions, ensure_executable_bits, set_executable};
 use std::{
     fs::{self, Permissions},
     io,
@@ -7,14 +7,16 @@ use std::{
 };
 use tempfile::tempdir;
 
+/// Refuses every chmod, as the kernel does for a file another user owns.
+struct DeniedPermissions;
+impl FsSetPermissions for DeniedPermissions {
+    fn set_permissions(_: &Path, _: Permissions) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::PermissionDenied))
+    }
+}
+
 #[test]
 fn executable_owned_by_another_user_does_not_require_chmod() {
-    struct DeniedPermissions;
-    impl FsSetPermissions for DeniedPermissions {
-        fn set_permissions(_: &Path, _: Permissions) -> io::Result<()> {
-            Err(io::Error::from(io::ErrorKind::PermissionDenied))
-        }
-    }
     let tmp = tempdir().unwrap();
     let target = tmp.path().join("node_modules/foo/cli.js");
     fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -22,6 +24,38 @@ fn executable_owned_by_another_user_does_not_require_chmod() {
     for mode in [0o555, 0o755] {
         fs::set_permissions(&target, Permissions::from_mode(mode)).unwrap();
         ensure_executable_bits::<DeniedPermissions>(&target, None).unwrap();
+    }
+}
+
+#[test]
+fn shim_owned_by_another_user_does_not_require_chmod() {
+    let tmp = tempdir().unwrap();
+    let shim = tmp.path().join("node_modules/.bin/foo");
+    fs::create_dir_all(shim.parent().unwrap()).unwrap();
+    fs::write(&shim, "#!/bin/sh\n").unwrap();
+    for mode in [0o755, 0o775] {
+        fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
+        set_executable::<DeniedPermissions>(&shim).unwrap();
+    }
+}
+
+#[test]
+fn shim_missing_executable_bits_still_requires_chmod() {
+    let tmp = tempdir().unwrap();
+    let shim = tmp.path().join("node_modules/.bin/foo");
+    fs::create_dir_all(shim.parent().unwrap()).unwrap();
+    fs::write(&shim, "#!/bin/sh\n").unwrap();
+    for mode in [0o644, 0o744] {
+        fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
+        let error = set_executable::<DeniedPermissions>(&shim).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+
+        set_executable::<crate::capabilities::Host>(&shim).unwrap();
+        let mode = fs::metadata(&shim)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
     }
 }
 
