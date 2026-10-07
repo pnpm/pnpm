@@ -92,11 +92,11 @@ async fn should_print_the_npm_notice_headers_before_the_auth_url() {
     assert_eq!(
         messages.len(),
         4,
-        "expected the notices, auth-URL, and Press-ENTER lines: {messages:?}"
+        "expected the notices, auth-URL, and Press-ENTER lines: {messages:?}",
     );
     assert_eq!(
         messages[0],
-        "Verification code: 123456. Enter this code in the browser to complete the login."
+        "Verification code: 123456. Enter this code in the browser to complete the login.",
     );
     assert_eq!(messages[1], "The code expires in five minutes.");
     assert!(messages[2].contains("https://example.com/auth/login"), "got {messages:?}");

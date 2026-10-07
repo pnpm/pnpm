@@ -107,7 +107,7 @@ fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
     for notice in notices {
         let sanitized: String = notice
             .chars()
-            .filter(|c| !c.is_control())
+            .filter(|character| !character.is_control())
             .collect();
         if !sanitized.is_empty() {
             global_info::<Reporter>(sanitized);
