@@ -153,7 +153,7 @@ resolutions to a fresh cache namespace.
 
 Set `pnprServer` in your `pnpm-workspace.yaml` to the URL of a pnpr server:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 pnprServer: http://127.0.0.1:7677
 ```
 

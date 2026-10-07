@@ -9,7 +9,7 @@ When multiple AI agents need to work on the same monorepo simultaneously, they e
 
 Normally, a git repository has a single working directory tied to one branch at a time. If you want to look at another branch, you have to stash or commit your changes and switch. A [git worktree](https://git-scm.com/docs/git-worktree) lets you check out multiple branches simultaneously, each in its own directory. All worktrees share the same repository history and objects — they're just different views into the same repo.
 
-```
+```sh
 git worktree add ../feature-branch feat/my-feature
 ```
 
@@ -17,7 +17,7 @@ This creates a new directory `../feature-branch` with `feat/my-feature` checked 
 
 A common pattern is to use a **bare repository** (one with no working directory of its own) as the hub, and create all working directories as worktrees:
 
-```
+```sh
 git clone --bare https://github.com/your-org/your-repo.git your-repo
 cd your-repo
 git worktree add ./main main
@@ -68,7 +68,7 @@ Each worktree is a full checkout with its own files, but they all share the same
 
 Add `virtualStoreType: global` to the `pnpm-workspace.yaml` in your repository (before v11.23.0 this setting was spelled `enableGlobalVirtualStore: true`):
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packages:
   - 'packages/*'
 

@@ -29,7 +29,7 @@ Because any S3-compatible endpoint works, this also covers **Cloudflare R2**,
 **MinIO**, **Backblaze B2**, **Wasabi**, etc. — point `endpoint` at the right
 host.
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 # cache: ./cache     # local proxy cache + resolver cache + S3 upload staging
 
@@ -90,8 +90,7 @@ sharing one object store.
 
 ## A complete Cloudflare R2 example
 
-```yaml
-# pnpr.yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 s3:
@@ -134,7 +133,7 @@ fetch tarballs back through this server rather than the upstream.
 
 MinIO over `http://` needs `forcePathStyle` and `allowHttp`:
 
-```yaml
+```yaml title="pnpr.yaml"
 s3:
   bucket: pnpr
   region: us-east-1

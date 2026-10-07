@@ -78,7 +78,7 @@ Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to de
 
 If you have an existing workspace that you want to migrate to using catalogs, you can use the following [codemod](https://go.codemod.com/pnpm-catalog):
 
-```
+```sh
 pnpx codemod pnpm/catalog
 ```
 

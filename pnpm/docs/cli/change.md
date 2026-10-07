@@ -31,7 +31,7 @@ You are asked three questions:
 
 The result is a file such as `.changeset/calm-cats-resolve.md`:
 
-```markdown
+```markdown title=".changeset/calm-cats-resolve.md"
 ---
 "@example/core": minor
 "@example/cli": patch

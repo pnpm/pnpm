@@ -45,7 +45,7 @@ Each finder function receives a context object that describes the dependency nod
 
 You can invoke a finder with the `--find-by=<functionName>` flag:
 
-```
+```sh
 pnpm why --find-by=react17
 ```
 
@@ -63,7 +63,7 @@ A finder can also return a string. That string will be shown alongside the match
 
 Example: print the package license:
 
-```js
+```js title=".pnpmfile.mjs"
 export const finders = {
   react17: (ctx) => {
     const manifest = ctx.readManifest()

@@ -11,7 +11,7 @@ developer machines. No pnpm workspace or `package.json` is involved.
 
 ## Declaring a cache
 
-```yaml
+```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
   compilerCaches:

@@ -16,7 +16,7 @@ have a third option.
 Publish a new package called `awesome-lodash` and install it using `lodash` as
 its alias:
 
-```
+```sh
 pnpm add lodash@npm:awesome-lodash
 ```
 
@@ -38,7 +38,7 @@ This gets even more powerful when combined with hooks. Maybe you want to replace
 `lodash` with `awesome-lodash` in all the packages in `node_modules`. You can
 easily achieve that with the following `.pnpmfile.mjs`:
 
-```js
+```js title=".pnpmfile.mjs"
 function readPackage(pkg) {
   if (pkg.dependencies && pkg.dependencies.lodash) {
     pkg.dependencies.lodash = 'npm:awesome-lodash@^1.0.0'

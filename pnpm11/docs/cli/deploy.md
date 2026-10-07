@@ -23,19 +23,19 @@ When the [`enableGlobalVirtualStore`](../settings/node-modules.md#enableglobalvi
 
 Usage:
 
-```
+```sh
 pnpm --filter=<deployed project name> deploy <target directory>
 ```
 
 In case you build your project before deployment, also use the `--prod` option to skip `devDependencies` installation.
 
-```
+```sh
 pnpm --filter=<deployed project name> --prod deploy <target directory>
 ```
 
 Usage in a docker image. After building everything in your monorepo, do this in a second image that uses your monorepo base image as a build context or in an additional build stage:
 
-```Dockerfile
+```Dockerfile title="Dockerfile"
 # syntax=docker/dockerfile:1.4
 
 FROM workspace as pruned

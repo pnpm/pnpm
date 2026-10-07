@@ -30,7 +30,7 @@ If you want the root project be included even when running scripts, set the [inc
 
 Usage example:
 
-```
+```sh
 pnpm -r publish
 ```
 
@@ -107,7 +107,7 @@ pnpm -r --no-sort test
 When `true`, dependency edges are reversed. For recursive `run`, this reverses
 the resolved task graph, including relationships declared with `dependsOn`.
 
-```
+```sh
 pnpm -r --reverse run clean
 ```
 
