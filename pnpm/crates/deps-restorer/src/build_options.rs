@@ -226,6 +226,10 @@ pub struct BuildGraphInputs<'a> {
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub dependency_groups: Option<&'a [pnpm_package_manifest::DependencyGroup]>,
+    /// The snapshots this run may build, patch, or restore a cached build
+    /// into. A candidate outside it is left as it is on disk and is not
+    /// reported as ignored or deferred. `None` considers every candidate.
+    pub build_scope: Option<&'a HashSet<PackageKey>>,
 }
 
 #[derive(Clone, Copy)]
@@ -236,6 +240,7 @@ pub struct BuildSnapshotInputs<'a> {
     pub(crate) patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     pub(crate) requires_build_map: &'a HashMap<PackageKey, bool>,
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
+    pub(crate) build_scope: Option<&'a HashSet<PackageKey>>,
 }
 
 #[derive(Default)]

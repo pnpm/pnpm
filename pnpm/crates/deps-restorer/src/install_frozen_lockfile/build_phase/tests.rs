@@ -72,6 +72,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
             importers: &HashMap::new(),
             dependency_groups: &[DependencyGroup::Prod],
             materialized_snapshots: &[],
+            build_scope: None,
         },
         policy: crate::BuildPhasePolicy {
             config,
@@ -149,6 +150,7 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
             importers: &HashMap::new(),
             dependency_groups: &[DependencyGroup::Prod],
             materialized_snapshots: &[],
+            build_scope: None,
         },
         policy: crate::BuildPhasePolicy {
             config,
@@ -262,6 +264,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
             importers: &importers,
             dependency_groups: &dependency_groups,
             materialized_snapshots: &materialized_snapshots,
+            build_scope: None,
         },
         policy: crate::BuildPhasePolicy {
             config,

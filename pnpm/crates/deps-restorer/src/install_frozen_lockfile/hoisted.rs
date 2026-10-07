@@ -146,7 +146,11 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let pkg_roots = pkg_roots_by_key(
         walked.graph
             .values()
-            .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node)),
+            .filter(|node| {
+                build_present
+                    || !node.present
+                    || crate::build_scope::records_unbuilt(unbuilt, node.package.dep_path.as_str())
+            }),
     );
     // Several nodes can share one snapshot (a package nested under more
     // than one consumer); the roots map has already collapsed them, so
@@ -480,15 +484,6 @@ fn update_hoisted_package_map(
         crate::package_map::remove_package_map(&config.modules_dir);
     }
     Ok(())
-}
-
-/// Whether the previous install recorded `node` as not built.
-/// `ignoredBuilds` and `pendingBuilds` hold `name@version` keys; the dep
-/// path is checked too for the entries written with a peer suffix.
-fn recorded_unbuilt(unbuilt: &crate::UnbuiltBuilds, node: &crate::DependenciesGraphNode) -> bool {
-    !unbuilt.is_empty()
-        && (unbuilt.contains(&format!("{}@{}", node.package.name, node.package.version))
-            || unbuilt.contains(node.package.dep_path.as_str()))
 }
 
 /// Map snapshot key → every recorded directory, in walker order. The
