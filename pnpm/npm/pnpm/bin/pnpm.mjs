@@ -220,26 +220,31 @@ function expandEnv (value) {
 
 /**
  * The credentials the `.npmrc` holds for `registry`, looked up as pnpm looks
- * them up: the longest `//host[:port]/path/` prefix of the registry URL that
- * has any, then the same without the port. They are sent only over HTTPS or to
- * the local machine.
+ * them up for an `@pnpm` package: the `@pnpm` scope's own credentials first,
+ * then the registry-wide ones. Each is the longest `//host[:port]/path/`
+ * prefix of the registry URL that has any, then the same without the port.
+ * They are sent only over HTTPS or to the local machine.
  */
 function npmrcHeaders (npmrc, registry) {
   const url = new URL(registry.endsWith('/') ? registry : `${registry}/`)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname))) {
     return undefined
   }
+  const prefixes = []
   for (const host of new Set([url.host, url.hostname])) {
-    let pathname = url.pathname
-    for (;;) {
-      const authorization = npmrcAuthorization(npmrc, `//${host}${pathname}`)
-      if (authorization != null) {
-        return { authorization }
-      }
+    for (let pathname = url.pathname; ; pathname = pathname.slice(0, pathname.lastIndexOf('/', pathname.length - 2) + 1)) {
+      prefixes.push(`//${host}${pathname}`)
       if (pathname === '/') {
         break
       }
-      pathname = pathname.slice(0, pathname.lastIndexOf('/', pathname.length - 2) + 1)
+    }
+  }
+  for (const scope of [':@pnpm', '']) {
+    for (const prefix of prefixes) {
+      const authorization = npmrcAuthorization(npmrc, `${prefix}${scope}`)
+      if (authorization != null) {
+        return { authorization }
+      }
     }
   }
   return undefined

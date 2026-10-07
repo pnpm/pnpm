@@ -166,6 +166,18 @@ describe('corepack entry point', () => {
     assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
   })
 
+  it('sends the @pnpm scope credentials over the registry-wide ones', async () => {
+    const fixture = await createFixture()
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `@pnpm:registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:_authToken=registry-token`,
+      `${nerfDart(fixture.registryUrl)}:@pnpm:_authToken=scope-token`,
+    ])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.deepEqual(new Set(fixture.requests.map(({ authorization }) => authorization)), new Set(['Bearer scope-token']))
+  })
+
   it('downloads from the registry the workspace .npmrc names, without expanding its credentials', async () => {
     const fixture = await createFixture()
     const userRegistry = await startRegistry({ payload: FAKE_BINARY })
