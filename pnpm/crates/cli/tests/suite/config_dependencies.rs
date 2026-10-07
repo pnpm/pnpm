@@ -833,3 +833,5 @@ fn update_config_hook_switches_loaded_linker_back_to_isolated_layout() {
     assert!(!modules.contains("enableGlobalVirtualStore: true"));
     drop((root, mock_instance));
 }
+
+mod release_age;

@@ -6760,6 +6760,9 @@ importers:
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/config.writer':
         specifier: workspace:*
         version: link:../../config/writer
