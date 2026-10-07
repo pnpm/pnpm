@@ -173,13 +173,14 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let (package_url, package_id) = package;
         let download = self.ctx.tarball_download(package_url, package_id, None, None, None);
+        let pkg = match &result.package.name_ver {
+            Some(name_ver) => serde_json::json!({
+                "name": name_ver.name.to_string(), "version": name_ver.suffix.to_string(),
+            }),
+            None => serde_json::json!({}),
+        };
         let opts = serde_json::json!({
-            "pkg": result.package.name_ver.as_ref().map_or_else(
-                || serde_json::json!({}),
-                |nv| serde_json::json!({
-                    "name": nv.name.to_string(), "version": nv.suffix.to_string(),
-                }),
-            ),
+            "pkg": pkg,
             "lockfileDir": lockfile_dir,
             "readManifest": true,
             "filesIndexFile": pnpm_store_dir::pick_store_index_key(

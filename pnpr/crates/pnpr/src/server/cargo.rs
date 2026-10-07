@@ -181,16 +181,14 @@ async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageNam
         CrateDocument::parse(&bytes).ok()
     }
     .await;
-    document
-        .as_ref()
-        .map_or_else(
-            || SearchCrate {
-                name: key.as_str().to_string(),
-                description: None,
-                max_version: String::new(),
-            },
-            CrateDocument::to_search_crate,
-        )
+    match &document {
+        Some(document) => document.to_search_crate(),
+        None => SearchCrate {
+            name: key.as_str().to_string(),
+            description: None,
+            max_version: String::new(),
+        },
+    }
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the

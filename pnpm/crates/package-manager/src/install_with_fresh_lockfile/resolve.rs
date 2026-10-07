@@ -40,17 +40,17 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
     if matches!(hook.has_pre_resolution().await, Ok(false)) {
         return;
     }
-    let wanted_lockfile_json = wanted_lockfile.map_or_else(
-        || serde_json::json!({}),
-        |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
-    );
+    let wanted_lockfile_json = match wanted_lockfile {
+        Some(lockfile) => serde_json::to_value(lockfile).unwrap_or_else(|_| serde_json::json!({})),
+        None => serde_json::json!({}),
+    };
     let current_lockfile =
         Lockfile::load_current_from_install_state_dir(&config.install_state_dir).ok().flatten();
     let exists_current_lockfile = current_lockfile.is_some();
-    let current_lockfile_json = current_lockfile.map_or_else(
-        || serde_json::json!({}),
-        |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
-    );
+    let current_lockfile_json = match current_lockfile {
+        Some(lockfile) => serde_json::to_value(lockfile).unwrap_or_else(|_| serde_json::json!({})),
+        None => serde_json::json!({}),
+    };
     let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: wanted_lockfile_json,
         current_lockfile: current_lockfile_json,

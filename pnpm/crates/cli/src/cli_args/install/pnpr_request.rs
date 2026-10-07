@@ -37,18 +37,16 @@ pub(super) async fn pnpr_request_inputs(
         state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override
-        .as_ref()
-        .map_or_else(
-            || state.config.registry.clone(),
-            |override_| override_.resolve_registry().to_owned(),
-        );
+    let resolve_registry = match &benchmark_registry_override {
+        Some(override_) => override_.resolve_registry().to_owned(),
+        None => state.config.registry.clone(),
+    };
 
     let prefetch_allowed = prefetch_allowed(pnpmfile_hook.as_ref()).await?;
-    let lockfile_path = link.lockfile_path.map_or_else(
-        || lockfile_dir.join(state.config.wanted_lockfile_name()),
-        std::path::Path::to_path_buf,
-    );
+    let lockfile_path = match link.lockfile_path {
+        Some(lockfile_path) => lockfile_path.to_path_buf(),
+        None => lockfile_dir.join(state.config.wanted_lockfile_name()),
+    };
     Ok(PnprRequestInputs {
         overrides,
         patched_dependencies,

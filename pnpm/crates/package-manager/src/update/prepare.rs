@@ -121,18 +121,14 @@ pub(super) fn update_read_package_hook<Reporter: self::Reporter>(
     else {
         return Ok(None);
     };
-    let log = hook
-        .source_path()
-        .map_or_else(
-            || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-            |from| {
-                crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                    workspace_root,
-                    from,
-                    "readPackage",
-                )
-            },
-        );
+    let log = match hook.source_path() {
+        Some(from) => crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+            workspace_root,
+            from,
+            "readPackage",
+        ),
+        None => Arc::new(|_| {}) as pnpm_hooks::LogFn,
+    };
     Ok(Some((hook, log)))
 }
 pub(super) async fn apply_read_package_hook_to_update_manifest(
