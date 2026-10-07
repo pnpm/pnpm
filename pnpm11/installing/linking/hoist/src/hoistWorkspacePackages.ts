@@ -158,7 +158,7 @@ export async function pruneStaleWorkspaceHoists (
     await restoreWorkspaceLinks(staleLinks.filter((_, index) => removalResults[index].status === 'fulfilled'))
     throw failure.reason
   }
-  const parentCleanupResults = await Promise.allSettled(staleLinks.map(removeEmptyParentsOfWorkspaceLink))
+  const parentCleanupResults = await Promise.allSettled(selectOneLinkPerParent(staleLinks).map(removeEmptyParentsOfWorkspaceLink))
   const parentCleanupFailure = findRejection(parentCleanupResults)
   if (parentCleanupFailure != null) {
     await restoreWorkspaceLinks(staleLinks)
@@ -202,6 +202,20 @@ async function readWorkspaceLink (alias: string, modulesDir: string, publicHoist
 async function unlinkStaleWorkspaceLink ({ alias, destination, modulesDir, trustedRoot }: StaleWorkspaceLink): Promise<void> {
   await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
   await fs.promises.unlink(destination)
+}
+
+/**
+ * Concurrent removals of one directory fail on Windows with `EPERM` while the
+ * delete is pending. A workspace alias has at most a scope directory above it,
+ * so links with distinct parents never remove the same directory.
+ */
+function selectOneLinkPerParent (links: StaleWorkspaceLink[]): StaleWorkspaceLink[] {
+  const linksByParent = new Map<string, StaleWorkspaceLink>()
+  for (const link of links) {
+    const parent = path.dirname(link.destination)
+    if (!linksByParent.has(parent)) linksByParent.set(parent, link)
+  }
+  return Array.from(linksByParent.values())
 }
 
 async function removeEmptyParentsOfWorkspaceLink ({ alias, destination, modulesDir, trustedRoot }: StaleWorkspaceLink): Promise<void> {
