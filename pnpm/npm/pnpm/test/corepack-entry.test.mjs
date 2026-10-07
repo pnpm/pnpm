@@ -175,7 +175,10 @@ describe('corepack entry point', () => {
     ])
 
     await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
-    assert.deepEqual(new Set(fixture.requests.map(({ authorization }) => authorization)), new Set(['Bearer scope-token']))
+    assert.deepEqual(new Set(fixture.requests.map(({ url, authorization }) => `${url} ${authorization}`)), new Set([
+      `/${packageName}/${VERSION} Bearer scope-token`,
+      `/${packageName}/-/${VERSION}.tgz Bearer scope-token`,
+    ]))
   })
 
   it('downloads from the registry the workspace .npmrc names, without expanding its credentials', async () => {
