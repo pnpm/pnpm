@@ -5640,6 +5640,7 @@ dependencies = [
  "bytes",
  "core-foundation",
  "derive_more",
+ "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",

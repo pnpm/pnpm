@@ -15,7 +15,7 @@ pub use auth::{
 };
 pub use client_builder::{default_network_concurrency, native_dns_resolver};
 pub use error_chain::{is_permanent_error, walk_reqwest_chain};
-pub use limited_body::{LimitedBody, read_limited_body};
+pub use limited_body::{LimitedBody, read_limited_body, read_self_delimiting_text};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use redirect_guard::{RedirectGuard, origins_redirect_guard};
 pub use retry::{
