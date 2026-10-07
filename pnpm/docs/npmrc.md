@@ -165,7 +165,7 @@ The value is keyed by registry URL, so each secret is explicitly bound to the ho
 
 In the global `config.yaml`:
 
-```yaml
+```yaml title="config.yaml"
 _auth:
   https://registry.npmjs.org:
     "@":
@@ -184,7 +184,7 @@ Both `pnpm_config__auth` (lowercase) and `PNPM_CONFIG__AUTH` (all-caps, the conv
 
 Since v12.7.0, `authToken` values may reference environment variables using the `${NAME}` syntax, in both locations:
 
-```yaml
+```yaml title="config.yaml"
 _auth:
   https://registry.npmjs.org:
     "@":
@@ -277,7 +277,7 @@ to the matching registry URL.
 A client certificate to pass when accessing the registry. Values should be in
 PEM format (AKA "Base-64 encoded X.509 (.CER)"). For example:
 
-```test
+```ini
 cert="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 ```
 

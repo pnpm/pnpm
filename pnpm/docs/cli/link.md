@@ -7,7 +7,7 @@ Aliases: `ln`
 
 Links a local package to the current project's `node_modules`.
 
-```text
+```sh
 pnpm link <dir>
 ```
 

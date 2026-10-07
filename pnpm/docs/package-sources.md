@@ -34,7 +34,7 @@ Added in: v10.9.0
 
 To install packages from the [JSR](https://jsr.io/) registry, use the `jsr:` protocol prefix:
 
-```
+```sh
 pnpm add jsr:@hono/hono
 pnpm add jsr:@hono/hono@4
 pnpm add jsr:@hono/hono@latest
@@ -122,27 +122,27 @@ Installs the package from the Git repository at the given URL. Depending on the 
 You may install packages from Git by:
 
 * Latest commit from default branch:
-```
+```sh
 pnpm add kevva/is-positive
 ```
 * Git commit hash:
-```
+```sh
 pnpm add kevva/is-positive#97edff6f525f192a3f83cea1944765f769ae2678
 ```
 * Git branch:
-```
+```sh
 pnpm add kevva/is-positive#master
 ```
 * Git branch relative to refs:
-```
+```sh
 pnpm add zkochan/is-negative#heads/canary
 ```
 * Git tag:
-```
+```sh
 pnpm add zkochan/is-negative#2.0.1
 ```
 * V-prefixed Git tag:
-```
+```sh
 pnpm add andreineculau/npm-publish-git#v0.0.7
 ```
 
@@ -151,19 +151,19 @@ pnpm add andreineculau/npm-publish-git#v0.0.7
 You can specify version (range) to install using the `semver:` parameter. For example:
 
 * Strict semver:
-```
+```sh
 pnpm add zkochan/is-negative#semver:1.0.0
 ```
 * V-prefixed strict semver:
-```
+```sh
 pnpm add andreineculau/npm-publish-git#semver:v0.0.7
 ```
 * Semver version range:
-```
+```sh
 pnpm add kevva/is-positive#semver:^2.0.0
 ```
 * V-prefixed semver version range:
-```
+```sh
 pnpm add andreineculau/npm-publish-git#semver:<=v0.0.7
 ```
 
@@ -171,7 +171,7 @@ pnpm add andreineculau/npm-publish-git#semver:<=v0.0.7
 
 You may also install just a subdirectory from a Git-hosted monorepo using the `path:` parameter. For instance:
 
-```
+```sh
 pnpm add RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app
 ```
 
@@ -179,7 +179,7 @@ pnpm add RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app
 
 If you want to be more explicit or are using alternative Git hosting, you might want to spell out full Git URL:
 
-```
+```sh
 # git+ssh
 pnpm add git+ssh://git@github.com:zkochan/is-negative.git#2.0.1
 
@@ -191,7 +191,7 @@ pnpm add https://github.com/zkochan/is-negative.git#2.0.1
 
 You can use a protocol shorthand `[provider]:` for certain Git providers:
 
-```
+```sh
 pnpm add github:zkochan/is-negative
 pnpm add bitbucket:pnpmjs/git-resolver
 pnpm add gitlab:pnpm/git-resolver
@@ -203,7 +203,7 @@ If `[provider]:` is omitted, it defaults to `github:`.
 
 It is possible to combine multiple parameters by separating them with `&`. This can be useful for forks of monorepos:
 
-```
+```sh
 pnpm add RexSkz/test-git-subdir-fetch.git#beta\&path:/packages/simple-react-app
 ```
 

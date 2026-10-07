@@ -11,7 +11,7 @@ a locally-hosted registry, an upstream like npmjs — is declared explicitly and
 claims the package names it serves, and a router resolves each name to exactly
 one of them. Save this as `pnpr.yaml`:
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 auth:

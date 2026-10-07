@@ -5,13 +5,13 @@ title: pnpm self-update
 
 Updates pnpm to the latest version or the one specified.
 
-```
+```sh
 pnpm self-update [<version>]
 ```
 
 Usage examples:
 
-```
+```sh
 pnpm self-update
 pnpm self-update 10
 pnpm self-update next-10
@@ -47,7 +47,7 @@ When `self-update` refuses a version that is younger than the `minimumReleaseAge
 
 Since v11.10.0, `pnpm self-update` (and `packageManager` version-switching) can install and link **pnpm v12**, the Rust port. It is published under both the `pnpm` and `@pnpm/exe` names on the `latest-12` dist-tag:
 
-```
+```sh
 pnpm self-update latest-12
 ```
 

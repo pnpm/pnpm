@@ -33,7 +33,7 @@ low-latency from the server.
 
 ## libsql / Turso
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 backend:
@@ -54,7 +54,7 @@ backend:
 
 For a remote primary (e.g. Turso), serve reads from a local replica:
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   libsql:
     url: ${PNPR_LIBSQL_URL}
@@ -70,7 +70,7 @@ sync, so a lower `syncIntervalSecs` means less revocation lag. Omit
 
 ## PostgreSQL
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   postgres:
     url: ${PNPR_POSTGRES_URL}
@@ -81,7 +81,7 @@ backend:
 
 ## MySQL
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   mysql:
     url: ${PNPR_MYSQL_URL}
