@@ -1,4 +1,4 @@
-//! Two pure functions that turn a "missing peers" picture into a
+//! Pure functions that turn a "missing peers" picture into a
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
@@ -364,6 +364,23 @@ fn find_workspace_root_dep<'a>(
                 .filter(|root_dep| root_dep.pkg_name == peer_name)
                 .min_by(|a, b| a.alias.cmp(&b.alias))
         })
+}
+
+/// The specifier an optional peer picked at `version` is installed with: the
+/// `workspace:` specifier of the root dependency that provides `name` when it
+/// resolved to `version`, otherwise `version`.
+pub(crate) fn optional_peer_specifier(
+    name: &str,
+    version: String,
+    workspace_root_deps: &[WorkspaceRootDep],
+    workspace_root_dep_versions: &HashMap<String, String>,
+) -> String {
+    find_workspace_root_dep(workspace_root_deps, name)
+        .filter(|dep| workspace_root_dep_versions.get(&dep.alias) == Some(&version))
+        .and_then(|dep| dep.normalized_bare_specifier.as_ref())
+        .filter(|specifier| specifier.starts_with("workspace:"))
+        .cloned()
+        .unwrap_or(version)
 }
 
 /// Highest version from `versions` that satisfies `range` under npm's

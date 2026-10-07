@@ -11,7 +11,8 @@ use pretty_assertions::assert_eq;
 
 use super::{
     HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, optional_peer_version_tiers,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, optional_peer_specifier,
+    optional_peer_version_tiers,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
@@ -32,6 +33,52 @@ fn plain(ty: VersionSelectorType) -> VersionSelectorEntry {
 
 fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
     (name.to_string(), MissingPeerInfo { range: range.to_string() })
+}
+
+#[test]
+fn optional_peer_specifier_preserves_matching_workspace_providers() {
+    for (alias, specifier) in [("foo", "workspace:*"), ("alias", "workspace:foo@*")] {
+        let root_deps = [WorkspaceRootDep {
+            alias: alias.to_string(),
+            pkg_name: "foo".to_string(),
+            normalized_bare_specifier: Some(specifier.to_string()),
+        }];
+        let root_versions = HashMap::from_iter([(alias.to_string(), "1.0.0".to_string())]);
+        assert_eq!(
+            optional_peer_specifier("foo", "1.0.0".to_string(), &root_deps, &root_versions),
+            specifier,
+        );
+    }
+}
+
+#[test]
+fn optional_peer_specifier_retains_the_selected_version_without_a_matching_workspace_provider() {
+    for (specifier, root_version) in [
+        (Some("workspace:*"), Some("1.0.0")),
+        (Some("workspace:*"), None),
+        (Some("^2.0.0"), Some("2.0.0")),
+        (Some("file:../foo"), Some("2.0.0")),
+        (None, Some("2.0.0")),
+    ] {
+        let root_deps = [WorkspaceRootDep {
+            alias: "foo".to_string(),
+            pkg_name: "foo".to_string(),
+            normalized_bare_specifier: specifier.map(str::to_string),
+        }];
+        let root_versions = root_version
+            .map(|version| ("foo".to_string(), version.to_string()))
+            .into_iter()
+            .collect();
+        assert_eq!(
+            optional_peer_specifier("foo", "2.0.0".to_string(), &root_deps, &root_versions),
+            "2.0.0",
+            "specifier={specifier:?}, root_version={root_version:?}",
+        );
+    }
+    assert_eq!(
+        optional_peer_specifier("foo", "2.0.0".to_string(), &[], &HashMap::default()),
+        "2.0.0",
+    );
 }
 
 static NOTHING_RESOLVED: LazyLock<HashMap<String, HashSet<String>>> =

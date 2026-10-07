@@ -275,3 +275,22 @@ function findWorkspaceRootDep (
   }
   return rootDepByPkgName
 }
+
+/**
+ * The specifier an optional peer picked at `version` is installed with: the
+ * `workspace:` specifier of the root dependency that provides `name` when it
+ * resolved to `version`, otherwise `version`.
+ */
+export function getOptionalPeerSpecifier (
+  { name, version, workspaceRootDeps, rootDepVersions }: {
+    name: string
+    version: string
+    workspaceRootDeps: HoistableRootDep[]
+    rootDepVersions: Map<string, string>
+  }
+): string {
+  const rootDep = findWorkspaceRootDep(workspaceRootDeps, name)
+  return rootDep != null && rootDepVersions.get(rootDep.alias) === version && rootDep.normalizedBareSpecifier?.startsWith('workspace:')
+    ? rootDep.normalizedBareSpecifier
+    : version
+}

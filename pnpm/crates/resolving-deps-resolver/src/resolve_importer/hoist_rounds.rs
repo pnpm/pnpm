@@ -6,6 +6,7 @@ use super::{
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
+use crate::hoist_peers::optional_peer_specifier;
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
@@ -390,7 +391,15 @@ impl ImporterHoistState {
         // also defaults to `false` for the same reason.
         let new_wanted: Vec<WantedSpec> = hoisted_optional
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(name, version)| {
+                let specifier = optional_peer_specifier(
+                    &name,
+                    version,
+                    self.hoist_root_deps(),
+                    &self.dependencies.workspace_root_dep_versions,
+                );
+                (name, specifier, false, false)
+            })
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
