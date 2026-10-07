@@ -124,13 +124,11 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let whitespace = line[after_equals..].len() - line[after_equals..].trim_start().len();
     let start = after_equals + whitespace;
     let end = comment_start(&line[start..])
-        .map_or_else(
-            || {
-                line.trim_end_matches(['\r', '\n'])
-                    .len()
-            },
-            |comment| start + comment,
-        );
+        .map(|comment| start + comment)
+        .unwrap_or_else(|| {
+            line.trim_end_matches(['\r', '\n'])
+                .len()
+        });
     Some(
         start
             ..end
