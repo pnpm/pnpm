@@ -24,8 +24,6 @@ use pnpm_resolving_npm_resolver::{
 };
 use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
-use crate::retry_config::retry_opts_from_config;
-
 /// Error from [`build_resolution_verifiers`]. Wraps the inner error so
 /// the install command can route the diagnostic code without
 /// re-wrapping.
@@ -117,7 +115,7 @@ pub fn build_resolution_verifiers(
             cache_dir: Some(config.cache_dir.clone()),
             meta_cache,
             offline: config.offline,
-            retry_opts: retry_opts_from_config(config),
+            retry_opts: config.retry_opts(),
         },
         artifacts: pnpm_resolving_npm_resolver::VerificationArtifacts {
             observed_stats: observed_dist_stats,

@@ -12,7 +12,7 @@ use registry::{
     write_error_from_response,
 };
 use reqwest::{Method, Response, StatusCode};
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {

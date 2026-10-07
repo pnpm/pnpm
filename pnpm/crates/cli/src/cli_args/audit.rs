@@ -9,8 +9,8 @@ pub(crate) use render::{
 };
 pub(crate) use report::{
     AuditAdvisory, AuditError, AuditReport, AuditVulnerabilityCounts, RawBulkAdvisory,
-    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, normalize_registry,
-    redact_url_userinfo, sanitize_response_body,
+    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, redact_url_userinfo,
+    sanitize_response_body,
 };
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include, classify_graph,
@@ -30,7 +30,7 @@ use crate::{
 };
 use advisories::{
     audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
-    retry_opts_from_config, severity_name, severity_number,
+    severity_name, severity_number,
 };
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
@@ -49,7 +49,7 @@ use pnpm_lockfile::{
     PeerEdgeOptions, PeerSatisfactionEdges, PkgName, ResolvedDependencyMap, SnapshotEntry,
     SpecifierAndResolution, pick_registry_for_package,
 };
-use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
+use pnpm_network::{encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
@@ -66,7 +66,6 @@ use std::{
     path::Path,
     rc::Rc,
     sync::Arc,
-    time::Duration,
 };
 
 mod fix;

@@ -239,8 +239,7 @@ impl Config {
             self.state_dir = resolve_configured_state_dir(default_state_dir, configured_state_dir);
         }
         if let Some(registry) = env_registry_override {
-            let normalized =
-                if registry.ends_with('/') { registry } else { format!("{registry}/") };
+            let normalized = pnpm_network::normalize_registry_url(&registry).into_owned();
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);

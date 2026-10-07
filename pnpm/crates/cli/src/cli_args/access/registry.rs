@@ -1,6 +1,6 @@
 use super::{
-    AccessArgs, AccessError, Config, Duration, Method, Response, RetryOpts, StatusCode,
-    ThrottledClient, ThrottledClientGuard, send_with_retry,
+    AccessArgs, AccessError, Config, Method, Response, RetryOpts, StatusCode, ThrottledClient,
+    ThrottledClientGuard, send_with_retry,
 };
 use crate::cli_args::{
     registry_client::build_registry_client_with_otp_guard,
@@ -31,12 +31,7 @@ pub(super) fn build_access_context<'a>(
     Ok(AccessContext {
         config,
         http_client,
-        retry_opts: RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        },
+        retry_opts: config.retry_opts(),
         registry,
         json: args.json,
         otp: args.otp.clone(),

@@ -9,7 +9,6 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
 use serde_json::{Map, Value, json};
-use std::time::Duration;
 
 #[derive(Debug, Parser)]
 pub struct StarArgs {
@@ -62,12 +61,7 @@ pub(crate) async fn star_action(
         .for_url(&config.registry)
         .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
+    let retry_opts = config.retry_opts();
     fetch_star(&config.registry, &http_client, &auth_header, retry_opts, package_name, is_star)
         .await
 }

@@ -143,7 +143,7 @@ fn aliasless_tarball_resolver(
         fetch_context: Some(TarballFetchContext {
             mem_cache: None,
             auth_headers: Arc::clone(&config.auth_headers),
-            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            retry_opts: config.retry_opts(),
             prior_tarball_entries: Arc::new(HashMap::new()),
             cache_dir: Some(config.cache_dir.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
@@ -344,7 +344,7 @@ pub(super) fn aliasless_git_resolver(
         store_dir: &config.store_dir,
         store_index_writer: None,
         auth_headers: Arc::clone(&config.auth_headers),
-        retry_opts: crate::retry_config::retry_opts_from_config(config),
+        retry_opts: config.retry_opts(),
         git_shallow_hosts: config.git_shallow_hosts.clone(),
     })
 }

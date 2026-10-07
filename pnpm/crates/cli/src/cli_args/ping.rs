@@ -5,7 +5,9 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, redact_and_sanitize, send_with_retry};
+use pnpm_network::{
+    RetryOpts, ThrottledClient, normalize_registry_url, redact_and_sanitize, send_with_retry,
+};
 use serde_json::Value;
 use std::time::Instant;
 
@@ -34,13 +36,7 @@ impl PingArgs {
     /// header, and render the `PING`/`PONG` report.
     pub async fn run(&self, config: &Config) -> miette::Result<String> {
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
-        // Add a trailing slash before joining so a registry with a path
-        // prefix keeps it.
-        let normalized_registry_url = if registry_url.ends_with('/') {
-            registry_url.to_owned()
-        } else {
-            format!("{registry_url}/")
-        };
+        let normalized_registry_url = normalize_registry_url(registry_url);
         let ping_url = format!("{normalized_registry_url}-/ping?write=true");
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;

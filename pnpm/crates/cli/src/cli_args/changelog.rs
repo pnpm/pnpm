@@ -9,7 +9,9 @@ use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials};
+use pnpm_network::{
+    ThrottledClient, encode_package_name, normalize_registry_url, redact_url_credentials,
+};
 use pnpm_registry::Package;
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
@@ -265,12 +267,10 @@ fn previous_version(package: &Package, version: &str) -> Option<String> {
 /// The registry a package's metadata is read from, with the trailing slash
 /// the request paths are joined onto.
 fn registry_for(config: &Config, name: &str) -> String {
-    let registries: HashMap<String, String> = config
-        .resolved_registries()
-        .into_iter()
-        .collect();
+    let registries =
+        crate::cli_args::registry_client::resolve_registries_with_override(config, None);
     let registry = pick_registry_for_package(&registries, name, None);
-    if registry.ends_with('/') { registry } else { format!("{registry}/") }
+    normalize_registry_url(&registry).into_owned()
 }
 
 /// Reads one entry's contents out of a gzipped tarball buffer. Decompression is
