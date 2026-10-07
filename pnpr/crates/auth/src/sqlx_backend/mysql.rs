@@ -3,7 +3,6 @@ use super::{
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
     timeout_millis, timeout_seconds, with_auth_timeout,
 };
-use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
 use pnpr_error::{RegistryError, Result};
 use sqlx::{MySqlConnection, MySqlPool, Row, mysql::MySqlPoolOptions};
@@ -69,7 +68,6 @@ fn mysql_pool_options(
     Ok(options.acquire_timeout(acquire_timeout))
 }
 
-#[async_trait]
 impl AuthSqlBackend for MysqlDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
         let row = sqlx::query("SELECT username, bcrypt_hash FROM users WHERE username = ?")

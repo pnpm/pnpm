@@ -83,10 +83,89 @@ impl<Db> SqlAuth<Db> {
         }
         self.db.reconcile_user_counter_overcount().await
     }
+
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<(UpsertOutcome, String)>
+    where
+        Db: AuthSqlBackend,
+    {
+        validate_username(username)?;
+
+        if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
+        {
+            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+        }
+
+        self.check_registration_capacity().await?;
+
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        match self.db.insert_user(username, &hash, self.max_users).await? {
+            InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
+            InsertUser::Existing(stored) => {
+                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
+            }
+            InsertUser::CapReached => match self.max_users {
+                MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
+                MaxUsers::Disabled | MaxUsers::Unlimited => {
+                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+                }
+            },
+        }
+    }
+
+    async fn issue(&self, username: &str) -> Result<String>
+    where
+        Db: AuthSqlBackend,
+    {
+        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
+        let raw = mint_token(&self.secret, nonce, username);
+        let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds();
+        let record = TokenRecord {
+            username: username.to_string(),
+            created_at: now,
+            last_used_at: now,
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+        };
+        self.db.insert_token(&token_hash, &record).await?;
+        Ok(raw)
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>>
+    where
+        Db: AuthSqlBackend,
+    {
+        let token_hash = sha256_hex(raw.as_bytes());
+        with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
+    }
+
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>>
+    where
+        Db: AuthSqlBackend,
+    {
+        with_auth_timeout(self.timeout, self.db.find_token(key)).await
+    }
+
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>
+    where
+        Db: AuthSqlBackend,
+    {
+        with_auth_timeout(self.timeout, self.db.list_tokens(username)).await
+    }
+
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>>
+    where
+        Db: AuthSqlBackend,
+    {
+        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
+            return Ok(None);
+        };
+        self.db.delete_token(key).await?;
+        Ok(Some(record))
+    }
 }
 
-#[async_trait]
-trait AuthSqlBackend: Send + Sync {
+trait AuthSqlBackend: Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn user_count(&self) -> Result<u64>;
     async fn reconcile_user_counter_overcount(&self) -> Result<bool>;
@@ -115,83 +194,53 @@ enum InsertUser {
     CapReached,
 }
 
-#[async_trait]
-impl<Db> UserBackend for SqlAuth<Db>
-where
-    Db: AuthSqlBackend,
-{
-    async fn add_or_login(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        validate_username(username)?;
-
-        if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
-        {
-            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
-        }
-
-        self.check_registration_capacity().await?;
-
-        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        match self.db.insert_user(username, &hash, self.max_users).await? {
-            InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
-            InsertUser::Existing(stored) => {
-                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
+// `#[async_trait]` boxes every method's future as `Send`. Rust cannot prove
+// that for the `async fn` futures of a generic `Db: AuthSqlBackend`, but it
+// can once `Db` is concrete, so the `UserBackend` and `TokenBackend` impls
+// are stamped per database rather than written once over `Db`.
+macro_rules! impl_dyn_backends {
+    ($db:ty) => {
+        #[async_trait]
+        impl UserBackend for SqlAuth<$db> {
+            async fn add_or_login(
+                &self,
+                username: &str,
+                password: &str,
+            ) -> Result<(UpsertOutcome, String)> {
+                self.add_or_login(username, password).await
             }
-            InsertUser::CapReached => match self.max_users {
-                MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
-                MaxUsers::Disabled | MaxUsers::Unlimited => {
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
-            },
         }
-    }
+
+        #[async_trait]
+        impl TokenBackend for SqlAuth<$db> {
+            async fn issue(&self, username: &str) -> Result<String> {
+                self.issue(username).await
+            }
+
+            async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+                self.lookup(raw).await
+            }
+
+            async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+                self.find_by_key(key).await
+            }
+
+            async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+                self.list_for_user(username).await
+            }
+
+            async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+                self.revoke_by_key(key).await
+            }
+        }
+    };
 }
 
-#[async_trait]
-impl<Db> TokenBackend for SqlAuth<Db>
-where
-    Db: AuthSqlBackend,
-{
-    async fn issue(&self, username: &str) -> Result<String> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
-        let record = TokenRecord {
-            username: username.to_string(),
-            created_at: now,
-            last_used_at: now,
-            readonly: false,
-            cidr_whitelist: Vec::new(),
-        };
-        self.db.insert_token(&token_hash, &record).await?;
-        Ok(raw)
-    }
+#[cfg(feature = "backend-postgres")]
+impl_dyn_backends!(postgres::PostgresDatabase);
 
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        with_auth_timeout(self.timeout, self.db.find_token(key)).await
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        with_auth_timeout(self.timeout, self.db.list_tokens(username)).await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
-            return Ok(None);
-        };
-        self.db.delete_token(key).await?;
-        Ok(Some(record))
-    }
-}
+#[cfg(feature = "backend-mysql")]
+impl_dyn_backends!(mysql::MysqlDatabase);
 
 fn invalid_pool_size(backend: &str) -> RegistryError {
     RegistryError::InvalidConfig {
