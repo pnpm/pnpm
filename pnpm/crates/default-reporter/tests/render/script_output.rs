@@ -57,6 +57,8 @@ fn drops_private_mode_sequences_that_end_like_a_color() {
 fn drops_hyperlink_sequences_but_keeps_their_text() {
     let line = "see \u{1b}]8;;https://example.com\u{7}docs\u{1b}]8;;\u{1b}\\ for help";
     assert_eq!(rendered_output(false, line), "see docs for help");
+    let line = "see \u{1b}]8;;https://example.com\u{9c}docs\u{1b}]8;;\u{9c} for help";
+    assert_eq!(rendered_output(false, line), "see docs for help");
 }
 
 #[test]

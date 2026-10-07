@@ -192,12 +192,18 @@ fn csi_len(text: &str) -> usize {
     end + usize::from(has_final_byte)
 }
 
-/// An OSC, DCS, SOS, PM or APC payload up to and including `BEL` or `ESC \\`.
+/// An OSC, DCS, SOS, PM or APC payload up to and including `BEL`,
+/// `ESC \\` or the C1 string terminator.
 fn control_string_len(text: &str) -> usize {
-    match text.find(['\u{7}', '\u{1b}']) {
+    match text.find(['\u{7}', '\u{9c}', '\u{1b}']) {
         Some(end) if text[end..].starts_with("\u{1b}\\") => end + 2,
-        Some(end) if text[end..].starts_with('\u{7}') => end + 1,
-        Some(end) => end,
+        Some(end) if text[end..].starts_with('\u{1b}') => end,
+        Some(end) => {
+            end + text[end..]
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8)
+        }
         None => text.len(),
     }
 }
