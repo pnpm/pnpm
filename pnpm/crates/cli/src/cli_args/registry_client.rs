@@ -1,7 +1,9 @@
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{NetworkSettings, RedirectGuard, ThrottledClient};
-use std::time::Duration;
+use pnpm_network::{
+    NetworkSettings, RedirectGuard, ThrottledClient, normalize_registry_url, origins_redirect_guard,
+};
+use std::{collections::HashMap, time::Duration};
 
 /// The npm CLI's default `fetch-timeout`. The registry can take longer than
 /// pnpm's default `fetchTimeout` to answer a publish request, and a publish
@@ -9,6 +11,22 @@ use std::time::Duration;
 /// packument") while the first one is still being processed
 /// (<https://github.com/pnpm/pnpm/issues/11454>).
 const MIN_PUBLISH_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
+
+/// Resolve the configured registries map, overriding the `"default"` entry
+/// when a CLI registry override is provided.
+pub fn resolve_registries_with_override(
+    config: &Config,
+    registry_override: Option<&str>,
+) -> HashMap<String, String> {
+    let mut registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
+    if let Some(registry) = registry_override {
+        registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
+    }
+    registries
+}
 
 /// Build the network client a one-off registry query makes its request through,
 /// optionally restricted by a redirect guard.
@@ -25,6 +43,20 @@ pub fn build_registry_client_with_guard(
     )
     .into_diagnostic()
     .wrap_err("create the network client for the registry request")
+}
+
+/// Build a registry client that restricts redirects to the allowed registries
+/// when an OTP is provided. If no OTP is provided, the client is unguarded.
+pub fn build_registry_client_with_otp_guard<'a, Registries>(
+    config: &Config,
+    otp: Option<&str>,
+    allowed_registries: Registries,
+) -> miette::Result<ThrottledClient>
+where
+    Registries: IntoIterator<Item = &'a str>,
+{
+    let guard = otp.map(|_| origins_redirect_guard(allowed_registries));
+    build_registry_client_with_guard(config, guard.as_ref())
 }
 
 /// Build the network client a one-off registry query (`whoami`, `ping`, ...)

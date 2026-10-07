@@ -1,18 +1,21 @@
+use crate::cli_args::{
+    registry_client::{build_registry_client_with_otp_guard, resolve_registries_with_override},
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_package_name, encode_uri_component,
-    normalize_registry_url, read_limited_body, redact_url_credentials, send_with_retry,
+    RetryOpts, ThrottledClient, encode_package_name, encode_uri_component, read_limited_body,
+    redact_url_credentials, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 const OWNER_BODY_LIMIT: usize = 1024 * 1024;
-const OWNER_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]
 pub struct OwnerArgs {
@@ -125,20 +128,15 @@ impl OwnerArgs {
     }
 
     fn context<'a>(&'a self, config: &'a Config) -> miette::Result<OwnerContext<'a>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-        }
-        let redirect_guard = self.otp.as_ref().map(|_| otp_redirect_guard(&registries));
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let http_client = build_registry_client_with_otp_guard(
+            config,
+            self.otp.as_deref(),
+            registries.values().map(String::as_str),
+        )?;
         Ok(OwnerContext {
             config,
-            http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
-                config,
-                redirect_guard.as_ref(),
-            )?,
+            http_client,
             retry_opts: RetryOpts {
                 retries: config.fetch_retries,
                 factor: config.fetch_retry_factor,
@@ -255,25 +253,6 @@ struct OwnersEndpoint {
     auth_header: Option<String>,
 }
 
-fn otp_redirect_guard(registries: &HashMap<String, String>) -> RedirectGuard {
-    let origins: Vec<(String, String, Option<u16>)> = registries
-        .values()
-        .filter_map(|registry| {
-            let url = reqwest::Url::parse(registry).ok()?;
-            Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-        })
-        .collect();
-    Arc::new(move |target: &reqwest::Url| -> bool {
-        origins
-            .iter()
-            .any(|(scheme, host, port)| {
-                target.scheme() == scheme
-                    && target.host_str() == Some(host.as_str())
-                    && target.port() == *port
-            })
-    })
-}
-
 fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
     let registry_url = pick_registry_for_package(&context.registries, package_name, None);
     let auth_header =
@@ -294,15 +273,8 @@ where
 }
 
 async fn write_error_from_response(response: Response, action: String) -> miette::Report {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_string();
-    let body = match read_limited_body(response, OWNER_ERROR_BODY_LIMIT).await {
-        Ok(body) => super::sanitize::body_display_string(&body),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
 
     match status {
         reqwest::StatusCode::UNAUTHORIZED => OwnerError::Unauthorized { action, body }.into(),

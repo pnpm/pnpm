@@ -11,8 +11,8 @@ use miette::Diagnostic;
 use node_semver::Range;
 use pnpm_config::Config;
 use pnpm_network::{
-    LimitedBody, RetryOpts, ThrottledClient, normalize_registry_url, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    LimitedBody, RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -168,13 +168,10 @@ impl DeprecateContext<'_> {
         registry: Option<&String>,
         otp: Option<String>,
     ) -> miette::Result<DeprecateContext<'a>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-        }
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            registry.map(String::as_str),
+        );
         Ok(DeprecateContext {
             config,
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,

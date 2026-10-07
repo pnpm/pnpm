@@ -1,10 +1,12 @@
 use super::{
-    AccessArgs, AccessError, Arc, Config, Duration, Method, RedirectGuard, Response, RetryOpts,
-    StatusCode, ThrottledClient, ThrottledClientGuard, redact_and_sanitize, send_with_retry,
+    AccessArgs, AccessError, Config, Duration, Method, Response, RetryOpts, StatusCode,
+    ThrottledClient, ThrottledClientGuard, send_with_retry,
 };
-use pnpm_network::{normalize_registry_url, read_limited_body};
-
-const ACCESS_ERROR_BODY_LIMIT: usize = 64 * 1024;
+use crate::cli_args::{
+    registry_client::build_registry_client_with_otp_guard,
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+};
+use pnpm_network::normalize_registry_url;
 
 pub(super) struct AccessContext<'a> {
     pub(super) config: &'a Config,
@@ -23,34 +25,12 @@ pub(super) fn build_access_context<'a>(
         .as_deref()
         .map_or_else(|| config.registry.clone(), |url| normalize_registry_url(url).into_owned());
 
-    let redirect_guard = args.otp
-        .as_ref()
-        .map(|_| {
-            let registry_origin: Option<(String, String, Option<u16>)> =
-                reqwest::Url::parse(&registry)
-                    .ok()
-                    .and_then(|url| {
-                        url.host_str()
-                            .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
-                    });
-            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-                registry_origin
-                    .as_ref()
-                    .is_some_and(|(scheme, host, port)| {
-                        target.scheme() == scheme
-                            && target.host_str() == Some(host.as_str())
-                            && target.port() == *port
-                    })
-            });
-            guard
-        });
+    let http_client =
+        build_registry_client_with_otp_guard(config, args.otp.as_deref(), [registry.as_str()])?;
 
     Ok(AccessContext {
         config,
-        http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
-            config,
-            redirect_guard.as_ref(),
-        )?,
+        http_client,
         retry_opts: RetryOpts {
             retries: config.fetch_retries,
             factor: config.fetch_retry_factor,
@@ -124,15 +104,8 @@ pub(super) async fn write_error_from_response(
     action: String,
     package_name: &str,
 ) -> miette::Report {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_string();
-    let body = match read_limited_body(response, ACCESS_ERROR_BODY_LIMIT).await {
-        Ok(body) => redact_and_sanitize(&super::super::sanitize::body_display_string(&body)),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
 
     match status {
         StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),

@@ -4,15 +4,15 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component,
-    escaped_package_name, normalize_registry_url, redact_and_sanitize, send_with_retry,
+    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, escaped_package_name,
+    normalize_registry_url, send_with_retry,
 };
 use registry::{
     AccessContext, build_access_context, fetch_error_from_response, send_get, send_json,
     write_error_from_response,
 };
 use reqwest::{Method, Response, StatusCode};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {

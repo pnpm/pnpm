@@ -46,10 +46,8 @@ impl BugsArgs {
             let http_client = build_registry_client(config)
                 .wrap_err("build the network client for registry requests")?;
 
-            let registries: std::collections::HashMap<String, String> = config
-                .resolved_registries()
-                .into_iter()
-                .collect();
+            let registries =
+                crate::cli_args::registry_client::resolve_registries_with_override(config, None);
 
             let futures = self.packages
                 .iter()
