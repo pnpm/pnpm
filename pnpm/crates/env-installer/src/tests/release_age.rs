@@ -34,7 +34,7 @@ async fn rejects_a_config_dep_newer_than_the_release_age_cutoff() {
 
     dbg!(&error);
     assert!(
-        matches!(&error, ConfigDepError::BadConfigDep { message } if message.contains("minimumReleaseAge"))
+        matches!(&error, ConfigDepError::BadConfigDep { message } if message.contains("minimumReleaseAge")),
     );
 }
 

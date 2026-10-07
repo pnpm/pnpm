@@ -199,11 +199,7 @@ async fn resolve_one(
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
     let wanted = wanted_config_dependency(name, specifier);
-    let mut resolve_opts = resolve_options(opts);
-    if pinned_integrity.is_some() {
-        // The pin only needs the tarball URL, and verification skips pins.
-        resolve_opts.policy = ResolutionPolicyOptions::default();
-    }
+    let resolve_opts = config_dep_resolve_options(opts, pinned_integrity.is_some());
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
         .resolve(&wanted, &resolve_opts)
@@ -307,6 +303,17 @@ pub(crate) fn resolve_options(opts: &ConfigDepsInstallOptions<'_>) -> ResolveOpt
         policy: opts.verification.resolution_policy.clone(),
         ..ResolveOptions::default()
     }
+}
+
+/// A `version+integrity` pin only needs the tarball URL, and verification
+/// skips pins, so a pin resolves without
+/// [`ConfigDependencyVerification::resolution_policy`](crate::ConfigDependencyVerification::resolution_policy).
+fn config_dep_resolve_options(opts: &ConfigDepsInstallOptions<'_>, pinned: bool) -> ResolveOptions {
+    let mut resolve_opts = resolve_options(opts);
+    if pinned {
+        resolve_opts.policy = ResolutionPolicyOptions::default();
+    }
+    resolve_opts
 }
 
 /// Reject a resolution that broke a policy in
