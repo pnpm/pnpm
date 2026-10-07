@@ -144,7 +144,7 @@ fn printable_frame(frame: &str, keep_colors: bool) -> String {
     let mut printable = String::with_capacity(frame.len());
     let mut colored = false;
     let mut rest = frame;
-    while let Some(start) = rest.find('\u{1b}') {
+    while let Some(start) = rest.find(starts_escape_sequence) {
         push_printable(&mut printable, &rest[..start]);
         let escape_len = escape_len(&rest[start..]);
         let escape = &rest[start..start + escape_len];
@@ -170,17 +170,33 @@ fn push_printable(printable: &mut String, text: &str) {
     );
 }
 
-/// Byte length of the ECMA-48 escape sequence `text` starts with. An
-/// unterminated sequence runs to the end of `text`.
+fn starts_escape_sequence(ch: char) -> bool {
+    ch == '\u{1b}' || ch == C1_CSI || C1_STRING_INTRODUCERS.contains(&ch)
+}
+
+const C1_CSI: char = '\u{9b}';
+/// DCS, SOS, OSC, PM and APC.
+const C1_STRING_INTRODUCERS: [char; 5] = ['\u{90}', '\u{98}', '\u{9d}', '\u{9e}', '\u{9f}'];
+
+/// Byte length of the ECMA-48 escape sequence `text` starts with, in its
+/// `ESC` form or its single-character C1 form. An unterminated sequence
+/// runs to the end of `text`.
 fn escape_len(text: &str) -> usize {
-    let body = &text[1..];
-    let body_len = match body.chars().next() {
-        Some('[') => 1 + csi_len(&body[1..]),
-        Some(']' | 'P' | 'X' | '^' | '_') => 1 + control_string_len(&body[1..]),
-        Some(ch) => ch.len_utf8(),
-        None => 0,
+    let introducer = text.chars().next().unwrap_or_default();
+    let rest = &text[introducer.len_utf8()..];
+    let rest_len = if introducer == C1_CSI {
+        csi_len(rest)
+    } else if C1_STRING_INTRODUCERS.contains(&introducer) {
+        control_string_len(rest)
+    } else {
+        match rest.chars().next() {
+            Some('[') => 1 + csi_len(&rest[1..]),
+            Some(']' | 'P' | 'X' | '^' | '_') => 1 + control_string_len(&rest[1..]),
+            Some(ch) => ch.len_utf8(),
+            None => 0,
+        }
     };
-    1 + body_len
+    introducer.len_utf8() + rest_len
 }
 
 /// Parameter and intermediate bytes up to and including the final byte.

@@ -59,6 +59,13 @@ fn drops_hyperlink_sequences_but_keeps_their_text() {
     assert_eq!(rendered_output(false, line), "see docs for help");
     let line = "see \u{1b}]8;;https://example.com\u{9c}docs\u{1b}]8;;\u{9c} for help";
     assert_eq!(rendered_output(false, line), "see docs for help");
+    let line = "see \u{9d}8;;https://example.com\u{9c}docs\u{9d}8;;\u{9c} for help";
+    assert_eq!(rendered_output(false, line), "see docs for help");
+}
+
+#[test]
+fn drops_single_character_csi_sequences() {
+    assert_eq!(rendered_output(false, "\u{9b}2Kbuilding"), "building");
 }
 
 #[test]

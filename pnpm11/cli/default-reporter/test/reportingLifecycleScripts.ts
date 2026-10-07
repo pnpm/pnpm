@@ -1064,7 +1064,7 @@ test('keeps only the colors of streamed script output', async () => {
 
   lifecycleLogger.debug({
     depPath: 'packages/colors',
-    line: `\u001B[1A\u001B[2K${RED}error${DEFAULT_COLOR}\u0007 TS2322\u001B]8;;https://example.com\u0007link\u001B]8;;\u0007`,
+    line: `\u001B[1A\u001B[2K${RED}error${DEFAULT_COLOR}\u0007 TS2322\u001B]8;;https://example.com\u0007link\u001B]8;;\u0007 \u009D8;;https://example.com\u009Cdocs\u009D8;;\u009C`,
     stage: 'build',
     stdio: 'stdout',
     wd: 'packages/colors',
@@ -1073,5 +1073,5 @@ test('keeps only the colors of streamed script output', async () => {
   expect.assertions(1)
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
-  expect(output).toBe(chalk.level > 0 ? `${RED}error${DEFAULT_COLOR} TS2322link\u001B[0m` : 'error TS2322link')
+  expect(output).toBe(chalk.level > 0 ? `${RED}error${DEFAULT_COLOR} TS2322link docs\u001B[0m` : 'error TS2322link docs')
 })
