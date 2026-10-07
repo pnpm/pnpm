@@ -12,12 +12,14 @@ type Observer = Arc<Mutex<Box<dyn FnMut(&io::Result<()>) + Send>>>;
 static OBSERVERS: LazyLock<Mutex<HashMap<PathBuf, Observer>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Observe completed retry attempts against exactly `path` while `operation`
-/// runs: a removal of `path`, or a rename onto it.
+/// Observe completed filesystem attempts against exactly `path` while
+/// `operation` runs: a removal of `path`, a rename onto it, or a directory
+/// link created at it.
 ///
 /// The observer runs synchronously after the real filesystem call, including
-/// attempts on worker threads. It must not itself touch the same path
-/// or wait for another observer to run.
+/// attempts on worker threads. It may replace what occupies `path`, which is
+/// how a competing writer is simulated, but it must not call an observed
+/// operation on `path` itself or wait for another observer to run.
 /// Registration is removed when the operation returns or unwinds.
 pub fn with_retry_observer<Output>(
     path: &Path,

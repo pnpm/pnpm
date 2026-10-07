@@ -104,22 +104,42 @@ fn rechecks_a_link_after_a_reparse_point_read_race() {
 
 #[cfg(windows)]
 #[test]
-fn waits_for_a_junction_another_hoist_is_creating() {
+fn waits_out_a_junction_another_hoist_is_creating() {
     let root = tempfile::tempdir().unwrap();
     let target = root.path().join("target");
     let link = root.path().join("link");
     std::fs::create_dir(&target).unwrap();
     std::fs::create_dir(&link).unwrap();
-    std::thread::scope(|scope| {
-        scope.spawn(|| {
-            std::thread::sleep(std::time::Duration::from_millis(20));
-            std::fs::remove_dir(&link).unwrap();
-            // The retrying hoist may create its link first once the directory
-            // is gone. Either link points at `target`.
-            let _ = junction::create(&target, &link);
-        });
-        super::create_hoist_symlink(&target, &link).unwrap();
-    });
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let in_creation = link.clone();
+    let mut seen = 0;
+    let result = pnpm_fs::test_support::with_retry_observer(
+        &link,
+        move |attempt| {
+            seen += 1;
+            sender
+                .send(
+                    attempt
+                        .as_ref()
+                        .copied()
+                        .map_err(std::io::Error::raw_os_error),
+                )
+                .unwrap();
+            // Let the other hoist go on the second failed attempt, which proves
+            // the first retried. A delay instead would race the retry budget.
+            if seen == 2 {
+                std::fs::remove_dir(&in_creation).unwrap();
+            }
+        },
+        || super::create_hoist_symlink(&target, &link),
+    );
+
+    let attempts: Vec<_> = receiver.try_iter().collect();
+    eprintln!("hoist result: {result:?}; real filesystem attempts: {attempts:?}");
+    result.expect("the hoist must link once the directory in its way is gone");
+    assert!(attempts.len() > 1, "the hoist must retry the directory in its way: {attempts:?}");
+    assert_eq!(attempts.last(), Some(&Ok(())));
     assert_eq!(std::fs::canonicalize(&link).unwrap(), std::fs::canonicalize(&target).unwrap());
 }
 
