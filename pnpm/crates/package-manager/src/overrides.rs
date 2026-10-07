@@ -226,7 +226,7 @@ impl VersionsOverrider {
         .iter()
         .copied()
         .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
-            || self.removes_a_meta_only_peer(value, &applicable_parent_scoped)
+            || self.has_meta_only_peer_removal(value, &applicable_parent_scoped)
     }
 
     fn group_has_override(
