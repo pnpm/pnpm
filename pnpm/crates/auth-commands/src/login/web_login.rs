@@ -9,9 +9,9 @@ use serde_json::Value;
 
 use super::{error::LoginError, global_info, registry_join};
 
-/// Drive the registry's web-based login: probe `-/v1/login`, then poll the
-/// returned `doneUrl` for the granted token while offering to open the login
-/// URL in a browser.
+/// Drive the registry's web-based login: probe `-/v1/login`, print any
+/// `npm-notice` headers it returned, then poll the returned `doneUrl` for the
+/// granted token while offering to open the login URL in a browser.
 pub(super) async fn web_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -49,6 +49,8 @@ where
         return Err(WebLoginFlowError::UnsafeUrl);
     }
 
+    report_notices::<Reporter>(&response.notices);
+
     // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
     // print the URL on its own.
     let auth_url_message = if Sys::stdout_is_tty() {
@@ -85,8 +87,32 @@ async fn web_login_post(
         .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
+    // The headers must be read before `text()` consumes the response.
+    // Non-UTF-8 bytes are decoded lossily so a malformed notice cannot
+    // fail the login.
+    let notices = response
+        .headers()
+        .get_all("npm-notice")
+        .iter()
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .collect();
     let body = response.text().await.unwrap_or_default();
-    Ok(HttpResponse { ok, status, body })
+    Ok(HttpResponse { ok, status, body, notices })
+}
+
+/// Print the `npm-notice` values of the probe response in the order received.
+/// The text is registry-controlled, so control characters are removed first.
+/// A notice that is empty afterwards is skipped. A notice never fails the login.
+fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
+    for notice in notices {
+        let sanitized: String = notice
+            .chars()
+            .filter(|c| !c.is_control())
+            .collect();
+        if !sanitized.is_empty() {
+            global_info::<Reporter>(sanitized);
+        }
+    }
 }
 
 /// A materialized registry response — the fields [`web_login`] and
@@ -95,6 +121,8 @@ struct HttpResponse {
     ok: bool,
     status: u16,
     body: String,
+    /// The `npm-notice` header values, in the order received.
+    notices: Vec<String>,
 }
 
 /// Failure surface of the web-based login flow. Internal to this module: the
