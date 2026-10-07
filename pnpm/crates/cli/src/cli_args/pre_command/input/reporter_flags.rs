@@ -18,11 +18,11 @@ impl SwitchInput {
             let next = argv
                 .get(index + 1)
                 .map(OsString::as_os_str);
-            index += match absorb_reporter_flag(&mut flags, token, next) {
-                Some(absorbed) => absorbed,
-                None if consumes_next_token(token, &global_options) => 2,
-                None => 1,
-            };
+            match absorb_reporter_flag(&mut flags, token, next) {
+                Some(absorbed) => index += absorbed,
+                None if consumes_next_token(token, &global_options) => index += 2,
+                None => index += 1,
+            }
         }
         flags
     }
