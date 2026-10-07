@@ -1,5 +1,8 @@
-use super::{Arc, EngineMode, InstallOptions, install_options_for, run_install_inner};
+use super::{
+    Arc, EngineMode, InstallOptions, install_options_for, rebuild_options, run_install_inner,
+};
 use async_trait::async_trait;
+use indexmap::IndexMap;
 use pnpm_hooks::{
     HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
     ReadPackageResult,
@@ -155,4 +158,45 @@ fn adding_an_untracked_read_package_hook_resolves_again() {
         "a hook the lockfile does not record has to be applied",
     );
     assert!(read_lockfile(&options).contains("untrackedPnpmfileReadPackageHook: true"));
+}
+
+#[test]
+fn rebuild_accepts_a_lockfile_resolved_with_other_hooks_and_settings() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = hooked_install_options(temp_dir.path(), &[FOO], Some("hooks-1"));
+    install_with_hook(&options);
+    assert!(read_lockfile(&options).contains("pnpmfileChecksum: hooks-1"));
+
+    for checksum in [Some("hooks-1"), Some("hooks-2"), None] {
+        let options = hooked_install_options(temp_dir.path(), &[FOO], checksum);
+        run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+            .unwrap_or_else(|error| panic!("rebuild with checksum {checksum:?}: {error}"));
+    }
+
+    let mut options = hooked_install_options(temp_dir.path(), &[FOO], Some("hooks-1"));
+    // An override of a direct dependency also rewrites its specifier in the
+    // manifest check, which has to apply the overrides the lockfile records.
+    options.overrides = Some(IndexMap::from([(FOO.to_string(), "100.1.0".to_string())]));
+    run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+        .expect("rebuild with an override the lockfile does not record");
+
+    assert!(
+        read_lockfile(&options).contains("pnpmfileChecksum: hooks-1"),
+        "a rebuild leaves the lockfile alone",
+    );
+}
+
+#[test]
+fn rebuild_still_checks_the_manifests_against_the_lockfile() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let options = hooked_install_options(temp_dir.path(), &[FOO], Some("hooks-1"));
+    install_with_hook(&options);
+
+    // A rebuild materializes the lockfile, so it must not fetch and build
+    // a dependency the manifest no longer declares.
+    let options = hooked_install_options(temp_dir.path(), &[], Some("hooks-1"));
+    let error = run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+        .expect_err("a rebuild of a lockfile the manifest no longer matches");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("ERR_PNPM_OUTDATED_LOCKFILE"));
 }

@@ -1,10 +1,11 @@
 use super::{
     ABBREVIATED_META_DIR, Arc, AuthHeaders, FAKE_INTEGRITY, LockfileResolution, MetadataCacheScope,
-    Package, PkgName, ResolutionVerification, ScopeHook, TarballResolution, TempDir,
+    Package, PkgName, ResolutionVerification, ScopeHook, TarballResolution, TempDir, TrustPolicy,
     UpstreamRouteHook, assert_eq, create_npm_resolution_verifier, ctx, default_opts,
     fake_integrity, get_pkg_mirror_path, load_meta, now_at, persist_meta_to_mirror,
-    registry_resolution,
+    registry_resolution, stable_trust_packument,
 };
+use crate::{InMemoryPackageMetaCache, PackageMetaCache};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 #[tokio::test]
@@ -186,4 +187,30 @@ async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
         panic!("expected FetchFailed, got {result:?}");
     };
     assert!(message.contains("403"), "message: {message}");
+}
+
+/// The resolver's shared packument lives for the whole install, so a
+/// verifier that hydrated every manifest of it would keep them all.
+#[tokio::test]
+async fn policy_checks_read_the_shared_packument_without_hydrating_it() {
+    let registry = "http://nonexistent.example.invalid/";
+    let mut packument = stable_trust_packument("acme");
+    packument["modified"] = serde_json::json!("2025-02-01T00:00:00.000Z");
+    let shared: Arc<Package> = Arc::new(serde_json::from_value(packument).expect("package parses"));
+    let cache = InMemoryPackageMetaCache::default();
+    cache.set(format!("{registry}\x00acme:full"), Arc::clone(&shared));
+    let mut opts = default_opts(registry);
+    opts.metadata.meta_cache = Some(Arc::new(cache));
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+    for version in shared.versions.keys() {
+        assert!(!shared.versions.is_hydrated(version), "{version} was hydrated");
+    }
 }

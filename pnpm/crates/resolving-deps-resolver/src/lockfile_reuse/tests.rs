@@ -433,6 +433,17 @@ fn prior_child_key_applies_the_satisfies_gate() {
     assert!(super::prior_child_key(&prerelease_snapshot, "bar", "^21.0.0").is_none());
 }
 
+/// Covers <https://github.com/pnpm/pnpm/issues/16654>.
+#[test]
+fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "optionalDependencies": { "bar": "@scope/bar@1.2.0" },
+    }))
+    .expect("parse snapshot entry");
+
+    assert!(super::prior_child_key(&snapshot, "bar", "^1.0.0").is_none());
+}
+
 #[test]
 fn reduce_named_registry_spec_matches_registry_and_package_name() {
     let key_name: PkgName = "@scope/old".parse().unwrap();

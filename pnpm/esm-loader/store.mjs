@@ -20,13 +20,27 @@ export function openStore (manifestURL) {
   const packages = readPackages(manifest.packages, base, virtualRoot)
   const files = new Map()
   const directories = new Set([virtualRoot])
-  for (const pkg of packages.values()) indexFiles(pkg, files, directories, storeDir)
-  for (const filename of files.keys()) {
-    if (directories.has(filename)) throw loaderError('ERR_PNPM_LOADER_MANIFEST', `File is also a directory: ${filename}`)
+  for (const pkg of packages.values()) {
+    if (pkg.stored) directories.add(pkg.root)
   }
-  const owner = packageLookup(packages)
-  const filesystem = virtualFilesystem({ files, directories, virtualRoot })
-  return { packages, owner, filesystem, files, directories, virtualRoot }
+  const lookup = packageLookup(packages)
+  function index (pkg) {
+    if (pkg?.stored && !pkg.indexed) indexFiles(pkg, files, directories, storeDir)
+    return pkg
+  }
+  function owner (filename) {
+    return index(lookup(filename))
+  }
+  function file (filename) {
+    owner(filename)
+    return files.get(filename)
+  }
+  function isDirectory (filename) {
+    owner(filename)
+    return directories.has(filename)
+  }
+  const filesystem = virtualFilesystem({ file, isDirectory, virtualRoot })
+  return { packages, index, owner, filesystem, file, isDirectory, virtualRoot }
 }
 
 function packageLookup (packages) {
@@ -90,8 +104,23 @@ function isRecord (value) {
 }
 
 function indexFiles (pkg, files, directories, storeDir) {
-  if (!pkg.stored) return
-  directories.add(pkg.root)
+  if (pkg.indexError) throw pkg.indexError
+  try {
+    const entries = packageEntries(pkg, storeDir)
+    for (const [filename, entry] of entries.files) files.set(filename, entry)
+    for (const directory of entries.directories) directories.add(directory)
+    pkg.hasNodeModules = entries.hasNodeModules
+    pkg.indexed = true
+  } catch (error) {
+    pkg.indexError = error
+    throw error
+  }
+}
+
+function packageEntries (pkg, storeDir) {
+  const files = new Map()
+  const directories = new Set()
+  let hasNodeModules = false
   if (!Object.hasOwn(pkg.files, 'package.json')) {
     files.set(path.join(pkg.root, 'package.json'), { source: Buffer.from('{}') })
   }
@@ -100,13 +129,17 @@ function indexFiles (pkg, files, directories, storeDir) {
     if (!validFilename(name, parts) || typeof hash !== 'string' || !/^[a-f0-9]{128}(?:-exec)?$/.test(hash)) {
       throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store file ${pkg.id}/${name}`)
     }
-    if (parts.includes('node_modules')) pkg.hasNodeModules = true
+    if (parts.includes('node_modules')) hasNodeModules = true
     const filename = path.join(pkg.root, name)
     files.set(filename, { blob: path.join(storeDir, 'files', hash.slice(0, 2), hash.slice(2)), hash: hash.slice(0, 128) })
     for (let parent = path.dirname(filename); within(pkg.root, parent); parent = path.dirname(parent)) {
       directories.add(parent)
     }
   }
+  for (const filename of files.keys()) {
+    if (directories.has(filename)) throw loaderError('ERR_PNPM_LOADER_MANIFEST', `File is also a directory: ${filename}`)
+  }
+  return { files, directories, hasNodeModules }
 }
 
 function validFilename (name, parts) {
@@ -118,22 +151,24 @@ export function within (root, filename) {
   return filename === root || filename.startsWith(`${root}${path.sep}`)
 }
 
-function virtualFilesystem ({ files, directories, virtualRoot }) {
+function virtualFilesystem ({ file, isDirectory, virtualRoot }) {
   const jsonCache = new Map()
   function statSync (filename) {
     const normalized = path.resolve(filename)
     if (!within(virtualRoot, normalized)) return fs.statSync(filename)
-    if (!files.has(normalized) && !directories.has(normalized)) throw missing(filename)
+    const stored = file(normalized) !== undefined
+    const directory = isDirectory(normalized)
+    if (!stored && !directory) throw missing(filename)
     return {
-      isFile: () => files.has(normalized),
-      isDirectory: () => directories.has(normalized),
+      isFile: () => stored,
+      isDirectory: () => directory,
       isSymbolicLink: () => false,
     }
   }
   function readFileSync (filename, encoding) {
     const normalized = path.resolve(filename)
     if (!within(virtualRoot, normalized)) return fs.readFileSync(filename, encoding)
-    const entry = files.get(normalized)
+    const entry = file(normalized)
     if (!entry) throw missing(filename)
     if (entry.source) return encoding ? entry.source.toString(encoding) : entry.source
     const source = fs.readFileSync(entry.blob)

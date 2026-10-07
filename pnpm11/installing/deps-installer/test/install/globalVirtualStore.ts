@@ -61,6 +61,31 @@ test('using a global virtual store', async () => {
   }
 })
 
+// https://github.com/pnpm/pnpm/issues/16642
+test('an install that fetches a missing slot also repairs a slot missing a dependency link', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  })
+  await install(manifest, opts)
+  const parentVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0')
+  const [hash] = fs.readdirSync(parentVersionDir)
+  const childLink = path.join(parentVersionDir, hash, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+
+  fs.unlinkSync(childLink)
+  rimrafSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/dep-of-pkg-with-1-dep'))
+  await install(manifest, { ...opts, frozenLockfile: true })
+
+  expect(fs.existsSync(path.join(childLink, 'package.json'))).toBeTruthy()
+})
+
 test('reinstall from warm global virtual store after deleting node_modules', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')

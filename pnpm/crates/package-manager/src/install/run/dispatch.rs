@@ -90,7 +90,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
         lockfile: lockfiles.wanted.get(),
         lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-        freshness: settled.freshness_inputs(),
+        freshness: settled.freshness_inputs().for_rebuild(options.rebuild.as_ref()),
     })
     .await?;
 
@@ -491,6 +491,7 @@ impl<'r> Settled<'r, '_> {
                 prune_stale_importers: scope.prune_stale_importers,
                 allow_missing_dependency_free_importers: true,
                 allow_unresolved_optional_dependencies: false,
+                patches_only: false,
             },
         }
     }

@@ -3087,6 +3087,10 @@
   dir: pnpm/npm/napi
   intents:
     - slow-fetch-warnings
+"@pnpm/napi@12.10.1":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-rebuild-checks-only-patches
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -5873,6 +5877,19 @@ pacquet@12.10.0:
     - update-respects-save-prefix
     - windows-invalid-local-path
     - windows-job-breakaway
+pacquet@12.10.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - aliased-optional-peer-in-old-lockfile
+    - catalog-prune-filtered-frozen-install
+    - cyan-dryers-double
+    - gvs-repair-incomplete-slots
+    - loaded-linker-bundled-node-modules
+    - loaded-linker-files-in-node-modules
+    - loaded-linker-lazy-file-index
+    - loaded-linker-node-runtime
+    - skip-nested-checkouts-in-ecosystem-install
+    - slow-request-warning-excludes-queue
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:

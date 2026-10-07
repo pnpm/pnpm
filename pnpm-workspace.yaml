@@ -304,7 +304,7 @@ catalog:
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/yauzl': ^3.4.0
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.71.0
+  '@typescript-eslint/utils': ^8.71.1
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@webcontainer/api': ^1.6.4
   # @yarnpkg/core 4.9.2 was published with a Yarn `patch:` specifier for its
@@ -511,7 +511,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.71.0
+  typescript-eslint: ^8.71.1
   uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
@@ -587,6 +587,13 @@ minimumReleaseAgeExclude:
   - write-json5-file
   - write-yaml-file
   - http-proxy-middleware@3.0.7
+
+# lockfile.includeResolutionSettings is off until devEngines pins a pnpm
+# release with pnpm/pnpm#16674: with it on, `pnpm deploy` in
+# pnpm/wasm/stage.mjs fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+# Restore it as:
+#   lockfile:
+#     includeResolutionSettings: true
 
 minimumReleaseAgeExcludePrune: true
 
@@ -727,3 +734,10 @@ update:
     - write-file-atomic
 
 virtualStoreType: global
+
+autoDedupe: true
+
+registries:
+  https://registry.npmjs.com/:
+    scopes:
+      - '@pnpm'

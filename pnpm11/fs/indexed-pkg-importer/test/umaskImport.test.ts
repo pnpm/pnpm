@@ -110,6 +110,23 @@ testOnLinuxOnly('hardlink tier copies at the current umask mode when the store e
   expect(inode(execDest)).not.toBe(inode(execSrc))
 })
 
+// pnpm/pnpm#16677
+testOnLinuxOnly('hardlink tier shares a store inode that differs from the umask mode only in group-write', () => {
+  const storeDir = path.join(tempDir(), 'store')
+  const execMode = desiredMode(true) ^ 0o020
+  const plainMode = desiredMode(false) ^ 0o020
+  const filesMap = new Map<string, string>()
+  const execSrc = addStoreEntry(storeDir, filesMap, 'bin/cli.js', 'a', true, execMode, EXEC_CONTENT)
+  const plainSrc = addStoreEntry(storeDir, filesMap, 'index.js', 'b', false, plainMode, PLAIN_CONTENT)
+  addStoreEntry(storeDir, filesMap, 'package.json', 'c', false, plainMode, PKG_JSON_CONTENT)
+  const target = path.join(tempDir(), 'project/package')
+
+  importPackage('hardlink', target, filesMap)
+
+  expect(inode(path.join(target, 'bin/cli.js'))).toBe(inode(execSrc))
+  expect(inode(path.join(target, 'index.js'))).toBe(inode(plainSrc))
+})
+
 testOnLinuxOnly('copy tier imports store files at the current umask mode', () => {
   const installed = packageFromStore('copy', { exec: 'a', plain: 'b' })
   expect(mode(installed.plain)).toBe(desiredMode(false))

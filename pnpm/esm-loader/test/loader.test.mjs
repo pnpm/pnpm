@@ -5,7 +5,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { createStoreHooks } from '../index.mjs'
+import { assertSupportedNode, createStoreHooks } from '../index.mjs'
 import { openStore } from '../store.mjs'
 import { fixture } from './fixture.mjs'
 
@@ -115,8 +115,10 @@ test('rejects traversal in manifests and module requests', context => {
   const files = setup.add('example@1', { 'package.json': esm, 'index.js': "import '../../app.mjs'" })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+  setup.manifest.packages['example@1'].files['index.js'] = files['package.json']
   setup.manifest.packages['example@1'].files['../escape.js'] = files['index.js']
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
+  assert.equal(setup.run("console.log('unused package')").stdout.trim(), 'unused package')
 })
 
 test('does not intercept files outside registered project roots', context => {
@@ -369,4 +371,13 @@ test('does not resolve a package bundled in a sibling directory', context => {
   })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY/)
+})
+
+test('rejects Node.js versions whose imported CommonJS bypasses the resolve hooks', () => {
+  for (const version of ['22.13.0', '22.23.3', '24.17.0', '24.18.0-rc.1', '25.9.0', '26.1.0', '26.2.0-rc.1']) {
+    assert.throws(() => assertSupportedNode(version), { code: 'ERR_PNPM_LOADER_UNSUPPORTED_NODE' }, version)
+  }
+  for (const version of ['24.18.0', '24.18.1-rc.1', '24.21.0', '26.2.0', '26.10.0', '27.0.0', '27.0.0-nightly20261001abcdef']) {
+    assert.doesNotThrow(() => assertSupportedNode(version), version)
+  }
 })

@@ -177,6 +177,49 @@ fn deployed_project_passes_dependency_verification() {
     drop((root, mock_instance));
 }
 
+/// The deploy install turns `dedupeInjectedDeps` and `dedupePeerDependents`
+/// off, so the deployed lockfile must record them off when the source
+/// lockfile records its resolution settings.
+#[test]
+fn deploy_records_its_own_resolution_settings() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str(concat!(
+        "dedupeInjectedDeps: true\n",
+        "dedupePeerDependents: true\n",
+        "lockfile:\n  includeResolutionSettings: true\n",
+    ));
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deployment");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let source_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(source_lockfile.contains("dedupeInjectedDeps: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("dedupePeerDependents: true"), "{source_lockfile}");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let deployed_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(deployed_lockfile.contains("dedupeInjectedDeps: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("dedupePeerDependents: false"), "{deployed_lockfile}");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn deploy_links_workspace_dependency_bins() {
     let CommandTempCwd {
