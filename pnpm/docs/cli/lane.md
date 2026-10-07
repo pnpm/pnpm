@@ -23,7 +23,7 @@ Membership lives under the [`versioning.lanes`](../settings/versioning.md#versio
 pnpm lane
 ```
 
-```
+```text
 Lanes:
   alpha:
     @example/cli

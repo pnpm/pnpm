@@ -52,7 +52,7 @@ If your project relied on a committed `.npmrc` containing a line like `//registr
 
 * **Set the credential through an environment variable, with no `.npmrc` file at all** (since v11.6). pnpm reads URL-scoped registry settings from `pnpm_config_//…` environment variables:
 
-  ```sh
+  ```ini
   env "pnpm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN" pnpm install
   ```
 
@@ -135,7 +135,7 @@ tokenHelper=/home/ivan/token-generator
 
 Setting a token helper for the specified registry:
 
-```
+```ini
 //registry.corp.com:tokenHelper=/home/ivan/token-generator
 ```
 
@@ -197,7 +197,7 @@ The Certificate Authority signing certificate that is trusted for SSL
 connections to the registry. Values should be in PEM format (AKA
 "Base-64 encoded X.509 (.CER)"). For example:
 
-```sh
+```ini
 ca="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 ```
 
@@ -206,7 +206,7 @@ only that specific signing authority.
 
 Multiple CAs can be trusted by specifying an array of certificates:
 
-```sh
+```ini
 ca[]="..."
 ca[]="..."
 ```
@@ -228,7 +228,7 @@ CLI.
 Define the path to a Certificate Authority file to use when accessing the specified
 registry. For example:
 
-```sh
+```ini
 //registry.npmjs.org/:cafile=ca-cert.pem
 ```
 
@@ -240,7 +240,7 @@ Define an inline Certificate Authority certificate for the specified registry.
 The value must be PEM-encoded, like the global `ca` setting, but it only applies
 to the matching registry URL.
 
-```sh
+```ini
 //registry.example.com/:ca=-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----
 ```
 
@@ -265,7 +265,7 @@ Added in: v10.25.0
 Define an inline client certificate to use when accessing the specified
 registry. Example:
 
-```sh
+```ini
 //registry.example.com/:cert=-----BEGIN CERTIFICATE-----...-----END CERTIFICATE-----
 ```
 
@@ -274,7 +274,7 @@ registry. Example:
 Define the path to a certificate file to use when accessing the specified
 registry. For example:
 
-```sh
+```ini
 //registry.npmjs.org/:certfile=server-cert.pem
 ```
 
@@ -286,7 +286,7 @@ registry. For example:
 A client key to pass when accessing the registry. Values should be in PEM format
 (AKA "Base-64 encoded X.509 (.CER)"). For example:
 
-```sh
+```ini
 key="-----BEGIN PRIVATE KEY-----\nXXXX\nXXXX\n-----END PRIVATE KEY-----"
 ```
 
@@ -301,7 +301,7 @@ Added in: v10.25.0
 
 Define an inline client key for the specified registry URL.
 
-```sh
+```ini
 //registry.example.com/:key=-----BEGIN PRIVATE KEY-----...-----END PRIVATE KEY-----
 ```
 
@@ -310,6 +310,6 @@ Define an inline client key for the specified registry URL.
 Define the path to a client key file to use when accessing the specified
 registry. For example:
 
-```sh
+```ini
 //registry.npmjs.org/:keyfile=server-key.pem
 ```

@@ -35,7 +35,7 @@ pnpm tasks status
 
 If no concurrency groups are currently in use, pnpm outputs:
 
-```
+```text
 No concurrency groups are in use.
 ```
 
@@ -47,7 +47,7 @@ pnpm tasks status cargo typescript
 
 When group names are specified, pnpm outputs the status of only those groups, including idle groups:
 
-```
+```text
 cargo
   running
     build:native  12s

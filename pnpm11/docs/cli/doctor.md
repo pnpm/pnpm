@@ -13,7 +13,7 @@ pnpm doctor [--offline] [--benchmark] [--json]
 
 Each check reports how to fix what it finds, and the command exits with a non-zero code when any check fails. Warnings do not fail the command.
 
-```
+```text
 ✓ Versions: pnpm 11.14.0, Node.js 22.20.0
 ✓ Install method: pnpm
 ✓ Global bin directory: /Users/example/Library/pnpm/bin
