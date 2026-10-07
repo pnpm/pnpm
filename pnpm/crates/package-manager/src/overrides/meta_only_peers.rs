@@ -7,10 +7,12 @@ impl VersionsOverrider {
         value: &mut Value,
         applicable_parent_scoped: &[&ResolvedOverride],
     ) {
-        for name in meta_only_peer_names(value) {
-            if self.is_removed_peer(applicable_parent_scoped, &name) {
-                remove_peer_dependency(value, &name);
-            }
+        let removed: Vec<String> = meta_only_peer_names(value)
+            .filter(|name| self.is_removed_peer(applicable_parent_scoped, name))
+            .map(str::to_string)
+            .collect();
+        for name in removed {
+            remove_peer_dependency(value, &name);
         }
     }
 
@@ -19,9 +21,7 @@ impl VersionsOverrider {
         value: &Value,
         applicable_parent_scoped: &[&ResolvedOverride],
     ) -> bool {
-        meta_only_peer_names(value)
-            .iter()
-            .any(|name| self.is_removed_peer(applicable_parent_scoped, name))
+        meta_only_peer_names(value).any(|name| self.is_removed_peer(applicable_parent_scoped, name))
     }
 
     fn is_removed_peer(&self, applicable_parent_scoped: &[&ResolvedOverride], name: &str) -> bool {
@@ -32,14 +32,13 @@ impl VersionsOverrider {
 
 /// The `peerDependenciesMeta` names that `peerDependencies` does not
 /// declare. The resolver treats such an entry as an optional `"*"` peer.
-fn meta_only_peer_names(value: &Value) -> Vec<String> {
+fn meta_only_peer_names(value: &Value) -> impl Iterator<Item = &str> {
     let peers = value.get("peerDependencies").and_then(Value::as_object);
     value
         .get("peerDependenciesMeta")
         .and_then(Value::as_object)
         .into_iter()
         .flat_map(|meta| meta.keys())
-        .filter(|name| !peers.is_some_and(|declared| declared.contains_key(*name)))
-        .cloned()
-        .collect()
+        .filter(move |name| !peers.is_some_and(|declared| declared.contains_key(*name)))
+        .map(String::as_str)
 }
