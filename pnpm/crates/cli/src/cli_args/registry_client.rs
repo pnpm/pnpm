@@ -1,6 +1,6 @@
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{NetworkSettings, ThrottledClient};
+use pnpm_network::{NetworkSettings, RedirectGuard, ThrottledClient};
 use std::time::Duration;
 
 /// The npm CLI's default `fetch-timeout`. The registry can take longer than
@@ -10,11 +10,28 @@ use std::time::Duration;
 /// (<https://github.com/pnpm/pnpm/issues/11454>).
 const MIN_PUBLISH_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
 
+/// Build the network client a one-off registry query makes its request through,
+/// optionally restricted by a redirect guard.
+pub fn build_registry_client_with_guard(
+    config: &Config,
+    redirect_guard: Option<&RedirectGuard>,
+) -> miette::Result<ThrottledClient> {
+    ThrottledClient::for_installs_with_guard(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+        redirect_guard,
+    )
+    .into_diagnostic()
+    .wrap_err("create the network client for the registry request")
+}
+
 /// Build the network client a one-off registry query (`whoami`, `ping`, ...)
 /// makes its request through, from the same proxy / TLS / timeout config as
 /// the install client ([`crate::state::State::init`]).
 pub fn build_registry_client(config: &Config) -> miette::Result<ThrottledClient> {
-    build_client(config, &config.network_settings())
+    build_registry_client_with_guard(config, None)
 }
 
 /// Build the network client `pnpm publish` sends its requests through. It is

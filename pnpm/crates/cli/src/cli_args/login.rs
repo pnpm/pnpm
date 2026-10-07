@@ -3,12 +3,12 @@
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
+use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
 use pnpm_config::Config;
-use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
 use std::path::Path;
 
@@ -56,13 +56,7 @@ impl LoginArgs {
             return Err(LoginCliError::NoConfigDir.into());
         };
 
-        let http_client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .into_diagnostic()?;
+        let http_client = build_registry_client(config)?;
 
         let message =
             login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir)).await?;

@@ -1,7 +1,8 @@
 use super::{
     BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, apply_creds_field,
-    env_replace_lossy, is_package_scope, nerf_dart, normalize_registry_url, split_creds_key,
+    env_replace_lossy, is_package_scope, nerf_dart, split_creds_key,
 };
+use pnpm_network::normalize_registry_url;
 
 /// What the config files — the `.npmrc` files as much as the yamls —
 /// declared about registry routing, as opposed to what the cascade merely
@@ -94,7 +95,7 @@ pub fn validate_json_auth_registry(value: &str) -> Result<String, String> {
     if nerf_dart(&normalized).is_empty() {
         return Err(format!("registry URL {label} is not a valid registry URL"));
     }
-    Ok(normalized)
+    Ok(normalized.into_owned())
 }
 
 /// Whether `scope` is a key `_auth` accepts: the bare `@` standing for the
@@ -282,7 +283,7 @@ impl NpmrcAuth {
             .filter(|(scope, _)| !declared.covers(scope))
         {
             if scope == "default" {
-                if !scoped_urls.contains(&normalize_registry_url(&url)) {
+                if !scoped_urls.contains(normalize_registry_url(&url).as_ref()) {
                     config.registry.clone_from(&url);
                 }
             } else {
@@ -305,7 +306,7 @@ impl NpmrcAuth {
 
         let candidates: Vec<String> = std::mem::take(&mut self.routes.json_env_default_candidates)
             .into_iter()
-            .filter(|url| !scoped_urls.contains(&normalize_registry_url(url)))
+            .filter(|url| !scoped_urls.contains(normalize_registry_url(url).as_ref()))
             .collect();
 
         if let Some(url) =
@@ -327,7 +328,7 @@ fn declared_scope_registry_urls(
     config.registries_by_scope
         .iter()
         .filter(|(scope, _)| scope.as_str() != "default" && !json_env.contains_key(*scope))
-        .map(|(_, url)| normalize_registry_url(url))
+        .map(|(_, url)| normalize_registry_url(url).into_owned())
         .collect()
 }
 

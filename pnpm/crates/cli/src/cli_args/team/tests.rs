@@ -1,7 +1,8 @@
 use super::{
-    TeamError, TeamInfo, UserInfo, normalize_registry_url, org_team_url, parse_scope_team,
-    render_members, render_teams, team_url, team_user_url,
+    TeamError, TeamInfo, UserInfo, org_team_url, parse_scope_team, render_members, render_teams,
+    team_url, team_user_url,
 };
+use pnpm_network::normalize_registry_url;
 
 #[test]
 fn parse_scope_team_returns_scope_only() {

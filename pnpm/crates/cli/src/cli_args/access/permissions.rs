@@ -1,8 +1,8 @@
 use super::{
     AccessContext, AccessError, Context, IntoDiagnostic, Method, StatusCode, encode_uri_component,
-    escaped_package_name, fetch_error_from_response, normalize_registry_url, send_get, send_json,
-    write_error_from_response,
+    fetch_error_from_response, send_get, send_json, write_error_from_response,
 };
+use pnpm_network::{escaped_package_name, normalize_registry_url};
 
 pub(super) async fn get_status(
     context: &AccessContext<'_>,

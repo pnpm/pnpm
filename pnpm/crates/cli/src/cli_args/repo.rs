@@ -28,14 +28,7 @@ impl RepoArgs {
     ) -> miette::Result<()> {
         let prefix = dir.to_string_lossy().into_owned();
 
-        let http_client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .into_diagnostic()
-        .wrap_err("create the network client for repo")?;
+        let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
         let registries: HashMap<String, String> = config
             .resolved_registries()
             .into_iter()

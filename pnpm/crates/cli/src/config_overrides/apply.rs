@@ -3,6 +3,7 @@ use super::{
     Path, StoreDir, default_state_dir, lexical_normalize, resolve_child_concurrency, setting_value,
     verify_deps_env_is_set,
 };
+use pnpm_network::normalize_registry_url;
 
 pub(crate) fn apply_store_dir_override<Sys>(
     config: &mut Config,
@@ -99,16 +100,12 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 /// copies of both. The URL is normalized to a trailing slash first, so an
 /// already-normalized override applies idempotently.
 pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
-    let registry = normalize_registry_url(registry);
+    let registry = normalize_registry_url(registry).into_owned();
     config.registry.clone_from(&registry);
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
     config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
     config.cli_settings.insert("registry".to_string());
-}
-
-pub(super) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 impl ConfigOverrides {

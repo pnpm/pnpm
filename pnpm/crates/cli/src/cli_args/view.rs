@@ -6,14 +6,13 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
-use super::deprecate::normalize_registry_url;
 use chrono::{DateTime, Utc};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, normalize_registry_url};
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
@@ -160,7 +159,7 @@ pub(super) async fn fetch_package_metadata(
     config: &Config,
     registry_override: Option<&str>,
     package_spec: &str,
-    command_name: &str,
+    _command_name: &str,
 ) -> miette::Result<(pnpm_registry::Package, Arc<pnpm_registry::PackageVersion>)> {
     let parsed = parse_wanted_dependency(package_spec);
     let alias = parsed.alias.as_deref();
@@ -172,14 +171,14 @@ pub(super) async fn fetch_package_metadata(
         .into_iter()
         .collect();
     if let Some(registry) = registry_override {
-        registries.insert("default".to_string(), normalize_registry_url(registry));
+        registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
     }
     let registry = pick_registry_for_package(&registries, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
         .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;
 
-    let http_client = metadata_client(config, command_name)?;
+    let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
     let outcome = fetch_full_metadata(
         &spec.name,
         &FetchFullMetadataOptions {
@@ -285,17 +284,6 @@ fn map_fetch_error(
 
 #[cfg(test)]
 mod tests;
-
-fn metadata_client(config: &Config, command_name: &str) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-    )
-    .into_diagnostic()
-    .wrap_err_with(|| format!("create the network client for {command_name}"))
-}
 
 fn pick_view_version(
     meta: &pnpm_registry::Package,

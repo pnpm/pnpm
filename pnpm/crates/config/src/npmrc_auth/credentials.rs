@@ -1,8 +1,9 @@
 use super::{
     Arc, AuthHeaders, BTreeMap, Config, DEFAULT_REGISTRY, DEFAULT_REGISTRY_SCOPE, HashMap,
-    LoadWorkspaceYamlError, NpmrcAuth, base64_encode_bytes, normalize_registry_url,
-    parse_token_helper_field, split_scope_from_uri,
+    LoadWorkspaceYamlError, NpmrcAuth, base64_encode_bytes, parse_token_helper_field,
+    split_scope_from_uri,
 };
+use pnpm_network::normalize_registry_url;
 
 /// Raw (unparsed) credential fields for a given registry URI.
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
@@ -166,7 +167,7 @@ fn pinned_registry(declared: &str) -> String {
     if declared.is_empty() {
         return DEFAULT_REGISTRY.to_owned();
     }
-    normalize_registry_url(declared)
+    normalize_registry_url(declared).into_owned()
 }
 
 /// The raw `_authToken` of a default-scope credential, kept alongside the

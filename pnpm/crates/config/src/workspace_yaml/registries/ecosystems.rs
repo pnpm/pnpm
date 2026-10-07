@@ -1,11 +1,12 @@
 //! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
-    normalize_registry_url, quote_and_join, redact_registry_url,
+    EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups, quote_and_join,
+    redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
+use pnpm_network::normalize_registry_url;
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -89,7 +90,10 @@ impl DeclaredIndexes {
                 registry: redact_registry_url(&normalized),
             });
         }
-        declared.push(EcosystemIndex { url: normalized, packages: declaration.packages.clone() });
+        declared.push(EcosystemIndex {
+            url: normalized.into_owned(),
+            packages: declaration.packages.clone(),
+        });
         Ok(())
     }
 
@@ -182,7 +186,11 @@ pub fn take_roles_from_earlier_layers(
         .iter()
         .map(|registry| (*registry).to_owned())
         .chain(layer.registries_by_scope.values().cloned())
-        .chain(layer.registries_by_prefix.values().map(|registry| normalize_registry_url(registry)))
+        .chain(
+            layer.registries_by_prefix
+                .values()
+                .map(|registry| normalize_registry_url(registry).into_owned()),
+        )
         .chain(layer.registry_options_by_url.keys().cloned())
         .chain(layer.default_registry.clone())
         .collect();
@@ -199,7 +207,7 @@ pub fn take_roles_from_earlier_layers(
     // A URL this layer serves to another ecosystem routes no npm packages.
     registries_by_scope.retain(|_, registry| !declared_as_index.contains(registry.as_str()));
     registries_by_prefix.retain(|_, registry| {
-        !declared_as_index.contains(normalize_registry_url(registry).as_str())
+        !declared_as_index.contains(normalize_registry_url(registry).as_ref())
     });
     registry_options_by_url.retain(|registry, _| !declared_as_index.contains(registry.as_str()));
 }
