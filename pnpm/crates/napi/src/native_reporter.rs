@@ -199,10 +199,11 @@ impl NativeRenderer {
             colors,
             renderer_state_options(options, append_only),
         );
-        let throttle = options.throttle_progress.map_or(
-            if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) },
-            |ms| Duration::from_millis(u64::from(ms)),
-        );
+        let throttle = match options.throttle_progress {
+            Some(ms) => Duration::from_millis(u64::from(ms)),
+            None if append_only => Duration::from_secs(1),
+            None => Duration::from_millis(200),
+        };
         NativeRenderer {
             state,
             diff: Diff::new(width.saturating_add(2)),
