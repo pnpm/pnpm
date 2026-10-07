@@ -294,21 +294,15 @@ fn renderer_width(
     destination: &Destination,
     is_terminal: bool,
 ) -> usize {
-    options.width
-        .map_or_else(
-            || {
-                if is_terminal {
-                    destination
-                        .terminal_columns()
-                        .unwrap_or(82)
-                        .saturating_sub(2)
-                } else {
-                    80
-                }
-            },
-            |width| width as usize,
-        )
-        .max(1)
+    let width = match options.width {
+        Some(width) => width as usize,
+        None if is_terminal => destination
+            .terminal_columns()
+            .unwrap_or(82)
+            .saturating_sub(2),
+        None => 80,
+    };
+    width.max(1)
 }
 
 /// Whether an event is a high-volume progress update that may be dropped

@@ -221,17 +221,11 @@ fn lockfile_path(dir: &str, modules_dir: Option<&str>, kind: &LockfileKind) -> P
     match kind {
         LockfileKind::Wanted => dir.join(Lockfile::FILE_NAME),
         LockfileKind::Current => {
-            let modules_dir = modules_dir.map_or_else(
-                || dir.join("node_modules"),
-                |modules_dir| {
-                    let modules_dir = Path::new(modules_dir);
-                    if modules_dir.is_absolute() {
-                        modules_dir.to_path_buf()
-                    } else {
-                        dir.join(modules_dir)
-                    }
-                },
-            );
+            let modules_dir = match modules_dir.map(Path::new) {
+                Some(modules_dir) if modules_dir.is_absolute() => modules_dir.to_path_buf(),
+                Some(modules_dir) => dir.join(modules_dir),
+                None => dir.join("node_modules"),
+            };
             modules_dir.join(".pnpm").join(Lockfile::CURRENT_FILE_NAME)
         }
     }

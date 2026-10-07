@@ -56,10 +56,11 @@ fn update_actions_root(
     state: &State,
     selection: Option<&InstallFamilySelection>,
 ) -> std::path::PathBuf {
-    selection.map_or_else(
-        || state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest)),
-        |selection| selection.workspace_root.clone(),
-    )
+    match (selection, &state.config.workspace_dir) {
+        (Some(selection), _) => selection.workspace_root.clone(),
+        (None, Some(workspace_dir)) => workspace_dir.clone(),
+        (None, None) => manifest_root(&state.manifest),
+    }
 }
 
 impl UpdateArgs {

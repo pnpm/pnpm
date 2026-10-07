@@ -27,13 +27,13 @@ pub struct SearchParams {
 #[must_use]
 pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchParams> {
     let query = parse_query(query_string)?;
-    let text = query
+    let maintainer = query
         .strip_prefix("maintainer:")
-        .filter(|maintainer| !maintainer.is_empty())
-        .map_or_else(
-            || SearchText::Package(query.clone()),
-            |maintainer| SearchText::Maintainer(maintainer.to_string()),
-        );
+        .filter(|maintainer| !maintainer.is_empty());
+    let text = match maintainer {
+        Some(maintainer) => SearchText::Maintainer(maintainer.to_string()),
+        None => SearchText::Package(query.clone()),
+    };
     Some(SearchParams {
         text,
         from: parse_from(query_string),

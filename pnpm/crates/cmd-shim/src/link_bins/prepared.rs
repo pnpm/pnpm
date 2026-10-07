@@ -56,16 +56,16 @@ where
         + FsEnsureExecutableBits,
 {
     let chosen = choose_bins_with(packages, &HashSet::new(), |package| {
-        prepared
+        let cached = prepared
             .get(&package.location)
             .filter(|cached| {
                 cached.source.location == package.location
                     && Arc::ptr_eq(&cached.source.manifest, &package.manifest)
-            })
-            .map_or_else(
-                || get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location),
-                |cached| cached.commands.to_vec(),
-            )
+            });
+        match cached {
+            Some(cached) => cached.commands.to_vec(),
+            None => get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location),
+        }
     });
     link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default()).map(|_| ())
 }

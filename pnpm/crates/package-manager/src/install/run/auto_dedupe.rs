@@ -1,6 +1,6 @@
 use super::{
     super::{
-        LogEvent, LogLevel, PackageManifest, Path, PathBuf, PnpmLog, Reporter, UpdateSeedPolicy,
+        LogEvent, LogLevel, PackageManifest, PathBuf, PnpmLog, Reporter, UpdateSeedPolicy,
         auto_dedupe_baseline::{AutoDedupeBaseline, BaselineInputs},
     },
     InstallScope, RunExecution,
@@ -10,14 +10,12 @@ use crate::{ProjectMutation, optimistic_repeat_install::current_settings_with_ca
 
 impl RunExecution<'_> {
     pub(super) fn wanted_lockfile_path(&self) -> PathBuf {
-        self.install.context.lockfile_path.map_or_else(
-            || {
-                self.workspace.dirs.workspace_root.join(
-                    self.install.context.config.wanted_lockfile_name(),
-                )
-            },
-            Path::to_path_buf,
-        )
+        match self.install.context.lockfile_path {
+            Some(lockfile_path) => lockfile_path.to_path_buf(),
+            None => self.workspace.dirs.workspace_root.join(
+                self.install.context.config.wanted_lockfile_name(),
+            ),
+        }
     }
 
     /// The baseline of an `autoDedupe` `--lockfile-only` install that
