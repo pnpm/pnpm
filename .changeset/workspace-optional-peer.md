@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-`pnpm install` and `pnpm dedupe` now preserve workspace packages that provide optional peers through the workspace root [pnpm/pnpm#16706](https://github.com/pnpm/pnpm/issues/16706).
+`pnpm install` and `pnpm dedupe` now link an optional peer to the workspace package that the workspace root depends on when the picked version matches it. Previously they installed the registry package with the same name and version [pnpm/pnpm#16706](https://github.com/pnpm/pnpm/issues/16706).
