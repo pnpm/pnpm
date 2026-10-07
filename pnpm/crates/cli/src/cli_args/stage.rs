@@ -42,7 +42,7 @@ use render::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc, time::Duration};
 use summarize_tarball::{create_tarball_filename, summarize_tarball};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
@@ -329,13 +329,10 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_owned(), registry.clone());
-        }
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
         let registry = match package_name {
             Some(package) => pick_registry_for_package(&registries, package, None),
             None => registries

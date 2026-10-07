@@ -1,11 +1,9 @@
-use super::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, normalize_registry_url,
-    redact_url_credentials, send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use registry::{
@@ -228,20 +226,18 @@ impl TeamArgs {
     }
 
     fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-        }
-        let redirect_guard = self.otp.as_ref().map(|_| registry::redirect_guard(&registries));
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
+        let http_client = crate::cli_args::registry_client::build_registry_client_with_otp_guard(
+            config,
+            self.otp.as_deref(),
+            registries.values().map(String::as_str),
+        )?;
         Ok(TeamContext {
             config,
-            http_client: crate::cli_args::registry_client::build_registry_client_with_guard(
-                config,
-                redirect_guard.as_ref(),
-            )?,
+            http_client,
             retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),

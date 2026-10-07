@@ -13,10 +13,11 @@ pub use auth::{
     nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
     redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
 };
-pub use client_builder::{RedirectGuard, default_network_concurrency, native_dns_resolver};
+pub use client_builder::{default_network_concurrency, native_dns_resolver};
 pub use error_chain::{is_permanent_error, walk_reqwest_chain};
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
+pub use redirect_guard::{RedirectGuard, origins_redirect_guard};
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
 };
@@ -35,6 +36,7 @@ mod limited_body;
 mod origin_gate;
 mod priority_semaphore;
 mod proxy;
+mod redirect_guard;
 mod registry_limit;
 mod retry;
 #[cfg(test)]
@@ -583,9 +585,10 @@ use certificates::{
 
 mod client_builder;
 use client_builder::{
-    CappedDnsResolver, ClientBuildInputs, MAX_REDIRECT_HOPS, build_client_with_root_fallback,
-    configured_proxy, is_redirect_status,
+    CappedDnsResolver, ClientBuildInputs, build_client_with_root_fallback, configured_proxy,
+    is_redirect_status,
 };
+use redirect_guard::MAX_REDIRECT_HOPS;
 
 mod requests;
 

@@ -29,10 +29,8 @@ impl RepoArgs {
         let prefix = dir.to_string_lossy().into_owned();
 
         let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
-        let registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
+        let registries =
+            crate::cli_args::registry_client::resolve_registries_with_override(config, None);
 
         let retry_opts = config.retry_opts();
 

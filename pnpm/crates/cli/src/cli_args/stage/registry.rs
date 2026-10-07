@@ -279,15 +279,9 @@ async fn registry_error_from_response(
     response: reqwest::Response,
     action: &str,
 ) -> StageRegistryError {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_owned();
-    let body = match read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await {
-        Ok(body) => body_display_string(&body),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        crate::cli_args::sanitize::read_sanitized_error_body(response, STAGE_ERROR_BODY_LIMIT)
+            .await;
     StageRegistryError::new(action, status.as_u16(), &status_text, &body)
 }
 

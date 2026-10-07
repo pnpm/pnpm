@@ -7,8 +7,8 @@ use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, normalize_registry_url, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -196,13 +196,10 @@ impl DistTagArgs {
     }
 
     fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-        }
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
         Ok(DistTagContext {
             config,
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
