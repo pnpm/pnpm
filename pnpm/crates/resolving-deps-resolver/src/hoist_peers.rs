@@ -1,4 +1,4 @@
-//! Two pure functions that turn a "missing peers" picture into a
+//! Pure functions that turn a "missing peers" picture into a
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
 
@@ -351,7 +351,7 @@ fn hoistable_optional_candidate(
 /// lexicographically first alias wins so the pick is stable. Only a
 /// dependency that has a normalized specifier is a candidate — the
 /// callers have nothing to install or bound the peer with otherwise.
-pub(crate) fn find_workspace_root_dep<'a>(
+fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {
@@ -364,6 +364,21 @@ pub(crate) fn find_workspace_root_dep<'a>(
                 .filter(|root_dep| root_dep.pkg_name == peer_name)
                 .min_by(|a, b| a.alias.cmp(&b.alias))
         })
+}
+
+/// Preserve a workspace provider's identity after optional-peer version selection.
+pub(crate) fn optional_peer_specifier(
+    name: &str,
+    version: String,
+    workspace_root_deps: &[WorkspaceRootDep],
+    workspace_root_dep_versions: &HashMap<String, String>,
+) -> String {
+    find_workspace_root_dep(workspace_root_deps, name)
+        .filter(|dep| workspace_root_dep_versions.get(&dep.alias) == Some(&version))
+        .and_then(|dep| dep.normalized_bare_specifier.as_ref())
+        .filter(|specifier| specifier.starts_with("workspace:"))
+        .cloned()
+        .unwrap_or(version)
 }
 
 /// Highest version from `versions` that satisfies `range` under npm's
