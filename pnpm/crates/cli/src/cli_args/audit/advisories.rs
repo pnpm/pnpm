@@ -4,9 +4,9 @@ use super::{
     Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions, PeerSatisfactionEdges, Range,
     RawBulkAdvisory, bulk_response_to_audit_report, empty_packages, empty_snapshots, env_roots,
     fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
-    pick_registry_for_package, redact_url_userinfo, sanitize_response_body, send_with_retry,
+    pick_registry_for_package, sanitize_response_body, send_with_retry,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{normalize_registry_url, redact_url_credentials};
 
 pub(super) async fn audit(
     lockfile: &Lockfile,
@@ -20,7 +20,8 @@ pub(super) async fn audit(
     let body = serde_json::to_vec(&audit_request.request)
         .expect("audit request is a map of package names to version strings");
     let authorization = config.auth_headers.for_url(&registry);
-    let request_url = redact_url_userinfo(&format!("{registry}-/npm/v1/security/advisories/bulk"));
+    let request_url =
+        redact_url_credentials(&format!("{registry}-/npm/v1/security/advisories/bulk"));
     let (_, response) = send_with_retry(http_client, &request_url, config.retry_opts(), |client| {
         let mut request = client
             .post(&request_url)
