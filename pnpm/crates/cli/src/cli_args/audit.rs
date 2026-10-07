@@ -9,8 +9,7 @@ pub(crate) use render::{
 };
 pub(crate) use report::{
     AuditAdvisory, AuditError, AuditReport, AuditVulnerabilityCounts, RawBulkAdvisory,
-    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, redact_url_userinfo,
-    sanitize_response_body,
+    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, sanitize_response_body,
 };
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include, classify_graph,

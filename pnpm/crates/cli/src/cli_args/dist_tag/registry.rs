@@ -4,7 +4,8 @@ use super::{
     parse_wanted_dependency, pick_registry_for_package, read_limited_body, redact_url_credentials,
     retry_async, sanitize, send_with_retry,
 };
-use pnpm_network::{escaped_package_name, normalize_registry_url};
+use crate::cli_args::registry_client::join_registry_endpoint;
+use pnpm_network::escaped_package_name;
 
 pub(super) struct SetDistTagRequest<'a> {
     pub(super) package_name: &'a str,
@@ -298,8 +299,6 @@ pub(super) fn package_name_for_url(package_name: &str) -> Result<String, DistTag
 }
 
 fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
+    join_registry_endpoint(registry_url, path)
         .map_err(|source| registry_operation_error("build registry dist-tag URL", source))
 }

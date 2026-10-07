@@ -1,9 +1,9 @@
 use super::{
     RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
-    redact_url, repository_to_web_url,
+    repository_to_web_url,
 };
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient, redact_url_for_display};
 use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, io, sync::Mutex};
@@ -163,6 +163,24 @@ fn test_resolves_github_shorthand_with_git_suffix() {
 }
 
 #[test]
+fn test_resolves_git_plus_github_shorthand() {
+    let result = repository_to_web_url("git+github:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg"));
+}
+
+#[test]
+fn test_resolves_git_plus_gitlab_shorthand() {
+    let result = repository_to_web_url("git+gitlab:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://gitlab.com/test/pkg"));
+}
+
+#[test]
+fn test_resolves_git_plus_bitbucket_shorthand() {
+    let result = repository_to_web_url("git+bitbucket:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://bitbucket.org/test/pkg"));
+}
+
+#[test]
 fn test_resolves_gitlab_shorthand_with_git_suffix() {
     let result = repository_to_web_url("gitlab:test/pkg.git", None);
     assert_eq!(result.as_deref(), Some("https://gitlab.com/test/pkg"));
@@ -318,6 +336,7 @@ fn test_repository_to_web_url_empty() {
 
 #[test]
 fn test_redact_url_strips_query_and_fragment() {
-    let redacted = redact_url("https://user:pass@github.com/test/pkg?token=secret#frag");
+    let redacted =
+        redact_url_for_display("https://user:pass@github.com/test/pkg?token=secret#frag");
     assert_eq!(redacted, "https://github.com/test/pkg");
 }

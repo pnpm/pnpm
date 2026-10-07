@@ -1,5 +1,5 @@
 use super::{
-    build_registry_client_with_otp_guard, publish_network_settings,
+    build_registry_client_with_otp_guard, join_registry_endpoint, publish_network_settings,
     resolve_registries_with_override,
 };
 use pnpm_config::Config;
@@ -46,4 +46,21 @@ fn build_registry_client_with_otp_guard_succeeds() {
         ["https://registry.npmjs.org/"],
     );
     assert!(client_with_otp.is_ok());
+}
+
+#[test]
+fn join_registry_endpoint_resolves_path_relative_to_registry() {
+    assert_eq!(
+        join_registry_endpoint("https://registry.npmjs.org", "-/package/foo/dist-tags").unwrap(),
+        "https://registry.npmjs.org/-/package/foo/dist-tags",
+    );
+    assert_eq!(
+        join_registry_endpoint("https://registry.npmjs.org/", "-/package/foo/dist-tags").unwrap(),
+        "https://registry.npmjs.org/-/package/foo/dist-tags",
+    );
+    assert_eq!(
+        join_registry_endpoint("https://custom.registry.com/prefix", "-/package/foo/dist-tags")
+            .unwrap(),
+        "https://custom.registry.com/prefix/-/package/foo/dist-tags",
+    );
 }

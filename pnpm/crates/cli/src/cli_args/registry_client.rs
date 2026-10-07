@@ -28,21 +28,21 @@ pub fn resolve_registries_with_override(
     registries
 }
 
+/// Join a relative path against a normalized registry URL, preserving any
+/// path prefix in the registry URL.
+pub fn join_registry_endpoint(registry_url: &str, path: &str) -> Result<String, url::ParseError> {
+    reqwest::Url::parse(&normalize_registry_url(registry_url))
+        .and_then(|url| url.join(path))
+        .map(|url| url.to_string())
+}
+
 /// Build the network client a one-off registry query makes its request through,
 /// optionally restricted by a redirect guard.
 pub fn build_registry_client_with_guard(
     config: &Config,
     redirect_guard: Option<&RedirectGuard>,
 ) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for the registry request")
+    build_client_with_settings_and_guard(config, &config.network_settings(), redirect_guard)
 }
 
 /// Build a registry client that restricts redirects to the allowed registries
@@ -70,13 +70,23 @@ pub fn build_registry_client(config: &Config) -> miette::Result<ThrottledClient>
 /// the registry client with a `fetchTimeout` of at least
 /// [`MIN_PUBLISH_FETCH_TIMEOUT`].
 pub fn build_publish_client(config: &Config) -> miette::Result<ThrottledClient> {
-    build_client(config, &publish_network_settings(config))
+    build_client_with_settings_and_guard(config, &publish_network_settings(config), None)
 }
 
-fn build_client(config: &Config, settings: &NetworkSettings) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(&config.proxy, &config.tls, &config.tls_by_uri, settings)
-        .into_diagnostic()
-        .wrap_err("create the network client for the registry request")
+fn build_client_with_settings_and_guard(
+    config: &Config,
+    settings: &NetworkSettings,
+    redirect_guard: Option<&RedirectGuard>,
+) -> miette::Result<ThrottledClient> {
+    ThrottledClient::for_installs_with_guard(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        settings,
+        redirect_guard,
+    )
+    .into_diagnostic()
+    .wrap_err("create the network client for the registry request")
 }
 
 fn publish_network_settings(config: &Config) -> NetworkSettings {
