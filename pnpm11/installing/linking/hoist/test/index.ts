@@ -286,7 +286,7 @@ test('removes the scope directory of several stale workspace links once', async 
       const projectDir = path.join(root, 'packages', name)
       fs.mkdirSync(projectDir, { recursive: true })
       fs.symlinkSync(projectDir, path.join(scopeDir, name), 'junction')
-      previous[`packages/${name}`] = { [`@scope/${name}`]: 'public' }
+      previous[`packages/${name}` as ProjectId] = { [`@scope/${name}`]: 'public' }
     }
     mockWindowsPendingDeleteRmdir()
 
