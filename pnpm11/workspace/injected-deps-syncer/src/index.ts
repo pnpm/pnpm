@@ -187,6 +187,8 @@ async function syncInjectedBinLinks (
 }
 
 export interface SyncInjectedDepsOfModulesDirOptions {
+  /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
+  includeOnlyPackageFiles?: boolean
   /** The directory whose lockfile lists the injected dependencies. */
   lockfileDir: string
   /** The modules directory that holds the `.modules.yaml` of `lockfileDir`. */
@@ -211,7 +213,7 @@ export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModu
     // rather than emptying them.
     if (!await dirExists(sourceDir)) return
     const resolvedTargetDirs = targetDirs.map((targetDir) => path.resolve(opts.lockfileDir, targetDir))
-    const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
+    const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs, opts.includeOnlyPackageFiles)
     await Promise.all(patchers.map(patcher => patcher.apply()))
   }))
 }

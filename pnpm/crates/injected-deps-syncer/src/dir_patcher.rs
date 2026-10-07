@@ -122,19 +122,21 @@ pub struct DirPatcher {
 
 impl DirPatcher {
     /// Diff `source_dir` against each of `target_dirs`, reading each
-    /// tree once.
+    /// tree once. `include_only_package_files` reads the source the way
+    /// [`DirectoryFetcher::include_only_package_files`] does.
     pub fn from_multiple_targets(
         source_dir: &Path,
         target_dirs: &[PathBuf],
+        include_only_package_files: bool,
     ) -> Result<Vec<Self>, PatchError> {
-        let source_map = load_inode_map(source_dir)?;
+        let source_map = load_inode_map(source_dir, include_only_package_files)?;
         target_dirs
             .iter()
             .map(|target_dir| {
                 Ok(DirPatcher {
                     source_dir: source_dir.to_path_buf(),
                     target_dir: target_dir.clone(),
-                    patch: diff_dir(&load_inode_map(target_dir)?, &source_map),
+                    patch: diff_dir(&load_inode_map(target_dir, false)?, &source_map),
                 })
             })
             .collect()
@@ -236,7 +238,7 @@ pub struct PublishSource<'a> {
 
 impl<'a> PublishSource<'a> {
     pub fn load(dir: &'a Path) -> Result<Self, PatchError> {
-        Ok(PublishSource { dir, map: load_inode_map(dir)? })
+        Ok(PublishSource { dir, map: load_inode_map(dir, false)? })
     }
 }
 
@@ -255,7 +257,7 @@ pub fn publish_edits(
     edited_since: SystemTime,
 ) -> Result<(), PatchError> {
     let PublishSource { dir: source_dir, map: source_map } = source;
-    let target_map = load_inode_map(target_dir)?;
+    let target_map = load_inode_map(target_dir, false)?;
     let patch = diff_dir(&target_map, source_map);
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;
@@ -374,10 +376,10 @@ fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
     }
 }
 
-fn load_inode_map(dir: &Path) -> Result<InodeMap, PatchError> {
+fn load_inode_map(dir: &Path, include_only_package_files: bool) -> Result<InodeMap, PatchError> {
     let output = DirectoryFetcher {
         directory: dir.to_path_buf(),
-        include_only_package_files: false,
+        include_only_package_files,
         resolve_symlinks: false,
         preserve_symlinks: false,
         allow_path_escape: false,

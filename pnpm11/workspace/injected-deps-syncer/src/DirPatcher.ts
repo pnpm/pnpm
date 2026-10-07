@@ -376,19 +376,19 @@ export class DirPatcher {
     this.targetDir = targetDir
   }
 
-  static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
+  static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
     const fetchOptions: FetchFromDirOptions = {
       resolveSymlinks: false,
     }
 
-    async function loadMap (dir: string): Promise<[InodeMap, string]> {
-      const fetchResult = await fetchFromDir(dir, fetchOptions)
+    async function loadMap (dir: string, dirFetchOptions: FetchFromDirOptions): Promise<[InodeMap, string]> {
+      const fetchResult = await fetchFromDir(dir, dirFetchOptions)
       return [await extendFilesMap(fetchResult), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
-      loadMap(sourceDir),
-      Promise.all(targetDirs.map(loadMap)),
+      loadMap(sourceDir, { ...fetchOptions, includeOnlyPackageFiles }),
+      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir, fetchOptions))),
     ])
 
     return targetPairs.map(([targetMap, targetDir]) => {
