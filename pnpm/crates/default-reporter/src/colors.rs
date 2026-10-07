@@ -8,6 +8,27 @@
 //! terminal.
 
 use owo_colors::OwoColorize;
+use pnpm_config::ColorMode;
+use std::sync::OnceLock;
+
+static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
+
+/// Configure ANSI color rendering. Call before the first reporter event.
+pub fn set_color_mode(mode: ColorMode) {
+    let _ = COLOR_MODE.set(mode);
+}
+
+pub fn colors_enabled(is_terminal: bool) -> bool {
+    match COLOR_MODE
+        .get()
+        .copied()
+        .unwrap_or_default()
+    {
+        ColorMode::Always => true,
+        ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
+        ColorMode::Never => false,
+    }
+}
 
 /// Palette wrapper. Mirrors the chalk colors `@pnpm/cli.default-reporter`
 /// uses; method names match the chalk style they replace.

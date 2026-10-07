@@ -2,6 +2,7 @@ use super::{
     CommandExtra, CommandTempCwd, Value, build_writes_marker, echoes_ok, fs, json, sorted_lines,
     summary_statuses, write_marker_script, write_workspace,
 };
+use crate::_utils::without_colors;
 use assert_cmd::assert::OutputAssertExt;
 
 /// `pacquet -r run` with no script name surfaces the
@@ -218,6 +219,78 @@ fn stream_prefixes_recursive_script_output_with_the_project() {
             "project-2 test: OK",
         ],
     );
+
+    drop(root);
+}
+
+/// A streamed script's output is piped, so pnpm asks it to keep its colors
+/// whenever pnpm's own output is in color.
+#[test]
+fn streamed_scripts_get_force_color_when_pnpm_output_is_colored() {
+    for (color, expected) in [("always", "1"), ("never", "undefined")] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let prints_force_color = |name: &str| {
+            json!({
+                "name": name,
+                "version": "1.0.0",
+                "scripts": { "test": r#"node -e "console.log(process.env.FORCE_COLOR)""# },
+            })
+        };
+        write_workspace(
+            &workspace,
+            &[
+                ("project-1", prints_force_color("project-1")),
+                ("project-2", prints_force_color("project-2")),
+            ],
+        );
+
+        let output = without_colors(pacquet)
+            .with_args([
+                &format!("--color={color}"),
+                "--stream",
+                "--reporter-hide-prefix",
+                "--config.verify-deps-before-run=false",
+                "-r",
+                "run",
+                "test",
+            ])
+            .output()
+            .expect("run test");
+        assert!(output.status.success(), "streamed run failed: {output:?}");
+        let printed: Vec<String> = sorted_lines(&output.stdout)
+            .into_iter()
+            .filter(|line| !line.contains("project-") && !line.starts_with("Scope:"))
+            .collect();
+        assert_eq!(printed, [expected, expected], "with --color={color}");
+
+        drop(root);
+    }
+}
+
+/// A streamed run's lifecycle failure goes through the reporter, so a frame
+/// it redraws in place accounts for the line.
+#[test]
+fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fails = json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "scripts": { "build": r#"node -e "process.exit(3)""# },
+    });
+    write_workspace(
+        &workspace,
+        &[("project-1", fails), ("project-2", build_writes_marker("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "build"])
+        .output()
+        .expect("run build");
+    assert!(!output.status.success(), "the failing script must fail the run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stdout.contains("[ELIFECYCLE] Command failed with exit code 3."), "stdout:\n{stdout}");
+    assert!(!stderr.contains("[ELIFECYCLE]"), "stderr:\n{stderr}");
 
     drop(root);
 }
