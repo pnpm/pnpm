@@ -351,7 +351,7 @@ fn hoistable_optional_candidate(
 /// lexicographically first alias wins so the pick is stable. Only a
 /// dependency that has a normalized specifier is a candidate — the
 /// callers have nothing to install or bound the peer with otherwise.
-fn find_workspace_root_dep<'a>(
+pub(crate) fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {

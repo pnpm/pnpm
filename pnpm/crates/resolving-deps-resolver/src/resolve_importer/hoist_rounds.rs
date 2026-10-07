@@ -6,6 +6,7 @@ use super::{
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
+use crate::hoist_peers::find_workspace_root_dep;
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
@@ -361,6 +362,17 @@ impl ImporterHoistState {
         )
     }
 
+    fn optional_peer_specifier(&self, name: &str, version: String) -> String {
+        find_workspace_root_dep(self.hoist_root_deps(), name)
+            .filter(|dep| {
+                self.dependencies.workspace_root_dep_versions.get(&dep.alias) == Some(&version)
+            })
+            .and_then(|dep| dep.normalized_bare_specifier.as_ref())
+            .filter(|specifier| specifier.starts_with("workspace:"))
+            .cloned()
+            .unwrap_or(version)
+    }
+
     /// Hoist this round's missing optional peers; `true` when any were
     /// installed (the workspace runs another round). No-op when nothing
     /// may be hoisted (see [`super::hoist_state::ImporterHoistPolicy::should_hoist_peers`]).
@@ -390,7 +402,10 @@ impl ImporterHoistState {
         // also defaults to `false` for the same reason.
         let new_wanted: Vec<WantedSpec> = hoisted_optional
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(name, version)| {
+                let specifier = self.optional_peer_specifier(&name, version);
+                (name, specifier, false, false)
+            })
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
