@@ -91,16 +91,9 @@ function configDependencyKeys (env: EnvLockfile): Set<string> {
   return keys
 }
 
-/**
- * The install verifier's options without `minimumReleaseAge`. Resolving a
- * config dependency does not apply that setting, so verifying one must not
- * either, or a clean frozen install would reject the lockfile that the
- * resolving install wrote.
- */
 function configVerifierOptions (opts: ResolveAndInstallConfigDepsOpts): Parameters<typeof createNpmResolutionVerifier>[0] {
   return {
     ...opts,
-    minimumReleaseAge: undefined,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime ?? opts.ignoreMissingTimeField,
     getAuthHeaderValueByURI: createGetAuthHeaderByURI(opts.configByUri ?? {}),
     fetchOpts: {

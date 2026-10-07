@@ -14,8 +14,8 @@ use pnpm_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo, LatestQuery, PkgResolutionId, ResolutionPolicyOptions, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::registry::TestRegistry;
@@ -159,6 +159,7 @@ fn options<'a>(
                 None,
             )
             .unwrap(),
+            resolution_policy: ResolutionPolicyOptions::default(),
         },
         fetching: pnpm_tarball::ArchiveFetchOptions {
             http_client: &harness.http_client,

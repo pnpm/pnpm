@@ -24,7 +24,7 @@ use pnpm_lockfile::{
     SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pnpm_reporter::Reporter;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
 use std::collections::BTreeMap;
@@ -197,13 +197,14 @@ async fn resolve_one(
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
     let wanted = wanted_config_dependency(name, specifier);
-    let resolve_opts = resolve_options(opts.root_dir);
+    let resolve_opts = resolve_options(opts);
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
         .resolve(&wanted, &resolve_opts)
         .await
         .map_err(|error| ConfigDepError::Resolve { spec: format!("{name}@{specifier}"), error })?
         .ok_or_else(no_integrity)?;
+    assert_no_policy_violation(&result)?;
 
     if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
@@ -290,14 +291,30 @@ fn pin_integrity(resolution: &mut LockfileResolution, pinned: Option<&Integrity>
     }
 }
 
-pub(crate) fn resolve_options(root_dir: &std::path::Path) -> ResolveOptions {
+pub(crate) fn resolve_options(opts: &ConfigDepsInstallOptions<'_>) -> ResolveOptions {
     ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-            project_dir: root_dir.to_path_buf(),
-            lockfile_dir: root_dir.to_path_buf(),
+            project_dir: opts.root_dir.to_path_buf(),
+            lockfile_dir: opts.root_dir.to_path_buf(),
             ..Default::default()
         },
+        policy: opts.verification.resolution_policy.clone(),
         ..ResolveOptions::default()
+    }
+}
+
+/// Reject a resolution that broke a policy in
+/// [`ConfigDependencyVerification::resolution_policy`](crate::ConfigDependencyVerification::resolution_policy).
+/// The resolution verifiers would reject it on the next clean install.
+pub(crate) fn assert_no_policy_violation(result: &ResolveResult) -> Result<(), ConfigDepError> {
+    match &result.policy_violation {
+        None => Ok(()),
+        Some(violation) => Err(ConfigDepError::BadConfigDep {
+            message: format!(
+                r#"Configuration dependency "{}@{}" {}"#,
+                violation.name, violation.version, violation.reason,
+            ),
+        }),
     }
 }
 

@@ -35,7 +35,9 @@ use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
+};
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
@@ -293,6 +295,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
     options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
+    options.verification.resolution_policy = release_age_policy(config)?;
     let store_index = store_index::StoreIndexSession::attach(
         &mut options,
         context.store.dir,
@@ -312,6 +315,17 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     result
 }
 
+/// The `minimumReleaseAge` cutoff that the install's resolution verifiers
+/// enforce on config dependencies, for resolving them.
+fn release_age_policy(config: &Config) -> Result<ResolutionPolicyOptions> {
+    let policy = pnpm_package_manager::PickPolicy::from_config(config).into_diagnostic()?;
+    Ok(ResolutionPolicyOptions {
+        published_by: policy.published_by,
+        published_by_exclude: policy.published_by_exclude,
+        ..ResolutionPolicyOptions::default()
+    })
+}
+
 struct EnvInstallerContext {
     node_version: String,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
@@ -324,10 +338,14 @@ impl EnvInstallerContext {
         &self,
         config: &Config,
     ) -> Result<Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
-        pnpm_package_manager::build_config_dependency_resolution_verifiers(
+        pnpm_package_manager::build_resolution_verifiers(
             config,
             Arc::clone(&self.network.http_client),
-            Arc::clone(&self.network.auth_headers),
+            None,
+            Some(Arc::clone(&self.network.auth_headers)),
+            None,
+            None,
+            None,
         )
         .into_diagnostic()
     }
@@ -409,6 +427,7 @@ impl EnvInstallerContext {
             verification: ConfigDependencyVerification {
                 registries: &self.network.registries,
                 resolution_verifiers: Vec::new(),
+                resolution_policy: ResolutionPolicyOptions::default(),
             },
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: &self.network.http_client,

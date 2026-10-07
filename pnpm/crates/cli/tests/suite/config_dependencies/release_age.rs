@@ -1,40 +1,102 @@
 use super::pacquet_at;
-use crate::_utils::set_minimum_release_age;
+use crate::_utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{fs, path::Path};
 
-/// Resolving a config dependency does not apply `minimumReleaseAge`, so a
-/// clean install of the locked config dependency must not apply it either.
+fn declare_config_dependency(workspace: &Path, specifier: &str) {
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+    append_workspace_yaml_key(
+        workspace,
+        "configDependencies",
+        format!("{{'@pnpm.e2e/bravo-dep': '{specifier}'}}"),
+    );
+}
+
+fn installed_bravo_dep_version(workspace: &Path) -> String {
+    let manifest = fs::read_to_string(workspace.join(
+        "node_modules/.pnpm-config/@pnpm.e2e/bravo-dep/package.json",
+    ))
+    .expect("read the installed config dependency");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse package.json");
+    manifest["version"]
+        .as_str()
+        .expect("version")
+        .to_string()
+}
+
+/// Resolving a config dependency picks a version that the frozen install's
+/// registry verification accepts.
 #[test]
-fn frozen_install_does_not_hold_locked_config_dependencies_to_minimum_release_age() {
+fn config_dependency_resolution_skips_versions_newer_than_minimum_release_age() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
-    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
-        .expect("write package.json");
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    declare_config_dependency(&workspace, "^1.0.0");
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
 
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
         .success();
+    assert_eq!(installed_bravo_dep_version(&workspace), "1.0.1");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    set_minimum_release_age(&workspace, 100 * 365 * 24 * 60);
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
-        "the clean install links the locked config dependency",
-    );
+    assert_eq!(installed_bravo_dep_version(&workspace), "1.0.1");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn config_dependency_newer_than_minimum_release_age_is_rejected() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    declare_config_dependency(&workspace, "1.1.0");
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+
+    let output = pacquet_at(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("minimumReleaseAge"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+/// A config dependency is resolved and verified before any config
+/// dependency's `updateConfig` hook runs, so only `pnpm-workspace.yaml` can
+/// exempt it.
+#[test]
+fn minimum_release_age_exclude_in_workspace_yaml_admits_a_config_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    declare_config_dependency(&workspace, "1.1.0");
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeExclude", "['@pnpm.e2e/bravo-dep']");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(installed_bravo_dep_version(&workspace), "1.1.0");
 
     drop((root, mock_instance));
 }

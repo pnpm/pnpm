@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` no longer rejects a locked config dependency for being newer than `minimumReleaseAge` [#16660](https://github.com/pnpm/pnpm/issues/16660).
+`pnpm install` and `pnpm add --config` now apply `minimumReleaseAge` when they resolve a config dependency. A config dependency range resolves to the newest version that is old enough, so a later clean `pnpm install --frozen-lockfile` accepts the lockfile [#16660](https://github.com/pnpm/pnpm/issues/16660).

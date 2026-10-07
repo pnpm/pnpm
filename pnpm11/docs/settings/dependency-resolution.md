@@ -290,7 +290,7 @@ Added in: v10.16.0
 
 To reduce the risk of installing compromised or defective packages, you can delay the installation of newly published versions. In most cases, malicious releases are discovered and removed from the registry within an hour.
 
-`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones. It does not apply to [config dependencies](../config-dependencies.md).
+`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones.
 
 For example, the following setting ensures that only packages released at least one day ago can be installed:
 

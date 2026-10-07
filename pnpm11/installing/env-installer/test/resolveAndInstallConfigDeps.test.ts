@@ -512,17 +512,40 @@ test('verifies config dependencies against the registry only when they need to b
   await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, offlineOpts)).rejects.toThrow()
 })
 
-test('does not apply minimumReleaseAge to locked config dependencies', async () => {
-  prepareEmpty()
-  const opts = createOpts()
-  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, opts)
-  fs.rmSync('node_modules', { recursive: true })
+// The mocked registry publishes @pnpm.e2e/bravo-dep 1.0.1 on 2022-02-22 and
+// 1.1.0 on 2022-05-01, so this cutoff admits 1.0.1 and not 1.1.0.
+function bravoDepMatureUpTo101MinimumReleaseAge (): number {
+  return Math.floor((Date.now() - Date.parse('2022-03-01T00:00:00Z')) / 60_000)
+}
 
-  const frozenInstallOpts = {
-    ...opts,
-    minimumReleaseAge: 100 * 365 * 24 * 60,
-    frozenLockfile: true,
+test('resolves a config dependency to a version older than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const opts = { ...createOpts(), minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge() }
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '^1.0.0' }, opts)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/bravo-dep/package.json').version).toBe('1.0.1')
+
+  fs.rmSync('node_modules', { recursive: true })
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '^1.0.0' }, { ...opts, frozenLockfile: true })
+  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/bravo-dep/package.json').version).toBe('1.0.1')
+})
+
+test('rejects a config dependency newer than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const opts = { ...createOpts(), minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge() }
+  await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '1.1.0' }, opts))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('minimumReleaseAge') })
+  expect(await readEnvLockfile(process.cwd())).toBeNull()
+})
+
+test('minimumReleaseAgeExclude admits a config dependency newer than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const opts = {
+    ...createOpts(),
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+    minimumReleaseAgeExclude: ['@pnpm.e2e/bravo-dep'],
   }
-  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, frozenInstallOpts)
-  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '1.1.0' }, opts)
+  fs.rmSync('node_modules', { recursive: true })
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bravo-dep': '1.1.0' }, { ...opts, frozenLockfile: true })
+  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/bravo-dep/package.json').version).toBe('1.1.0')
 })
