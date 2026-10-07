@@ -52,7 +52,7 @@ If your project relied on a committed `.npmrc` containing a line like `//registr
 
 * **Set the credential through an environment variable, with no `.npmrc` file at all** (since v11.6). pnpm reads URL-scoped registry settings from `pnpm_config_//…` environment variables:
 
-  ```ini
+  ```sh
   env "pnpm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN" pnpm install
   ```
 
