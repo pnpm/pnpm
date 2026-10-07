@@ -217,11 +217,8 @@ fn browse_url(
 }
 
 fn try_hosted_shorthand(raw_url: &str, directory: Option<&str>) -> Option<String> {
-    let cleaned = raw_url
-        .strip_prefix("git+")
-        .unwrap_or(raw_url)
-        .strip_prefix("git://")
-        .unwrap_or(raw_url);
+    let cleaned = raw_url.strip_prefix("git+").unwrap_or(raw_url);
+    let cleaned = cleaned.strip_prefix("git://").unwrap_or(cleaned);
 
     let (base_url, rest) = if let Some(rest) = cleaned.strip_prefix("github:") {
         ("https://github.com", rest)

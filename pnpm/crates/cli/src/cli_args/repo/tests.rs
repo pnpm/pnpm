@@ -163,6 +163,24 @@ fn test_resolves_github_shorthand_with_git_suffix() {
 }
 
 #[test]
+fn test_resolves_git_plus_github_shorthand() {
+    let result = repository_to_web_url("git+github:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg"));
+}
+
+#[test]
+fn test_resolves_git_plus_gitlab_shorthand() {
+    let result = repository_to_web_url("git+gitlab:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://gitlab.com/test/pkg"));
+}
+
+#[test]
+fn test_resolves_git_plus_bitbucket_shorthand() {
+    let result = repository_to_web_url("git+bitbucket:test/pkg", None);
+    assert_eq!(result.as_deref(), Some("https://bitbucket.org/test/pkg"));
+}
+
+#[test]
 fn test_resolves_gitlab_shorthand_with_git_suffix() {
     let result = repository_to_web_url("gitlab:test/pkg.git", None);
     assert_eq!(result.as_deref(), Some("https://gitlab.com/test/pkg"));
