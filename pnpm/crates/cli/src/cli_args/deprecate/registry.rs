@@ -6,7 +6,8 @@ use super::{
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        auth_header_for_package, package_endpoint_url, resolve_registry_for_package,
+        apply_auth_and_otp, auth_header_for_package, package_endpoint_url,
+        resolve_registry_for_package,
     },
 };
 
@@ -128,17 +129,11 @@ pub(super) async fn put_package_meta(
     let body = serde_json::to_string(package_meta).expect("a struct serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client
+            let builder = client
                 .put(url)
                 .header("content-type", "application/json")
                 .body(body.clone());
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header, otp)
         })
         .await
         .map_err(|source| {

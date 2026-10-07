@@ -3,7 +3,7 @@ use super::{
     ThrottledClientGuard, send_with_retry,
 };
 use crate::cli_args::{
-    registry_client::build_registry_client_with_otp_guard,
+    registry_client::{apply_auth_and_otp, build_registry_client_with_otp_guard},
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
 use pnpm_network::normalize_registry_url;
@@ -46,11 +46,7 @@ pub(super) async fn send_get<'client>(
     auth_header: Option<&str>,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client.get(url);
-        if let Some(auth) = auth_header {
-            builder = builder.header("authorization", auth);
-        }
-        builder
+        apply_auth_and_otp(client.get(url), auth_header, None)
     })
     .await
 }
@@ -66,17 +62,11 @@ pub(super) async fn send_json<'client>(
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     let body_bytes = serde_json::to_vec(body).expect("a serializable object");
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client
+        let builder = client
             .request(method.clone(), url)
             .header("content-type", "application/json")
             .body(body_bytes.clone());
-        if let Some(auth) = auth_header {
-            builder = builder.header("authorization", auth);
-        }
-        if let Some(otp) = &context.otp {
-            builder = builder.header("npm-otp", otp);
-        }
-        builder
+        apply_auth_and_otp(builder, auth_header, context.otp.as_deref())
     })
     .await
 }

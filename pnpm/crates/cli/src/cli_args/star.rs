@@ -1,5 +1,7 @@
 use crate::cli_args::{
-    registry_client::build_registry_client,
+    registry_client::{
+        apply_auth_and_otp, build_registry_client, join_registry_endpoint, package_endpoint_url,
+    },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
     whoami::fetch_whoami,
 };
@@ -75,15 +77,19 @@ pub(crate) async fn fetch_star(
     is_star: bool,
 ) -> miette::Result<()> {
     let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
-    let star_url = format!("{registry_url}-/user/v1/star");
+    let star_url = join_registry_endpoint(registry_url, "-/user/v1/star")
+        .unwrap_or_else(|_| format!("{registry_url}-/user/v1/star"));
     let body = json!({ "name": package_name, "package": package_name }).to_string();
 
     let (client, response) = send_with_retry(http_client, &star_url, retry_opts, |client| {
-        client
-            .request(method.clone(), &star_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
-            .body(body.clone())
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &star_url)
+                .header("content-type", "application/json")
+                .body(body.clone()),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -113,7 +119,8 @@ async fn perform_legacy_star_action(
 ) -> miette::Result<()> {
     let action = action_word(is_star);
     let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
-    let pkg_url = format!("{registry_url}{escaped_name}");
+    let pkg_url = package_endpoint_url(registry_url, package_name)
+        .unwrap_or_else(|_| format!("{registry_url}{escaped_name}"));
 
     let mut pkg_data =
         fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
@@ -144,11 +151,14 @@ async fn put_updated_package_document(
     action: &'static str,
 ) -> miette::Result<()> {
     let (client, response) = send_with_retry(http_client, update_url, retry_opts, |client| {
-        client
-            .put(update_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
-            .body(update_body.clone())
+        apply_auth_and_otp(
+            client
+                .put(update_url)
+                .header("content-type", "application/json")
+                .body(update_body.clone()),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -173,10 +183,11 @@ async fn fetch_package_document(
     package_name: &str,
 ) -> miette::Result<Value> {
     let (client, response) = send_with_retry(http_client, pkg_url, retry_opts, |client| {
-        client
-            .get(pkg_url)
-            .header("authorization", auth_header)
-            .header("accept", "application/json")
+        apply_auth_and_otp(
+            client.get(pkg_url).header("accept", "application/json"),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -239,12 +250,17 @@ async fn fetch_alternate_star(
     let action = action_word(is_star);
     let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
     let escaped_name = encode_package_name(package_name);
-    let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
+    let alt_endpoint = format!("-/user/package/{escaped_name}/star");
+    let alt_star_url = join_registry_endpoint(registry_url, &alt_endpoint)
+        .unwrap_or_else(|_| format!("{registry_url}{alt_endpoint}"));
     let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
-        client
-            .request(method.clone(), &alt_star_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &alt_star_url)
+                .header("content-type", "application/json"),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()

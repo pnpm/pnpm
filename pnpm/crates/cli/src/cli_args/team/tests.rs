@@ -1,6 +1,7 @@
 use super::{
-    TeamError, TeamInfo, UserInfo, org_team_url, parse_scope_team, render_members, render_teams,
-    team_url, team_user_url,
+    TeamError, parse_scope_team,
+    registry::{TeamInfo, UserInfo, org_team_url, team_url, team_user_url},
+    render::{render_members, render_teams},
 };
 use pnpm_network::normalize_registry_url;
 

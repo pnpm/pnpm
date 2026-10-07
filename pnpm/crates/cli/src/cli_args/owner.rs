@@ -1,7 +1,7 @@
 use crate::cli_args::{
     registry_client::{
-        auth_header_for_package, build_registry_client_with_otp_guard, join_registry_endpoint,
-        resolve_registries_with_override, resolve_registry_for_package,
+        apply_auth_and_otp, auth_header_for_package, build_registry_client_with_otp_guard,
+        join_registry_endpoint, resolve_registries_with_override, resolve_registry_for_package,
     },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
@@ -192,17 +192,11 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
-            let mut builder = client
+            let builder = client
                 .put(&endpoint.url)
                 .header("content-type", "application/json")
                 .body(body.clone());
-            if let Some(auth) = endpoint.auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp.as_str());
-            }
-            builder
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("adding owner", source))?;
@@ -225,14 +219,8 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.delete(&url);
-            if let Some(auth) = endpoint.auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp.as_str());
-            }
-            builder
+            let builder = client.delete(&url);
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("removing owner", source))?;

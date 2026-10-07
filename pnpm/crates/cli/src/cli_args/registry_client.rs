@@ -65,6 +65,21 @@ pub fn package_endpoint_url(
     join_registry_endpoint(registry_url, &escaped_package_name(package_name))
 }
 
+/// Attach authorization and one-time password headers to a request builder when present.
+pub fn apply_auth_and_otp(
+    mut builder: reqwest::RequestBuilder,
+    auth_header: Option<&str>,
+    otp: Option<&str>,
+) -> reqwest::RequestBuilder {
+    if let Some(auth) = auth_header {
+        builder = builder.header("authorization", auth);
+    }
+    if let Some(otp) = otp {
+        builder = builder.header("npm-otp", otp);
+    }
+    builder
+}
+
 /// Build the network client a one-off registry query makes its request through,
 /// optionally restricted by a redirect guard.
 pub fn build_registry_client_with_guard(

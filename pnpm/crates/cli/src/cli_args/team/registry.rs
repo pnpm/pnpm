@@ -1,32 +1,34 @@
 use super::{
-    Deserialize, IntoDiagnostic, Response, TeamContext, TeamError, encode_uri_component,
-    pick_registry_for_package, redact_url_credentials, send_with_retry,
+    TeamContext, TeamError, encode_uri_component, redact_url_credentials, send_with_retry,
 };
-use crate::cli_args::sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body};
-use pnpm_network::{normalize_registry_url, read_limited_body};
+use crate::cli_args::{
+    registry_client::{
+        apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
+        resolve_registry_for_package,
+    },
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+};
+use miette::IntoDiagnostic;
+use pnpm_network::read_limited_body;
+use reqwest::Response;
+use serde::Deserialize;
 
 const TEAM_BODY_LIMIT: usize = 1024 * 1024;
 
 pub(super) fn team_url(registry_url: &str, scope: &str, team: &str) -> String {
-    format!(
-        "{}-/team/{}/{}",
-        normalize_registry_url(registry_url),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    )
+    let path = format!("-/team/{}/{}", encode_uri_component(scope), encode_uri_component(team));
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
 }
 
 pub(super) fn team_user_url(registry_url: &str, scope: &str, team: &str) -> String {
-    format!(
-        "{}-/team/{}/{}/user",
-        normalize_registry_url(registry_url),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    )
+    let path =
+        format!("-/team/{}/{}/user", encode_uri_component(scope), encode_uri_component(team));
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
 }
 
 pub(super) fn org_team_url(registry_url: &str, scope: &str) -> String {
-    format!("{}-/org/{}/team", normalize_registry_url(registry_url), encode_uri_component(scope))
+    let path = format!("-/org/{}/team", encode_uri_component(scope));
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
 }
 
 #[derive(Deserialize)]
@@ -48,11 +50,7 @@ pub(super) async fn fetch_teams(
     let url = org_team_url(&registry_url, scope);
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            builder
+            apply_auth_and_otp(client.get(&url), auth_header, None)
         })
         .await
         .map_err(|source| registry_operation_error("fetching teams", source))?;
@@ -85,11 +83,7 @@ pub(super) async fn fetch_team_members(
     let url = team_user_url(&registry_url, scope, team);
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.get(&url);
-            if let Some(auth) = auth_header {
-                builder = builder.header("authorization", auth);
-            }
-            builder
+            apply_auth_and_otp(client.get(&url), auth_header, None)
         })
         .await
         .map_err(|source| registry_operation_error("fetching team members", source))?;
@@ -116,7 +110,7 @@ pub(super) async fn fetch_team_members(
 
 pub(super) fn registry_for_scope(context: &TeamContext<'_>, scope: &str) -> String {
     let pkg_name = format!("@{scope}/_");
-    pick_registry_for_package(&context.registries, &pkg_name, None)
+    resolve_registry_for_package(&context.registries, &pkg_name, None)
 }
 
 pub(super) fn auth_header_for_registry(
@@ -125,23 +119,8 @@ pub(super) fn auth_header_for_registry(
 ) -> miette::Result<String> {
     let registry_url = registry_for_scope(context, scope);
     let pkg_name = format!("@{scope}/_");
-    context.config.auth_headers
-        .for_url_with_package(&registry_url, Some(&pkg_name))
+    auth_header_for_package(context.config, &registry_url, &pkg_name)
         .ok_or_else(|| TeamError::MissingAuthToken.into())
-}
-
-pub(super) fn apply_auth_and_otp(
-    mut builder: reqwest::RequestBuilder,
-    auth_header: Option<&str>,
-    otp: Option<&str>,
-) -> reqwest::RequestBuilder {
-    if let Some(auth) = auth_header {
-        builder = builder.header("authorization", auth);
-    }
-    if let Some(otp) = otp {
-        builder = builder.header("npm-otp", otp);
-    }
-    builder
 }
 
 pub(super) fn registry_operation_error<ErrorType>(
