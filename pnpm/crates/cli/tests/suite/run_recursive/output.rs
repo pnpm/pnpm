@@ -267,6 +267,34 @@ fn streamed_scripts_get_force_color_when_pnpm_output_is_colored() {
     }
 }
 
+/// A streamed run's lifecycle failure goes through the reporter, so a frame
+/// it redraws in place accounts for the line.
+#[test]
+fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let fails = json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "scripts": { "build": r#"node -e "process.exit(3)""# },
+    });
+    write_workspace(
+        &workspace,
+        &[("project-1", fails), ("project-2", build_writes_marker("project-2"))],
+    );
+
+    let output = pacquet
+        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "build"])
+        .output()
+        .expect("run build");
+    assert!(!output.status.success(), "the failing script must fail the run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stdout.contains("[ELIFECYCLE] Command failed with exit code 3."), "stdout:\n{stdout}");
+    assert!(!stderr.contains("[ELIFECYCLE]"), "stderr:\n{stderr}");
+
+    drop(root);
+}
+
 /// Port of upstream's `run --reporter-hide-prefix should hide prefix`
 /// (`pnpm/test/monorepo/index.ts`): only the script's own output loses
 /// the prefix — the command echo and the `Done` line keep theirs.
