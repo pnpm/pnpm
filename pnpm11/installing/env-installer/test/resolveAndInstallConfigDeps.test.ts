@@ -556,3 +556,10 @@ test('rejects a config dependency whose optional dependency is newer than minimu
   await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/optional-platform-selector': '2.0.0' }, opts))
     .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('minimumReleaseAge') })
 })
+
+test('resolves a version+integrity pin newer than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const opts = { ...createOpts(), minimumReleaseAge: 100 * 365 * 24 * 60 }
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}` }, opts)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
+})

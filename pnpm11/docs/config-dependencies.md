@@ -9,7 +9,7 @@ Config dependencies help you keep all the hooks, settings, patches, overrides, c
 
 If your config dependency is named following the `pnpm-plugin-*`, `@*/pnpm-plugin-*`, or `@pnpm/plugin-*` pattern, pnpm will automatically load its `pnpmfile.mjs` (falling back to `pnpmfile.cjs`) from the package root.
 
-Config dependencies must come from an npm registry. pnpm verifies them against their registry before installing them, so installing a new or changed config dependency offline requires cached registry metadata. A config dependency pinned with `version+integrity` keeps that integrity as its pin. [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) applies to config dependencies. pnpm installs them before any `updateConfig` hook runs, so a [`minimumReleaseAgeExclude`](./settings/dependency-resolution.md#minimumreleaseageexclude) entry added by a hook does not cover them.
+Config dependencies must come from an npm registry. pnpm verifies them against their registry before installing them, so installing a new or changed config dependency offline requires cached registry metadata. A config dependency pinned with `version+integrity` keeps that integrity as its pin. [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) applies to config dependencies that are not pinned with `version+integrity`. pnpm installs them before any `updateConfig` hook runs, so a [`minimumReleaseAgeExclude`](./settings/dependency-resolution.md#minimumreleaseageexclude) entry added by a hook does not cover them.
 
 ## How to Add a Config Dependency
 

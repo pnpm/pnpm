@@ -8,7 +8,7 @@ import {
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies } from '@pnpm/types'
 
-import { type ConfigDepResolverOpts, createConfigDepResolver, type ResolveConfigDep } from './createConfigDepResolver.js'
+import { type ConfigDepResolverOpts, type ConfigDepResolvers, createConfigDepResolvers } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
@@ -54,7 +54,7 @@ export async function resolveAndInstallConfigDeps (
     return
   }
 
-  const resolveCtx: ResolveConfigDepContext = { envLockfile, opts, resolveFromNpm: createConfigDepResolver(opts) }
+  const resolveCtx: ResolveConfigDepContext = { envLockfile, opts, resolvers: createConfigDepResolvers(opts) }
 
   await Promise.all(depsToResolve.map((dep) => resolveConfigDepIntoLockfile(resolveCtx, dep)))
 
@@ -147,13 +147,14 @@ function planObjectFormatConfigDep (
 interface ResolveConfigDepContext {
   envLockfile: EnvLockfile
   opts: ResolveAndInstallConfigDepsOpts
-  resolveFromNpm: ResolveConfigDep
+  resolvers: ConfigDepResolvers
 }
 
 async function resolveConfigDepIntoLockfile (ctx: ResolveConfigDepContext, dep: ConfigDepToResolve): Promise<void> {
   const { name, specifier, pinnedIntegrity } = dep
   const { envLockfile, opts } = ctx
-  const resolution = await ctx.resolveFromNpm({ alias: name, bareSpecifier: specifier }, {
+  const resolve = pinnedIntegrity == null ? ctx.resolvers.resolve : ctx.resolvers.resolvePinned
+  const resolution = await resolve({ alias: name, bareSpecifier: specifier }, {
     lockfileDir: opts.rootDir,
     preferredVersions: {},
     projectDir: opts.rootDir,
@@ -190,7 +191,7 @@ async function resolveConfigDepIntoLockfile (ctx: ResolveConfigDepContext, dep: 
       envLockfile,
       lockfileDir: opts.rootDir,
       registriesByScope: opts.registriesByScope,
-      resolveFromNpm: ctx.resolveFromNpm,
+      resolveFromNpm: ctx.resolvers.resolve,
     })
     : undefined
   envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}

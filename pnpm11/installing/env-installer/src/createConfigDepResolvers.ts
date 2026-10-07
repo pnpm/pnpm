@@ -16,12 +16,22 @@ export type ConfigDepResolverOpts = CreateFetchFromRegistryOptions & ResolverFac
   now?: number
 }
 
+export interface ConfigDepResolvers {
+  resolve: ResolveConfigDep
+  /**
+   * Resolves a `version+integrity` pin, which only needs the tarball URL.
+   * The config dependency verifier skips pins, so this skips
+   * `minimumReleaseAge` too.
+   */
+  resolvePinned: ResolveConfigDep
+}
+
 /**
  * Resolves config dependencies under the `minimumReleaseAge` cutoff that the
  * config dependency verifier enforces, so a resolution never records a
  * version that the next clean install rejects.
  */
-export function createConfigDepResolver (opts: ConfigDepResolverOpts): ResolveConfigDep {
+export function createConfigDepResolvers (opts: ConfigDepResolverOpts): ConfigDepResolvers {
   const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, {
@@ -29,12 +39,15 @@ export function createConfigDepResolver (opts: ConfigDepResolverOpts): ResolveCo
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime ?? opts.ignoreMissingTimeField,
   })
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts, opts.now)
-  return async (wantedDependency, resolveOpts) => {
-    const result = await resolveFromNpm(wantedDependency, { ...resolveOpts, publishedBy, publishedByExclude })
-    const violation = result?.policyViolation
-    if (violation != null) {
-      throw new PnpmError('BAD_CONFIG_DEP', `Configuration dependency "${violation.name}@${violation.version}" ${violation.reason}`)
-    }
-    return result
+  return {
+    resolve: async (wantedDependency, resolveOpts) => {
+      const result = await resolveFromNpm(wantedDependency, { ...resolveOpts, publishedBy, publishedByExclude })
+      const violation = result?.policyViolation
+      if (violation != null) {
+        throw new PnpmError('BAD_CONFIG_DEP', `Configuration dependency "${violation.name}@${violation.version}" ${violation.reason}`)
+      }
+      return result
+    },
+    resolvePinned: resolveFromNpm,
   }
 }

@@ -10,7 +10,7 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 
-import { type ConfigDepResolverOpts, createConfigDepResolver, type ResolveConfigDep } from './createConfigDepResolver.js'
+import { type ConfigDepResolverOpts, createConfigDepResolvers, type ResolveConfigDep } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
@@ -28,7 +28,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }
 
   opts = { ...opts, now: opts.now ?? Date.now() }
-  const resolveFromNpm = createConfigDepResolver(opts)
+  const resolveFromNpm = createConfigDepResolvers(opts).resolve
 
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()

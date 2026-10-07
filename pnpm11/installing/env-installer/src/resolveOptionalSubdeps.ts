@@ -8,7 +8,7 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
-import type { ResolveConfigDep } from './createConfigDepResolver.js'
+import type { ResolveConfigDep } from './createConfigDepResolvers.js'
 
 export interface ResolveOptionalSubdepsOpts {
   envLockfile: EnvLockfile

@@ -24,7 +24,9 @@ use pnpm_lockfile::{
     SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
 use pnpm_reporter::Reporter;
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+};
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
 use std::collections::BTreeMap;
@@ -197,7 +199,11 @@ async fn resolve_one(
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
     let wanted = wanted_config_dependency(name, specifier);
-    let resolve_opts = resolve_options(opts);
+    let mut resolve_opts = resolve_options(opts);
+    if pinned_integrity.is_some() {
+        // The pin only needs the tarball URL, and verification skips pins.
+        resolve_opts.policy = ResolutionPolicyOptions::default();
+    }
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
         .resolve(&wanted, &resolve_opts)
