@@ -9,7 +9,7 @@ pnpr can store the reports [`pnpm pipeline`](/cli/pipeline) produces, so a
 team's CI runs are listed and served from one place instead of living in the
 scrollback of whichever machine ran them.
 
-```yaml
+```yaml title="pnpr.yaml"
 pipeline:
   enabled: true
   workspaces:

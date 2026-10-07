@@ -130,7 +130,7 @@ The Node.js version to use when checking a package's `engines` setting.
 
 If you want to prevent contributors of your project from adding new incompatible dependencies, use `nodeVersion` and `engineStrict` in a `pnpm-workspace.yaml` file at the root of the project:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeVersion: 12.22.0
 engineStrict: true
 ```
@@ -161,7 +161,7 @@ Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are
 
 Here is how pnpm may be configured to download Node.js from a mirror in China:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeDownloadMirrors:
   release: https://npmmirror.com/mirrors/node/
   rc: https://npmmirror.com/mirrors/node-rc/

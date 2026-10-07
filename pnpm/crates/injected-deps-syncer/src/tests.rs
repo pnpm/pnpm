@@ -118,8 +118,13 @@ fn sync_of_modules_dir_leaves_an_injected_copy_alone_when_its_publish_directory_
     // same way `collect_injected_deps` resolves a `file:` snapshot's source:
     // publish-directory-inclusive, and lexically normalized.
     let source_dirs: HashSet<_> = [pnpm_fs::lexical_normalize(&project_1.join("dist"))].into();
-    sync_injected_deps_of_modules_dir(&project_2, &project_2.join("node_modules"), &source_dirs)
-        .expect("sync should not fail when the publish directory is missing");
+    sync_injected_deps_of_modules_dir(
+        &project_2,
+        &project_2.join("node_modules"),
+        &source_dirs,
+        true,
+    )
+    .expect("sync should not fail when the publish directory is missing");
 
     assert_eq!(
         fs::read_to_string(target.join("index.js")).expect("read the injected copy"),

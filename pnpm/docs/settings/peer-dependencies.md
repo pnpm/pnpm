@@ -13,6 +13,12 @@ When `true`, any missing non-optional peer dependencies are automatically instal
 
 The version picked is the highest one satisfying the peer range. Since an automatically installed peer is not a dependency the project declares, [`resolutionMode`](./other.md#resolutionmode) treats it as a subdependency rather than a direct one, so `lowest-direct` does not lower it.
 
+#### Optional Peer Dependencies
+
+pnpm installs a missing optional peer dependency only if the workspace already has a version of it that satisfies the optional peer range. In that case, pnpm resolves the optional peer to that version. That version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
+
+pnpm also resolves optional peers this way when [`dedupePeerDependents`](#dedupepeerdependents) is `true`. To stop it, set both `autoInstallPeers` and `dedupePeerDependents` to `false`.
+
 #### Version Conflicts
 
 If there are conflicting version requirements for a peer dependency from different packages, pnpm will not install any version of the conflicting peer dependency automatically. Instead, a warning is printed. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, these requirements conflict, and no automatic installation will occur.
@@ -114,7 +120,7 @@ pnpm will not print warnings about missing peer dependencies from this list.
 
 For instance, with the following configuration, pnpm will not print warnings if a dependency needs `react` but `react` is not installed:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   ignoreMissing:
   - react
@@ -122,7 +128,7 @@ peerDependencyRules:
 
 Package name patterns may also be used:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   ignoreMissing:
   - "@babel/*"
@@ -139,7 +145,7 @@ Unmet peer dependency warnings will not be printed for peer dependencies of the 
 
 For instance, if you have some dependencies that need `react@16` but you know that they work fine with `react@17`, then you may use the following configuration:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowedVersions:
     react: "17"
@@ -149,7 +155,7 @@ This will tell pnpm that any dependency that has react in its peer dependencies 
 
 It is also possible to suppress the warnings only for peer dependencies of specific packages. For instance, with the following configuration `react` v17 will be only allowed when it is in the peer dependencies of the `button` v2 package or in the dependencies of any `card` package:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowedVersions:
     "button@2>react": "17",
@@ -160,7 +166,7 @@ peerDependencyRules:
 
 `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowAny:
   - "@babel/*"

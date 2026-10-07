@@ -169,7 +169,7 @@ Once done, install pnpm again and it should work as expected.
 
 To update pnpm, run the [`self-update`] command:
 
-```
+```sh
 pnpm self-update
 ```
 

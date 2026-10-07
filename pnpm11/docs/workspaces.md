@@ -81,7 +81,7 @@ A bare `workspace:` without a version range is treated as `workspace:*`.
 
 So for example, if we have `foo`, `bar`, `qar`, `zoo` in the workspace and they all are at version `1.5.0`, the following:
 
-```json
+```json title="package.json"
 {
 	"dependencies": {
 		"foo": "workspace:*",
@@ -94,7 +94,7 @@ So for example, if we have `foo`, `bar`, `qar`, `zoo` in the workspace and they 
 
 Will be transformed into:
 
-```json
+```json title="package.json"
 {
 	"dependencies": {
 		"foo": "1.5.0",

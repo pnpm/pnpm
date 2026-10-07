@@ -299,6 +299,7 @@ export interface BeforeLifecycleScriptsResult {
   }>
   updatedCatalogs?: Catalogs
   newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
   resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 

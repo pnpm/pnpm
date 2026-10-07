@@ -333,7 +333,7 @@ When the check finds that nothing changed, pnpm skips the install, including the
 
 Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 requiredScripts:
 - build
 ```

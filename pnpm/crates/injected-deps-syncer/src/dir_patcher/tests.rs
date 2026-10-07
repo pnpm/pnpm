@@ -33,7 +33,7 @@ fn files_map(root: &std::path::Path, relative_paths: &[&str]) -> HashMap<String,
 }
 
 fn sync(source: &std::path::Path, target: &std::path::Path) {
-    let patchers = DirPatcher::from_multiple_targets(source, &[target.to_path_buf()])
+    let patchers = DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], false)
         .expect("diff source against target");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
@@ -184,8 +184,8 @@ fn sync_with<Sys: pnpm_fs::FsHardLink>(
     target: &std::path::Path,
 ) -> Result<(), super::PatchError> {
     let patch = super::diff_dir(
-        &super::load_inode_map(target).expect("target inode map"),
-        &super::load_inode_map(source).expect("source inode map"),
+        &super::load_inode_map(target, false).expect("target inode map"),
+        &super::load_inode_map(source, false).expect("source inode map"),
     );
     super::apply_patch_with_link::<Sys>(&patch, source, target)
 }

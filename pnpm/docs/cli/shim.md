@@ -15,7 +15,7 @@ Creating a shim is always deliberate — nothing writes one as a side effect of 
 
 ### add
 
-```
+```sh
 pnpm shim add <pkg>...
 ```
 
@@ -33,7 +33,7 @@ Adding a shim while `globalShims: false` is set fails with `ERR_PNPM_SHIMS_DISAB
 
 ### rm
 
-```
+```sh
 pnpm shim rm <pkg>...
 ```
 
@@ -43,7 +43,7 @@ Removes the package's shims and the `globalShims` entry that `add` recorded for 
 
 ### ls
 
-```
+```sh
 pnpm shim ls
 ```
 

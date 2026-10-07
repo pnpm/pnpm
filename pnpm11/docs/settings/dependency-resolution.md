@@ -15,7 +15,7 @@ Note that the overrides field can only be set at the root of the project.
 
 An example of the `overrides` field:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 overrides:
   "foo": "^1.0.0"
   "quux": "npm:@myorg/quux@^1.0.0"
@@ -42,7 +42,7 @@ You may also reference a named catalog with `catalog:<name>`. See [Catalogs](../
 
 If you find that your use of a certain package doesn't require one of its dependencies, you may use `-` to remove it. For example, if package `foo@1.0.0` requires a large package named `bar` for a function that you don't use, removing it could reduce install time:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 overrides:
   "foo@1.0.0>bar": "-"
 ```
@@ -96,7 +96,7 @@ overrides:
 
 The `packageExtensions` fields offer a way to extend the existing package definitions with additional information. For example, if `react-redux` should have `react-dom` in its `peerDependencies` but it has not, it is possible to patch `react-redux` using `packageExtensions`:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   react-redux:
     peerDependencies:
@@ -105,7 +105,7 @@ packageExtensions:
 
 The keys in `packageExtensions` are package names or package names and semver ranges, so it is possible to patch only some versions of a package:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   react-redux@1:
     peerDependencies:
@@ -116,7 +116,7 @@ The following fields may be extended using `packageExtensions`: `dependencies`, 
 
 A bigger example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   express@1:
     optionalDependencies:
@@ -146,7 +146,7 @@ This setting allows muting deprecation warnings of specific packages.
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 allowedDeprecatedVersions:
   express: "1"
   request: "*"
@@ -164,7 +164,7 @@ Settings in this section tune the [`pnpm update`](../cli/update.md) and [`pnpm o
 
 Sometimes you can't update a dependency. For instance, the latest version of the dependency started to use ESM but your project is not yet in ESM. Annoyingly, such a package will always be printed out by the `pnpm outdated` command and updated, when running `pnpm update --latest`. However, you may list packages that you don't want to upgrade in the `ignoreDeps` field:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 update:
   ignoreDeps:
   - load-json-file
@@ -211,7 +211,7 @@ You can specify architectures for which you'd like to install optional dependenc
 
 For example, the following configuration tells to install optional dependencies for Windows x64:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 supportedArchitectures:
   os:
   - win32
@@ -221,7 +221,7 @@ supportedArchitectures:
 
 Whereas this configuration will install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 supportedArchitectures:
   os:
   - win32
@@ -260,7 +260,7 @@ transitive optional dependencies. Equivalent to
 
 If an optional dependency has its name included in this array, it will be skipped. For example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 ignoredOptionalDependencies:
 - fsevents
 - "@esbuild/*"
@@ -290,11 +290,11 @@ Added in: v10.16.0
 
 To reduce the risk of installing compromised or defective packages, you can delay the installation of newly published versions. In most cases, malicious releases are discovered and removed from the registry within an hour.
 
-`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones.
+`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones. It does not apply to a [config dependency](../config-dependencies.md) pinned with `version+integrity`.
 
 For example, the following setting ensures that only packages released at least one day ago can be installed:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 ```
 
@@ -309,7 +309,7 @@ If you set `minimumReleaseAge` but need certain dependencies to always install t
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - webpack
@@ -322,7 +322,7 @@ Added in: v10.17.0
 
 You may also use patterns. For instance, allow all packages from your org:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - '@myorg/*'
@@ -332,7 +332,7 @@ Added in: v10.19.0
 
 You may also exempt specific versions (or a list of specific versions using a disjunction with `||`). This allows pinning exceptions to mature-time rules:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - nx@21.6.5
@@ -359,7 +359,7 @@ Added in: v11.0.0
 
 When `true`, pnpm skips the [`minimumReleaseAge`](#minimumreleaseage) check for a package whose registry metadata does not include the `time` field (some private registries and mirrors omit it). Set to `false` to fail resolution in that case instead of installing the package.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAgeIgnoreMissingTime: false
 ```
 
@@ -378,7 +378,7 @@ Controls how pnpm behaves when no version of a dependency satisfies the [`minimu
 
 The default depends on whether you configured `minimumReleaseAge` yourself: if you set it explicitly (via `pnpm-workspace.yaml`, the CLI, or environment variables), strict mode is on by default so the setting is enforced. The built-in default of `minimumReleaseAge` (1440 minutes) is non-strict for backward compatibility.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAgeStrict: true
 ```
 
@@ -402,7 +402,7 @@ A list of package selectors that should be excluded from the trust policy check.
 
 For example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - 'chokidar@4.0.3'
@@ -467,7 +467,7 @@ Added in: v11.0.0
 
 Declares the registries the project installs from. Since v11.23.0, each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, and how the server lays out tarball URLs (`serverType`, `supportsTimeField`). The full description of each field is on the dedicated [Registries](../registries.md) page.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 registries:
   https://npm.corp.example.com/:
     serverType: artifactory
@@ -477,7 +477,7 @@ registries:
 
 The older shape, mapping scopes to URLs, is still accepted. The `default` key sets the main registry (equivalent to the `registry` `.npmrc` setting), and scoped keys configure registries for specific package scopes:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 registries:
   default: https://registry.npmjs.org/
   "@my-org": https://private.example.com/

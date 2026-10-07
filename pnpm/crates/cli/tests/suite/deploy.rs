@@ -221,6 +221,75 @@ fn deploy_records_its_own_resolution_settings() {
 }
 
 #[test]
+fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let lib_names = ["lib-a", "lib-b", "lib-c", "lib-d", "lib-e", "lib-f", "lib-g", "lib-h"];
+    let dependencies = lib_names
+        .iter()
+        .rev()
+        .map(|name| (name.to_string(), serde_json::json!("workspace:*")))
+        .collect::<serde_json::Map<_, _>>();
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({ "name": "app", "version": "1.0.0", "dependencies": dependencies }),
+    );
+    for name in lib_names {
+        write_project(&workspace, name, &serde_json::json!({ "name": name, "version": "1.0.0" }));
+    }
+    let allow_builds = lib_names
+        .iter()
+        .rev()
+        .map(|name| format!("{name}: true"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("{{ {allow_builds} }}"));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    let deployed_names = deploy_manifest["dependencies"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(deployed_names, lib_names);
+
+    let deployed_workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    let allowed_names = deployed_workspace_manifest["allowBuilds"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_names, lib_names);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn deploy_links_workspace_dependency_bins() {
     let CommandTempCwd {
         pacquet,

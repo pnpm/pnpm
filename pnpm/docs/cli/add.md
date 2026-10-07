@@ -190,7 +190,7 @@ A list of package names that are allowed to run postinstall scripts during insta
 
 Example:
 
-```
+```sh
 pnpm --allow-build=esbuild add my-bundler
 ```
 
@@ -198,7 +198,7 @@ This will run `esbuild`'s postinstall script and also add it to the `allowBuilds
 
 Since v12.4.0, prefixing a name with `!` denies the build instead:
 
-```
+```sh
 pnpm add --allow-build=!core-js my-bundler
 ```
 

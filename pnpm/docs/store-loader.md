@@ -6,7 +6,7 @@ pnpm's experimental loaded linker lets Node.js load JavaScript and JSON directly
 
 This is an experimental install mode. Enable it persistently in `pnpm-workspace.yaml` so install and execution commands use the same layout:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeLinker:
   type: loaded
   excluded:

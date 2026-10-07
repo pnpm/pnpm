@@ -110,7 +110,7 @@ Save the list of published packages to `pnpm-publish-summary.json`. Useful when 
 
 An example of a `pnpm-publish-summary.json` file:
 
-```json
+```json title="pnpm-publish-summary.json"
 {
   "publishedPackages": [
     {

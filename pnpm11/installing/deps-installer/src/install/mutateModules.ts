@@ -468,6 +468,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
     updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     newLockfile: result.newLockfile,
+    wantedLockfile: result.wantedLockfile,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
     ignoredBuilds,

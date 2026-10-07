@@ -110,7 +110,7 @@ The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no au
 
 `pnpm audit` is configured in the `audit` section of `pnpm-workspace.yaml` (added in v11.16.0):
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   level: high
   ignore:
@@ -128,7 +128,7 @@ Only print advisories with severity greater than or equal to this level. Same as
 
 A list of GHSA codes that will be ignored by the `pnpm audit` command.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   ignore:
     - GHSA-42xw-2xvc-qx8m
@@ -152,7 +152,7 @@ When `true`, `pnpm audit --fix` removes the [`audit.ignore`](#auditignore)
 entries whose GHSA no longer appears in the audit report, so a list of tolerated
 advisories doesn't accumulate entries for dependencies that are long gone.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   ignorePrune: true
 ```

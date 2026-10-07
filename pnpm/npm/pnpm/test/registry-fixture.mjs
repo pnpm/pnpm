@@ -40,7 +40,7 @@ export const INTEGRITY_KEYS = JSON.stringify({
  * @param {Buffer | string} opts.payload Contents of the binary inside the tarball.
  * @param {boolean} [opts.tamper] Serve bytes the published checksum does not cover.
  * @param {boolean} [opts.unsigned] Publish the package without a signature.
- * @returns {Promise<{url: string, close: () => Promise<void>}>}
+ * @returns {Promise<{url: string, requests: Array<{url: string, authorization?: string}>, close: () => Promise<void>}>}
  */
 export function startRegistry ({ payload, tamper = false, unsigned = false }) {
   const tarball = zlib.gzipSync(tarArchive(`package/${binFile}`, Buffer.from(payload)))
@@ -48,7 +48,9 @@ export function startRegistry ({ payload, tamper = false, unsigned = false }) {
   const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`
   const tarballPath = `/${packageName}/-/${VERSION}.tgz`
 
+  const requests = []
   const server = http.createServer((req, res) => {
+    requests.push({ url: req.url, authorization: req.headers.authorization })
     if (req.url === `/${packageName}/${VERSION}`) {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({
@@ -77,6 +79,7 @@ export function startRegistry ({ payload, tamper = false, unsigned = false }) {
     server.listen(0, '127.0.0.1', () => {
       resolve({
         url: `http://127.0.0.1:${server.address().port}`,
+        requests,
         close: () => new Promise((closed) => {
           server.close(closed)
           // `close` alone waits out an idle keep-alive connection; absent

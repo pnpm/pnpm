@@ -49,7 +49,7 @@ Let pnpm install Node.js automatically from [`devEngines.runtime`](./package_jso
 This example assumes the project has a `pnpm-workspace.yaml`. If it does not,
 use `COPY package.json pnpm-lock.yaml ./` for the first copy step.
 
-```dockerfile
+```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

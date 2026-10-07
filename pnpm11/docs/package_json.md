@@ -24,7 +24,7 @@ Since v11, pnpm no longer reads settings from the `pnpm` field of `package.json`
 
 You can specify the version of Node and pnpm that your software works on:
 
-```json
+```json title="package.json"
 {
     "engines": {
         "node": ">=10",
@@ -48,7 +48,7 @@ Added in: v10.21.0
 
 Specifies the Node.js runtime required by a dependency. When declared, pnpm will automatically install the specified Node.js version.
 
-```json
+```json title="package.json"
 {
   "engines": {
     "runtime": {
@@ -75,7 +75,7 @@ Allows to specify one or more JavaScript runtime engines used by the project. Su
 
 For instance, here is how to add `node@^24.4.0` to your dependencies:
 
-```json
+```json title="package.json"
 {
   "devEngines": {
     "runtime": {
@@ -89,7 +89,7 @@ For instance, here is how to add `node@^24.4.0` to your dependencies:
 
 You can also add multiple runtimes to the same `package.json`:
 
-```json
+```json title="package.json"
 {
   "devEngines": {
     "runtime": [
@@ -124,7 +124,7 @@ Allows specifying the pnpm version via `devEngines.packageManager` in `package.j
 
 When the lockfile records no version yet, pnpm records the running pnpm if it satisfies the range and was published at least [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) ago. Otherwise pnpm records the newest version in the range that is old enough. If no version in the range is old enough, pnpm records the running pnpm.
 
-```json
+```json title="package.json"
 {
   "devEngines": {
     "packageManager": {
@@ -156,7 +156,7 @@ If this is set to `false` or not set, then the dependency will instead be instal
 
 For example, suppose the following `package.json` is a local workspace package:
 
-```json
+```json title="package.json"
 {
   "name": "card",
   "dependencies": {
@@ -171,7 +171,7 @@ But what if `button` specifies `react` in its `peerDependencies`? If all project
 
 The `injected` field solves this problem by installing a hard linked copies of `button` in the virtual store. To accomplish this, the `package.json` of `card` could be configured as follows:
 
-```json
+```json title="package.json"
 {
   "name": "card",
   "dependencies": {
@@ -188,7 +188,7 @@ The `injected` field solves this problem by installing a hard linked copies of `
 
 Whereas the `package.json` of `form` could be configured as follows:
 
-```json
+```json title="package.json"
 {
   "name": "form",
   "dependencies": {
@@ -213,7 +213,7 @@ Peer dependency values are normally semver ranges (`^1.0.0`), or a [`workspace:`
 
 Since v11.14.0, a peer dependency may also be declared with a specifier that carries a scheme:
 
-```json
+```json title="package.json"
 {
   "peerDependencies": {
     "lib-a": "work:5.x.x",
@@ -230,7 +230,7 @@ Such a specifier is matched against the semver range it carries — `work:5.x.x`
 
 Bare `name@version` values are still rejected with `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION`, as they are almost always a mistake:
 
-```json
+```json title="package.json"
 {
   "peerDependencies": {
     "lib-a": "lib-a@1.2.3"
@@ -250,7 +250,7 @@ by the package manager. Therefore, the consumer omitting it will no longer be
 reported as an error.
 
 For example:
-```json
+```json title="package.json"
 {
     "peerDependencies": {
         "foo": "1"
@@ -296,7 +296,7 @@ To override a field, add the publish version of the field to `publishConfig`.
 
 For instance, the following `package.json`:
 
-```json
+```json title="package.json"
 {
     "name": "foo",
     "version": "1.0.0",
@@ -310,7 +310,7 @@ For instance, the following `package.json`:
 
 Will be published as:
 
-```json
+```json title="package.json"
 {
     "name": "foo",
     "version": "1.0.0",
@@ -325,7 +325,7 @@ Added in: v11.18.0
 
 Publishes the package under a different name than the one its manifest carries in the workspace. This is for a project whose published name is already taken by a sibling project, which otherwise has to be renamed by a build step just before publishing.
 
-```json
+```json title="package.json"
 {
   "name": "foo-v2",
   "version": "2.0.0",
@@ -341,7 +341,7 @@ Only the published artifact is renamed — dependents, `pnpm-lock.yaml`, and rel
 
 By default, for portability reasons, no files except those listed in the bin field will be marked as executable in the resulting package archive. The `executableFiles` field lets you declare additional files that must have the executable flag (+x) set even if they aren't directly accessible through the bin field.
 
-```json
+```json title="package.json"
 {
   "publishConfig": {
     "executableFiles": [
@@ -359,7 +359,7 @@ It is expected to have a modified version of the current package in the specifie
 
 > In this example the `"dist"` folder must contain a `package.json`
 
-```json
+```json title="package.json"
 {
   "name": "foo",
   "version": "1.0.0",
@@ -378,7 +378,7 @@ When set to `true`, the project will be symlinked from the `publishConfig.direct
 
 For example:
 
-```json
+```json title="package.json"
 {
   "name": "foo",
   "version": "1.0.0",

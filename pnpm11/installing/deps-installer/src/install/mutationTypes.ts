@@ -103,6 +103,8 @@ export interface MutateModulesInSingleProjectResult {
   ignoredBuilds: IgnoredBuilds | undefined
   /** Forwarded from {@link MutateModulesResult.newLockfile}. */
   newLockfile?: LockfileObject
+  /** Forwarded from {@link MutateModulesResult.wantedLockfile}. */
+  wantedLockfile?: LockfileObject
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   /** Forwarded from {@link MutateModulesResult.dryRunResult}. */
@@ -118,6 +120,11 @@ export interface MutateModulesResult {
    * lockfile) or resolution was delegated (pnpr server).
    */
   newLockfile?: LockfileObject
+  /**
+   * The existing wanted lockfile, used as is. Present only when
+   * {@link newLockfile} is absent because resolution was skipped.
+   */
+  wantedLockfile?: LockfileObject
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
   ignoredBuilds: IgnoredBuilds | undefined
@@ -138,6 +145,7 @@ export interface InnerInstallResult {
   readonly updatedCatalogs?: Catalogs
   readonly updatedProjects: UpdatedProject[]
   readonly newLockfile?: LockfileObject
+  readonly wantedLockfile?: LockfileObject
   readonly stats?: InstallationResultStats
   readonly depsRequiringBuild?: DepPath[]
   readonly ignoredBuilds: IgnoredBuilds | undefined

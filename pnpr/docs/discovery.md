@@ -8,7 +8,7 @@ Added in: v0.1.0-alpha.11
 Cross-origin browser access and upstream discovery are both off by default. Turn
 them on to run a registry UI on its own origin.
 
-```yaml
+```yaml title="pnpr.yaml"
 cors:
   allowedOrigins:
     - https://registry-ui.example.com

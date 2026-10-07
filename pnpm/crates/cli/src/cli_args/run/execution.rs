@@ -11,7 +11,7 @@ use super::{
 use crate::cli_args::concurrency_group::{
     SlotOutcome, acquire_concurrency_group_slot, with_held_group,
 };
-use pnpm_reporter::LogEvent;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
@@ -471,17 +471,35 @@ pub(in super::super) fn run_stage(
     // that fails on its own after an earlier stage handled an interrupt
     // is still reported.
     if !status.success() && interrupt_count() == interrupts_before {
-        if let Some(signal) = status.signal_name() {
-            eprintln!("[ELIFECYCLE] Command failed with signal {signal}.");
-        } else if stage == "test" {
-            eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
-        } else if let Some(code) = status.code() {
-            eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
-        } else {
-            eprintln!("[ELIFECYCLE] Command failed.");
-        }
+        report_lifecycle_failure(ctx, &lifecycle_failure_message(status, stage));
     }
     Ok(Some(status))
+}
+
+fn lifecycle_failure_message(status: ScriptExit, stage: &str) -> String {
+    if let Some(signal) = status.signal_name() {
+        format!("[ELIFECYCLE] Command failed with signal {signal}.")
+    } else if stage == "test" {
+        "[ELIFECYCLE] Test failed. See above for more details.".to_string()
+    } else if let Some(code) = status.code() {
+        format!("[ELIFECYCLE] Command failed with exit code {code}.")
+    } else {
+        "[ELIFECYCLE] Command failed.".to_string()
+    }
+}
+
+/// A streamed run goes through the reporter, which may be redrawing its
+/// frame in place: a line written past it would shift the rows the frame
+/// moves the cursor over.
+fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
+    match ctx.output {
+        ScriptOutput::Streamed { .. } => (ctx.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Error,
+            message: message.to_string(),
+            prefix: String::new(),
+        })),
+        ScriptOutput::Inherit => eprintln!("{message}"),
+    }
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(

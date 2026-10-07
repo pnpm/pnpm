@@ -26,7 +26,7 @@ A project has a workspace dependency that does not exist in the workspace.
 
 For instance, package `foo` has `bar@1.0.0` in the `dependencies`:
 
-```json
+```json title="package.json"
 {
   "name": "foo",
   "version": "1.0.0",

@@ -49,7 +49,7 @@ a debug log for the step.
 
 Example `.pnpmfile.mjs` (changes the dependencies of a dependency):
 
-```js
+```js title=".pnpmfile.mjs"
 function readPackage(pkg, context) {
   // Override the manifest of foo@1.x after downloading it from the registry
   if (pkg.name === 'foo' && pkg.version?.startsWith('1.')) {
@@ -280,7 +280,7 @@ export const finders = {
 
 Usage:
 
-```
+```sh
 pnpm why --find-by=react17
 ```
 
@@ -294,7 +294,7 @@ Added in: v11.0.0
 
 Custom resolvers and fetchers allow you to implement custom package resolution and fetching logic for new package identifier schemes (like `my-protocol:package-name`). They are registered as top-level exports in `.pnpmfile.cjs`:
 
-```js
+```js title=".pnpmfile.cjs"
 module.exports = {
   resolvers: [customResolver1, customResolver2],
   fetchers: [customFetcher1, customFetcher2],

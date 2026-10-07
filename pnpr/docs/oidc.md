@@ -17,7 +17,7 @@ Register a web application with your identity provider. Set its callback to
 Start pnpr with `--public-url https://registry.example`, its HTTPS origin
 without a path prefix.
 
-```yaml
+```yaml title="pnpr.yaml"
 auth:
   oidc:
     - name: company
@@ -58,7 +58,7 @@ Open `https://registry.example/-/oidc/company/login` in a browser. After
 sign-in, pnpr displays a token to put in the registry's `_authToken` setting,
 for example in your private user `.npmrc`:
 
-```ini
+```ini title=".npmrc"
 //registry.example/:_authToken=THE_DISPLAYED_TOKEN
 ```
 
@@ -75,7 +75,7 @@ Configure a dedicated workload username, a named hosted npm registry, and exact
 package names. The package's normal `publish` rule must grant that username
 access too.
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   private:
     type: hosted
@@ -131,7 +131,7 @@ steps:
 
 The project's `.npmrc` holds only the environment reference:
 
-```ini
+```ini title=".npmrc"
 //registry.example/~private/:_authToken=${NODE_AUTH_TOKEN}
 ```
 

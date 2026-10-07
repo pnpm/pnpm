@@ -43,7 +43,7 @@ may list sources of every ecosystem, because a request only ever sees the
 sources that speak its own protocol, so one router can be the default target for
 all of them.
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   local:
     type: hosted
@@ -90,7 +90,7 @@ root.
 Group the registries under an ecosystem key to give each protocol its own
 registry of the same name:
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   npm:
     internal:
@@ -184,7 +184,7 @@ allowlist. The official crates.io and PyPI upstreams also permit their download
 hosts, `static.crates.io` and `files.pythonhosted.org`. A custom registry that
 serves downloads from a separate host needs that host declared:
 
-```yaml
+```yaml title="pnpr.yaml"
 routes:
   public:
     - registry: https://downloads.example.com/

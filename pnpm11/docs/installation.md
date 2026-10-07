@@ -151,7 +151,7 @@ Once done, install pnpm again and it should work as expected.
 
 To update to the newest pnpm 11, run the [`self-update`] command with the major:
 
-```
+```sh
 pnpm self-update 11
 ```
 

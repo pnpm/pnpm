@@ -8,6 +8,8 @@ import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { readYamlFileSync } from 'read-yaml-file'
 
+import { bravoDepMatureUpTo101MinimumReleaseAge } from './utils/minimumReleaseAge.js'
+
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test('configuration dependency is resolved', async () => {
@@ -218,4 +220,39 @@ test('adding a configuration dependency verifies the config dependencies already
     storeDir,
   })).rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP' })
   expect((await readEnvLockfile(process.cwd()))!.packages['@pnpm.e2e/foo@100.0.0']).toBeUndefined()
+})
+
+test('adding a configuration dependency range picks a version older than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await resolveConfigDeps(['@pnpm.e2e/bravo-dep@^1.0.0'], {
+    registriesByScope: { default: registry },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/bravo-dep']).toStrictEqual({
+    specifier: '^1.0.0',
+    version: '1.0.1',
+  })
+})
+
+test('adding a configuration dependency newer than minimumReleaseAge fails', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await expect(resolveConfigDeps(['@pnpm.e2e/bravo-dep@1.1.0'], {
+    registriesByScope: { default: registry },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('minimumReleaseAge') })
+  expect(await readEnvLockfile(process.cwd())).toBeNull()
 })
