@@ -1,3 +1,4 @@
+pub(crate) use super::package_spec::PackageSpec;
 pub(crate) use registry::{
     auth_header_for_registry, fetch_package_meta, package_url, registry_for_package,
     registry_operation_error, registry_operation_failed, registry_write_error,
@@ -14,8 +15,6 @@ use pnpm_network::{
     LimitedBody, RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials,
     retry_async, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use registry::{PackageMeta, put_package_meta};
 
 use reqwest::{Response, StatusCode};
@@ -179,11 +178,6 @@ impl DeprecateContext<'_> {
     }
 }
 
-pub(crate) struct PackageSpec {
-    pub(crate) name: String,
-    pub(crate) version: Option<String>,
-}
-
 impl DeprecateArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
         let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp)?;
@@ -283,11 +277,8 @@ fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) ->
 }
 
 pub(crate) fn parse_package_spec(spec: &str) -> Result<PackageSpec, DeprecateError> {
-    let parsed = parse_wanted_dependency(spec);
-    let name =
-        parsed.alias.ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: spec.to_string() })?;
-    let version = parsed.bare_specifier.filter(|version| !version.is_empty());
-    Ok(PackageSpec { name, version })
+    PackageSpec::parse(spec)
+        .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: spec.to_string() })
 }
 
 /// Undeprecating a range with no deprecated versions is an error.

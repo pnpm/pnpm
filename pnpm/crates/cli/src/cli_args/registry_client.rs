@@ -1,8 +1,10 @@
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    NetworkSettings, RedirectGuard, ThrottledClient, normalize_registry_url, origins_redirect_guard,
+    NetworkSettings, RedirectGuard, ThrottledClient, escaped_package_name, normalize_registry_url,
+    origins_redirect_guard,
 };
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{collections::HashMap, time::Duration};
 
 /// The npm CLI's default `fetch-timeout`. The registry can take longer than
@@ -28,12 +30,39 @@ pub fn resolve_registries_with_override(
     registries
 }
 
+/// Pick and normalize the registry URL for a given package name.
+pub fn resolve_registry_for_package(
+    registries: &HashMap<String, String>,
+    package_name: &str,
+    publish_registry: Option<&str>,
+) -> String {
+    let raw = pick_registry_for_package(registries, package_name, publish_registry);
+    normalize_registry_url(&raw).into_owned()
+}
+
+/// Look up the authorization header for the given package on the registry URL.
+pub fn auth_header_for_package(
+    config: &Config,
+    registry_url: &str,
+    package_name: &str,
+) -> Option<String> {
+    config.auth_headers.for_url_with_package(registry_url, Some(package_name))
+}
+
 /// Join a relative path against a normalized registry URL, preserving any
 /// path prefix in the registry URL.
 pub fn join_registry_endpoint(registry_url: &str, path: &str) -> Result<String, url::ParseError> {
     reqwest::Url::parse(&normalize_registry_url(registry_url))
         .and_then(|url| url.join(path))
         .map(|url| url.to_string())
+}
+
+/// Join a package name onto a registry URL using the registry's package-escaping convention.
+pub fn package_endpoint_url(
+    registry_url: &str,
+    package_name: &str,
+) -> Result<String, url::ParseError> {
+    join_registry_endpoint(registry_url, &escaped_package_name(package_name))
 }
 
 /// Build the network client a one-off registry query makes its request through,
