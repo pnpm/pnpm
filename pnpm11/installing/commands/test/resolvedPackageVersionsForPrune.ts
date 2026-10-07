@@ -14,7 +14,7 @@ jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
   readWantedLockfile: mockReadWantedLockfile,
 }))
 
-const { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } =
+const { keptCatalogsForPrune, resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } =
   await import('../src/resolvedPackageVersionsForPrune.js')
 
 const newLockfile = {
@@ -44,6 +44,25 @@ test('no versions when the lockfile is not shared by the whole workspace', () =>
 
 test('no versions when no lockfile is available', () => {
   expect(resolvedPackageVersionsForPrune({}, undefined)).toBeUndefined()
+})
+
+const wantedLockfile = {
+  ...newLockfile,
+  catalogs: { default: { foo: { specifier: '1.0.0', version: '1.0.0' } } },
+}
+
+test('the catalogs of the freshly resolved lockfile', () => {
+  expect(keptCatalogsForPrune({}, { ...newLockfile, catalogs: {} }, wantedLockfile)).toEqual({})
+})
+
+test('the catalogs of the wanted lockfile when no new resolution ran', () => {
+  expect(keptCatalogsForPrune({}, undefined, wantedLockfile)).toBe(wantedLockfile.catalogs)
+})
+
+test('no catalogs when the lockfile is not used', () => {
+  expect(keptCatalogsForPrune({
+    lockfile: false,
+  }, undefined, wantedLockfile)).toBeUndefined()
 })
 
 test('the versions every project lockfile records together', async () => {

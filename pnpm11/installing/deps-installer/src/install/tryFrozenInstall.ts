@@ -95,6 +95,7 @@ Note that in CI environments, this setting is enabled by default.`,
     await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
     return {
       updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+      wantedLockfile: ctx.wantedLockfile,
       ignoredBuilds: undefined,
     }
   }
@@ -193,6 +194,7 @@ async function runPacquetOnFrozenLockfile (
     updatedProjects,
     updatedCatalogs: undefined,
     newLockfile: undefined,
+    wantedLockfile: run.ctx.wantedLockfile,
     resolutionPolicyViolations: undefined,
   })
   try {
@@ -206,6 +208,7 @@ async function runPacquetOnFrozenLockfile (
   }
   return {
     updatedProjects,
+    wantedLockfile: run.ctx.wantedLockfile,
     ignoredBuilds: undefined,
   }
 }
@@ -229,6 +232,7 @@ async function runHeadlessInstall (run: MutationRun, args: FrozenInstallArgs): P
   }
   return {
     updatedProjects: listUpdatedProjects(run),
+    wantedLockfile: ctx.wantedLockfile,
     stats,
     ignoredBuilds,
   }

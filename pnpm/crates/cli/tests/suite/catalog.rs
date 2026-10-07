@@ -761,6 +761,113 @@ fn filtered_frozen_install_keeps_catalog_entries_the_lockfile_records() {
     drop((root, anchor));
 }
 
+/// Lock projects `a` (`FOO` from the catalog, `peer-a` pinned) and `b`
+/// (`@pnpm.e2e/bar` from the catalog), add an unused `FOOBAR` catalog entry,
+/// then delete `b` from disk.
+fn lock_partial_catalog_workspace(workspace: &Path) {
+    write_manifest(workspace, "{}");
+    append_workspace_yaml(
+        workspace,
+        &format!(
+            "packages:\n  - 'packages/*'\n\
+             catalogPrune: true\n\
+             catalog:\n  '{FOO}': 1.0.0\n  '@pnpm.e2e/bar': 100.0.0\n",
+        ),
+    );
+    let dependencies = [
+        ("a", serde_json::json!({ FOO: "catalog:", "@pnpm.e2e/peer-a": "1.0.0" })),
+        ("b", serde_json::json!({ "@pnpm.e2e/bar": "catalog:" })),
+    ];
+    for (name, dependencies) in dependencies {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create the package dir");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies })
+                .to_string(),
+        )
+        .expect("write the package manifest");
+    }
+    run_ok(workspace, &["install", "--lockfile-only"]);
+    append_workspace_yaml(workspace, &format!("  '{FOOBAR}': 100.0.0\n"));
+    fs::remove_dir_all(workspace.join("packages/b")).expect("remove project b");
+}
+
+fn assert_remove_keeps_catalog_entries_the_lockfile_records(workspace: &Path) {
+    let workspace_yaml = read(workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the entry the lockfile records must be preserved:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains(FOOBAR),
+        "the entry the lockfile does not record must be pruned:\n{workspace_yaml}",
+    );
+    run_ok(workspace, &["--filter", "a", "install", "--frozen-lockfile", "--lockfile-only"]);
+}
+
+#[test]
+fn filtered_remove_keeps_catalog_entries_the_lockfile_records() {
+    let (root, workspace, anchor) = setup();
+    lock_partial_catalog_workspace(&workspace);
+
+    run_ok(&workspace, &["--filter", "a", "remove", "@pnpm.e2e/peer-a", "--lockfile-only"]);
+
+    assert_remove_keeps_catalog_entries_the_lockfile_records(&workspace);
+
+    drop((root, anchor));
+}
+
+#[test]
+fn remove_in_a_project_keeps_catalog_entries_the_lockfile_records() {
+    let (root, workspace, anchor) = setup();
+    lock_partial_catalog_workspace(&workspace);
+
+    run_ok(&workspace.join("packages/a"), &["remove", "@pnpm.e2e/peer-a", "--lockfile-only"]);
+
+    assert_remove_keeps_catalog_entries_the_lockfile_records(&workspace);
+
+    drop((root, anchor));
+}
+
+#[test]
+fn remove_prunes_the_catalog_entry_of_the_removed_dependency() {
+    let (root, workspace, anchor) = setup();
+    lock_partial_catalog_workspace(&workspace);
+
+    run_ok(&workspace, &["--filter", "a", "remove", FOO, "--lockfile-only"]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        !workspace_yaml.contains(&format!("'{FOO}'")),
+        "the entry of the removed dependency must be pruned:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn remove_without_a_lockfile_ignores_the_stale_lockfile_catalogs() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "catalog:", "@pnpm.e2e/peer-a": "1.0.0" }}"#),
+    );
+    append_workspace_yaml(&workspace, &format!("catalogPrune: true\ncatalog:\n  '{FOO}': 1.0.0\n"));
+    run_ok(&workspace, &["install"]);
+    append_workspace_yaml(&workspace, "lockfile: false\n");
+
+    run_ok(&workspace, &["remove", FOO]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        !workspace_yaml.contains(&format!("'{FOO}'")),
+        "the entry of the removed dependency must be pruned:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 #[test]
 fn failed_resolution_rolls_back_pruned_workspace_catalogs() {
     let (root, workspace, anchor) = setup();
