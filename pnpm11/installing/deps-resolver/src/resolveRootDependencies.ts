@@ -313,7 +313,12 @@ async function hoistOptionalPeersOfImporter (
   )
   if (!Object.keys(optionalDependencies).length) return false
   for (const [name, version] of Object.entries(optionalDependencies)) {
-    optionalDependencies[name] = getOptionalPeerSpecifier(name, version, hoisting.workspaceRootDeps, hoisting.rootDepVersions)
+    optionalDependencies[name] = getOptionalPeerSpecifier({
+      name,
+      version,
+      workspaceRootDeps: hoisting.workspaceRootDeps,
+      rootDepVersions: hoisting.rootDepVersions,
+    })
   }
   await resolveHoistedDependencies(hoisting, index, getNonDevWantedDependencies({ optionalDependencies }))
   return true

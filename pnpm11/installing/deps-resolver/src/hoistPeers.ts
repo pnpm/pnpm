@@ -278,10 +278,12 @@ function findWorkspaceRootDep (
 
 /** Preserve a workspace provider's identity after optional-peer version selection. */
 export function getOptionalPeerSpecifier (
-  name: string,
-  version: string,
-  workspaceRootDeps: HoistableRootDep[],
-  rootDepVersions: Map<string, string>
+  { name, version, workspaceRootDeps, rootDepVersions }: {
+    name: string
+    version: string
+    workspaceRootDeps: HoistableRootDep[]
+    rootDepVersions: Map<string, string>
+  }
 ): string {
   const rootDep = findWorkspaceRootDep(workspaceRootDeps, name)
   return rootDep != null && rootDepVersions.get(rootDep.alias) === version && rootDep.normalizedBareSpecifier?.startsWith('workspace:')

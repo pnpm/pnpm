@@ -6,9 +6,12 @@ test.each([
   ['foo', 'workspace:*'],
   ['alias', 'workspace:foo@*'],
 ])('getOptionalPeerSpecifier preserves the workspace provider %s', (alias, normalizedBareSpecifier) => {
-  expect(getOptionalPeerSpecifier('foo', '1.0.0', [
-    { alias, pkgName: 'foo', normalizedBareSpecifier },
-  ], new Map([[alias, '1.0.0']]))).toBe(normalizedBareSpecifier)
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '1.0.0',
+    workspaceRootDeps: [{ alias, pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map([[alias, '1.0.0']]),
+  })).toBe(normalizedBareSpecifier)
 })
 
 test.each([
@@ -18,13 +21,21 @@ test.each([
   ['file:../foo', '2.0.0'],
   [undefined, '2.0.0'],
 ])('getOptionalPeerSpecifier retains the selected version for root %s at %s', (normalizedBareSpecifier, rootVersion) => {
-  expect(getOptionalPeerSpecifier('foo', '2.0.0', [
-    { alias: 'foo', pkgName: 'foo', normalizedBareSpecifier },
-  ], new Map(rootVersion == null ? [] : [['foo', rootVersion]]))).toBe('2.0.0')
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [{ alias: 'foo', pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map(rootVersion == null ? [] : [['foo', rootVersion]]),
+  })).toBe('2.0.0')
 })
 
 test('getOptionalPeerSpecifier retains the selected version without a root provider', () => {
-  expect(getOptionalPeerSpecifier('foo', '2.0.0', [], new Map())).toBe('2.0.0')
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [],
+    rootDepVersions: new Map(),
+  })).toBe('2.0.0')
 })
 
 test('hoistPeers picks an already available prerelease version', () => {
