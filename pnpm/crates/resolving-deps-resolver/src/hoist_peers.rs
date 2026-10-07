@@ -366,7 +366,9 @@ fn find_workspace_root_dep<'a>(
         })
 }
 
-/// Preserve a workspace provider's identity after optional-peer version selection.
+/// The specifier an optional peer picked at `version` is installed with: the
+/// `workspace:` specifier of the root dependency that provides `name` when it
+/// resolved to `version`, otherwise `version`.
 pub(crate) fn optional_peer_specifier(
     name: &str,
     version: String,
