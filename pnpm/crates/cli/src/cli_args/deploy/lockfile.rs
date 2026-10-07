@@ -322,11 +322,13 @@ fn set_manifest_dependencies(
     field: &str,
     dependencies: Option<&ResolvedDependencyMap>,
 ) {
-    let deps = dependencies
+    let mut deps = dependencies
         .into_iter()
         .flatten()
         .map(|(name, spec)| (name.to_string(), Value::String(spec.specifier.clone())))
-        .collect::<Map<_, _>>();
+        .collect::<Vec<_>>();
+    deps.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    let deps = deps.into_iter().collect::<Map<_, _>>();
     if let Some(object) = manifest.as_object_mut() {
         object.insert(field.to_string(), Value::Object(deps));
     }
