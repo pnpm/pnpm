@@ -48,6 +48,18 @@ fn drops_cursor_movement_from_script_output() {
 }
 
 #[test]
+fn drops_private_mode_sequences_that_end_like_a_color() {
+    let line = format!("\u{1b}[>4;2m{RED}ok{RESET}");
+    assert_eq!(rendered_output(true, &line), format!("{RED}ok{RESET}{SGR_RESET}"));
+}
+
+#[test]
+fn drops_hyperlink_sequences_but_keeps_their_text() {
+    let line = "see \u{1b}]8;;https://example.com\u{7}docs\u{1b}]8;;\u{1b}\\ for help";
+    assert_eq!(rendered_output(false, line), "see docs for help");
+}
+
+#[test]
 fn shows_the_last_frame_of_a_carriage_return_redraw() {
     assert_eq!(rendered_output(false, "10%\r55%\r100%\r"), "100%");
     assert_eq!(rendered_output(false, &format!("50%\r{CLEAR_LINE}")), "50%");

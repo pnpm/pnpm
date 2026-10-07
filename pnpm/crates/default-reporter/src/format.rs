@@ -143,17 +143,18 @@ pub fn printable_script_line(line: &str, keep_colors: bool) -> Cow<'_, str> {
 fn printable_frame(frame: &str, keep_colors: bool) -> String {
     let mut printable = String::with_capacity(frame.len());
     let mut colored = false;
-    for (part, is_escape) in console::AnsiCodeIterator::new(frame) {
-        if !is_escape {
-            printable.extend(
-                part.chars()
-                    .filter(|ch| !ch.is_control() || *ch == '\t'),
-            );
-        } else if keep_colors && is_sgr(part) {
-            printable.push_str(part);
+    let mut rest = frame;
+    while let Some(start) = rest.find('\u{1b}') {
+        push_printable(&mut printable, &rest[..start]);
+        let escape_len = escape_len(&rest[start..]);
+        let escape = &rest[start..start + escape_len];
+        if keep_colors && is_sgr(escape) {
+            printable.push_str(escape);
             colored = true;
         }
+        rest = &rest[start + escape_len..];
     }
+    push_printable(&mut printable, rest);
     if colored {
         printable.push_str(SGR_RESET);
     }
@@ -162,8 +163,54 @@ fn printable_frame(frame: &str, keep_colors: bool) -> String {
 
 const SGR_RESET: &str = "\u{1b}[0m";
 
+fn push_printable(printable: &mut String, text: &str) {
+    printable.extend(
+        text.chars()
+            .filter(|ch| !ch.is_control() || *ch == '\t'),
+    );
+}
+
+/// Byte length of the ECMA-48 escape sequence `text` starts with. An
+/// unterminated sequence runs to the end of `text`.
+fn escape_len(text: &str) -> usize {
+    let body = &text[1..];
+    let body_len = match body.chars().next() {
+        Some('[') => 1 + csi_len(&body[1..]),
+        Some(']' | 'P' | 'X' | '^' | '_') => 1 + control_string_len(&body[1..]),
+        Some(ch) => ch.len_utf8(),
+        None => 0,
+    };
+    1 + body_len
+}
+
+/// Parameter and intermediate bytes up to and including the final byte.
+fn csi_len(text: &str) -> usize {
+    let Some(end) = text.find(|ch: char| !('\u{20}'..='\u{3f}').contains(&ch)) else {
+        return text.len();
+    };
+    let has_final_byte = text[end..].starts_with(|ch: char| ('\u{40}'..='\u{7e}').contains(&ch));
+    end + usize::from(has_final_byte)
+}
+
+/// An OSC, DCS, SOS, PM or APC payload up to and including `BEL` or `ESC \\`.
+fn control_string_len(text: &str) -> usize {
+    match text.find(['\u{7}', '\u{1b}']) {
+        Some(end) if text[end..].starts_with("\u{1b}\\") => end + 2,
+        Some(end) if text[end..].starts_with('\u{7}') => end + 1,
+        Some(end) => end,
+        None => text.len(),
+    }
+}
+
 fn is_sgr(escape: &str) -> bool {
-    escape.starts_with("\u{1b}[") && escape.ends_with('m')
+    escape
+        .strip_prefix("\u{1b}[")
+        .and_then(|sequence| sequence.strip_suffix('m'))
+        .is_some_and(|parameters| {
+            parameters
+                .chars()
+                .all(|ch| ch.is_ascii_digit() || ch == ';' || ch == ':')
+        })
 }
 
 /// Port of `normalize-path`: backslashes to forward slashes.
