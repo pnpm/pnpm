@@ -275,6 +275,58 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
         "auto-installed peer reachable only via parent's optional path stays optional",
     );
 }
+#[test]
+fn auto_installed_peer_declared_in_manifest_is_not_optional() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "consumer": "1.0.0" },
+        "peerDependencies": { "peer": "^1.0.0" },
+    }));
+    let peer = make_node(
+        "peer",
+        "1.0.0",
+        json!({ "name": "peer", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "^1.0.0" },
+            "peerDependenciesMeta": { "peer": { "optional": true } },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "^1.0.0".to_string(), optional: true },
+        )]),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    for node in [peer, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0".to_string())),
+        ("peer".to_string(), DepPath::from("peer@1.0.0".to_string())),
+    ]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let peer_key: PackageKey = "peer@1.0.0".parse().unwrap();
+    assert!(
+        !snapshots[&peer_key].optional,
+        "the importer depends on its auto-installed peer, whatever the consumer's optional peer says",
+    );
+}
 /// An alias the writer can't resolve must never drop the tarball URL:
 /// testing it against the default registry could classify it as
 /// reconstructible and leave an entry no install can fetch.

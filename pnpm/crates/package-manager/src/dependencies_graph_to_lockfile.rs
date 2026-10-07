@@ -186,7 +186,8 @@ pub enum DependenciesGraphToLockfileError {
 pub fn dependencies_graph_to_lockfile(
     opts: GraphToLockfileOptions<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
-    let optional_overrides = compute_corrected_optional(&opts.importers, opts.graph);
+    let optional_overrides =
+        compute_corrected_optional(&opts.importers, opts.graph, opts.settings.auto_install_peers);
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
     let importers = build_importers(&opts)?;
@@ -277,6 +278,7 @@ fn build_catalog_snapshots(
 fn compute_corrected_optional(
     importer_inputs: &BTreeMap<String, ImporterLockfileInput<'_>>,
     graph: &DependenciesGraph,
+    auto_install_peers: bool,
 ) -> HashMap<DepPath, bool> {
     // Partition every importer's deps into dev / optional / prod
     // seed sets. Across importers the union of non-optional reach is
@@ -285,10 +287,10 @@ fn compute_corrected_optional(
     let mut optional_seeds: Vec<&DepPath> = Vec::new();
     let mut prod_seeds: Vec<&DepPath> = Vec::new();
     for input in importer_inputs.values() {
-        let alias_to_group = manifest_alias_to_group(input.manifest);
+        let alias_to_group = manifest_alias_to_group(input.manifest, auto_install_peers);
         for (alias, dep_path) in &input.direct_dependencies_by_alias {
-            // Skip aliases the manifest doesn't declare — auto-installed
-            // peers hoisted into `direct_dependencies_by_alias` when
+            // Skip aliases the manifest doesn't declare — the peers of
+            // dependencies hoisted into `direct_dependencies_by_alias` when
             // `autoInstallPeers: true` is on never make it into the
             // importer's lockfile entry (see [`build_importer`](crate::dependencies_graph_to_lockfile::importers::build_importer)), so we
             // don't seed from them here either. Seeding them would force
