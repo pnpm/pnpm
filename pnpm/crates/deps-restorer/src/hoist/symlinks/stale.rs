@@ -100,7 +100,7 @@ fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
 }
 
 fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
-    if error.kind() == io::ErrorKind::NotFound {
+    if error.kind() == io::ErrorKind::NotFound || pnpm_fs::is_transient_file_lock_error(error) {
         return true;
     }
     if !is_non_link_read_error(error) {
@@ -117,18 +117,23 @@ fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
 /// afterwards, so a concurrent hoist can find a plain directory in its place
 /// for a moment. Until then its creator holds it open without sharing, so it
 /// cannot be listed. A junction completed after `metadata` was read lists its
-/// target's entries, so a non-empty directory is checked again.
+/// target's entries, so a non-empty directory is checked again. An entry
+/// unlinked or delete-pending while checked clears the way for the hoist.
 fn may_be_junction_in_creation(dest: &Path, metadata: &std::fs::Metadata) -> bool {
     if !cfg!(windows) || !metadata.is_dir() {
         return false;
     }
     let is_empty_or_locked = match std::fs::read_dir(dest) {
         Ok(mut entries) => entries.next().is_none(),
-        Err(error) => pnpm_fs::is_transient_file_lock_error(&error),
+        Err(error) => {
+            error.kind() == io::ErrorKind::NotFound || pnpm_fs::is_transient_file_lock_error(&error)
+        }
     };
     is_empty_or_locked
-        || pnpm_fs::symlink_metadata_with_retry(dest)
-            .is_ok_and(|metadata| is_link_metadata(&metadata))
+        || match pnpm_fs::symlink_metadata_with_retry(dest) {
+            Ok(metadata) => is_link_metadata(&metadata),
+            Err(error) => error.kind() == io::ErrorKind::NotFound,
+        }
 }
 
 fn is_link_metadata(metadata: &std::fs::Metadata) -> bool {

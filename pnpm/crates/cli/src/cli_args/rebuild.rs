@@ -212,6 +212,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
         pending_projects: selection.projects,
         check_lockfile_patches_only: false,
+        skip_if_has_side_effects_cache: false,
     };
 
     let dependency_groups = rebuild_dependency_groups(state.config)?;

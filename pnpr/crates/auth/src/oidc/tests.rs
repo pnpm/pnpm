@@ -290,6 +290,34 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
 }
 
 #[test]
+fn revoking_a_user_drops_only_that_users_sessions() {
+    let state = OidcState::new(&[], "http://localhost").unwrap();
+    let user = |name: &str| SessionUser { username: name.to_string(), teams: Vec::new() };
+    let expires = Utc::now().timestamp() + 60;
+    let alice = state
+        .issue_session(user("alice"), expires)
+        .unwrap();
+    let alice_again = state
+        .issue_session(user("alice"), expires)
+        .unwrap();
+    let bob = state
+        .issue_session(user("bob"), expires)
+        .unwrap();
+
+    assert_eq!(state.revoke_user_sessions("alice"), 2);
+    assert!(state.session(&alice.token).is_err());
+    assert!(state.session(&alice_again.token).is_err());
+    assert_eq!(
+        state
+            .session(&bob.token)
+            .unwrap()
+            .unwrap()
+            .username,
+        "bob",
+    );
+}
+
+#[test]
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
     let alice = || SessionUser { username: "alice".to_string(), teams: Vec::new() };

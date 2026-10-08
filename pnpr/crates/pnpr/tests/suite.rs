@@ -31,6 +31,7 @@ mod pypi_resolve;
 mod registry_mock;
 mod rule_administration;
 mod s3_backend;
+mod scim;
 mod server;
 mod staged_publish;
 mod team_administration;

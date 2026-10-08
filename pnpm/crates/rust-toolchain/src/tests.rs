@@ -214,3 +214,132 @@ async fn a_moving_channel_does_not_move_back_to_an_older_release() {
 
     assert!(matches!(error, RustToolchainError::OlderRelease { .. }), "{error:?}");
 }
+
+#[tokio::test]
+async fn an_unreachable_server_falls_back_to_the_newest_installed_release() {
+    let store = tempfile::tempdir().unwrap();
+    // Nothing listens there.
+    let config = config(store.path(), "http://127.0.0.1:9");
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    let installed = toolchain_dir(&toolchains, &Channel::parse("1.95.0").unwrap(), HOST, &stable);
+    fs::create_dir_all(&installed).unwrap();
+
+    let toolchain = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .unwrap();
+    assert_eq!(toolchain, InstalledToolchain { dir: installed });
+    // The fallback is used for a while without asking the server again.
+    assert_eq!(
+        super::install::recent_resolution(&toolchains, HOST, &stable),
+        Some(toolchain.dir.clone()),
+    );
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &request("1.96.0"),
+        HOST,
+    )
+    .await
+    .expect_err("a pinned release that is not installed needs the server");
+    assert!(matches!(error, RustToolchainError::Network { .. }), "{error:?}");
+}
+
+#[tokio::test]
+async fn the_fallback_does_not_move_a_channel_back() {
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), "http://127.0.0.1:9");
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    fs::create_dir_all(toolchain_dir(
+        &toolchains,
+        &Channel::parse("1.95.0").unwrap(),
+        HOST,
+        &stable,
+    ))
+    .unwrap();
+    record_resolution(&toolchains, HOST, &stable, &Channel::parse("1.96.0").unwrap());
+    let record = toolchains.join(".channels");
+    let old = std::time::SystemTime::now() - std::time::Duration::from_hours(48);
+    for entry in fs::read_dir(&record).unwrap() {
+        fs::File::options()
+            .write(true)
+            .open(entry.unwrap().path())
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+    }
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .expect_err("1.95.0 is older than the 1.96.0 the channel resolved to");
+    assert!(matches!(error, RustToolchainError::Network { .. }), "{error:?}");
+}
+
+#[tokio::test]
+async fn a_server_that_answers_with_a_client_error_is_reported() {
+    let mut server = mockito::Server::new_async().await;
+    let _manifest = server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_status(404)
+        .create_async()
+        .await;
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), &server.url());
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    fs::create_dir_all(toolchain_dir(
+        &toolchains,
+        &Channel::parse("1.95.0").unwrap(),
+        HOST,
+        &stable,
+    ))
+    .unwrap();
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .expect_err("a mirror missing the channel is a misconfiguration");
+    assert!(matches!(error, RustToolchainError::StatusNotOk { status: 404, .. }), "{error:?}");
+}
+
+#[tokio::test]
+async fn a_rate_limited_server_falls_back_to_the_installed_release() {
+    let mut server = mockito::Server::new_async().await;
+    let _manifest = server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_status(429)
+        .create_async()
+        .await;
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), &server.url());
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    let installed = toolchain_dir(&toolchains, &Channel::parse("1.95.0").unwrap(), HOST, &stable);
+    fs::create_dir_all(&installed).unwrap();
+
+    let toolchain = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .unwrap();
+    assert_eq!(toolchain, InstalledToolchain { dir: installed });
+}

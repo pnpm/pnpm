@@ -81,7 +81,8 @@ fn applies_a_crlf_patch_that_deletes_a_file() {
 #[test]
 fn applies_a_crlf_patch_that_only_changes_the_mode() {
     let patched = tempdir().unwrap();
-    fs::write(patched.path().join("run.sh"), "#!/bin/sh\n").unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
     let patch_dir = tempdir().unwrap();
     let patch = text_block_fnl! {
         "diff --git a/run.sh b/run.sh"
@@ -91,6 +92,386 @@ fn applies_a_crlf_patch_that_only_changes_the_mode() {
     let patch = write_patch(patch_dir.path(), &patch.replace('\n', "\r\n"));
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must be updated to executable");
+    }
+}
+
+#[test]
+fn applies_an_lf_patch_that_only_changes_the_mode() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must be updated to executable");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn applies_a_patch_that_removes_executable_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("script.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/script.sh b/script.sh"
+        "old mode 100755"
+        "new mode 100644"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let mode = fs::metadata(&target)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o644, "mode must be updated to non-executable");
+}
+
+#[test]
+fn applies_a_patch_that_creates_an_executable_file() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/bin/cli.sh b/bin/cli.sh"
+        "new file mode 100755"
+        "--- /dev/null"
+        "+++ b/bin/cli.sh"
+        "@@ -0,0 +1,2 @@"
+        "+#!/bin/sh"
+        "+echo hi"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let target = patched.path().join("bin/cli.sh");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "#!/bin/sh\necho hi\n");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "created file must have executable mode");
+    }
+}
+
+#[test]
+fn mode_change_patch_is_idempotent() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("first apply must succeed");
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must remain executable after re-apply");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn mode_change_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("tool.sh");
+    fs::write(&store_file, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&store_file, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("tool.sh");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+    assert_eq!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "test setup: slot must share inode with store",
+    );
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/tool.sh b/tool.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&slot_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "patched slot file must have updated executable mode",
+    );
+    assert_eq!(
+        fs::metadata(&store_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "store file mode must remain untouched",
+    );
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "slot must have broken hardlink to store",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn idempotent_mode_change_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("run.sh");
+    fs::write(&store_file, "#!/bin/sh\necho updated\n").unwrap();
+    fs::set_permissions(&store_file, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("run.sh");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/run.sh"
+        "+++ b/run.sh"
+        "@@ -1 +1,2 @@"
+        " #!/bin/sh"
+        "+echo updated"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&slot_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "patched slot file must receive requested mode",
+    );
+    assert_eq!(
+        fs::metadata(&store_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "shared store inode must not have its mode mutated",
+    );
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "hardlink to store must be broken when mode is updated",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn mode_change_on_symlink_does_not_mutate_target_outside_package() {
+    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("victim.sh");
+    fs::write(&victim, "#!/bin/sh\necho victim\n").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let symlink = patched.path().join("run.sh");
+    unix_fs::symlink(&victim, &symlink).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/run.sh"
+        "+++ b/run.sh"
+        "@@ -1,2 +1,2 @@"
+        " #!/bin/sh"
+        "-echo victim"
+        "+echo patched"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&victim)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "victim file outside package must retain original mode",
+    );
+    assert_eq!(
+        fs::read_to_string(&victim).unwrap(),
+        "#!/bin/sh\necho victim\n",
+        "victim file outside package must retain original content",
+    );
+    assert!(
+        fs::symlink_metadata(&symlink).unwrap().is_file(),
+        "symlink in package must be replaced with regular file",
+    );
+    assert_eq!(
+        fs::metadata(&symlink)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "replaced file must have requested mode",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn directory_symlink_pointing_outside_package_is_rejected() {
+    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("victim.sh");
+    fs::write(&victim, "#!/bin/sh\necho external\n").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let ext_link = patched.path().join("ext");
+    unix_fs::symlink(outside.path(), &ext_link).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/ext/victim.sh b/ext/victim.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/ext/victim.sh"
+        "+++ b/ext/victim.sh"
+        "@@ -1,2 +1,2 @@"
+        " #!/bin/sh"
+        "-echo external"
+        "+echo pwned"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    let err = apply_patch_to_dir(patched.path(), &patch)
+        .expect_err("patch through escaping directory symlink must be rejected");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(
+        message.contains("escapes target dir via symlink"),
+        "expected symlink escape error, got: {message}",
+    );
+
+    assert_eq!(
+        fs::metadata(&victim)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "external file permissions must be untouched",
+    );
+    assert_eq!(
+        fs::read_to_string(&victim).unwrap(),
+        "#!/bin/sh\necho external\n",
+        "external file content must be untouched",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn create_on_symlink_target_errors_even_if_content_matches() {
+    use std::os::unix::fs as unix_fs;
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("target.txt");
+    fs::write(&victim, "pre-existing\n").unwrap();
+
+    let patched = tempdir().unwrap();
+    let symlink = patched.path().join("target.txt");
+    unix_fs::symlink(&victim, &symlink).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/target.txt b/target.txt"
+        "new file mode 100644"
+        "--- /dev/null"
+        "+++ b/target.txt"
+        "@@ -0,0 +1 @@"
+        "+pre-existing"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    let err = apply_patch_to_dir(patched.path(), &patch)
+        .expect_err("create over symlink must be rejected even if referent matches");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("already exists"), "got: {message}");
+    assert!(fs::symlink_metadata(&symlink).unwrap().is_symlink(), "target must remain a symlink");
 }
 
 #[test]

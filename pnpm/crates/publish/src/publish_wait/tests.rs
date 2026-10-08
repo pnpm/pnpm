@@ -11,14 +11,17 @@ use serde_json::json;
 use super::wait_for_published_packages;
 use crate::{PublishNetwork, PublishWaitError, parse_supported_registry_url};
 
-async fn wait(server: &mockito::ServerGuard, timeout: Duration) -> Result<(), PublishWaitError> {
-    let client = ThrottledClient::default();
+async fn wait(
+    client: &ThrottledClient,
+    server: &mockito::ServerGuard,
+    timeout: Duration,
+) -> Result<(), PublishWaitError> {
     let auth_headers = AuthHeaders::default();
     let registry = parse_supported_registry_url(&server.url()).unwrap().normalized_url;
     wait_for_published_packages::<SilentReporter>(
         &[("@scope/pkg", "1.0.0")],
         &registry,
-        &PublishNetwork { client: &client, auth_headers: &auth_headers },
+        &PublishNetwork { client, auth_headers: &auth_headers },
         timeout,
     )
     .await
@@ -30,18 +33,20 @@ fn metadata(tarball: &str) -> String {
 
 #[tokio::test]
 async fn disabled_wait_makes_no_requests() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", Matcher::Any)
         .expect(0)
         .create_async()
         .await;
-    wait(&server, Duration::ZERO).await.unwrap();
+    wait(&client, &server, Duration::ZERO).await.unwrap();
     request.assert_async().await;
 }
 
 #[tokio::test]
 async fn requests_fresh_install_metadata_and_tarball_headers() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let metadata = server
         .mock("GET", "/@scope%2Fpkg")
@@ -62,13 +67,14 @@ async fn requests_fresh_install_metadata_and_tarball_headers() {
         .expect(1)
         .create_async()
         .await;
-    wait(&server, Duration::from_secs(2)).await.unwrap();
+    wait(&client, &server, Duration::from_secs(2)).await.unwrap();
     metadata.assert_async().await;
     tarball.assert_async().await;
 }
 
 #[tokio::test]
 async fn exact_version_is_required_and_deadline_bounds_the_sleep() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let metadata = server
         .mock("GET", "/@scope%2Fpkg")
@@ -77,7 +83,7 @@ async fn exact_version_is_required_and_deadline_bounds_the_sleep() {
         .create_async()
         .await;
     let start = Instant::now();
-    let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
+    let error = wait(&client, &server, Duration::from_millis(100)).await.unwrap_err();
     assert!(
         start.elapsed() < Duration::from_secs(2),
         "deadline must bound the five-second retry delay",
@@ -89,6 +95,7 @@ async fn exact_version_is_required_and_deadline_bounds_the_sleep() {
 
 #[tokio::test]
 async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", "/@scope%2Fpkg")
@@ -96,13 +103,14 @@ async fn timeout_does_not_issue_second_probe_when_delay_exceeds_deadline() {
         .expect(1)
         .create_async()
         .await;
-    let error = wait(&server, Duration::from_secs(1)).await.unwrap_err();
+    let error = wait(&client, &server, Duration::from_secs(1)).await.unwrap_err();
     assert!(error.to_string().contains("Timed out"), "{error}");
     request.assert_async().await;
 }
 
 #[tokio::test]
 async fn unrepresentable_timeout_does_not_panic() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let metadata = server
         .mock("GET", "/@scope%2Fpkg")
@@ -115,13 +123,14 @@ async fn unrepresentable_timeout_does_not_panic() {
         .expect(1)
         .create_async()
         .await;
-    wait(&server, Duration::MAX).await.unwrap();
+    wait(&client, &server, Duration::MAX).await.unwrap();
     metadata.assert_async().await;
     tarball.assert_async().await;
 }
 
 #[tokio::test]
 async fn transient_responses_retry_and_eventually_succeed() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let missing = server
         .mock("GET", "/@scope%2Fpkg")
@@ -140,7 +149,7 @@ async fn transient_responses_retry_and_eventually_succeed() {
         .expect(1)
         .create_async()
         .await;
-    wait(&server, Duration::from_secs(8)).await.unwrap();
+    wait(&client, &server, Duration::from_secs(8)).await.unwrap();
     missing.assert_async().await;
     available.assert_async().await;
     tarball.assert_async().await;
@@ -148,6 +157,7 @@ async fn transient_responses_retry_and_eventually_succeed() {
 
 #[tokio::test]
 async fn permanent_errors_and_invalid_metadata_fail_without_waiting() {
+    let client = ThrottledClient::default();
     for (status, body) in [(401, ""), (403, ""), (400, ""), (200, "bad json"), (200, "{}")] {
         let mut server = mockito::Server::new_async().await;
         let request = server
@@ -158,7 +168,7 @@ async fn permanent_errors_and_invalid_metadata_fail_without_waiting() {
             .create_async()
             .await;
         let start = Instant::now();
-        let error = wait(&server, Duration::from_secs(20)).await.unwrap_err();
+        let error = wait(&client, &server, Duration::from_secs(20)).await.unwrap_err();
         assert!(
             start.elapsed() < Duration::from_secs(2),
             "permanent failure must not wait: {error}",
@@ -170,6 +180,7 @@ async fn permanent_errors_and_invalid_metadata_fail_without_waiting() {
 
 #[tokio::test]
 async fn unavailable_tarballs_do_not_confirm_readiness() {
+    let client = ThrottledClient::default();
     for status in [404, 408, 429, 503] {
         let mut server = mockito::Server::new_async().await;
         let metadata = server
@@ -183,7 +194,7 @@ async fn unavailable_tarballs_do_not_confirm_readiness() {
             .expect(1)
             .create_async()
             .await;
-        let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
+        let error = wait(&client, &server, Duration::from_millis(100)).await.unwrap_err();
         assert!(error.to_string().contains("Timed out"), "{error}");
         metadata.assert_async().await;
         tarball.assert_async().await;
@@ -192,6 +203,7 @@ async fn unavailable_tarballs_do_not_confirm_readiness() {
 
 #[tokio::test]
 async fn deadline_cancels_an_in_flight_response_body() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", "/@scope%2Fpkg")
@@ -203,7 +215,7 @@ async fn deadline_cancels_an_in_flight_response_body() {
         .create_async()
         .await;
     let start = Instant::now();
-    let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
+    let error = wait(&client, &server, Duration::from_millis(100)).await.unwrap_err();
     assert!(start.elapsed() < Duration::from_millis(450), "request must be cancelled: {error}");
     request.assert_async().await;
 }
@@ -285,6 +297,7 @@ async fn retry_after_supports_seconds_and_http_dates() {
 
 #[tokio::test]
 async fn excessive_retry_after_cannot_exceed_the_deadline() {
+    let client = ThrottledClient::default();
     let mut server = mockito::Server::new_async().await;
     let request = server
         .mock("GET", "/@scope%2Fpkg")
@@ -294,7 +307,7 @@ async fn excessive_retry_after_cannot_exceed_the_deadline() {
         .create_async()
         .await;
     let start = Instant::now();
-    let error = wait(&server, Duration::from_millis(100)).await.unwrap_err();
+    let error = wait(&client, &server, Duration::from_millis(100)).await.unwrap_err();
     assert!(start.elapsed() < Duration::from_secs(2), "{error}");
     assert!(error.to_string().contains("Timed out"), "{error}");
     request.assert_async().await;
@@ -341,6 +354,7 @@ async fn every_package_is_probed_in_a_bounded_round_under_one_deadline() {
 
 #[tokio::test]
 async fn rejects_invalid_tarball_urls_without_exposing_credentials() {
+    let client = ThrottledClient::default();
     for tarball in ["file:///tmp/pkg.tgz", "http://secret:password@localhost/pkg.tgz", "not-a-url"]
     {
         let mut server = mockito::Server::new_async().await;
@@ -350,7 +364,7 @@ async fn rejects_invalid_tarball_urls_without_exposing_credentials() {
             .expect(1)
             .create_async()
             .await;
-        let error = wait(&server, Duration::from_secs(2)).await.unwrap_err();
+        let error = wait(&client, &server, Duration::from_secs(2)).await.unwrap_err();
         assert!(error.to_string().contains("dist.tarball"), "{error}");
         assert!(!error.to_string().contains("secret"), "credentials must be redacted: {error}");
         assert!(!error.to_string().contains("password"), "credentials must be redacted: {error}");

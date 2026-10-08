@@ -1,7 +1,7 @@
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
     PeerIssuesOptions, ProxyConfigInput, build_overlay, peer_issues::peer_issues_install_options,
-    rebuild_options, reject_non_object_manifests, reject_unsupported_install_options,
+    rebuild::rebuild_options, reject_non_object_manifests, reject_unsupported_install_options,
     run_install_inner, take_deps_requiring_build,
 };
 use crate::{
@@ -144,6 +144,7 @@ fn install_options() -> InstallOptions {
         pnpm_home_dir: None,
         reporter: None,
         read_package_hook_checksum: None,
+        skip_if_has_side_effects_cache: None,
     }
 }
 
@@ -201,3 +202,5 @@ mod reporting;
 mod lockfile;
 
 mod read_package_hook;
+
+mod rebuild;

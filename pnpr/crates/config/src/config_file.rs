@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig, LogFormat,
-    LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv,
-    UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
+    LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings, ScimConfig,
+    SystemEnv, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -307,6 +307,8 @@ pub(super) struct AuthFile {
     pub(super) htpasswd: HtpasswdFile,
     #[serde(default)]
     pub(super) tokens: TokensFile,
+    #[serde(default)]
+    pub(super) scim: Option<ScimConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]

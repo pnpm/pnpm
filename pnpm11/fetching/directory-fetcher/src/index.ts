@@ -23,13 +23,9 @@ export interface CreateDirectoryFetcherOptions {
 }
 
 export function createDirectoryFetcher (
-  opts?: CreateDirectoryFetcherOptions
+  fetcherOpts?: CreateDirectoryFetcherOptions
 ): { directory: DirectoryFetcher } {
-  const packageImportMethod = opts?.localDirPackageImportMethod ?? 'hardlink'
-  const fetchFromDir = opts?.includeOnlyPackageFiles
-    ? fetchPackageFilesFromDir.bind(null, packageImportMethod)
-    : fetchAllFilesFromDir.bind(null, opts ?? {}, packageImportMethod)
-
+  const packageImportMethod = fetcherOpts?.localDirPackageImportMethod ?? 'hardlink'
   const directoryFetcher: DirectoryFetcher = async (cafs, resolution, opts) => {
     // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
     // stored by `file:` deps) are respected instead of being concatenated
@@ -55,7 +51,7 @@ export function createDirectoryFetcher (
       }
     }
     return {
-      ...await fetchFromDir(dir),
+      ...await fetchFromDir(dir, fetcherOpts ?? {}),
       sourceExists: true,
     }
   }
@@ -86,21 +82,25 @@ export interface FetchResult {
   requiresBuild: boolean
 }
 
-export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Promise<FetchResult> {
-  const packageImportMethod = opts.localDirPackageImportMethod ?? 'hardlink'
+/**
+ * The files `fetchFromDir` lists, without reading the directory's manifest
+ * unless packlist mode needs it. For a caller that only compares listings and
+ * must not fail on a `package.json` another process is still writing.
+ */
+export async function listFilesFromDir (
+  dir: string,
+  opts: FetchFromDirOptions
+): Promise<Pick<FetchResult, 'filesMap' | 'filesStats'>> {
   if (opts.includeOnlyPackageFiles) {
-    return fetchPackageFilesFromDir(packageImportMethod, dir)
+    const files = await packlist(dir)
+    return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(dir, file)])) }
   }
-  return fetchAllFilesFromDir(opts, packageImportMethod, dir)
+  return _fetchAllFilesFromDir(await createReadFileStat(dir, opts), dir)
 }
 
-async function fetchAllFilesFromDir (
-  opts: CreateDirectoryFetcherOptions,
-  packageImportMethod: LocalDirPackageImportMethod,
-  dir: string
-): Promise<FetchResult> {
-  const readFileStat = await createReadFileStat(dir, opts)
-  const { filesMap, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
+export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Promise<FetchResult> {
+  const packageImportMethod = opts.localDirPackageImportMethod ?? 'hardlink'
+  const { filesMap, filesStats } = await listFilesFromDir(dir, opts)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
@@ -214,19 +214,3 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
   }
 }
 
-async function fetchPackageFilesFromDir (
-  packageImportMethod: LocalDirPackageImportMethod,
-  dir: string
-): Promise<FetchResult> {
-  const files = await packlist(dir)
-  const filesMap = new Map<string, string>(files.map((file) => [file, path.join(dir, file)]))
-  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  const requiresBuild = pkgRequiresBuild(manifest, filesMap)
-  return {
-    local: true,
-    filesMap,
-    packageImportMethod,
-    manifest,
-    requiresBuild,
-  }
-}

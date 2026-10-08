@@ -415,6 +415,7 @@
     "rustup",
     "safecrlf",
     "sccache",
+    "scim",
     "scopeless",
     "scriptless",
     "sdiff",

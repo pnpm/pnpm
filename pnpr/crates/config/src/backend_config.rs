@@ -1,6 +1,6 @@
 use super::{
     AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, Path, PathBuf,
-    RegistryError, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
+    RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
     parse_interval, resolve_relative,
 };
 
@@ -90,6 +90,8 @@ pub struct AuthConfig {
     pub oidc: Vec<oidc::OidcProvider>,
     pub htpasswd: HtpasswdConfig,
     pub tokens: TokensConfig,
+    /// The SCIM endpoints, off when `None`.
+    pub scim: Option<ScimConfig>,
 }
 
 /// Where the htpasswd users file lives and how many users may sign
@@ -179,6 +181,9 @@ pub(super) fn build_identity_config(
     base_dir: &Path,
     backend: BackendConfig,
 ) -> Result<IdentityConfig, RegistryError> {
+    if let Some(scim) = &file.scim {
+        scim.validate()?;
+    }
     Ok(IdentityConfig {
         admins: build_admins(&file.admins)?,
         auth: build_auth_config(file, base_dir),
@@ -199,6 +204,7 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
+        scim: file.scim.clone(),
     }
 }
 

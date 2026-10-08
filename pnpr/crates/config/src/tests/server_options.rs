@@ -241,3 +241,19 @@ fn log_level_rejects_unknown_variant() {
     assert!(parse_log_yaml::<LogLevel>("silly").is_err());
     assert!(parse_log_yaml::<LogLevel>("verbose").is_err());
 }
+
+#[test]
+fn a_scim_token_must_be_long_and_stays_out_of_debug_output() {
+    let yaml = |token: &str| format!("storage: ./s\nauth:\n  scim:\n    token: {token}\n");
+    let err = Config::from_yaml_str(&yaml("short"), Path::new("/x"), listen(), None)
+        .expect_err("a short SCIM token must be rejected");
+    assert!(
+        matches!(&err, RegistryError::InvalidConfig { reason } if reason.contains("auth.scim.token")),
+        "{err}",
+    );
+    let token = "a".repeat(crate::ScimConfig::MIN_TOKEN_LEN);
+    let config = Config::from_yaml_str(&yaml(&token), Path::new("/x"), listen(), None).unwrap();
+    let scim = config.identity.auth.scim.as_ref().expect("auth.scim is set");
+    assert_eq!(scim.token, token);
+    assert!(!format!("{scim:?}").contains(&token));
+}

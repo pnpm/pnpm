@@ -26,6 +26,7 @@ use crate::{
     shim_dispatch::{
         ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
         remove_native_shim,
+        rust_toolchain::{RUST_SHIM_BINS, RUST_SHIM_PACKAGE},
     },
 };
 use clap::Args;
@@ -272,10 +273,16 @@ fn list(config: &Config, bin_dir: &Path) -> String {
 /// The bins a shim for `package` should carry.
 ///
 /// The package managers pnpm provisions are known up front, down to the
-/// aliases a given release may not list (`yarnpkg`, `npx`), so they need
-/// no lookup. Anything else is read from the package's own published
+/// aliases a given release may not list (`yarnpkg`, `npx`), and so are the
+/// tools of a Rust toolchain, so they need no lookup. Anything else is read from the package's own published
 /// manifest.
 async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<String>> {
+    if package == RUST_SHIM_PACKAGE {
+        return Ok(RUST_SHIM_BINS
+            .iter()
+            .map(|bin| (*bin).to_string())
+            .collect());
+    }
     if let Some(pm) = PackageManager::parse(package) {
         return Ok(pm
             .bins()

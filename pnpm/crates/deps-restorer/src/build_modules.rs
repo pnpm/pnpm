@@ -191,6 +191,12 @@ pub struct RebuildOptions {
     /// just installed or restored, which may have been resolved with other
     /// `readPackage` hooks or settings.
     pub check_lockfile_patches_only: bool,
+
+    /// Keep the side-effects `is_built` gate for the selected packages, so
+    /// one the side-effects cache already holds a build of is restored
+    /// from it instead of running its scripts again. pnpm v11's
+    /// `skipIfHasSideEffectsCache`; the `@pnpm/napi` rebuild exposes it.
+    pub skip_if_has_side_effects_cache: bool,
 }
 
 impl RebuildOptions {
