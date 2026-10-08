@@ -75,12 +75,10 @@ pub(super) fn install_owner_peer_dependencies(
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let owns_children = match pending.kind {
-        NodeKind::Link => false,
-        NodeKind::Leaf | NodeKind::Branch => claim.owns_children,
-    };
-    if !owns_children {
-        return Ok(());
+    match (pending.kind, claim.owns_children) {
+        (NodeKind::Link, _) => return Ok(()),
+        (NodeKind::Leaf | NodeKind::Branch, false) => return Ok(()),
+        (NodeKind::Leaf | NodeKind::Branch, true) => {}
     }
     let peer_dependencies = extract_peer_dependencies(
         &pending.result,
