@@ -318,3 +318,150 @@ fn access_endpoints_preserve_path_prefix() {
         "https://registry.example/npm/-/package/@scope%2fpkg/collaborators?format=cli&user=alice",
     );
 }
+
+#[test]
+fn target_registry_for_action_uses_scoped_registry_by_default() {
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "get_status",
+            &[String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "get_status",
+            &[String::from("unscoped")],
+        ),
+        "https://registry.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "set_status",
+            &[String::from("status=public"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "set_mfa",
+            &[String::from("mfa=automation"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "grant",
+            &[String::from("read-only"), String::from("@myorg:team"), String::from("@myorg/foo"),],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "revoke",
+            &[String::from("@myorg:team"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("@myorg")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("@myorg:team")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("myorg:team")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("someone")],
+        ),
+        "https://registry.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(&registries, None, "list_packages", &[]),
+        "https://registry.example/npm/",
+    );
+}
+
+#[test]
+fn target_registry_for_action_honors_registry_override() {
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let override_url = Some("https://override.example/npm/");
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "get_status",
+            &[String::from("@myorg/foo")],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "set_status",
+            &[String::from("status=public"), String::from("@myorg/foo")],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "grant",
+            &[String::from("read-only"), String::from("@myorg:team"), String::from("@myorg/foo"),],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "list_packages",
+            &[String::from("@myorg")],
+        ),
+        "https://override.example/npm/",
+    );
+}
