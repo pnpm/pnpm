@@ -8,6 +8,109 @@ use pretty_assertions::assert_eq;
 use std::{fs, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
+#[cfg(windows)]
+#[test]
+fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let manifest = write_source(&src_root, "manifest", b"{}");
+    let asset = write_source(&src_root, "asset", b"asset");
+    let cas = cas_map(&[("package.json", manifest), ("assets/icon.svg?as=metadata.d.ts", asset)]);
+    let target = tmp.path().join("pkg");
+
+    for opts in [ImportIndexedDirOpts::default(), ImportIndexedDirOpts::default(), FORCE_SHARED] {
+        import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Copy,
+            &target,
+            &cas,
+            opts,
+        )
+        .expect("invalid filename should be renamed");
+        assert_eq!(fs::read(target.join("assets/icon.svgas=metadata.d.ts")).unwrap(), b"asset");
+        fs::remove_file(target.join("package.json")).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn renamed_filename_warning_strips_control_characters() {
+    use pnpm_reporter::{LogEvent, Reporter};
+    use std::sync::Mutex;
+
+    static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push(log.message.clone());
+            }
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let source = write_source(&tmp.path().join("cas"), "asset", b"asset");
+    let cas = cas_map(&[("\u{1b}[31m-red.txt", source)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<RecordingReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("invalid filename should be renamed");
+    assert_eq!(fs::read(target.join("[31m-red.txt")).unwrap(), b"asset");
+    let messages = MESSAGES.lock().unwrap();
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].contains("[31m-red.txt"), "{}", messages[0]);
+    assert!(!messages[0].contains('\u{1b}'), "{:?}", messages[0]);
+}
+
+#[cfg(windows)]
+#[test]
+fn renamed_windows_filename_collision_installs_one_file() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let original = write_source(&src_root, "original", b"original");
+    let renamed = write_source(&src_root, "renamed", b"renamed");
+    let cas = cas_map(&[("name.txt", original), ("name*.txt", renamed)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("colliding sanitized paths should not be rejected");
+    assert_eq!(fs::read(target.join("name.txt")).unwrap(), b"original");
+}
+
+#[cfg(windows)]
+#[test]
+fn valid_windows_filename_is_not_sanitized_without_an_import_error() {
+    let tmp = tempdir().unwrap();
+    let source = write_source(&tmp.path().join("cas"), "asset", b"asset");
+    let cas = cas_map(&[("name\u{80}.txt", source)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("valid filename should be imported without sanitizing");
+    assert_eq!(fs::read(target.join("name\u{80}.txt")).unwrap(), b"asset");
+}
+
 /// Default opts (isolated linker) short-circuit when the target holds the
 /// completion marker — the load-bearing invariant that a fully-imported
 /// virtual-store slot is never re-imported. A marker-less directory is

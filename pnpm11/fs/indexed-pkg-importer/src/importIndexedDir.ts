@@ -5,6 +5,7 @@ import { isError } from '@pnpm/error'
 import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -200,8 +201,8 @@ function retryWithSanitizedFilenames ({ importer, newDir, filenames, opts }: Ind
   const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
   if (invalidFilenames.length === 0) return false
   globalWarn(`\
-The package linked to "${path.relative(process.cwd(), newDir)}" had \
-files with invalid names: ${invalidFilenames.join(', ')}. \
+The package linked to "${sanitizeInline(path.relative(process.cwd(), newDir))}" had \
+files with invalid names: ${invalidFilenames.map((filename) => sanitizeInline(filename)).join(', ')}. \
 They were renamed.`)
   importIndexedDir(importer, newDir, sanitizedFilenames, opts)
   return true

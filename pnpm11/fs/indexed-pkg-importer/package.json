@@ -48,6 +48,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@reflink/reflink": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "fs-extra": "catalog:",
