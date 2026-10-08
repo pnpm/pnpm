@@ -24,8 +24,14 @@ fn governing_file(context: &InstallContext, root: &Path) -> Result<PathBuf> {
     let project = dunce::canonicalize(root)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve {}", root.display()))?;
-    let boundary = checkout(context.config.workspace_dir.as_deref().unwrap_or(root))
-        .unwrap_or_else(|| project.clone());
+    let boundary = match context.config.workspace_dir.as_deref() {
+        Some(workspace) => checkout(workspace)
+            .ok_or_else(|| {
+                let workspace = workspace.display();
+                miette::miette!("cannot pin Rust: the workspace {workspace} does not resolve")
+            })?,
+        None => project.clone(),
+    };
     if !project.starts_with(&boundary) {
         let (project, boundary) = (project.display(), boundary.display());
         return Err(miette::miette!(
@@ -105,12 +111,12 @@ async fn install<Reporter: self::Reporter>(
     }
 }
 
-struct PinnedToolchain {
-    file: PathBuf,
-    toolchain: Option<InstalledToolchain>,
-    /// What `.pnpm/rust` led to before publishing replaced it, `Some(None)`
-    /// when there was no link, and `None` before publishing.
-    replaced: Option<Option<PathBuf>>,
+pub(super) struct PinnedToolchain {
+    pub(super) file: PathBuf,
+    pub(super) toolchain: Option<InstalledToolchain>,
+    /// The target `.pnpm/rust` had before publishing replaced it,
+    /// `Some(None)` when there was no link, and `None` before publishing.
+    pub(super) replaced: Option<Option<PathBuf>>,
 }
 
 impl PinnedToolchain {
@@ -130,7 +136,16 @@ impl PreparedInstall for PinnedToolchain {
         else {
             return Ok(());
         };
-        self.replaced = Some(dunce::canonicalize(&link_path).ok());
+        // Read as written, so a link whose target is gone is put back too.
+        self.replaced = Some(
+            fs::read_link(&link_path)
+                .ok()
+                .map(|target| {
+                    link_path
+                        .parent()
+                        .map_or_else(|| target.clone(), |parent| parent.join(&target))
+                }),
+        );
         link(dir, &toolchain.dir)
     }
 
@@ -154,3 +169,6 @@ impl PreparedInstall for PinnedToolchain {
 
     fn retain(self: Box<Self>) {}
 }
+
+#[cfg(test)]
+mod tests;

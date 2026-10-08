@@ -131,6 +131,20 @@ pub(crate) fn global_tools(config: &Config) -> Vec<pnpm_global::GlobalTool> {
     };
     vec![pnpm_global::GlobalTool { name: RUST_SHIM_PACKAGE.to_string(), version, location }]
 }
+/// Whether `params` ask `pnpm ls -g` for nothing but `tools`, which have
+/// no dependency tree for `--depth` to show.
+pub(crate) fn selects_only(tools: &[pnpm_global::GlobalTool], params: &[String]) -> bool {
+    !params.is_empty()
+        && params
+            .iter()
+            .all(|param| {
+                let pattern = pnpm_matcher::WildcardMatcher::new(param);
+                tools
+                    .iter()
+                    .any(|tool| pattern.matches(&tool.name))
+            })
+}
+
 fn describe(request: &ToolchainRequest) -> String {
     match installed_release_for_shims(request) {
         Some((release, _)) if release != request.channel => {
