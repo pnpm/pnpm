@@ -118,6 +118,16 @@ pub(super) fn build_teams(
     Ok(teams)
 }
 
+/// Compile a permission list given as its tokens, with the rules YAML
+/// applies: each entry is one well-formed token, and a `team:` reference must
+/// name a team `teams` holds.
+pub fn compile_access_list(
+    entries: Vec<String>,
+    teams: &TeamDirectory,
+) -> Result<AccessList, String> {
+    AccessSpec::Many(entries).to_access_list(teams)
+}
+
 /// Compile `auth.admins`, rejecting any entry that is not one username.
 pub(super) fn build_admins(names: &[String]) -> Result<BTreeSet<String>, RegistryError> {
     names

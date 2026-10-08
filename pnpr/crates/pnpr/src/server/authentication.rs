@@ -91,7 +91,7 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
-    super::team_rosters::refresh_team_rosters(&state).await;
+    super::managed_state::refresh_managed_state(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let peer = request
@@ -295,7 +295,8 @@ pub(super) fn authorize(
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let effective = source_rules(state, source).for_package(package);
+    let rules = source_rules(state, source).snapshot();
+    let effective = rules.for_package(package);
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,

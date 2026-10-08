@@ -17,9 +17,11 @@
 //! identity.
 
 pub use access::{AccessList, AccessToken, Identity};
+pub use package_rules::{PackageRules, RuleOverride};
 pub use teams::{TeamDirectory, Teams};
 
 mod access;
+mod package_rules;
 mod teams;
 
 use std::collections::BTreeMap;
@@ -31,7 +33,7 @@ use pnpr_registry::PackagePattern;
 /// controls who can read the packument and tarballs; `publish` controls
 /// who can publish or change dist-tags; `unpublish` controls destructive
 /// writes. An omitted field falls back to the registry-level default
-/// carried by the owning [`PackageRules`].
+/// carried by the owning [`RuleTable`].
 #[derive(Debug, Clone)]
 pub struct PackageRule {
     pub pattern: PackagePattern,
@@ -40,9 +42,10 @@ pub struct PackageRule {
     pub unpublish: Option<AccessList>,
 }
 
-/// One concrete registry's `packages:` map: its namespace (the key set)
-/// and its per-package rules (the values), with the registry-level
-/// defaults an entry's omitted fields fall back to.
+/// One concrete registry's `packages:` map as it stands at one moment: its
+/// namespace (the key set) and its per-package rules (the values), with the
+/// registry-level defaults an entry's omitted fields fall back to.
+/// [`PackageRules`] holds the current table.
 ///
 /// Selection is by **specificity** — the most specific matching key wins,
 /// and key order carries no meaning (see the module docs). No entry can be
@@ -50,7 +53,7 @@ pub struct PackageRule {
 /// serves the rest, so there is no shadowed-entry validation inside a
 /// registry; a duplicate key is the only error (rejected at config load).
 #[derive(Debug, Clone)]
-pub struct PackageRules {
+pub struct RuleTable {
     rules: Vec<PackageRule>,
     /// Winner lookup by specificity tier, rebuilt whenever the rule set
     /// changes: at most one key per tier can match a given name, so the
@@ -123,7 +126,7 @@ impl RuleIndex {
     }
 }
 
-impl Default for PackageRules {
+impl Default for RuleTable {
     /// The safe defaults with no rules: every name claimed, reads open,
     /// publishes require auth, destructive writes denied.
     fn default() -> Self {
@@ -147,7 +150,7 @@ pub struct Effective<'a> {
     pub access_is_explicit: bool,
 }
 
-impl PackageRules {
+impl RuleTable {
     /// Build a registry's rules. `default_access` is the registry-level
     /// `access:` (its omission = `$all`); publish defaults to
     /// `$authenticated` and unpublish to nobody, the safe defaults.
@@ -160,6 +163,13 @@ impl PackageRules {
             default_publish: AccessList::from_tokens(["$authenticated"]),
             default_unpublish: AccessList::default(),
         }
+    }
+
+    /// Override the registry-level publish default (`$authenticated`).
+    #[must_use]
+    pub fn with_default_publish(mut self, publish: AccessList) -> Self {
+        self.default_publish = publish;
+        self
     }
 
     /// Override the registry-level unpublish default (nobody).

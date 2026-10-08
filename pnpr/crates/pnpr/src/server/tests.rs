@@ -376,8 +376,20 @@ async fn team_tokens_reach_package_authorization() {
     let alice = Identity::user("alice");
     let carol = Identity::user("carol");
     let rules = &config.routing.hosted["local"].rules;
-    assert!(rules.for_package("@team/x").access.allows(&alice));
-    assert!(!rules.for_package("@team/x").access.allows(&carol));
+    assert!(
+        rules
+            .snapshot()
+            .for_package("@team/x")
+            .access
+            .allows(&alice),
+    );
+    assert!(
+        !rules
+            .snapshot()
+            .for_package("@team/x")
+            .access
+            .allows(&carol),
+    );
 
     // Over HTTP: the team member reaches storage (404, the package is
     // absent); a caller denied by the *explicit* `@team/*` entry is

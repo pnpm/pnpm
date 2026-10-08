@@ -199,7 +199,7 @@ pub(super) fn team_registry<'a>(
     let Some((name, hosted)) = state.inner.config.routing.hosted.get_key_value(&source) else {
         return Err(RegistryError::NotFound);
     };
-    if !hosted.rules.default_access().allows(identity) {
+    if !hosted.rules.default_access_admits(identity) {
         return Err(RegistryError::NotFound);
     }
     Ok((name, hosted))

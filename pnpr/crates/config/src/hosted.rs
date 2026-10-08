@@ -18,7 +18,8 @@ pub struct HostedConfig {
     /// [`Self::rules`] and served by the npm team API
     /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`).
     pub teams: TeamDirectory,
-    pub teams_managed_by: TeamsManagement,
+    pub teams_managed_by: Management,
+    pub rules_managed_by: Management,
 }
 
 impl HostedConfig {
@@ -29,19 +30,21 @@ impl HostedConfig {
             org: org.into(),
             rules,
             teams: TeamDirectory::default(),
-            teams_managed_by: TeamsManagement::Config,
+            teams_managed_by: Management::Config,
+            rules_managed_by: Management::Config,
         }
     }
 }
 
-/// Who owns a hosted registry's team roster.
+/// Who owns a part of a hosted registry's configuration: its team roster
+/// (`teamsManagedBy`) or its package rules (`rulesManagedBy`).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TeamsManagement {
-    /// The `teams:` map is the roster, and the team API rejects writes.
+pub enum Management {
+    /// The YAML is the only source, and the admin API rejects writes.
     #[default]
     Config,
-    /// The hosted store holds the roster, and admins edit it through the
-    /// team API. The `teams:` map seeds a store that holds no roster yet.
+    /// The hosted store holds what admins change through the admin API. The
+    /// YAML is the starting point until the first change is stored.
     Api,
 }

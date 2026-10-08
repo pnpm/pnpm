@@ -122,18 +122,26 @@ registries:
     // Omitted `access` falls back to the registry-level default...
     assert!(
         rules
+            .snapshot()
             .for_package("@team/x")
             .access
             .allows(&user("team")),
     );
     assert!(
         !rules
+            .snapshot()
             .for_package("@team/x")
             .access
             .allows(&user("carol")),
     );
     // ...while the more specific key overrides it.
-    assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
+    assert!(
+        rules
+            .snapshot()
+            .for_package("@team/open")
+            .access
+            .allows(&Identity::Anonymous),
+    );
 }
 
 #[test]
@@ -142,7 +150,8 @@ fn rule_usernames_grant_per_user_access() {
     let config = hosted_rules_config(
         "      '@team/*':\n        access: [alice, bob]\n        publish: alice\n",
     );
-    let team = config.routing.hosted["local"].rules.for_package("@team/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let team = table.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
     assert!(team.access.allows(&user("bob")));
     assert!(!team.access.allows(&user("carol")));
@@ -200,7 +209,8 @@ registries:
         access: platform
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let access = table.for_package("@team/x").access;
     assert!(access.allows(&Identity::user("platform")));
     assert!(!access.allows(&Identity::user("alice")));
 }
@@ -233,7 +243,8 @@ registries:
 #[test]
 fn rule_scalar_access_value_is_one_token() {
     let config = hosted_rules_config("      '@team/*':\n        access: alice\n");
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let access = table.for_package("@team/x").access;
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&user("bob")));
 }
@@ -334,7 +345,7 @@ fn auth_admins_are_usernames() {
 fn teams_managed_by_is_hosted_only() {
     let hosted = "storage: ./s\nregistries:\n  local:\n    type: hosted\n    teamsManagedBy: api\n";
     let config = Config::from_yaml_str(hosted, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.routing.hosted["local"].teams_managed_by, super::super::TeamsManagement::Api);
+    assert_eq!(config.routing.hosted["local"].teams_managed_by, super::super::Management::Api);
 
     let upstream = "storage: ./s\nregistries:\n  up:\n    type: upstream\n    \
                     url: https://registry.npmjs.org/\n    public: true\n    teamsManagedBy: api\n";

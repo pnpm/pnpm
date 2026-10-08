@@ -123,9 +123,18 @@ pub enum RegistryError {
     #[from(skip)]
     TeamsConfigManaged { action: &'static str },
 
-    /// A team mutation that the roster's current state refuses. Maps to 409.
+    /// A rules edit hit the admin API on a registry whose rules are declared
+    /// in the configuration. Maps to 403.
+    #[display(
+        "The package rules of this registry are declared in the pnpr configuration; to change \
+         them, ask the registry operator to update the config"
+    )]
     #[from(skip)]
-    TeamConflict {
+    RulesConfigManaged,
+
+    /// An admin edit that the current state refuses. Maps to 409.
+    #[from(skip)]
+    AdminConflict {
         #[error(not(source))]
         reason: String,
     },

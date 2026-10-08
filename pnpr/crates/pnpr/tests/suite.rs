@@ -27,6 +27,7 @@ mod policy;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
+mod rule_administration;
 mod s3_backend;
 mod server;
 mod staged_publish;

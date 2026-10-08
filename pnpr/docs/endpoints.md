@@ -326,6 +326,27 @@ anonymous and `403` when signed in.
 | `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. If it fails, repeat it: the account stays until its tokens are revoked, and a repeat revokes what is left. |
 | `GET` | `/-/pnpr/v0/admin/users/{name}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{name}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
+| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed. |
+| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `rules_config_managed`. |
+| `DELETE` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Drop the stored rule changes, so the config's rules apply again. Returns `204`. |
+
+A rules body lists only what changes. Each list replaces the config's list of
+the same place:
+
+```json
+{
+  "access": ["$authenticated"],
+  "packages": {
+    "@corp/*": { "access": ["team:platform"], "publish": ["alice"] }
+  }
+}
+```
+
+A key the registry's `packages:` map does not declare, a malformed token, or a
+`team:` reference to a team the registry does not have returns `400`. The
+`{ecosystem}` and `{name}` are the pair the
+[registry directory](discovery.md#the-registry-directory) lists, for example
+`npm/private`.
 
 With the default htpasswd store, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a

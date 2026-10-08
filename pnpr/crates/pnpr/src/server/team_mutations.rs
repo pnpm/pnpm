@@ -3,7 +3,7 @@ use super::{
     require_admin, team_rosters::update_team_roster,
 };
 use axum::{body::Bytes, response::IntoResponse};
-use pnpr_config::{Teams, TeamsManagement, validate_member_name, validate_team_name};
+use pnpr_config::{Management, Teams, validate_member_name, validate_team_name};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 
@@ -53,7 +53,7 @@ pub(super) async fn destroy_team(
     let result = async {
         let registry = admin_roster(state, identity, &target, "destroy a team")?;
         if state.inner.config.routing.hosted[registry].rules.references_team(team) {
-            return Err(RegistryError::TeamConflict {
+            return Err(RegistryError::AdminConflict {
                 reason: format!(
                     "team {team:?} is named by this registry's `packages:` rules; remove it \
                      from the configuration first",
@@ -126,7 +126,7 @@ fn admin_roster<'a>(
     action: &'static str,
 ) -> Result<&'a str, RegistryError> {
     let (registry, hosted) = team_registry(state, identity, target.registry, target.scope)?;
-    if hosted.teams_managed_by == TeamsManagement::Config {
+    if hosted.teams_managed_by == Management::Config {
         return Err(RegistryError::TeamsConfigManaged { action });
     }
     let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
@@ -136,7 +136,7 @@ fn admin_roster<'a>(
 
 fn insert_team(teams: &mut Teams, team: &str) -> Result<(), RegistryError> {
     if teams.contains_key(team) {
-        return Err(RegistryError::TeamConflict {
+        return Err(RegistryError::AdminConflict {
             reason: format!("team {team:?} already exists"),
         });
     }
