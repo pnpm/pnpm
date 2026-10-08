@@ -10,8 +10,10 @@ pub use backend_config::{
     SqlBackendSettings, TokensConfig,
 };
 
-pub use access::{AccessSpec, PackageAccess, validate_member_name, validate_team_name};
-pub use hosted::{HostedConfig, TeamsManagement};
+pub use access::{
+    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
+};
+pub use hosted::{HostedConfig, Management};
 pub use pnpr_policy::{TeamDirectory, Teams};
 
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};

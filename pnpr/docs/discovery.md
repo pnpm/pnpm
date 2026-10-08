@@ -75,8 +75,9 @@ and its `ecosystem`; the identity is the pair `(ecosystem, name)`. Concrete
 registries report their namespace `patterns` and routers their ordered
 `sources`, and either field is `null` when the caller's access rules do not
 permit disclosing it. A hosted registry also reports
-`teamsManagedBy` (`config` or `api`, see
-[Managing teams through the API](configuration.md#managing-teams-through-the-api)).
+`teamsManagedBy` and `rulesManagedBy` (`config` or `api`, see
+[Managing teams through the API](configuration.md#managing-teams-through-the-api)
+and [Changing rules through the API](configuration.md#changing-rules-through-the-api)).
 The top-level `admin` flag says whether the caller is one of the `auth.admins`.
 Upstream addresses, credentials, storage paths, and package access rules are
 never returned. Responses are private and must not be cached.

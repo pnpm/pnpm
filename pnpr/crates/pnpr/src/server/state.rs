@@ -47,7 +47,7 @@ pub(super) struct MutationLocks {
 pub(super) struct IdentityServices {
     pub(super) auth: AuthState,
     pub(super) oidc: pnpr_auth::oidc::OidcState,
-    pub(super) teams: super::team_rosters::TeamRosters,
+    pub(super) managed: super::managed_state::ManagedState,
 }
 
 impl AppInner {
@@ -108,7 +108,7 @@ impl IdentityServices {
         super::oidc::validate_workloads(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self { auth, oidc, teams: super::team_rosters::TeamRosters::new(config) })
+        Ok(Self { auth, oidc, managed: super::managed_state::ManagedState::new(config) })
     }
 }
 

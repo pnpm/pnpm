@@ -372,6 +372,34 @@ registries:
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
+### Changing rules through the API {#changing-rules-through-the-api}
+
+Set `rulesManagedBy: api` on a hosted registry to let the
+[`auth.admins`](#auth) change its rules without a config deploy:
+
+```yaml title="pnpr.yaml"
+registries:
+  private:
+    type: hosted
+    rulesManagedBy: api
+    packages:
+      '@corp/*':
+        access: $authenticated
+```
+
+- An admin can replace the registry-level `access:` and the `access`,
+  `publish`, and `unpublish` lists of every key the `packages:` map declares.
+  The keys themselves stay in the config, because they decide which registry
+  serves a name.
+- A change applies at once on the replica that took it. pnpr stores changes in
+  the hosted store, so other replicas apply them within 10 seconds.
+- Resetting the changes brings back the config's rules.
+- If pnpr cannot read the stored changes, the registry admits nobody until a
+  read succeeds.
+- Only hosted registries accept `rulesManagedBy`.
+
+See [Admin endpoints](endpoints.md#admin-endpoints).
+
 ## `oci`
 
 Size limits for the [container image](container-images.md) surface, and the
@@ -430,7 +458,9 @@ may:
   [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
   is disabled;
 - edit the teams of every registry with
-  [`teamsManagedBy: api`](#managing-teams-through-the-api).
+  [`teamsManagedBy: api`](#managing-teams-through-the-api);
+- change the rules of every registry with
+  [`rulesManagedBy: api`](#changing-rules-through-the-api).
 
 The first admin account still has to exist. Let it self-register before you
 set `max_users` to `-1`, or create it in the htpasswd file or the shared

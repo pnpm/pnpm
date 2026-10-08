@@ -123,3 +123,27 @@ impl Identity {
         }
     }
 }
+
+/// The token as it is written in an access list.
+impl std::fmt::Display for AccessToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AccessToken::All => formatter.write_str("$all"),
+            AccessToken::Authenticated => formatter.write_str("$authenticated"),
+            AccessToken::Anonymous => formatter.write_str("$anonymous"),
+            AccessToken::User(name) => formatter.write_str(name),
+            AccessToken::Team { name, .. } => write!(formatter, "team:{name}"),
+        }
+    }
+}
+
+impl AccessList {
+    /// The tokens as they are written in an access list.
+    #[must_use]
+    pub fn token_strings(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+}

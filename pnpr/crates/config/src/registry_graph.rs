@@ -237,8 +237,13 @@ pub(super) fn build_hosted_entry(
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
     let patterns = rules.patterns();
-    let teams_managed_by = registry.teams_managed_by;
-    Ok((HostedConfig { org, rules, teams, teams_managed_by }, ecosystem, patterns))
+    let (teams_managed_by, rules_managed_by) =
+        (registry.teams_managed_by, registry.rules_managed_by);
+    Ok((
+        HostedConfig { org, rules, teams, teams_managed_by, rules_managed_by },
+        ecosystem,
+        patterns,
+    ))
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one

@@ -1,6 +1,6 @@
 use super::{
     AccessSpec, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig, LogFormat,
-    LogLevel, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv, TeamsManagement,
+    LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv,
     UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
 };
 
@@ -61,7 +61,11 @@ pub(super) struct HostedFile {
     /// Whether `teams:` is the roster or only the seed of one the team API
     /// edits. Omitted ⇒ `config`.
     #[serde(default, rename = "teamsManagedBy")]
-    pub(super) teams_managed_by: TeamsManagement,
+    pub(super) teams_managed_by: Management,
+    /// Whether the `packages:` rules and `access:` are fixed, or a starting
+    /// point the admin API may change. Omitted ⇒ `config`.
+    #[serde(default, rename = "rulesManagedBy")]
+    pub(super) rules_managed_by: Management,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most

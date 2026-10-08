@@ -1,4 +1,4 @@
-use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules, TeamDirectory, Teams};
+use super::{AccessList, AccessToken, Identity, PackageRule, RuleTable, TeamDirectory, Teams};
 use pnpr_registry::{Ecosystem, PackagePattern};
 
 fn list(token: &str) -> AccessList {
@@ -16,8 +16,8 @@ fn rule(pattern: &str, access: Option<&str>) -> PackageRule {
 
 /// The registry-mock shape from `Config::proxy`, reduced to what these
 /// selection tests exercise.
-fn registry_mock_rules() -> PackageRules {
-    PackageRules::new(
+fn registry_mock_rules() -> RuleTable {
+    RuleTable::new(
         vec![
             rule("@pnpm.e2e/*", None),
             rule("@pnpm.e2e/needs-auth", Some("$authenticated")),
@@ -160,11 +160,11 @@ fn most_specific_rule_wins_regardless_of_key_order() {
     // specificity chain (exact > @scope/* > @*/* > **) makes selection
     // order-free, so a YAML round-trip that reorders mapping keys cannot
     // change which access rule applies.
-    let scope_first = PackageRules::new(
+    let scope_first = RuleTable::new(
         vec![rule("@acme/*", Some("$all")), rule("@acme/secret", Some("$authenticated"))],
         None,
     );
-    let exact_first = PackageRules::new(
+    let exact_first = RuleTable::new(
         vec![rule("@acme/secret", Some("$authenticated")), rule("@acme/*", Some("$all"))],
         None,
     );
@@ -176,7 +176,7 @@ fn most_specific_rule_wins_regardless_of_key_order() {
 
 #[test]
 fn specificity_chain_orders_all_four_tiers() {
-    let rules = PackageRules::new(
+    let rules = RuleTable::new(
         vec![
             rule("**", Some("everyone")),
             rule("@*/*", Some("scoped")),
@@ -221,7 +221,7 @@ fn specificity_chain_orders_all_four_tiers() {
 fn omitted_rule_fields_fall_back_to_registry_default_not_broader_keys() {
     // The exact key wins and omits `access`; the fallback is the
     // registry-level default, never the broader scope key's field.
-    let rules = PackageRules::new(
+    let rules = RuleTable::new(
         vec![
             PackageRule {
                 pattern: PackagePattern::parse("@acme/*", Ecosystem::Npm).expect("parses"),
@@ -249,28 +249,27 @@ fn unclaimed_name_still_answers_with_defaults() {
     // `for_package` on a name outside the key set answers with the
     // registry defaults; namespace enforcement (404 before this lookup)
     // is the routing graph's job, not the rules'.
-    let rules = PackageRules::new(vec![rule("@acme/*", Some("$authenticated"))], None);
+    let rules = RuleTable::new(vec![rule("@acme/*", Some("$authenticated"))], None);
     assert!(rules.for_package("unclaimed").access.allows(&Identity::Anonymous));
 }
 
 #[test]
 fn all_access_admit_requires_the_default_and_every_refinement() {
-    let public = PackageRules::default();
+    let public = RuleTable::default();
     assert!(public.all_access_admit(&Identity::Anonymous));
 
-    let private_default = PackageRules::new(Vec::new(), Some(list("$authenticated")));
+    let private_default = RuleTable::new(Vec::new(), Some(list("$authenticated")));
     assert!(!private_default.all_access_admit(&Identity::Anonymous));
     assert!(private_default.all_access_admit(&user("alice")));
 
-    let private_refinement =
-        PackageRules::new(vec![rule("@private/*", Some("$authenticated"))], None);
+    let private_refinement = RuleTable::new(vec![rule("@private/*", Some("$authenticated"))], None);
     assert!(!private_refinement.all_access_admit(&Identity::Anonymous));
     assert!(private_refinement.all_access_admit(&user("alice")));
 }
 
 #[test]
 fn falls_back_to_safe_defaults_when_no_rules_match() {
-    let policies = PackageRules::default();
+    let policies = RuleTable::default();
     let effective = policies.for_package("anything");
     assert!(effective.access.allows(&Identity::Anonymous));
     assert!(!effective.publish.allows(&Identity::Anonymous));

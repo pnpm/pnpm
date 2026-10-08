@@ -345,7 +345,8 @@ registries:
     let carol = Identity::user("carol");
 
     let rules = &config.routing.hosted["local"].rules;
-    let team = rules.for_package("@team/widget");
+    let table = rules.snapshot();
+    let team = table.for_package("@team/widget");
     assert!(team.access.allows(&alice));
     assert!(team.access.allows(&bob));
     assert!(!team.access.allows(&carol));
@@ -403,14 +404,27 @@ registries:
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let rules = &config.routing.upstreams["npmjs"].rules;
-    assert!(!rules.for_package("@internal/x").access.allows(&Identity::Anonymous));
+    assert!(
+        !rules
+            .snapshot()
+            .for_package("@internal/x")
+            .access
+            .allows(&Identity::Anonymous),
+    );
     assert!(
         rules
+            .snapshot()
             .for_package("@internal/x")
             .access
             .allows(&user("alice")),
     );
-    assert!(rules.for_package("lodash").access.allows(&Identity::Anonymous));
+    assert!(
+        rules
+            .snapshot()
+            .for_package("lodash")
+            .access
+            .allows(&Identity::Anonymous),
+    );
 }
 
 #[test]

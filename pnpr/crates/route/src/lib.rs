@@ -234,7 +234,7 @@ impl RouteContext {
         let (Some(package), Some(rules)) = (package, self.upstream_rules.get(registry)) else {
             return true;
         };
-        rules.for_package(package).access.allows(identity)
+        rules.access_admits(package, identity)
     }
 
     /// The descriptor package qualifier for a proxied fetch: `Some(package)`
@@ -244,7 +244,7 @@ impl RouteContext {
     /// the common footprint one descriptor per alias.
     fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
         let (package, rules) = (package?, self.upstream_rules.get(alias)?);
-        rules.for_package(package).access_is_explicit.then(|| package.to_string())
+        rules.access_is_explicit(package).then(|| package.to_string())
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
@@ -487,7 +487,8 @@ impl RouteContext {
         let Some(rules) = self.hosted_rules.get(registry) else {
             return RouteClass::Public;
         };
-        let access = rules.for_package(package).access;
+        let table = rules.snapshot();
+        let access = table.for_package(package).access;
         if access.allows(&Identity::Anonymous) {
             return RouteClass::Public;
         }
@@ -552,7 +553,7 @@ impl RouteContext {
                 match policy_id.split_once('\0') {
                     Some((registry, package)) => self.hosted_rules
                         .get(registry)
-                        .is_some_and(|rules| rules.for_package(package).access.allows(identity)),
+                        .is_some_and(|rules| rules.access_admits(package, identity)),
                     None => false,
                 }
             }

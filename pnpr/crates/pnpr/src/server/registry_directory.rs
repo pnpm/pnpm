@@ -3,7 +3,7 @@ use axum::{
     extract::State,
     response::{IntoResponse as _, Response},
 };
-use pnpr_config::{Config, TeamsManagement};
+use pnpr_config::{Config, Management};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use serde_json::{Value, json};
 
@@ -66,14 +66,14 @@ fn registry_is_visible(config: &Config, identity: &Identity, key: &str) -> bool 
     match config.routing.registries.get(key) {
         Some(Registry::Hosted { .. }) => config.routing.hosted
             .get(key)
-            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
         Some(Registry::Upstream { .. }) => config.routing.upstreams
             .get(key)
             .is_some_and(|upstream| {
                 upstream.access
                     .as_ref()
                     .is_none_or(|access| access.allows(identity))
-                    && upstream.rules.default_access().allows(identity)
+                    && upstream.rules.default_access_admits(identity)
             }),
         _ => false,
     }
@@ -114,15 +114,16 @@ fn directory_entry(
         "patterns": patterns, "sources": route_sources,
     });
     if let Some(hosted) = config.routing.hosted.get(key) {
-        entry["teamsManagedBy"] = json!(teams_management_name(hosted.teams_managed_by));
+        entry["teamsManagedBy"] = json!(management_name(hosted.teams_managed_by));
+        entry["rulesManagedBy"] = json!(management_name(hosted.rules_managed_by));
     }
     Some(entry)
 }
 
-fn teams_management_name(management: TeamsManagement) -> &'static str {
+pub(super) fn management_name(management: Management) -> &'static str {
     match management {
-        TeamsManagement::Config => "config",
-        TeamsManagement::Api => "api",
+        Management::Config => "config",
+        Management::Api => "api",
     }
 }
 
