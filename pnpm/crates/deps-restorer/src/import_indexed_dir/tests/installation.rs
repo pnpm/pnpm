@@ -8,6 +8,54 @@ use pretty_assertions::assert_eq;
 use std::{fs, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
+#[cfg(windows)]
+#[test]
+fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let manifest = write_source(&src_root, "manifest", b"{}");
+    let asset = write_source(&src_root, "asset", b"asset");
+    let cas = cas_map(&[
+        ("package.json", manifest),
+        ("assets/icon.svg?as=metadata.d.ts", asset),
+    ]);
+    let target = tmp.path().join("pkg");
+
+    for opts in [ImportIndexedDirOpts::default(), ImportIndexedDirOpts::default(), FORCE_SHARED] {
+        import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Copy,
+            &target,
+            &cas,
+            opts,
+        )
+        .expect("invalid filename should be renamed");
+        assert_eq!(fs::read(target.join("assets/icon.svgas=metadata.d.ts")).unwrap(), b"asset");
+        fs::remove_file(target.join("package.json")).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn renamed_windows_filename_cannot_replace_an_existing_package_file() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let original = write_source(&src_root, "original", b"original");
+    let renamed = write_source(&src_root, "renamed", b"renamed");
+    let cas = cas_map(&[("name.txt", original), ("name?.txt", renamed)]);
+    let target = tmp.path().join("pkg");
+
+    let result = import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    );
+    assert!(result.is_err());
+    assert!(!target.exists());
+}
+
 /// Default opts (isolated linker) short-circuit when the target holds the
 /// completion marker — the load-bearing invariant that a fully-imported
 /// virtual-store slot is never re-imported. A marker-less directory is

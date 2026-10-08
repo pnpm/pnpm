@@ -7,6 +7,9 @@ use placement::{all_files_match, file_matches_store_entry, populate_dir};
 mod staging;
 use staging::stage_and_swap;
 
+#[cfg(windows)]
+mod windows_filenames;
+
 use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -111,6 +114,8 @@ pub enum ImportIndexedDirError {
     },
     #[display("symlink target {target:?} escapes package root {root:?}")]
     SymlinkTargetEscapes { target: PathBuf, root: PathBuf },
+    #[display("cannot rename package files safely: {filename:?}: {reason}")]
+    InvalidFilename { filename: String, reason: &'static str },
 }
 
 /// How [`populate_dir`] puts each indexed entry at its final path.
@@ -180,7 +185,26 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
     let existing_kind = existing_dirent_kind(dir_path)?;
-
+    #[cfg(windows)]
+    if !opts.force {
+        match existing_kind {
+            Some(file_type) if !file_type.is_dir() => return Ok(()),
+            Some(_) if marker_present(dir_path, cas_paths) => return Ok(()),
+            _ => {}
+        }
+    }
+    #[cfg(windows)]
+    let sanitized = windows_filenames::sanitize_filenames(cas_paths)?;
+    #[cfg(windows)]
+    let cas_paths = if let Some(sanitized) = &sanitized {
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "The package linked to {dir_path:?} has files with invalid names: {:?}. They are renamed on Windows.",
+            sanitized.renamed
+        ));
+        &sanitized.paths
+    } else {
+        cas_paths
+    };
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
