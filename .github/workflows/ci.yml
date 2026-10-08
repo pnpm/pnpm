@@ -159,7 +159,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '26.10.0']
+        node: ['22.13.0', '24.0.0', '26.11.1']
         test_chunk: ['1', '2', '3']
         include:
           - node: '22.13.0'
@@ -171,7 +171,7 @@ jobs:
           - node: '24.0.0'
             test_chunk: '2'
             garnet: true
-          - node: '26.10.0'
+          - node: '26.11.1'
             node_major: '26'
     uses: $/.github/workflows/test.yml
     with:
