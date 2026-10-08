@@ -123,6 +123,10 @@ fn installed_without_download(
         })
 }
 
+/// How long the release a moving channel fell back to is used before the
+/// distribution server is asked again.
+const UNREACHABLE_RETRY_AFTER: std::time::Duration = std::time::Duration::from_hours(1);
+
 /// The newest installed release of a moving channel, when the distribution
 /// server could not be reached to say which release it is now. A failure
 /// the server answered for, such as a bad signature, is not covered.
@@ -139,9 +143,16 @@ fn installed_after_failed_fetch(
     if !unreachable || request.channel.is_pinned() {
         return Err(error);
     }
-    install::newest_installed(toolchains, host, request)
-        .map(|dir| InstalledToolchain { dir })
-        .ok_or(error)
+    let (pinned, dir) = install::newest_installed_release(toolchains, host, request)
+        .filter(|(pinned, _)| {
+            install::last_resolution(toolchains, host, request)
+                .is_none_or(|last| !install::is_older(pinned, &last))
+        })
+        .ok_or(error)?;
+    // Taken as the channel's release for a while, so the commands that
+    // follow do not each wait on the unreachable server again.
+    install::record_resolution_for(toolchains, host, request, &pinned, UNREACHABLE_RETRY_AFTER);
+    Ok(InstalledToolchain { dir })
 }
 
 /// A channel never moves back to an older release, so one that appears to
@@ -160,6 +171,18 @@ fn refuse_older_release(
         }),
         _ => Ok(()),
     }
+}
+
+/// The toolchain `request` asks for, when it can be used without asking the
+/// distribution server: the cheap check [`install_toolchain`] starts with.
+#[must_use]
+pub fn installed_toolchain(
+    config: &Config,
+    request: &ToolchainRequest,
+) -> Option<InstalledToolchain> {
+    let host = host::host_triple()?;
+    installed_without_download(config, &toolchains_dir(config), &host, request)
+        .map(|dir| InstalledToolchain { dir })
 }
 
 /// The `bin` directory of the toolchain pnpm linked for `dir`: the one beside

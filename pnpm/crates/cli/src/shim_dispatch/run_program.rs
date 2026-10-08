@@ -5,7 +5,7 @@
 use crate::process::Command;
 use pnpm_store_dir::PrivateInstall;
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
 
@@ -18,8 +18,21 @@ pub(super) fn exec_program_with_bin_dirs(
     bin_dirs: &[PathBuf],
     args: &[OsString],
 ) -> i32 {
+    exec_program_with_env(program, bin_dirs, &[], args)
+}
+
+/// [`exec_program_with_bin_dirs`], with `env` set for the program too.
+pub(super) fn exec_program_with_env(
+    program: &Path,
+    bin_dirs: &[PathBuf],
+    env: &[(&str, &OsStr)],
+    args: &[OsString],
+) -> i32 {
     match program_command(program, args, bin_dirs) {
-        Ok(command) => exec_command(program, command),
+        Ok(mut command) => {
+            command.envs(env.iter().copied());
+            exec_command(program, command)
+        }
         Err(code) => code,
     }
 }

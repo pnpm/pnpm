@@ -105,7 +105,10 @@ fn a_bare_cargo_runs_the_toolchain_the_project_names() {
     let request = pnpm_rust_toolchain::read_toolchain_file(&toolchain_file).unwrap().unwrap();
     let pinned = pnpm_rust_toolchain::Channel::parse("1.95.0").unwrap();
     let toolchain = pnpm_rust_toolchain::installation_dir(&config, &pinned, &request).unwrap();
-    write_script(&toolchain.join("bin/cargo"), r#"echo pinned-cargo "$@"; command -v rustc"#);
+    write_script(
+        &toolchain.join("bin/cargo"),
+        r#"echo pinned-cargo "$@"; command -v rustc; echo "$RUSTUP_TOOLCHAIN""#,
+    );
     write_script(&toolchain.join("bin/rustc"), "echo pinned-rustc");
 
     let output = shim(
@@ -128,6 +131,9 @@ fn a_bare_cargo_runs_the_toolchain_the_project_names() {
             .map(|rustc| fs::canonicalize(rustc).unwrap()),
         Some(fs::canonicalize(toolchain.join("bin/rustc")).unwrap()),
     );
+    // A rustup proxy cargo runs, such as `$CARGO_HOME/bin/cargo-clippy`,
+    // runs the same toolchain.
+    assert_eq!(lines.next().map(Path::new), Some(toolchain.as_path()));
 }
 
 /// Outside a project that names a toolchain, the shim steps aside for the
@@ -151,9 +157,7 @@ fn without_a_toolchain_file_the_next_cargo_on_path_runs() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo --version");
 
-    let output = shim(&root, &elsewhere, "cargo", &[&global_bin(&root), Path::new("/bin")])
-        .output()
-        .unwrap();
+    let output = shim(&root, &elsewhere, "cargo", &[&global_bin(&root)]).output().unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIM_NO_TARGET"), "{stderr}");
@@ -185,6 +189,14 @@ fn rustup_toolchain_overrides_reach_rustup() {
 
     let output = shim(&root, &project, "cargo", &path)
         .with_env("RUSTUP_TOOLCHAIN", "nightly")
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo build");
+
+    // A shim switched off gives way the same way.
+    let output = shim(&root, &project, "cargo", &path)
+        .with_env("PNPM_SHIM_BYPASS", "1")
         .with_args(["build"])
         .output()
         .unwrap();

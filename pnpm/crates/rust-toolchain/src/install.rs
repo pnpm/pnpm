@@ -72,6 +72,15 @@ pub(crate) fn newest_installed(
     host: &str,
     request: &ToolchainRequest,
 ) -> Option<PathBuf> {
+    newest_installed_release(toolchains, host, request).map(|(_, dir)| dir)
+}
+
+/// [`newest_installed`], with the release the directory holds.
+pub(crate) fn newest_installed_release(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+) -> Option<(Channel, PathBuf)> {
     let suffix = format!("-{host}-{}", selection_digest(request));
     fs::read_dir(toolchains)
         .ok()?
@@ -84,10 +93,10 @@ pub(crate) fn newest_installed(
             let pinned = Channel::parse(name.strip_suffix(&suffix)?)?;
             request.channel
                 .accepts(&pinned)
-                .then(|| (release_order(&pinned), entry.path()))
+                .then(|| (release_order(&pinned), pinned, entry.path()))
         })
-        .max()
-        .map(|(_, dir)| dir)
+        .max_by(|(left, ..), (right, ..)| left.cmp(right))
+        .map(|(_, pinned, dir)| (pinned, dir))
 }
 
 /// How long a channel that moves is taken to resolve to the release it
@@ -149,15 +158,36 @@ pub(crate) fn record_resolution(
     request: &ToolchainRequest,
     pinned: &Channel,
 ) {
+    record_resolution_for(toolchains, host, request, pinned, CHANNEL_MAX_AGE);
+}
+
+/// [`record_resolution`], taken as current for `fresh_for` rather than the
+/// full [`CHANNEL_MAX_AGE`].
+pub(crate) fn record_resolution_for(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+    pinned: &Channel,
+    fresh_for: Duration,
+) {
     // Another install may have recorded a newer release meanwhile.
     if last_resolution(toolchains, host, request).is_some_and(|last| is_older(pinned, &last)) {
         return;
     }
     let record = resolution_record(toolchains, host, request);
-    if let Some(parent) = record.parent()
-        && fs::create_dir_all(parent).is_ok()
+    let Some(parent) = record.parent() else { return };
+    if fs::create_dir_all(parent).is_err()
+        || pnpm_fs::write_atomic(&record, pinned.to_string().as_bytes()).is_err()
     {
-        let _ = pnpm_fs::write_atomic(&record, pinned.to_string().as_bytes());
+        return;
+    }
+    // The record's age is what expires it, so a shorter freshness is an
+    // older modification time.
+    if let Some(modified) =
+        std::time::SystemTime::now().checked_sub(CHANNEL_MAX_AGE.saturating_sub(fresh_for))
+        && let Ok(file) = fs::File::options().write(true).open(&record)
+    {
+        let _ = file.set_modified(modified);
     }
 }
 
