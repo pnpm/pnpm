@@ -125,8 +125,8 @@ impl UserBackend for CanonicalUserBackend {
         Ok(vec!["Alice".to_string()])
     }
 
-    async fn exists(&self, username: &str) -> pnpr::Result<bool> {
-        Ok(username == "Alice")
+    async fn password_hash(&self, username: &str) -> pnpr::Result<Option<String>> {
+        Ok(username.eq_ignore_ascii_case("alice").then(|| "hash".to_string()))
     }
 
     async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {

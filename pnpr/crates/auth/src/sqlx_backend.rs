@@ -157,8 +157,9 @@ where
         with_auth_timeout(self.timeout, self.db.list_usernames()).await
     }
 
-    async fn exists(&self, username: &str) -> Result<bool> {
-        Ok(with_auth_timeout(self.timeout, self.db.stored_user(username)).await?.is_some())
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
+        Ok(stored.map(|stored| stored.bcrypt_hash))
     }
 
     /// Inserts as an uncapped store would, so the `users` counter still

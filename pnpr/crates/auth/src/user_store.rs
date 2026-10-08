@@ -5,21 +5,33 @@ use super::{
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex, PoisonError},
+};
+
+/// `username -> bcrypt hash`. The hash string carries its own version and
+/// cost (`$2y$10$...`) so we never need to remember per-record metadata.
+type Users = HashMap<String, String>;
 
 /// File-backed (or in-memory) htpasswd store.
 #[derive(Debug)]
 pub struct UserStore {
-    /// `username -> bcrypt hash`. The hash string carries its own
-    /// version and cost (`$2y$10$...`) so we never need to remember
-    /// per-record metadata.
-    pub(crate) users: Mutex<HashMap<String, String>>,
-    pub(crate) path: Option<PathBuf>,
-    pub(crate) max_users: MaxUsers,
-    pub(crate) bcrypt_cost: u32,
-    /// Held across serializing and writing the file, so writes land in
-    /// the order their contents were taken.
-    pub(crate) persist_lock: tokio::sync::Mutex<()>,
+    pub(crate) users: Arc<Mutex<Users>>,
+    path: Option<PathBuf>,
+    max_users: MaxUsers,
+    bcrypt_cost: u32,
+    /// Held for the whole of an edit: copying the users, writing the copy,
+    /// and making it current. See [`UserStore::update`].
+    edit_lock: Arc<Mutex<()>>,
+}
+
+/// What an edit passed to [`UserStore::update`] did to its copy of the
+/// users, and what the edit returns.
+enum Change<Out> {
+    Keep(Out),
+    Write(Out),
 }
 
 impl UserStore {
@@ -33,13 +45,14 @@ impl UserStore {
     /// In-memory store that enforces the resolved registration cap.
     #[must_use]
     pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
-        Self {
-            users: Mutex::new(HashMap::new()),
-            path: None,
-            max_users,
-            bcrypt_cost: DEFAULT_BCRYPT_COST,
-            persist_lock: tokio::sync::Mutex::new(()),
-        }
+        Self::with_users(Users::new(), None, max_users, DEFAULT_BCRYPT_COST)
+    }
+
+    /// In-memory store with a configurable bcrypt cost, for tests that want
+    /// sub-100ms hashing.
+    #[cfg(test)]
+    pub(crate) fn in_memory_with_cost(max_users: MaxUsers, bcrypt_cost: u32) -> Self {
+        Self::with_users(Users::new(), None, max_users, bcrypt_cost)
     }
 
     /// File-backed store. The file is parsed up front so a malformed
@@ -62,13 +75,26 @@ impl UserStore {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
             Err(err) => return Err(err.into()),
         };
-        Ok(Self {
-            users: Mutex::new(users),
-            path: Some(path),
+        Ok(Self::with_users(users, Some(path), max_users, bcrypt_cost))
+    }
+
+    fn with_users(
+        users: Users,
+        path: Option<PathBuf>,
+        max_users: MaxUsers,
+        bcrypt_cost: u32,
+    ) -> Self {
+        Self {
+            users: Arc::new(Mutex::new(users)),
+            path,
             max_users,
             bcrypt_cost,
-            persist_lock: tokio::sync::Mutex::new(()),
-        })
+            edit_lock: Arc::default(),
+        }
+    }
+
+    fn snapshot(&self) -> std::sync::MutexGuard<'_, Users> {
+        self.users.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Reject registration before spending time hashing a new password.
@@ -76,11 +102,7 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                let current = self.users
-                    .lock()
-                    .expect("UserStore mutex poisoned")
-                    .len() as u64;
-                if current >= max {
+                if self.snapshot().len() as u64 >= max {
                     return Err(RegistryError::TooManyUsers { max });
                 }
             }
@@ -89,30 +111,46 @@ impl UserStore {
         Ok(())
     }
 
-    /// Apply `edit` to the users under the lock and persist the result
-    /// when `edit` reports a change.
-    async fn update(
-        &self,
-        edit: impl FnOnce(&mut HashMap<String, String>) -> bool,
-    ) -> Result<bool> {
-        if !edit(&mut self.users.lock().expect("UserStore mutex poisoned")) {
-            return Ok(false);
-        }
-        self.persist().await?;
-        Ok(true)
+    /// Apply `edit` to a copy of the users. When it reports a write, save
+    /// the copy to the file, then make it the current users.
+    ///
+    /// The whole edit runs on a blocking thread under the edit lock, so a
+    /// cancelled request cannot release the lock while its write is still
+    /// going: edits reach the file in the order they reach memory. A failed
+    /// write leaves the users as they were, so a repeated edit tries again.
+    async fn update<Out, Edit>(&self, edit: Edit) -> Result<Out>
+    where
+        Out: Send + 'static,
+        Edit: FnOnce(&mut Users) -> Result<Change<Out>> + Send + 'static,
+    {
+        let users = Arc::clone(&self.users);
+        let edit_lock = Arc::clone(&self.edit_lock);
+        let path = self.path.clone();
+        tokio::task::spawn_blocking(move || {
+            let _edit = edit_lock.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut next = users
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            let out = match edit(&mut next)? {
+                Change::Keep(out) => return Ok(out),
+                Change::Write(out) => out,
+            };
+            if let Some(path) = &path {
+                write_atomic(path, serialize_htpasswd(&next).as_bytes())?;
+            }
+            *users.lock().unwrap_or_else(PoisonError::into_inner) = next;
+            Ok(out)
+        })
+        .await?
     }
+}
 
-    /// Write the users as they stand now. Every edit calls this after it
-    /// lands, so the last write holds every edit.
-    async fn persist(&self) -> Result<()> {
-        let Some(path) = self.path.clone() else {
-            return Ok(());
-        };
-        let _persist = self.persist_lock.lock().await;
-        let body = serialize_htpasswd(&self.users.lock().expect("UserStore mutex poisoned"));
-        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
-        Ok(())
-    }
+/// The outcome of a registration's locked step.
+enum Registration {
+    Created,
+    /// Another request registered the name while this one hashed.
+    Existing(String),
 }
 
 #[async_trait]
@@ -130,10 +168,7 @@ impl UserBackend for UserStore {
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
 
-        let existing_hash = {
-            let users = self.users.lock().expect("UserStore mutex poisoned");
-            users.get(username).cloned()
-        };
+        let existing_hash = self.snapshot().get(username).cloned();
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
         }
@@ -141,40 +176,33 @@ impl UserBackend for UserStore {
         self.check_registration_capacity()?;
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        enum NextStep {
-            Persist,
-            VerifyExisting(String),
-        }
-        let next_step = {
-            let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            match (users.get(username).cloned(), self.max_users) {
-                (Some(stored), _) => NextStep::VerifyExisting(stored),
-                // Re-check under the lock because another registration may
-                // have filled the store while we were hashing.
-                (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-                (None, _) => {
-                    users.insert(username.to_string(), hash);
-                    NextStep::Persist
-                }
+        let name = username.to_string();
+        let max_users = self.max_users;
+        let registration = self.update(move |users| {
+            if let Some(stored) = users.get(&name) {
+                return Ok(Change::Keep(Registration::Existing(stored.clone())));
             }
-        };
-        match next_step {
-            NextStep::Persist => {
-                self.persist().await?;
-                Ok((UpsertOutcome::Created, username.to_string()))
+            // Re-check under the lock because another registration may
+            // have filled the store while we were hashing.
+            if let MaxUsers::Limited(max) = max_users
+                && users.len() as u64 >= max
+            {
+                return Err(RegistryError::TooManyUsers { max });
             }
-            NextStep::VerifyExisting(stored) => {
+            users.insert(name, hash);
+            Ok(Change::Write(Registration::Created))
+        });
+        match registration.await? {
+            Registration::Created => Ok((UpsertOutcome::Created, username.to_string())),
+            Registration::Existing(stored) => {
                 verify_returning_user(username, password, stored).await
             }
         }
     }
 
     async fn list_users(&self) -> Result<Vec<String>> {
-        let mut names: Vec<String> = self.users
-            .lock()
-            .expect("UserStore mutex poisoned")
+        let mut names: Vec<String> = self
+            .snapshot()
             .keys()
             .cloned()
             .collect();
@@ -182,40 +210,44 @@ impl UserBackend for UserStore {
         Ok(names)
     }
 
-    async fn exists(&self, username: &str) -> Result<bool> {
-        Ok(self.users
-            .lock()
-            .expect("UserStore mutex poisoned")
-            .contains_key(username))
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        Ok(self.snapshot().get(username).cloned())
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
         validate_username(username)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        self.update(|users| {
-            if users.contains_key(username) {
-                return false;
+        let name = username.to_string();
+        self.update(move |users| {
+            if users.contains_key(&name) {
+                return Ok(Change::Keep(false));
             }
-            users.insert(username.to_string(), hash);
-            true
+            users.insert(name, hash);
+            Ok(Change::Write(true))
         })
         .await
     }
 
     async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        self.update(|users| match users.get_mut(username) {
+        let name = username.to_string();
+        self.update(move |users| match users.get_mut(&name) {
             Some(stored) => {
                 *stored = hash;
-                true
+                Ok(Change::Write(true))
             }
-            None => false,
+            None => Ok(Change::Keep(false)),
         })
         .await
     }
 
     async fn delete_user(&self, username: &str) -> Result<bool> {
-        self.update(|users| users.remove(username).is_some()).await
+        let name = username.to_string();
+        self.update(move |users| match users.remove(&name) {
+            Some(_) => Ok(Change::Write(true)),
+            None => Ok(Change::Keep(false)),
+        })
+        .await
     }
 }
 

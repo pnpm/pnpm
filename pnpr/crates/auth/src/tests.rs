@@ -25,13 +25,7 @@ const INVALID_USERNAMES: &[&str] = &[
 ];
 
 fn test_user_store() -> UserStore {
-    UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Unlimited,
-        bcrypt_cost: TEST_COST,
-        persist_lock: tokio::sync::Mutex::new(()),
-    }
+    UserStore::in_memory_with_cost(MaxUsers::Unlimited, TEST_COST)
 }
 
 #[test]
@@ -147,16 +141,10 @@ async fn adduser_rejects_existing_user_with_wrong_password() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn adduser_rejects_same_username_concurrent_registration_with_different_password() {
-    let store = Arc::new(UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Unlimited,
-        // Higher than TEST_COST so hashing lasts long enough for both
-        // tasks to clear the initial missing-user check before either
-        // takes the lock — i.e. to actually exercise the race window.
-        bcrypt_cost: 8,
-        persist_lock: tokio::sync::Mutex::new(()),
-    });
+    // Higher than TEST_COST so hashing lasts long enough for both
+    // tasks to clear the initial missing-user check before either
+    // takes the lock — i.e. to actually exercise the race window.
+    let store = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 8));
     let barrier = Arc::new(Barrier::new(3));
 
     let spawn_adduser = |password: &'static str| {
@@ -245,13 +233,7 @@ async fn adduser_writes_bcrypt_2y_format() {
 
 #[tokio::test]
 async fn max_users_minus_one_disables_registration() {
-    let store = UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Disabled,
-        bcrypt_cost: TEST_COST,
-        persist_lock: tokio::sync::Mutex::new(()),
-    };
+    let store = UserStore::in_memory_with_cost(MaxUsers::Disabled, TEST_COST);
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
@@ -267,13 +249,7 @@ async fn in_memory_store_honors_the_registration_cap() {
 
 #[tokio::test]
 async fn max_users_caps_new_registrations() {
-    let store = UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Limited(2),
-        bcrypt_cost: TEST_COST,
-        persist_lock: tokio::sync::Mutex::new(()),
-    };
+    let store = UserStore::in_memory_with_cost(MaxUsers::Limited(2), TEST_COST);
     store.add_or_login("alice", "x").await.unwrap();
     store.add_or_login("bob", "x").await.unwrap();
     let err = store.add_or_login("carol", "x").await.unwrap_err();
@@ -603,4 +579,27 @@ async fn concurrent_edits_leave_the_file_matching_memory() {
 
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), store.list_users().await.unwrap());
+}
+
+#[tokio::test]
+async fn a_failed_write_changes_nothing_and_can_be_repeated() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
+    // A directory where the file belongs makes the write's rename fail.
+    std::fs::create_dir(&path).unwrap();
+
+    assert!(store.create_user("alice", "x").await.is_err());
+    assert!(
+        store
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    std::fs::remove_dir(&path).unwrap();
+    assert!(store.create_user("alice", "x").await.unwrap());
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
 }

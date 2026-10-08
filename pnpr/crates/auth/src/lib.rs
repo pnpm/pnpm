@@ -282,8 +282,11 @@ pub trait UserBackend: Send + Sync {
     /// Every stored username, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
-    /// Whether `username` is stored.
-    async fn exists(&self, username: &str) -> Result<bool>;
+    /// The stored bcrypt hash of `username`, or `None` when there is no
+    /// such user. The hash is salted, so it differs for every account and
+    /// every password set: equal hashes mean the same account with the same
+    /// password.
+    async fn password_hash(&self, username: &str) -> Result<Option<String>>;
 
     /// Create `username` on an administrator's behalf, reporting `false`
     /// when it exists. Not bound by the self-registration cap.

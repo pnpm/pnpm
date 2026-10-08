@@ -194,8 +194,8 @@ impl UserBackend for RemovedDuringLogin {
         Ok(Vec::new())
     }
 
-    async fn exists(&self, _username: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
     }
 
     async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
@@ -269,5 +269,69 @@ async fn a_failed_revocation_keeps_the_account() {
 
     let (status, _) = send(&app, "DELETE", "/-/pnpr/v0/admin/users/bob", Some(&root), None).await;
     assert!(status.is_server_error(), "{status}");
-    assert!(users.exists("bob").await.unwrap());
+    assert!(
+        users
+            .password_hash("bob")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+}
+
+/// A user store whose one account is removed and created again between a
+/// login's password check and its token: the hash the login verified is
+/// followed by another.
+struct ReplacedDuringLogin(std::sync::Mutex<Vec<&'static str>>);
+
+#[async_trait::async_trait]
+impl UserBackend for ReplacedDuringLogin {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        _password: &str,
+    ) -> pnpr::Result<(UpsertOutcome, String)> {
+        Ok((UpsertOutcome::LoggedIn, username.to_string()))
+    }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
+        Ok(self.0
+            .lock()
+            .unwrap()
+            .pop()
+            .map(str::to_string))
+    }
+
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+}
+
+#[tokio::test]
+async fn an_old_password_gets_no_token_for_a_recreated_account() {
+    let dir = TempDir::new().unwrap();
+    let tokens = Arc::new(TokenStore::in_memory());
+    let users = ReplacedDuringLogin(std::sync::Mutex::new(vec!["new hash", "old hash"]));
+    let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(&dir), auth);
+
+    assert_eq!(login(&app, "bob", "old").await, Err(StatusCode::UNAUTHORIZED));
+    assert!(
+        tokens
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
