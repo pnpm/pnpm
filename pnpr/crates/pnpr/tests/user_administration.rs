@@ -281,7 +281,12 @@ async fn a_failed_revocation_keeps_the_account() {
 /// A user store whose one account is removed and created again between a
 /// login's password check and its token: the hash the login verified is
 /// followed by another.
-struct ReplacedDuringLogin(std::sync::Mutex<Vec<&'static str>>);
+struct ReplacedDuringLogin {
+    outcome: UpsertOutcome,
+    /// Popped by each `password_hash` call: the hash the login sees before
+    /// verifying, then the one it sees once its token exists.
+    hashes: std::sync::Mutex<Vec<Option<String>>>,
+}
 
 #[async_trait::async_trait]
 impl UserBackend for ReplacedDuringLogin {
@@ -290,7 +295,7 @@ impl UserBackend for ReplacedDuringLogin {
         username: &str,
         _password: &str,
     ) -> pnpr::Result<(UpsertOutcome, String)> {
-        Ok((UpsertOutcome::LoggedIn, username.to_string()))
+        Ok((self.outcome, username.to_string()))
     }
 
     async fn list_users(&self) -> pnpr::Result<Vec<String>> {
@@ -298,11 +303,11 @@ impl UserBackend for ReplacedDuringLogin {
     }
 
     async fn password_hash(&self, _username: &str) -> pnpr::Result<Option<String>> {
-        Ok(self.0
+        Ok(self.hashes
             .lock()
             .unwrap()
             .pop()
-            .map(str::to_string))
+            .flatten())
     }
 
     async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
@@ -322,11 +327,37 @@ impl UserBackend for ReplacedDuringLogin {
 async fn an_old_password_gets_no_token_for_a_recreated_account() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
-    let users = ReplacedDuringLogin(std::sync::Mutex::new(vec!["new hash", "old hash"]));
+    let hashes = vec![Some("new hash".to_string()), Some("old hash".to_string())];
+    let users = ReplacedDuringLogin {
+        outcome: UpsertOutcome::LoggedIn,
+        hashes: std::sync::Mutex::new(hashes),
+    };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
     let app = router_with_auth(load_config(&dir), auth);
 
     assert_eq!(login(&app, "bob", "old").await, Err(StatusCode::UNAUTHORIZED));
+    assert!(
+        tokens
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[tokio::test]
+async fn a_registration_gets_no_token_for_an_account_recreated_with_another_password() {
+    let dir = TempDir::new().unwrap();
+    let tokens = Arc::new(TokenStore::in_memory());
+    let replacement = bcrypt::hash("admin's password", 4).unwrap();
+    let users = ReplacedDuringLogin {
+        outcome: UpsertOutcome::Created,
+        hashes: std::sync::Mutex::new(vec![Some(replacement), None]),
+    };
+    let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(&dir), auth);
+
+    assert_eq!(login(&app, "bob", "mine").await, Err(StatusCode::UNAUTHORIZED));
     assert!(
         tokens
             .list_for_user("bob")

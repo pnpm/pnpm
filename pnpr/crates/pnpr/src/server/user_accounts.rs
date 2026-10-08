@@ -135,33 +135,35 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     let (outcome, username) = users.add_or_login(name, password).await?;
-    let token = issue_login_token(state, &username, verified.as_deref()).await?;
-    Ok((outcome, username, token))
+    let token = state.inner.identity.auth.tokens.issue(&username).await?;
+    if still_the_same_account(state, &username, password, verified.as_deref()).await? {
+        return Ok((outcome, username, token));
+    }
+    state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
+    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
 }
 
-/// Issue a token for a login that verified the password stored as `verified`
-/// (`None` for an account the login created). An admin may remove the
-/// account, or remove and recreate it, between the check and the issue, after
-/// the removal revoked the account's tokens. So once the token exists, the
-/// stored hash must still be the verified one, and the token is revoked when
-/// it is not.
-async fn issue_login_token(
+/// Whether the account a login verified, or created, is still the one stored,
+/// checked once the login's token exists. An admin may remove the account, or
+/// remove it and create it again, between the check and the issue, after the
+/// removal revoked the account's tokens.
+///
+/// A login that verified a stored hash (`verified`) needs that hash to still
+/// be stored. The hash is salted, so a recreated account or a new password
+/// never matches. A login that created the account has no hash to compare, so
+/// the stored account must accept the password that created it.
+async fn still_the_same_account(
     state: &AppState,
     username: &str,
+    password: &str,
     verified: Option<&str>,
-) -> Result<String, RegistryError> {
-    let auth = &state.inner.identity.auth;
-    let token = auth.tokens.issue(username).await?;
-    let current = auth.users.password_hash(username).await?;
-    let same_account = match verified {
-        Some(verified) => current.as_deref() == Some(verified),
-        None => current.is_some(),
-    };
-    if same_account {
-        return Ok(token);
+) -> Result<bool, RegistryError> {
+    let current = state.inner.identity.auth.users.password_hash(username).await?;
+    match (verified, current) {
+        (Some(verified), Some(current)) => Ok(verified == current),
+        (None, Some(current)) => pnpr_auth::verify_bcrypt(password.to_string(), current).await,
+        (_, None) => Ok(false),
     }
-    auth.tokens.revoke_by_raw(&token).await?;
-    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
 }
 
 /// `GET /-/whoami` — return the username of the caller, or 401 if

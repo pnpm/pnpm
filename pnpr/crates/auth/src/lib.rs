@@ -28,6 +28,7 @@
 
 pub mod oidc;
 
+pub use htpasswd::verify_bcrypt;
 pub use token_store::{TokenRecord, TokenStore};
 pub use user_store::UserStore;
 
