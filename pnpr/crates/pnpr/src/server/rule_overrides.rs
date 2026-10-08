@@ -1,5 +1,6 @@
 use super::{
     AppState, RegistryError,
+    ecosystem::sha256_hex,
     managed_state::{WRITE_ATTEMPTS, store_registry_record},
 };
 use pnpr_config::{TeamDirectory, compile_access_list};
@@ -78,14 +79,35 @@ async fn read_rules(
         .map_err(|reason| RegistryError::Internal { reason })
 }
 
+/// The version of a registry's stored rule changes, for `ETag` and
+/// `If-Match`. A registry with no stored changes has the version `config`.
+pub(super) fn rules_version(stored: Option<&[u8]>) -> String {
+    stored.map_or_else(|| "config".to_string(), |bytes| sha256_hex(bytes)[..16].to_string())
+}
+
+/// The version of `registry`'s stored rule changes as they are now.
+pub(super) async fn current_rules_version(
+    state: &AppState,
+    registry: &str,
+) -> Result<String, RegistryError> {
+    let stored =
+        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, registry).await?;
+    Ok(rules_version(stored.as_deref()))
+}
+
 /// Store `changes` as the rules of `registry`, replacing what was stored, and
 /// apply them on this replica at once. Changes are checked against the
 /// registry's YAML rules and current roster before anything is written.
+///
+/// With `expected`, the write lands only while the stored changes still have
+/// that version; otherwise the last writer wins. Resetting the rules stores
+/// the empty set of changes, so it is conditional the same way.
 pub(super) async fn replace_rules(
     state: &AppState,
     registry: &str,
     changes: RuleChanges,
-) -> Result<(), RegistryError> {
+    expected: Option<&str>,
+) -> Result<String, RegistryError> {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
     let bytes = serde_json::to_vec(&changes)?;
@@ -95,9 +117,10 @@ pub(super) async fn replace_rules(
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
         let stored = state.inner.storage.read_registry_record(kind, registry).await?;
+        check_version(registry, stored.as_deref(), expected)?;
         if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
             publish_rules(state, registry, table);
-            return Ok(());
+            return Ok(rules_version(Some(&bytes)));
         }
     }
     Err(RegistryError::AdminConflict {
@@ -105,14 +128,20 @@ pub(super) async fn replace_rules(
     })
 }
 
-/// Drop the stored changes of `registry`, so its YAML rules apply again.
-pub(super) async fn reset_rules(state: &AppState, registry: &str) -> Result<(), RegistryError> {
-    let managed = &state.inner.identity.managed;
-    let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
-    let _reload = managed.reload.lock().await;
-    state.inner.storage.remove_registry_record(RegistryRecord::RuleOverrides, registry).await?;
-    publish_rules(state, registry, RuleTable::clone(base));
-    Ok(())
+fn check_version(
+    registry: &str,
+    stored: Option<&[u8]>,
+    expected: Option<&str>,
+) -> Result<(), RegistryError> {
+    match expected {
+        Some(expected) if expected != rules_version(stored) => {
+            Err(RegistryError::PreconditionFailed {
+                resource: format!("the rules of registry {registry:?}"),
+                expected: expected.to_string(),
+            })
+        }
+        _ => Ok(()),
+    }
 }
 
 fn publish_rules(state: &AppState, registry: &str, table: RuleTable) {

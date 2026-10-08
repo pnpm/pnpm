@@ -43,6 +43,7 @@ impl RegistryError {
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
             RegistryError::RulesConfigManaged => "rules_config_managed",
+            RegistryError::PreconditionFailed { .. } => "precondition_failed",
             RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
@@ -167,6 +168,7 @@ impl RegistryError {
             | RegistryError::RevisionReferenceWriteConflict { .. }
             | RegistryError::AdminConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,
+            RegistryError::PreconditionFailed { .. } => StatusCode::PRECONDITION_FAILED,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. }
             | RegistryError::TeamsConfigManaged { .. }
