@@ -1,5 +1,5 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS,
+    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, UpdateConfig,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
     package_configs::ProjectConfig,

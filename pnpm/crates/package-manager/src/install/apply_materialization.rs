@@ -133,7 +133,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
     metadata: CommittedMetadata,
 ) -> Result<(), InstallError> {
     let phase_start = std::time::Instant::now();
-    commit_modules_state(CommitModulesStateInputs {
+    let pending_skills = commit_modules_state(CommitModulesStateInputs {
         builds: crate::install::state_options::CommittedBuildState {
             ignored_builds: &inputs.materialized.ignored_builds,
             deferred_builds: metadata.deferred_builds,
@@ -170,6 +170,7 @@ fn commit_apply_state<Reporter: self::Reporter>(
         force_prune: matches!(inputs.scripts.mutation, crate::ProjectMutation::UninstallSome),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
+    crate::agent_skills::report_pending_skills::<Reporter>(pending_skills);
 
     run_apply_scripts::<Reporter>(inputs, state)
 }

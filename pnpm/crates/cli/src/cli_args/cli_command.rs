@@ -50,6 +50,7 @@ use super::{
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
+    permissions::{ApproveArgs, PermissionsArgs},
     ping::PingArgs,
     pipeline::PipelineArgs,
     pkg::PkgArgs,

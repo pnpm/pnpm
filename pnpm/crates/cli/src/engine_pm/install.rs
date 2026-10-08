@@ -413,6 +413,7 @@ fn compute_engine_slot(
     cfg.enable_global_virtual_store = true;
     cfg.global_virtual_store_dir = config.store_dir.links();
     cfg.allow_builds.clear();
+    cfg.disable_agent_skills();
     for name in packages.pinned {
         cfg.allow_builds.insert((*name).to_string(), true);
     }

@@ -1,5 +1,8 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+mod agent_skills;
+use agent_skills::agent_skills_settings;
+
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
@@ -111,6 +114,7 @@ impl SettingsComparison<'_> {
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
+            .or_else(|| self.agent_skills_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -414,7 +418,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
-        ..Default::default()
+        ..agent_skills_settings(config)
     }
 }
 

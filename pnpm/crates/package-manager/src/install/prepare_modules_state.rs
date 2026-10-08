@@ -157,12 +157,38 @@ fn prepare_modules_layout(
     Ok(())
 }
 
+/// An up-to-date tree skips the materialization that links agent skills,
+/// but an approval, a `skills.dirs` change, or a new agent directory still
+/// changes what to link. Only a project with approved, linked, or pending
+/// skills pays for the check.
+fn resync_agent_skills_when_up_to_date<Reporter: self::Reporter>(
+    inputs: &PrepareModulesStateInputs<'_, '_>,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> Result<(), InstallError> {
+    let config = inputs.tree.config;
+    if config.allow_skills.is_empty()
+        && modules.linked_skills.is_none()
+        && modules.pending_skills.is_none()
+    {
+        return Ok(());
+    }
+    let pending = crate::agent_skills::resync_agent_skills_at(
+        config,
+        inputs.tree.workspace_root,
+        inputs.lockfiles.current,
+    )
+    .map_err(InstallError::ResyncAgentSkills)?;
+    crate::agent_skills::report_pending_skills::<Reporter>(pending);
+    Ok(())
+}
+
 async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, '_>,
     wanted_lockfile: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
     recorded_auto_dedupe: Option<bool>,
 ) -> Result<(), InstallError> {
+    resync_agent_skills_when_up_to_date::<Reporter>(&inputs, modules)?;
     report_up_to_date::<Reporter>(UpToDateInstall {
         tree: crate::install::state_options::ModulesTreeContext {
             config: inputs.tree.config,

@@ -18,9 +18,9 @@ use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
-    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, Stage, StatsMessage, UpdateCheckLog,
+    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, PendingSkillsLog,
+    ProgressMessage, RemovedRoot, RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, Stage, StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
 
@@ -321,6 +321,7 @@ impl ReporterState {
             LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
+            LogEvent::PendingSkills(log) => self.on_pending_skills(log),
             LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
@@ -358,6 +359,7 @@ impl ReporterState {
             | LogEvent::DedupeCheck(_)
             | LogEvent::Lifecycle(_) => true,
             LogEvent::IgnoredScripts(_)
+            | LogEvent::PendingSkills(_)
             | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,

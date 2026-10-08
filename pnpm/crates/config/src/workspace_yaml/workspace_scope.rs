@@ -133,6 +133,7 @@ impl WorkspaceSettings {
         self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
+        self.permissions = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;

@@ -3,14 +3,14 @@ use super::{
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
     LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
-    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod, Path,
-    PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
-    RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
+    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
+    PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
+    PythonSettings, RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
     SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
-    SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
-    UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings, redact_and_sanitize,
-    resolvable_placeholders, resolve_placeholders,
+    SkillsSettings, SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings,
+    TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings,
+    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -454,6 +454,14 @@ pub struct WorkspaceSettings {
     /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml` alongside other install settings.
     pub allow_builds: Option<HashMap<String, AllowBuild>>,
+
+    /// Map of `name[@version]` → [`PackagePermissions`]: what each package
+    /// may do. Its `build` capability outranks the package's
+    /// [`allow_builds`](Self::allow_builds) entry.
+    pub permissions: Option<IndexMap<String, PackagePermissions>>,
+
+    /// `skills` from `pnpm-workspace.yaml`. See [`SkillsSettings`].
+    pub skills: Option<SkillsSettings>,
 
     /// The workspace-structural keys of `pnpm-workspace.yaml`, carried so
     /// `pnpm config get` / `pnpm config list` can show them. Installs read

@@ -176,6 +176,12 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
 
+    #[diagnostic(transparent)]
+    AgentSkills(#[error(source)] crate::AgentSkillsError),
+
+    #[diagnostic(transparent)]
+    ResyncAgentSkills(#[error(source)] crate::ResyncAgentSkillsError),
+
     /// A filtered install rewrites `.modules.yaml` from the selected
     /// projects' state merged over the previous file's. Without the
     /// previous contents the rewrite would drop every unselected
