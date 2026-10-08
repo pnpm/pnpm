@@ -80,7 +80,7 @@ pub enum PacklistError {
 /// Case-insensitive prefix matches for files always-included at the
 /// package root regardless of `.npmignore` / `files`. Mirrors
 /// `npm-packlist`'s `alwaysIncluded` set.
-const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence"];
+const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence", "copying"];
 
 /// Version-control directory names that exclude every file under
 /// them at any depth. Drops VCS state from a published package
