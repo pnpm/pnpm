@@ -156,10 +156,8 @@ fn is_plain_safe_last(code: u32) -> bool {
     !is_whitespace(code) && code != CHAR_COLON
 }
 
-/// `ns-plain-char`, which the grammar states as `ns-plain-safe` plus the two
-/// neighbour rules: a `#` opens a comment unless it follows a non-space, and a
-/// `:` ends the scalar unless a non-space follows it. Those two outrank the
-/// flow indicators, as they do in the fork.
+/// Mirrors the fork's `isPlainSafe`, which is looser than YAML's
+/// `ns-plain-char`: it admits a space, and a flow indicator after a `:`.
 pub(super) fn is_plain_safe(code: u32, prev: Option<u32>, style: CollectionStyle) -> bool {
     match (code, prev, style) {
         (CHAR_SHARP, prev, _) => prev.is_some_and(is_ns_char),
