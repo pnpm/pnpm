@@ -35,3 +35,20 @@ fn merge_never_narrows_a_target_that_covers_every_version() {
     merged.merge(targets(&[("foo", Some("1.2.3"))]));
     assert!(merged.covers("foo", Some(&version("3.0.0"))));
 }
+
+#[test]
+fn an_exact_version_target_covers_only_that_version() {
+    let mut targets = UpdateTargets::default();
+    targets.insert_version("foo".to_string(), version("1.2.3"));
+    assert!(targets.covers("foo", Some(&version("1.2.3"))));
+    assert!(!targets.covers("foo", Some(&version("1.2.4"))));
+    assert!(targets.covers("foo", None));
+    assert!(!targets.covers("bar", Some(&version("1.2.3"))));
+}
+
+#[test]
+fn an_exact_version_never_narrows_a_target_that_covers_every_version() {
+    let mut targets = targets(&[("foo", None)]);
+    targets.insert_version("foo".to_string(), version("1.2.3"));
+    assert!(targets.covers("foo", Some(&version("3.0.0"))));
+}

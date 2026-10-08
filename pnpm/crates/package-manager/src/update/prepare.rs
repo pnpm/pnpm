@@ -225,7 +225,7 @@ pub(super) fn update_scope<'a>(
         lockfile: update.lockfile.document,
         config: update.config,
         version: update.version,
-        depth: update.selection.depth,
+        selection: update.selection,
         updates_all_groups: updates_all_groups(&owned.include_direct),
     }
 }
