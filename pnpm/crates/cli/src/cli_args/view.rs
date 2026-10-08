@@ -6,13 +6,13 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
+use crate::cli_args::registry_client::{build_registry_client, package_endpoint_url};
 use chrono::{DateTime, Utc};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
-use pnpm_network::RetryOpts;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
@@ -175,7 +175,7 @@ pub(super) async fn fetch_package_metadata(
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
         .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;
 
-    let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
+    let http_client = build_registry_client(config)?;
     let outcome = fetch_full_metadata(
         &spec.name,
         &FetchFullMetadataOptions {
@@ -186,7 +186,7 @@ pub(super) async fn fetch_package_metadata(
             http: pnpm_resolving_npm_resolver::MetadataHttpClient {
                 http_client: &http_client,
                 auth_headers: &config.auth_headers,
-                retry_opts: RetryOpts::default(),
+                retry_opts: config.retry_opts(),
             },
         },
     )
@@ -271,10 +271,9 @@ fn map_fetch_error(
     if let FetchMetadataError::Network { error: ref source, .. } = error
         && source.status() == Some(reqwest::StatusCode::NOT_FOUND)
     {
-        return ViewError::Fetch404 {
-            url: pnpm_network::redact_url_credentials(&format!("{registry}{pkg_name}")),
-        }
-        .into();
+        let url = package_endpoint_url(registry, pkg_name)
+            .unwrap_or_else(|_| format!("{registry}{pkg_name}"));
+        return ViewError::Fetch404 { url: pnpm_network::redact_url_credentials(&url) }.into();
     }
     miette::Report::new(error)
 }

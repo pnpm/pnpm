@@ -1,4 +1,4 @@
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::{build_registry_client, join_registry_endpoint};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
@@ -52,7 +52,8 @@ pub(crate) async fn fetch_whoami(
     auth_header: &str,
     retry_opts: RetryOpts,
 ) -> miette::Result<String> {
-    let url = format!("{registry_url}-/whoami");
+    let url = join_registry_endpoint(registry_url, "-/whoami")
+        .unwrap_or_else(|_| format!("{registry_url}-/whoami"));
     // Diagnostic context omits the URL: a registry configured as
     // `https://user:password@host/` carries inline credentials (accepted by
     // `AuthHeaders`), which must not reach stderr / CI logs.

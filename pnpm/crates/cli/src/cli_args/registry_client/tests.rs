@@ -96,3 +96,36 @@ fn package_endpoint_url_escapes_scoped_names() {
         "https://registry.org/prefix/@scope%2fpkg",
     );
 }
+
+#[test]
+fn apply_auth_and_otp_attaches_headers() {
+    let client = reqwest::Client::new();
+
+    let with_both = super::apply_auth_and_otp(
+        client.get("https://registry.npmjs.org"),
+        Some("Bearer token"),
+        Some("123456"),
+    )
+    .build()
+    .unwrap();
+    assert_eq!(
+        with_both
+            .headers()
+            .get("authorization")
+            .unwrap(),
+        "Bearer token",
+    );
+    assert_eq!(
+        with_both
+            .headers()
+            .get("npm-otp")
+            .unwrap(),
+        "123456",
+    );
+
+    let with_none = super::apply_auth_and_otp(client.get("https://registry.npmjs.org"), None, None)
+        .build()
+        .unwrap();
+    assert!(!with_none.headers().contains_key("authorization"));
+    assert!(!with_none.headers().contains_key("npm-otp"));
+}
