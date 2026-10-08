@@ -26,7 +26,7 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_crypto_shasums_file::ReleaseSignatureError;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -89,7 +89,9 @@ async fn install_for_host<Reporter: self::Reporter>(
     let server = manifest::dist_server(config);
     let manifest = match manifest::fetch(config, client, server, &request.channel).await {
         Ok(manifest) => manifest,
-        Err(error) => return installed_after_failed_fetch(&toolchains, host, request, error),
+        Err(error) => {
+            return installed_after_failed_fetch::<Reporter>(&toolchains, host, request, error);
+        }
     };
     let pinned = manifest.pinned(&request.channel)?;
     refuse_older_release(&toolchains, host, request, &pinned)?;
@@ -130,7 +132,7 @@ const UNREACHABLE_RETRY_AFTER: std::time::Duration = std::time::Duration::from_h
 /// The newest installed release of a moving channel, when the distribution
 /// server could not be reached to say which release it is now. A failure
 /// the server answered for, such as a bad signature, is not covered.
-fn installed_after_failed_fetch(
+fn installed_after_failed_fetch<Reporter: self::Reporter>(
     toolchains: &Path,
     host: &str,
     request: &ToolchainRequest,
@@ -143,15 +145,24 @@ fn installed_after_failed_fetch(
     if !unreachable || request.channel.is_pinned() {
         return Err(error);
     }
-    let (pinned, dir) = install::newest_installed_release(toolchains, host, request)
+    let Some((pinned, dir)) = install::newest_installed_release(toolchains, host, request)
         .filter(|(pinned, _)| {
             install::last_resolution(toolchains, host, request)
                 .is_none_or(|last| !install::is_older(pinned, &last))
         })
-        .ok_or(error)?;
+    else {
+        return Err(error);
+    };
     // Taken as the channel's release for a while, so the commands that
     // follow do not each wait on the unreachable server again.
     install::record_resolution_for(toolchains, host, request, &pinned, UNREACHABLE_RETRY_AFTER);
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Using Rust {pinned} for {} for the next hour, the newest release installed: {error}",
+            request.channel,
+        ),
+    }));
     Ok(InstalledToolchain { dir })
 }
 
