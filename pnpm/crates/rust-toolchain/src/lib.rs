@@ -26,7 +26,7 @@ use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_crypto_shasums_file::ReleaseSignatureError;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -61,8 +61,9 @@ impl InstalledToolchain {
 /// install put in the store.
 ///
 /// A channel that moves, such as `stable`, is read from the distribution
-/// server again once a day, so that a new release is picked up. Offline, the
-/// newest installed release of the channel is used.
+/// server again once a day, so that a new release is picked up. Offline, or
+/// when the server cannot be reached, the newest installed release of the
+/// channel is used.
 pub async fn install_toolchain<Reporter: self::Reporter>(
     config: &Config,
     client: &ThrottledClient,
@@ -86,7 +87,12 @@ async fn install_for_host<Reporter: self::Reporter>(
         return Err(RustToolchainError::Offline { channel: request.channel.to_string() });
     }
     let server = manifest::dist_server(config);
-    let manifest = manifest::fetch(config, client, server, &request.channel).await?;
+    let manifest = match manifest::fetch(config, client, server, &request.channel).await {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return installed_after_failed_fetch::<Reporter>(&toolchains, host, request, error);
+        }
+    };
     let pinned = manifest.pinned(&request.channel)?;
     refuse_older_release(&toolchains, host, request, &pinned)?;
     let dir = install::toolchain_dir(&toolchains, &pinned, host, request);
@@ -119,6 +125,55 @@ fn installed_without_download(
         })
 }
 
+/// How long the release a moving channel fell back to is used before the
+/// distribution server is asked again.
+const UNREACHABLE_RETRY_AFTER: std::time::Duration = std::time::Duration::from_hours(1);
+
+/// The newest installed release of a moving channel, when the distribution
+/// server could not be reached, or failed, to say which release it is now.
+/// A failure the server answered for, such as a bad signature or a missing
+/// release, is not covered.
+fn installed_after_failed_fetch<Reporter: self::Reporter>(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+    error: RustToolchainError,
+) -> Result<InstalledToolchain, RustToolchainError> {
+    // A server that answers with anything but a transient failure, such as
+    // a mirror refusing the credentials or missing the release, is a
+    // misconfiguration to report rather than to cover.
+    let unreachable = match &error {
+        RustToolchainError::Network { .. } => true,
+        // The statuses the network client retries as transient.
+        RustToolchainError::StatusNotOk { status, .. } => {
+            *status >= 500 || matches!(status, 408 | 429)
+        }
+        _ => false,
+    };
+    if !unreachable || request.channel.is_pinned() {
+        return Err(error);
+    }
+    let Some((pinned, dir)) = install::newest_installed_release(toolchains, host, request)
+        .filter(|(pinned, _)| {
+            install::last_resolution(toolchains, host, request)
+                .is_none_or(|last| !install::is_older(pinned, &last))
+        })
+    else {
+        return Err(error);
+    };
+    // Taken as the channel's release for a while, so the commands that
+    // follow do not each wait on the unreachable server again.
+    install::record_resolution_for(toolchains, host, request, &pinned, UNREACHABLE_RETRY_AFTER);
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "Using Rust {pinned} for {} for the next hour, the newest release installed: {error}",
+            request.channel,
+        ),
+    }));
+    Ok(InstalledToolchain { dir })
+}
+
 /// A channel never moves back to an older release, so one that appears to
 /// was answered by a mirror serving an older manifest.
 fn refuse_older_release(
@@ -135,6 +190,18 @@ fn refuse_older_release(
         }),
         _ => Ok(()),
     }
+}
+
+/// The toolchain `request` asks for, when it can be used without asking the
+/// distribution server: the cheap check [`install_toolchain`] starts with.
+#[must_use]
+pub fn installed_toolchain(
+    config: &Config,
+    request: &ToolchainRequest,
+) -> Option<InstalledToolchain> {
+    let host = host::host_triple()?;
+    installed_without_download(config, &toolchains_dir(config), &host, request)
+        .map(|dir| InstalledToolchain { dir })
 }
 
 /// The `bin` directory of the toolchain pnpm linked for `dir`: the one beside

@@ -150,6 +150,7 @@ mod run;
 mod run_recursive;
 mod runtime;
 mod rust_toolchain;
+mod rust_toolchain_shims;
 mod sbom;
 mod scope_report;
 mod script_override;
