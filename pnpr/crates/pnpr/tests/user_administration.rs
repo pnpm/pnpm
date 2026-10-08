@@ -7,8 +7,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, RegistryError, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
-    UserBackend, UserStore, router, router_with_auth,
+    AuthState, Config, OwnedTokens, RegistryError, TokenBackend, TokenRecord, TokenStore,
+    UpsertOutcome, UserBackend, UserStore, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -365,4 +365,45 @@ async fn a_registration_gets_no_token_for_an_account_recreated_with_another_pass
             .unwrap()
             .is_empty(),
     );
+}
+
+#[tokio::test]
+async fn a_removed_account_loses_its_tokens_without_any_revocation() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(tokens) };
+    let app = router_with_auth(load_config(&dir), auth);
+    users.create_user("bob", "x").await.unwrap();
+    let bob = login(&app, "bob", "x").await.unwrap();
+    assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
+
+    users.delete_user("bob").await.unwrap();
+    assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    let tokens = Arc::new(OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users)));
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(&dir), auth);
+    let root = login(&app, "root", "secret").await.unwrap();
+    let mut left_behind = Vec::new();
+    for name in ["bob", "carol"] {
+        users.create_user(name, "old").await.unwrap();
+        left_behind.push(tokens.issue(name).await.unwrap());
+        users.delete_user(name).await.unwrap();
+    }
+
+    let body = json!({ "password": "new" });
+    let (status, _) =
+        send(&app, "PUT", "/-/pnpr/v0/admin/users/bob", Some(&root), Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let carol = login(&app, "carol", "new").await.unwrap();
+    for token in &left_behind {
+        assert_eq!(whoami(&app, token).await, StatusCode::UNAUTHORIZED);
+    }
+    assert_eq!(whoami(&app, &carol).await, StatusCode::OK);
 }

@@ -4,6 +4,7 @@ use super::{
     integrity_addressed_tarball_path, json, router_config, router_with_auth, sha512_integrity,
     upstream_endpoint_config,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
@@ -55,7 +56,7 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
         Some("npmjs".to_string()),
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let authorization = format!("Bearer {token}");
 
@@ -124,7 +125,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let response = app
         .oneshot(

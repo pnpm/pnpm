@@ -76,6 +76,10 @@ async fn put_user(
         require_admin(&state, &identity, "manage", format!("user {:?}", path.user))?;
         let password = parse_password(&body)?;
         let users = &state.inner.identity.auth.users;
+        if users.password_hash(&path.user).await?.is_none() {
+            // Tokens a removed account left behind must not reach the new one.
+            revoke_all_tokens(&state, &path.user).await?;
+        }
         let status = if users.create_user(&path.user, &password).await? {
             StatusCode::CREATED
         } else if users.set_password(&path.user, &password).await? {
@@ -113,7 +117,10 @@ async fn delete_user(
 }
 
 /// Revoke every token `user` holds, returning how many there were.
-async fn revoke_all_tokens(state: &AppState, user: &str) -> Result<usize, RegistryError> {
+pub(super) async fn revoke_all_tokens(
+    state: &AppState,
+    user: &str,
+) -> Result<usize, RegistryError> {
     let tokens = &state.inner.identity.auth.tokens;
     let held = tokens.list_for_user(user).await?;
     for (key, _) in &held {

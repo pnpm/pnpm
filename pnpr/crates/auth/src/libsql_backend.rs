@@ -47,6 +47,11 @@ use std::{
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
 
+/// [`TOKEN_COLUMNS`] of the `tokens` table aliased `t`, for the reads that
+/// join `users` to require a stored owner.
+const OWNED_TOKEN_COLUMNS: &str =
+    "t.token_hash, t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist";
+
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
 const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -362,12 +367,29 @@ impl TokenBackend for LibsqlAuth {
         let token_hash = sha256_hex(raw.as_bytes());
         with_auth_timeout::<_, RegistryError>(self.timeout, async {
             let mut rows = self.conn.query(
-                "SELECT username FROM tokens WHERE token_hash = ?1",
+                "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
+                 WHERE t.token_hash = ?1",
                 params![token_hash],
             )
             .await?;
             match rows.next().await? {
                 Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let query = format!(
+            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
+             WHERE t.token_hash = ?1",
+        );
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![token_hash]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
                 None => Ok(None),
             }
         })

@@ -146,7 +146,7 @@ async fn bearer_token_identity(
     let Some(parent) = claims.parent.as_ref() else {
         return Ok(Some(Identity::Anonymous));
     };
-    match state.inner.identity.auth.tokens.find_by_key(parent).await {
+    match owned_parent(state, parent).await {
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, peer)
                 .map_err(axum::response::IntoResponse::into_response)?;
@@ -155,6 +155,18 @@ async fn bearer_token_identity(
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
         Err(err) => Err(err.into_response()),
     }
+}
+
+/// The token an OCI bearer token was issued from, while its owner is still an
+/// account, as [`pnpr_auth::TokenBackend::lookup_record`] requires of a token
+/// sent directly.
+async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>, RegistryError> {
+    let auth = &state.inner.identity.auth;
+    let Some(record) = auth.tokens.find_by_key(key).await? else {
+        return Ok(None);
+    };
+    let owned = auth.users.password_hash(&record.username).await?.is_some();
+    Ok(owned.then_some(record))
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth

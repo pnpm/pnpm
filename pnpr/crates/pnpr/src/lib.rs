@@ -17,8 +17,8 @@
 pub mod oci_maintenance;
 
 pub use pnpr_auth::{
-    AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
-    identify,
+    AuthState, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
+    UserStore, identify,
 };
 pub use pnpr_config::{
     AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,

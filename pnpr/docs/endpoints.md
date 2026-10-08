@@ -323,7 +323,7 @@ anonymous and `403` when signed in.
 | --- | --- | --- |
 | `GET` | `/-/pnpr/v0/admin/users` | Every account, as `{"users": [{"name": ...}]}`, sorted by name. |
 | `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). The body is `{"password": "..."}`. Creating ignores `max_users`. |
-| `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. If it fails, repeat it: the account stays until its tokens are revoked, and a repeat revokes what is left. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. The account's tokens stop working as soon as the account is gone, even before they are revoked. If the request fails, repeat it to revoke what is left. |
 | `GET` | `/-/pnpr/v0/admin/users/{name}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
 | `DELETE` | `/-/pnpr/v0/admin/users/{name}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
 | `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the stored changes. |

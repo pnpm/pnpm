@@ -22,7 +22,7 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_files, is_symlink_or_junction},
 };
-use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig};
+use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig, UserBackend};
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
 use std::{
@@ -42,21 +42,27 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// Start an in-process pnpr with the fast-path endpoints on a detached
 /// thread, allowlisting `registry_url` as a public route so the client may
 /// resolve against it (off-allowlist registries are rejected at the request
-/// boundary); returns its base URL and a pre-seeded bearer token.
+/// boundary); returns its base URL and a pre-seeded bearer token, whose
+/// owner is a pre-seeded account because pnpr honors only such tokens.
 fn start_pnpr(registry_url: &str) -> (String, String) {
     let registry_url = registry_url.to_string();
     let server = PnprServer::bind("pnpr");
     let tokens_path = server.storage.join("tokens.db");
+    let htpasswd_path = server.storage.join("htpasswd");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("token setup runtime");
     let token = runtime.block_on(async {
+        let users = pnpr::UserStore::open(htpasswd_path.clone(), pnpr::MaxUsers::Disabled)
+            .expect("open user store");
+        users.create_user("pacquet-test", "password").await.expect("store pnpr test account");
         let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
         tokens.issue("pacquet-test").await.expect("issue pnpr test token")
     });
 
     let addr = server.serve(move |config| {
+        config.identity.auth.htpasswd.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
         config.routing.route_policy.public.push(pnpr::PublicRoute {
             registry: Some(registry_url),

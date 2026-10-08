@@ -4,6 +4,7 @@ use super::{
     mock_packument_for_tarball, osv_database, public_cache_pkg, router, router_with_auth,
     sha512_integrity, upstream_endpoint_config,
 };
+use crate::tokens::issue_token;
 
 /// The per-package ACL applies to the path-less `dist-tags` reader even when the
 /// package routes to an upstream: an unauthorized caller is denied before the
@@ -70,7 +71,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     // enforces it), so the read authenticates as an admitted caller.
     upstream.access = Some(AccessList::from_tokens(["$authenticated"]));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -155,7 +156,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -245,7 +246,7 @@ async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     for _ in 0..2 {
@@ -313,7 +314,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     corp.access = Some(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     // Prime the private cache via the `/~corp/` endpoint.
@@ -438,7 +439,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
     let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     for _ in 0..2 {

@@ -12,6 +12,8 @@ mod pausing_store;
 mod registry_groups;
 #[path = "common/storage.rs"]
 mod storage;
+#[path = "common/tokens.rs"]
+mod tokens;
 
 mod auth_persistence;
 mod auth_publish;

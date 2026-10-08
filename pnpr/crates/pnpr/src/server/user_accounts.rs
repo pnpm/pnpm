@@ -134,6 +134,11 @@ async fn log_in(
 ) -> Result<(UpsertOutcome, String, String), RegistryError> {
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
+    if verified.is_none() {
+        // Tokens a removed account left behind must not reach the account
+        // this login may create, not even while it is being created.
+        super::user_admin::revoke_all_tokens(state, name).await?;
+    }
     let (outcome, username) = users.add_or_login(name, password).await?;
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
     if still_the_same_account(state, &username, password, verified.as_deref()).await? {

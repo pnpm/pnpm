@@ -1,6 +1,6 @@
 use super::{
-    MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
+    MAX_USERNAME_CHARS, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
     token_timestamp_to_sql, validate_username,
 };
 use pnpr_config::MaxUsers;
@@ -316,7 +316,6 @@ async fn lookup_record_surfaces_token_restrictions() {
     tokens.inner
         .lock()
         .expect("TokenStore mutex poisoned")
-        .tokens
         .insert(
             sha256_hex(raw.as_bytes()),
             TokenRecord {
@@ -437,7 +436,6 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
         store.inner
             .lock()
             .expect("TokenStore mutex poisoned")
-            .tokens
             .is_empty(),
         "failed persistence must not leave an in-memory bearer token active",
     );
@@ -602,4 +600,100 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     assert!(store.create_user("alice", "x").await.unwrap());
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}
+
+#[tokio::test]
+async fn local_tokens_of_a_removed_owner_stop_authenticating() {
+    let users = Arc::new(test_user_store());
+    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+    users.create_user("alice", "x").await.unwrap();
+    let token = tokens.issue("alice").await.unwrap();
+    assert_eq!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+
+    users.delete_user("alice").await.unwrap();
+    assert!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        tokens
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        tokens
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+}
+
+#[tokio::test]
+async fn tokens_list_per_owner_across_revocation_and_reload() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tokens.db");
+    let store = TokenStore::open(path.clone()).unwrap();
+    let alice = store.issue("alice").await.unwrap();
+    store.issue("alice").await.unwrap();
+    store.issue("bob").await.unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        2,
+    );
+
+    store
+        .revoke_by_key(&sha256_hex(alice.as_bytes()))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    let reopened = TokenStore::open(path).unwrap();
+    assert_eq!(
+        reopened
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        reopened
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert!(
+        reopened
+            .list_for_user("carol")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }

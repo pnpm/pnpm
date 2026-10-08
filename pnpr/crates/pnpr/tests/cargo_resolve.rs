@@ -6,6 +6,7 @@
 //! rendered `Cargo.lock`. These tests stand a mock sparse index up and
 //! assert what the server fetched from it as much as what it returned.
 
+use crate::tokens::issue_token;
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
@@ -139,7 +140,7 @@ async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
     let (index, mocks) = sparse_index(1).await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -166,7 +167,7 @@ async fn cargo_resolve_reuses_cached_index_files() {
     let (index, mocks) = sparse_index(1).await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -197,7 +198,7 @@ async fn concurrent_resolves_fetch_a_cold_index_entry_once() {
     let (index, mocks) = sparse_index(1).await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -238,7 +239,7 @@ async fn cargo_resolve_stops_on_an_oversized_index_entry() {
         .await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -269,7 +270,7 @@ async fn cargo_resolve_rejects_an_off_allowlist_registry() {
     let (index, mocks) = sparse_index(0).await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     // No public route for the index: the operator never declared it.
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
@@ -288,7 +289,7 @@ async fn cargo_resolve_rejects_an_off_allowlist_registry() {
 async fn cargo_resolve_rejects_a_registry_with_inline_credentials() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
     let response = app
@@ -309,7 +310,7 @@ async fn cargo_resolve_reports_an_unresolvable_workspace() {
         .await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),

@@ -29,6 +29,7 @@
 pub mod oidc;
 
 pub use htpasswd::verify_bcrypt;
+pub use owned_tokens::OwnedTokens;
 pub use token_store::{TokenRecord, TokenStore};
 pub use user_store::UserStore;
 
@@ -40,6 +41,7 @@ use htpasswd::{
 mod token_store;
 use token_store::{fresh_secret, sha256_hex};
 
+mod owned_tokens;
 mod user_store;
 
 use async_trait::async_trait;
@@ -54,7 +56,7 @@ use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -158,10 +160,9 @@ impl AuthState {
     /// All-in-memory auth state that enforces the resolved registration cap.
     #[must_use]
     pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
-        Self {
-            users: Arc::new(UserStore::in_memory_with_max_users(max_users)),
-            tokens: Arc::new(TokenStore::in_memory()),
-        }
+        let users = Arc::new(UserStore::in_memory_with_max_users(max_users));
+        let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+        Self { users, tokens: Arc::new(tokens) }
     }
 
     /// Build the auth state from the resolved config. A configured SQL
@@ -242,14 +243,15 @@ impl AuthState {
     }
 
     fn load_local(auth: &AuthConfig) -> Result<Self> {
-        let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
-            Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
-            None => Arc::new(UserStore::in_memory_with_max_users(auth.htpasswd.max_users)),
+        let users = Arc::new(match auth.htpasswd.file.clone() {
+            Some(path) => UserStore::open(path, auth.htpasswd.max_users)?,
+            None => UserStore::in_memory_with_max_users(auth.htpasswd.max_users),
+        });
+        let tokens = match auth.tokens.file.clone() {
+            Some(path) => TokenStore::open(path)?,
+            None => TokenStore::in_memory(),
         };
-        let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
-            Some(path) => Arc::new(TokenStore::open(path)?),
-            None => Arc::new(TokenStore::in_memory()),
-        };
+        let tokens = Arc::new(OwnedTokens::new(tokens, Arc::clone(&users)));
         Ok(Self { users, tokens })
     }
 }
