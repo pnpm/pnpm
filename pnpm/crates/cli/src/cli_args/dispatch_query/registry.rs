@@ -1,18 +1,21 @@
 use super::{
     AccessArgs, CommandFuture, Config, DeprecateArgs, DistTagArgs, LoginArgs, LogoutArgs,
     OwnerArgs, PingArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs, UndeprecateArgs,
-    UnpublishArgs, UnstarArgs, ViewArgs,
+    UnpublishArgs, UnstarArgs, ViewArgs, WhoamiArgs,
 };
 use crate::cli_args::reporter::CliReporter;
 
-// `whoami` is a read-only registry query: it resolves the default registry's
+// `whoami` is a read-only registry query: it resolves the target registry's
 // auth header from config and GETs `-/whoami`, with no lockfile or install
 // pipeline. It needs an async future for the request and no reporter, so it
 // dispatches off `config()` like the other read-only commands.
-pub(in super::super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+pub(in super::super) fn whoami<'a>(
+    ctx: &RunCtx<'a>,
+    args: WhoamiArgs,
+) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
-        let username = super::super::whoami::whoami(cfg).await?;
+        let username = args.run(cfg).await?;
         println!("{}", super::super::sanitize::sanitize(&username));
         Ok(())
     }))

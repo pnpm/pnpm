@@ -84,6 +84,7 @@ use super::{
     update::UpdateArgs,
     version::VersionArgs,
     view::ViewArgs,
+    whoami::WhoamiArgs,
     why::WhyArgs,
     with::WithArgs,
 };

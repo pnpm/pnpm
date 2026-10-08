@@ -10,7 +10,7 @@ use super::{
     RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
     SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
     StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
-    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
+    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -65,7 +65,7 @@ pub enum CliCommand {
     /// Generate a Software Bill of Materials (SBOM).
     Sbom(SbomArgs),
     /// Displays your pnpm username.
-    Whoami,
+    Whoami(WhoamiArgs),
     /// Deprecates a version of a package in the registry.
     Deprecate(DeprecateArgs),
     /// Removes deprecation from a version of a package in the registry. Only works on already deprecated versions.
