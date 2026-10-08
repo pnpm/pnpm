@@ -63,12 +63,8 @@ async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
 ) -> Result<Meta, FetchError> {
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
             // Need full metadata for put update.
-            builder
+            apply_auth_and_otp(client.get(url), auth_header, None)
         })
         .await
         .map_err(FetchError::Request)?;

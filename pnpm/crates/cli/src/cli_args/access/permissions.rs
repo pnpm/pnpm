@@ -1,8 +1,13 @@
 use super::{
-    AccessContext, AccessError, Context, IntoDiagnostic, Method, StatusCode, encode_uri_component,
-    fetch_error_from_response, send_get, send_json, write_error_from_response,
+    AccessError,
+    registry::{
+        AccessContext, fetch_error_from_response, package_access_url, send_get, send_json,
+        team_package_url, write_error_from_response,
+    },
 };
-use pnpm_network::{escaped_package_name, normalize_registry_url};
+use crate::cli_args::registry_client::auth_header_for_package;
+use miette::{Context, IntoDiagnostic};
+use reqwest::{Method, StatusCode};
 
 pub(super) async fn get_status(
     context: &AccessContext<'_>,
@@ -10,14 +15,8 @@ pub(super) async fn get_status(
 ) -> miette::Result<String> {
     let package_name = params.first().ok_or(AccessError::GetStatusPackageRequired)?;
 
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
+    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
+    let url = package_access_url(&context.registry, package_name);
 
     let (_guard, response) = send_get(context, &url, auth_header.as_deref())
         .await
@@ -78,14 +77,8 @@ pub(super) async fn set_status(
         return Err(AccessError::SetStatusUnscoped.into());
     }
 
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
+    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
+    let url = package_access_url(&context.registry, package_name);
 
     let body = serde_json::json!({ "access": access_value });
 
@@ -126,14 +119,8 @@ pub(super) async fn set_mfa(
 
     let package_name = params.get(1).ok_or(AccessError::SetMfaPackageRequired)?;
 
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/package/{}/access",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
-    );
+    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
+    let url = package_access_url(&context.registry, package_name);
 
     let body = serde_json::json!({ "publish_requires_tfa": publish_requires_tfa });
 
@@ -164,15 +151,8 @@ pub(super) async fn grant_access(
         .unwrap_or(parts[0]);
     let team = parts[1];
 
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/team/{}/{}/package",
-        normalize_registry_url(&context.registry),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    );
+    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
+    let url = team_package_url(&context.registry, scope, team);
 
     let body = serde_json::json!({
         "package": package_name,
@@ -218,15 +198,8 @@ pub(super) async fn revoke_access(
         .unwrap_or(parts[0]);
     let team = parts[1];
 
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let url = format!(
-        "{}-/team/{}/{}/package",
-        normalize_registry_url(&context.registry),
-        encode_uri_component(scope),
-        encode_uri_component(team),
-    );
+    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
+    let url = team_package_url(&context.registry, scope, team);
 
     let body = serde_json::json!({ "package": package_name });
 

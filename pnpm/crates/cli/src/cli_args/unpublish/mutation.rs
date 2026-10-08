@@ -5,6 +5,7 @@ use super::{
     otp_challenge_from_unauthorized_body, read_limited_body, registry_operation_failed,
     send_with_retry, write_error_for_status,
 };
+use crate::cli_args::registry_client::apply_auth_and_otp;
 
 /// Everything a registry mutation of one package needs. The OTP session is
 /// shared by every mutation of the run, so a partial unpublish (one `PUT`
@@ -107,13 +108,7 @@ async fn send_once(
                 builder =
                     builder.header("content-type", "application/json").body(json_body.to_owned());
             }
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header, otp)
         })
         .await
         .map_err(|source| {

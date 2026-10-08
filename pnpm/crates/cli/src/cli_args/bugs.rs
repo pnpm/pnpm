@@ -1,5 +1,7 @@
-use super::package_spec::PackageSpec;
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{build_registry_client, resolve_registry_for_package},
+};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
@@ -91,12 +93,7 @@ impl BugsArgs {
         }
         let parsed = PackageSpec::parse(spec);
         let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
-        let registry = pnpm_resolving_npm_resolver::pick_registry_for_package(
-            registries,
-            package_name,
-            Some(spec),
-        );
-        normalize_registry_url(&registry).into_owned()
+        resolve_registry_for_package(registries, package_name, Some(spec))
     }
 }
 

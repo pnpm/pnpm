@@ -1,6 +1,5 @@
-use super::deprecate::{
-    DeprecateContext, DeprecateError, PackageSpec, parse_package_spec, update_deprecation,
-};
+use super::deprecate::{DeprecateContext, DeprecateError, parse_package_spec, update_deprecation};
+use crate::cli_args::package_spec::PackageSpec;
 use clap::Args;
 use pnpm_config::Config;
 
