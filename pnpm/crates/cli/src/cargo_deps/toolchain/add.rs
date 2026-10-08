@@ -81,6 +81,9 @@ pub(crate) fn plan<Reporter: self::Reporter + 'static>(
                 .into_owned(),
         }));
         let toolchain = install::<Reporter>(&context, &file).await?;
+        if toolchain.is_some() {
+            refuse_occupied_link(&file)?;
+        }
         Ok(vec![PinnedToolchain { file, toolchain, replaced: None }])
     };
     Ok(InstallTask::new(metadata, prepare))
@@ -109,6 +112,20 @@ async fn install<Reporter: self::Reporter>(
         }
         Err(error) => Err(error.into()),
     }
+}
+
+/// Refuse a `.pnpm/rust` that is not a link, which linking would move aside
+/// and a rollback could not put back.
+fn refuse_occupied_link(file: &Path) -> Result<()> {
+    let Some(dir) = file.parent() else { return Ok(()) };
+    let link_path = dir.join(TOOLCHAIN_LINK.iter().collect::<PathBuf>());
+    if fs::symlink_metadata(&link_path).is_ok() && fs::read_link(&link_path).is_err() {
+        let link_path = link_path.display();
+        return Err(miette::miette!(
+            "cannot link the Rust toolchain: {link_path} is not a link pnpm made. Remove it and run the add again."
+        ));
+    }
+    Ok(())
 }
 
 pub(super) struct PinnedToolchain {

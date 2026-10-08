@@ -14,6 +14,8 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
+use pnpm_global::{GlobalTool, ListReportAs};
+use pnpm_matcher::WildcardMatcher;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_rust_toolchain::{Channel, Profile, ToolchainRequest};
 use std::path::Path;
@@ -122,29 +124,82 @@ pub(super) async fn update_from_params<Reporter: self::Reporter>(
 
 /// The global installs `pnpm ls -g` lists beside the npm packages: the
 /// Rust toolchain, with the release it resolved to and where it is.
-pub(crate) fn global_tools(config: &Config) -> Vec<pnpm_global::GlobalTool> {
+pub(crate) fn global_tools(config: &Config) -> Vec<GlobalTool> {
     let Some(global_bin_dir) = config.global_bin.as_deref() else { return Vec::new() };
     let Some(request) = global_toolchain(global_bin_dir) else { return Vec::new() };
     let (version, location) = match installed_release_for_shims(&request) {
         Some((release, toolchain)) => (release.to_string(), toolchain.dir),
         None => (request.channel.to_string(), global_bin_dir.to_path_buf()),
     };
-    vec![pnpm_global::GlobalTool { name: RUST_SHIM_PACKAGE.to_string(), version, location }]
+    vec![GlobalTool { name: RUST_SHIM_PACKAGE.to_string(), version, location }]
 }
-/// Whether `params` ask `pnpm ls -g` for nothing but `tools`, which have
-/// no dependency tree for `--depth` to show.
-pub(crate) fn selects_only(tools: &[pnpm_global::GlobalTool], params: &[String]) -> bool {
-    !params.is_empty()
-        && params
-            .iter()
-            .all(|param| {
-                let pattern = pnpm_matcher::WildcardMatcher::new(param);
-                tools
+/// `output`, a `pnpm ls -g --depth` listing of the npm installs, with the
+/// `tools` that `params` select added. A toolchain has no dependency tree,
+/// so it is listed as the flat listing lists it.
+pub(crate) fn with_tools(
+    output: String,
+    tools: &[GlobalTool],
+    params: &[String],
+    format: ListReportAs,
+) -> String {
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|param| WildcardMatcher::new(param))
+        .collect();
+    let selected: Vec<&GlobalTool> = tools
+        .iter()
+        .filter(|tool| {
+            patterns.is_empty()
+                || patterns
                     .iter()
-                    .any(|tool| pattern.matches(&tool.name))
-            })
+                    .any(|pattern| pattern.matches(&tool.name))
+        })
+        .collect();
+    if selected.is_empty() {
+        return output;
+    }
+    match format {
+        ListReportAs::Tree => {
+            let lines: Vec<String> = selected
+                .iter()
+                .map(|tool| format!("{}@{}", tool.name, tool.version))
+                .collect();
+            format!("{}\n\n{}", output.trim_end(), lines.join("\n"))
+        }
+        ListReportAs::Parseable => {
+            let lines: Vec<String> = selected
+                .iter()
+                .map(|tool| tool.location.to_string_lossy().into_owned())
+                .collect();
+            format!("{}\n{}", output.trim_end(), lines.join("\n"))
+        }
+        ListReportAs::Json => with_json_tools(output, &selected),
+    }
 }
 
+/// The JSON listing with each tool added to its root's dependencies, or
+/// as it was when it is not the shape the listing writes.
+fn with_json_tools(output: String, tools: &[&GlobalTool]) -> String {
+    let Ok(mut listing) = serde_json::from_str::<serde_json::Value>(&output) else { return output };
+    let Some(root) = listing.get_mut(0).and_then(serde_json::Value::as_object_mut) else {
+        return output;
+    };
+    let dependencies = root
+        .entry("dependencies")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(dependencies) = dependencies.as_object_mut() else { return output };
+    for tool in tools {
+        dependencies.insert(
+            tool.name.clone(),
+            serde_json::json!({
+                "from": tool.name,
+                "version": tool.version,
+                "path": tool.location.to_string_lossy(),
+            }),
+        );
+    }
+    serde_json::to_string_pretty(&listing).unwrap_or(output)
+}
 fn describe(request: &ToolchainRequest) -> String {
     match installed_release_for_shims(request) {
         Some((release, _)) if release != request.channel => {
@@ -160,3 +215,6 @@ fn report<Reporter: self::Reporter>(message: &str) {
         message: message.to_string(),
     }));
 }
+
+#[cfg(test)]
+mod tests;

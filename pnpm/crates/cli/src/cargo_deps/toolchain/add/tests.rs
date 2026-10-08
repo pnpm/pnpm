@@ -87,3 +87,14 @@ fn a_workspace_that_does_not_resolve_is_refused() {
     assert!(error.to_string().contains("does not resolve"), "{error}");
     assert!(!project.join("rust-toolchain.toml").exists());
 }
+
+#[test]
+fn an_entry_that_is_not_a_link_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("rust-toolchain.toml");
+    fs::create_dir_all(root.path().join(".pnpm/rust")).unwrap();
+
+    let error = super::refuse_occupied_link(&file).expect_err("a directory is not a link");
+
+    assert!(error.to_string().contains("is not a link pnpm made"), "{error}");
+}

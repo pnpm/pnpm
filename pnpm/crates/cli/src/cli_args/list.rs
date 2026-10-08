@@ -157,16 +157,19 @@ impl ListArgs {
             })?;
 
         let tools = crate::cli_args::global::rust::global_tools(config);
-        let lists_only_tools = crate::cli_args::global::rust::selects_only(&tools, &self.packages);
+        let report_as = self.report_as();
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
-            && !lists_only_tools
             && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
         {
-            return Ok(output);
+            return Ok(crate::cli_args::global::rust::with_tools(
+                output,
+                &tools,
+                &self.packages,
+                global_report_as(report_as),
+            ));
         }
 
-        let report_as = self.report_as();
         list_global_packages(
             &global_pkg_dir,
             &self.packages,
