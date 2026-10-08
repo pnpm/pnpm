@@ -1,4 +1,4 @@
-use super::{MAX_RAYON_THREADS, MIN_RAYON_THREADS, configure_rayon_pool, rayon_pool_size};
+use super::{configure_rayon_pool, rayon_pool_size};
 
 #[test]
 fn rayon_pool_is_the_scaled_parallelism_between_4_and_16_threads() {
@@ -29,7 +29,9 @@ fn configure_rayon_pool_is_idempotent() {
     if let Some(expected) = override_threads {
         assert_eq!(current_threads, expected);
     } else {
-        assert!(current_threads >= MIN_RAYON_THREADS);
-        assert!(current_threads <= MAX_RAYON_THREADS);
+        let parallelism =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        let expected = rayon_pool_size(parallelism, super::RAYON_THREADS_PER_CORE);
+        assert_eq!(current_threads, expected);
     }
 }

@@ -13,13 +13,15 @@ fn addon_entry_point_configures_rayon_pool() {
         return;
     }
     let temp = tempfile::tempdir().unwrap();
-    let _ = read_config(ReadConfigOptions {
+    let config = read_config(ReadConfigOptions {
         dir: temp
             .path()
             .to_str()
             .unwrap()
             .to_string(),
-    });
+    })
+    .expect("read_config must succeed");
+    let _ = config.registries;
     let current_threads = rayon::current_num_threads();
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
@@ -27,7 +29,12 @@ fn addon_entry_point_configures_rayon_pool() {
     if let Some(expected) = override_threads {
         assert_eq!(current_threads, expected);
     } else {
-        assert!(current_threads >= pnpm_package_manager::MIN_RAYON_THREADS);
-        assert!(current_threads <= pnpm_package_manager::MAX_RAYON_THREADS);
+        let parallelism =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        let expected = pnpm_package_manager::rayon_pool_size(
+            parallelism,
+            pnpm_package_manager::RAYON_THREADS_PER_CORE,
+        );
+        assert_eq!(current_threads, expected);
     }
 }
