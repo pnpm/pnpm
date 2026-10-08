@@ -66,10 +66,14 @@ pub fn auth_header_for_package(
 
 /// Join a relative path against a normalized registry URL, preserving any
 /// path prefix in the registry URL.
+pub fn join_registry_url(registry_url: &str, path: &str) -> Result<reqwest::Url, url::ParseError> {
+    reqwest::Url::parse(&normalize_registry_url(registry_url)).and_then(|url| url.join(path))
+}
+
+/// Join a relative path against a normalized registry URL, preserving any
+/// path prefix in the registry URL.
 pub fn join_registry_endpoint(registry_url: &str, path: &str) -> Result<String, url::ParseError> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
+    join_registry_url(registry_url, path).map(|url| url.to_string())
 }
 
 /// Join a package name onto a registry URL using the registry's package-escaping convention.

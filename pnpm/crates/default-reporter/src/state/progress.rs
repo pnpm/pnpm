@@ -58,10 +58,12 @@ impl ReporterState {
             &requester,
             false,
         );
-        let mut slot =
-            std::mem::take(&mut self.downloads.progress.get_mut(&requester).unwrap().slot);
+        let Some(entry) = self.downloads.progress.get_mut(&requester) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
         self.display.frame.emit(&mut slot, msg, true);
-        self.downloads.progress.get_mut(&requester).unwrap().slot = slot;
+        if let Some(entry) = self.downloads.progress.get_mut(&requester) {
+            entry.slot = slot;
+        }
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
@@ -79,12 +81,13 @@ impl ReporterState {
                     prefix,
                     true,
                 );
-                let mut slot =
-                    std::mem::take(&mut self.downloads.progress.get_mut(prefix).unwrap().slot);
+                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+                let mut slot = std::mem::take(&mut entry.slot);
                 self.display.frame.emit(&mut slot, msg, false);
-                let entry = self.downloads.progress.get_mut(prefix).unwrap();
-                entry.slot = slot;
-                entry.done = true;
+                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
+                    entry.slot = slot;
+                    entry.done = true;
+                }
             }
             _ => {}
         }
@@ -110,10 +113,12 @@ impl ReporterState {
                 let size = entry.size;
                 let done = *downloaded == size;
                 let msg = self.downloading_message(package_id, *downloaded, size);
-                let mut slot =
-                    std::mem::take(&mut self.downloads.tarballs.get_mut(package_id).unwrap().slot);
+                let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
+                let mut slot = std::mem::take(&mut entry.slot);
                 self.display.frame.emit(&mut slot, msg, !done);
-                self.downloads.tarballs.get_mut(package_id).unwrap().slot = slot;
+                if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
+                    entry.slot = slot;
+                }
             }
         }
     }

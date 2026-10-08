@@ -58,37 +58,28 @@ impl StarsArgs {
         let registries = resolve_registries_with_override(config, self.registry.as_deref());
         let default_registry =
             registries.get("default").map_or(config.registry.as_str(), String::as_str);
-        let auth_header =
-            config.auth_headers.for_url(default_registry).ok_or(StarsError::Unauthorized);
+        let auth_header = config.auth_headers.for_url(default_registry);
         let http_client = build_registry_client(config)?;
         let retry_opts = config.retry_opts();
 
-        let mut user = self.username.clone();
-        if user.is_none() {
-            if auth_header.is_err() {
-                return Err(StarsError::Unauthorized.into());
-            }
-            user = Some(
-                crate::cli_args::whoami::fetch_whoami(
-                    default_registry,
-                    &http_client,
-                    auth_header.as_ref().unwrap(),
-                    retry_opts,
-                )
-                .await?,
-            );
-        }
-
-        let is_self = self.username.is_none();
-        let username = user.unwrap();
-        let auth_header_str = auth_header.unwrap_or_default();
-        let auth_header_val =
-            if auth_header_str.is_empty() { None } else { Some(auth_header_str.as_str()) };
+        let (username, is_self) = if let Some(user) = &self.username {
+            (user.clone(), false)
+        } else {
+            let auth = auth_header.as_deref().ok_or(StarsError::Unauthorized)?;
+            let whoami = crate::cli_args::whoami::fetch_whoami(
+                default_registry,
+                &http_client,
+                auth,
+                retry_opts,
+            )
+            .await?;
+            (whoami, true)
+        };
 
         let request = StarsRequest {
             registry_url: default_registry,
             http_client: &http_client,
-            auth_header: auth_header_val,
+            auth_header: auth_header.as_deref(),
             retry_opts,
         };
         fetch_stars(&request, &username, is_self).await
