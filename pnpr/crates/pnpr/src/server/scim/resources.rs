@@ -7,6 +7,10 @@ pub(super) const USER_SCHEMA: &str = "urn:ietf:params:scim:schemas:core:2.0:User
 const LIST_SCHEMA: &str = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
 const PATCH_SCHEMA: &str = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 
+/// The most keys a PATCH path may name: a schema URN, an attribute, and a
+/// sub-attribute, as in `urn:...:User:manager.value`.
+const MAX_PATH_DEPTH: usize = 3;
+
 /// Attributes pnpr derives itself or never stores.
 const MANAGED_ATTRIBUTES: [&str; 6] = ["schemas", "id", "meta", "userName", "active", "password"];
 
@@ -119,6 +123,11 @@ fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), Reg
         });
     }
     let keys = attribute_keys(path);
+    if keys.len() > MAX_PATH_DEPTH {
+        return Err(RegistryError::BadRequest {
+            reason: format!("PATCH path {path:?} nests deeper than {MAX_PATH_DEPTH} levels"),
+        });
+    }
     set_nested(&mut user.attributes, &keys, value);
     Ok(())
 }

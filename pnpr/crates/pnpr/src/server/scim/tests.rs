@@ -62,3 +62,15 @@ fn extension_attributes_nest_under_their_schema() {
     assert_eq!(enterprise, &json!({ "department": "R&D", "manager": { "value": "boss" } }));
     assert_eq!(patched.attributes["name"], json!({ "givenName": "Alice" }));
 }
+
+#[test]
+fn a_patch_path_deeper_than_scim_allows_is_refused() {
+    let mut patched = user(true);
+    let deep = vec!["a"; 10_000].join(".");
+    let patch = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [{ "op": "add", "path": deep, "value": 1 }],
+    });
+    assert!(apply_patch(&mut patched, &patch).is_err());
+    assert!(patched.attributes.is_empty());
+}
