@@ -222,6 +222,46 @@ fn npmignore_does_not_drop_always_included_files() {
 }
 
 #[test]
+fn always_included_files_match_the_stem_with_an_extension_only() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    for name in [
+        "README",
+        "readme.txt",
+        "COPYING",
+        "LICENSE.md",
+        "Licence",
+        "README_INTERNAL.md",
+        "readme-dev.md",
+        "LICENSES",
+        "README.",
+        "README.md~",
+        "LICENSE.md$",
+    ] {
+        touch(root, name);
+    }
+
+    let manifest = json!({ "name": "x", "version": "0.0.0", "files": ["lib"] });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "COPYING".to_string(),
+            "LICENSE.md".into(),
+            "Licence".into(),
+            "README".into(),
+            "lib/index.js".into(),
+            "package.json".into(),
+            "readme.txt".into(),
+        ],
+    );
+}
+
+#[test]
 fn npmignore_in_subdir_applies_to_subtree_only() {
     let dir = tempdir().unwrap();
     let root = dir.path();
