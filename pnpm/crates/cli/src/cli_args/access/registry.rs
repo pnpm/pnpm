@@ -1,12 +1,15 @@
-use super::{
-    AccessArgs, AccessError, Config, Method, Response, RetryOpts, StatusCode, ThrottledClient,
-    ThrottledClientGuard, send_with_retry,
-};
+use super::{AccessArgs, AccessError, Config};
 use crate::cli_args::{
-    registry_client::{apply_auth_and_otp, build_registry_client_with_otp_guard},
+    registry_client::{
+        apply_auth_and_otp, build_registry_client_with_otp_guard, join_registry_endpoint,
+    },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{
+    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, escaped_package_name,
+    normalize_registry_url, send_with_retry,
+};
+use reqwest::{Method, Response, StatusCode};
 
 pub(super) struct AccessContext<'a> {
     pub(super) config: &'a Config,
@@ -104,4 +107,55 @@ pub(super) async fn write_error_from_response(
                 .into()
         }
     }
+}
+
+pub(super) fn package_access_url(registry: &str, package_name: &str) -> String {
+    let path = format!("-/package/{}/access", escaped_package_name(package_name));
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(super) fn team_package_url(registry: &str, scope: &str, team: &str) -> String {
+    let path =
+        format!("-/team/{}/{}/package", encode_uri_component(scope), encode_uri_component(team));
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(super) fn package_collaborators_url(
+    registry: &str,
+    package_name: &str,
+    user: Option<&str>,
+) -> String {
+    let base_path =
+        format!("-/package/{}/collaborators?format=cli", escaped_package_name(package_name));
+    let path = match user {
+        Some(u) => format!("{base_path}&user={}", encode_uri_component(u)),
+        None => base_path,
+    };
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(crate) fn list_packages_url(registry: &str, params: &[String]) -> String {
+    let path = match params.first() {
+        None => "-/-/package?format=cli".to_string(),
+        Some(raw) if !raw.contains(':') => match raw.strip_prefix('@') {
+            Some(org_name) => {
+                format!("-/org/{}/package?format=cli", encode_uri_component(org_name))
+            }
+            None => format!("-/user/{}/package?format=cli", encode_uri_component(raw)),
+        },
+        Some(raw) => {
+            let parts: Vec<&str> = raw.splitn(2, ':').collect();
+            let team = parts.get(1).unwrap_or(&"");
+            let team_path = if team.is_empty() {
+                String::new()
+            } else {
+                format!("{}/", encode_uri_component(team))
+            };
+            let scope = parts[0]
+                .strip_prefix('@')
+                .unwrap_or(parts[0]);
+            format!("-/team/{}/{team_path}package?format=cli", encode_uri_component(scope))
+        }
+    };
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
 }

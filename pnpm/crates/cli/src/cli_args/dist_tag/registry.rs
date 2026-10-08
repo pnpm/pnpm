@@ -6,7 +6,8 @@ use super::{
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        auth_header_for_package, join_registry_endpoint, resolve_registry_for_package,
+        apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
+        resolve_registry_for_package,
     },
 };
 use pnpm_network::escaped_package_name;
@@ -86,19 +87,13 @@ pub(super) async fn delete_dist_tag(
 }
 
 fn apply_dist_tag_mutation_headers(
-    mut builder: RequestBuilder,
+    builder: RequestBuilder,
     auth_header: Option<&str>,
     auth_type: AuthType,
     otp: Option<&str>,
 ) -> RequestBuilder {
-    builder = builder.header("npm-auth-type", auth_type.header_value());
-    if let Some(auth_header) = auth_header {
-        builder = builder.header("authorization", auth_header);
-    }
-    if let Some(otp) = otp {
-        builder = builder.header("npm-otp", otp);
-    }
-    builder
+    let builder = builder.header("npm-auth-type", auth_type.header_value());
+    apply_auth_and_otp(builder, auth_header, otp)
 }
 
 pub(super) async fn fetch_dist_tags(
@@ -122,11 +117,7 @@ async fn fetch_dist_tags_once(
 ) -> Result<BTreeMap<String, String>, DistTagsFetchError> {
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            builder
+            apply_auth_and_otp(client.get(url), auth_header, None)
         })
         .await
         .map_err(DistTagsFetchError::Request)?;

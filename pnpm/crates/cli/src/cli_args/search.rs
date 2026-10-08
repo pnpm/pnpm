@@ -1,7 +1,7 @@
 //! `pacquet search` — search for packages in the registry.
 
 use crate::cli_args::{
-    registry_client::build_registry_client,
+    registry_client::{apply_auth_and_otp, build_registry_client, join_registry_endpoint},
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body, sanitize},
 };
 use clap::Args;
@@ -108,11 +108,7 @@ impl SearchArgs {
 
         let (client, response) =
             send_with_retry(&http_client, search_url.as_str(), retry_opts, |client| {
-                let mut request = client.get(search_url.as_str());
-                if let Some(ref header) = auth_header {
-                    request = request.header("authorization", header.as_str());
-                }
-                request
+                apply_auth_and_otp(client.get(search_url.as_str()), auth_header.as_deref(), None)
             })
             .await
             .map_err(|error| SearchError::NetworkError {
@@ -138,10 +134,9 @@ impl SearchArgs {
         normalized_registry_url: &str,
         query_string: &str,
     ) -> miette::Result<url::Url> {
-        let base_url = url::Url::parse(normalized_registry_url)
+        let endpoint = join_registry_endpoint(normalized_registry_url, "-/v1/search")
             .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-        let mut search_url = base_url
-            .join("./-/v1/search")
+        let mut search_url = url::Url::parse(&endpoint)
             .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
         search_url
             .query_pairs_mut()
@@ -262,3 +257,6 @@ fn bright_blue(text: &str) -> String {
         .if_supports_color(Stream::Stdout, |t| t.bright_blue())
         .to_string()
 }
+
+#[cfg(test)]
+mod tests;
