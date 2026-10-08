@@ -47,6 +47,21 @@ fn rejects_non_origin_cors_urls() {
 }
 
 #[test]
+fn ui_defaults_to_enabled_and_resolves_its_dir_against_base_dir() {
+    let config = Config::from_yaml_str("", Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert!(config.http.ui.enabled);
+    assert_eq!(config.http.ui.dir, None);
+
+    let yaml = "ui:\n  enabled: false\n  dir: ./ui\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert!(!config.http.ui.enabled);
+    assert_eq!(config.http.ui.dir, Some(PathBuf::from("/etc/pnpr/ui")));
+
+    let err = Config::from_yaml_str("ui:\n  path: ./ui\n", Path::new("/x"), listen(), None);
+    assert!(err.is_err(), "accepted an unknown ui key");
+}
+
+#[test]
 fn explicit_cache_key_overrides_the_default() {
     let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();

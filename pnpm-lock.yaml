@@ -11208,6 +11208,8 @@ importers:
 
   pnpr/npm/pnpr: {}
 
+  pnpr/npm/pnpr-ui: {}
+
 packages:
 
   '@arcanis/slice-ansi@1.1.1':

@@ -2,7 +2,7 @@ use super::{
     ArtifactsFeature, AuthConfig, BTreeSet, BackendConfig, Config, CorsConfig, HeaderMap,
     HostedConfig, HostedStoreConfig, IndexMap, LogConfig, OciConfig, OsvConfig, PathBuf,
     PipelineFeature, Registries, Registry, RegistryFeature, ResolverFeature, RoutePolicy,
-    SocketAddr, UpstreamConfig, default_cache_dir, random_secret, registry_mock_graph,
+    SocketAddr, UiConfig, UpstreamConfig, default_cache_dir, random_secret, registry_mock_graph,
     registry_mock_rules,
 };
 
@@ -82,6 +82,7 @@ impl Config {
                 listen,
                 public_url: format!("http://{listen}"),
                 cors: CorsConfig::default(),
+                ui: UiConfig::default(),
                 oci: OciConfig::default(),
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             },
