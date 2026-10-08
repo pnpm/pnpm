@@ -43,6 +43,10 @@ it. Other replicas apply this within 10 seconds, the same delay as
 their own browser sessions for the user. A session that predates a
 deprovisioning never works again, even if the user is provisioned again.
 
+If a replica cannot read the SCIM directory from the hosted store, it refuses
+every user credential and sign-in until a read succeeds. It retries every
+second.
+
 pnpr keeps refusing a deleted user. Provisioning the same `userName` again
 with `POST`, or setting `active` back to `true`, lets the user sign in again.
 Before it does, pnpr repeats the cleanup above, so no credential from before

@@ -179,7 +179,7 @@ pub(super) async fn caller_username(
         _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
     };
     if let Some(username) = &username
-        && super::scim::is_deprovisioned(state, username)
+        && super::scim::is_deprovisioned(state, username)?
     {
         return Err(RegistryError::Unauthenticated {
             resource: "a deprovisioned account".to_string(),

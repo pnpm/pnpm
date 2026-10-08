@@ -132,7 +132,7 @@ async fn log_in(
     name: &str,
     password: &str,
 ) -> Result<(UpsertOutcome, String, String), RegistryError> {
-    if super::scim::is_deprovisioned(state, name) {
+    if super::scim::is_deprovisioned(state, name)? {
         return Err(deprovisioned(name));
     }
     let users = &state.inner.identity.auth.users;
@@ -144,9 +144,14 @@ async fn log_in(
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
-    if super::scim::is_deprovisioned(state, &username) {
+    let refused = match super::scim::is_deprovisioned(state, &username) {
+        Ok(false) => None,
+        Ok(true) => Some(deprovisioned(&username)),
+        Err(err) => Some(err),
+    };
+    if let Some(err) = refused {
         undo_login(state, &username, &token, outcome).await?;
-        return Err(deprovisioned(&username));
+        return Err(err);
     }
     if still_the_same_account(state, &username, password, verified.as_deref()).await? {
         return Ok((outcome, username, token));
@@ -164,7 +169,8 @@ fn deprovisioned(name: &str) -> RegistryError {
 }
 
 /// Take back the token a login issued, and the account it created, when a
-/// SCIM deprovisioning of the user landed while the login ran.
+/// SCIM deprovisioning of the user landed while the login ran, or the SCIM
+/// directory could no longer be read.
 async fn undo_login(
     state: &AppState,
     username: &str,

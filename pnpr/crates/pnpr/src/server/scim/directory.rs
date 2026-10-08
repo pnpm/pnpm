@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    sync::{Arc, Mutex, PoisonError, RwLock},
+    sync::{
+        Arc, Mutex, PoisonError, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 /// The stored record: every username a SCIM client has provisioned, keyed
@@ -60,6 +63,9 @@ pub(in super::super) struct ScimState {
     inactive: RwLock<Arc<BTreeSet<String>>>,
     /// The deprovision count of each user as this replica last read it.
     seen: Mutex<HashMap<String, u64>>,
+    /// Set by a failed read of the directory, cleared by the next successful
+    /// read or write.
+    unreadable: AtomicBool,
 }
 
 impl ScimState {
@@ -70,6 +76,7 @@ impl ScimState {
             .map(|(name, _)| name.clone())
             .collect();
         *self.inactive.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(inactive);
+        self.unreadable.store(false, Ordering::Release);
         let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
         for name in newly_deprovisioned(&mut seen, directory) {
             state.inner.identity.oidc.revoke_user_sessions(&name);
@@ -93,20 +100,28 @@ pub(super) fn newly_deprovisioned(
 }
 
 /// Whether a SCIM client deprovisioned `username`. Always `false` without
-/// `auth.scim`.
-pub(in super::super) fn is_deprovisioned(state: &AppState, username: &str) -> bool {
-    state.inner.identity.managed.scim
-        .as_ref()
-        .is_some_and(|scim| {
-            scim.inactive
-                .read()
-                .unwrap_or_else(PoisonError::into_inner)
-                .contains(username)
-        })
+/// `auth.scim`. Fails closed while the last read of the directory failed,
+/// because this replica's copy may miss a deprovisioning.
+pub(in super::super) fn is_deprovisioned(
+    state: &AppState,
+    username: &str,
+) -> Result<bool, RegistryError> {
+    let Some(scim) = &state.inner.identity.managed.scim else {
+        return Ok(false);
+    };
+    if scim.unreadable.load(Ordering::Acquire) {
+        return Err(RegistryError::Internal {
+            reason: "the SCIM directory could not be read; sign-ins resume once it can".to_string(),
+        });
+    }
+    Ok(scim.inactive
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(username))
 }
 
-/// Read the directory and publish its inactive usernames. A failed read keeps
-/// the usernames this replica already refuses. Reports whether the read
+/// Read the directory and publish its inactive usernames. After a failed read
+/// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
 /// succeeded.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
     match read_directory(state).await {
@@ -115,7 +130,8 @@ pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimStat
             true
         }
         Err(err) => {
-            tracing::error!(error = %err, "could not read the SCIM directory");
+            tracing::error!(error = %err, "could not read the SCIM directory; refusing user credentials");
+            scim.unreadable.store(true, Ordering::Release);
             false
         }
     }

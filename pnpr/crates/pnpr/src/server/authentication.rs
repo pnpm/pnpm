@@ -137,7 +137,7 @@ pub(super) fn refuse_deprovisioned(
     identity: &Identity,
 ) -> Result<(), RegistryError> {
     match identity {
-        Identity::User { username, .. } if super::scim::is_deprovisioned(state, username) => {
+        Identity::User { username, .. } if super::scim::is_deprovisioned(state, username)? => {
             Err(RegistryError::Unauthenticated { resource: "a deprovisioned account".to_string() })
         }
         _ => Ok(()),

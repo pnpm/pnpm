@@ -315,3 +315,32 @@ async fn a_login_racing_a_deactivation_keeps_no_token_or_account() {
             .is_none(),
     );
 }
+
+#[tokio::test]
+async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
+    let dir = TempDir::new().unwrap();
+    let record = dir.path().join("storage/.scim-users/v0/directory.json");
+    std::fs::create_dir_all(record.parent().unwrap()).unwrap();
+    std::fs::write(&record, "not a directory").unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("alice", "secret").await.unwrap();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(load_config(dir.path()), auth);
+
+    assert_eq!(whoami(&app, &token).await, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::INTERNAL_SERVER_ERROR);
+
+    std::fs::write(&record, r#"{"users":{}}"#).unwrap();
+    // A failed read is retried a second later, in the background of the
+    // first request after that.
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    let mut status = whoami(&app, &token).await;
+    for _ in 0..100 {
+        if status == StatusCode::OK {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        status = whoami(&app, &token).await;
+    }
+    assert_eq!(status, StatusCode::OK);
+}
