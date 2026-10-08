@@ -1,4 +1,6 @@
-use super::{append_workspace_yaml_key, is_absent, read_wanted_lockfile, write_manifest};
+use super::{
+    append_workspace_yaml_key, is_absent, pacquet_in, read_wanted_lockfile, write_manifest,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName};
@@ -123,6 +125,52 @@ fn both_optional_and_non_optional_dependency_is_installed_when_optionals_are_ski
         "a package that is also a regular dependency must be materialized",
     );
     assert!(workspace.join("node_modules/is-positive/package.json").exists());
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// A peer the project declares is one of its own dependencies once
+/// `autoInstallPeers` installs it, even when another dependency has it only
+/// as an optional peer.
+#[test]
+fn auto_installed_peer_is_installed_when_optionals_are_skipped() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "@pnpm.e2e/optional-peer-c-host": "1.0.0" },
+            "peerDependencies": { "@pnpm.e2e/peer-c": "^1.0.0" },
+        }),
+    );
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile = read_wanted_lockfile(&workspace);
+    let peer_snapshots = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .iter()
+        .filter(|(key, _)| key.name.to_string() == "@pnpm.e2e/peer-c")
+        .map(|(key, snapshot)| (key.to_string(), snapshot.optional))
+        .collect::<Vec<_>>();
+    assert_eq!(peer_snapshots, [("@pnpm.e2e/peer-c@1.0.1".to_string(), false)]);
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-optional"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/peer-c/package.json").exists(),
+        "the auto-installed peer must be installed",
+    );
 
     drop((root, npmrc_info)); // cleanup
 }
