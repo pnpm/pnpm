@@ -81,7 +81,8 @@ fn applies_a_crlf_patch_that_deletes_a_file() {
 #[test]
 fn applies_a_crlf_patch_that_only_changes_the_mode() {
     let patched = tempdir().unwrap();
-    fs::write(patched.path().join("run.sh"), "#!/bin/sh\n").unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
     let patch_dir = tempdir().unwrap();
     let patch = text_block_fnl! {
         "diff --git a/run.sh b/run.sh"
@@ -91,6 +92,132 @@ fn applies_a_crlf_patch_that_only_changes_the_mode() {
     let patch = write_patch(patch_dir.path(), &patch.replace('\n', "\r\n"));
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must be updated to executable");
+    }
+}
+
+#[test]
+fn applies_an_lf_patch_that_only_changes_the_mode() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must be updated to executable");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn applies_a_patch_that_removes_executable_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("script.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/script.sh b/script.sh"
+        "old mode 100755"
+        "new mode 100644"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let mode = fs::metadata(&target)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o644, "mode must be updated to non-executable");
+}
+
+#[test]
+fn applies_a_patch_that_creates_an_executable_file() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/bin/cli.sh b/bin/cli.sh"
+        "new file mode 100755"
+        "--- /dev/null"
+        "+++ b/bin/cli.sh"
+        "@@ -0,0 +1,2 @@"
+        "+#!/bin/sh"
+        "+echo hi"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let target = patched.path().join("bin/cli.sh");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "#!/bin/sh\necho hi\n");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "created file must have executable mode");
+    }
+}
+
+#[test]
+fn mode_change_patch_is_idempotent() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("run.sh");
+    fs::write(&target, "#!/bin/sh\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("first apply must succeed");
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o755, "mode must remain executable after re-apply");
+    }
 }
 
 #[test]
