@@ -101,36 +101,43 @@ impl ReporterState {
     // --- big tarballs -----------------------------------------------------
 
     pub(super) fn on_fetching(&mut self, message: &FetchingProgressMessage) {
-        const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
         match message {
             FetchingProgressMessage::Started { attempt, package_id, size } => {
-                let Some(size) = size else { return };
-                if *size < BIG_TARBALL_SIZE || *attempt != 1 {
-                    return;
-                }
-                let mut entry = BigTarball { size: *size, slot: BlockSlot::default() };
-                let msg = self.downloading_message(package_id, 0, *size);
-                self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Pinned);
-                self.downloads.tarballs.insert(package_id.clone(), entry);
+                self.start_tarball_block(*attempt, package_id, *size);
             }
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
-                let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
-                let size = entry.size;
-                let msg = self.downloading_message(package_id, *downloaded, size);
-                // A finished download stops being rewritten in place and
-                // scrolls away with the rest of the output.
-                let placement = if *downloaded == size {
-                    BlockPlacement::Scrolling
-                } else {
-                    BlockPlacement::Pinned
-                };
-                let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
-                let mut slot = std::mem::take(&mut entry.slot);
-                self.display.frame.emit(&mut slot, msg, placement);
-                if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
-                    entry.slot = slot;
-                }
+                self.rewrite_tarball_block(package_id, *downloaded);
             }
+        }
+    }
+
+    /// Give a big tarball a block of its own, on the first attempt only, so
+    /// a retry does not open a second block for the same download.
+    fn start_tarball_block(&mut self, attempt: u32, package_id: &str, size: Option<u64>) {
+        const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
+        let Some(size) = size else { return };
+        if size < BIG_TARBALL_SIZE || attempt != 1 {
+            return;
+        }
+        let mut entry = BigTarball { size, slot: BlockSlot::default() };
+        let msg = self.downloading_message(package_id, 0, size);
+        self.display.frame.emit(&mut entry.slot, msg, BlockPlacement::Pinned);
+        self.downloads.tarballs.insert(package_id.to_string(), entry);
+    }
+
+    fn rewrite_tarball_block(&mut self, package_id: &str, downloaded: u64) {
+        let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
+        let size = entry.size;
+        let msg = self.downloading_message(package_id, downloaded, size);
+        // A finished download stops being rewritten in place and scrolls
+        // away with the rest of the output.
+        let placement =
+            if downloaded == size { BlockPlacement::Scrolling } else { BlockPlacement::Pinned };
+        let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
+        self.display.frame.emit(&mut slot, msg, placement);
+        if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
+            entry.slot = slot;
         }
     }
 
