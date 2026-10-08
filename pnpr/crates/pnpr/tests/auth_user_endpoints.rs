@@ -9,8 +9,8 @@ use axum::{
     http::{HeaderValue, Request, StatusCode, header},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
-    UpsertOutcome, UserBackend, router, router_with_auth,
+    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, PasswordChange, TokenStore,
+    TokensConfig, UpsertOutcome, UserBackend, UserCreation, UserRemoval, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -129,16 +129,16 @@ impl UserBackend for CanonicalUserBackend {
         Ok(username.eq_ignore_ascii_case("alice").then(|| "hash".to_string()))
     }
 
-    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<UserCreation> {
+        Ok(UserCreation::NameTaken)
     }
 
-    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 

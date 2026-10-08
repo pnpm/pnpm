@@ -27,9 +27,9 @@ use schema::{
 };
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username, verify_returning_user,
-    with_auth_timeout,
+    DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
+    UserCreation, UserRemoval, fresh_secret, hash_bcrypt, sha256_hex, token_timestamp_from_sql,
+    validate_username, verify_returning_user, with_auth_timeout,
 };
 use async_trait::async_trait;
 use libsql::{
@@ -187,15 +187,15 @@ impl UserBackend for LibsqlAuth {
         self.stored_hash(username).await
     }
 
-    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         self.insert_user_for_admin(username, password).await
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         self.update_password(username, password).await
     }
 
-    async fn delete_user(&self, username: &str) -> Result<bool> {
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         self.remove_user(username).await
     }
 }

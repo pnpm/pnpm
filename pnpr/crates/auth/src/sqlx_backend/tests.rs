@@ -76,12 +76,16 @@ impl AuthSqlBackend for CanonicalBackend {
         Ok(Vec::new())
     }
 
-    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
-        Ok(false)
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -133,12 +137,16 @@ impl AuthSqlBackend for SlowLookupBackend {
         Ok(Vec::new())
     }
 
-    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
-        Ok(false)
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -191,12 +199,16 @@ impl AuthSqlBackend for SlowWriteBackend {
         Ok(Vec::new())
     }
 
-    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
-        Ok(false)
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -248,12 +260,16 @@ impl AuthSqlBackend for CountingLookupBackend {
         Ok(Vec::new())
     }
 
-    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
-        Ok(false)
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -305,12 +321,16 @@ impl AuthSqlBackend for CappedBackend {
         Ok(Vec::new())
     }
 
-    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
-        Ok(false)
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
