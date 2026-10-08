@@ -8,7 +8,7 @@
 
 use crate::cli_args::registry_client::{
     build_registry_client, package_endpoint_url, resolve_registries_with_override,
-    resolve_registry_for_package,
+    resolve_target_registry_for_package,
 };
 use chrono::{DateTime, Utc};
 use clap::Args;
@@ -170,7 +170,8 @@ pub(super) async fn fetch_package_metadata(
     let name_hint = alias.unwrap_or(package_spec);
 
     let registries = resolve_registries_with_override(config, registry_override);
-    let registry = resolve_registry_for_package(&registries, name_hint, Some(bare));
+    let registry =
+        resolve_target_registry_for_package(&registries, registry_override, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
         .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;

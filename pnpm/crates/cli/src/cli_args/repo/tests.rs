@@ -80,6 +80,7 @@ async fn test_registry_package_name_defaults_to_latest() {
         "acme",
         &http_client,
         &registries,
+        None,
         &RetryOpts::default(),
     )
     .await
@@ -87,6 +88,189 @@ async fn test_registry_package_name_defaults_to_latest() {
 
     assert_eq!(url, "https://github.com/acme/repo");
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_registry_package_with_registry_override() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/acme-1.0.0.tgz" },
+                "repository": "https://github.com/acme/repo.git"
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let config = Config::default();
+    let http_client = ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("create HTTP client");
+    let registries = HashMap::new();
+
+    let server_url = server.url();
+    let url = get_repo_url_from_registry(
+        &config,
+        "acme",
+        &http_client,
+        &registries,
+        Some(&server_url),
+        &RetryOpts::default(),
+    )
+    .await
+    .expect("resolve repository URL");
+
+    assert_eq!(url, "https://github.com/acme/repo");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_registry_scoped_package_with_registry_override() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "@scope/acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/@scope/acme-1.0.0.tgz" },
+                "repository": "https://github.com/scope/acme.git"
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/@scope%2Facme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let config = Config::default();
+    let http_client = ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("create HTTP client");
+    let mut registries = HashMap::new();
+    registries.insert("@scope".to_string(), "https://other.registry/".to_string());
+
+    let server_url = server.url();
+    let url = get_repo_url_from_registry(
+        &config,
+        "@scope/acme",
+        &http_client,
+        &registries,
+        Some(&server_url),
+        &RetryOpts::default(),
+    )
+    .await
+    .expect("resolve repository URL");
+
+    assert_eq!(url, "https://github.com/scope/acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_opens_repository_urls_for_multiple_packages_in_order() {
+    static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    OPENED_URLS.lock().unwrap().clear();
+
+    struct RecordingBrowser;
+
+    impl OpenUrlAndWait for RecordingBrowser {
+        fn open_url_and_wait(url: &str) -> io::Result<()> {
+            OPENED_URLS
+                .lock()
+                .unwrap()
+                .push(url.to_owned());
+            Ok(())
+        }
+    }
+
+    let mut server = mockito::Server::new_async().await;
+    let body_a = serde_json::json!({
+        "name": "pkg-a",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "pkg-a",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/pkg-a-1.0.0.tgz" },
+                "repository": "https://github.com/test/pkg-a.git"
+            }
+        }
+    })
+    .to_string();
+    let body_b = serde_json::json!({
+        "name": "pkg-b",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "pkg-b",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/pkg-b-1.0.0.tgz" },
+                "repository": "https://github.com/test/pkg-b.git"
+            }
+        }
+    })
+    .to_string();
+
+    let mock_a = server
+        .mock("GET", "/pkg-a")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body_a)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mock_b = server
+        .mock("GET", "/pkg-b")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body_b)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let args = RepoArgs {
+        registry: Some(server.url()),
+        packages: vec!["pkg-a".to_string(), "pkg-b".to_string()],
+    };
+    args.run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
+        .await
+        .expect("open repository URLs");
+
+    mock_a.assert_async().await;
+    mock_b.assert_async().await;
+    assert_eq!(
+        OPENED_URLS.lock().unwrap().as_slice(),
+        ["https://github.com/test/pkg-a", "https://github.com/test/pkg-b"],
+    );
 }
 
 #[tokio::test]
