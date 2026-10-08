@@ -9,7 +9,7 @@
 //! result over a oneshot channel — so the borrows never have to cross the FFI
 //! boundary or become `'static`.
 //!
-//! [`rebuild`] takes the frozen path against the already-materialized
+//! [`rebuild`](fn@rebuild) takes the frozen path against the already-materialized
 //! `node_modules`; [`get_peer_dependency_issues`] runs a sink-driven
 //! `dry_run` resolve that writes nothing and returns the per-importer
 //! peer-dependency issues.
@@ -22,6 +22,7 @@ pub use options::{
 };
 pub(crate) use overlay::install_http_client;
 pub use peer_issues::get_peer_dependency_issues;
+pub use rebuild::rebuild;
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -499,74 +500,14 @@ fn multi_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
         })
 }
 
-#[napi]
-pub async fn rebuild(
-    options: InstallOptions,
-    on_log: Option<LogSink>,
-    selected_names: Option<Vec<String>>,
-    on_output: Option<OutputSink>,
-) -> napi::Result<()> {
-    let _guard = engine_call_lock().lock().await;
-    let renderer = build_renderer(&options, on_output);
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new()
-        .name("pnpm-napi-rebuild".to_string())
-        .stack_size(32 * 1024 * 1024)
-        .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
-        })
-        .map_err(|error| {
-            napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
-        })?;
-    rx.await.map_err(|_| napi::Error::from_reason("rebuild worker thread panicked"))?
-}
-
-fn run_rebuild_blocking(
-    options: &InstallOptions,
-    on_log: Option<LogSink>,
-    renderer: Option<NativeRenderer>,
-    selected_names: Option<Vec<String>>,
-) -> napi::Result<()> {
-    // Restores the previous sink and renderer on drop — including on a
-    // panic in `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
-    let rebuild_options =
-        rebuild_options(selected_names, options.skip_if_has_side_effects_cache.unwrap_or(false));
-    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
-    outcome.map(|_| ())
-}
-
-/// The rebuild the engine API runs.
-fn rebuild_options(
-    selected_names: Option<Vec<String>>,
-    skip_if_has_side_effects_cache: bool,
-) -> RebuildOptions {
-    // `None` (or an empty list) rebuilds every build-needing package; a
-    // non-empty list restricts the rebuild to the matching names / build keys.
-    RebuildOptions {
-        selected_names: selected_names
-            .filter(|names| !names.is_empty())
-            .map(|names| names.into_iter().collect()),
-        // The engine API rebuilds dependencies only; running a workspace
-        // project's own deferred scripts is `pnpm rebuild --pending`.
-        pending_projects: Vec::new(),
-        // The embedder rebuilds the lockfile it just installed or restored,
-        // so of the settings it records only the patches, which change the
-        // build output, have to match the configuration — as in pnpm v11's
-        // `rebuild`. Comparing the rest, like `pnpmfileChecksum`, fails a
-        // rebuild of a lockfile resolved with other `readPackage` hooks or
-        // settings.
-        check_lockfile_patches_only: true,
-        skip_if_has_side_effects_cache,
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
 use overlay::{build_overlay, build_workspace_projects_override};
 
 mod peer_issues;
+
+mod rebuild;
 
 mod options;
 
