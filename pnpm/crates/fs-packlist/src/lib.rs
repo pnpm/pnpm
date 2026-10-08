@@ -92,8 +92,9 @@ const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
 /// `*.orig` exclusion family.
 const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 
-/// Basenames of the ignore files, excluded at any depth unless a `files`
-/// entry matches the file itself, as npm-packlist's default rules do.
+/// Basenames of the ignore files, excluded at any depth as npm-packlist's
+/// default rules do. A `files` entry still ships one it matches at the root,
+/// or one in a subdirectory whose path it names.
 const IGNORE_FILE_BASENAMES: &[&str] = &[".npmignore", ".gitignore"];
 
 /// Walk `pkg_dir` and return forward-slash relative paths for every
@@ -250,9 +251,14 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
         return is_ignore_file(rel);
     };
     if is_ignore_file(rel) {
-        // An entry that only matches a parent directory, such as `lib`, does
-        // not ship `lib/.npmignore`.
-        return !matcher.matched(rel, false).is_ignore();
+        // npm-packlist re-applies its default rules in each subdirectory, so
+        // a glob such as `lib/*` or `**` ships only the root ignore files.
+        // A nested one ships only when an entry names its path.
+        return if rel.contains('/') {
+            !selection.named_files.contains(rel)
+        } else {
+            !matcher.matched(rel, false).is_ignore()
+        };
     }
     !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)

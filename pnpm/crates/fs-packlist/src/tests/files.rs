@@ -254,6 +254,28 @@ fn files_field_entry_matching_an_ignore_file_packs_it() {
 }
 
 #[test]
+fn files_field_glob_packs_only_root_ignore_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, ".npmignore");
+    touch(root, ".gitignore");
+    touch(root, "lib/a.js");
+    touch(root, "lib/.npmignore");
+    touch(root, "lib/.gitignore");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**/.gitignore", "lib/*"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec![".gitignore".to_string(), "lib/a.js".into(), "package.json".into()]);
+}
+
+#[test]
 fn main_or_bin_packs_an_ignore_file_only_at_the_root() {
     let dir = tempdir().unwrap();
     let root = dir.path();
