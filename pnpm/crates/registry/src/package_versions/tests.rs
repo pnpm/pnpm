@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::Write};
 
-use crate::{Package, PackageVersion};
+use crate::{MirrorFragments, Package, PackageVersion};
 
 fn parse_package(json: &str) -> Package {
     serde_json::from_str(json).expect("parse package")
@@ -590,9 +590,7 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
 fn checking_mirror_fragments_reports_damage_without_hydrating() {
     let versions = mirror_versions();
 
-    versions.scan_mirror_fragments();
-
-    assert!(versions.has_corrupt_mirror_fragment());
+    assert_eq!(versions.scan_mirror_fragments(), MirrorFragments::Corrupt);
     assert!(!versions.is_hydrated("1.0.0"));
 }
 
@@ -603,8 +601,6 @@ fn checking_intact_mirror_fragments_reports_nothing() {
     let versions =
         mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
 
-    versions.scan_mirror_fragments();
-
-    assert!(!versions.has_corrupt_mirror_fragment());
+    assert_eq!(versions.scan_mirror_fragments(), MirrorFragments::Intact);
     assert!(!versions.is_hydrated("1.0.0"));
 }

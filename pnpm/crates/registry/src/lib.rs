@@ -12,7 +12,7 @@ pub use package_version::{
     Approver, NpmUser, PackageVersion, TrustedPublisher, VersionPolicyFields, VersionTrustDist,
     VersionTrustMetadata,
 };
-pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
+pub use package_versions::{MirrorFile, MirrorFragments, PackageVersions, read_exact_at};
 pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
 
 mod package;

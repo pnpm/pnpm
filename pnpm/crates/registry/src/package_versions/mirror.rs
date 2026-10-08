@@ -12,6 +12,17 @@ use serde_json::value::RawValue;
 
 use super::{FragmentSource, PackageVersions, VersionSlot};
 
+/// What a packument's indexed mirror is known to hold, as
+/// [`PackageVersions::scan_mirror_fragments`] reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MirrorFragments {
+    /// Every fragment read so far decoded.
+    Intact,
+    /// At least one fragment's bytes are not the JSON the index vouched
+    /// for, so the mirror is unreadable as a whole.
+    Corrupt,
+}
+
 /// A mirror file held open for on-demand fragment reads, counted
 /// against a caller-supplied cap so a fleet of held handles can never
 /// exhaust the process's descriptor budget — a load that would exceed
@@ -188,24 +199,32 @@ impl PackageVersions {
 }
 
 impl PackageVersions {
-    /// Decode every unhydrated mirror fragment, recording each one that
-    /// fails in [`Self::has_corrupt_mirror_fragment`]. Unlike a full
-    /// [`Self::iter`] walk, it keeps no hydrated manifest, so a caller that
-    /// reads only part of each version does not hold the whole packument in
-    /// memory.
-    pub fn scan_mirror_fragments(&self) {
+    /// Decode every unhydrated mirror fragment and report what this
+    /// packument's mirror is known to be, this sweep included. The sweep
+    /// records damage the way every lazy read does, in
+    /// [`Self::has_corrupt_mirror_fragment`], so a reader holding any handle
+    /// to the same packument sees it afterwards.
+    ///
+    /// Unlike a full [`Self::iter`] walk, it keeps no hydrated manifest, so
+    /// a caller that reads only part of each version does not hold the whole
+    /// packument in memory.
+    #[must_use]
+    pub fn scan_mirror_fragments(&self) -> MirrorFragments {
         for (version, slot) in &self.slots {
             if !slot.source.is_mirror_span() || slot.parsed.get().is_some() {
                 continue;
             }
             match slot.source.json() {
                 Some(json) => {
-                    if serde_json::from_str::<serde::de::IgnoredAny>(&json).is_err() {
-                        slot.report_undecodable(version, &self.corrupt_mirror_fragment);
-                    }
+                    slot.report_decode_error(version, &json, &self.corrupt_mirror_fragment);
                 }
                 None => slot.report_undecodable(version, &self.corrupt_mirror_fragment),
             }
+        }
+        if self.has_corrupt_mirror_fragment() {
+            MirrorFragments::Corrupt
+        } else {
+            MirrorFragments::Intact
         }
     }
 }

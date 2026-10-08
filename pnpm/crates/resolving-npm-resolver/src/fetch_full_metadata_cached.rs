@@ -22,7 +22,7 @@ use pipe_trait::Pipe;
 use pnpm_network::{
     ThrottledClientGuard, read_self_delimiting_text, redact_url_credentials, retry_async,
 };
-use pnpm_registry::Package;
+use pnpm_registry::{MirrorFragments, Package};
 use reqwest::{Response, StatusCode};
 
 use crate::{
@@ -85,11 +85,10 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    meta.versions.scan_mirror_fragments();
-    if !meta.versions.has_corrupt_mirror_fragment() {
-        return Ok(meta);
+    match meta.versions.scan_mirror_fragments() {
+        MirrorFragments::Intact => Ok(meta),
+        MirrorFragments::Corrupt => refetch_damaged_mirror(pkg_name, opts).await,
     }
-    refetch_damaged_mirror(pkg_name, opts).await
 }
 
 /// [`fetch_full_metadata_cached`] for a caller that keeps only `project`'s
