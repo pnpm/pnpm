@@ -104,6 +104,7 @@ impl WorkspaceSettings {
             global_shims: Some(global_shims_setting(config)),
 
             frozen_lockfile: config.frozen_lockfile,
+            provenance: config.provenance,
             git_branch_lockfile: Some(config.use_git_branch_lockfile),
             registry: Some(config.registry.clone()),
             scope: config.scope.clone(),

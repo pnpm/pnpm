@@ -196,13 +196,17 @@ If the registry requests web-based authentication, pnpm will print a scannable Q
 
 When publishing from a supported cloud CI/CD system, the package will be publicly linked to where it was built and published from.
 
+Under trusted publishing, pnpm attaches provenance to a public package from a public repository on its own.
+Use `--no-provenance` (or `--provenance=false`) to publish without it, for example from a self-hosted runner.
+Use [`provenance`](#provenance) to set a default.
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)
 
 ## Configuration
 
-You can also set `gitChecks`, `publishBranch`, and `publishWaitTimeout` options in the `pnpm-workspace.yaml` file.
+You can also set `gitChecks`, `publishBranch`, `publishWaitTimeout`, and `provenance` options in the `pnpm-workspace.yaml` file.
 
 For example:
 
@@ -229,6 +233,22 @@ publishWaitTimeout: 600000
 The `PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT` environment variable overrides the
 configuration files. The command-line option takes precedence over both,
 including `--publish-wait-timeout=0` to disable waiting for one command.
+
+### provenance
+
+* Default: **undefined**
+* Type: **Boolean**
+
+Sets the default for [`--provenance`](#--provenance).
+When unset, trusted publishing decides.
+Set it to `false` to never attach provenance:
+
+```yaml title="pnpm-workspace.yaml"
+provenance: false
+```
+
+The `PNPM_CONFIG_PROVENANCE` environment variable overrides the
+configuration files. The command-line option takes precedence over both.
 
 ## Life Cycle Scripts
 

@@ -1157,6 +1157,11 @@ pub struct Config {
     /// tarballs to become available. Zero disables the check.
     pub publish_wait_timeout: u64,
 
+    /// `provenance` (`--provenance` / `--no-provenance`). Whether `pnpm
+    /// publish` attaches a provenance attestation. Unset lets trusted
+    /// publishing decide from the package's visibility.
+    pub provenance: Option<bool>,
+
     /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
     /// version when `pnpm version` creates its git tag, and stripped when
     /// `pnpm version from-git` reads the version back from the latest tag.
