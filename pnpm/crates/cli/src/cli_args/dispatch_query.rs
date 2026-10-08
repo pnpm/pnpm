@@ -59,6 +59,7 @@ use super::{
     unstar::UnstarArgs,
     version::VersionArgs,
     view::ViewArgs,
+    whoami::WhoamiArgs,
     why::WhyArgs,
     with::WithArgs,
 };
