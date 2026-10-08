@@ -89,7 +89,8 @@ enum Probe {
 }
 
 /// [`probe_package`], probing a package once however many importers depend
-/// on it. An absent directory is not cached.
+/// on it. An absent directory is not cached, and its version takes no part
+/// in choosing the highest: what it ships is unknown.
 fn cached_skills(
     cache: &mut HashMap<String, ShippedSkills>,
     key: String,
@@ -99,7 +100,7 @@ fn cached_skills(
         return found.clone();
     }
     match probe_package(dir) {
-        Probe::Absent => Some((Vec::new(), dir.to_path_buf())),
+        Probe::Absent => None,
         Probe::Found(found) => {
             cache.insert(key, found.clone());
             found
@@ -155,13 +156,8 @@ fn skill_source(
 }
 
 /// Whether `candidate` replaces `kept` for the same approval key. Only
-/// registry versions compare: any other key names one source already. The
-/// same package found again replaces a copy that showed no skills, which is
-/// what a package not installed for an earlier importer shows.
+/// registry versions compare: any other key names one source already.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
-    if candidate.dep_path == kept.dep_path {
-        return kept.skills.is_empty() && !candidate.skills.is_empty();
-    }
     let version = |source: &SkillSource| {
         node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
     };
