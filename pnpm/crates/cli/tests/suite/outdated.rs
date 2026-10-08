@@ -510,25 +510,6 @@ fn outdated_npm_alias_reports_real_name() {
     drop((root, anchor));
 }
 
-/// A `catalog:` dependency is checked against the specifier the catalog
-/// holds, so an npm-aliased catalog entry is reported under the real
-/// registry name instead of failing on the alias key.
-#[test]
-fn outdated_catalog_npm_alias_reports_real_name() {
-    let (root, workspace, anchor) = setup();
-
-    append_workspace_yaml_key(&workspace, "catalog", format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"));
-    write_manifest(&workspace, r#"{ "positive": "catalog:" }"#);
-    pacquet(&workspace, ["install"]).assert().success();
-
-    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(1));
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(FOO), "report should use the catalog entry's package name: {stdout}");
-
-    drop((root, anchor));
-}
-
 /// An override that redirects a dependency to an npm alias is checked
 /// against the alias target's versions, not the original package's.
 #[test]
@@ -546,6 +527,58 @@ fn outdated_npm_alias_override_checks_the_alias_target() {
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(output.status.code(), Some(0), "the alias target is at its latest: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A project's own overrides, set through `packageConfigs`, apply to it
+/// when it has a lockfile of its own.
+#[test]
+fn outdated_recursive_applies_project_overrides() {
+    let (root, workspace, anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  app:\n    overrides:\n      '{DEP}': 'npm:{FOO}@100.1.0'\n",
+        ),
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .output()
+        .expect("run recursive outdated with dedicated lockfiles");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "the alias target is at its latest: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` dependency is checked against the specifier the catalog
+/// holds, so an npm-aliased catalog entry is reported under the real
+/// registry name instead of failing on the alias key.
+#[test]
+fn outdated_catalog_npm_alias_reports_real_name() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"));
+    write_manifest(&workspace, r#"{ "positive": "catalog:" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(FOO), "report should use the catalog entry's package name: {stdout}");
 
     drop((root, anchor));
 }

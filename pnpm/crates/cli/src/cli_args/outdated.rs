@@ -44,7 +44,7 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_config_parse_overrides::{VersionOverride, parse_overrides_iter};
+use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
 use pnpm_matcher::{Matcher, create_matcher};
