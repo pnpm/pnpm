@@ -21,11 +21,11 @@
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
-//!    `README`, `COPYING`, and `LICEN[SC]E`, with any extension, at the root, plus the paths declared
-//!    in `main` / `bin`. The packed package's `package.yaml` /
-//!    `package.json5` are included too, but a bundled dependency's are
-//!    not. These survive `.npmignore` rejection and the `files`-field
-//!    filter.
+//!    `README`, `COPYING`, and `LICEN[SC]E`, with any extension, at
+//!    the root, plus the paths declared in `main` / `bin`. The packed
+//!    package's `package.yaml` / `package.json5` are included too, but
+//!    a bundled dependency's are not. These survive `.npmignore`
+//!    rejection and the `files`-field filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
 //!    `bundledDependencies`), transitively include every reachable
