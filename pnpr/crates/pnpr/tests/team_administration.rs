@@ -194,3 +194,13 @@ async fn directory_reports_admin_and_team_management() {
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&bob), None).await;
     assert_eq!(directory["admin"], json!(false));
 }
+
+#[tokio::test]
+async fn team_edits_refuse_oversized_bodies() {
+    let dir = TempDir::new().unwrap();
+    let app = router(load_config(dir.path()));
+    let body = json!({ "name": "x".repeat(100 * 1024) });
+
+    let (status, _) = send(&app, "PUT", "/-/org/acme/team", None, Some(body)).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}

@@ -76,7 +76,9 @@ pub(super) async fn refresh_team_rosters(state: &AppState) -> Result<(), Registr
 
 /// Apply `edit` to the stored roster of `registry` and store the result,
 /// rereading and reapplying it when another writer replaced the roster
-/// first. The edited roster takes effect on this replica at once.
+/// first. The edited roster takes effect on this replica at once. The edit
+/// holds the reload lock, so a reload that read the store before the edit
+/// cannot publish its older copy after it.
 pub(super) async fn update_team_roster<Edit>(
     state: &AppState,
     registry: &str,
@@ -85,7 +87,9 @@ pub(super) async fn update_team_roster<Edit>(
 where
     Edit: Fn(&mut Teams) -> Result<(), RegistryError>,
 {
-    let seed = state.inner.identity.teams.seeds.get(registry).ok_or(RegistryError::NotFound)?;
+    let rosters = &state.inner.identity.teams;
+    let seed = rosters.seeds.get(registry).ok_or(RegistryError::NotFound)?;
+    let _reload = rosters.reload.lock().await;
     for _ in 0..ROSTER_WRITE_ATTEMPTS {
         let stored = state.inner.storage.read_team_roster(registry).await?;
         let mut teams = match &stored {

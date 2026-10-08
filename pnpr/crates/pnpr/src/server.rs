@@ -175,6 +175,9 @@ const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 
+/// Cap on a team mutation body, which names one team or one user.
+const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
+
 /// The `PoC` accepts blobs inline on artifact publication. Keep the buffered
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
