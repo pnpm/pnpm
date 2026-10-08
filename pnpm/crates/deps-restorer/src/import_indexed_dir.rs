@@ -114,8 +114,6 @@ pub enum ImportIndexedDirError {
     },
     #[display("symlink target {target:?} escapes package root {root:?}")]
     SymlinkTargetEscapes { target: PathBuf, root: PathBuf },
-    #[display("cannot rename package files safely: {filename:?}: {reason}")]
-    InvalidFilename { filename: String, reason: &'static str },
 }
 
 /// How [`populate_dir`] puts each indexed entry at its final path.
@@ -184,15 +182,61 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    let existing_kind = existing_dirent_kind(dir_path)?;
+    let result = import_indexed_dir_once::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        opts,
+        false,
+    );
     #[cfg(windows)]
-    if skip_existing_windows_import(existing_kind, opts, dir_path, cas_paths) {
-        return Ok(());
+    if let Err(error) = &result
+        && is_import_not_found(error)
+        && let Some(sanitized) = windows_filenames::sanitize_filenames(cas_paths)
+    {
+        let relative_dir = std::env::current_dir()
+            .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
+            .unwrap_or_else(|_| dir_path.to_path_buf());
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "The package linked to \"{}\" had files with invalid names: {}. They were renamed.",
+            relative_dir.display(),
+            sanitized.renamed.join(", "),
+        ));
+        return import_indexed_dir_once::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            &sanitized.paths,
+            opts,
+            true,
+        );
     }
-    #[cfg(windows)]
-    let sanitized = sanitize_windows_filenames::<Reporter>(dir_path, cas_paths)?;
-    #[cfg(windows)]
-    let cas_paths = sanitized.as_ref().map_or(cas_paths, |sanitized| &sanitized.paths);
+    result
+}
+
+#[cfg(windows)]
+fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
+    match error {
+        ImportIndexedDirError::CreateDir { error, .. }
+        | ImportIndexedDirError::PlaceFile { error, .. }
+        | ImportIndexedDirError::ClearBlockingDirEntry { error, .. }
+        | ImportIndexedDirError::LinkFile(LinkFileError::Import { error, .. }) => {
+            pnpm_fs::is_not_found(error)
+        }
+        _ => false,
+    }
+}
+
+fn import_indexed_dir_once<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
+) -> Result<(), ImportIndexedDirError> {
+    let existing_kind = existing_dirent_kind(dir_path)?;
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
@@ -220,14 +264,28 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // work, so an existing dirent is this package's file and is
         // adopted, while a shared one may hold a file an importer died
         // halfway through writing, which only a replacement heals.
-        (Some(file_type), false) if file_type.is_dir() => repair_incomplete_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            opts.safe_to_skip,
-            opts.preserve_symlinks,
-        ),
+        (Some(file_type), false) if file_type.is_dir() => {
+            if repair_sanitized {
+                populate_dir::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    dir_path,
+                    cas_paths,
+                    Placement::Repair,
+                    opts.preserve_symlinks.then_some(dir_path),
+                )
+                .inspect(|()| unquarantine())
+            } else {
+                repair_incomplete_dir::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    dir_path,
+                    cas_paths,
+                    opts.safe_to_skip,
+                    opts.preserve_symlinks,
+                )
+            }
+        }
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
         (Some(file_type), true) => force_import_existing_dir::<Reporter>(
@@ -240,34 +298,6 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
-}
-
-#[cfg(windows)]
-fn skip_existing_windows_import(
-    existing_kind: Option<fs::FileType>,
-    opts: ImportIndexedDirOpts,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-) -> bool {
-    !opts.force
-        && existing_kind.is_some_and(|file_type| {
-            !file_type.is_dir() || marker_present(dir_path, cas_paths)
-        })
-}
-
-#[cfg(windows)]
-fn sanitize_windows_filenames<Reporter: self::Reporter>(
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-) -> Result<Option<windows_filenames::SanitizedFilenames>, ImportIndexedDirError> {
-    let sanitized = windows_filenames::sanitize_filenames(cas_paths)?;
-    if let Some(sanitized) = &sanitized {
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "The package linked to {dir_path:?} has files with invalid names: {:?}. They are renamed on Windows.",
-            sanitized.renamed,
-        ));
-    }
-    Ok(sanitized)
 }
 
 fn force_import_existing_dir<Reporter: self::Reporter>(

@@ -17,7 +17,7 @@ fn sanitizes_invalid_components_and_preserves_valid_names() {
         "literal~name.txt",
         "test~1.txt",
     ]);
-    let sanitized = sanitize_filenames(&input).unwrap().unwrap();
+    let sanitized = sanitize_filenames(&input).unwrap();
     assert_eq!(sanitized.paths["package.json"], PathBuf::from("package.json"));
     assert_eq!(
         sanitized.paths["assets/icon.svgas=metadata.d.ts"],
@@ -27,29 +27,27 @@ fn sanitizes_invalid_components_and_preserves_valid_names() {
     assert!(sanitized.paths.contains_key("letter-\u{e9}.txt"));
     assert!(sanitized.paths.contains_key("literal~name.txt"));
     assert!(sanitized.paths.contains_key("test~1.txt"));
-    assert!(sanitize_filenames(&entries(&["package.json", "assets/icon.svg"])).unwrap().is_none());
-    assert!(sanitize_filenames(&entries(&["COM0/file"])).unwrap().is_none());
+    assert!(sanitize_filenames(&entries(&["package.json", "assets/icon.svg"])).is_none());
 }
 
 #[test]
 fn sanitizes_c1_controls_without_other_invalid_characters() {
     let input = entries(&["assets/name\u{80}\u{9f}.txt"]);
-    let sanitized = sanitize_filenames(&input).unwrap().unwrap();
+    let sanitized = sanitize_filenames(&input).unwrap();
     assert_eq!(sanitized.paths["assets/name.txt"], PathBuf::from("assets/name\u{80}\u{9f}.txt"));
     assert_eq!(sanitized.renamed, ["assets/name\u{80}\u{9f}.txt"]);
 }
 
 #[test]
-fn rejects_empty_components_and_collisions() {
-    for names in [
-        vec!["?/file"],
-        vec!["CON/file"],
-        vec!["name?.txt", "name.txt"],
-        vec!["DIR?/one", "dir/two"],
-        vec!["longfilename.txt", "LONG~LMQ?.TXT"],
-    ] {
-        assert!(sanitize_filenames(&entries(&names)).is_err(), "{names:?}");
-    }
+fn sanitizes_collisions_and_empty_components() {
+    let input = entries(&["name?.txt", "name.txt", "?/file", "longfilename.txt", "LONG~LMQ?.TXT"]);
+    let sanitized = sanitize_filenames(&input).unwrap();
+    assert_eq!(sanitized.paths.len(), 4);
+    assert!(sanitized.paths.contains_key("name.txt"));
+    assert_eq!(sanitized.paths["file"], PathBuf::from("?/file"));
+    assert!(sanitized.paths.contains_key("longfilename.txt"));
+    assert!(sanitized.paths.contains_key("LONG~LMQ.TXT"));
+    assert!(sanitize_filenames(&entries(&["?"])).is_none());
 }
 
 #[test]
