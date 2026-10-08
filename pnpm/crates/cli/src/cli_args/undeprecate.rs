@@ -19,7 +19,7 @@ pub struct UndeprecateArgs {
 
 impl UndeprecateArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
-        let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp)?;
+        let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp)?;
 
         if self.params.is_empty() {
             return Err(DeprecateError::UndeprecateRequired.into());

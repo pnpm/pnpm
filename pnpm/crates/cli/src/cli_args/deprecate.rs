@@ -161,13 +161,11 @@ pub(crate) struct DeprecateContext<'a> {
 impl DeprecateContext<'_> {
     pub(crate) fn new<'a>(
         config: &'a Config,
-        registry: Option<&String>,
+        registry: Option<&str>,
         otp: Option<String>,
     ) -> miette::Result<DeprecateContext<'a>> {
-        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
-            config,
-            registry.map(String::as_str),
-        );
+        let registries =
+            crate::cli_args::registry_client::resolve_registries_with_override(config, registry);
         Ok(DeprecateContext {
             config,
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
@@ -180,7 +178,7 @@ impl DeprecateContext<'_> {
 
 impl DeprecateArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
-        let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp)?;
+        let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp)?;
 
         let spec = self.params.first().ok_or(DeprecateError::PackageRequired)?;
         let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
