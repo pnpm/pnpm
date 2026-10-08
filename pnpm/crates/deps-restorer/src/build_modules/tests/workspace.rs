@@ -1,6 +1,10 @@
 #[cfg(unix)]
 use super::{
-    super::{BuildModules, RebuildOptions},
+    super::{
+        BuildModules, RebuildOptions,
+        build_requirements::{RequiresBuildInputs, requires_build_by_key},
+        slots::PkgRoots,
+    },
     TEST_LOGGED_METHODS, create_marker_pkg, key, policy_from_specs, root_importers,
 };
 #[cfg(unix)]
@@ -113,4 +117,41 @@ fn rebuild_selection_runs_only_selected_scripts() {
         !zzz_dir.join("built-marker").exists(),
         "the non-selected package's script must not run",
     );
+}
+
+/// A rebuild selection answers for the packages outside it without
+/// inspecting them. `zzz` ships a postinstall script, so an inspection would
+/// mark it as requiring a build.
+#[cfg(unix)]
+#[test]
+fn rebuild_selection_leaves_the_other_packages_uninspected() {
+    let aaa = key("aaa", "1.0.0");
+    let zzz = key("zzz", "1.0.0");
+    let snapshots = HashMap::from([
+        (aaa.clone(), SnapshotEntry::default()),
+        (zzz.clone(), SnapshotEntry::default()),
+    ]);
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    create_marker_pkg(virtual_store_dir.path(), &aaa);
+    create_marker_pkg(virtual_store_dir.path(), &zzz);
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir.path(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let rebuild = RebuildOptions {
+        selected_names: Some(std::iter::once("aaa".to_string()).collect()),
+        ..Default::default()
+    };
+
+    let requires_build = requires_build_by_key(RequiresBuildInputs {
+        snapshots: &snapshots,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots: PkgRoots { layout: &layout, by_key: None },
+        prefetched: None,
+        patches: None,
+        rebuild: Some(&rebuild),
+    });
+
+    assert_eq!(requires_build.get(&aaa), Some(&true));
+    assert_eq!(requires_build.get(&zzz), Some(&false));
 }

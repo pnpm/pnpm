@@ -1,4 +1,4 @@
-use super::slots::PkgRoots;
+use super::{RebuildOptions, slots::PkgRoots};
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_package_manifest::{
     BINDING_GYP, files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
@@ -6,6 +6,21 @@ use pnpm_package_manifest::{
 use pnpm_patching::{ExtendedPatchInfo, MANIFEST_FILE_NAME, preview_patch};
 use std::collections::{HashMap, HashSet};
 
+fn is_selected(rebuild: Option<&RebuildOptions>, key: &PackageKey) -> bool {
+    rebuild.is_none_or(|rebuild| rebuild.selects_snapshot(key))
+}
+/// The answers of the snapshots a rebuild selection keeps, which are the
+/// only ones whose patch may be previewed: the preview reads the package.
+fn selected_only(
+    published: &HashMap<PackageKey, bool>,
+    rebuild: Option<&RebuildOptions>,
+) -> HashMap<PackageKey, bool> {
+    published
+        .iter()
+        .filter(|(key, _)| is_selected(rebuild, key))
+        .map(|(key, requires)| (key.clone(), *requires))
+        .collect()
+}
 /// Whether a configured patch adds build work to a snapshot the published
 /// manifest did not already bind. [`PkgRoots::canonical`] is asked second: a
 /// snapshot the walker dropped has nothing to build, and this way the lookup
@@ -32,9 +47,13 @@ pub(super) struct RequiresBuildInputs<'a> {
     /// A miss falls back to inspecting the materialized directory.
     pub(super) prefetched: Option<&'a crate::RequiresBuildBySnapshot>,
     pub(super) patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
+    pub(super) rebuild: Option<&'a RebuildOptions>,
 }
 /// Whether each snapshot needs its build scripts run: what the package
-/// published, plus what its configured patch adds.
+/// published, plus what its configured patch adds. A rebuild selection
+/// answers `false` for every snapshot outside it without looking at the
+/// package: inspecting a package reads its directory, which on a lazily
+/// populated `node_modules` fetches the package.
 pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<PackageKey, bool> {
     let RequiresBuildInputs {
         snapshots,
@@ -42,6 +61,7 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
         pkg_roots,
         prefetched,
         patches,
+        rebuild,
     } = inputs;
     let published: HashMap<PackageKey, bool> = snapshots
         .keys()
@@ -51,19 +71,21 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
         // short-circuits that on installs with large optional fan-out.
         .filter(|key| !skipped.contains(key))
         .map(|key| {
-            let requires = match (
-                pkg_roots.canonical(key).as_deref(),
-                prefetched.and_then(|map| map.get(key).copied()),
-            ) {
-                (None, _) => false,
-                (_, Some(requires)) => requires,
-                (Some(pkg_root), None) => pkg_requires_build(pkg_root),
-            };
+            let requires = is_selected(rebuild, key)
+                && match (
+                    pkg_roots.canonical(key).as_deref(),
+                    prefetched.and_then(|map| map.get(key).copied()),
+                ) {
+                    (None, _) => false,
+                    (_, Some(requires)) => requires,
+                    (Some(pkg_root), None) => pkg_requires_build(pkg_root),
+                };
             (key.clone(), requires)
         })
         .collect();
 
-    let patch_added_build = patch_added_build_by_package(patches, &published, pkg_roots);
+    let patch_added_build =
+        patch_added_build_by_package(patches, &selected_only(&published, rebuild), pkg_roots);
     published
         .into_iter()
         .map(|(key, requires)| {
