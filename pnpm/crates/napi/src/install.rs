@@ -99,6 +99,7 @@ pub async fn install(
     read_package_batch_hook: Option<BatchHookSink>,
     on_output: Option<OutputSink>,
 ) -> napi::Result<InstallResult> {
+    pnpm_package_manager::configure_rayon_pool();
     let _guard = engine_call_lock().lock().await;
     let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();

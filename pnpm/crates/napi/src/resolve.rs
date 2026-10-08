@@ -65,6 +65,7 @@ pub async fn resolve_dependency(
     wanted: WantedDependencyInput,
     options: ResolveDependencyOptions,
 ) -> napi::Result<ResolveDependencyResult> {
+    pnpm_package_manager::configure_rayon_pool();
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-resolve".to_string())

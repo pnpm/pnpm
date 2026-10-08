@@ -25,6 +25,7 @@ pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
 pub use prefetching_resolver::*;
+pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;
 pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
@@ -73,6 +74,7 @@ mod peer_dependency_issues;
 mod prefetching_resolver;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
+mod rayon_pool;
 mod remove;
 mod resolution_observer;
 mod resolution_policy;
