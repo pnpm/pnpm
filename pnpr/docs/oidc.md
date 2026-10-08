@@ -57,7 +57,7 @@ auth:
         groups:
           claim: groups
           teams:
-            - group: platform-engineers
+            - group: 7f3c2a10-0000-0000-0000-000000000000
               registry: private
               team: platform
 ```
@@ -74,9 +74,10 @@ auth:
   `teams:`. With [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api),
   it may name a team the admin API creates later.
 
-Configure the provider to issue the claim. Entra ID emits group object IDs
-under `groups` once group claims are enabled for the application. Okta emits
-`groups` when a groups claim is added to the authorization server.
+Configure the provider to issue the claim, and use the values it emits as
+`group`. Entra ID emits group object IDs under `groups` once group claims are
+enabled for the application, as in the example above. Okta emits group names
+under `groups` when a groups claim is added to the authorization server.
 
 Use the issuer your provider publishes:
 

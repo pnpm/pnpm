@@ -566,7 +566,7 @@ fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
     };
     assert_eq!(teams(json!({"groups": ["eng"]})), ["platform", "release"]);
     assert_eq!(teams(json!({"groups": "ops"})), ["ops"]);
-    assert!(teams(json!({"groups": [1, "sales"]})).is_empty());
+    assert!(teams(json!({"groups": [1, "eng"]})).is_empty());
     assert!(teams(json!({"groups": {"eng": true}})).is_empty());
     assert!(teams(json!({})).is_empty());
     let no_groups = OidcLogin { groups: None, ..login.clone() };
