@@ -27,10 +27,9 @@ fn applies_patch_with_crlf_line_endings() {
     assert_eq!(after, "one\nadded\r\ntwo\n");
 }
 
-/// The `new file mode` header carries a value `diffy` matches exactly, so
-/// a CRLF patch file used to fail to parse before it reached the applier.
-/// The created file keeps the patch's own CRLF endings, as it does on
-/// pnpm 11.
+/// `diffy` matches the `new file mode` value exactly, so its `\r` must be
+/// gone before parsing. The created file keeps the patch's CRLF endings,
+/// as it does on pnpm 11.
 #[test]
 fn applies_a_crlf_patch_that_creates_a_file() {
     let patched = tempdir().unwrap();
