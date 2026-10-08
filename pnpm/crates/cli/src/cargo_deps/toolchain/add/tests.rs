@@ -67,3 +67,23 @@ fn rollback_restores_a_link_whose_target_is_gone() {
     let restored = fs::read_link(project.join(".pnpm/rust")).unwrap();
     assert_eq!(project.join(".pnpm").join(restored), project.join(".pnpm/../../gone"));
 }
+
+#[test]
+fn a_workspace_that_does_not_resolve_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let mut config = pnpm_config::Config::new();
+    config.workspace_dir = Some(root.path().join("missing-workspace"));
+    let context = crate::ecosystem_install::InstallContext {
+        config: pnpm_config::Config::leak(config),
+        http_client: std::sync::Arc::new(pnpm_network::ThrottledClient::new_for_installs()),
+        lockfile_only: false,
+        frozen_lockfile: false,
+    };
+
+    let error = super::governing_file(&context, &project).expect_err("the workspace is missing");
+
+    assert!(error.to_string().contains("does not resolve"), "{error}");
+    assert!(!project.join("rust-toolchain.toml").exists());
+}
