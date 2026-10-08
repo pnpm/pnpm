@@ -332,6 +332,37 @@ fn disabled_skills_are_neither_pending_nor_linked() {
     assert_eq!(state, AgentSkillsState::default());
 }
 
+#[cfg(unix)]
+#[test]
+fn ignores_a_skill_that_resolves_outside_its_package() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("SKILL.md"), "# outside\n").unwrap();
+    std::os::unix::fs::symlink(&outside, root.path().join("node_modules/foo/skills/escape"))
+        .unwrap();
+
+    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
+
+    assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
+}
+
+#[test]
+fn a_package_missing_from_one_importer_is_found_in_another() {
+    let root = tempfile::tempdir().expect("create workspace");
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    install_package(&root.path().join("packages/b/node_modules/foo"), &["guide"]);
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  packages/a:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    )
+    .expect("parse lockfile");
+
+    let state = sync(root.path(), &lockfile, &config(&[], None), &[], None).unwrap();
+
+    assert_eq!(state.pending, ["foo@1.0.0"]);
+}
+
 #[test]
 fn escapes_the_scope_of_a_package() {
     let (root, lockfile) = workspace(&[("@acme/kit", "1.0.0", &["guide"])]);

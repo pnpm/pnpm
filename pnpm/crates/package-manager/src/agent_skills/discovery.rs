@@ -41,11 +41,11 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
             let Some(resolved) = spec.version.resolved_key(alias) else { continue };
             let alias = alias.to_string();
             let resolved = resolved.to_string();
-            let Some(skills) = shipped
-                .entry(probe_key(importer_id, &resolved))
-                .or_insert_with(|| shipped_skills(&modules_dir.join(&alias)))
-                .clone()
-            else {
+            let Some(skills) = cached_skills(
+                &mut shipped,
+                probe_key(importer_id, &resolved),
+                &modules_dir.join(&alias),
+            ) else {
                 continue;
             };
             let source = skill_source(skills, &resolved, &alias);
@@ -80,15 +80,54 @@ fn probe_key(importer_id: &str, resolved: &str) -> String {
 /// resolved.
 type ShippedSkills = Option<(Vec<String>, PathBuf)>;
 
-/// Most packages ship no skills, so the directory is resolved only for the
-/// ones that do.
-fn shipped_skills(dir: &Path) -> ShippedSkills {
-    let skills = skill_names(dir);
-    if skills.is_empty() {
-        return Some((skills, dir.to_path_buf()));
+/// What probing one importer's directory of a package found.
+enum Probe {
+    /// Not installed for this importer, as in a filtered install. Another
+    /// importer's directory of the same package may still be.
+    Absent,
+    Found(ShippedSkills),
+}
+
+/// [`probe_package`], probing a package once however many importers depend
+/// on it. An absent directory is not cached.
+fn cached_skills(
+    cache: &mut HashMap<String, ShippedSkills>,
+    key: String,
+    dir: &Path,
+) -> ShippedSkills {
+    if let Some(found) = cache.get(&key) {
+        return found.clone();
     }
-    let package_dir = fs::canonicalize(dir).ok()?;
-    Some((skills, package_dir))
+    match probe_package(dir) {
+        Probe::Absent => Some((Vec::new(), dir.to_path_buf())),
+        Probe::Found(found) => {
+            cache.insert(key, found.clone());
+            found
+        }
+    }
+}
+
+/// Most packages ship no skills, so the directory is resolved only for the
+/// ones that do. A skill directory that resolves outside the package is
+/// not the package's skill.
+fn probe_package(dir: &Path) -> Probe {
+    let candidates = skill_names(dir);
+    if candidates.is_empty() {
+        return if fs::symlink_metadata(dir).is_ok() {
+            Probe::Found(Some((candidates, dir.to_path_buf())))
+        } else {
+            Probe::Absent
+        };
+    }
+    let Ok(package_dir) = fs::canonicalize(dir) else { return Probe::Found(None) };
+    let skills = candidates
+        .into_iter()
+        .filter(|skill| {
+            fs::canonicalize(package_dir.join("skills").join(skill))
+                .is_ok_and(|resolved| resolved.starts_with(&package_dir))
+        })
+        .collect();
+    Probe::Found(Some((skills, package_dir)))
 }
 
 fn skill_source(
@@ -116,8 +155,13 @@ fn skill_source(
 }
 
 /// Whether `candidate` replaces `kept` for the same approval key. Only
-/// registry versions compare: any other key names one source already.
+/// registry versions compare: any other key names one source already. The
+/// same package found again replaces a copy that showed no skills, which is
+/// what a package not installed for an earlier importer shows.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
+    if candidate.dep_path == kept.dep_path {
+        return kept.skills.is_empty() && !candidate.skills.is_empty();
+    }
     let version = |source: &SkillSource| {
         node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
     };
