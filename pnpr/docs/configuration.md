@@ -363,6 +363,8 @@ registries:
 
 - pnpr stores the roster in the hosted store, so every replica serves the same
   one. A replica rereads it at most 10 seconds after another replica changes it.
+- If pnpr cannot read a stored roster, that registry's `team:` grants admit
+  nobody until a read succeeds. Other access rules are not affected.
 - The `teams:` map is used only until the first change is stored. After that,
   editing `teams:` has no effect.
 - A team that a `packages:` rule names cannot be destroyed.

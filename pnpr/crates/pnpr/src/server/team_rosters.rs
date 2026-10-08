@@ -1,16 +1,21 @@
 use super::{AppState, Config, IndexMap, RegistryError};
+use futures_util::future::join_all;
 use pnpr_config::{Teams, TeamsManagement};
 use pnpr_storage::DocumentWrite;
 use serde::{Deserialize, Serialize};
 use std::{
-    sync::{Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
+use tokio::sync::OwnedMutexGuard;
 
 /// How long a replica serves the team rosters it last read before it reads
 /// them from the hosted store again. Bounds how long a roster change made on
 /// another replica takes to reach this one.
 const ROSTER_TTL: Duration = Duration::from_secs(10);
+
+/// How soon a replica tries again after a roster it could not read.
+const ROSTER_RETRY: Duration = Duration::from_secs(1);
 
 /// How many times a roster edit rereads the stored roster after another
 /// writer replaced it first.
@@ -20,12 +25,14 @@ const ROSTER_WRITE_ATTEMPTS: usize = 5;
 ///
 /// The hosted store holds each such roster, so every replica sees the same
 /// one. A registry with no stored roster yet serves its `teams:` map, and its
-/// first edit stores the edited map.
+/// first edit stores the edited map. A roster this replica cannot read is
+/// served empty, so its `team:` grants admit nobody until a read succeeds.
 pub(super) struct TeamRosters {
     /// Each managed registry's `teams:` map, keyed by registry name.
     seeds: IndexMap<String, Teams>,
-    loaded_at: Mutex<Option<Instant>>,
-    reload: tokio::sync::Mutex<()>,
+    /// When the rosters are next due for a reload. `None` before the first.
+    due_at: Mutex<Option<Instant>>,
+    reload: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl TeamRosters {
@@ -35,43 +42,67 @@ impl TeamRosters {
             .filter(|(_, hosted)| hosted.teams_managed_by == TeamsManagement::Api)
             .map(|(name, hosted)| (name.clone(), Teams::clone(&hosted.teams.snapshot())))
             .collect();
-        Self { seeds, loaded_at: Mutex::new(None), reload: tokio::sync::Mutex::new(()) }
+        Self { seeds, due_at: Mutex::new(None), reload: Arc::default() }
     }
 
-    fn is_fresh(&self) -> bool {
-        self.loaded_at
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_some_and(|loaded_at| loaded_at.elapsed() < ROSTER_TTL)
+    fn due_at(&self) -> Option<Instant> {
+        *self.due_at.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn mark_loaded(&self) {
-        *self.loaded_at.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+    fn schedule(&self, after: Duration) {
+        *self.due_at.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now() + after);
     }
 }
 
-/// Reload every managed roster from the hosted store once the loaded copies
-/// are older than [`ROSTER_TTL`]. Requests that arrive during a reload wait
-/// for it, so no request is authorized against a roster this replica has not
-/// read yet.
-pub(super) async fn refresh_team_rosters(state: &AppState) -> Result<(), RegistryError> {
+/// Reload the managed rosters once they are due. The first load after
+/// startup holds up the request, so no request is authorized against a
+/// roster this replica has not read. Later reloads run in the background
+/// while requests keep the current rosters.
+pub(super) async fn refresh_team_rosters(state: &AppState) {
     let rosters = &state.inner.identity.teams;
-    if rosters.seeds.is_empty() || rosters.is_fresh() {
-        return Ok(());
+    if rosters.seeds.is_empty() {
+        return;
     }
-    let _reload = rosters.reload.lock().await;
-    if rosters.is_fresh() {
-        return Ok(());
+    match rosters.due_at() {
+        Some(due_at) if Instant::now() < due_at => {}
+        Some(_) => {
+            if let Ok(guard) = Arc::clone(&rosters.reload).try_lock_owned() {
+                tokio::spawn(reload_rosters(state.clone(), guard));
+            }
+        }
+        None => {
+            let guard = Arc::clone(&rosters.reload).lock_owned().await;
+            if rosters.due_at().is_none() {
+                reload_rosters(state.clone(), guard).await;
+            }
+        }
     }
-    for (registry, seed) in &rosters.seeds {
-        let teams = match state.inner.storage.read_team_roster(registry).await? {
-            Some(bytes) => parse_roster(registry, &bytes)?,
-            None => seed.clone(),
-        };
-        publish_roster(state, registry, teams);
+}
+
+async fn reload_rosters(state: AppState, _reload: OwnedMutexGuard<()>) {
+    let rosters = &state.inner.identity.teams;
+    let reads = rosters.seeds.iter().map(|(registry, seed)| read_roster(&state, registry, seed));
+    let loaded = join_all(reads).await;
+    let all_read = loaded.iter().all(Result::is_ok);
+    for (registry, teams) in rosters.seeds.keys().zip(loaded) {
+        let teams = teams.unwrap_or_else(|err| {
+            tracing::error!(registry, error = %err, "could not read a team roster; its teams admit nobody");
+            Teams::default()
+        });
+        publish_roster(&state, registry, teams);
     }
-    rosters.mark_loaded();
-    Ok(())
+    rosters.schedule(if all_read { ROSTER_TTL } else { ROSTER_RETRY });
+}
+
+async fn read_roster(
+    state: &AppState,
+    registry: &str,
+    seed: &Teams,
+) -> Result<Teams, RegistryError> {
+    match state.inner.storage.read_team_roster(registry).await? {
+        Some(bytes) => parse_roster(registry, &bytes),
+        None => Ok(seed.clone()),
+    }
 }
 
 /// Apply `edit` to the stored roster of `registry` and store the result,

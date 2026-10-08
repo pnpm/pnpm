@@ -39,10 +39,14 @@ defaultRegistry: main
 ";
 
 fn load_config(dir: &Path) -> Config {
+    load_config_with(dir, CONFIG)
+}
+
+fn load_config_with(dir: &Path, yaml: &str) -> Config {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let path = dir.join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
+    std::fs::write(&path, format!("storage: {}\n{yaml}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
 }
@@ -203,4 +207,20 @@ async fn team_edits_refuse_oversized_bodies() {
 
     let (status, _) = send(&app, "PUT", "/-/org/acme/team", None, Some(body)).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
+    let dir = TempDir::new().unwrap();
+    let roster = dir.path().join("storage/.team-rosters/v0/local.json");
+    std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
+    std::fs::write(&roster, "not a roster").unwrap();
+    let config = CONFIG.replace("readers: []", "readers: [bob]");
+    let app = router(load_config_with(dir.path(), &config));
+
+    let bob = add_user(&app, "bob").await;
+    let (status, _) = send(&app, "GET", "/@secret/thing", Some(&bob), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = send(&app, "GET", "/lodash", Some(&bob), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
