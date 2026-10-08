@@ -407,9 +407,6 @@ struct PickedNodeVersion {
     resolved_without_index: bool,
 }
 
-/// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
-/// halves match the runtime contract. Returns `None` (defer to the
-/// next resolver) for any other shape.
 fn node_resolve_result(
     wanted_dependency: &WantedDependency,
     id: PkgResolutionId,
@@ -439,6 +436,9 @@ fn node_resolve_result(
     }
 }
 
+/// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
+/// halves match the runtime contract. Returns `None` (defer to the
+/// next resolver) for any other shape.
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
