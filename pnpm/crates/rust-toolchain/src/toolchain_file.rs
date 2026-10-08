@@ -184,7 +184,8 @@ pub fn with_channel(contents: Option<&str>, channel: &Channel) -> Result<String,
         return Ok(format!("[toolchain]\n{}\n", channel_line(channel)));
     };
     let trimmed = contents.trim();
-    if !trimmed.is_empty() && !trimmed.contains(['\n', '=', '[']) {
+    // A one-line comment is TOML, not a channel name.
+    if !trimmed.is_empty() && !trimmed.contains(['\n', '=', '[']) && !trimmed.starts_with('#') {
         return Ok(format!("{channel}\n"));
     }
     let updated = set_toolchain_channel(contents, channel)?;

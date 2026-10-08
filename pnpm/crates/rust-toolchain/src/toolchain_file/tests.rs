@@ -121,6 +121,15 @@ fn sets_the_channel_and_keeps_the_rest_of_the_file() {
 }
 
 #[test]
+fn keeps_a_comment_only_file() {
+    let channel = Channel::parse("1.96.0").unwrap();
+    assert_eq!(
+        with_channel(Some("# pinned by CI\n"), &channel).unwrap(),
+        "# pinned by CI\n\n[toolchain]\nchannel = \"1.96.0\"\n",
+    );
+}
+
+#[test]
 fn refuses_a_file_it_cannot_update_faithfully() {
     let channel = Channel::parse("1.96.0").unwrap();
     for contents in [
