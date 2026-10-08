@@ -112,13 +112,14 @@ async fn downloads_from_the_mirror_and_checks_the_signed_hash() {
 }
 
 #[test]
-fn only_a_link_into_the_store_is_taken() {
+fn only_a_link_to_the_toolchain_the_file_asks_for_is_taken() {
     let checkout = tempfile::tempdir().unwrap();
     let store = tempfile::tempdir().unwrap();
     let config = config(store.path(), "http://127.0.0.1:9");
     let member = checkout.path().join("crates/member");
     fs::create_dir_all(&member).unwrap();
-    fs::write(checkout.path().join("rust-toolchain.toml"), "stable").unwrap();
+    let toolchain_file = checkout.path().join("rust-toolchain.toml");
+    fs::write(&toolchain_file, "1.95.0").unwrap();
     assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None);
 
     let committed = checkout.path().join(".pnpm/rust/bin");
@@ -127,11 +128,27 @@ fn only_a_link_into_the_store_is_taken() {
 
     #[cfg(unix)]
     {
-        let toolchain = config.store_dir.root().join("rust/1.95.0-host-digest");
+        let host = super::host::host_triple().unwrap();
+        let mut request = request("1.95.0");
+        request.profile = Profile::Default;
+        let toolchain =
+            toolchain_dir(&config.store_dir.root().join("rust"), &request.channel, &host, &request);
         fs::create_dir_all(toolchain.join("bin")).unwrap();
         fs::remove_dir_all(checkout.path().join(".pnpm/rust")).unwrap();
         std::os::unix::fs::symlink(&toolchain, checkout.path().join(".pnpm/rust")).unwrap();
+        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), Some(committed.clone()));
+
+        fs::write(&toolchain_file, "stable").unwrap();
         assert_eq!(linked_bin_dir(&config, &member, checkout.path()), Some(committed));
+
+        for changed in [
+            "1.96.0",
+            "[toolchain]\npath = \"/opt/rust\"\n",
+            "[toolchain]\nchannel = \"1.95.0\"\nprofile = \"minimal\"\n",
+        ] {
+            fs::write(&toolchain_file, changed).unwrap();
+            assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None, "{changed}");
+        }
     }
 }
 
@@ -157,4 +174,45 @@ async fn a_moving_channel_resolved_today_needs_no_download() {
     .unwrap();
 
     assert_eq!(installed, InstalledToolchain { dir });
+}
+
+#[tokio::test]
+async fn a_moving_channel_does_not_move_back_to_an_older_release() {
+    let mut server = mockito::Server::new_async().await;
+    let _manifest = server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_body(include_bytes!("fixtures/channel-rust-1.8.0.toml"))
+        .create_async()
+        .await;
+    let _signature = server
+        .mock("GET", "/dist/channel-rust-stable.toml.asc")
+        .with_body(include_bytes!("fixtures/channel-rust-1.8.0.toml.asc"))
+        .create_async()
+        .await;
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), &server.url());
+    let request = request("stable");
+    let toolchains = config.store_dir.root().join("rust");
+    record_resolution(&toolchains, HOST, &request, &Channel::parse("1.95.0").unwrap());
+    let record = toolchains.join(".channels");
+    let old = std::time::SystemTime::now() - std::time::Duration::from_hours(48);
+    for entry in fs::read_dir(&record).unwrap() {
+        fs::File::options()
+            .write(true)
+            .open(entry.unwrap().path())
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+    }
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &request,
+        HOST,
+    )
+    .await
+    .expect_err("1.8.0 is older than 1.95.0");
+
+    assert!(matches!(error, RustToolchainError::OlderRelease { .. }), "{error:?}");
 }

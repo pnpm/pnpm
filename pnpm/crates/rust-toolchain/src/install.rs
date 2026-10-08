@@ -56,6 +56,14 @@ fn selection_digest(request: &ToolchainRequest) -> String {
         })
 }
 
+/// Whether the toolchain directory `name` holds a release `request`'s channel
+/// names, with the components and targets it asks for.
+pub(crate) fn is_installation_of(name: &str, host: &str, request: &ToolchainRequest) -> bool {
+    name.strip_suffix(&format!("-{host}-{}", selection_digest(request)))
+        .and_then(Channel::parse)
+        .is_some_and(|pinned| request.channel == pinned || request.channel.accepts(&pinned))
+}
+
 /// The newest installed toolchain the channel `request` names may resolve
 /// to, for an install that cannot ask the distribution server which one it
 /// resolves to now.
@@ -112,6 +120,24 @@ pub(crate) fn recent_resolution(
     (request.channel.accepts(&pinned) && dir.is_dir()).then_some(dir)
 }
 
+/// What a moving channel last resolved to, however long ago. A channel
+/// never moves back to an older release.
+pub(crate) fn last_resolution(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+) -> Option<Channel> {
+    let record = resolution_record(toolchains, host, request);
+    Channel::parse(&fs::read_to_string(record).ok()?)
+        .filter(|pinned| request.channel.accepts(pinned))
+}
+
+/// Whether `release` comes before `other` in the line of releases they both
+/// belong to.
+pub(crate) fn is_older(release: &Channel, other: &Channel) -> bool {
+    release_order(release) < release_order(other)
+}
+
 /// Record what a moving channel resolved to. A record that cannot be
 /// written only costs the next install a manifest download.
 pub(crate) fn record_resolution(
@@ -156,14 +182,18 @@ pub(crate) async fn install<Reporter: self::Reporter>(
     };
     let parent = dir.parent().expect("a toolchain directory has a parent directory");
     fs::create_dir_all(parent).map_err(install_error)?;
-    let staged = tempfile::TempDir::new_in(parent).map_err(install_error)?;
+    let mut staged = tempfile::TempDir::new_in(parent).map_err(install_error)?;
     for archive in archives {
         let body = crate::manifest::get(config, client, &archive.url, MAX_ARCHIVE_BYTES).await?;
-        let destination = staged.path().to_path_buf();
         let archive = archive.clone();
-        tokio::task::spawn_blocking(move || verify_and_unpack(&archive, &body, &destination))
-            .await
-            .map_err(|error| install_error(io::Error::other(error)))??;
+        // The worker owns the staging directory while it writes into it, so
+        // an install cancelled meanwhile removes it only after the worker is
+        // done.
+        staged = tokio::task::spawn_blocking(move || {
+            verify_and_unpack(&archive, &body, staged.path()).map(|()| staged)
+        })
+        .await
+        .map_err(|error| install_error(io::Error::other(error)))??;
     }
     publish(staged, dir).map_err(install_error)
 }

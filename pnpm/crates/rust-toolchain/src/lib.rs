@@ -79,16 +79,7 @@ async fn install_for_host<Reporter: self::Reporter>(
     host: &str,
 ) -> Result<InstalledToolchain, RustToolchainError> {
     let toolchains = toolchains_dir(config);
-    if request.channel.is_pinned() {
-        let dir = install::toolchain_dir(&toolchains, &request.channel, host, request);
-        if dir.is_dir() {
-            return Ok(InstalledToolchain { dir });
-        }
-    } else if let Some(dir) = install::recent_resolution(&toolchains, host, request) {
-        return Ok(InstalledToolchain { dir });
-    } else if config.offline
-        && let Some(dir) = install::newest_installed(&toolchains, host, request)
-    {
+    if let Some(dir) = installed_without_download(config, &toolchains, host, request) {
         return Ok(InstalledToolchain { dir });
     }
     if config.offline {
@@ -97,6 +88,7 @@ async fn install_for_host<Reporter: self::Reporter>(
     let server = manifest::dist_server(config);
     let manifest = manifest::fetch(config, client, server, &request.channel).await?;
     let pinned = manifest.pinned(&request.channel)?;
+    refuse_older_release(&toolchains, host, request, &pinned)?;
     let dir = install::toolchain_dir(&toolchains, &pinned, host, request);
     if !dir.is_dir() {
         let archives = manifest.archives(server, &pinned, host, request)?;
@@ -108,23 +100,80 @@ async fn install_for_host<Reporter: self::Reporter>(
     Ok(InstalledToolchain { dir })
 }
 
+/// The installed toolchain that answers `request` without asking the
+/// distribution server: a pinned release, a moving channel resolved within
+/// the last day, or offline the newest installed release of the channel.
+fn installed_without_download(
+    config: &Config,
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+) -> Option<PathBuf> {
+    if request.channel.is_pinned() {
+        let dir = install::toolchain_dir(toolchains, &request.channel, host, request);
+        return dir.is_dir().then_some(dir);
+    }
+    install::recent_resolution(toolchains, host, request)
+        .or_else(|| {
+            config.offline.then(|| install::newest_installed(toolchains, host, request)).flatten()
+        })
+}
+
+/// A channel never moves back to an older release, so one that appears to
+/// was answered by a mirror serving an older manifest.
+fn refuse_older_release(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+    pinned: &Channel,
+) -> Result<(), RustToolchainError> {
+    match install::last_resolution(toolchains, host, request) {
+        Some(last) if install::is_older(pinned, &last) => Err(RustToolchainError::OlderRelease {
+            channel: request.channel.to_string(),
+            release: pinned.to_string(),
+            last: last.to_string(),
+        }),
+        _ => Ok(()),
+    }
+}
+
 /// The `bin` directory of the toolchain pnpm linked for `dir`: the one beside
 /// the toolchain file rustup reads there, searched for no higher than
 /// `boundary`.
 ///
-/// Only a link into `config`'s store is taken, so neither a toolchain the
-/// checkout committed nor a link an earlier install left behind with another
-/// store is run as one pnpm installed.
+/// The link is taken only when it leads to a toolchain in `config`'s store
+/// that the toolchain file asks for now. Neither a toolchain the checkout
+/// committed nor a link left behind by an earlier install is run as the one
+/// the file names.
 #[must_use]
 pub fn linked_bin_dir(config: &Config, dir: &Path, boundary: &Path) -> Option<PathBuf> {
     let file = find_toolchain_file(dir, boundary)?;
+    let request = read_toolchain_file(&file).ok()?.ok()?;
     let link = file
         .parent()?
         .join(TOOLCHAIN_LINK.iter().collect::<PathBuf>());
     let target = dunce::canonicalize(&link).ok()?;
     let toolchains = dunce::canonicalize(toolchains_dir(config)).ok()?;
+    let host = host::host_triple()?;
+    let installed = target.parent() == Some(toolchains.as_path())
+        && target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| install::is_installation_of(name, &host, &request));
     let bin_dir = link.join("bin");
-    (target.parent() == Some(toolchains.as_path()) && bin_dir.is_dir()).then_some(bin_dir)
+    (installed && bin_dir.is_dir()).then_some(bin_dir)
+}
+
+/// Where the release `pinned` is installed for `request` on this machine.
+/// `None` where Rust publishes no toolchain for it.
+#[must_use]
+pub fn installation_dir(
+    config: &Config,
+    pinned: &Channel,
+    request: &ToolchainRequest,
+) -> Option<PathBuf> {
+    let host = host::host_triple()?;
+    Some(install::toolchain_dir(&toolchains_dir(config), pinned, &host, request))
 }
 
 fn toolchains_dir(config: &Config) -> PathBuf {
@@ -210,6 +259,17 @@ pub enum RustToolchainError {
         #[error(not(source))]
         url: String,
         reason: String,
+    },
+
+    #[display(
+        "Rust {channel} resolved to {release}, older than {last} it resolved to before. A channel does not move back to an older release."
+    )]
+    #[diagnostic(code(ERR_PNPM_RUST_TOOLCHAIN_MANIFEST_INVALID))]
+    OlderRelease {
+        #[error(not(source))]
+        channel: String,
+        release: String,
+        last: String,
     },
 
     #[display("Rust {channel} is not published for {target}")]

@@ -22,7 +22,13 @@ fn workspace_with_linked_toolchain(cargo_enabled: bool) -> CommandTempCwd<()> {
         .unwrap();
     let manifest = json!({ "name": "root", "private": true, "scripts": { "build": "cargo" } });
     fs::write(workspace.join("package.json"), manifest.to_string()).unwrap();
-    let toolchain = pnpm_store_dir::StoreDir::from(store).root().join("rust/1.95.0-host-digest");
+    let mut config = pnpm_config::Config::new();
+    config.store_dir = pnpm_store_dir::StoreDir::from(store);
+    let request = pnpm_rust_toolchain::read_toolchain_file(&workspace.join("rust-toolchain.toml"))
+        .unwrap()
+        .unwrap();
+    let pinned = pnpm_rust_toolchain::Channel::parse("1.95.0").unwrap();
+    let toolchain = pnpm_rust_toolchain::installation_dir(&config, &pinned, &request).unwrap();
     write_fake_bin(&toolchain.join("bin"), "cargo", MARKER);
     fs::create_dir_all(workspace.join(".pnpm")).unwrap();
     pnpm_fs::force_symlink_dir(&toolchain, &workspace.join(".pnpm/rust")).unwrap();

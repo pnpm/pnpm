@@ -25,7 +25,7 @@ use std::{
 static PROVISIONED: Mutex<BTreeMap<PathBuf, InstalledToolchain>> = Mutex::new(BTreeMap::new());
 
 /// Install the toolchain named by the toolchain file of each Cargo manifest,
-/// and link it beside the file, where [`installs_toolchains`].
+/// and link it beside the file, where [`installs_toolchains`] allows it.
 pub(super) async fn provision<Reporter: self::Reporter>(
     config: &Config,
     http_client: &ThrottledClient,
