@@ -87,12 +87,12 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let manifest_dir = check.manifest.path().parent()?;
     let workspace_dir_opt =
         configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_root = workspace_dir_opt.as_deref().unwrap_or(manifest_dir);
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
     let ignored_directories = check.config.managed_directories();
     let workspace_projects =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref(), &ignored_directories)
+        load_workspace_projects(workspace_root, workspace_manifest.as_ref(), &ignored_directories)
             .ok()?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
@@ -101,7 +101,8 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     // from the discovered workspace root. The workspace *state* keeps its
     // own root, which only a pin moves — `state_root` below.
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
-    let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    let state_root =
+        check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.to_path_buf());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
     if local_state_blocks_fast_path(check.config, &lockfile_root) {
         return None;
@@ -138,8 +139,8 @@ fn fast_path_workspace_context(
         .transpose()
         .ok()?
         .flatten();
-    let catalogs = match config.catalogs.clone() {
-        Some(catalogs) => catalogs,
+    let catalogs = match &config.catalogs {
+        Some(catalogs) => catalogs.clone(),
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
     };
     Some((workspace_manifest, catalogs))
@@ -175,8 +176,8 @@ pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
-    match config.workspace_dir.clone() {
-        Some(workspace_dir) => Ok(Some(workspace_dir)),
+    match &config.workspace_dir {
+        Some(workspace_dir) => Ok(Some(workspace_dir.clone())),
         None if config.workspace_search_skipped => Ok(None),
         None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }
@@ -199,8 +200,8 @@ pub(crate) fn lockfile_root_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<PathBuf, pnpm_workspace::FindWorkspaceDirError> {
-    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
-        return Ok(lockfile_dir);
+    if let Some(lockfile_dir) = &config.lockfile_dir {
+        return Ok(lockfile_dir.clone());
     }
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
@@ -216,8 +217,8 @@ pub(super) fn lockfile_root_for(
     workspace_dir: Option<&Path>,
     manifest_dir: &Path,
 ) -> PathBuf {
-    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
-        return lockfile_dir;
+    if let Some(lockfile_dir) = &config.lockfile_dir {
+        return lockfile_dir.clone();
     }
     if !config.shared_workspace_lockfile {
         return manifest_dir.to_path_buf();

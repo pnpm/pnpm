@@ -287,14 +287,18 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
                 None
             } else {
-                self.lockfiles.wanted.and_then(|loaded_lockfile| {
+                let shared_lockfile = self.lockfiles.wanted_shared
+                    .as_ref()
+                    .map(Arc::clone)
+                    .or_else(|| self.lockfiles.wanted.map(|loaded| Arc::new(loaded.clone())));
+                shared_lockfile.and_then(|loaded_lockfile| {
                     super::LockfileVerificationGate::spawn::<Reporter>(
-                        loaded_lockfile,
+                        Arc::clone(&loaded_lockfile),
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
                         &self.install.context.config.cache_dir,
                         self.resolution.inputs.update_seed_policy.replaced_update_targets(
-                            loaded_lockfile,
+                            &loaded_lockfile,
                             self.workspace.requested_importer_ids,
                         ),
                         matches!(

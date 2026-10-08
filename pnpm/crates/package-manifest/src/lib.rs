@@ -6,10 +6,12 @@ pub use build_triggers::{
 };
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
+pub use metadata::{extract_author, extract_homepage, extract_license};
 pub use project::{
     PROJECT_MANIFEST_BASENAMES, find_parent_publish_manifest, project_manifest_path,
     safe_read_project_manifest_from_dir,
 };
+pub use readme::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
     convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
@@ -28,14 +30,20 @@ use blank_lines::BlankLines;
 use node_semver::{Range, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use serialization::{empty_dependency_fields, normalize_dependency_fields, serialize_with_indent};
 use strum::IntoStaticStr;
 #[cfg(not(target_os = "wasi"))]
 use tempfile::NamedTempFile;
 mod blank_lines;
 mod build_triggers;
 mod error;
+mod initialization;
 mod json5;
+mod metadata;
 mod project;
+mod readme;
+mod runtime;
+mod serialization;
 mod truthiness;
 mod validation;
 
@@ -61,70 +69,6 @@ pub enum BundleDependencies {
 /// Indentation for manifests with no source file to detect it from
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
-
-/// How npm ranks a package-root file as the package's README. A higher
-/// variant wins.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ReadmeKind {
-    /// Exactly `README`. npm matches the bare name case-sensitively.
-    Bare,
-    /// `README.*` whose extension npm's `/.m?a?r?k?d?o?w?n?$/i` accepts,
-    /// other than `README.md`.
-    Markdown,
-    /// `README.md` in any case.
-    ReadmeMd,
-}
-
-/// Classify a filename as a README candidate, or `None` if npm would not
-/// use it as the package's README.
-#[must_use]
-pub fn readme_kind(file_name: &str) -> Option<ReadmeKind> {
-    let lower = file_name.to_ascii_lowercase();
-    if lower == "readme.md" {
-        return Some(ReadmeKind::ReadmeMd);
-    }
-    if file_name == "README" {
-        return Some(ReadmeKind::Bare);
-    }
-    let extension = lower
-        .strip_prefix("readme.")?
-        .rsplit('.')
-        .next()
-        .unwrap_or_default();
-    // Suffix letters must occur in `markdown` order without repeats.
-    let mut markdown = "markdown".chars();
-    extension
-        .chars()
-        .all(|character| markdown.any(|expected| expected == character))
-        .then_some(ReadmeKind::Markdown)
-}
-
-/// Whether README `candidate` should replace the `current` selection. A
-/// higher [`ReadmeKind`] wins. Equal kinds keep the filename that sorts
-/// lower by UTF-16 code units, the order the TypeScript CLI compares
-/// strings in, so the choice does not depend on directory or archive order.
-/// An equal filename replaces, so the last duplicate archive entry wins as
-/// it would on extraction.
-#[must_use]
-pub fn is_preferred_readme(
-    candidate: (ReadmeKind, &str),
-    current: Option<(ReadmeKind, &str)>,
-) -> bool {
-    current.is_none_or(|current| {
-        candidate.0
-            .cmp(&current.0)
-            .then_with(|| current.1.encode_utf16().cmp(candidate.1.encode_utf16()))
-            != std::cmp::Ordering::Less
-    })
-}
-
-/// Decode README bytes for publish metadata, replacing invalid UTF-8
-/// rather than failing the publish.
-#[must_use]
-pub fn decode_readme(bytes: Vec<u8>) -> String {
-    String::from_utf8(bytes)
-        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
-}
 
 /// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.
 /// JSON5 numbers must be finite and values may be nested at most 128 levels.
@@ -245,16 +189,16 @@ impl PackageManifest {
     }
 
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
-    /// dependency fields normalized) and return that shape.
+    /// dependency fields normalized) and return a reference to that shape.
     ///
     /// Preserves JSON indentation, final-newline state, and blank lines
     /// between object members, JSON5 comments,
     /// or YAML comments and existing key order. A save that changes nothing leaves the file
     /// and its modification time untouched.
-    pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
+    fn save_internal(&mut self) -> Result<&Value, PackageManifestError> {
         let value = self.written_value()?;
         if self.on_disk.as_ref() == Some(&value) {
-            return Ok(value);
+            return Ok(self.on_disk.as_ref().unwrap());
         }
         let contents = self.serialize(&value)?;
         Self::write_atomic(&self.path, &contents)?;
@@ -262,8 +206,19 @@ impl PackageManifest {
             self.blank_lines = BlankLines::detect(&contents);
         }
         self.empty_dependency_fields = empty_dependency_fields(&value);
-        self.on_disk = Some(value.clone());
-        Ok(value)
+        self.on_disk = Some(value);
+        Ok(self.on_disk.as_ref().unwrap())
+    }
+
+    /// Persist the manifest in its on-disk shape (`devEngines` folded back,
+    /// dependency fields normalized) and return that shape.
+    ///
+    /// Preserves JSON indentation, final-newline state, and blank lines
+    /// between object members, JSON5 comments,
+    /// or YAML comments and existing key order. A save that changes nothing leaves the file
+    /// and its modification time untouched.
+    pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
+        self.save_internal().cloned()
     }
 
     /// The file contents a save writes for `value`, in the source file's
@@ -289,7 +244,7 @@ impl PackageManifest {
     }
 
     pub fn save(&mut self) -> Result<(), PackageManifestError> {
-        self.save_and_get_written_value()?;
+        self.save_internal()?;
         Ok(())
     }
 
@@ -484,78 +439,3 @@ impl PackageManifest {
 
 #[cfg(test)]
 mod tests;
-
-/// Extracts the author field from a manifest (either string or object with name).
-///
-/// A blank name is no name: an SBOM would otherwise carry it as the nameless
-/// SPDX actor `Person: `, which strict consumers reject.
-#[must_use]
-pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
-    let author = manifest.get("author")?;
-    let name = author
-        .as_str()
-        .or_else(|| author.get("name")?.as_str())?;
-    (!name.trim().is_empty()).then(|| name.to_string())
-}
-
-/// Extracts the homepage field from a manifest.
-pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
-    manifest
-        .get("homepage")
-        .and_then(|v| v.as_str())
-        .map(ToString::to_string)
-}
-
-/// Extracts the license from either the modern `license` field or the legacy
-/// `licenses` field.
-pub fn extract_license(manifest: &serde_json::Value) -> Option<String> {
-    manifest
-        .get("license")
-        .and_then(extract_license_field)
-        .or_else(|| manifest.get("licenses").and_then(extract_license_field))
-}
-
-fn extract_license_field(field: &serde_json::Value) -> Option<String> {
-    if let Some(license) = field.as_str() {
-        return (!license.is_empty()).then(|| license.to_string());
-    }
-    if let Some(entries) = field.as_array() {
-        let licenses: Vec<&str> = entries
-            .iter()
-            .filter_map(extract_license_type)
-            .collect();
-        return match licenses.as_slice() {
-            [] => None,
-            [license] => Some((*license).to_string()),
-            licenses => Some(format!("({})", licenses.join(" OR "))),
-        };
-    }
-    extract_license_type(field).map(ToString::to_string)
-}
-
-fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
-    if let Some(license) = entry
-        .as_str()
-        .filter(|license| !license.is_empty())
-    {
-        return Some(license);
-    }
-    let entry = entry.as_object()?;
-    for key in ["type", "name"] {
-        if let Some(license) = entry
-            .get(key)
-            .and_then(serde_json::Value::as_str)
-            .filter(|license| !license.is_empty())
-        {
-            return Some(license);
-        }
-    }
-    None
-}
-
-mod runtime;
-
-mod initialization;
-
-mod serialization;
-use serialization::{empty_dependency_fields, normalize_dependency_fields, serialize_with_indent};
