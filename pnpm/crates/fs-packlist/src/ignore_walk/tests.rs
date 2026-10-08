@@ -96,3 +96,10 @@ fn separated_globstars_are_bounded() {
     let rule = IgnoreRule::parse(&format!("{}z", "**/a/".repeat(20)));
     assert!(!rule.matches(&"a/".repeat(60), false));
 }
+
+#[test]
+fn a_wide_brace_group_expands_to_a_bounded_number_of_alternatives() {
+    let rule = IgnoreRule::parse(&format!("x{{{}y}}", ",".repeat(10_000_000)));
+    assert!(rule.matches("x", false));
+    assert!(!rule.matches("xy", false));
+}

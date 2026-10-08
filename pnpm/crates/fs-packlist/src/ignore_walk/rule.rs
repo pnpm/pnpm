@@ -2,7 +2,7 @@
 //! it: minimatch with `matchBase`, `dot`, `nocase`, and `flipNegate`.
 
 use super::segment::SegmentPattern;
-use std::collections::HashSet;
+use std::{collections::HashSet, iter};
 
 /// Brace expansion stops after this many alternatives, or once it has
 /// produced this many bytes, so a short rule of repeated `{a,b}` groups
@@ -163,32 +163,61 @@ fn expand_braces(pattern: &str) -> Vec<String> {
             }
             continue;
         };
-        let alternatives = expand_alternation(&current, alternation);
-        produced_bytes += alternatives
-            .iter()
-            .map(String::len)
-            .sum::<usize>();
+        // Every arm yields at least one expansion, so arms past the remaining
+        // count could only produce dropped alternatives.
+        let arms = alternation.arms(MAX_BRACE_ALTERNATIVES - expanded.len());
+        produced_bytes += alternation.expanded_bytes(&current, &arms);
         if produced_bytes > MAX_BRACE_EXPANSION_BYTES {
             break;
         }
-        pending.extend(alternatives.into_iter().rev());
+        pending.extend(
+            alternation
+                .expand(&current, &arms)
+                .into_iter()
+                .rev(),
+        );
     }
     expanded
 }
 
 /// Byte offsets of a `{`, its `}`, and the top-level commas between them.
-type Alternation = (usize, usize, Vec<usize>);
+/// At most [`MAX_BRACE_ALTERNATIVES`] commas are recorded.
+struct Alternation {
+    open: usize,
+    close: usize,
+    commas: Vec<usize>,
+}
 
-fn expand_alternation(pattern: &str, (open, close, commas): Alternation) -> Vec<String> {
-    let prefix = &pattern[..open];
-    let suffix = &pattern[close + 1..];
-    let mut bounds = vec![open];
-    bounds.extend(commas);
-    bounds.push(close);
-    bounds
-        .windows(2)
-        .map(|window| format!("{prefix}{}{suffix}", &pattern[window[0] + 1..window[1]]))
-        .collect()
+impl Alternation {
+    /// The byte ranges of the first `max_arms` arms.
+    fn arms(&self, max_arms: usize) -> Vec<(usize, usize)> {
+        let bounds: Vec<usize> = iter::once(self.open)
+            .chain(self.commas.iter().copied())
+            .chain(iter::once(self.close))
+            .collect();
+        bounds
+            .windows(2)
+            .take(max_arms)
+            .map(|window| (window[0] + 1, window[1]))
+            .collect()
+    }
+
+    /// The bytes [`Alternation::expand`] would produce, counting each arm as
+    /// at least one byte so that empty arms count too.
+    fn expanded_bytes(&self, pattern: &str, arms: &[(usize, usize)]) -> usize {
+        let affixes = self.open + (pattern.len() - self.close - 1) + 1;
+        arms.iter()
+            .map(|(start, end)| affixes + (end - start))
+            .sum()
+    }
+
+    fn expand(&self, pattern: &str, arms: &[(usize, usize)]) -> Vec<String> {
+        let prefix = &pattern[..self.open];
+        let suffix = &pattern[self.close + 1..];
+        arms.iter()
+            .map(|&(start, end)| format!("{prefix}{}{suffix}", &pattern[start..end]))
+            .collect()
+    }
 }
 
 /// The first `{…}` that has a top-level comma.
@@ -200,16 +229,12 @@ fn find_alternation(pattern: &str) -> Option<Alternation> {
         match bytes[index] {
             b'\\' => index += 1,
             b'{' => open_stack.push((index, Vec::new())),
-            b',' => {
-                if let Some((_, commas)) = open_stack.last_mut() {
-                    commas.push(index);
-                }
-            }
+            b',' => record_comma(&mut open_stack, index),
             b'}' => {
                 if let Some((open, commas)) = open_stack.pop()
                     && !commas.is_empty()
                 {
-                    return Some((open, index, commas));
+                    return Some(Alternation { open, close: index, commas });
                 }
             }
             _ => {}
@@ -217,4 +242,14 @@ fn find_alternation(pattern: &str) -> Option<Alternation> {
         index += 1;
     }
     None
+}
+
+/// Records a comma for the innermost open brace, up to
+/// [`MAX_BRACE_ALTERNATIVES`] commas per brace.
+fn record_comma(open_stack: &mut [(usize, Vec<usize>)], index: usize) {
+    if let Some((_, commas)) = open_stack.last_mut()
+        && commas.len() < MAX_BRACE_ALTERNATIVES
+    {
+        commas.push(index);
+    }
 }
