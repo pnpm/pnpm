@@ -65,8 +65,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent =
-        modules_layout_drifted(modules_manifest, inputs.tree.config, inputs.tree.node_linker);
+    let is_inconsistent = modules_layout_drifted(modules_manifest, &inputs);
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
@@ -310,11 +309,18 @@ fn read_previous_modules_metadata(
 /// The purge keys off *layout* drift only, not `included`: an included
 /// (`--prod` <-> full) change is handled by relinking, so it must not wipe the
 /// user's `node_modules` contents. See [`modules_layout_consistent_with`].
+///
+/// A rebuild never purges: it runs the build scripts against the tree as it
+/// is, as `pnpm rebuild` in the TypeScript CLI does, which reads the modules
+/// directory without validating its recorded settings.
 fn modules_layout_drifted(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
-    config: &Config,
-    node_linker: NodeLinker,
+    inputs: &PrepareModulesStateInputs<'_, '_>,
 ) -> bool {
+    if inputs.repeat.rebuild.is_some() {
+        return false;
+    }
+    let config = inputs.tree.config;
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
         return config.modules_dir
@@ -322,7 +328,7 @@ fn modules_layout_drifted(
             .try_exists()
             .unwrap_or(true);
     };
-    !modules_layout_consistent_with(modules, config, node_linker)
+    !modules_layout_consistent_with(modules, config, inputs.tree.node_linker)
 }
 
 fn load_recorded_workspace_state(

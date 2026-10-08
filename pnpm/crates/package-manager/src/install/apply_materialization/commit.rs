@@ -1,8 +1,8 @@
 use super::super::{
     Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
     PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
-    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
-    project_requires_lifecycle_scripts, write_modules_manifest,
+    current_contains_dep_path, keep_recorded_layout, merge_filtered_modules_metadata,
+    merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -148,6 +148,11 @@ pub(super) fn merge_committed_modules_metadata(
     next_modules: &mut Modules,
     allow_build_policy: Option<&crate::AllowBuildPolicy>,
 ) {
+    if inputs.builds.rebuild.is_some()
+        && let Some(recorded) = inputs.prior.layout
+    {
+        keep_recorded_layout(next_modules, recorded);
+    }
     if let (Some(previous), Some(current), Some(policy)) =
         (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
     {
