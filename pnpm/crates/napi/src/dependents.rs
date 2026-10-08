@@ -102,6 +102,7 @@ pub struct RenderDependentsInput {
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
+    pnpm_package_manager::configure_rayon_pool();
     tokio::task::spawn_blocking(move || build_trees(&options)).await
         .map_err(|join_error| {
             napi::Error::from_reason(format!(

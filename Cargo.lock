@@ -5628,6 +5628,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-workspace",
  "pretty_assertions",
+ "rayon",
  "serde",
  "serde_json",
  "tempfile",
