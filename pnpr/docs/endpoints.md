@@ -333,7 +333,9 @@ anonymous and `403` when signed in.
 To keep two admins from overwriting each other's changes, send the `version`
 you read as `If-Match` with a `PUT` or `DELETE`. If the stored changes have
 moved on since, the request answers `412` and changes nothing. Without
-`If-Match`, the last change wins.
+`If-Match`, or with `If-Match: *`, the last change wins. A weak tag such as
+`W/"..."` never matches, and an `If-Match` that is not a list of quoted
+versions answers `400`.
 
 A rules body lists only what changes. Each list replaces the config's list of
 the same place:

@@ -272,4 +272,58 @@ async fn a_change_without_if_match_replaces_whatever_is_stored() {
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(first)).await.0, StatusCode::OK);
     let second = json!({ "access": ["root"] });
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(second)).await.0, StatusCode::OK);
+    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(rules["access"], json!(["root"]));
+}
+
+/// A rules request with a raw `If-Match` value. Returns the status.
+async fn send_raw_if_match(app: &axum::Router, token: &str, value: &[u8]) -> StatusCode {
+    let request = Request::builder()
+        .method("PUT")
+        .uri(RULES)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .header("if-match", axum::http::HeaderValue::from_bytes(value).unwrap())
+        .body(Body::from(json!({ "access": ["root"] }).to_string()))
+        .unwrap();
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap()
+        .status()
+}
+
+#[tokio::test]
+async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
+    let dir = TempDir::new().unwrap();
+    let app = router(load_config(dir.path()));
+    let root = add_user(&app, "root").await;
+    let cases: [(&[u8], StatusCode); 6] = [
+        (b"\xff", StatusCode::BAD_REQUEST),
+        (b"config", StatusCode::BAD_REQUEST),
+        (br#"W/"config""#, StatusCode::PRECONDITION_FAILED),
+        (br#""other""#, StatusCode::PRECONDITION_FAILED),
+        (br#""other", "config""#, StatusCode::OK),
+        (b"*", StatusCode::OK),
+    ];
+    for (value, expected) in cases {
+        let status = send_raw_if_match(&app, &root, value).await;
+        assert_eq!(status, expected, "{}", String::from_utf8_lossy(value));
+    }
+}
+
+#[tokio::test]
+async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version() {
+    let dir = TempDir::new().unwrap();
+    let writer = router(load_config(dir.path()));
+    let reader = router(load_config(dir.path()));
+    let root = add_user(&writer, "root").await;
+    let reader_root = add_user(&reader, "root").await;
+    let (_, before) = send(&reader, "GET", RULES, Some(&reader_root), None).await;
+
+    let change = json!({ "access": ["$authenticated"] });
+    assert_eq!(send(&writer, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
+    let (_, after) = send(&reader, "GET", RULES, Some(&reader_root), None).await;
+    assert_ne!(after["version"], before["version"]);
+    assert_eq!(after["access"], json!(["$authenticated"]));
 }

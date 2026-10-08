@@ -8,7 +8,7 @@ use pnpr_policy::{AccessList, AccessToken, RuleOverride, RuleTable};
 use pnpr_registry::PackagePattern;
 use pnpr_storage::RegistryRecord;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// What an admin changed in a registry's rules, as stored and as the admin
 /// API takes it. Each list replaces the YAML's list of the same place; an
@@ -51,7 +51,7 @@ enum Compile {
 /// admits nobody until a read succeeds. Reports whether the read succeeded.
 pub(super) async fn reload_rules(state: &AppState, registry: &str, base: &RuleTable) -> bool {
     let (table, read) = match read_rules(state, registry, base).await {
-        Ok(table) => (table, true),
+        Ok((table, _)) => (table, true),
         Err(err) => {
             tracing::error!(registry, error = %err, "could not apply a registry's stored rules; it admits nobody");
             (deny_all(base), false)
@@ -61,38 +61,44 @@ pub(super) async fn reload_rules(state: &AppState, registry: &str, base: &RuleTa
     read
 }
 
+/// `registry`'s rules and their version, both from one read of the stored
+/// changes, so the version always names the rules it comes with.
 async fn read_rules(
     state: &AppState,
     registry: &str,
     base: &RuleTable,
-) -> Result<RuleTable, RegistryError> {
+) -> Result<(RuleTable, String), RegistryError> {
     let Some(bytes) =
         state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, registry).await?
     else {
-        return Ok(base.clone());
+        return Ok((base.clone(), rules_version(None)));
     };
     let changes: RuleChanges = serde_json::from_slice(&bytes)
         .map_err(|err| RegistryError::Internal {
             reason: format!("the stored rules of registry {registry:?} are unreadable: {err}"),
         })?;
-    apply_changes(state, registry, base, changes, Compile::Stored)
-        .map_err(|reason| RegistryError::Internal { reason })
+    let table = apply_changes(state, registry, base, changes, Compile::Stored)
+        .map_err(|reason| RegistryError::Internal { reason })?;
+    Ok((table, rules_version(Some(&bytes))))
 }
 
 /// The version of a registry's stored rule changes, for `ETag` and
 /// `If-Match`. A registry with no stored changes has the version `config`.
 pub(super) fn rules_version(stored: Option<&[u8]>) -> String {
-    stored.map_or_else(|| "config".to_string(), |bytes| sha256_hex(bytes)[..16].to_string())
+    stored.map_or_else(|| "config".to_string(), sha256_hex)
 }
 
-/// The version of `registry`'s stored rule changes as they are now.
-pub(super) async fn current_rules_version(
+/// `registry`'s rules and their version. See [`read_rules`].
+pub(super) async fn current_rules(
     state: &AppState,
     registry: &str,
-) -> Result<String, RegistryError> {
-    let stored =
-        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, registry).await?;
-    Ok(rules_version(stored.as_deref()))
+) -> Result<(Arc<RuleTable>, String), RegistryError> {
+    let Some(base) = state.inner.identity.managed.rule_bases.get(registry) else {
+        let hosted = &state.inner.config.routing.hosted[registry];
+        return Ok((hosted.rules.snapshot(), rules_version(None)));
+    };
+    let (table, version) = read_rules(state, registry, base).await?;
+    Ok((Arc::new(table), version))
 }
 
 /// Store `changes` as the rules of `registry`, replacing what was stored, and
@@ -100,14 +106,15 @@ pub(super) async fn current_rules_version(
 /// registry's YAML rules and current roster before anything is written.
 ///
 /// With `expected`, the write lands only while the stored changes still have
-/// that version; otherwise the last writer wins. Resetting the rules stores
-/// the empty set of changes, so it is conditional the same way.
+/// one of those versions; otherwise the last writer wins. Resetting the rules
+/// stores the empty set of changes, so it is conditional the same way.
+/// Returns the rules stored and their version.
 pub(super) async fn replace_rules(
     state: &AppState,
     registry: &str,
     changes: RuleChanges,
-    expected: Option<&str>,
-) -> Result<String, RegistryError> {
+    expected: Option<&[String]>,
+) -> Result<(RuleTable, String), RegistryError> {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
     let bytes = serde_json::to_vec(&changes)?;
@@ -119,8 +126,8 @@ pub(super) async fn replace_rules(
         let stored = state.inner.storage.read_registry_record(kind, registry).await?;
         check_version(registry, stored.as_deref(), expected)?;
         if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
-            publish_rules(state, registry, table);
-            return Ok(rules_version(Some(&bytes)));
+            publish_rules(state, registry, table.clone());
+            return Ok((table, rules_version(Some(&bytes))));
         }
     }
     Err(RegistryError::AdminConflict {
@@ -131,13 +138,13 @@ pub(super) async fn replace_rules(
 fn check_version(
     registry: &str,
     stored: Option<&[u8]>,
-    expected: Option<&str>,
+    expected: Option<&[String]>,
 ) -> Result<(), RegistryError> {
     match expected {
-        Some(expected) if expected != rules_version(stored) => {
+        Some(expected) if !expected.contains(&rules_version(stored)) => {
             Err(RegistryError::PreconditionFailed {
                 resource: format!("the rules of registry {registry:?}"),
-                expected: expected.to_string(),
+                expected: expected.join(", "),
             })
         }
         _ => Ok(()),
