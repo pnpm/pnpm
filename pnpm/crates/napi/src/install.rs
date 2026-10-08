@@ -530,13 +530,17 @@ fn run_rebuild_blocking(
     // Restores the previous sink and renderer on drop — including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
-    let rebuild_options = rebuild_options(selected_names);
+    let rebuild_options =
+        rebuild_options(selected_names, options.skip_if_has_side_effects_cache.unwrap_or(false));
     let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
     outcome.map(|_| ())
 }
 
 /// The rebuild the engine API runs.
-fn rebuild_options(selected_names: Option<Vec<String>>) -> RebuildOptions {
+fn rebuild_options(
+    selected_names: Option<Vec<String>>,
+    skip_if_has_side_effects_cache: bool,
+) -> RebuildOptions {
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     RebuildOptions {
@@ -553,6 +557,7 @@ fn rebuild_options(selected_names: Option<Vec<String>>) -> RebuildOptions {
         // rebuild of a lockfile resolved with other `readPackage` hooks or
         // settings.
         check_lockfile_patches_only: true,
+        skip_if_has_side_effects_cache,
     }
 }
 

@@ -169,7 +169,7 @@ fn rebuild_accepts_a_lockfile_resolved_with_other_hooks_and_settings() {
 
     for checksum in [Some("hooks-1"), Some("hooks-2"), None] {
         let options = hooked_install_options(temp_dir.path(), &[FOO], checksum);
-        run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+        run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None, false)))
             .unwrap_or_else(|error| panic!("rebuild with checksum {checksum:?}: {error}"));
     }
 
@@ -177,7 +177,7 @@ fn rebuild_accepts_a_lockfile_resolved_with_other_hooks_and_settings() {
     // An override of a direct dependency also rewrites its specifier in the
     // manifest check, which has to apply the overrides the lockfile records.
     options.overrides = Some(IndexMap::from([(FOO.to_string(), "100.1.0".to_string())]));
-    run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
+    run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None, false)))
         .expect("rebuild with an override the lockfile does not record");
 
     assert!(
@@ -195,8 +195,9 @@ fn rebuild_still_checks_the_manifests_against_the_lockfile() {
     // A rebuild materializes the lockfile, so it must not fetch and build
     // a dependency the manifest no longer declares.
     let options = hooked_install_options(temp_dir.path(), &[], Some("hooks-1"));
-    let error = run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None)))
-        .expect_err("a rebuild of a lockfile the manifest no longer matches");
+    let error =
+        run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None, false)))
+            .expect_err("a rebuild of a lockfile the manifest no longer matches");
     eprintln!("{error}");
     assert!(error.to_string().contains("ERR_PNPM_OUTDATED_LOCKFILE"));
 }

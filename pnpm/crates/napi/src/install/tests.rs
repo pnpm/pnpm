@@ -144,6 +144,7 @@ fn install_options() -> InstallOptions {
         pnpm_home_dir: None,
         reporter: None,
         read_package_hook_checksum: None,
+        skip_if_has_side_effects_cache: None,
     }
 }
 
@@ -201,3 +202,5 @@ mod reporting;
 mod lockfile;
 
 mod read_package_hook;
+
+mod rebuild;

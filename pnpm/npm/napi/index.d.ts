@@ -378,9 +378,18 @@ export function install(
   onOutput?: OutputListener,
 ): Promise<InstallResult>
 
+export interface RebuildOptions extends InstallOptions {
+  /**
+   * Skip the build of a package that the side-effects cache already holds a
+   * build of, and restore that build instead of running its scripts.
+   */
+  skipIfHasSideEffectsCache?: boolean
+}
+
 /**
  * Rebuild dependency build scripts against the already-materialized
- * `node_modules` (frozen path). Takes the same options shape as `install`.
+ * `node_modules` (frozen path). Takes the options of `install`, plus
+ * `skipIfHasSideEffectsCache`.
  * Nothing is resolved, so of the settings the lockfile records only the
  * patches have to match the options, as in pnpm v11's `rebuild`: a lockfile
  * resolved with other `readPackage` hooks or overrides is still rebuilt. The
@@ -390,7 +399,7 @@ export function install(
  *   keys; omit (or pass an empty array) to rebuild every build-needing package.
  */
 export function rebuild(
-  options: InstallOptions,
+  options: RebuildOptions,
   onLog?: LogListener,
   selectedNames?: string[],
   onOutput?: OutputListener,
