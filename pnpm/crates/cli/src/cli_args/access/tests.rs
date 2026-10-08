@@ -318,3 +318,125 @@ fn access_endpoints_preserve_path_prefix() {
         "https://registry.example/npm/-/package/@scope%2fpkg/collaborators?format=cli&user=alice",
     );
 }
+
+#[test]
+fn registry_for_package_uses_scoped_registry_by_default() {
+    let config = Config::default();
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::registry::AccessContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: None,
+        json: false,
+        otp: None,
+    };
+    assert_eq!(
+        super::registry::registry_for_package(&context, "@myorg/foo"),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_package(&context, "unscoped"),
+        "https://registry.example/npm/",
+    );
+}
+
+#[test]
+fn registry_for_package_honors_registry_override() {
+    let config = Config::default();
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::registry::AccessContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: Some("https://override.example/npm/"),
+        json: false,
+        otp: None,
+    };
+    assert_eq!(
+        super::registry::registry_for_package(&context, "@myorg/foo"),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_package(&context, "unscoped"),
+        "https://override.example/npm/",
+    );
+}
+
+#[test]
+fn registry_for_list_uses_scoped_registry_by_default() {
+    let config = Config::default();
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::registry::AccessContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: None,
+        json: false,
+        otp: None,
+    };
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("@myorg")]),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("@myorg:team")]),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("myorg:team")]),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("someone")]),
+        "https://registry.example/npm/",
+    );
+    assert_eq!(super::registry::registry_for_list(&context, &[]), "https://registry.example/npm/");
+}
+
+#[test]
+fn registry_for_list_honors_registry_override() {
+    let config = Config::default();
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::registry::AccessContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: Some("https://override.example/npm/"),
+        json: false,
+        otp: None,
+    };
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("@myorg")]),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("@myorg:team")]),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("myorg:team")]),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::registry_for_list(&context, &[String::from("someone")]),
+        "https://override.example/npm/",
+    );
+    assert_eq!(super::registry::registry_for_list(&context, &[]), "https://override.example/npm/");
+}

@@ -1,8 +1,8 @@
 use super::{
     AccessError,
     registry::{
-        AccessContext, fetch_error_from_response, list_packages_url, package_collaborators_url,
-        send_get,
+        AccessContext, auth_header_for_list, fetch_error_from_response, list_packages_url,
+        package_collaborators_url, registry_for_list, registry_for_package, send_get,
     },
 };
 use crate::cli_args::registry_client::auth_header_for_package;
@@ -15,8 +15,9 @@ pub(super) async fn list_packages(
     context: &AccessContext<'_>,
     params: &[String],
 ) -> miette::Result<String> {
-    let auth_header = context.config.auth_headers.for_url(&context.registry);
-    let url = list_packages_url(&context.registry, params);
+    let registry = registry_for_list(context, params);
+    let auth_header = auth_header_for_list(context, params, &registry);
+    let url = list_packages_url(&registry, params);
     fetch_list_response(context, &url, auth_header.as_deref()).await
 }
 
@@ -81,8 +82,9 @@ pub(super) async fn list_collaborators(
     let package_name = params.first().ok_or(AccessError::ListCollaboratorsPackageRequired)?;
     let user = params.get(1).map(String::as_str);
 
-    let auth_header = auth_header_for_package(context.config, &context.registry, package_name);
-    let url = package_collaborators_url(&context.registry, package_name, user);
+    let registry = registry_for_package(context, package_name);
+    let auth_header = auth_header_for_package(context.config, &registry, package_name);
+    let url = package_collaborators_url(&registry, package_name, user);
 
     let (_guard, response) = send_get(context, &url, auth_header.as_deref())
         .await
