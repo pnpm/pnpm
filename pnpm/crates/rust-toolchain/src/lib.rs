@@ -139,12 +139,15 @@ fn installed_after_failed_fetch<Reporter: self::Reporter>(
     request: &ToolchainRequest,
     error: RustToolchainError,
 ) -> Result<InstalledToolchain, RustToolchainError> {
-    // A server that answers with anything but a failure of its own, such
-    // as a mirror refusing the credentials or missing the release, is a
+    // A server that answers with anything but a transient failure, such as
+    // a mirror refusing the credentials or missing the release, is a
     // misconfiguration to report rather than to cover.
     let unreachable = match &error {
         RustToolchainError::Network { .. } => true,
-        RustToolchainError::StatusNotOk { status, .. } => *status >= 500,
+        // The statuses the network client retries as transient.
+        RustToolchainError::StatusNotOk { status, .. } => {
+            *status >= 500 || matches!(status, 408 | 429)
+        }
         _ => false,
     };
     if !unreachable || request.channel.is_pinned() {

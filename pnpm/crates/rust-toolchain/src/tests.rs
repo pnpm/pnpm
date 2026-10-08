@@ -317,3 +317,29 @@ async fn a_server_that_answers_with_a_client_error_is_reported() {
     .expect_err("a mirror missing the channel is a misconfiguration");
     assert!(matches!(error, RustToolchainError::StatusNotOk { status: 404, .. }), "{error:?}");
 }
+
+#[tokio::test]
+async fn a_rate_limited_server_falls_back_to_the_installed_release() {
+    let mut server = mockito::Server::new_async().await;
+    let _manifest = server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_status(429)
+        .create_async()
+        .await;
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), &server.url());
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    let installed = toolchain_dir(&toolchains, &Channel::parse("1.95.0").unwrap(), HOST, &stable);
+    fs::create_dir_all(&installed).unwrap();
+
+    let toolchain = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .unwrap();
+    assert_eq!(toolchain, InstalledToolchain { dir: installed });
+}
