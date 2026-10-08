@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-On Windows, rename invalid package filenames when the renamed paths can be checked for collisions.
+On Windows, rename invalid package filenames. Installation fails if the renamed paths may collide.
