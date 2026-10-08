@@ -257,3 +257,6 @@ fn bright_blue(text: &str) -> String {
         .if_supports_color(Stream::Stdout, |t| t.bright_blue())
         .to_string()
 }
+
+#[cfg(test)]
+mod tests;

@@ -37,8 +37,7 @@ impl PingArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<String> {
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
         let normalized_registry_url = normalize_registry_url(registry_url);
-        let ping_url = join_registry_endpoint(registry_url, "-/ping?write=true")
-            .unwrap_or_else(|_| format!("{normalized_registry_url}-/ping?write=true"));
+        let ping_url = ping_endpoint_url(registry_url);
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
 
@@ -122,6 +121,12 @@ fn format_details(body: &str) -> Option<String> {
         _ => false,
     };
     if non_empty { serde_json::to_string_pretty(&value).ok() } else { None }
+}
+
+pub(super) fn ping_endpoint_url(registry_url: &str) -> String {
+    let normalized = normalize_registry_url(registry_url);
+    join_registry_endpoint(registry_url, "-/ping?write=true")
+        .unwrap_or_else(|_| format!("{normalized}-/ping?write=true"))
 }
 
 #[cfg(test)]

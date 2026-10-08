@@ -282,3 +282,39 @@ fn list_packages_url_classifies_each_entity() {
         "https://registry.example/-/-/package?format=cli",
     );
 }
+
+#[test]
+fn list_packages_url_preserves_path_prefix() {
+    let url = |param: &str| {
+        super::registry::list_packages_url("https://registry.example/npm/", &[param.into()])
+    };
+    assert_eq!(
+        url("@scope:team"),
+        "https://registry.example/npm/-/team/scope/team/package?format=cli",
+    );
+    assert_eq!(url("@org"), "https://registry.example/npm/-/org/org/package?format=cli");
+    assert_eq!(
+        super::registry::list_packages_url("https://registry.example/npm/", &[]),
+        "https://registry.example/npm/-/-/package?format=cli",
+    );
+}
+
+#[test]
+fn access_endpoints_preserve_path_prefix() {
+    assert_eq!(
+        super::registry::package_access_url("https://registry.example/npm/", "@scope/pkg"),
+        "https://registry.example/npm/-/package/@scope%2fpkg/access",
+    );
+    assert_eq!(
+        super::registry::team_package_url("https://registry.example/npm/", "scope", "team"),
+        "https://registry.example/npm/-/team/scope/team/package",
+    );
+    assert_eq!(
+        super::registry::package_collaborators_url(
+            "https://registry.example/npm/",
+            "@scope/pkg",
+            Some("alice"),
+        ),
+        "https://registry.example/npm/-/package/@scope%2fpkg/collaborators?format=cli&user=alice",
+    );
+}
