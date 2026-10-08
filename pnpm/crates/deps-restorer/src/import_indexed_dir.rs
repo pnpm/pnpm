@@ -199,7 +199,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
             .unwrap_or_else(|_| dir_path.to_path_buf());
         pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "The package linked to \"{}\" had files with invalid names: {}. They were renamed.",
+            r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
             relative_dir.display(),
             sanitized.renamed.join(", "),
         ));
@@ -264,28 +264,14 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
         // work, so an existing dirent is this package's file and is
         // adopted, while a shared one may hold a file an importer died
         // halfway through writing, which only a replacement heals.
-        (Some(file_type), false) if file_type.is_dir() => {
-            if repair_sanitized {
-                populate_dir::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    dir_path,
-                    cas_paths,
-                    Placement::Repair,
-                    opts.preserve_symlinks.then_some(dir_path),
-                )
-                .inspect(|()| unquarantine())
-            } else {
-                repair_incomplete_dir::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    dir_path,
-                    cas_paths,
-                    opts.safe_to_skip,
-                    opts.preserve_symlinks,
-                )
-            }
-        }
+        (Some(file_type), false) if file_type.is_dir() => repair_existing_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts,
+            repair_sanitized,
+        ),
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
         (Some(file_type), true) => force_import_existing_dir::<Reporter>(
@@ -438,15 +424,16 @@ fn import_absent_dir<Reporter: self::Reporter>(
 }
 
 // A marker-less target is a partial import. Shared targets must replace potentially torn files.
-fn repair_incomplete_dir<Reporter: self::Reporter>(
+fn repair_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    if marker_present(dir_path, cas_paths) {
+    // The first import may have left files that do not match the sanitized map.
+    if !repair_sanitized && marker_present(dir_path, cas_paths) {
         Ok(())
     } else {
         populate_dir::<Reporter>(
@@ -454,8 +441,8 @@ fn repair_incomplete_dir<Reporter: self::Reporter>(
             import_method,
             dir_path,
             cas_paths,
-            Placement::for_target(safe_to_skip),
-            preserve_symlinks.then_some(dir_path),
+            Placement::for_target(opts.safe_to_skip || repair_sanitized),
+            opts.preserve_symlinks.then_some(dir_path),
         )
         .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
     }
