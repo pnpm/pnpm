@@ -5,7 +5,8 @@
 //! toolchain file selects only a release the Rust project signed, so the
 //! toolchain is installed and run without the trust gate. It is installed
 //! into the store pnpm's own configuration names, never one the project
-//! does. Where no toolchain file applies, the shim steps aside for the next
+//! does. Where no toolchain file applies, the toolchain `pnpm add -g rust`
+//! installed runs, and without one the shim steps aside for the next
 //! program of its name on `PATH`, such as a rustup proxy.
 
 use super::{
@@ -16,11 +17,12 @@ use pnpm_config::Config;
 use pnpm_crypto_hash::create_hex_hash_bytes;
 use pnpm_reporter::{LogEvent, Reporter};
 use pnpm_rust_toolchain::{
-    InstalledToolchain, ToolchainRequest, find_toolchain_file, install_toolchain,
-    installed_toolchain,
+    Channel, InstalledToolchain, ToolchainRequest, expire_resolution, find_toolchain_file,
+    install_toolchain, installed_release, installed_toolchain, read_toolchain_file,
 };
 use std::{
     ffi::{OsStr, OsString},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -35,6 +37,75 @@ pub(crate) const RUST_SHIM_BINS: &[&str] =
 /// Where toolchain installs anchor their configuration, for the same
 /// reason as [`super::runtime_env::RUNTIME_ENVS_DIR_NAME`].
 const RUST_ENVS_DIR_NAME: &str = "global-shim-rust";
+
+/// The file in the global bin directory that names the toolchain
+/// `pnpm add -g rust` installed, in the plain `rust-toolchain` format.
+const GLOBAL_TOOLCHAIN_FILE: &str = ".pnpm-rust-toolchain";
+
+/// The toolchain `pnpm add -g rust` installed for the shims in `bin_dir`.
+pub(crate) fn global_toolchain(bin_dir: &Path) -> Option<ToolchainRequest> {
+    read_toolchain_file(&bin_dir.join(GLOBAL_TOOLCHAIN_FILE)).ok()?.ok()
+}
+
+/// Make `channel` the toolchain the shims in `bin_dir` run outside a
+/// project that names one.
+pub(crate) fn record_global_toolchain(bin_dir: &Path, channel: &Channel) -> io::Result<()> {
+    pnpm_fs::write_atomic(&bin_dir.join(GLOBAL_TOOLCHAIN_FILE), format!("{channel}\n").as_bytes())
+}
+
+/// Forget the global toolchain. Reports whether one was recorded.
+pub(crate) fn remove_global_toolchain(bin_dir: &Path) -> io::Result<bool> {
+    match std::fs::remove_file(bin_dir.join(GLOBAL_TOOLCHAIN_FILE)) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// Run the toolchain `pnpm add -g rust` installed, for an invocation no
+/// project toolchain file applies to, or the next `name` on `PATH` when
+/// there is none.
+pub(super) fn run_global_rust(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
+    match global_toolchain(shim.bin_dir) {
+        Some(request) => {
+            let state_dir = super::settings::trusted_shim_settings().state_dir;
+            run_rust_toolchain(&state_dir, &request, shim.name, args)
+        }
+        None => run_next_on_path(shim, args),
+    }
+}
+
+/// Install the toolchain `request` names into the store the shims run it
+/// from, which pnpm's own configuration names.
+pub(crate) async fn install_for_shims<Reporter: self::Reporter>(
+    request: &ToolchainRequest,
+) -> miette::Result<InstalledToolchain> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    let config = trusted_rust_config(&state_dir)?;
+    let client = crate::State::new_http_client(&config).map_err(miette::Report::new)?;
+    install_toolchain::<Reporter>(&config, &client, request).await.map_err(miette::Report::new)
+}
+
+/// Where the toolchain `request` names is installed for the shims.
+pub(crate) fn installed_for_shims(request: &ToolchainRequest) -> Option<InstalledToolchain> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    installed_toolchain(&trusted_rust_config(&state_dir).ok()?, request)
+}
+
+/// The release `request` resolves to as installed for the shims.
+pub(crate) fn installed_release_for_shims(request: &ToolchainRequest) -> Option<Channel> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    let config = trusted_rust_config(&state_dir).ok()?;
+    installed_release(&config, request)
+}
+
+/// Make the next install of `request` for the shims ask the distribution
+/// server which release a moving channel is now.
+pub(crate) fn expire_for_shims(request: &ToolchainRequest) -> miette::Result<()> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    expire_resolution(&trusted_rust_config(&state_dir)?, request);
+    Ok(())
+}
 
 /// The toolchain the nearest toolchain file at or above `cwd` asks pnpm to
 /// install. `None` where there is no such file, or where rustup decides:
@@ -115,7 +186,7 @@ pub(super) fn run_rust_toolchain(
     let program = toolchain.executable(name);
     if !program.is_file() {
         eprintln!(
-            "pnpm: Rust {} as the toolchain file asks for it has no {name}. List the component that provides it under `components`.",
+            "pnpm: Rust {} as installed has no {name}. List the component that provides it under `components` in rust-toolchain.toml.",
             request.channel,
         );
         return 127;

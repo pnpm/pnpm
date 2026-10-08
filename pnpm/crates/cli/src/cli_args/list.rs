@@ -164,9 +164,20 @@ impl ListArgs {
         }
 
         let report_as = self.report_as();
+        let tools = config.global_bin
+            .as_deref()
+            .and_then(crate::cli_args::global::rust::listed_global_rust)
+            .map(|(version, location)| pnpm_global::GlobalTool {
+                name: crate::shim_dispatch::rust_toolchain::RUST_SHIM_PACKAGE.to_string(),
+                version,
+                location,
+            })
+            .into_iter()
+            .collect();
         list_global_packages(
             &global_pkg_dir,
             &self.packages,
+            tools,
             global_report_as(report_as),
             self.output.long,
         )

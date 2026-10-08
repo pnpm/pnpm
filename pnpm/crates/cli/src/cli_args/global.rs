@@ -6,6 +6,8 @@
 //! installs into a fresh directory under the global packages dir, then a
 //! hash symlink and the global bins are pointed at it.
 
+pub mod rust;
+
 pub use builds::approve_global_builds;
 pub use legacy::migrate_legacy_global_packages;
 pub use remove::{handle_global_remove, remove_global_groups};
@@ -34,7 +36,7 @@ use crate::{
             virtual_shim_restoration_owners,
         },
     },
-    engine_pm::selector::tool_install_selector,
+    engine_pm::selector::{rust_toolchain_request, tool_install_selector},
     shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
 };
 
@@ -75,7 +77,7 @@ use remove::{
 };
 use selectors::{
     SelectorGroup, groups_matching_params, infer_local_package_alias, missing_file_source_warning,
-    replacement_aliases, should_replace_existing_package, split_into_groups,
+    replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
     tool_install_selectors, update_selectors,
 };
 
@@ -172,10 +174,17 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     if selects_pnpm_cli(groups.iter().flat_map(SelectorGroup::tokens)) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
+    let (rust_channels, groups) = take_rust_toolchains(groups)?;
     let groups = tool_install_selectors(groups);
 
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
+    for channel in rust_channels {
+        rust::add_global_rust::<Reporter>(base_config, &global_bin_dir, channel).await?;
+    }
+    if groups.is_empty() {
+        return Ok(());
+    }
     fs::create_dir_all(&global_pkg_dir)
         .into_diagnostic()
         .wrap_err("create the global packages directory")?;
@@ -212,24 +221,15 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     check_bin_dir(&global_bin_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    let scanned =
-        scan_global_packages(&global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
-    if scanned.is_empty() {
-        println!("No global packages found");
+    let (rust_updated, params) =
+        rust::update_from_params::<Reporter>(&global_bin_dir, params, selected_hashes.is_some())
+            .await?;
+    let Some(params) = params else { return Ok(()) };
+    let params = params.as_slice();
+
+    let Some(all) = updatable_global_packages(&global_pkg_dir, rust_updated)? else {
         return Ok(());
-    }
-    // `pnpm self-update` owns the pnpm CLI's global install: it is what points
-    // the pnpm home's bins at a release. Reinstalling that group here would
-    // resolve pnpm from the `latest` dist-tag and relink the bins, silently
-    // rolling the running pnpm back to whatever `latest` points at.
-    let all: Vec<GlobalPackageInfo> = scanned
-        .into_iter()
-        .filter(|pkg| !has_pnpm_cli_dependency(pkg))
-        .collect();
-    if all.is_empty() {
-        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
-        return Ok(());
-    }
+    };
     let Some(mut to_update) = groups_matching_params(all, params) else {
         return Ok(());
     };
@@ -251,6 +251,45 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     .await?;
     emit_global_update_result::<Reporter>(&global_pkg_dir, up_to_date);
     Ok(())
+}
+
+/// The global groups `pnpm update -g` may reinstall, or `None` after saying
+/// there are none. Saying nothing is left to a run that updated the Rust
+/// toolchain.
+fn updatable_global_packages(
+    global_pkg_dir: &Path,
+    rust_updated: bool,
+) -> miette::Result<Option<Vec<GlobalPackageInfo>>> {
+    let scanned =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    if scanned.is_empty() {
+        if !rust_updated {
+            println!("No global packages found");
+        }
+        return Ok(None);
+    }
+    // `pnpm self-update` owns the pnpm CLI's global install: it is what points
+    // the pnpm home's bins at a release. Reinstalling that group here would
+    // resolve pnpm from the `latest` dist-tag and relink the bins, silently
+    // rolling the running pnpm back to whatever `latest` points at.
+    let all: Vec<GlobalPackageInfo> = scanned
+        .into_iter()
+        .filter(|pkg| !has_pnpm_cli_dependency(pkg))
+        .collect();
+    if all.is_empty() {
+        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
+        return Ok(None);
+    }
+    Ok(Some(all))
+}
+
+/// Whether `params` name the Rust toolchain, and the params left for the
+/// npm groups.
+fn split_rust_param(params: &[String]) -> (bool, Vec<String>) {
+    let (rust, others): (Vec<&String>, Vec<&String>) = params
+        .iter()
+        .partition(|param| *param == rust::RUST_PARAM);
+    (!rust.is_empty(), others.into_iter().cloned().collect())
 }
 
 fn emit_global_update_result<Reporter: self::Reporter>(global_pkg_dir: &Path, up_to_date: bool) {

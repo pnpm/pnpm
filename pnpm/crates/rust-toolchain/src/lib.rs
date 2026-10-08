@@ -12,7 +12,7 @@ extern crate pnpm_http as reqwest;
 
 pub use channel::{Channel, ChannelName};
 pub use toolchain_file::{
-    Profile, ToolchainRequest, Unmanaged, find_toolchain_file, read_toolchain_file,
+    Profile, ToolchainRequest, Unmanaged, find_toolchain_file, read_toolchain_file, with_channel,
 };
 
 mod channel;
@@ -189,6 +189,24 @@ fn refuse_older_release(
             last: last.to_string(),
         }),
         _ => Ok(()),
+    }
+}
+
+/// The release the toolchain `request` asks for resolves to, as installed.
+/// `None` when it is not installed.
+#[must_use]
+pub fn installed_release(config: &Config, request: &ToolchainRequest) -> Option<Channel> {
+    let host = host::host_triple()?;
+    let dir = installed_without_download(config, &toolchains_dir(config), &host, request)?;
+    install::release_of(dir.file_name()?.to_str()?, &host, request)
+}
+
+/// Make the next [`install_toolchain`] of a moving channel ask the
+/// distribution server which release it is now, however recently it last
+/// did. What it resolved to stays the floor it may not move back past.
+pub fn expire_resolution(config: &Config, request: &ToolchainRequest) {
+    if let Some(host) = host::host_triple() {
+        install::expire_resolution(&toolchains_dir(config), &host, request);
     }
 }
 

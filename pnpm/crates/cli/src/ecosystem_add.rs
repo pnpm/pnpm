@@ -20,7 +20,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     has_node_packages: bool,
     scope: Option<&WorkspaceScope>,
 ) -> miette::Result<EcosystemPlan> {
-    let (crates, requirements) = partition_packages(packages);
+    let (crates, requirements, toolchains) = partition_packages(packages);
     validate_add_options(
         &context,
         args,
@@ -35,6 +35,10 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
                 .await?;
         cargo_transaction_root = Some(cargo_root);
         tasks.push(task);
+    }
+    // The last channel named wins, as a repeated npm package does.
+    if let Some(channel) = toolchains.into_iter().last() {
+        tasks.push(cargo_deps::toolchain::add::plan::<Reporter>(context.clone(), &root, channel));
     }
     if !requirements.is_empty() {
         let (task, projects) =
@@ -150,18 +154,24 @@ fn validate_add_options(
     Ok(())
 }
 
-fn partition_packages(
-    packages: Vec<EcosystemPackageSpecifier>,
-) -> (Vec<crate::package_specifier::RegistryPackageSpecifier>, Vec<String>) {
+type PartitionedPackages = (
+    Vec<crate::package_specifier::RegistryPackageSpecifier>,
+    Vec<String>,
+    Vec<pnpm_rust_toolchain::Channel>,
+);
+
+fn partition_packages(packages: Vec<EcosystemPackageSpecifier>) -> PartitionedPackages {
     let mut crates = Vec::new();
     let mut requirements = Vec::new();
+    let mut toolchains = Vec::new();
     for package in packages {
         match package {
             EcosystemPackageSpecifier::Cargo(package) => crates.push(package),
             EcosystemPackageSpecifier::Python(requirement) => requirements.push(requirement),
+            EcosystemPackageSpecifier::RustToolchain(channel) => toolchains.push(channel),
         }
     }
-    (crates, requirements)
+    (crates, requirements, toolchains)
 }
 
 fn python_add_options(

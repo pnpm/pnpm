@@ -26,7 +26,7 @@ use crate::{
     shim_dispatch::{
         ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
         remove_native_shim,
-        rust_toolchain::{RUST_SHIM_BINS, RUST_SHIM_PACKAGE},
+        rust_toolchain::{RUST_SHIM_BINS, RUST_SHIM_PACKAGE, remove_global_toolchain},
     },
 };
 use clap::Args;
@@ -146,7 +146,7 @@ impl ShimArgs {
         let (subcommand, packages) = self.params.split_first().ok_or(ShimError::NoSubcommand)?;
         let bin_dir = config.global_bin.clone().ok_or(ShimError::NoGlobalDir)?;
         match subcommand.as_str() {
-            "add" => add(config, &bin_dir, packages).await,
+            "add" => add_shims(config, &bin_dir, packages).await,
             "rm" | "remove" | "uninstall" => remove(config, &bin_dir, packages),
             "ls" | "list" => Ok(list(config, &bin_dir)),
             other => Err(ShimError::UnknownSubcommand { subcommand: other.to_string() }.into()),
@@ -155,7 +155,7 @@ impl ShimArgs {
 }
 
 /// Link the shims for every package in `packages` and record the opt-in.
-async fn add(
+pub(crate) async fn add_shims(
     config: &'static Config,
     bin_dir: &Path,
     packages: &[String],
@@ -226,10 +226,28 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
     if packages.is_empty() {
         return Err(ShimError::NoPackage.into());
     }
+    let mut report = String::new();
+    for (package, bins) in remove_shims(config, bin_dir, packages)? {
+        if bins.is_empty() {
+            writeln!(report, "No shims for {package}").unwrap();
+        } else {
+            writeln!(report, "Removed {} for {package}", bins.join(", ")).unwrap();
+        }
+    }
+    Ok(report)
+}
+
+/// Remove the shims for every package in `packages`, and with them the
+/// opt-in that created them. Returns the bins removed for each package.
+pub(crate) fn remove_shims<'a>(
+    config: &Config,
+    bin_dir: &Path,
+    packages: &'a [String],
+) -> miette::Result<Vec<(&'a str, Vec<String>)>> {
     let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
     // A legacy shim is only listed once migrated.
     migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
-    let mut report = String::new();
+    let mut removed = Vec::with_capacity(packages.len());
     for package in packages {
         let bins = installed_shims(bin_dir, package);
         for bin in &bins {
@@ -239,13 +257,15 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
         }
         remove_virtual_shim_state(bin_dir, package)?;
         set_policy(config, package, None)?;
-        if bins.is_empty() {
-            writeln!(report, "No shims for {package}").unwrap();
-        } else {
-            writeln!(report, "Removed {} for {package}", bins.join(", ")).unwrap();
+        // Without its shims, the global Rust toolchain has nothing to run it.
+        if package == RUST_SHIM_PACKAGE {
+            remove_global_toolchain(bin_dir)
+                .into_diagnostic()
+                .wrap_err("remove the global Rust toolchain record")?;
         }
+        removed.push((package.as_str(), bins));
     }
-    Ok(report)
+    Ok(removed)
 }
 
 /// Report every target-less shim in the global bin directory, with the
@@ -308,7 +328,7 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
 }
 
 /// Whether `bin` is occupied in `bin_dir` by anything other than
-/// `package`'s own shim, which [`add`] rewrites freely.
+/// `package`'s own shim, which [`add_shims`] rewrites freely.
 fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
     bin_slot_exists(bin_dir, bin)
         && virtual_shim_owner(&bin_dir.join(bin))

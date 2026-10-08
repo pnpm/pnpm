@@ -343,3 +343,20 @@ async fn a_rate_limited_server_falls_back_to_the_installed_release() {
     .unwrap();
     assert_eq!(toolchain, InstalledToolchain { dir: installed });
 }
+
+#[test]
+fn reports_the_installed_release_and_expires_a_resolution() {
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), "http://127.0.0.1:9");
+    let toolchains = config.store_dir.root().join("rust");
+    let Some(host) = super::host::host_triple() else { panic!("CI hosts have a Rust host") };
+    let stable = request("stable");
+    let pinned = Channel::parse("1.95.0").unwrap();
+    fs::create_dir_all(toolchain_dir(&toolchains, &pinned, &host, &stable)).unwrap();
+    record_resolution(&toolchains, &host, &stable, &pinned);
+
+    assert_eq!(super::installed_release(&config, &stable), Some(pinned.clone()));
+    super::expire_resolution(&config, &stable);
+    assert_eq!(super::installed_release(&config, &stable), None);
+    assert_eq!(super::install::last_resolution(&toolchains, &host, &stable), Some(pinned));
+}

@@ -202,3 +202,73 @@ fn rustup_toolchain_overrides_reach_rustup() {
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo build");
 }
+
+/// Put a fake toolchain for `channel`, as a bare `channel` request asks for
+/// it, where the shims install toolchains, so nothing is downloaded.
+#[cfg(unix)]
+fn seed_toolchain(root: &TempDir, channel: &str, cargo_says: &str) -> PathBuf {
+    let request_file = root.path().join("request");
+    fs::write(&request_file, channel).unwrap();
+    let request = pnpm_rust_toolchain::read_toolchain_file(&request_file).unwrap().unwrap();
+    let mut config = pnpm_config::Config::new();
+    config.store_dir = pnpm_store_dir::StoreDir::from(store_dir(root));
+    let pinned = pnpm_rust_toolchain::Channel::parse(channel).unwrap();
+    let toolchain = pnpm_rust_toolchain::installation_dir(&config, &pinned, &request).unwrap();
+    write_script(&toolchain.join("bin/cargo"), &format!(r#"echo {cargo_says} "$@""#));
+    toolchain
+}
+
+/// `pnpm add -g rust@<channel>` installs the toolchain the shims run
+/// outside a project that names one, `pnpm ls -g` lists it, and
+/// `pnpm remove -g rust` takes it and the shims away.
+#[cfg(unix)]
+#[test]
+fn rust_installs_globally() {
+    let root = tempfile::tempdir().unwrap();
+    let config_dir = root.path().join("config/pnpm");
+    fs::create_dir_all(&config_dir).unwrap();
+    fs::write(
+        config_dir.join("config.yaml"),
+        format!("storeDir: {}\n", store_dir(&root).display()),
+    )
+    .unwrap();
+    let toolchain = seed_toolchain(&root, "1.95.0", "global-cargo");
+    let elsewhere = root.path().join("elsewhere");
+    fs::create_dir_all(&elsewhere).unwrap();
+    let pnpm = |args: &[&str]| {
+        isolated(Command::cargo_bin("pnpm").unwrap(), &root, &elsewhere)
+            .with_env(
+                "PATH",
+                std::env::join_paths([global_bin(&root), PathBuf::from("/bin")]).unwrap(),
+            )
+            .with_args(args)
+            .output()
+            .unwrap()
+    };
+
+    let output = pnpm(&["add", "-g", "rust@1.95.0"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+
+    let output = shim(&root, &elsewhere, "cargo", &[&global_bin(&root)])
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "global-cargo build");
+
+    let listed = pnpm(&["ls", "-g", "--json"]);
+    let listed: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let rust = &listed[0]["dependencies"]["rust"];
+    assert_eq!(rust["version"], "1.95.0");
+    assert_eq!(Path::new(rust["path"].as_str().unwrap()), toolchain);
+
+    let output = pnpm(&["remove", "-g", "rust"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let exe = std::env::consts::EXE_SUFFIX;
+    assert!(
+        !global_bin(&root)
+            .join(format!("cargo{exe}"))
+            .exists(),
+    );
+    let output = pnpm(&["remove", "-g", "rust"]);
+    assert!(!output.status.success());
+}

@@ -1,7 +1,8 @@
 use super::{
     AddRequest, Context, GlobalError, GlobalPackageInfo, HashMap, IntoDiagnostic, Path, PathBuf,
     fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
-    parse_wanted_dependency, safe_read_package_json_from_dir, tool_install_selector,
+    parse_wanted_dependency, rust_toolchain_request, safe_read_package_json_from_dir,
+    tool_install_selector,
 };
 
 /// The packages one global install request asks for: the tokens a
@@ -37,6 +38,42 @@ pub(super) fn tool_install_selectors(groups: Vec<SelectorGroup>) -> Vec<Vec<Stri
                 .collect()
         })
         .collect()
+}
+
+/// Take the `rust[@<channel>]` requests out of `groups`: the Rust toolchain
+/// is installed globally beside the npm groups rather than as one. A group
+/// left with no other selector is dropped. A Package URL never names the
+/// toolchain.
+pub(super) fn take_rust_toolchains(
+    groups: Vec<SelectorGroup>,
+) -> miette::Result<(Vec<pnpm_rust_toolchain::Channel>, Vec<SelectorGroup>)> {
+    let mut channels = Vec::new();
+    let mut remaining = Vec::new();
+    for mut group in groups {
+        if group.may_name_a_tool {
+            group.tokens = take_rust_tokens(group.tokens, &mut channels)?;
+        }
+        if !group.tokens.is_empty() {
+            remaining.push(group);
+        }
+    }
+    Ok((channels, remaining))
+}
+
+/// `tokens` without the ones naming the Rust toolchain, whose channels go
+/// to `channels`.
+fn take_rust_tokens(
+    tokens: Vec<String>,
+    channels: &mut Vec<pnpm_rust_toolchain::Channel>,
+) -> miette::Result<Vec<String>> {
+    let mut remaining = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        match rust_toolchain_request(&token) {
+            Some(channel) => channels.push(channel?),
+            None => remaining.push(token),
+        }
+    }
+    Ok(remaining)
 }
 
 /// The installed groups the update targets. `None` when the command
