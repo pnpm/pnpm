@@ -23,15 +23,14 @@ fn configure_rayon_pool_is_idempotent() {
     configure_rayon_pool();
     configure_rayon_pool();
     let current_threads = rayon::current_num_threads();
+    let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok());
-    if let Some(expected) = override_threads {
-        assert_eq!(current_threads, expected);
-    } else {
-        let parallelism =
-            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        let expected = rayon_pool_size(parallelism, super::RAYON_THREADS_PER_CORE);
-        assert_eq!(current_threads, expected);
-    }
+    let expected = match override_threads {
+        Some(0) => parallelism,
+        Some(threads) => threads,
+        None => rayon_pool_size(parallelism, super::RAYON_THREADS_PER_CORE),
+    };
+    assert_eq!(current_threads, expected);
 }

@@ -23,18 +23,17 @@ fn addon_entry_point_configures_rayon_pool() {
     .expect("read_config must succeed");
     let _ = config.registries;
     let current_threads = rayon::current_num_threads();
+    let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok());
-    if let Some(expected) = override_threads {
-        assert_eq!(current_threads, expected);
-    } else {
-        let parallelism =
-            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        let expected = pnpm_package_manager::rayon_pool_size(
+    let expected = match override_threads {
+        Some(0) => parallelism,
+        Some(threads) => threads,
+        None => pnpm_package_manager::rayon_pool_size(
             parallelism,
             pnpm_package_manager::RAYON_THREADS_PER_CORE,
-        );
-        assert_eq!(current_threads, expected);
-    }
+        ),
+    };
+    assert_eq!(current_threads, expected);
 }
