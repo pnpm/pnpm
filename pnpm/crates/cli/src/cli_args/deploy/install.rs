@@ -247,6 +247,10 @@ impl DeployArgs {
         // manifest, where `copy_project` may have left the deployed
         // project's own pnpmfile.
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
+        // Cleared rather than disabled: a disabled `skills.dirs` is recorded in
+        // the deployed project's workspace state, which a later `pnpm run`
+        // there would read as drift.
+        deploy_config.allow_skills.clear();
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
     }

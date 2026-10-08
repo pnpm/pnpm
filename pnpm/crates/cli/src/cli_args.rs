@@ -59,6 +59,7 @@ pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod peers;
+pub mod permissions;
 pub mod ping;
 pub mod pipeline;
 pub(crate) mod pipelines;

@@ -2,8 +2,8 @@ use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
     GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
     RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
-    add_packages, apply_allow_build, decided_allow_builds, infer_local_package_alias,
-    installed_versions, prompt_approve_install_builds, update_selectors,
+    add_packages, apply_allow_build, infer_local_package_alias, installed_versions,
+    prompt_approve_install_builds, update_selectors,
 };
 
 /// The pnpm home a global group installs into.
@@ -244,12 +244,13 @@ pub(super) fn global_group_config(
     // decisions) instead.
     cfg.dangerously_allow_all_builds = false;
     cfg.allow_builds.clear();
+    cfg.disable_agent_skills();
     if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
         .map_err(miette::Report::new)
         .wrap_err("load global allowBuilds")?
     {
-        if let Some(allow_builds) = settings.allow_builds {
-            cfg.allow_builds = decided_allow_builds(allow_builds);
+        if let Some(allow_builds) = settings.decided_build_approvals() {
+            cfg.allow_builds = allow_builds;
         }
         if let Some(allow_all) = settings.dangerously_allow_all_builds {
             cfg.dangerously_allow_all_builds = allow_all;

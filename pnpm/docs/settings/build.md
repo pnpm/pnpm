@@ -262,6 +262,49 @@ allowBuilds:
 
 :::
 
+### permissions
+
+Added in: v12.11.0
+
+* Type: **Object**
+
+What each dependency may do, keyed by package. The keys have the same forms as the keys of [`allowBuilds`](#allowbuilds). Each entry decides one or more capabilities:
+
+* `build`: the package may run its build scripts. Outranks the package's `allowBuilds` entry.
+* `skills`: pnpm may link the agent skills the package ships into the project's agent skill directories. See [Agent skills](../agent-skills.md).
+
+```yaml title="pnpm-workspace.yaml"
+permissions:
+  drizzle-kit:
+    build: true
+    skills: true
+  esbuild:
+    build: true
+  some-pkg:
+    skills: false
+```
+
+`false` records a denial, so the package is not offered for approval again. [`pnpm approve`](../cli/permissions.md) writes these entries.
+
+A build decision is written to `permissions` only when the file already has a `permissions` setting. Otherwise it is written to `allowBuilds`, which older pnpm versions read too.
+
+### skills.dirs
+
+Added in: v12.11.0
+
+* Default: **the agent skill directories that exist in the workspace root**
+* Type: **String[]**
+
+The directories, relative to the workspace root, that pnpm links approved [agent skills](../agent-skills.md) into. When set, it replaces the detected directories, and pnpm creates the ones that are missing.
+
+```yaml title="pnpm-workspace.yaml"
+skills:
+  dirs:
+    - .claude/skills
+```
+
+An empty list turns agent skills off. pnpm stops offering them for approval and removes the ones it linked.
+
 ### dangerouslyAllowAllBuilds
 
 Added in: v10.9.0

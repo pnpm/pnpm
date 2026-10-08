@@ -1,6 +1,7 @@
 use super::{
-    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PnpmfileSetting,
-    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PackagePermissions,
+    PnpmfileSetting, SkillsSettings, WorkspaceSettings, as_set, global_shims_setting, opt_path,
+    path, side_effects_cache_setting,
 };
 
 impl WorkspaceSettings {
@@ -44,7 +45,7 @@ impl WorkspaceSettings {
         settings = settings.with_resolved_presence(config);
         settings = settings.with_resolved_scripts(config);
         settings = settings.with_resolved_policy(config);
-        settings = settings.with_resolved_collections(config);
+        settings = settings.with_resolved_collections(config).with_resolved_permissions(config);
         settings
     }
 
@@ -186,6 +187,26 @@ impl WorkspaceSettings {
             ),
 
             side_effects_cache: Some(side_effects_cache_setting(config)),
+            ..self
+        }
+    }
+
+    /// `permissions` reports the `skills` decisions; the `build` ones
+    /// report under `allowBuilds`.
+    fn with_resolved_permissions(self, config: &Config) -> Self {
+        let permissions = config.allow_skills
+            .iter()
+            .map(|(name, allowed)| {
+                let entry = PackagePermissions {
+                    skills: Some(AllowBuild::Decided(*allowed)),
+                    ..PackagePermissions::default()
+                };
+                (name.clone(), entry)
+            })
+            .collect();
+        Self {
+            permissions: Some(permissions),
+            skills: Some(SkillsSettings { dirs: config.skills_dirs.clone() }),
             ..self
         }
     }

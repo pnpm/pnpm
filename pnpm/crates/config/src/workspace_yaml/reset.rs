@@ -207,6 +207,24 @@ impl WorkspaceSettings {
         true
     }
 
+    /// `permissions` decides builds too, so resetting it also resets
+    /// `allowBuilds`.
+    fn reset_permission_setting_to_default(
+        config: &mut Config,
+        defaults: &Config,
+        key: &str,
+    ) -> bool {
+        match key {
+            "permissions" => {
+                config.allow_builds.clone_from(&defaults.allow_builds);
+                config.allow_skills.clone_from(&defaults.allow_skills);
+            }
+            "skills" => config.skills_dirs.clone_from(&defaults.skills_dirs),
+            _ => return false,
+        }
+        true
+    }
+
     pub(super) fn reset_aliased_setting_to_default(
         config: &mut Config,
         defaults: &Config,
@@ -249,7 +267,7 @@ impl WorkspaceSettings {
             | "neverBuiltDependencies"
             | "ignoredBuiltDependencies"
             | "_auth" => {}
-            _ => return false,
+            _ => return Self::reset_permission_setting_to_default(config, defaults, key),
         }
         true
     }

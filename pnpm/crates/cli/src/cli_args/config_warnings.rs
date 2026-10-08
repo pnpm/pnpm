@@ -198,6 +198,7 @@ pub(crate) fn report_workspace_key_issues(
             "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {task_settings}.",
         ));
     }
+    warn_unrecognized_permissions(&issues.unrecognized_permissions);
     if !issues.non_camel_case.is_empty() {
         emit_config_warning(&non_camel_case_workspace_keys_warning(&issues.non_camel_case));
     }
@@ -211,6 +212,20 @@ pub(crate) fn report_workspace_key_issues(
         return Err(UnrecognizedTaskSettingsError { settings }.into());
     }
     Ok(())
+}
+
+fn warn_unrecognized_permissions(paths: &[String]) {
+    if paths.is_empty() {
+        return;
+    }
+    let paths = paths
+        .iter()
+        .map(|path| redact_and_sanitize(path))
+        .collect::<Vec<_>>()
+        .join(", ");
+    emit_config_warning(&format!(
+        "The following permissions in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {paths}.",
+    ));
 }
 
 fn refused_workspace_keys_warning(keys: &[String]) -> String {

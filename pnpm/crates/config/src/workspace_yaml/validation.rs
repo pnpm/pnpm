@@ -178,8 +178,10 @@ impl WorkspaceSettings {
     /// which only the CLI layer knows.
     pub fn collect_key_issues(&mut self, text: &str) {
         let unrecognized_task_settings = self.take_unknown_task_settings();
+        let unrecognized_permissions = self.take_unknown_permissions();
         let mut issues = Self::top_level_key_issues(text);
         issues.unrecognized_task_settings = unrecognized_task_settings;
+        issues.unrecognized_permissions = unrecognized_permissions;
         self.key_issues = issues;
     }
 

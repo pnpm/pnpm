@@ -9,7 +9,10 @@ Approve dependencies for running scripts during installation.
 
 The approved dependencies are added to the [`allowBuilds`] map in `pnpm-workspace.yaml` with a value of `true`, while unapproved ones are saved with a value of `false`. You can also update these settings manually if you prefer.
 
+Since v12.11.0, when `pnpm-workspace.yaml` already has a [`permissions`] setting, the decisions are written there as the `build` capability instead. To review agent skills as well, use [`pnpm approve`](./permissions.md).
+
 [`allowBuilds`]: ../settings/build.md#allowbuilds
+[`permissions`]: ../settings/build.md#permissions
 
 ## Usage
 

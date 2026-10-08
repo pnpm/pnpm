@@ -1,16 +1,17 @@
 use super::{
-    AccessArgs, AddArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs, CacheCommand,
-    CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs, CompletionServerArgs,
-    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs, DedupeArgs, DeployArgs,
-    DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs, ExecArgs, FetchArgs,
-    FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs, InstallTestArgs, LaneArgs,
-    LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs, NotImplementedArgs, OutdatedArgs,
-    OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, PeersArgs,
-    PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs,
-    RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
-    SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
-    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
+    AccessArgs, AddArgs, ApproveArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs,
+    CacheCommand, CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs,
+    CompletionServerArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs,
+    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs,
+    ExecArgs, FetchArgs, FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs,
+    InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs,
+    NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs,
+    PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs,
+    PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs,
+    RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
+    SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
+    TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs,
+    VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -218,6 +219,12 @@ pub enum CliCommand {
     IgnoredBuilds(IgnoredBuildsArgs),
     /// Approve dependencies for running scripts during installation.
     ApproveBuilds(ApproveBuildsArgs),
+    /// Review what dependencies may do: run build scripts and provide agent
+    /// skills.
+    Permissions(PermissionsArgs),
+    /// Approve or deny what dependencies may do. Same as `pnpm permissions
+    /// approve`.
+    Approve(ApproveArgs),
     /// Links a local package as a dependency
     #[clap(visible_aliases = ["ln"])]
     Link(LinkArgs),

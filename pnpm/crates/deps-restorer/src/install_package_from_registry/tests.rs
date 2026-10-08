@@ -182,6 +182,8 @@ fn create_config(
         allow_unused_patches: false,
         config_dependencies: None,
         allow_builds: Default::default(),
+        allow_skills: Default::default(),
+        skills_dirs: Default::default(),
         dangerously_allow_all_builds: false,
         strict_dep_builds: true,
         ignore_scripts: false,

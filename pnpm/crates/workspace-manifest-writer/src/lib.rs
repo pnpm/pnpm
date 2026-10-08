@@ -10,7 +10,7 @@
 
 pub use build_settings::{
     LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,
-    set_allow_builds_clearing_legacy,
+    set_allow_builds_clearing_legacy, set_permissions,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use pnpm_config::version_policy::ResolvedPackageVersions;

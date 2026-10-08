@@ -1,5 +1,6 @@
 pub(super) use maintenance::{
-    approve_builds, dedupe, deploy, env, fetch, import, link, prune, rebuild, runtime, unlink,
+    approve, approve_builds, dedupe, deploy, env, fetch, import, link, permissions, prune, rebuild,
+    runtime, unlink,
 };
 pub(super) use patches::{patch, patch_commit, patch_remove};
 pub(super) use pipeline::{install_test, pipeline};
@@ -23,6 +24,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
+    permissions::{ApproveArgs, PermissionsArgs, PermissionsCommand, render_permissions},
     pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,

@@ -1114,6 +1114,16 @@ pub struct Config {
     /// Default empty.
     pub allow_builds: HashMap<String, bool>,
 
+    /// The `skills` decisions of `permissions` in `pnpm-workspace.yaml`:
+    /// package names (or `name@version`, or a pkgId) mapped to whether
+    /// pnpm links the agent skills the package ships.
+    pub allow_skills: HashMap<String, bool>,
+
+    /// `skills.dirs` from `pnpm-workspace.yaml`: the agent skill
+    /// directories, relative to the workspace root, that replace the
+    /// detected ones. `Some(empty)` turns agent skills off.
+    pub skills_dirs: Option<Vec<String>>,
+
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
     /// `true`, every package may run lifecycle scripts regardless of
     /// `allow_builds`. Default `false` to match pnpm v11.

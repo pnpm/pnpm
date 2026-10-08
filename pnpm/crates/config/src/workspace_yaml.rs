@@ -1,6 +1,9 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+pub use permissions::{
+    PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
+};
 pub(crate) use readable::read_readable_settings;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
@@ -55,6 +58,9 @@ pub struct WorkspaceKeyIssues {
     pub unrecognized: Vec<String>,
     pub non_camel_case: Vec<String>,
     pub unrecognized_task_settings: UnrecognizedTaskSettings,
+    /// `permissions` capabilities no supported pnpm reads, e.g.
+    /// `permissions['esbuild'].mcp`.
+    pub unrecognized_permissions: Vec<String>,
 }
 
 impl WorkspaceKeyIssues {
@@ -64,6 +70,7 @@ impl WorkspaceKeyIssues {
             && self.unrecognized.is_empty()
             && self.non_camel_case.is_empty()
             && self.unrecognized_task_settings.total == 0
+            && self.unrecognized_permissions.is_empty()
     }
 }
 
@@ -396,6 +403,8 @@ mod tests;
 mod sections;
 
 mod validation;
+
+mod permissions;
 
 mod workspace_scope;
 

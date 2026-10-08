@@ -1,8 +1,7 @@
 use super::{
     Config, LockfileSetting, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting,
-    StoreDir, UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar, overlay,
-    overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
-    warn_deprecated_pairing,
+    StoreDir, UpdateConfig, WorkspaceSettings, no_proxy_scalar, overlay, overlay_some,
+    overlay_tools, registries, resolve, resolve_child_concurrency, warn_deprecated_pairing,
 };
 use pnpm_network::normalize_registry_url;
 
@@ -297,9 +296,7 @@ impl WorkspaceSettings {
             );
         }
         overlay_some(&mut config.config_dependencies, self.config_dependencies.take());
-        if let Some(v) = self.allow_builds.take() {
-            config.allow_builds = decided_allow_builds(v);
-        }
+        self.apply_permissions(config);
         overlay(&mut config.dangerously_allow_all_builds, self.dangerously_allow_all_builds.take());
         overlay(&mut config.strict_dep_builds, self.strict_dep_builds.take());
         overlay(&mut config.ignore_scripts, self.ignore_scripts.take());
