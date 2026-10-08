@@ -238,7 +238,7 @@ mod tests {
         assert!(sanitized.paths.contains_key("literal~name.txt"));
         assert!(sanitized.paths.contains_key("test~1.txt"));
         assert!(
-            sanitize_filenames(&entries(&["package.json", "assets/icon.svg"])).unwrap().is_none()
+            sanitize_filenames(&entries(&["package.json", "assets/icon.svg"])).unwrap().is_none(),
         );
         assert!(sanitize_filenames(&entries(&["COM0/file"])).unwrap().is_none());
     }
