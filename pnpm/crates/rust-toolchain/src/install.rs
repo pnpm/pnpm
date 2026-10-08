@@ -77,6 +77,9 @@ pub(crate) fn newest_installed(
         .ok()?
         .flatten()
         .filter_map(|entry| {
+            if !entry.file_type().ok()?.is_dir() {
+                return None;
+            }
             let name = entry.file_name().into_string().ok()?;
             let pinned = Channel::parse(name.strip_suffix(&suffix)?)?;
             request.channel
@@ -146,6 +149,10 @@ pub(crate) fn record_resolution(
     request: &ToolchainRequest,
     pinned: &Channel,
 ) {
+    // Another install may have recorded a newer release meanwhile.
+    if last_resolution(toolchains, host, request).is_some_and(|last| is_older(pinned, &last)) {
+        return;
+    }
     let record = resolution_record(toolchains, host, request);
     if let Some(parent) = record.parent()
         && fs::create_dir_all(parent).is_ok()

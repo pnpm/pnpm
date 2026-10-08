@@ -160,7 +160,8 @@ pub fn linked_bin_dir(config: &Config, dir: &Path, boundary: &Path) -> Option<Pa
             .file_name()
             .and_then(|name| name.to_str())
             .is_some_and(|name| install::is_installation_of(name, &host, &request));
-    let bin_dir = link.join("bin");
+    // The checked target, not the link, which could be replaced meanwhile.
+    let bin_dir = target.join("bin");
     (installed && bin_dir.is_dir()).then_some(bin_dir)
 }
 

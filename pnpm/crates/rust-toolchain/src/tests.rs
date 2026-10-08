@@ -136,10 +136,11 @@ fn only_a_link_to_the_toolchain_the_file_asks_for_is_taken() {
         fs::create_dir_all(toolchain.join("bin")).unwrap();
         fs::remove_dir_all(checkout.path().join(".pnpm/rust")).unwrap();
         std::os::unix::fs::symlink(&toolchain, checkout.path().join(".pnpm/rust")).unwrap();
-        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), Some(committed.clone()));
+        let installed = Some(dunce::canonicalize(toolchain.join("bin")).unwrap());
+        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
 
         fs::write(&toolchain_file, "stable").unwrap();
-        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), Some(committed));
+        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
 
         for changed in [
             "1.96.0",

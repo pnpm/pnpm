@@ -1,4 +1,4 @@
-use super::{newest_installed, publish, toolchain_dir, unpack};
+use super::{last_resolution, newest_installed, publish, record_resolution, toolchain_dir, unpack};
 use crate::{Channel, Profile, ToolchainRequest};
 use flate2::{Compression, write::GzEncoder};
 use pretty_assertions::assert_eq;
@@ -192,6 +192,13 @@ fn offline_a_moving_channel_uses_its_newest_installed_release() {
         Some(toolchain_dir(store.path(), &Channel::parse("1.89.0").unwrap(), HOST, &stable)),
     );
     assert_eq!(newest_installed(store.path(), HOST, &request("stable", &["rust-src"])), None);
+
+    let file = toolchain_dir(store.path(), &Channel::parse("1.200.0").unwrap(), HOST, &stable);
+    fs::write(file, "").unwrap();
+    assert_eq!(
+        newest_installed(store.path(), HOST, &stable),
+        Some(toolchain_dir(store.path(), &Channel::parse("1.100.0").unwrap(), HOST, &stable)),
+    );
 }
 
 fn walk(dir: &Path) -> Vec<String> {
@@ -209,4 +216,14 @@ fn walk(dir: &Path) -> Vec<String> {
         }
     }
     files
+}
+
+#[test]
+fn a_resolution_record_never_moves_back() {
+    let store = tempfile::tempdir().unwrap();
+    let stable = request("stable", &[]);
+    let newer = Channel::parse("1.96.0").unwrap();
+    record_resolution(store.path(), HOST, &stable, &newer);
+    record_resolution(store.path(), HOST, &stable, &Channel::parse("1.95.0").unwrap());
+    assert_eq!(last_resolution(store.path(), HOST, &stable), Some(newer));
 }
