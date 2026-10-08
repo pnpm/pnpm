@@ -27,8 +27,8 @@ use pnpm_lockfile::{
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use ssri::Integrity;
 
@@ -154,18 +154,20 @@ impl NodeResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "node") else {
             return Ok(None);
         };
-
-        // A fast path could reuse the lockfile-pinned
-        // VariationsResolution unchanged when the current package is
-        // already pinned and no update is requested. Pacquet doesn't
-        // thread that signal through `ResolveOptions` yet, so every
-        // resolve re-fetches the asset list. Add the fast path once the
-        // seam carries it.
+        if let Some((current, version)) = opts.refresh.kept_runtime() {
+            return Ok(Some(node_resolve_result(
+                wanted_dependency,
+                current.id.clone(),
+                current.resolution.clone(),
+                version,
+                None,
+            )));
+        }
 
         let picked = self
             .pick_node_version(version_spec)
@@ -178,27 +180,13 @@ impl NodeResolver {
             &version,
             wanted_dependency.prev_specifier.as_deref(),
         );
-        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
-        let manifest = serde_json::json!({
-            "name": "node",
-            "version": version,
-            "bin": node_bins_for_current_os(current_platform()),
-        });
-        Ok(Some(ResolveResult {
-            id: format!("node@runtime:{version}").into(),
-            resolution,
-            resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{range}")),
-            alias: wanted_dependency.alias.clone(),
-            policy_violation: None,
-            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                name_ver: None,
-                latest: None,
-                published_at: None,
-                manifest: Some(std::sync::Arc::new(manifest)),
-                non_deprecated_alternative: None,
-            },
-        }))
+        Ok(Some(node_resolve_result(
+            wanted_dependency,
+            format!("node@runtime:{version}").into(),
+            LockfileResolution::Variations(VariationsResolution { variants }),
+            &version,
+            Some(format!("runtime:{range}")),
+        )))
     }
 
     /// A failed exact-version asset lookup consults the release index to
@@ -422,6 +410,35 @@ struct PickedNodeVersion {
 /// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
 /// halves match the runtime contract. Returns `None` (defer to the
 /// next resolver) for any other shape.
+fn node_resolve_result(
+    wanted_dependency: &WantedDependency,
+    id: PkgResolutionId,
+    resolution: LockfileResolution,
+    version: &str,
+    normalized_bare_specifier: Option<String>,
+) -> ResolveResult {
+    let manifest = serde_json::json!({
+        "name": "node",
+        "version": version,
+        "bin": node_bins_for_current_os(current_platform()),
+    });
+    ResolveResult {
+        id,
+        resolution,
+        resolved_via: RESOLVED_VIA.to_string(),
+        normalized_bare_specifier,
+        alias: wanted_dependency.alias.clone(),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
+        },
+    }
+}
+
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;

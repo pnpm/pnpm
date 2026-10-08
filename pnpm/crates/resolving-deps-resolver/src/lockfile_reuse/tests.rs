@@ -109,6 +109,33 @@ fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
 }
 
 #[test]
+fn reuses_a_locked_runtime_the_widened_range_still_admits() {
+    let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.10.0");
+    let key = reusable_importer_dep(&lockfile, ".", "node", "runtime:^26")
+        .expect("locked 26.10.0 satisfies ^26");
+    assert_eq!(key.to_string(), "node@runtime:26.10.0");
+}
+
+#[test]
+fn fresh_resolves_a_runtime_range_that_excludes_the_locked_version() {
+    let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:26.10.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^27").is_none());
+}
+
+#[test]
+fn reuses_a_locked_runtime_under_an_unchanged_non_range_selector() {
+    let lockfile = single_dep_lockfile("node", "runtime:lts", "runtime:24.11.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:lts").is_some());
+}
+
+#[test]
+fn reuses_a_locked_runtime_only_from_the_same_release_channel() {
+    let lockfile = single_dep_lockfile("node", "runtime:rc/24.0.0-rc.4", "runtime:24.0.0-rc.4");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:rc/^24.0.0-rc.3").is_some());
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^24.0.0-rc.3").is_none());
+}
+
+#[test]
 fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
     let specifier = "git+file:///repo#main";
     let resolved = "git+file:///repo#0123456789012345678901234567890123456789";
