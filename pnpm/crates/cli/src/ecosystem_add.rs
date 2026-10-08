@@ -24,7 +24,11 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     validate_add_options(
         &context,
         args,
-        AddedPackages { crates: !crates.is_empty(), node: has_node_packages },
+        AddedPackages {
+            crates: !crates.is_empty(),
+            toolchain: !toolchains.is_empty(),
+            node: has_node_packages,
+        },
     )?;
     let mut tasks = Vec::new();
     let mut python = PythonProjects::default();
@@ -38,7 +42,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     }
     // The last channel named wins, as a repeated npm package does.
     if let Some(channel) = toolchains.into_iter().last() {
-        tasks.push(cargo_deps::toolchain::add::plan::<Reporter>(context.clone(), &root, channel));
+        tasks.push(cargo_deps::toolchain::add::plan::<Reporter>(context.clone(), &root, channel)?);
     }
     if !requirements.is_empty() {
         let (task, projects) =
@@ -63,6 +67,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
 #[derive(Clone, Copy)]
 struct AddedPackages {
     crates: bool,
+    toolchain: bool,
     node: bool,
 }
 
@@ -140,6 +145,11 @@ fn validate_add_options(
     if context.config.recursive && added.crates {
         return Err(miette::miette!(
             "crate: dependencies cannot yet be added through a recursive or filtered selection"
+        ));
+    }
+    if context.config.recursive && added.toolchain {
+        return Err(miette::miette!(
+            "the Rust toolchain cannot yet be pinned through a recursive or filtered selection"
         ));
     }
     if context.config.recursive && added.node {

@@ -192,13 +192,29 @@ fn refuse_older_release(
     }
 }
 
-/// The release the toolchain `request` asks for resolves to, as installed.
-/// `None` when it is not installed.
+/// The release the toolchain `request` asks for last resolved to, and
+/// where it is installed, however long ago that was. `None` when it is not
+/// installed.
 #[must_use]
-pub fn installed_release(config: &Config, request: &ToolchainRequest) -> Option<Channel> {
+pub fn installed_release(
+    config: &Config,
+    request: &ToolchainRequest,
+) -> Option<(Channel, InstalledToolchain)> {
     let host = host::host_triple()?;
-    let dir = installed_without_download(config, &toolchains_dir(config), &host, request)?;
-    install::release_of(dir.file_name()?.to_str()?, &host, request)
+    let toolchains = toolchains_dir(config);
+    let release = if request.channel.is_pinned() {
+        request.channel.clone()
+    } else {
+        install::last_resolution(&toolchains, &host, request)
+            .filter(|last| install::toolchain_dir(&toolchains, last, &host, request).is_dir())
+            .or_else(|| {
+                install::newest_installed_release(&toolchains, &host, request)
+                    .map(|(release, _)| release)
+            })?
+    };
+    let dir = install::toolchain_dir(&toolchains, &release, &host, request);
+    dir.is_dir()
+        .then_some((release, InstalledToolchain { dir }))
 }
 
 /// Make the next [`install_toolchain`] of a moving channel ask the

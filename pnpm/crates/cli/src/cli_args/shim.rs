@@ -154,6 +154,27 @@ impl ShimArgs {
     }
 }
 
+/// Fail as [`add_shims`] would for `package`'s `bins` on what the global
+/// configuration and bin directory hold now, for a caller with expensive
+/// work to do before it adds them.
+pub(crate) fn check_shims_addable(
+    config: &Config,
+    bin_dir: &Path,
+    package: &str,
+    bins: &[&str],
+) -> miette::Result<()> {
+    if shims_disabled_globally(&global_config_dir(config)?)? || !would_dispatch(config, package)? {
+        return Err(ShimError::ShimsDisabled.into());
+    }
+    match bins.iter().find(|bin| taken_by_another(bin_dir, bin, package)) {
+        Some(bin) => {
+            Err(ShimError::BinConflict { package: package.to_string(), bin: (*bin).to_string() }
+                .into())
+        }
+        None => Ok(()),
+    }
+}
+
 /// Link the shims for every package in `packages` and record the opt-in.
 pub(crate) async fn add_shims(
     config: &'static Config,

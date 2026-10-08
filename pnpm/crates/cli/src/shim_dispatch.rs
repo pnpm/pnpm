@@ -59,8 +59,8 @@ use pnpm_rust_toolchain::ToolchainRequest;
 use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use rust_toolchain::{
-    RUST_SHIM_PACKAGE, find_rust_candidate, overrides_toolchain, run_global_rust, run_next_on_path,
-    run_rust_toolchain, rustup_settings_file,
+    RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
+    run_next_on_path, run_rust_toolchain, rustup_settings_file,
 };
 use serde_json::Value;
 use settings::{
@@ -163,17 +163,18 @@ fn dispatch_rust(
         return run_next_on_path(shim, args);
     }
     let rustup_settings = rustup_settings_file();
-    let candidate = std::env::current_dir()
-        .ok()
-        .and_then(|cwd| find_rust_candidate(&cwd, rustup_settings.as_deref()));
-    match candidate {
-        Some(candidate)
+    let Ok(cwd) = std::env::current_dir() else { return run_next_on_path(shim, args) };
+    match find_rust_candidate(&cwd, rustup_settings.as_deref()) {
+        RustSelection::Managed(candidate)
             if matches!(policy, ShimPolicy::Auto | ShimPolicy::Always)
                 || is_trusted(&candidate, shim.name, state_dir) =>
         {
             run_trusted_candidate(shim, candidate, args, state_dir)
         }
-        _ => run_global_rust(shim, args),
+        RustSelection::Unpinned => run_global_rust(shim, args, state_dir),
+        // An untrusted project file is not run, and rustup's own choices are
+        // rustup's to act on.
+        RustSelection::Managed(_) | RustSelection::Rustup => run_next_on_path(shim, args),
     }
 }
 
@@ -244,10 +245,10 @@ fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -
 fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
     let target = match shim.target {
         ShimTarget::Installed(target) => target,
-        // Switched off, the Rust shims run the toolchain installed globally,
-        // or give way to the toolchains on `PATH`.
+        // The Rust shims stand in front of the toolchains on `PATH`, so
+        // switched off they give way to those.
         ShimTarget::Virtual(package) if package == RUST_SHIM_PACKAGE => {
-            return run_global_rust(shim, args);
+            return run_next_on_path(shim, args);
         }
         ShimTarget::Virtual(package) => {
             eprintln!(

@@ -261,6 +261,22 @@ fn rust_installs_globally() {
     assert_eq!(rust["version"], "1.95.0");
     assert_eq!(Path::new(rust["path"].as_str().unwrap()), toolchain);
 
+    // Switched off, the shims give way to the next cargo on PATH even with
+    // a global toolchain installed.
+    let rustup = root.path().join("rustup-bin");
+    write_script(&rustup.join("cargo"), r#"echo rustup-cargo "$@""#);
+    let output = shim(&root, &elsewhere, "cargo", &[&global_bin(&root), &rustup])
+        .with_env("PNPM_SHIM_BYPASS", "1")
+        .with_args(["build"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "rustup-cargo build");
+
+    // A package that is not installed fails the removal before Rust goes.
+    let output = pnpm(&["remove", "-g", "rust", "not-installed"]);
+    assert!(!output.status.success());
+    assert!(global_bin(&root).join(".pnpm-rust-toolchain").exists());
+
     let output = pnpm(&["remove", "-g", "rust"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let exe = std::env::consts::EXE_SUFFIX;

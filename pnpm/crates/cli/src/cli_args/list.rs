@@ -156,24 +156,21 @@ impl ListArgs {
                 )
             })?;
 
+        let tools = crate::cli_args::global::rust::global_tools(config);
+        // A toolchain has no dependency tree, so a listing it belongs in is
+        // the flat one, as for several global installs.
+        let lists_a_tool = tools
+            .iter()
+            .any(|tool| self.packages.is_empty() || self.packages.contains(&tool.name));
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
+            && !lists_a_tool
             && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
         {
             return Ok(output);
         }
 
         let report_as = self.report_as();
-        let tools = config.global_bin
-            .as_deref()
-            .and_then(crate::cli_args::global::rust::listed_global_rust)
-            .map(|(version, location)| pnpm_global::GlobalTool {
-                name: crate::shim_dispatch::rust_toolchain::RUST_SHIM_PACKAGE.to_string(),
-                version,
-                location,
-            })
-            .into_iter()
-            .collect();
         list_global_packages(
             &global_pkg_dir,
             &self.packages,

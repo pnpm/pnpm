@@ -355,8 +355,11 @@ fn reports_the_installed_release_and_expires_a_resolution() {
     fs::create_dir_all(toolchain_dir(&toolchains, &pinned, &host, &stable)).unwrap();
     record_resolution(&toolchains, &host, &stable, &pinned);
 
-    assert_eq!(super::installed_release(&config, &stable), Some(pinned.clone()));
+    let release = |config| super::installed_release(config, &stable).map(|(release, _)| release);
+    assert_eq!(release(&config), Some(pinned.clone()));
     super::expire_resolution(&config, &stable);
-    assert_eq!(super::installed_release(&config, &stable), None);
+    // An expired resolution is still the release it installed.
+    assert_eq!(release(&config), Some(pinned.clone()));
+    assert_eq!(super::installed_toolchain(&config, &stable), None);
     assert_eq!(super::install::last_resolution(&toolchains, &host, &stable), Some(pinned));
 }

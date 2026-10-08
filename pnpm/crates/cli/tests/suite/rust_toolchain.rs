@@ -3,7 +3,7 @@
 
 use crate::_utils::{pacquet_in, write_fake_bin};
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
 use std::fs;
 
@@ -176,5 +176,33 @@ fn add_rust_links_the_toolchain_where_cargo_is_enabled() {
         dunce::canonicalize(workspace.join(".pnpm/rust")).unwrap(),
         dunce::canonicalize(&toolchain).unwrap(),
     );
+    drop(root);
+}
+
+#[test]
+fn add_rust_through_a_filter_is_refused() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .unwrap();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - crates/*\n").unwrap();
+    let member = workspace.join("crates/member");
+    fs::create_dir_all(&member).unwrap();
+    fs::write(member.join("package.json"), json!({ "name": "member" }).to_string()).unwrap();
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "member", "add", "rust@1.95.0"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert_diagnostic_contains(
+        &String::from_utf8_lossy(&output.stderr),
+        "cannot yet be pinned through a recursive or filtered selection",
+    );
+    assert!(!workspace.join("rust-toolchain.toml").exists());
+    assert!(!member.join("rust-toolchain.toml").exists());
     drop(root);
 }

@@ -92,7 +92,7 @@ pub(crate) fn installs_toolchains(config: &Config) -> bool {
     matches!(config.runtime_on_fail, None | Some(RuntimeOnFail::Download))
 }
 
-fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
+pub(super) fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Warn,
         message: format!(
