@@ -286,3 +286,34 @@ async fn the_fallback_does_not_move_a_channel_back() {
     .expect_err("1.95.0 is older than the 1.96.0 the channel resolved to");
     assert!(matches!(error, RustToolchainError::Network { .. }), "{error:?}");
 }
+
+#[tokio::test]
+async fn a_server_that_answers_with_a_client_error_is_reported() {
+    let mut server = mockito::Server::new_async().await;
+    let _manifest = server
+        .mock("GET", "/dist/channel-rust-stable.toml")
+        .with_status(404)
+        .create_async()
+        .await;
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), &server.url());
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    fs::create_dir_all(toolchain_dir(
+        &toolchains,
+        &Channel::parse("1.95.0").unwrap(),
+        HOST,
+        &stable,
+    ))
+    .unwrap();
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .expect_err("a mirror missing the channel is a misconfiguration");
+    assert!(matches!(error, RustToolchainError::StatusNotOk { status: 404, .. }), "{error:?}");
+}

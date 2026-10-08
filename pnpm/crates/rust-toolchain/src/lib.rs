@@ -130,18 +130,23 @@ fn installed_without_download(
 const UNREACHABLE_RETRY_AFTER: std::time::Duration = std::time::Duration::from_hours(1);
 
 /// The newest installed release of a moving channel, when the distribution
-/// server could not be reached to say which release it is now. A failure
-/// the server answered for, such as a bad signature, is not covered.
+/// server could not be reached, or failed, to say which release it is now.
+/// A failure the server answered for, such as a bad signature or a missing
+/// release, is not covered.
 fn installed_after_failed_fetch<Reporter: self::Reporter>(
     toolchains: &Path,
     host: &str,
     request: &ToolchainRequest,
     error: RustToolchainError,
 ) -> Result<InstalledToolchain, RustToolchainError> {
-    let unreachable = matches!(
-        error,
-        RustToolchainError::Network { .. } | RustToolchainError::StatusNotOk { .. },
-    );
+    // A server that answers with anything but a failure of its own, such
+    // as a mirror refusing the credentials or missing the release, is a
+    // misconfiguration to report rather than to cover.
+    let unreachable = match &error {
+        RustToolchainError::Network { .. } => true,
+        RustToolchainError::StatusNotOk { status, .. } => *status >= 500,
+        _ => false,
+    };
     if !unreachable || request.channel.is_pinned() {
         return Err(error);
     }
