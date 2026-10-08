@@ -276,6 +276,25 @@ fn files_field_glob_packs_only_root_ignore_files() {
 }
 
 #[test]
+fn files_field_exclusion_naming_a_nested_ignore_file_wins() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/.npmignore");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "lib/.npmignore", "!lib/.npmignore"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
 fn main_or_bin_packs_an_ignore_file_only_at_the_root() {
     let dir = tempdir().unwrap();
     let root = dir.path();

@@ -254,11 +254,8 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
         // npm-packlist re-applies its default rules in each subdirectory, so
         // a glob such as `lib/*` or `**` ships only the root ignore files.
         // A nested one ships only when an entry names its path.
-        return if rel.contains('/') {
-            !selection.named_files.contains(rel)
-        } else {
-            !matcher.matched(rel, false).is_ignore()
-        };
+        let named_if_nested = !rel.contains('/') || selection.named_files.contains(rel);
+        return !(named_if_nested && matcher.matched(rel, false).is_ignore());
     }
     !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
