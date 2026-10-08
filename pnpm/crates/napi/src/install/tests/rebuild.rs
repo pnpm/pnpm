@@ -74,7 +74,7 @@ fn rebuild_keeps_a_tree_whose_recorded_settings_drifted() {
     let pkg_dir = pkg_dir(project_dir);
 
     drop_recorded_layout_settings(&modules_dir);
-    let kept = pkg_dir.join("kept-by-rebuild");
+    let kept = modules_dir.join(".pnpm/kept-by-rebuild");
     std::fs::write(&kept, "").expect("write marker");
     mark_rebuilds(&pkg_dir);
     run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None, false)))
@@ -82,6 +82,60 @@ fn rebuild_keeps_a_tree_whose_recorded_settings_drifted() {
 
     assert!(kept.exists(), "a rebuild must not recreate node_modules");
     assert!(pkg_dir.join("rebuilt").exists(), "a rebuild runs the scripts");
+    let modules = read_modules_manifest::<Host>(&modules_dir)
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists");
+    assert_eq!(modules.node_linker, Some(NodeLinker::Isolated));
+}
+
+/// Leaves the records of a hoisted install behind, in `.modules.yaml` and in
+/// the workspace state the repeat-install check reads.
+fn record_hoisted_install(modules_dir: &Path) {
+    let mut modules = read_modules_manifest::<Host>(modules_dir)
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists");
+    modules.node_linker = Some(NodeLinker::Hoisted);
+    write_modules_manifest::<Host>(modules_dir, modules).expect("write .modules.yaml");
+
+    let state_path = modules_dir.join(".pnpm-workspace-state-v1.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&state_path).expect("read workspace state"))
+            .expect("parse workspace state");
+    state["settings"]["nodeLinker"] = serde_json::Value::from("hoisted");
+    std::fs::write(&state_path, state.to_string()).expect("write workspace state");
+}
+
+#[test]
+fn rebuild_keeps_the_recorded_layout_for_the_next_install_to_check() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = install_options_for(
+        temp_dir.path(),
+        "project",
+        serde_json::json!({ "dependencies": { PACKAGE: "1.0.0" } }),
+    );
+    options.dangerously_allow_all_builds = Some(true);
+    options.enable_global_virtual_store = Some(false);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install");
+    let project_dir = Path::new(&options.dir);
+    let modules_dir = project_dir.join("node_modules");
+    let kept = modules_dir.join(".pnpm/kept-by-rebuild");
+    std::fs::write(&kept, "").expect("write marker");
+
+    record_hoisted_install(&modules_dir);
+    run_install_inner(&options, None, EngineMode::Rebuild(rebuild_options(None, false)))
+        .expect("rebuild");
+    assert!(kept.exists(), "a rebuild must not recreate node_modules");
+    let modules = read_modules_manifest::<Host>(&modules_dir)
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists");
+    assert_eq!(
+        modules.node_linker,
+        Some(NodeLinker::Hoisted),
+        "a rebuild records the layout it found",
+    );
+
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install");
+    assert!(!kept.exists(), "the next install relinks a tree whose linker changed");
     let modules = read_modules_manifest::<Host>(&modules_dir)
         .expect("read .modules.yaml")
         .expect(".modules.yaml exists");
