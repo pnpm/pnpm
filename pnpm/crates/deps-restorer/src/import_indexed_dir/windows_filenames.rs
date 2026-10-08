@@ -37,11 +37,11 @@ fn needs_sanitizing(part: &str) -> bool {
     part.ends_with(['.', ' '])
         || is_windows_device_name(part, false)
         || part.encode_utf16().count() > 255
-        || part
-            .bytes()
-            .any(|byte| {
-                matches!(byte, 0..=31 | b'?' | b'<' | b'>' | b':' | b'"' | b'\\' | b'*' | b'|')
-            })
+        || part.chars().any(is_stripped_char)
+}
+
+fn is_stripped_char(ch: char) -> bool {
+    matches!(ch, '\0'..='\x1f' | '\u{80}'..='\u{9f}' | '?' | '<' | '>' | ':' | '"' | '\\' | '*' | '|')
 }
 
 fn sanitize_path(filename: &str) -> Result<String, ImportIndexedDirError> {
@@ -62,9 +62,7 @@ fn sanitize_path(filename: &str) -> Result<String, ImportIndexedDirError> {
 fn sanitize_component(part: &str) -> String {
     let mut result: String = part
         .chars()
-        .filter(|&ch| {
-            !matches!(ch, '\0'..='\x1f' | '\u{80}'..='\u{9f}' | '?' | '<' | '>' | ':' | '"' | '\\' | '*' | '|')
-        })
+        .filter(|&ch| !is_stripped_char(ch))
         .collect();
     if is_windows_device_name(&result, true) {
         result.clear();

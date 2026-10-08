@@ -32,6 +32,14 @@ fn sanitizes_invalid_components_and_preserves_valid_names() {
 }
 
 #[test]
+fn sanitizes_c1_controls_without_other_invalid_characters() {
+    let input = entries(&["assets/name\u{80}\u{9f}.txt"]);
+    let sanitized = sanitize_filenames(&input).unwrap().unwrap();
+    assert_eq!(sanitized.paths["assets/name.txt"], PathBuf::from("assets/name\u{80}\u{9f}.txt"));
+    assert_eq!(sanitized.renamed, ["assets/name\u{80}\u{9f}.txt"]);
+}
+
+#[test]
 fn rejects_empty_components_and_collisions() {
     for names in [
         vec!["?/file"],
