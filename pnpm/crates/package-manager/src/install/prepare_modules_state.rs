@@ -65,8 +65,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent = inputs.repeat.rebuild.is_none()
-        && modules_layout_drifted(modules_manifest, inputs.tree.config, inputs.tree.node_linker);
+    let is_inconsistent = modules_layout_drifted(modules_manifest, &inputs);
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
@@ -290,9 +289,12 @@ fn read_previous_modules_metadata(
 /// directory without validating its recorded settings.
 fn modules_layout_drifted(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
-    config: &Config,
-    node_linker: NodeLinker,
+    inputs: &PrepareModulesStateInputs<'_, '_>,
 ) -> bool {
+    if inputs.repeat.rebuild.is_some() {
+        return false;
+    }
+    let config = inputs.tree.config;
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
         return config.modules_dir
@@ -300,7 +302,7 @@ fn modules_layout_drifted(
             .try_exists()
             .unwrap_or(true);
     };
-    !modules_layout_consistent_with(modules, config, node_linker)
+    !modules_layout_consistent_with(modules, config, inputs.tree.node_linker)
 }
 
 fn load_recorded_workspace_state(
