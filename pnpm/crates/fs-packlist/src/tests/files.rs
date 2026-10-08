@@ -591,3 +591,49 @@ fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
         ],
     );
 }
+
+#[test]
+fn npmignore_negation_reincludes_files_under_a_star_exclusion() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "lib/index.js");
+    touch(root, "lib/utils/foo.js");
+    fs::write(root.join(".npmignore"), "*\n!lib/**\n").unwrap();
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert_eq!(out, ["lib/index.js", "lib/utils/foo.js", "package.json"]);
+}
+
+#[test]
+fn npmignore_honors_extglob_negations() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "settings.yaml");
+    touch(root, "lib/index.js");
+    touch(root, "lib/index.js.map");
+    touch(root, "lib/.tsbuildinfo");
+    touch(root, "lib/utils/foo.js");
+    touch(root, "lib/utils/foo.js.map");
+    touch(root, "src/a.ts");
+    touch(root, "src/a.test.ts");
+    touch(root, "test/a.js");
+    fs::write(
+        root.join(".npmignore"),
+        "*\n!lib/**/!(*.js.map|.tsbuildinfo)\n!src/**/!(*.test.ts|*.test.tsx|*.snap|*.stories.*)\n!settings.yaml\n",
+    )
+    .unwrap();
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert_eq!(
+        out,
+        ["lib/index.js", "lib/utils/foo.js", "package.json", "settings.yaml", "src/a.ts"],
+    );
+}

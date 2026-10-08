@@ -7,15 +7,14 @@
 //!
 //! The algorithm has four passes:
 //!
-//! 1. **Walk with ignore-file filtering**, honoring npm-packlist's
-//!    three-tier priority at the package root: (a) a usable `files`
-//!    allowlist disables `.gitignore` and `.npmignore` — the
-//!    package's own and any workspace-inherited ones alike — leaving
-//!    the allowlist in pass 2 as the sole gate (a `files` field with
-//!    no usable entry is treated as absent, see
-//!    [`build_files_matcher`]); (b) no `files` but a root
-//!    `.npmignore` exists disables `.gitignore`; (c) neither present
-//!    falls back to `.gitignore`.
+//! 1. **Walk with ignore-file filtering**: a usable `files` allowlist
+//!    disables `.gitignore` and `.npmignore` — the package's own and any
+//!    workspace-inherited ones alike — leaving the allowlist in pass 2
+//!    as the sole gate (a `files` field with no usable entry is treated
+//!    as absent, see [`build_files_matcher`]). Otherwise each
+//!    directory's `.npmignore` applies, or its `.gitignore` when it has
+//!    no `.npmignore`, matched the way
+//!    [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
@@ -36,20 +35,12 @@
 //!    then ancestor `node_modules/`), and packed where Node resolves
 //!    it from the parent's packed location.
 //!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
-//!
-//! One intentional divergence from npm-packlist:
-//!
-//! - npm-packlist evaluates the `.npmignore`-supersedes-`.gitignore`
-//!   rule per-directory, but the `ignore` crate's `WalkBuilder`
-//!   toggles are process-global, so pacquet applies the three-tier
-//!   priority at the package root only. In tier 3, a subdirectory
-//!   that has both ignore files gets them combined rather than
-//!   `.npmignore` winning. This is rare in published packages.
 
 pub use files_field::build_files_matcher;
 
 use derive_more::{Display, Error};
-use ignore::{WalkBuilder, gitignore::Gitignore};
+use ignore::gitignore::Gitignore;
+use ignore_walk::{IgnoreFiles, walk_files};
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
@@ -195,16 +186,18 @@ fn collect_own_files(
 
     let mut out: BTreeSet<String> = BTreeSet::new();
 
-    // Pass 1: walk with ignore-file filtering.  The three-tier
-    // priority (see module doc) decides which ignore files apply.
     let selection = FileSelection {
         files_matcher: files_matcher.as_ref(),
         named_files: &named_files,
         main_path,
         bin_paths: &bin_paths,
     };
-    let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
-    collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
+    let ignore_files = if files_matcher.is_some() {
+        IgnoreFiles::Skip
+    } else {
+        IgnoreFiles::Read { workspace_dir }
+    };
+    collect_walked_files(pkg_dir, ignore_files, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
     force_include_main_and_bin(pkg_dir, &selection, &mut out);
     Ok(out)
@@ -221,79 +214,23 @@ struct FileSelection<'a> {
     bin_paths: &'a [&'a str],
 }
 
-/// The walker for pass 1, configured for whichever ignore tier applies.
-///
-/// `standard_filters(false)` turns off `ignore`'s opinionated defaults
-/// (hidden-file skip, `.git`-dir skip, etc.) so every filter is explicit here.
-/// `require_git(false)` makes `ignore` honor `.gitignore` even though a
-/// git-hosted snapshot's `.git/` has already been deleted by
-/// `pnpm-git-fetcher` before this point.
-fn ignore_walk_builder(
-    pkg_dir: &Path,
-    workspace_dir: Option<&Path>,
-    has_files_field: bool,
-) -> Result<WalkBuilder, PacklistError> {
-    let mut builder = WalkBuilder::new(pkg_dir);
-    builder
-        .current_dir(pkg_dir)
-        .standard_filters(false)
-        .hidden(false)
-        .git_exclude(false)
-        .git_global(false)
-        .require_git(false)
-        .parents(false);
-    // Prune subtrees whose every entry the post-walk filters would drop
-    // anyway: the package's own `node_modules` (bundled separately) and VCS
-    // dirs. Purely a traversal cost cut — with a `files` allowlist no ignore
-    // file applies, so an installed dependency tree would otherwise be
-    // enumerated entry by entry only to be discarded.
-    builder.filter_entry(|entry| {
-        if entry.depth() == 0 {
-            return true;
-        }
-        let name = entry.file_name();
-        if entry.depth() == 1 && name == OsStr::new("node_modules") {
-            return false;
-        }
-        !ALWAYS_EXCLUDED_DIR_SEGMENTS
-            .iter()
-            .any(|segment| name == OsStr::new(segment))
-    });
-    if has_files_field {
-        builder.git_ignore(false);
-        return Ok(builder);
-    }
-    builder.git_ignore(!pkg_dir.join(".npmignore").is_file());
-    builder.add_custom_ignore_filename(".npmignore");
-    // Workspace-inherited ignore files apply only in tiers (b)/(c): with a
-    // `files` allowlist an ancestor rule must not filter the walk, or an
-    // allowlisted directory the workspace root happens to `.gitignore` (a
-    // compiled `lib/`) never reaches pass 2 and silently vanishes from the
-    // tarball.
-    add_workspace_ignore_files(&mut builder, pkg_dir, workspace_dir)?;
-    Ok(builder)
-}
-
 /// Pass 1: every walked file the ignore rules and the `files` allowlist keep.
 fn collect_walked_files(
-    builder: &WalkBuilder,
     pkg_dir: &Path,
+    ignore_files: IgnoreFiles<'_>,
     selection: &FileSelection<'_>,
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
-    for entry in builder.build() {
-        let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|file_type| is_packable(pkg_dir, entry.path(), file_type))
-        {
-            continue;
+    walk_files(pkg_dir, ignore_files, &mut |path, file_type| {
+        if !is_packable(pkg_dir, path, file_type) {
+            return;
         }
-        let rel = relative_forward_slash(pkg_dir, entry.path());
-        if walked_file_is_excluded(&rel, selection) {
-            continue;
+        let rel = relative_forward_slash(pkg_dir, path);
+        if !walked_file_is_excluded(&rel, selection) {
+            out.insert(rel);
         }
-        out.insert(rel);
-    }
-    Ok(())
+    })
+    .map_err(|source| io_error(pkg_dir, source))
 }
 
 /// Whether one walked path is kept out of the tarball.
@@ -392,59 +329,6 @@ fn force_include_main_and_bin(
     }
 }
 
-fn add_workspace_ignore_files(
-    builder: &mut WalkBuilder,
-    pkg_dir: &Path,
-    workspace_dir: Option<&Path>,
-) -> Result<(), PacklistError> {
-    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
-    if pkg_dir.join(".npmignore").is_file() {
-        return Ok(());
-    }
-    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
-    if rel.as_os_str().is_empty() {
-        return Ok(());
-    }
-    let Some(pkg_parent) = pkg_dir.parent() else { return Ok(()) };
-    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else { return Ok(()) };
-
-    let mut current = workspace_dir.to_path_buf();
-    add_workspace_ignore_file(builder, pkg_dir, &current)?;
-    for component in parent_rel.components() {
-        // `parent_rel` is `pkg_parent` relative to `workspace_dir`, so a
-        // clean descendant chain yields only `Normal` components. Anything
-        // else (a stray `..` or root/prefix from a non-canonical path) means
-        // we can't trust the remaining chain, so stop rather than walk out of
-        // the workspace; the already-added root ignore stays in effect.
-        let Component::Normal(segment) = component else { return Ok(()) };
-        current.push(segment);
-        add_workspace_ignore_file(builder, pkg_dir, &current)?;
-    }
-    Ok(())
-}
-
-fn add_workspace_ignore_file(
-    builder: &mut WalkBuilder,
-    pkg_dir: &Path,
-    dir: &Path,
-) -> Result<(), PacklistError> {
-    let npmignore = dir.join(".npmignore");
-    let gitignore = dir.join(".gitignore");
-    let ignore_file = if npmignore.is_file() {
-        Some(npmignore)
-    } else if gitignore.is_file() {
-        Some(gitignore)
-    } else {
-        None
-    };
-    if let Some(ignore_file) = ignore_file
-        && let Some(error) = builder.add_ignore(&ignore_file)
-    {
-        return Err(io_error(pkg_dir, into_io(error)));
-    }
-    Ok(())
-}
-
 fn is_always_included_at_root(rel: &str) -> bool {
     // Only files at the root carry the always-include semantics; a
     // `LICENSE` deep in a subtree follows the same `.npmignore` /
@@ -535,13 +419,9 @@ fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
     PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source }
 }
 
-fn into_io(err: ignore::Error) -> std::io::Error {
-    err.into_io_error()
-        .unwrap_or_else(|| std::io::Error::other("ignore walker produced a non-io error"))
-}
-
 mod bundled;
 mod files_field;
+mod ignore_walk;
 mod symlinks;
 use bundled::collect_bundled_files;
 use files_field::{files_field_includes, named_file_entries, normalize_field_path};
