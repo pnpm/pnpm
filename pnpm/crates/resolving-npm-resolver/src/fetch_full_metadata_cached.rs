@@ -85,7 +85,7 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    meta.versions.check_every_mirror_fragment();
+    meta.versions.read_every_mirror_fragment();
     if !meta.versions.corrupt_mirror_fragment_found() {
         return Ok(meta);
     }

@@ -188,13 +188,13 @@ impl PackageVersions {
 }
 
 impl PackageVersions {
-    /// Check that every unhydrated mirror fragment is JSON, recording a
-    /// damaged one so that [`Self::corrupt_mirror_fragment_found`]
+    /// Read every unhydrated mirror fragment, recording one whose bytes
+    /// are not JSON so that [`Self::corrupt_mirror_fragment_found`]
     /// answers for the whole packument rather than for the versions that
     /// happened to be read. Unlike a full [`Self::iter`] walk, it keeps
     /// no hydrated manifest, so a caller that reads only part of each
     /// version does not hold the whole packument in memory.
-    pub fn check_every_mirror_fragment(&self) {
+    pub fn read_every_mirror_fragment(&self) {
         for (version, slot) in &self.slots {
             if !slot.source.is_mirror_span() || slot.parsed.get().is_some() {
                 continue;

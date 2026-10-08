@@ -587,22 +587,22 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
 }
 
 #[test]
-fn checking_every_mirror_fragment_finds_damage_without_hydrating() {
+fn reading_every_mirror_fragment_finds_damage_without_hydrating() {
     let versions = mirror_versions();
 
-    versions.check_every_mirror_fragment();
+    versions.read_every_mirror_fragment();
     assert!(versions.corrupt_mirror_fragment_found());
     assert!(!versions.is_hydrated("1.0.0"));
 }
 
 #[test]
-fn checking_every_intact_mirror_fragment_finds_nothing() {
+fn reading_every_intact_mirror_fragment_finds_nothing() {
     const VALID: &str =
         r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#;
     let versions =
         mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
 
-    versions.check_every_mirror_fragment();
+    versions.read_every_mirror_fragment();
     assert!(!versions.corrupt_mirror_fragment_found());
     assert!(!versions.is_hydrated("1.0.0"));
 }
