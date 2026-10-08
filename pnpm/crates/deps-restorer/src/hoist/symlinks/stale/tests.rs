@@ -187,3 +187,31 @@ fn treats_a_directory_its_creator_holds_exclusively_as_a_junction_in_creation() 
     assert!(pnpm_fs::is_transient_file_lock_error(&listing_error), "{listing_error:?}");
     assert!(super::may_be_junction_in_creation(&link, &in_progress));
 }
+
+#[cfg(windows)]
+#[test]
+fn retries_link_read_on_delete_pending_or_transient_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    let delete_pending = std::io::Error::from_raw_os_error(303);
+    assert!(super::should_retry_hoist_link_read(&link, &delete_pending));
+}
+
+#[cfg(windows)]
+#[test]
+fn retries_when_directory_is_unlinked_during_inspection() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    std::fs::remove_dir(&link).unwrap();
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
+
+#[test]
+fn retries_link_read_on_not_found() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    let not_found = std::io::Error::from(std::io::ErrorKind::NotFound);
+    assert!(super::should_retry_hoist_link_read(&link, &not_found));
+}
