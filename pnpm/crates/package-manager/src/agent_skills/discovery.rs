@@ -37,6 +37,10 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
     for (importer_id, snapshot) in &input.lockfile.importers {
         let modules_dir = importer_root_dir(input.workspace_root, importer_id)
             .join(input.config.modules_dir_name());
+        // A filtered install leaves the other importers uninstalled.
+        if !modules_dir.is_dir() {
+            continue;
+        }
         for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
             let Some(resolved) = spec.version.resolved_key(alias) else { continue };
             let alias = alias.to_string();
@@ -48,13 +52,7 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
             ) else {
                 continue;
             };
-            let source = skill_source(skills, &resolved, &alias);
-            match by_key.get(&source.approval_key) {
-                Some(kept) if !supersedes(&source, kept) => {}
-                _ => {
-                    by_key.insert(source.approval_key.clone(), source);
-                }
-            }
+            keep_highest(&mut by_key, skill_source(skills, &resolved, &alias));
         }
     }
     by_key
@@ -152,6 +150,17 @@ fn skill_source(
         approval_key,
         link_segment: link_segment.replace('/', "+"),
         package_dir,
+    }
+}
+
+/// Record `source` under its approval key unless a source already kept
+/// there [`supersedes`] it.
+fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource) {
+    match by_key.get(&source.approval_key) {
+        Some(kept) if !supersedes(&source, kept) => {}
+        _ => {
+            by_key.insert(source.approval_key.clone(), source);
+        }
     }
 }
 
