@@ -1,6 +1,8 @@
 //! One `/`-free segment of an ignore rule: minimatch's wildcards, character
 //! classes, and extglobs, matched case-insensitively.
 
+use std::cell::Cell;
+
 /// A parsed segment.
 #[derive(Debug)]
 pub(super) struct SegmentPattern {
@@ -47,10 +49,22 @@ type PosixClass = fn(char) -> bool;
 
 type Continuation<'a> = &'a dyn Fn(usize) -> bool;
 
+/// Extglobs nested deeper than this are read literally, so a crafted rule
+/// cannot exhaust the stack while it is parsed.
+const MAX_EXTGLOB_NESTING: usize = 8;
+
+/// The work an extglob match may take before the name counts as not
+/// matching. Ignore files of git dependencies are untrusted, and extglob
+/// backtracking is otherwise exponential in the worst case.
+const MAX_MATCH_STEPS: usize = 1_000_000;
+
+/// The nesting of backtracking calls a match may reach, for the same reason.
+const MAX_MATCH_DEPTH: usize = 256;
+
 impl SegmentPattern {
     pub(super) fn parse(segment: &str) -> Self {
         let chars: Vec<char> = segment.chars().collect();
-        let mut parser = Parser { chars: &chars, pos: 0 };
+        let mut parser = Parser { chars: &chars, pos: 0, nesting: 0 };
         let nodes = parser.parse_sequence(false);
         let has_extglob = nodes
             .iter()
@@ -69,18 +83,25 @@ impl SegmentPattern {
             return false;
         }
         let chars: Vec<char> = name.chars().collect();
-        let matcher = Matcher { chars: &chars };
-        if self.has_extglob {
-            matcher.sequence(&self.nodes, 0, &|end| end == chars.len())
-        } else {
-            matcher.wildcard(&self.nodes)
+        let matcher = Matcher {
+            chars: &chars,
+            steps: Cell::new(0),
+            depth: Cell::new(0),
+            exhausted: Cell::new(false),
+        };
+        if !self.has_extglob {
+            return matcher.wildcard(&self.nodes);
         }
+        let matched = matcher.sequence(&self.nodes, 0, &|end| end == chars.len());
+        matched && !matcher.exhausted.get()
     }
 }
 
 struct Parser<'a> {
     chars: &'a [char],
     pos: usize,
+    /// How many extglobs enclose the current position.
+    nesting: usize,
 }
 
 impl Parser<'_> {
@@ -102,6 +123,7 @@ impl Parser<'_> {
     fn parse_node(&mut self, current: char) -> Node {
         if let Some(kind) = extglob_kind(current)
             && self.chars.get(self.pos + 1) == Some(&'(')
+            && self.nesting < MAX_EXTGLOB_NESTING
             && let Some(node) = self.try_parse_extglob(kind)
         {
             return node;
@@ -130,19 +152,27 @@ impl Parser<'_> {
     fn try_parse_extglob(&mut self, kind: ExtglobKind) -> Option<Node> {
         let start = self.pos;
         self.pos += 2;
+        self.nesting += 1;
+        let alternatives = self.parse_alternatives();
+        self.nesting -= 1;
+        if alternatives.is_none() {
+            self.pos = start;
+        }
+        alternatives.map(|alternatives| Node::Extglob(kind, alternatives))
+    }
+
+    /// The `|`-separated alternatives up to and including the closing `)`.
+    fn parse_alternatives(&mut self) -> Option<Vec<Vec<Node>>> {
         let mut alternatives = Vec::new();
         loop {
             alternatives.push(self.parse_sequence(true));
-            match self.chars.get(self.pos) {
-                Some('|') => self.pos += 1,
-                Some(')') => {
+            match self.chars.get(self.pos)? {
+                '|' => self.pos += 1,
+                ')' => {
                     self.pos += 1;
-                    return Some(Node::Extglob(kind, alternatives));
+                    return Some(alternatives);
                 }
-                _ => {
-                    self.pos = start;
-                    return None;
-                }
+                _ => unreachable!("parse_sequence stops only at `|`, `)`, or the end"),
             }
         }
     }
@@ -231,26 +261,52 @@ fn parse_posix_class(chars: &[char], pos: usize) -> Option<(PosixClass, usize)> 
 
 struct Matcher<'a> {
     chars: &'a [char],
+    steps: Cell<usize>,
+    depth: Cell<usize>,
+    /// Set once the match exceeds [`MAX_MATCH_STEPS`] or [`MAX_MATCH_DEPTH`].
+    exhausted: Cell<bool>,
 }
 
 impl Matcher<'_> {
     /// Whether `nodes` match from `pos` with `rest` accepting where they end.
     fn sequence(&self, nodes: &[Node], pos: usize, rest: Continuation<'_>) -> bool {
-        let Some((node, tail)) = nodes.split_first() else {
-            return rest(pos);
-        };
-        let tail_then_rest = |end: usize| self.sequence(tail, end, rest);
-        match node {
-            Node::AnyRun => (pos..=self.chars.len()).any(tail_then_rest),
-            Node::Extglob(kind, alternatives) => {
-                self.extglob(*kind, alternatives, pos, &tail_then_rest)
-            }
-            single => {
-                self.char_at(pos)
-                    .is_some_and(|current| single.matches_char(current))
-                    && tail_then_rest(pos + 1)
+        let steps = self.steps.get() + 1;
+        self.steps.set(steps);
+        if steps > MAX_MATCH_STEPS || self.depth.get() >= MAX_MATCH_DEPTH {
+            self.exhausted.set(true);
+        }
+        if self.exhausted.get() {
+            return false;
+        }
+        self.depth.set(self.depth.get() + 1);
+        let matched = self.backtrack(nodes, pos, rest);
+        self.depth.set(self.depth.get() - 1);
+        matched
+    }
+
+    /// Consumes leading single-character nodes in a loop, so only `*` and
+    /// extglobs nest calls.
+    fn backtrack(&self, nodes: &[Node], mut pos: usize, rest: Continuation<'_>) -> bool {
+        let mut remaining = nodes;
+        while let Some((node, tail)) = remaining.split_first() {
+            let tail_then_rest = |end: usize| self.sequence(tail, end, rest);
+            match node {
+                Node::AnyRun => return (pos..=self.chars.len()).any(tail_then_rest),
+                Node::Extglob(kind, alternatives) => {
+                    return self.extglob(*kind, alternatives, pos, &tail_then_rest);
+                }
+                single
+                    if self
+                        .char_at(pos)
+                        .is_some_and(|current| single.matches_char(current)) =>
+                {
+                    pos += 1;
+                    remaining = tail;
+                }
+                _ => return false,
             }
         }
+        rest(pos)
     }
 
     /// Matches nodes without extglobs. Only the latest `*` is ever retried,

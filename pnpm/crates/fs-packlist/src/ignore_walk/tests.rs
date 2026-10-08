@@ -72,3 +72,27 @@ fn many_stars_do_not_backtrack_exponentially() {
     let rule = IgnoreRule::parse(&format!("{}b", "*a".repeat(30)));
     assert!(!rule.matches(&"a".repeat(200), false));
 }
+
+#[test]
+fn repeated_brace_groups_expand_to_a_bounded_number_of_alternatives() {
+    let rule = IgnoreRule::parse(&"{a,b}".repeat(40));
+    assert!(rule.matches(&"a".repeat(40), false));
+}
+
+#[test]
+fn ambiguous_extglob_repetition_is_bounded() {
+    let rule = IgnoreRule::parse("+(a|aa)");
+    assert!(!rule.matches(&format!("{}b", "a".repeat(200)), false));
+}
+
+#[test]
+fn deeply_nested_extglobs_parse() {
+    let rule = IgnoreRule::parse(&format!("{}a{}", "@(".repeat(100_000), ")".repeat(100_000)));
+    assert!(!rule.matches("b", false));
+}
+
+#[test]
+fn separated_globstars_are_bounded() {
+    let rule = IgnoreRule::parse(&format!("{}z", "**/a/".repeat(20)));
+    assert!(!rule.matches(&"a/".repeat(60), false));
+}

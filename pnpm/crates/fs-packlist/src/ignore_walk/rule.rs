@@ -2,6 +2,13 @@
 //! it: minimatch with `matchBase`, `dot`, `nocase`, and `flipNegate`.
 
 use super::segment::SegmentPattern;
+use std::collections::HashSet;
+
+/// Brace expansion stops after this many alternatives, or once it has
+/// produced this many bytes, so a short rule of repeated `{a,b}` groups
+/// cannot exhaust memory. Alternatives past either limit are dropped.
+const MAX_BRACE_ALTERNATIVES: usize = 1024;
+const MAX_BRACE_EXPANSION_BYTES: usize = 1 << 20;
 
 #[derive(Debug)]
 pub(super) struct IgnoreRule {
@@ -55,11 +62,8 @@ impl IgnoreRule {
         self.alternatives
             .iter()
             .any(|segments| {
-                if segments.len() == 1 {
-                    match_segments(&[basename], segments, partial)
-                } else {
-                    match_segments(&file, segments, partial)
-                }
+                let file = if segments.len() == 1 { &[basename][..] } else { &file };
+                match_segments(file, segments, partial, &mut HashSet::new())
             })
     }
 }
@@ -91,14 +95,24 @@ fn split_on_slash_runs(path: &str) -> Vec<&str> {
         .collect()
 }
 
-fn match_segments(file: &[&str], pattern: &[Segment], partial: bool) -> bool {
+/// Suffix lengths of the path and of the pattern known not to match. `**`
+/// retries the same suffixes from many starting points, and recording the
+/// failures keeps that polynomial.
+type FailedSuffixes = HashSet<(usize, usize)>;
+
+fn match_segments(
+    file: &[&str],
+    pattern: &[Segment],
+    partial: bool,
+    failed: &mut FailedSuffixes,
+) -> bool {
     for (index, segment) in pattern.iter().enumerate() {
         let Some(name) = file.get(index) else {
             return partial;
         };
         match segment {
             Segment::Globstar => {
-                return match_globstar(&file[index..], &pattern[index + 1..], partial);
+                return match_globstar(&file[index..], &pattern[index + 1..], partial, failed);
             }
             Segment::Pattern(segment_pattern) if !segment_pattern.matches(name) => return false,
             Segment::Pattern(_) => {}
@@ -108,14 +122,24 @@ fn match_segments(file: &[&str], pattern: &[Segment], partial: bool) -> bool {
 }
 
 /// `**` swallows zero or more segments, but never `.` or `..`.
-fn match_globstar(file: &[&str], rest: &[Segment], partial: bool) -> bool {
+fn match_globstar(
+    file: &[&str],
+    rest: &[Segment],
+    partial: bool,
+    failed: &mut FailedSuffixes,
+) -> bool {
     let is_traversal = |segment: &&str| *segment == "." || *segment == "..";
     if rest.is_empty() {
         return !file.iter().any(is_traversal);
     }
     for start in 0..file.len() {
-        if match_segments(&file[start..], rest, partial) {
-            return true;
+        let suffix = &file[start..];
+        let key = (suffix.len(), rest.len());
+        if !failed.contains(&key) {
+            if match_segments(suffix, rest, partial, failed) {
+                return true;
+            }
+            failed.insert(key);
         }
         if is_traversal(&file[start]) {
             return false;
@@ -124,12 +148,38 @@ fn match_globstar(file: &[&str], rest: &[Segment], partial: bool) -> bool {
     partial
 }
 
-/// Expands `{a,b}` alternations, nested ones included. A brace pair without
-/// a top-level comma stays literal.
+/// Expands `{a,b}` alternations, nested ones included, up to
+/// [`MAX_BRACE_ALTERNATIVES`] and [`MAX_BRACE_EXPANSION_BYTES`]. A brace pair
+/// without a top-level comma stays literal.
 fn expand_braces(pattern: &str) -> Vec<String> {
-    let Some((open, close, commas)) = find_alternation(pattern) else {
-        return vec![pattern.to_string()];
-    };
+    let mut pending = vec![pattern.to_string()];
+    let mut expanded = Vec::new();
+    let mut produced_bytes = 0;
+    while let Some(current) = pending.pop() {
+        let Some(alternation) = find_alternation(&current) else {
+            expanded.push(current);
+            if expanded.len() >= MAX_BRACE_ALTERNATIVES {
+                break;
+            }
+            continue;
+        };
+        let alternatives = expand_alternation(&current, alternation);
+        produced_bytes += alternatives
+            .iter()
+            .map(String::len)
+            .sum::<usize>();
+        if produced_bytes > MAX_BRACE_EXPANSION_BYTES {
+            break;
+        }
+        pending.extend(alternatives.into_iter().rev());
+    }
+    expanded
+}
+
+/// Byte offsets of a `{`, its `}`, and the top-level commas between them.
+type Alternation = (usize, usize, Vec<usize>);
+
+fn expand_alternation(pattern: &str, (open, close, commas): Alternation) -> Vec<String> {
     let prefix = &pattern[..open];
     let suffix = &pattern[close + 1..];
     let mut bounds = vec![open];
@@ -137,15 +187,12 @@ fn expand_braces(pattern: &str) -> Vec<String> {
     bounds.push(close);
     bounds
         .windows(2)
-        .flat_map(|window| {
-            let expanded = format!("{prefix}{}{suffix}", &pattern[window[0] + 1..window[1]]);
-            expand_braces(&expanded)
-        })
+        .map(|window| format!("{prefix}{}{suffix}", &pattern[window[0] + 1..window[1]]))
         .collect()
 }
 
-/// The first `{…}` with a top-level comma: its byte offsets and the commas'.
-fn find_alternation(pattern: &str) -> Option<(usize, usize, Vec<usize>)> {
+/// The first `{…}` that has a top-level comma.
+fn find_alternation(pattern: &str) -> Option<Alternation> {
     let bytes = pattern.as_bytes();
     let mut open_stack: Vec<(usize, Vec<usize>)> = Vec::new();
     let mut index = 0;
