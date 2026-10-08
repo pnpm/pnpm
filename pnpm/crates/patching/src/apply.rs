@@ -75,7 +75,7 @@ pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
-    let text = tolerant::drop_context_no_newline_markers(read_patch_file(patch_file_path)?);
+    let text = read_patch_text(patch_file_path)?;
 
     let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
     for file_patch_result in patches {
@@ -126,7 +126,7 @@ pub fn preview_patch(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<PatchPreview, PatchApplyError> {
-    let text = tolerant::drop_context_no_newline_markers(read_patch_file(patch_file_path)?);
+    let text = read_patch_text(patch_file_path)?;
     let mut state = PreviewState {
         patched_dir,
         patch_file_path,
@@ -303,6 +303,16 @@ fn normalized_patch_path(rel: &str) -> Option<String> {
         }
     }
     (!segments.is_empty()).then(|| segments.join("/"))
+}
+
+/// Read a patch file and apply the tolerances that let the patch files
+/// pnpm meets in the wild through [`PatchSet::parse`].
+///
+/// [`tolerant`] owns the tolerances; this is only the order it expects
+/// them in, kept in one place so the apply and preview paths cannot drift.
+fn read_patch_text(patch_file_path: &Path) -> Result<String, PatchApplyError> {
+    let text = read_patch_file(patch_file_path)?;
+    Ok(tolerant::drop_context_no_newline_markers(tolerant::strip_cr_from_extended_headers(text)))
 }
 
 /// Read a patch file, mapping a missing file to
