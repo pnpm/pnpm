@@ -1124,6 +1124,11 @@ pub struct Config {
     /// detected ones. `Some(empty)` turns agent skills off.
     pub skills_dirs: Option<Vec<String>>,
 
+    /// Set by [`Config::disable_agent_skills`] for an install no project
+    /// agent reads. Unlike `skills.dirs: []`, it is never recorded in the
+    /// workspace state. Default `false`.
+    pub agent_skills_disabled: bool,
+
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
     /// `true`, every package may run lifecycle scripts regardless of
     /// `allow_builds`. Default `false` to match pnpm v11.

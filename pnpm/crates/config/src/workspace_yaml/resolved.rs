@@ -3,6 +3,7 @@ use super::{
     PnpmfileSetting, SkillsSettings, WorkspaceSettings, as_set, global_shims_setting, opt_path,
     path, side_effects_cache_setting,
 };
+use indexmap::IndexMap;
 
 impl WorkspaceSettings {
     /// Every setting at the value `config` resolved it to, for a consumer
@@ -194,7 +195,8 @@ impl WorkspaceSettings {
     /// `permissions` reports the `skills` decisions; the `build` ones
     /// report under `allowBuilds`.
     fn with_resolved_permissions(self, config: &Config) -> Self {
-        let permissions = config.allow_skills
+        let mut permissions: IndexMap<String, PackagePermissions> = config
+            .allow_skills
             .iter()
             .map(|(name, allowed)| {
                 let entry = PackagePermissions {
@@ -204,6 +206,7 @@ impl WorkspaceSettings {
                 (name.clone(), entry)
             })
             .collect();
+        permissions.sort_unstable_keys();
         Self {
             permissions: Some(permissions),
             skills: Some(SkillsSettings { dirs: config.skills_dirs.clone() }),

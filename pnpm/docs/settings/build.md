@@ -292,7 +292,7 @@ A build decision is written to `permissions` only when the file already has a `p
 
 Added in: v12.11.0
 
-* Default: **the agent skill directories that exist in the workspace root**
+* Default: **the agent skill directories that exist in the workspace root, plus the one of the agent running pnpm**
 * Type: **String[]**
 
 The directories, relative to the workspace root, that pnpm links approved [agent skills](../agent-skills.md) into. When set, it replaces the detected directories, and pnpm creates the ones that are missing.

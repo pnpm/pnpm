@@ -226,3 +226,24 @@ fn approve_builds_writes_into_an_existing_permissions_block() {
     assert!(!yaml.contains("allowBuilds"), "{yaml}");
     drop(harness);
 }
+
+#[test]
+fn repeat_install_links_into_a_new_agent_dir() {
+    let (harness, workspace) =
+        project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::create_dir_all(workspace.join(".cursor/skills")).expect("create .cursor/skills");
+
+    pnpm(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join(".cursor/skills/pnpm-@pnpm.e2e+with-agent-skills-guide/SKILL.md").is_file(),
+    );
+    drop(harness);
+}

@@ -41,7 +41,7 @@ permissions:
     skills: true
 ```
 
-An approval covers every skill of the package, in every later version. A git or tarball dependency is approved by its exact source, so a new commit asks again.
+An approval covers every skill of the package, in every later version. A git or tarball dependency is approved by its exact source or, for git, by its repository, with the same keys as [`allowBuilds`](./settings/build.md#allowbuilds).
 
 If a package resolves to several versions in a workspace, the highest version decides which skills are linked.
 

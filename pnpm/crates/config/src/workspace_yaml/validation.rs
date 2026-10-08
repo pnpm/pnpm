@@ -1,7 +1,7 @@
 use super::{
-    IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, Path,
+    IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS, Path,
     RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings,
-    UnrecognizedTaskSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
+    UnrecognizedSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
     is_known_setting_key, is_refused_by_a_project_manifest, registries,
 };
 
@@ -76,8 +76,8 @@ impl WorkspaceSettings {
     /// `pnpm config`, as a setting pnpm had said it ignored. An entry that
     /// carried nothing else goes with them, so a setting this pnpm does not
     /// read cannot quietly reorder its tasks.
-    fn take_unknown_task_settings(&mut self) -> UnrecognizedTaskSettings {
-        let mut report = UnrecognizedTaskSettings::default();
+    fn take_unknown_task_settings(&mut self) -> UnrecognizedSettings {
+        let mut report = UnrecognizedSettings::default();
         let Some(tasks) = self.tasks.as_mut() else { return report };
         tasks.retain(|task, settings| {
             if settings.unknown.is_empty() {
@@ -86,7 +86,7 @@ impl WorkspaceSettings {
             report.total += settings.unknown.len();
             let named = settings.unknown
                 .keys()
-                .take(NAMED_UNRECOGNIZED_TASK_SETTINGS.saturating_sub(report.named.len()));
+                .take(NAMED_UNRECOGNIZED_SETTINGS.saturating_sub(report.named.len()));
             report.named.extend(named.map(|field| format!("tasks['{task}'].{field}")));
             settings.unknown.clear();
             // An entry left with nothing declares nothing, and a task with no

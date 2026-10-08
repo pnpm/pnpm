@@ -1,6 +1,7 @@
+use super::recorded_path;
 use pnpm_config::Config;
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -33,18 +34,9 @@ pub(super) fn target_dirs(
     workspace_root: &Path,
     agent_dir: Option<&str>,
 ) -> Result<Vec<PathBuf>, (PathBuf, io::Error)> {
-    let candidates: Vec<PathBuf> = if let Some(dirs) = &config.skills_dirs {
-        dirs.iter()
-            .map(|dir| workspace_root.join(dir))
-            .collect()
-    } else {
-        let mut dirs = existing_agent_dirs(workspace_root);
-        dirs.extend(agent_dir.map(|dir| workspace_root.join(dir)));
-        dirs
-    };
     let mut seen = HashSet::new();
     let mut targets = Vec::new();
-    for dir in candidates {
+    for dir in candidate_dirs(config, workspace_root, agent_dir) {
         fs::create_dir_all(&dir).map_err(|error| (dir.clone(), error))?;
         let canonical = fs::canonicalize(&dir).map_err(|error| (dir.clone(), error))?;
         if seen.insert(canonical) {
@@ -52,6 +44,44 @@ pub(super) fn target_dirs(
         }
     }
     Ok(targets)
+}
+
+/// Whether the next sync would link into other directories than the ones
+/// `linked` is in. Every target receives every entry, so the parents of
+/// `linked` are the previous targets. A missing candidate counts as a change
+/// because the sync creates it.
+pub(super) fn targets_changed(
+    config: &Config,
+    workspace_root: &Path,
+    agent_dir: Option<&str>,
+    linked: &[String],
+) -> bool {
+    let previous: BTreeSet<String> = linked
+        .iter()
+        .filter_map(|entry| Path::new(entry).parent())
+        .map(|dir| dir.to_string_lossy().replace('\\', "/"))
+        .collect();
+    let mut seen = HashSet::new();
+    let mut current = BTreeSet::new();
+    for dir in candidate_dirs(config, workspace_root, agent_dir) {
+        let Ok(canonical) = fs::canonicalize(&dir) else { return true };
+        if seen.insert(canonical) {
+            current.insert(recorded_path(workspace_root, &dir));
+        }
+    }
+    previous != current
+}
+
+fn candidate_dirs(config: &Config, workspace_root: &Path, agent_dir: Option<&str>) -> Vec<PathBuf> {
+    if let Some(dirs) = &config.skills_dirs {
+        return dirs
+            .iter()
+            .map(|dir| workspace_root.join(dir))
+            .collect();
+    }
+    let mut dirs = existing_agent_dirs(workspace_root);
+    dirs.extend(agent_dir.map(|dir| workspace_root.join(dir)));
+    dirs
 }
 
 /// `<workspace_root>/.<agent>/skills` for every agent directory present.

@@ -1,6 +1,6 @@
 use super::{
-    AllowBuild, Config, Deserialize, HashMap, IndexMap, WorkspaceSettings, decided_allow_builds,
-    overlay_some,
+    AllowBuild, Config, Deserialize, HashMap, IndexMap, NAMED_UNRECOGNIZED_SETTINGS,
+    UnrecognizedSettings, WorkspaceSettings, decided_allow_builds, overlay_some,
 };
 
 /// A capability a [`PackagePermissions`] entry decides.
@@ -72,10 +72,11 @@ where
 
 impl Config {
     /// Turn agent skills off, for an install into a directory no project
-    /// agent reads, such as a global package group or the dlx cache.
+    /// agent reads, such as a global package group, the dlx cache, or a
+    /// deploy target.
     pub fn disable_agent_skills(&mut self) {
         self.allow_skills.clear();
-        self.skills_dirs = Some(Vec::new());
+        self.agent_skills_disabled = true;
     }
 }
 
@@ -154,17 +155,19 @@ impl WorkspaceSettings {
 
     /// Take the capabilities this version of pnpm does not read out of
     /// `permissions`, as the paths that name them.
-    pub(super) fn take_unknown_permissions(&mut self) -> Vec<String> {
-        let Some(permissions) = self.permissions.as_mut() else { return Vec::new() };
-        let mut unknown = Vec::new();
+    pub(super) fn take_unknown_permissions(&mut self) -> UnrecognizedSettings {
+        let mut report = UnrecognizedSettings::default();
+        let Some(permissions) = self.permissions.as_mut() else { return report };
         for (pkg, entry) in permissions.iter_mut() {
-            unknown.extend(
-                entry.unknown
-                    .drain(..)
-                    .map(|(capability, _)| format!("permissions['{pkg}'].{capability}")),
-            );
+            report.total += entry.unknown.len();
+            let named = entry.unknown
+                .drain(..)
+                .take(NAMED_UNRECOGNIZED_SETTINGS.saturating_sub(report.named.len()));
+            report.named.extend(named.map(|(capability, _)| {
+                format!("permissions['{pkg}'].{capability}")
+            }));
         }
-        unknown
+        report
     }
 }
 

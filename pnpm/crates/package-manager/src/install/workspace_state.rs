@@ -103,7 +103,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
     let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
-    if strict_dep_builds_blocks_fast_path(check.config) {
+    if strict_dep_builds_blocks_fast_path(check.config)
+        || crate::agent_skills::agent_skill_targets_changed(check.config, &lockfile_root)
+    {
         return None;
     }
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {

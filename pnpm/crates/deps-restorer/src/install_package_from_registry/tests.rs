@@ -184,6 +184,7 @@ fn create_config(
         allow_builds: Default::default(),
         allow_skills: Default::default(),
         skills_dirs: Default::default(),
+        agent_skills_disabled: false,
         dangerously_allow_all_builds: false,
         strict_dep_builds: true,
         ignore_scripts: false,

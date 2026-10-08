@@ -283,6 +283,56 @@ fn never_replaces_an_entry_pnpm_did_not_link() {
 }
 
 #[test]
+fn a_recorded_entry_does_not_claim_a_real_directory() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let occupied = root.path().join(".claude/skills/pnpm-foo-guide");
+    fs::create_dir_all(&occupied).unwrap();
+    let recorded = [".claude/skills/pnpm-foo-guide".to_string()];
+
+    let error = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &recorded, None)
+        .expect_err("a real directory is never pnpm's link");
+
+    assert!(matches!(error, AgentSkillsError::Occupied { .. }));
+    assert!(occupied.is_dir());
+}
+
+#[test]
+fn links_nothing_when_any_destination_is_occupied() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide", "migrate"])]);
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(skills.join("pnpm-foo-migrate")).unwrap();
+
+    sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None)
+        .expect_err("the second destination is occupied");
+
+    assert!(fs::symlink_metadata(skills.join("pnpm-foo-guide")).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn replaces_a_dangling_link() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(&skills).unwrap();
+    std::os::unix::fs::symlink(root.path().join("removed"), skills.join("pnpm-foo-guide")).unwrap();
+
+    sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
+
+    assert!(skills.join("pnpm-foo-guide/SKILL.md").is_file());
+}
+
+#[test]
+fn disabled_skills_are_neither_pending_nor_linked() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let config = Config { agent_skills_disabled: true, ..config(&[], None) };
+
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+
+    assert_eq!(state, AgentSkillsState::default());
+}
+
+#[test]
 fn escapes_the_scope_of_a_package() {
     let (root, lockfile) = workspace(&[("@acme/kit", "1.0.0", &["guide"])]);
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();

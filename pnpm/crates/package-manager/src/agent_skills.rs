@@ -9,6 +9,24 @@ pub(crate) use installed::resync_agent_skills_at;
 pub use installed::{ResyncAgentSkillsError, resync_installed_agent_skills};
 pub use targets::agent_skills_dir_from_env;
 
+/// Whether an install whose tree is up to date still has agent skills to
+/// link, because an approved skill's target directories changed since the
+/// links in `.modules.yaml` were made. Reads nothing unless a skill is
+/// approved.
+pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path) -> bool {
+    if config.agent_skills_disabled || !config.allow_skills.values().any(|allowed| *allowed) {
+        return false;
+    }
+    let Ok(Some(modules)) =
+        pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(&config.modules_dir)
+    else {
+        return false;
+    };
+    let linked = modules.linked_skills.unwrap_or_default();
+    !linked.is_empty()
+        && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
+}
+
 mod discovery;
 mod installed;
 mod targets;
@@ -126,7 +144,9 @@ pub enum AgentSkillsError {
 pub fn sync_agent_skills(
     input: &SyncAgentSkills<'_>,
 ) -> Result<AgentSkillsState, AgentSkillsError> {
-    if input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty) {
+    if input.config.agent_skills_disabled
+        || input.config.skills_dirs.as_ref().is_some_and(Vec::is_empty)
+    {
         prune(input.workspace_root, input.linked, &BTreeSet::new())?;
         return Ok(AgentSkillsState::default());
     }
@@ -213,7 +233,7 @@ fn desired_entries(
         .collect()
 }
 
-fn recorded_path(workspace_root: &Path, path: &Path) -> String {
+pub(super) fn recorded_path(workspace_root: &Path, path: &Path) -> String {
     let path = path.strip_prefix(workspace_root).unwrap_or(path);
     path.to_string_lossy().replace('\\', "/")
 }
@@ -266,13 +286,27 @@ fn materialize(
 ) -> Result<(), AgentSkillsError> {
     for (entry, target) in desired {
         let path = workspace_root.join(entry);
-        let owned = linked.contains(entry) || links_to(&path, target);
-        if !owned && fs::symlink_metadata(&path).is_ok() {
+        if is_occupied(&path, target, linked.contains(entry)) {
             return Err(AgentSkillsError::Occupied { path });
         }
+    }
+    for (entry, target) in desired {
+        let path = workspace_root.join(entry);
         create_link(target, &path).map_err(|source| AgentSkillsError::Io { path, source })?;
     }
     Ok(())
+}
+
+/// Whether `path` holds something pnpm must not replace. pnpm replaces only
+/// a link: one it recorded, one that already resolves to `target`, or one
+/// that resolves to nothing, as a link into a removed `node_modules` does.
+fn is_occupied(path: &Path, target: &Path, recorded: bool) -> bool {
+    if fs::symlink_metadata(path).is_err() {
+        return false;
+    }
+    let replaceable = pnpm_fs::is_symlink_or_junction(path).unwrap_or(false)
+        && (recorded || links_to(path, target) || fs::metadata(path).is_err());
+    !replaceable
 }
 
 /// The link target is relative and `target` is canonical, so the link is
@@ -285,14 +319,11 @@ fn create_link(target: &Path, path: &Path) -> io::Result<()> {
     pnpm_fs::force_symlink_dir(target, &fs::canonicalize(dir)?.join(name)).map(drop)
 }
 
-/// Whether `path` is a link that resolves to `target`, as one a previous
-/// sync created before it failed to record it.
 fn links_to(path: &Path, target: &Path) -> bool {
-    pnpm_fs::is_symlink_or_junction(path).unwrap_or(false)
-        && matches!(
-            (fs::canonicalize(path), fs::canonicalize(target)),
-            (Ok(resolved), Ok(target)) if resolved == target,
-        )
+    matches!(
+        (fs::canonicalize(path), fs::canonicalize(target)),
+        (Ok(resolved), Ok(target)) if resolved == target,
+    )
 }
 
 /// The ignore rule that keeps pnpm's entries out of commits: they point

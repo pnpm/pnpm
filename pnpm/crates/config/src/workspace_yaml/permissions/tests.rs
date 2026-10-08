@@ -1,4 +1,4 @@
-use crate::{AllowBuild, Config, WorkspaceSettings};
+use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, WorkspaceSettings};
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::Path};
 
@@ -43,11 +43,25 @@ fn applies_skills_dirs() {
 }
 
 #[test]
+fn names_a_bounded_number_of_unknown_capabilities() {
+    let capabilities: String = (0..=NAMED_UNRECOGNIZED_SETTINGS)
+        .map(|index| format!("    cap{index}: true\n"))
+        .collect();
+    let yaml = format!("permissions:\n  esbuild:\n{capabilities}");
+    let mut settings = parse(&yaml);
+    settings.collect_key_issues(&yaml);
+    let report = settings.key_issues.unrecognized_permissions;
+    assert_eq!(report.named.len(), NAMED_UNRECOGNIZED_SETTINGS);
+    assert_eq!(report.total, NAMED_UNRECOGNIZED_SETTINGS + 1);
+}
+
+#[test]
 fn names_the_unknown_capabilities() {
     let yaml = "permissions:\n  esbuild:\n    build: true\n    mcp: true\n";
     let mut settings = parse(yaml);
     settings.collect_key_issues(yaml);
-    assert_eq!(settings.key_issues.unrecognized_permissions, ["permissions['esbuild'].mcp"]);
+    assert_eq!(settings.key_issues.unrecognized_permissions.named, ["permissions['esbuild'].mcp"]);
+    assert_eq!(settings.key_issues.unrecognized_permissions.total, 1);
     let permissions = settings.permissions.expect("permissions");
     assert_eq!(permissions["esbuild"].build, Some(AllowBuild::Decided(true)));
     assert!(permissions["esbuild"].unknown.is_empty());
