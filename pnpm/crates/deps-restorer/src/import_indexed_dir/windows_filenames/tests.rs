@@ -43,7 +43,9 @@ fn sanitizes_collisions_and_empty_components() {
     let input = entries(&["name?.txt", "name.txt", "?/file", "longfilename.txt", "LONG~LMQ?.TXT"]);
     let sanitized = sanitize_filenames(&input).unwrap();
     assert_eq!(sanitized.paths.len(), 4);
-    assert!(sanitized.paths.contains_key("name.txt"));
+    assert_eq!(sanitized.paths["name.txt"], PathBuf::from("name?.txt"));
+    let reversed = sanitize_filenames(&entries(&["name.txt", "name?.txt"])).unwrap();
+    assert_eq!(sanitized.paths["name.txt"], reversed.paths["name.txt"]);
     assert_eq!(sanitized.paths["file"], PathBuf::from("?/file"));
     assert!(sanitized.paths.contains_key("longfilename.txt"));
     assert!(sanitized.paths.contains_key("LONG~LMQ.TXT"));

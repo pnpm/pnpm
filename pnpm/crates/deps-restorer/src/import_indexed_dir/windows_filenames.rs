@@ -11,7 +11,9 @@ pub(super) fn sanitize_filenames(
 ) -> Option<SanitizedFilenames> {
     let mut paths = HashMap::with_capacity(cas_paths.len());
     let mut renamed = Vec::new();
-    for (filename, source) in cas_paths {
+    let mut entries: Vec<_> = cas_paths.iter().collect();
+    entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    for (filename, source) in entries {
         let sanitized = sanitize_path(filename);
         if sanitized.is_empty() {
             return None;
@@ -24,7 +26,6 @@ pub(super) fn sanitize_filenames(
     if renamed.is_empty() {
         return None;
     }
-    renamed.sort();
     Some(SanitizedFilenames { paths, renamed })
 }
 
