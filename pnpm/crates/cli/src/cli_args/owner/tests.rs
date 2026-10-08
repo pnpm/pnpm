@@ -638,8 +638,28 @@ fn owners_endpoint_preserves_path_prefix() {
         http_client: pnpm_network::ThrottledClient::default(),
         retry_opts: pnpm_network::RetryOpts::default(),
         registries,
+        registry_override: None,
         otp: None,
     };
     let endpoint = super::owners_endpoint(&context, "@scope/my-pkg");
     assert_eq!(endpoint.url, "https://registry.example/npm/-/package/@scope%2fmy-pkg/owners");
+}
+
+#[test]
+fn owners_endpoint_honors_registry_override_for_scoped_package() {
+    let config = Config::default();
+    let registries = HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@scope".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::OwnerContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: Some("https://override.example/npm/"),
+        otp: None,
+    };
+    let endpoint = super::owners_endpoint(&context, "@scope/my-pkg");
+    assert_eq!(endpoint.url, "https://override.example/npm/-/package/@scope%2fmy-pkg/owners");
 }

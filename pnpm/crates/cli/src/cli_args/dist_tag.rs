@@ -1,4 +1,6 @@
 mod registry;
+#[cfg(test)]
+mod tests;
 
 use super::{package_spec::PackageSpec, sanitize};
 use clap::Args;
@@ -168,6 +170,7 @@ struct DistTagContext<'a> {
     http_client: ThrottledClient,
     retry_opts: RetryOpts,
     registries: HashMap<String, String>,
+    registry_override: Option<&'a str>,
     otp: Option<String>,
 }
 
@@ -185,7 +188,10 @@ impl DistTagArgs {
         }
     }
 
-    fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
+    fn context<'config>(
+        &'config self,
+        config: &'config Config,
+    ) -> miette::Result<DistTagContext<'config>> {
         let registries = crate::cli_args::registry_client::resolve_registries_with_override(
             config,
             self.registry.as_deref(),
@@ -195,6 +201,7 @@ impl DistTagArgs {
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
             retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
         })
     }

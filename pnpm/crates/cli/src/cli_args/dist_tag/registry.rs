@@ -7,7 +7,7 @@ use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
         apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
-        resolve_registry_for_package,
+        resolve_target_registry_for_package,
     },
 };
 use pnpm_network::escaped_package_name;
@@ -257,7 +257,12 @@ fn display_safe_web_otp_url(value: &str) -> Option<String> {
 }
 
 pub(super) fn registry_for_package(context: &DistTagContext<'_>, package_name: &str) -> String {
-    resolve_registry_for_package(&context.registries, package_name, None)
+    resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    )
 }
 
 pub(super) fn auth_header_for_registry(

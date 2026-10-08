@@ -7,7 +7,7 @@ use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
         apply_auth_and_otp, auth_header_for_package, package_endpoint_url,
-        resolve_registry_for_package,
+        resolve_target_registry_for_package,
     },
 };
 
@@ -196,7 +196,12 @@ where
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {
-    resolve_registry_for_package(&context.registries, package_name, None)
+    resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    )
 }
 
 pub(crate) fn auth_header_for_registry(
