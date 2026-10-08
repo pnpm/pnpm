@@ -79,19 +79,28 @@ pub(super) async fn refresh_team_rosters(state: &AppState) {
     }
 }
 
+/// Read every managed roster concurrently, publishing each as soon as its own
+/// read finishes, so a slow registry does not hold back another's change.
 async fn reload_rosters(state: AppState, _reload: OwnedMutexGuard<()>) {
     let rosters = &state.inner.identity.teams;
-    let reads = rosters.seeds.iter().map(|(registry, seed)| read_roster(&state, registry, seed));
-    let loaded = join_all(reads).await;
-    let all_read = loaded.iter().all(Result::is_ok);
-    for (registry, teams) in rosters.seeds.keys().zip(loaded) {
-        let teams = teams.unwrap_or_else(|err| {
-            tracing::error!(registry, error = %err, "could not read a team roster; its teams admit nobody");
-            Teams::default()
-        });
-        publish_roster(&state, registry, teams);
-    }
+    let reloads =
+        rosters.seeds.iter().map(|(registry, seed)| reload_roster(&state, registry, seed));
+    let all_read = join_all(reloads).await.into_iter().all(|read| read);
     rosters.schedule(if all_read { ROSTER_TTL } else { ROSTER_RETRY });
+}
+
+/// Publish one registry's stored roster, or an empty one when it cannot be
+/// read. Reports whether the read succeeded.
+async fn reload_roster(state: &AppState, registry: &str, seed: &Teams) -> bool {
+    let (teams, read) = match read_roster(state, registry, seed).await {
+        Ok(teams) => (teams, true),
+        Err(err) => {
+            tracing::error!(registry, error = %err, "could not read a team roster; its teams admit nobody");
+            (Teams::default(), false)
+        }
+    };
+    publish_roster(state, registry, teams);
+    read
 }
 
 async fn read_roster(
