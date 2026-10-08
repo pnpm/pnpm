@@ -17,7 +17,7 @@ use axum::{
 use pnpr_config::UiConfig;
 use pnpr_error::RegistryError;
 
-use super::AppState;
+use super::{AppState, streaming};
 
 const UI_PATH: &str = "/-/ui";
 const INDEX_FILE: &str = "index.html";
@@ -42,7 +42,10 @@ pub(super) fn locate(config: &UiConfig) -> pnpr_error::Result<Option<PathBuf>> {
         return Ok(None);
     }
     let Some(dir) = &config.dir else {
-        return Ok(installed_ui_dir()
+        return Ok(std::env::current_exe()
+            .ok()
+            .and_then(|executable| executable.canonicalize().ok())
+            .and_then(|executable| ui_dir_beside(&executable))
             .filter(|dir| dir.join(INDEX_FILE).is_file())
             .and_then(|dir| dir.canonicalize().ok()));
     };
@@ -57,16 +60,27 @@ pub(super) fn locate(config: &UiConfig) -> pnpr_error::Result<Option<PathBuf>> {
         .map_err(|error| invalid(error.to_string()))
 }
 
-/// The build in `@pnpm/pnpr-ui`, looked up beside the `@pnpm/pnpr` package
-/// whose `bin/pnpr` this process runs. npm and pnpm both place a resolved
-/// peer dependency next to the package that declares it.
-fn installed_ui_dir() -> Option<PathBuf> {
-    let executable = std::env::current_exe()
-        .ok()?
-        .canonicalize()
-        .ok()?;
-    let scope_dir = executable.parent()?.parent()?.parent()?;
-    Some(scope_dir.join("pnpr-ui").join("dist"))
+/// The build in `@pnpm/pnpr-ui`, when `executable` is the `bin/pnpr` of an
+/// installed `@pnpm/pnpr` package and the UI package sits beside it. npm and
+/// pnpm both place a resolved peer dependency next to the package that
+/// declares it. Any other layout gives `None`, so a pnpr binary installed
+/// outside npm never serves a directory nobody configured.
+pub(super) fn ui_dir_beside(executable: &Path) -> Option<PathBuf> {
+    let bin_dir = executable
+        .parent()
+        .filter(|dir| dir.ends_with("bin"))?;
+    let pnpr_package = bin_dir.parent()?;
+    let ui_package = pnpr_package.parent()?.join("pnpr-ui");
+    (is_package(pnpr_package, "@pnpm/pnpr") && is_package(&ui_package, "@pnpm/pnpr-ui")).then(
+        || ui_package.join("dist"),
+    )
+}
+
+fn is_package(dir: &Path, name: &str) -> bool {
+    std::fs::read(dir.join("package.json"))
+        .ok()
+        .and_then(|manifest| serde_json::from_slice::<serde_json::Value>(&manifest).ok())
+        .is_some_and(|manifest| manifest["name"] == name)
 }
 
 pub(super) fn routes(dir: &Path) -> Router<AppState> {
@@ -101,10 +115,22 @@ async fn serve_file(dir: Arc<Path>, request: Request) -> Response {
         }
         None => return serve_page(&dir, relative).await,
     };
-    match tokio::fs::read(&file).await {
-        Ok(contents) => ([(header::CONTENT_TYPE, content_type(&file))], contents).into_response(),
-        Err(error) => read_error(&file, &error),
-    }
+    let opened = match tokio::fs::File::open(&file).await {
+        Ok(opened) => opened,
+        Err(error) => return read_error(&file, &error),
+    };
+    let length = match opened.metadata().await {
+        Ok(metadata) => metadata.len(),
+        Err(error) => return read_error(&file, &error),
+    };
+    (
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static(content_type(&file))),
+            (header::CONTENT_LENGTH, HeaderValue::from(length)),
+        ],
+        streaming::stream_file(opened),
+    )
+        .into_response()
 }
 
 /// `index.html` with a `<base>` pointing back at the UI root, so the
@@ -177,8 +203,8 @@ async fn add_security_headers(request: Request, next: Next) -> Response {
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.starts_with("text/html"));
-    let cache_control =
-        if hashed_asset && !is_html { "public, max-age=31536000, immutable" } else { "no-cache" };
+    let immutable = hashed_asset && !is_html && response.status().is_success();
+    let cache_control = if immutable { "public, max-age=31536000, immutable" } else { "no-cache" };
     let headers = response.headers_mut();
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(cache_control));
     headers.insert(

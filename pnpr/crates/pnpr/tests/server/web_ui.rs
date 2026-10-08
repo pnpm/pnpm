@@ -86,6 +86,7 @@ async fn serves_hashed_assets_as_immutable_and_404s_a_missing_one() {
 
     let missing = get(&app, "/-/ui/assets/index-old.js").await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    assert_eq!(missing.headers()[header::CACHE_CONTROL], "no-cache");
 }
 
 #[tokio::test]
@@ -99,7 +100,13 @@ async fn never_serves_a_file_outside_the_ui_directory() {
     let ui = pnpr::UiConfig { enabled: true, dir: Some(ui_dir) };
     let app = router(config_with_ui(&storage, ui));
 
-    for uri in ["/-/ui/../secret.txt", "/-/ui/..%2fsecret.txt", "/-/ui/assets/../../secret.txt"] {
+    for uri in [
+        "/-/ui/../secret.txt",
+        "/-/ui/..%2fsecret.txt",
+        "/-/ui/..%5csecret.txt",
+        r"/-/ui/assets\..\..\secret.txt",
+        "/-/ui/assets/../../secret.txt",
+    ] {
         let response = get(&app, uri).await;
         let body = body_bytes(response.into_body()).await;
         assert!(
@@ -119,6 +126,12 @@ async fn a_disabled_ui_is_not_served() {
     let app = router(config_with_ui(&storage, disabled));
 
     let response = get(&app, "/-/ui/").await;
+    assert!(
+        response
+            .headers()
+            .get(header::CONTENT_SECURITY_POLICY)
+            .is_none(),
+    );
     assert_ne!(body_bytes(response.into_body()).await, page_with_base("./"));
 }
 
