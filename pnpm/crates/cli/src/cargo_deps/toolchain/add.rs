@@ -81,9 +81,6 @@ pub(crate) fn plan<Reporter: self::Reporter + 'static>(
                 .into_owned(),
         }));
         let toolchain = install::<Reporter>(&context, &file).await?;
-        if toolchain.is_some() {
-            refuse_occupied_link(&file)?;
-        }
         Ok(vec![PinnedToolchain { file, toolchain, replaced: None }])
     };
     Ok(InstallTask::new(metadata, prepare))
@@ -100,6 +97,7 @@ async fn install<Reporter: self::Reporter>(
         return Ok(None);
     }
     let Some(request) = managed_request::<Reporter>(file)? else { return Ok(None) };
+    refuse_occupied_link(file)?;
     match install_toolchain::<Reporter>(config, &context.http_client, &request).await {
         Ok(toolchain) => Ok(Some(toolchain)),
         // As an install leaves it: the pin stands, and rustup runs it.

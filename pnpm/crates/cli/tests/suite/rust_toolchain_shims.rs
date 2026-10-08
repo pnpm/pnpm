@@ -261,6 +261,22 @@ fn rust_installs_globally() {
     assert_eq!(rust["version"], "1.95.0");
     assert_eq!(Path::new(rust["path"].as_str().unwrap()), toolchain);
 
+    // With several npm groups, a deep listing filtered to the toolchain
+    // lists it rather than refusing to merge the groups' trees.
+    let global_pkg_dir = root.path().join("pnpm-home/global/v11");
+    fs::create_dir_all(&global_pkg_dir).unwrap();
+    for name in ["is-positive", "is-negative"] {
+        let group = root.path().join("groups").join(name);
+        fs::create_dir_all(&group).unwrap();
+        let manifest = format!(r#"{{"dependencies":{{"{name}":"1.0.0"}}}}"#);
+        fs::write(group.join("package.json"), manifest).unwrap();
+        std::os::unix::fs::symlink(&group, global_pkg_dir.join(name)).unwrap();
+    }
+    let listed = pnpm(&["ls", "-g", "--depth", "1", "rust"]);
+    let stdout = String::from_utf8_lossy(&listed.stdout);
+    assert!(listed.status.success(), "{}", String::from_utf8_lossy(&listed.stderr));
+    assert!(stdout.contains("rust 1.95.0") || stdout.contains("rust@1.95.0"), "{stdout}");
+
     // Switched off, the shims give way to the next cargo on PATH even with
     // a global toolchain installed.
     let rustup = root.path().join("rustup-bin");

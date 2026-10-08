@@ -142,19 +142,7 @@ pub(crate) fn with_tools(
     params: &[String],
     format: ListReportAs,
 ) -> String {
-    let patterns: Vec<_> = params
-        .iter()
-        .map(|param| WildcardMatcher::new(param))
-        .collect();
-    let selected: Vec<&GlobalTool> = tools
-        .iter()
-        .filter(|tool| {
-            patterns.is_empty()
-                || patterns
-                    .iter()
-                    .any(|pattern| pattern.matches(&tool.name))
-        })
-        .collect();
+    let selected = selected_tools(tools, params);
     if selected.is_empty() {
         return output;
     }
@@ -175,6 +163,27 @@ pub(crate) fn with_tools(
         }
         ListReportAs::Json => with_json_tools(output, &selected),
     }
+}
+
+/// The `tools` that `params` select as wildcards, all of them when there
+/// are no params.
+pub(crate) fn selected_tools<'tools>(
+    tools: &'tools [GlobalTool],
+    params: &[String],
+) -> Vec<&'tools GlobalTool> {
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|param| WildcardMatcher::new(param))
+        .collect();
+    tools
+        .iter()
+        .filter(|tool| {
+            patterns.is_empty()
+                || patterns
+                    .iter()
+                    .any(|pattern| pattern.matches(&tool.name))
+        })
+        .collect()
 }
 
 /// The JSON listing with each tool added to its root's dependencies, or
