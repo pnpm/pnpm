@@ -200,6 +200,38 @@ fn readonly_index_reads_wal_commits_and_checkpointed_growth() {
 }
 
 #[test]
+fn delete_many_shrinks_index_db() {
+    let dir = tempdir().unwrap();
+    let mut idx = StoreIndex::open(dir.path()).unwrap();
+    let keys: Vec<String> = (0..2000)
+        .map(|i| format!("pkg-{i:06}"))
+        .collect();
+    idx.set_many(
+        keys.iter()
+            .map(|key| (key.clone(), sample_index())),
+    )
+    .unwrap();
+    idx.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    let pragma = |idx: &StoreIndex, name: &str| -> i64 {
+        idx.conn
+            .query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
+            .unwrap()
+    };
+    let pages_before = pragma(&idx, "page_count");
+
+    idx.delete_many(&keys[1..]).unwrap();
+
+    let pages_after = pragma(&idx, "page_count");
+    eprintln!("page_count: {pages_before} -> {pages_after}");
+    assert!(pages_after < pages_before);
+    assert_eq!(pragma(&idx, "freelist_count"), 0);
+    let db_len = std::fs::metadata(dir.path().join("index.db")).unwrap().len();
+    let page_size = pragma(&idx, "page_size");
+    assert_eq!(db_len, u64::try_from(pages_after * page_size).unwrap());
+    assert_eq!(idx.keys().unwrap(), [keys[0].clone()]);
+}
+
+#[test]
 fn get_returns_none_for_missing_key() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();

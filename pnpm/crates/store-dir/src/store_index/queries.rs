@@ -313,7 +313,12 @@ impl StoreIndex {
         Ok(out)
     }
 
-    /// Delete a batch of package-index rows in one transaction.
+    /// Delete a batch of package-index rows in one transaction, then
+    /// shrink `index.db`.
+    ///
+    /// `index.db` uses `auto_vacuum=NONE`, so freed pages stay in the file
+    /// until a `VACUUM`. In WAL mode the main file shrinks only at the
+    /// checkpoint after it, which a concurrent reader can defer.
     pub fn delete_many(&mut self, keys: &[String]) -> Result<(), StoreIndexError> {
         if keys.is_empty() {
             return Ok(());
@@ -331,6 +336,9 @@ impl StoreIndex {
             }
         }
         tx.commit()
+            .map_err(|source| StoreIndexError::Write { source })?;
+        self.conn
+            .execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")
             .map_err(|source| StoreIndexError::Write { source })
     }
 }
