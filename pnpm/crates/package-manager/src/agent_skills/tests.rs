@@ -156,7 +156,7 @@ fn links_through_a_symlinked_workspace_path() {
 
     sync(&alias, &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
 
-    assert!(alias.join(".claude/skills/pnpm-foo-guide/SKILL.md").is_file(),);
+    assert!(alias.join(".claude/skills/pnpm-foo-guide/SKILL.md").is_file());
 }
 
 #[test]
