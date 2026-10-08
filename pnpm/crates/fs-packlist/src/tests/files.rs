@@ -254,6 +254,32 @@ fn files_field_entry_matching_an_ignore_file_packs_it() {
 }
 
 #[test]
+fn main_or_bin_packs_an_ignore_file_only_at_the_root() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, ".gitignore");
+    touch(root, "index.js");
+    touch(root, "sub/.npmignore");
+    touch(root, "sub/.gitignore");
+    touch(root, "sub/b.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "sub/.npmignore",
+        "bin": { "a": ".gitignore", "b": "sub/.gitignore" },
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![".gitignore".to_string(), "index.js".into(), "package.json".into(), "sub/b.js".into(),],
+    );
+}
+
+#[test]
 fn npmignore_does_not_drop_always_included_files() {
     let dir = tempdir().unwrap();
     let root = dir.path();

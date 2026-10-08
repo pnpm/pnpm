@@ -318,7 +318,9 @@ fn collect_root_files_matching(
 /// [`should_always_exclude`] is still consulted first so the always-excluded set
 /// wins over manifest fields; npm-packlist does the same and emits no warning,
 /// so this stays silent too — a `tracing::debug!` would be lost in install
-/// logs.
+/// logs. An ignore file ships this way only at the package root: npm-packlist
+/// re-applies its default rules in each subdirectory, after the `main` / `bin`
+/// rules the root adds.
 fn force_include_main_and_bin(
     pkg_dir: &Path,
     selection: &FileSelection<'_>,
@@ -331,6 +333,7 @@ fn force_include_main_and_bin(
         let normalized = normalize_field_path(path);
         if is_contained_field_path(&normalized)
             && !should_always_exclude(&normalized)
+            && !(is_ignore_file(&normalized) && normalized.contains('/'))
             && is_regular_file_within(pkg_dir, &pkg_dir.join(&normalized))
         {
             out.insert(normalized);
