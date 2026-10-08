@@ -231,7 +231,7 @@ fn prunes_only_recorded_links() {
     assert!(
         root.path()
             .join("pnpm-outside")
-            .exists()
+            .exists(),
     );
 }
 
