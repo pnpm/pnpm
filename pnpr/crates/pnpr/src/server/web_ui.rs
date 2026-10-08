@@ -32,7 +32,8 @@ const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self'; st
      img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; \
      form-action 'self'";
 
-/// The directory of the built UI to serve, or `None` to serve no UI.
+/// The canonical directory of the built UI to serve, or `None` to serve no
+/// UI.
 ///
 /// An explicit `ui.dir` without an `index.html` is a config error. Without
 /// one, a missing `@pnpm/pnpr-ui` package means no UI.
@@ -40,13 +41,20 @@ pub(super) fn locate(config: &UiConfig) -> pnpr_error::Result<Option<PathBuf>> {
     if !config.enabled {
         return Ok(None);
     }
-    match &config.dir {
-        Some(dir) if dir.join(INDEX_FILE).is_file() => Ok(Some(dir.clone())),
-        Some(dir) => Err(RegistryError::InvalidConfig {
-            reason: format!("ui.dir {} has no {INDEX_FILE}", dir.display()),
-        }),
-        None => Ok(installed_ui_dir().filter(|dir| dir.join(INDEX_FILE).is_file())),
+    let Some(dir) = &config.dir else {
+        return Ok(installed_ui_dir()
+            .filter(|dir| dir.join(INDEX_FILE).is_file())
+            .and_then(|dir| dir.canonicalize().ok()));
+    };
+    let invalid = |reason: String| RegistryError::InvalidConfig {
+        reason: format!("ui.dir {}: {reason}", dir.display()),
+    };
+    if !dir.join(INDEX_FILE).is_file() {
+        return Err(invalid(format!("has no {INDEX_FILE}")));
     }
+    dir.canonicalize()
+        .map(Some)
+        .map_err(|error| invalid(error.to_string()))
 }
 
 /// The build in `@pnpm/pnpr-ui`, looked up beside the `@pnpm/pnpr` package
@@ -83,13 +91,15 @@ async fn serve_file(dir: Arc<Path>, request: Request) -> Response {
         .unwrap_or_default();
     let relative = relative.trim_start_matches('/');
     let file = match file_in(&dir, relative) {
-        Some(file) if tokio::fs::metadata(&file).await.is_ok_and(|metadata| metadata.is_file()) => {
-            file
-        }
-        _ if relative.starts_with(HASHED_ASSETS_DIR) => {
+        Some(file) => contained_file(&dir, &file).await,
+        None => None,
+    };
+    let file = match file {
+        Some(file) => file,
+        None if relative.starts_with(HASHED_ASSETS_DIR) => {
             return StatusCode::NOT_FOUND.into_response();
         }
-        _ => return serve_page(&dir, relative).await,
+        None => return serve_page(&dir, relative).await,
     };
     match tokio::fs::read(&file).await {
         Ok(contents) => ([(header::CONTENT_TYPE, content_type(&file))], contents).into_response(),
@@ -101,7 +111,9 @@ async fn serve_file(dir: Arc<Path>, request: Request) -> Response {
 /// bundle's relative asset URLs resolve from any route depth, behind any
 /// path prefix.
 async fn serve_page(dir: &Path, route: &str) -> Response {
-    let file = dir.join(INDEX_FILE);
+    let Some(file) = contained_file(dir, &dir.join(INDEX_FILE)).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let page = match tokio::fs::read_to_string(&file).await {
         Ok(page) => page,
         Err(error) => return read_error(&file, &error),
@@ -115,6 +127,14 @@ async fn serve_page(dir: &Path, route: &str) -> Response {
 fn read_error(file: &Path, error: &std::io::Error) -> Response {
     tracing::error!(%error, file = %file.display(), "could not read the web UI");
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
+}
+
+/// The real path of `file` when it is a regular file inside the canonical
+/// `dir`. Symlinks are followed, so one that leads out of `dir` gives `None`.
+async fn contained_file(dir: &Path, file: &Path) -> Option<PathBuf> {
+    let real = tokio::fs::canonicalize(file).await.ok()?;
+    let is_file = tokio::fs::metadata(&real).await.is_ok_and(|metadata| metadata.is_file());
+    (is_file && real.starts_with(dir)).then_some(real)
 }
 
 /// `relative` inside `dir`, or `None` when it names anything but a plain

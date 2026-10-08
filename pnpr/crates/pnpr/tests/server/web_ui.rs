@@ -129,3 +129,24 @@ async fn a_ui_dir_without_index_html_is_a_config_error() {
     let error = pnpr::try_router(config_with_ui(&storage, ui_at(&empty))).unwrap_err();
     assert!(error.to_string().contains("has no index.html"), "{error}");
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn never_follows_a_symlink_out_of_the_ui_directory() {
+    let storage = TempDir::new().unwrap();
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("secret.txt"), "secret").unwrap();
+    let ui_dir = root.path().join("ui");
+    std::fs::create_dir_all(ui_dir.join("assets")).unwrap();
+    std::fs::write(ui_dir.join("index.html"), INDEX).unwrap();
+    std::os::unix::fs::symlink(root.path().join("secret.txt"), ui_dir.join("leak.txt")).unwrap();
+    std::os::unix::fs::symlink(root.path().join("secret.txt"), ui_dir.join("assets/leak.js"))
+        .unwrap();
+    let ui = pnpr::UiConfig { enabled: true, dir: Some(ui_dir) };
+    let app = router(config_with_ui(&storage, ui));
+
+    let page = get(&app, "/-/ui/leak.txt").await;
+    assert_eq!(body_bytes(page.into_body()).await, page_with_base("./"));
+    let asset = get(&app, "/-/ui/assets/leak.js").await;
+    assert_eq!(asset.status(), StatusCode::NOT_FOUND);
+}
