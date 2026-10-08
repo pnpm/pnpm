@@ -269,23 +269,27 @@ endpoint rather than masking as a `404`.
 
 ## Team endpoints
 
-pnpr serves npm's team-management read endpoints over the teams declared in
-its config, in the shape [`pnpm team`](/cli/team) consumes. Teams are
-[registry-scoped configuration](configuration.md#teams), so these are
-**read-only views**: the listings are served, and every mutation is refused.
+pnpr serves npm's team endpoints in the shape [`pnpm team`](/cli/team)
+consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams declared by the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
 | `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"name": ...}`. |
-| `PUT` | `/-/org/{scope}/team` | Create a team — always `403`. |
-| `DELETE` | `/-/team/{scope}/{team}` | Destroy a team — always `403`. |
-| `PUT` | `/-/team/{scope}/{team}/user` | Add a member — always `403`. |
-| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member — always `403`. |
+| `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
+| `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member. The body is `{"user": "<username>"}`. Returns `204`, also when the user was not a member. |
 
-A refused mutation carries the error code `teams_config_managed`: teams are
-declared in the pnpr configuration, so changing one means updating the config,
-not calling the API.
+Changes are accepted only on a registry with
+[`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
+
+- On any other registry a change returns `403` with the error code
+  `teams_config_managed`.
+- The caller must be one of the `auth.admins`. Others get `401` when
+  anonymous and `403` when signed in.
+- Creating a team that exists, or destroying one a `packages:` rule names,
+  returns `409`. Changing a team that does not exist returns `404`.
 
 Reads resolve `@{scope}` to a hosted registry the same way a package read in
 that scope would, then check that registry's default `access:` list. Unlike

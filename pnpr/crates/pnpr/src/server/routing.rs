@@ -46,13 +46,15 @@ use super::{
     authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
     delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
     get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
-    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
-    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_get_pipeline_run,
-    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
-    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
-    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
+    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi, remove_dist_tag,
+    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
+    serve_packument, serve_ping, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
+    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
+    serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    staged,
+    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -89,7 +91,14 @@ fn finish_router(
         router = router.layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(cors_origins))
-                .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
+                .allow_methods([
+                    Method::GET,
+                    Method::HEAD,
+                    Method::OPTIONS,
+                    Method::PUT,
+                    Method::POST,
+                    Method::DELETE,
+                ])
                 .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
         );
     }

@@ -26,6 +26,8 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 
 mod staged_records;
 
+mod team_rosters;
+
 mod atomic_write;
 use atomic_write::create_tmp_file;
 

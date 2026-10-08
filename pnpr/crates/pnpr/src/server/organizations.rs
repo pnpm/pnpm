@@ -173,13 +173,14 @@ pub(super) fn upstream_org_package_is_visible(
 /// path-less default) exactly as a package read in that scope would, then
 /// the registry-level default `access` gates the caller. A denial is
 /// masked as not-found — team and member names must not become an
-/// existence probe for a private registry.
+/// existence probe for a private registry. Returns the registry's name with
+/// its config.
 pub(super) fn team_registry<'a>(
     state: &'a AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-) -> Result<&'a HostedConfig, RegistryError> {
+) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
     let scope = scope.strip_prefix('@').unwrap_or(scope);
     if scope.is_empty() {
         return Err(RegistryError::NotFound);
@@ -195,13 +196,13 @@ pub(super) fn team_registry<'a>(
     let RegistrySource::Hosted(source) = resolve_registry_source(state, &target, &probe) else {
         return Err(RegistryError::NotFound);
     };
-    let Some(hosted) = state.inner.config.routing.hosted.get(&source) else {
+    let Some((name, hosted)) = state.inner.config.routing.hosted.get_key_value(&source) else {
         return Err(RegistryError::NotFound);
     };
     if !hosted.rules.default_access().allows(identity) {
         return Err(RegistryError::NotFound);
     }
-    Ok(hosted)
+    Ok((name, hosted))
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
@@ -214,10 +215,11 @@ pub(super) fn get_org_teams(
     scope: &str,
 ) -> Response {
     let hosted = match team_registry(state, identity, registry, scope) {
-        Ok(hosted) => hosted,
+        Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
     let teams: Vec<Value> = hosted.teams
+        .snapshot()
         .keys()
         .map(|name| json!({ "name": name }))
         .collect();
@@ -235,10 +237,11 @@ pub(super) fn get_team_members(
     team: &str,
 ) -> Response {
     let hosted = match team_registry(state, identity, registry, scope) {
-        Ok(hosted) => hosted,
+        Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
-    let Some(members) = hosted.teams.get(team) else {
+    let roster = hosted.teams.snapshot();
+    let Some(members) = roster.get(team) else {
         return not_found();
     };
     let members: Vec<Value> = members
@@ -246,23 +249,4 @@ pub(super) fn get_team_members(
         .map(|name| json!({ "name": name }))
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
-}
-
-/// Every team mutation — create (`PUT /-/org/{scope}/team`), destroy
-/// (`DELETE /-/team/{scope}/{team}`), member add/remove
-/// (`PUT`/`DELETE /-/team/{scope}/{team}/user`) — answers 403: pnpr teams
-/// are declared in the registry config. The same gate as the reads runs
-/// first, so a caller who may not see the registry keeps the not-found
-/// mask.
-pub(super) fn reject_team_mutation(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    scope: &str,
-    action: &'static str,
-) -> Response {
-    if let Err(response) = team_registry(state, identity, registry, scope) {
-        return response.into_response();
-    }
-    RegistryError::TeamsConfigManaged { action }.into_response()
 }

@@ -1,4 +1,4 @@
-use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules, TeamDirectory, Teams};
 use pnpr_registry::{Ecosystem, PackagePattern};
 
 fn list(token: &str) -> AccessList {
@@ -79,16 +79,33 @@ fn usernames_grant_per_user_access() {
 
 #[test]
 fn team_tokens_admit_members_only() {
-    let list = AccessList::new(vec![AccessToken::Team {
-        name: "platform".to_string(),
-        members: ["alice".to_string()].into(),
-    }]);
+    let list = AccessList::new(vec![team_token("platform", &["alice"]).0]);
     assert!(list.allows(&user("alice")));
     assert!(!list.allows(&user("bob")));
     // The team's *name* is not a username: a user who happens to be called
     // like the team gains nothing.
     assert!(!list.allows(&user("platform")));
     assert!(!list.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn team_tokens_follow_roster_replacement() {
+    let (token, directory) = team_token("platform", &["alice"]);
+    let list = AccessList::new(vec![token]);
+    directory.replace(Teams::from([("platform".to_string(), ["bob".to_string()].into())]));
+    assert!(list.allows(&user("bob")));
+    assert!(!list.allows(&user("alice")));
+    directory.replace(Teams::default());
+    assert!(!list.allows(&user("bob")));
+}
+
+fn team_token(team: &str, members: &[&str]) -> (AccessToken, TeamDirectory) {
+    let members = members
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    let directory = TeamDirectory::new(Teams::from([(team.to_string(), members)]));
+    (AccessToken::Team { name: team.to_string(), directory: directory.clone() }, directory)
 }
 
 #[test]

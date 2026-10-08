@@ -341,9 +341,34 @@ access list names the **user** `platform`, even when a team of that name
 exists. Keeping the two apart means someone who can register a username can
 never inherit a team's grants by choosing its name.
 
-Because teams live in the config, they are served read-only over npm's
-team endpoints, and any attempt to create or modify one through the API is
-refused — see [Team endpoints](endpoints.md#team-endpoints).
+### Managing teams through the API {#managing-teams-through-the-api}
+
+By default the `teams:` map is the roster. npm's team endpoints serve it
+read-only and refuse every change. Set `teamsManagedBy: api` on a hosted
+registry to let the [`auth.admins`](#auth) edit its roster with `pnpm team`:
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+registries:
+  private:
+    type: hosted
+    teamsManagedBy: api
+    teams:
+      platform: [alice]
+    packages:
+      '@corp/*':
+        access: [team:platform]
+```
+
+- pnpr stores the roster in the hosted store, so every replica serves the same
+  one. A replica rereads it at most 10 seconds after another replica changes it.
+- The `teams:` map is used only until the first change is stored. After that,
+  editing `teams:` has no effect.
+- A team that a `packages:` rule names cannot be destroyed.
+- Only hosted registries accept `teamsManagedBy`.
+
+See [Team endpoints](endpoints.md#team-endpoints).
 
 ## `oci`
 
@@ -395,6 +420,15 @@ the htpasswd file.
 
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database — see [Auth backends](auth-backends.md).
+
+`auth.admins` lists the usernames that may administer the registry. Today an
+admin may edit the teams of every registry with
+[`teamsManagedBy: api`](#managing-teams-through-the-api).
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+```
 
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
 publishing alongside the password backend — see

@@ -17,7 +17,7 @@ use pipeline_runs::{
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, reject_team_mutation, serve_org_packages};
+use organizations::{get_org_teams, get_team_members, serve_org_packages};
 
 mod package_search;
 use package_search::{
@@ -89,6 +89,8 @@ mod registry_directory;
 mod routing;
 mod staged;
 mod striped_locks;
+mod team_mutations;
+mod team_rosters;
 
 #[cfg(test)]
 mod tests;

@@ -1,4 +1,6 @@
-use super::{AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError};
+use super::{
+    AccessList, AccessToken, BTreeSet, Deserialize, IndexMap, RegistryError, TeamDirectory, Teams,
+};
 
 /// One `packages:` map value: `access` / `publish` / `unpublish` are
 /// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
@@ -39,27 +41,26 @@ impl AccessSpec {
     }
 
     /// Compile into an [`AccessList`], rejecting any entry that is not a
-    /// single well-formed token ([`validate_access_token`]) and resolving
-    /// `team:` references against the owning registry's declared `teams` —
-    /// an undeclared team is an error, so a typo cannot silently become a
-    /// grant to nobody. The returned error is the reason only; the caller
-    /// prefixes the registry/field context it alone knows.
-    pub(super) fn to_access_list(&self, teams: &Teams) -> Result<AccessList, String> {
+    /// single well-formed token ([`validate_access_token`]) and binding
+    /// `team:` references to the owning registry's `teams` — a team the
+    /// roster does not hold at load is an error, so a typo cannot silently
+    /// become a grant to nobody. The returned error is the reason only; the
+    /// caller prefixes the registry/field context it alone knows.
+    pub(super) fn to_access_list(&self, teams: &TeamDirectory) -> Result<AccessList, String> {
+        let declared = teams.snapshot();
         let mut tokens = Vec::with_capacity(self.entries().len());
         for entry in self.entries() {
             validate_access_token(entry)?;
             tokens.push(match entry.strip_prefix("team:") {
-                Some(team) => {
-                    let members = teams
-                        .get(team)
-                        .ok_or_else(|| {
-                            format!(
-                                "access token {entry:?} references a team this registry does not \
-                             declare{}",
-                                declared_teams(teams),
-                            )
-                        })?;
-                    AccessToken::Team { name: team.to_string(), members: members.clone() }
+                Some(team) if declared.contains_key(team) => {
+                    AccessToken::Team { name: team.to_string(), directory: teams.clone() }
+                }
+                Some(_) => {
+                    return Err(format!(
+                        "access token {entry:?} references a team this registry does not \
+                         declare{}",
+                        declared_teams(&declared),
+                    ));
                 }
                 None => AccessToken::from(entry.as_str()),
             });
@@ -78,13 +79,6 @@ impl AccessSpec {
         Ok(self.entries())
     }
 }
-
-/// A registry's declared teams — its `teams:` map compiled to name →
-/// member-set. Access lists capture the member sets they reference at
-/// compile time (see [`AccessToken::Team`]); a hosted registry additionally
-/// retains its map on [`crate::HostedConfig::teams`] so the npm team API can list
-/// teams and their members.
-pub type Teams = IndexMap<String, BTreeSet<String>>;
 
 /// The declared team names for an undeclared-reference error, so a typo'd
 /// `team:` token points at what exists.
@@ -124,10 +118,24 @@ pub(super) fn build_teams(
     Ok(teams)
 }
 
+/// Compile `auth.admins`, rejecting any entry that is not one username.
+pub(super) fn build_admins(names: &[String]) -> Result<BTreeSet<String>, RegistryError> {
+    names
+        .iter()
+        .map(|name| {
+            validate_member_name(name)
+                .map(|()| name.clone())
+                .map_err(|reason| RegistryError::InvalidConfig {
+                    reason: format!("`auth.admins` has an invalid entry: {reason}"),
+                })
+        })
+        .collect()
+}
+
 /// A team name is only useful spliced into a `team:<name>` token, so it must
 /// survive that grammar: one token, no `:` (which would read as another
 /// prefix), no `$` sigil (reserved for the built-in groups).
-pub(super) fn validate_team_name(team: &str) -> Result<(), String> {
+pub fn validate_team_name(team: &str) -> Result<(), String> {
     validate_single_token(team)?;
     if team.contains(':') || team.starts_with('$') {
         return Err(format!(
@@ -142,8 +150,8 @@ pub(super) fn validate_team_name(team: &str) -> Result<(), String> {
 /// spelling — and typed tokens are rejected: `[$authenticated]` in a member
 /// list would otherwise silently become a user literally named
 /// `$authenticated`, narrowing the team to a name nobody holds, the same
-/// trap [`validate_access_token`] closes for access lists.
-pub(super) fn validate_member_name(member: &str) -> Result<(), String> {
+/// trap `validate_access_token` closes for access lists.
+pub fn validate_member_name(member: &str) -> Result<(), String> {
     validate_single_token(member)?;
     let bare = member.strip_prefix('@').unwrap_or(member);
     if member.starts_with('$') || matches!(bare, "all" | "authenticated" | "anonymous") {
