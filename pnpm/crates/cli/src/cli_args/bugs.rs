@@ -7,6 +7,7 @@ use crate::cli_args::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
+use pnpm_network::normalize_registry_url;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_registry::{PackageTag, PackageVersion};
@@ -52,16 +53,17 @@ impl BugsArgs {
         let http_client = build_registry_client(config)
             .wrap_err("build the network client for registry requests")?;
 
+        let explicit_registry = self.registry.as_deref().map(normalize_registry_url);
         let registries = resolve_registries_with_override(config, self.registry.as_deref());
 
         let futures = self.packages
             .iter()
             .map(|spec| {
-                let parsed = PackageSpec::parse(spec);
-                let package_name =
-                    parsed.as_ref().map_or(spec.as_str(), |parsed| parsed.name.as_str());
-                let target_registry =
-                    resolve_registry_for_package(&registries, package_name, Some(spec));
+                let target_registry = resolve_package_target_registry(
+                    explicit_registry.as_deref(),
+                    &registries,
+                    spec,
+                );
 
                 let http_client = &http_client;
                 let auth_headers = &config.auth_headers;
@@ -79,6 +81,19 @@ impl BugsArgs {
         }
         Ok(())
     }
+}
+
+fn resolve_package_target_registry(
+    explicit_registry: Option<&str>,
+    registries: &std::collections::HashMap<String, String>,
+    spec: &str,
+) -> String {
+    if let Some(explicit) = explicit_registry {
+        return explicit.to_string();
+    }
+    let parsed = PackageSpec::parse(spec);
+    let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
+    resolve_registry_for_package(registries, package_name, Some(spec))
 }
 
 fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {

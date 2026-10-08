@@ -481,3 +481,25 @@ async fn run_opens_bugs_url_with_registry_override() {
     mock.assert_async().await;
     assert_eq!(opened_urls(), ["https://github.com/kevva/is-negative/issues"]);
 }
+
+#[tokio::test]
+async fn run_opens_bugs_url_with_registry_override_for_scoped_package() {
+    recording_browser!(run_bugs_with_registry_override);
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "@scope/pkg",
+        json!({ "bugs": { "url": "https://github.com/scope/pkg/issues" } }),
+    );
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_with_registry_override(server.url(), "@scope/pkg").await
+        .expect("bugs must succeed with registry override for scoped package");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/scope/pkg/issues"]);
+}
