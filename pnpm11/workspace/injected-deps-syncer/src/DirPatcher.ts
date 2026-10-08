@@ -3,7 +3,7 @@ import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 
 import { isError } from '@pnpm/error'
-import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
+import { type FetchFromDirOptions, listFilesFromDir } from '@pnpm/fetching.directory-fetcher'
 import { renameFileWithRetry, renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import { pathTemp } from 'path-temp'
 
@@ -225,7 +225,7 @@ export interface PublishSource {
 }
 
 export async function readPublishSource (dir: string): Promise<PublishSource> {
-  return { dir, map: await extendFilesMap(await fetchFromDir(dir, WATCH_FETCH_OPTIONS)) }
+  return { dir, map: await extendFilesMap(await listFilesFromDir(dir, WATCH_FETCH_OPTIONS)) }
 }
 
 /**
@@ -240,7 +240,7 @@ export async function publishEditsForWatchers (
   editedSinceMs: number
 ): Promise<void> {
   const { dir: sourceDir, map: sourceMap } = source
-  const targetMap = await extendFilesMap(await fetchFromDir(targetDir, WATCH_FETCH_OPTIONS))
+  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, WATCH_FETCH_OPTIONS))
 
   await syncRemovedWatchPaths(targetMap, sourceMap, targetDir)
   const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
@@ -382,7 +382,7 @@ export class DirPatcher {
     }
 
     async function loadMap (dir: string, dirFetchOptions: FetchFromDirOptions): Promise<[InodeMap, string]> {
-      const fetchResult = await fetchFromDir(dir, dirFetchOptions)
+      const fetchResult = await listFilesFromDir(dir, dirFetchOptions)
       return [await extendFilesMap(fetchResult), dir]
     }
 

@@ -377,16 +377,16 @@ fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
 }
 
 fn load_inode_map(dir: &Path, include_only_package_files: bool) -> Result<InodeMap, PatchError> {
-    let output = DirectoryFetcher {
+    let files_map = DirectoryFetcher {
         directory: dir.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
         preserve_symlinks: false,
         allow_path_escape: false,
     }
-    .run()
+    .list_files()
     .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
-    extend_files_map(&output.files_map)
+    extend_files_map(&files_map)
 }
 
 /// Expand a relative-path → real-path map into an [`InodeMap`] that
