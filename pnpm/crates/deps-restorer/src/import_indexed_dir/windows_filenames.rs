@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 pub(super) struct SanitizedFilenames {
     pub paths: HashMap<String, PathBuf>,
@@ -12,7 +15,7 @@ pub(super) fn sanitize_filenames(
     let mut paths = HashMap::with_capacity(cas_paths.len());
     let mut renamed = Vec::new();
     let mut entries: Vec<_> = cas_paths.iter().collect();
-    entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    entries.sort_unstable_by_key(|(filename, _)| *filename);
     for (filename, source) in entries {
         let sanitized = sanitize_path(filename);
         if sanitized.is_empty() {
@@ -23,10 +26,26 @@ pub(super) fn sanitize_filenames(
         }
         paths.insert(sanitized, source.clone());
     }
-    if renamed.is_empty() {
+    if renamed.is_empty() || has_file_dir_conflict(&paths) {
         return None;
     }
     Some(SanitizedFilenames { paths, renamed })
+}
+
+/// Whether one path is a proper ancestor of another, compared
+/// case-insensitively as Windows does: `foo?` and `foo/bar` would need
+/// `foo` to be both a file and a directory.
+fn has_file_dir_conflict(paths: &HashMap<String, PathBuf>) -> bool {
+    let lowercase_paths: HashSet<String> = paths
+        .keys()
+        .map(|path| path.to_lowercase())
+        .collect();
+    lowercase_paths
+        .iter()
+        .any(|path| {
+            path.match_indices('/')
+                .any(|(slash, _)| lowercase_paths.contains(&path[..slash]))
+        })
 }
 
 fn is_stripped_char(ch: char) -> bool {

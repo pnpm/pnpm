@@ -25,6 +25,9 @@
       "path": "../../store/controller-types"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../graceful-fs"
     }
   ]

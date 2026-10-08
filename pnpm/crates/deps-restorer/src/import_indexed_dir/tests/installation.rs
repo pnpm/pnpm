@@ -34,6 +34,45 @@ fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
 
 #[cfg(windows)]
 #[test]
+fn renamed_filename_warning_strips_control_characters() {
+    use pnpm_reporter::{LogEvent, Reporter};
+    use std::sync::Mutex;
+
+    static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push(log.message.clone());
+            }
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let source = write_source(&tmp.path().join("cas"), "asset", b"asset");
+    let cas = cas_map(&[("\u{1b}[31m-red.txt", source)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<RecordingReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("invalid filename should be renamed");
+    assert_eq!(fs::read(target.join("[31m-red.txt")).unwrap(), b"asset");
+    let messages = MESSAGES.lock().unwrap();
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].contains("[31m-red.txt"), "{}", messages[0]);
+    assert!(!messages[0].contains('\u{1b}'), "{:?}", messages[0]);
+}
+
+#[cfg(windows)]
+#[test]
 fn renamed_windows_filename_collision_installs_one_file() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");

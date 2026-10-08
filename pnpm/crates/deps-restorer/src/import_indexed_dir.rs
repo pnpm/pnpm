@@ -196,12 +196,15 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         && let Some(sanitized) = windows_filenames::sanitize_filenames(cas_paths)
     {
         let relative_dir = std::env::current_dir()
-            .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
-            .unwrap_or_else(|_| dir_path.to_path_buf());
+            .map_or_else(|_| dir_path.to_path_buf(), |cwd| pnpm_fs::relative_path(&cwd, dir_path));
+        let renamed: Vec<_> = sanitized.renamed
+            .iter()
+            .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))
+            .collect();
         pnpm_reporter::emit_global_warning::<Reporter>(&format!(
             r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
-            relative_dir.display(),
-            sanitized.renamed.join(", "),
+            pnpm_text_sanitize::sanitize_inline(&relative_dir.to_string_lossy()),
+            renamed.join(", "),
         ));
         return import_indexed_dir_once::<Reporter>(
             logged_methods,
@@ -219,6 +222,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
     match error {
         ImportIndexedDirError::CreateDir { error, .. }
+        | ImportIndexedDirError::InspectTarget { error, .. }
         | ImportIndexedDirError::PlaceFile { error, .. }
         | ImportIndexedDirError::ClearBlockingDirEntry { error, .. }
         | ImportIndexedDirError::LinkFile(LinkFileError::Import { error, .. }) => {

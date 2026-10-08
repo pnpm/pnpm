@@ -58,3 +58,10 @@ fn component_sanitization_matches_pnpm_11() {
     assert_eq!(sanitize_component("name\u{80}?.txt"), "name.txt");
     assert_eq!(sanitize_component(&"\u{e9}".repeat(128)), "\u{e9}".repeat(127));
 }
+
+#[test]
+fn rejects_sanitized_paths_that_need_a_file_and_a_directory() {
+    assert!(sanitize_filenames(&entries(&["foo?", "foo/bar"])).is_none());
+    assert!(sanitize_filenames(&entries(&["Foo?", "foo/bar"])).is_none());
+    assert!(sanitize_filenames(&entries(&["foo?", "foobar/baz"])).is_some());
+}
