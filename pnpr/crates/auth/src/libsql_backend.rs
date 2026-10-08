@@ -20,6 +20,7 @@
 
 use super::token_store::{mint_token, unix_seconds};
 mod schema;
+mod user_admin;
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -171,6 +172,26 @@ impl UserBackend for LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let hash = tokio::sync::OnceCell::new();
         retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        self.list_usernames().await
+    }
+
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        self.stored_hash(username).await
+    }
+
+    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+        self.insert_user_for_admin(username, password).await
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+        self.update_password(username, password).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        self.remove_user(username).await
     }
 }
 

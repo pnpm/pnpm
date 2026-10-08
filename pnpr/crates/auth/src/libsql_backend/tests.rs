@@ -445,3 +445,23 @@ async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<lib
     })
     .await
 }
+
+#[tokio::test]
+async fn libsql_supports_the_admin_operations() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::tests::assert_admin_round_trip(&backend).await;
+}
+
+#[tokio::test]
+async fn admin_created_users_count_against_the_registration_cap() {
+    let backend = local_backend(MaxUsers::Limited(1)).await;
+    assert!(backend.create_user("alice", "secret").await.unwrap());
+    let err = backend.add_or_login("bob", "secret").await.unwrap_err();
+    assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
+
+    assert!(backend.delete_user("alice").await.unwrap());
+    assert!(matches!(
+        backend.add_or_login("bob", "secret").await.unwrap(),
+        (UpsertOutcome::Created, _),
+    ));
+}

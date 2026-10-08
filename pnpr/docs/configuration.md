@@ -423,9 +423,18 @@ the htpasswd file.
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database — see [Auth backends](auth-backends.md).
 
-`auth.admins` lists the usernames that may administer the registry. Today an
-admin may edit the teams of every registry with
-[`teamsManagedBy: api`](#managing-teams-through-the-api).
+`auth.admins` lists the usernames that may administer the registry. An admin
+may:
+
+- create and remove accounts, change passwords, and revoke tokens through the
+  [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
+  is disabled;
+- edit the teams of every registry with
+  [`teamsManagedBy: api`](#managing-teams-through-the-api).
+
+The first admin account still has to exist. Let it self-register before you
+set `max_users` to `-1`, or create it in the htpasswd file or the shared
+database.
 
 ```yaml title="pnpr.yaml"
 auth:

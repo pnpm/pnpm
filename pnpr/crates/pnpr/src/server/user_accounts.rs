@@ -106,13 +106,8 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         );
     };
 
-    let (outcome, username) =
-        match state.inner.identity.auth.users.add_or_login(name, password).await {
-            Ok(o) => o,
-            Err(err) => return err.into_response(),
-        };
-    let token = match state.inner.identity.auth.tokens.issue(&username).await {
-        Ok(t) => t,
+    let (outcome, username, token) = match log_in(state, name, password).await {
+        Ok(login) => login,
         Err(err) => return err.into_response(),
     };
     let ok_msg = match outcome {
@@ -128,6 +123,47 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         .header(header::CACHE_CONTROL, "no-cache")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Verify or register `name` and issue its token. Returns the outcome, the
+/// stored username, and the raw token.
+async fn log_in(
+    state: &AppState,
+    name: &str,
+    password: &str,
+) -> Result<(UpsertOutcome, String, String), RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    let verified = users.password_hash(name).await?;
+    let (outcome, username) = users.add_or_login(name, password).await?;
+    let token = state.inner.identity.auth.tokens.issue(&username).await?;
+    if still_the_same_account(state, &username, password, verified.as_deref()).await? {
+        return Ok((outcome, username, token));
+    }
+    state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
+    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+}
+
+/// Whether the account a login verified, or created, is still the one stored,
+/// checked once the login's token exists. An admin may remove the account, or
+/// remove it and create it again, between the check and the issue, after the
+/// removal revoked the account's tokens.
+///
+/// A login that verified a stored hash (`verified`) needs that hash to still
+/// be stored. The hash is salted, so a recreated account or a new password
+/// never matches. A login that created the account has no hash to compare, so
+/// the stored account must accept the password that created it.
+async fn still_the_same_account(
+    state: &AppState,
+    username: &str,
+    password: &str,
+    verified: Option<&str>,
+) -> Result<bool, RegistryError> {
+    let current = state.inner.identity.auth.users.password_hash(username).await?;
+    match (verified, current) {
+        (Some(verified), Some(current)) => Ok(verified == current),
+        (None, Some(current)) => pnpr_auth::verify_bcrypt(password.to_string(), current).await,
+        (_, None) => Ok(false),
+    }
 }
 
 /// `GET /-/whoami` — return the username of the caller, or 401 if

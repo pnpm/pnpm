@@ -1,6 +1,6 @@
 use super::{
     AppState, Identity, RegistryError, Response, StatusCode, json, organizations::team_registry,
-    team_rosters::update_team_roster,
+    require_admin, team_rosters::update_team_roster,
 };
 use axum::{body::Bytes, response::IntoResponse};
 use pnpr_config::{Teams, TeamsManagement, validate_member_name, validate_team_name};
@@ -129,26 +129,9 @@ fn admin_roster<'a>(
     if hosted.teams_managed_by == TeamsManagement::Config {
         return Err(RegistryError::TeamsConfigManaged { action });
     }
-    require_admin(state, identity, action, target.scope)?;
+    let scope = target.scope.strip_prefix('@').unwrap_or(target.scope);
+    require_admin(state, identity, action, format!("on @{scope}"))?;
     Ok(registry)
-}
-
-fn require_admin(
-    state: &AppState,
-    identity: &Identity,
-    action: &'static str,
-    scope: &str,
-) -> Result<(), RegistryError> {
-    if state.inner.config.identity.is_admin(identity) {
-        return Ok(());
-    }
-    let resource = format!("on @{}", scope.strip_prefix('@').unwrap_or(scope));
-    match identity {
-        Identity::User { username } => {
-            Err(RegistryError::Forbidden { user: username.clone(), action, resource })
-        }
-        Identity::Anonymous => Err(RegistryError::Unauthenticated { resource }),
-    }
 }
 
 fn insert_team(teams: &mut Teams, team: &str) -> Result<(), RegistryError> {
@@ -173,7 +156,7 @@ fn parse_body<'a, Body: Deserialize<'a>>(body: &'a Bytes) -> Result<Body, Regist
         .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
 }
 
-fn respond(result: Result<impl IntoResponse, RegistryError>) -> Response {
+pub(super) fn respond(result: Result<impl IntoResponse, RegistryError>) -> Response {
     match result {
         Ok(response) => response.into_response(),
         Err(err) => err.into_response(),

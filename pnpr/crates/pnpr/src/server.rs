@@ -64,9 +64,9 @@ use upstream_packuments::{
 mod request_access;
 use request_access::{
     authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_artifact_caller, require_caller, require_pipeline_caller, require_resolver_caller,
-    revision_registry_is_private, revision_source_registry, single_authorization_header,
-    upstream_cache_namespace,
+    require_admin, require_artifact_caller, require_caller, require_pipeline_caller,
+    require_resolver_caller, revision_registry_is_private, revision_source_registry,
+    single_authorization_header, upstream_cache_namespace,
 };
 
 mod user_accounts;
@@ -91,6 +91,7 @@ mod staged;
 mod striped_locks;
 mod team_mutations;
 mod team_rosters;
+mod user_admin;
 
 #[cfg(test)]
 mod tests;
