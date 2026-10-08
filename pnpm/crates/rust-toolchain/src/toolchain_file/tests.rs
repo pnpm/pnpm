@@ -127,6 +127,10 @@ fn keeps_a_comment_only_file() {
         with_channel(Some("# pinned by CI\n"), &channel).unwrap(),
         "# pinned by CI\n\n[toolchain]\nchannel = \"1.96.0\"\n",
     );
+    assert_eq!(
+        with_channel(Some("# the toolchain CI uses\n"), &channel).unwrap(),
+        "# the toolchain CI uses\n\n[toolchain]\nchannel = \"1.96.0\"\n",
+    );
 }
 
 #[test]

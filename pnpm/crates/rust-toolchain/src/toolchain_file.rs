@@ -207,9 +207,6 @@ fn set_toolchain_channel(contents: &str, channel: &Channel) -> Result<String, St
     match locate_channel(&lines) {
         ChannelLocation::Line(index) => lines[index] = replaced_channel_line(&lines[index], &line),
         ChannelLocation::Header(index) => lines.insert(index + 1, line),
-        ChannelLocation::NoTable if contents.contains("toolchain") => {
-            return Err("pnpm cannot update the `toolchain` table as it is written".to_string());
-        }
         ChannelLocation::NoTable => return Ok(with_toolchain_table(contents, &line)),
     }
     Ok(join_lines(&lines, contents))
