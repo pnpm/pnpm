@@ -196,44 +196,23 @@ impl FileApply<'_> {
         text_patch: &Patch<'_, str>,
         new_mode: Option<&FileMode>,
     ) -> Result<(), PatchApplyError> {
-        // Capture the original mode so the rewritten file keeps
-        // it, or apply `new_mode` when the patch specifies one.
-        #[cfg(not(target_os = "wasi"))]
-        let permissions = {
-            let metadata = fs::metadata(target)
-                .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
-            #[cfg(unix)]
-            {
-                let mut permissions = metadata.permissions();
-                if let Some(bits) = new_mode.copied().and_then(file_mode_bits) {
-                    use std::os::unix::fs::PermissionsExt;
-                    permissions.set_mode(bits);
-                }
-                permissions
-            }
-            #[cfg(not(unix))]
-            metadata.permissions()
-        };
-        #[cfg(target_os = "wasi")]
-        let permissions = pnpm_fs::copy_permissions(target)
+        let permissions = atomic_write::modify_permissions(target, new_mode)
             .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
-        // Read as bytes and lossy-decode so non-UTF-8 bytes
-        // turn into U+FFFD rather than failing the patch.
-        // Matches how the patch file itself is read (see
-        // [`apply_patch_to_dir`]) and Node `fs.readFile(..., 'utf8')`.
         let bytes = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
         let original = String::from_utf8_lossy(&bytes).into_owned();
         let updated = match tolerant::apply(&original, text_patch) {
             Ok(updated) => updated,
             // File is already in the post-patch state — reverse applies
-            // cleanly, so treat as no-op.
+            // cleanly. If the patch requested a mode change that is not yet
+            // reflected, re-write atomically to break store hardlinks and safely
+            // isolate without mutating inodes in-place.
             Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
-                apply_file_mode(target, new_mode)
-                    .map_err(|source| {
-                        self.failed(format!("chmod {}: {source}", target.display()))
-                    })?;
-                return Ok(());
+                if atomic_write::needs_mode_change(target, new_mode) {
+                    original
+                } else {
+                    return Ok(());
+                }
             }
             Err(message) => {
                 return Err(self.failed(format!("apply to {}: {message}", target.display())));
@@ -249,7 +228,7 @@ impl FileApply<'_> {
         // patched output is captured by the side-effects cache
         // after this returns; nothing requires the store copy
         // to carry it.
-        write_atomic_with_mode(target, updated.as_bytes(), &permissions)
+        write_atomic_with_mode(target, updated.as_bytes(), Some(&permissions))
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
     }
 
@@ -269,18 +248,10 @@ impl FileApply<'_> {
     ) -> Result<(), PatchApplyError> {
         let created = tolerant::apply("", text_patch)
             .map_err(|message| self.failed(format!("create {}: {message}", target.display())))?;
-        if target.try_exists().unwrap_or(false) {
-            let existing = fs::read(target)
-                .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
-            if String::from_utf8_lossy(&existing) == created {
-                apply_file_mode(target, new_mode)
-                    .map_err(|source| {
-                        self.failed(format!("chmod {}: {source}", target.display()))
-                    })?;
-                return Ok(());
-            }
-            let target = target.display();
-            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        if target.try_exists().unwrap_or(false)
+            && self.existing_file_matches(target, &created, new_mode)?
+        {
+            return Ok(());
         }
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent)
@@ -288,10 +259,24 @@ impl FileApply<'_> {
                     self.failed(format!("create parent of {}: {source}", target.display()))
                 })?;
         }
-        fs::write(target, created)
-            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))?;
-        apply_file_mode(target, new_mode)
-            .map_err(|source| self.failed(format!("chmod {}: {source}", target.display())))
+        let permissions = atomic_write::create_permissions(new_mode);
+        write_atomic_with_mode(target, created.as_bytes(), permissions.as_ref())
+            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    fn existing_file_matches(
+        &self,
+        target: &Path,
+        created: &str,
+        new_mode: Option<&FileMode>,
+    ) -> Result<bool, PatchApplyError> {
+        let existing = fs::read(target)
+            .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
+        if String::from_utf8_lossy(&existing) != created {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
+        Ok(!atomic_write::needs_mode_change(target, new_mode))
     }
 
     fn delete(&self, target: &Path, text_patch: &Patch<'_, str>) -> Result<(), PatchApplyError> {
@@ -344,29 +329,6 @@ impl FileApply<'_> {
             after.len(),
         )))
     }
-}
-
-#[cfg(unix)]
-fn file_mode_bits(mode: FileMode) -> Option<u32> {
-    match mode {
-        FileMode::Executable => Some(0o755),
-        FileMode::Regular => Some(0o644),
-        _ => None,
-    }
-}
-
-#[cfg(unix)]
-fn apply_file_mode(target: &Path, mode: Option<&FileMode>) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    if let Some(bits) = mode.copied().and_then(file_mode_bits) {
-        fs::set_permissions(target, fs::Permissions::from_mode(bits))?;
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn apply_file_mode(_target: &Path, _mode: Option<&FileMode>) -> io::Result<()> {
-    Ok(())
 }
 
 #[cfg(test)]

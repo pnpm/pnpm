@@ -220,6 +220,173 @@ fn mode_change_patch_is_idempotent() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn mode_change_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("tool.sh");
+    fs::write(&store_file, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&store_file, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("tool.sh");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+    assert_eq!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "test setup: slot must share inode with store",
+    );
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/tool.sh b/tool.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&slot_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "patched slot file must have updated executable mode",
+    );
+    assert_eq!(
+        fs::metadata(&store_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "store file mode must remain untouched",
+    );
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "slot must have broken hardlink to store",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn idempotent_mode_change_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("run.sh");
+    fs::write(&store_file, "#!/bin/sh\necho updated\n").unwrap();
+    fs::set_permissions(&store_file, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("run.sh");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/run.sh"
+        "+++ b/run.sh"
+        "@@ -1 +1,2 @@"
+        " #!/bin/sh"
+        "+echo updated"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&slot_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "patched slot file must receive requested mode",
+    );
+    assert_eq!(
+        fs::metadata(&store_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "shared store inode must not have its mode mutated",
+    );
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "hardlink to store must be broken when mode is updated",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn mode_change_on_symlink_does_not_mutate_target_outside_package() {
+    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("victim.sh");
+    fs::write(&victim, "#!/bin/sh\necho victim\n").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let symlink = patched.path().join("run.sh");
+    unix_fs::symlink(&victim, &symlink).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/run.sh"
+        "+++ b/run.sh"
+        "@@ -1,2 +1,2 @@"
+        " #!/bin/sh"
+        "-echo victim"
+        "+echo patched"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(
+        fs::metadata(&victim)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "victim file outside package must retain original mode",
+    );
+    assert_eq!(
+        fs::read_to_string(&victim).unwrap(),
+        "#!/bin/sh\necho victim\n",
+        "victim file outside package must retain original content",
+    );
+    assert!(
+        fs::symlink_metadata(&symlink).unwrap().is_file(),
+        "symlink in package must be replaced with regular file",
+    );
+    assert_eq!(
+        fs::metadata(&symlink)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "replaced file must have requested mode",
+    );
+}
+
 #[test]
 fn applies_an_insertion_with_context_on_both_sides() {
     let original = text_block_fnl! {
