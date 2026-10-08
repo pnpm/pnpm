@@ -214,3 +214,20 @@ async fn docs_supports_registry_override() {
     mock.assert_async().await;
     assert_eq!(url, "https://v1.example/docs");
 }
+
+struct FailingBrowser;
+
+impl OpenUrl for FailingBrowser {
+    fn open_url(_: &str) -> io::Result<()> {
+        Err(io::Error::other("browser failed"))
+    }
+}
+
+#[test]
+fn failing_browser_redacts_url_and_succeeds() {
+    let result = super::open_url::<FailingBrowser>(
+        "https://user:pass@example.com/docs?token=secret#frag",
+    );
+    assert!(result.is_ok());
+}
+
