@@ -186,11 +186,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     let existing_kind = existing_dirent_kind(dir_path)?;
     #[cfg(windows)]
-    if !opts.force
-        && existing_kind.is_some_and(|file_type| {
-            !file_type.is_dir() || marker_present(dir_path, cas_paths)
-        })
-    {
+    if skip_existing_windows_import(existing_kind, opts, dir_path, cas_paths) {
         return Ok(());
     }
     #[cfg(windows)]
@@ -244,6 +240,19 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
+}
+
+#[cfg(windows)]
+fn skip_existing_windows_import(
+    existing_kind: Option<fs::FileType>,
+    opts: ImportIndexedDirOpts,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> bool {
+    !opts.force
+        && existing_kind.is_some_and(|file_type| {
+            !file_type.is_dir() || marker_present(dir_path, cas_paths)
+        })
 }
 
 #[cfg(windows)]
