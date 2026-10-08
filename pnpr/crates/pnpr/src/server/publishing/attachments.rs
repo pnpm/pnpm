@@ -84,7 +84,7 @@ pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         match identity {
-            Identity::User { username } => {
+            Identity::User { username, .. } => {
                 manifest.insert("_npmUser".to_string(), json!({ "name": username }));
             }
             Identity::Anonymous => {

@@ -176,8 +176,8 @@ async fn resolve_caller(
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
-        if let Some(username) = state.inner.identity.oidc.session(&raw_token)? {
-            return Ok(Identity::user(username));
+        if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
+            return Ok(super::oidc_groups::session_identity(&state.inner.config, user));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc

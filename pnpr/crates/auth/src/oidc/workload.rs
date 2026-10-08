@@ -1,7 +1,7 @@
 use super::{
     BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJwsSigningAlgorithm,
     CoreProviderMetadata, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
-    Result, Utc, Value, rejected,
+    Result, SessionUser, Utc, Value, rejected,
 };
 use base64::Engine as _;
 
@@ -19,14 +19,15 @@ pub(super) fn verify_workload(
 }
 
 /// The one configured user the token's claims bind to.
-pub(super) fn bound_user<'p>(
-    config: &'p OidcProvider,
-    token: &CoreIdToken,
-) -> Result<&'p OidcBinding> {
+/// The user of the one login binding the ID token satisfies, with the team
+/// grants its groups claim earns.
+pub(super) fn bound_user(config: &OidcProvider, token: &CoreIdToken) -> Result<SessionUser> {
     let payload = token_payload(&token.to_string())?;
     validate_claims(config, &payload)?;
-    let users = &config.login.as_ref().ok_or_else(rejected)?.users;
-    unique_binding(users.iter(), &payload)
+    let login = config.login.as_ref().ok_or_else(rejected)?;
+    let binding = unique_binding(login.users.iter(), &payload)?;
+    let teams = super::groups::granted_teams(login, &payload);
+    Ok(SessionUser { username: binding.username.clone(), teams })
 }
 
 pub(super) fn token_verifier(

@@ -266,7 +266,7 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
         Err(err) => return err.into_response(),
     };
     match state.inner.identity.oidc.session(raw_token) {
-        Ok(Some(owner)) if owner == username => {
+        Ok(Some(owner)) if owner.username == username => {
             state.inner.identity.oidc.revoke_session(raw_token);
             return json_response(StatusCode::OK, &json!({ "ok": true }));
         }

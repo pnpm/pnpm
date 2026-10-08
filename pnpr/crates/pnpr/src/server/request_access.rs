@@ -160,7 +160,7 @@ pub(super) fn require_admin(
         return Ok(());
     }
     match identity {
-        Identity::User { username } => {
+        Identity::User { username, .. } => {
             Err(RegistryError::Forbidden { user: username.clone(), action, resource })
         }
         Identity::Anonymous => Err(RegistryError::Unauthenticated { resource }),
@@ -173,9 +173,9 @@ pub(super) async fn caller_username(
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
     if let Some(raw) = authorization.and_then(authentication::bearer_credentials)
-        && let Some(username) = state.inner.identity.oidc.session(raw)?
+        && let Some(user) = state.inner.identity.oidc.session(raw)?
     {
-        return Ok(Some(username));
+        return Ok(Some(user.username));
     }
     identify(authorization, state.inner.identity.auth.tokens.as_ref()).await
 }
