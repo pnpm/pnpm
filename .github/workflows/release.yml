@@ -771,12 +771,18 @@ jobs:
       - name: Check the binary is signed
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
         run: |
           $signature = Get-AuthenticodeSignature signed/pnpm.exe
           if (-not $signature.SignerCertificate) {
             throw "signed/pnpm.exe carries no Authenticode signature"
           }
           $signature.SignerCertificate | Format-List Subject, Issuer, NotAfter
+          $info = (Get-Item signed/pnpm.exe).VersionInfo
+          if ($info.ProductName -ne 'pnpm' -or $info.ProductVersion -ne $env:VERSION) {
+            throw "signed/pnpm.exe names product '$($info.ProductName)' version '$($info.ProductVersion)', expected 'pnpm' version '$env:VERSION'"
+          }
 
       - name: Smoke-test Linux ppc64le startup
         if: matrix.target == 'powerpc64le-unknown-linux-gnu'

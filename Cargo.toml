@@ -253,6 +253,7 @@ yamlpatch = { version = "1.25.2" }
 yamlpath = { version = "1.25.2" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.2" }
+winresource = { version = "0.1.31", default-features = false }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 zune-inflate = { version = "0.2.54" }
 
