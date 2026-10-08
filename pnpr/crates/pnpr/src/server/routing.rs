@@ -206,7 +206,9 @@ fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppStat
     let mut router: Router<AppState> = Router::new()
         .route("/-/ping", get(serve_ping))
         .route("/-/oidc/{provider}/login", get(super::oidc::login))
-        .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
+        .route("/-/oidc/{provider}/callback", get(super::oidc::callback))
+        .route("/-/oidc/handoff", post(super::oidc::redeem_handoff))
+        .route("/-/pnpr/v0/sign-in", get(super::oidc::sign_in_methods));
     router = router
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())

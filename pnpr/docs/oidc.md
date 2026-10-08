@@ -105,8 +105,10 @@ for example in your private user `.npmrc`:
 The browser session expires at the earlier of one hour or the ID token's expiry,
 and `npm logout` revokes it. Sessions live in memory and disappear on restart,
 so a multi-replica deployment needs affinity for both the login flow and the
-authenticated requests that follow. They do not appear in `npm token list`. This
-sign-in URL is separate from the npm CLI's `npm login` web protocol. An OIDC
+authenticated requests that follow. They do not appear in `npm token list`. The
+[web UI](web-ui.md) lists these providers on its sign-in screen and returns to
+the UI after sign-in. This sign-in URL is separate from the npm CLI's
+`npm login` web protocol. An OIDC
 session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
 
 ## GitHub Actions keyless publishing
