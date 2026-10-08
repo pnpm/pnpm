@@ -85,6 +85,7 @@ fn record_agent_skills(
         included: inputs.tree.included,
         linked,
         agent_dir: crate::agent_skills_dir_from_env(),
+        hoisted_locations: next_modules.hoisted_locations.as_ref(),
     })
     .map_err(InstallError::AgentSkills)?;
     let pending_keys = state.pending_keys();

@@ -70,6 +70,7 @@ pub(crate) fn resync_agent_skills_at(
         included: modules.included,
         linked: modules.linked_skills.as_deref().unwrap_or_default(),
         agent_dir: agent_skills_dir_from_env(),
+        hoisted_locations: modules.hoisted_locations.as_ref(),
     })
     .map_err(ResyncAgentSkillsError::Sync)?;
     let pending_keys = state.pending_keys();

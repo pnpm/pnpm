@@ -4,7 +4,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
@@ -78,6 +78,7 @@ fn sync(
         included: ALL_GROUPS,
         linked,
         agent_dir,
+        hoisted_locations: None,
     })
 }
 
@@ -348,21 +349,73 @@ fn ignores_a_skill_that_resolves_outside_its_package() {
     assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
 }
 
-#[test]
-fn finds_a_dependency_hoisted_to_the_workspace_root() {
+/// A hoisted workspace whose `packages/b` depends on `foo@<version>`, with
+/// `foo@1.0.0` shipping a skill in the root `node_modules`.
+fn hoisted_workspace(version: &str) -> (TempDir, Lockfile) {
     let root = tempfile::tempdir().expect("create workspace");
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
     fs::create_dir_all(root.path().join("packages/b")).unwrap();
     install_package(&root.path().join("node_modules/foo"), &["guide"]);
-    let lockfile: Lockfile = serde_saphyr::from_str(
-        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
-    )
+    let lockfile = serde_saphyr::from_str(&format!(
+        "lockfileVersion: '9.0'\nimporters:\n  .: {{}}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: {version}\n        version: {version}\n",
+    ))
     .expect("parse lockfile");
-    let config = Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..config(&[], None) };
+    (root, lockfile)
+}
 
-    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+fn sync_hoisted(
+    root: &Path,
+    lockfile: &Lockfile,
+    allow_skills: &[(&str, bool)],
+) -> AgentSkillsState {
+    let locations =
+        BTreeMap::from([("foo@1.0.0".to_string(), vec!["node_modules/foo".to_string()])]);
+    let config =
+        Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..config(allow_skills, None) };
+    sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root,
+        lockfile,
+        included: ALL_GROUPS,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: Some(&locations),
+    })
+    .unwrap()
+}
+
+#[test]
+fn finds_a_dependency_hoisted_to_the_workspace_root() {
+    let (root, lockfile) = hoisted_workspace("1.0.0");
+
+    let state = sync_hoisted(root.path(), &lockfile, &[]);
 
     assert_eq!(state.pending, ["foo@1.0.0"]);
+}
+
+#[test]
+fn a_hoisted_copy_of_another_version_is_not_the_dependency() {
+    let (root, lockfile) = hoisted_workspace("2.0.0");
+
+    let state = sync_hoisted(root.path(), &lockfile, &[("foo@2.0.0", true)]);
+
+    assert_eq!(state, AgentSkillsState::default());
+}
+
+#[test]
+fn an_alias_that_leaves_node_modules_is_ignored() {
+    let root = tempfile::tempdir().expect("create workspace");
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    fs::create_dir_all(root.path().join("node_modules")).unwrap();
+    install_package(&root.path().join("outside"), &["guide"]);
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      '../outside':\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    )
+    .expect("parse lockfile");
+
+    let state = sync(root.path(), &lockfile, &config(&[], None), &[], None).unwrap();
+
+    assert_eq!(state, AgentSkillsState::default());
 }
 
 #[test]

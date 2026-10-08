@@ -36,19 +36,17 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
     let mut by_key: BTreeMap<String, SkillSource> = BTreeMap::new();
     let mut shipped: HashMap<String, ShippedSkills> = HashMap::new();
     for (importer_id, snapshot) in &input.lockfile.importers {
-        let modules_dirs = modules_dirs(input, importer_id);
-        if modules_dirs.is_empty() {
-            continue;
-        }
+        let Some(locator) = Locator::new(input, importer_id) else { continue };
         for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
             let Some(resolved) = spec.version.resolved_key(alias) else { continue };
             let alias = alias.to_string();
             let resolved = resolved.to_string();
-            let Some(skills) = cached_skills(
-                &mut shipped,
-                probe_key(importer_id, &resolved),
-                &package_dir(&modules_dirs, &alias),
-            ) else {
+            let Some(skills) = locator
+                .package_dir(input, &alias, &resolved)
+                .and_then(|dir| {
+                    cached_skills(&mut shipped, probe_key(importer_id, &resolved), &dir)
+                })
+            else {
                 continue;
             };
             keep_highest(&mut by_key, skill_source(skills, &resolved, &alias));
@@ -60,35 +58,76 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
         .collect()
 }
 
-/// The `node_modules` directories an importer's direct dependencies are
-/// installed in, nearest first. The hoisted linker may leave a dependency,
-/// or the whole directory, only in an ancestor up to the workspace root. A
-/// filtered install leaves the other importers with none.
-fn modules_dirs(input: &SyncAgentSkills<'_>, importer_id: &str) -> Vec<PathBuf> {
-    let importer_dir = importer_root_dir(input.workspace_root, importer_id);
-    let modules_dir_name = input.config.modules_dir_name();
-    let searched: Vec<&Path> = if input.config.node_linker == NodeLinker::Hoisted {
-        importer_dir
-            .ancestors()
-            .take_while(|dir| dir.starts_with(input.workspace_root))
-            .collect()
-    } else {
-        vec![&importer_dir]
-    };
-    searched
-        .into_iter()
-        .map(|dir| dir.join(modules_dir_name))
-        .filter(|dir| dir.is_dir())
-        .collect()
+/// Where one importer's direct dependencies are installed.
+enum Locator<'a> {
+    /// The importer's own `node_modules`, where the isolated linker links
+    /// every direct dependency.
+    Isolated(PathBuf),
+    /// What the hoisted linker recorded: the directories, relative to the
+    /// workspace root, each dep path was placed in.
+    Hoisted { importer_id: &'a str, locations: &'a BTreeMap<String, Vec<String>> },
 }
 
-/// The nearest `<modules_dir>/<alias>` that exists, or the nearest one.
-fn package_dir(modules_dirs: &[PathBuf], alias: &str) -> PathBuf {
-    modules_dirs
-        .iter()
-        .map(|dir| dir.join(alias))
-        .find(|dir| fs::symlink_metadata(dir).is_ok())
-        .unwrap_or_else(|| modules_dirs[0].join(alias))
+impl<'a> Locator<'a> {
+    /// `None` when nothing of the importer is installed, as for one a
+    /// filtered install left out.
+    fn new(input: &SyncAgentSkills<'a>, importer_id: &'a str) -> Option<Self> {
+        if input.config.node_linker == NodeLinker::Hoisted {
+            return input.hoisted_locations.map(|locations| Self::Hoisted {
+                importer_id,
+                locations,
+            });
+        }
+        let dir = importer_root_dir(input.workspace_root, importer_id)
+            .join(input.config.modules_dir_name());
+        dir.is_dir()
+            .then_some(Self::Isolated(dir))
+    }
+
+    /// The directory of the direct dependency `alias`, which resolves to
+    /// `dep_path`. Under the hoisted linker it is the location recorded for
+    /// `dep_path` nearest to the importer on its way up to the root, which
+    /// is the copy Node.js resolves. `None` when there is none, or when
+    /// `alias` is not a package name.
+    fn package_dir(
+        &self,
+        input: &SyncAgentSkills<'_>,
+        alias: &str,
+        dep_path: &str,
+    ) -> Option<PathBuf> {
+        if !is_package_name(alias) {
+            return None;
+        }
+        let (importer_id, locations) = match self {
+            Self::Isolated(modules_dir) => return Some(modules_dir.join(alias)),
+            Self::Hoisted { importer_id, locations } => (importer_id, locations),
+        };
+        let recorded = locations.get(dep_path)?;
+        let modules_dir_name = input.config.modules_dir_name().to_string_lossy();
+        Path::new(importer_id)
+            .ancestors()
+            .map(|dir| dir.to_string_lossy().replace('\\', "/"))
+            .map(|dir| match dir.as_str() {
+                "" | "." => format!("{modules_dir_name}/{alias}"),
+                dir => format!("{dir}/{modules_dir_name}/{alias}"),
+            })
+            .find(|location| recorded.contains(location))
+            .map(|location| input.workspace_root.join(location))
+    }
+}
+
+/// Whether `alias` names a package, `name` or `@scope/name`, and so stays
+/// inside the `node_modules` directory it is joined to.
+fn is_package_name(alias: &str) -> bool {
+    let segments: Vec<&str> = alias.split('/').collect();
+    let plain = |segment: &&str| {
+        !segment.is_empty() && *segment != "." && *segment != ".." && !segment.contains('\\')
+    };
+    match segments.as_slice() {
+        [name] => plain(name),
+        [scope, name] => scope.starts_with('@') && plain(scope) && plain(name),
+        _ => false,
+    }
 }
 
 /// A registry package is one directory however many importers depend on

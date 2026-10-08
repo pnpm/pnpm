@@ -60,6 +60,9 @@ pub struct SyncAgentSkills<'a> {
     /// The agent skill directory of the agent running pnpm, from
     /// [`agent_skills_dir_from_env`].
     pub agent_dir: Option<&'a str>,
+    /// Where the hoisted linker placed each dep path, as recorded in
+    /// `.modules.yaml`. Read only under that linker.
+    pub hoisted_locations: Option<&'a BTreeMap<String, Vec<String>>>,
 }
 
 /// The agent skills state to record in `.modules.yaml`.
