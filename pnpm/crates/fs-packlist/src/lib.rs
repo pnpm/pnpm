@@ -92,6 +92,10 @@ const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
 /// `*.orig` exclusion family.
 const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 
+/// Basenames of the ignore files, excluded at any depth unless a `files`
+/// entry matches the file itself, as npm-packlist's default rules do.
+const IGNORE_FILE_BASENAMES: &[&str] = &[".npmignore", ".gitignore"];
+
 /// Walk `pkg_dir` and return forward-slash relative paths for every
 /// file the published tarball should contain. Paths are relative to
 /// `pkg_dir`, with no leading `./`.
@@ -243,8 +247,13 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
         return true;
     }
     let Some(matcher) = selection.files_matcher else {
-        return false;
+        return is_ignore_file(rel);
     };
+    if is_ignore_file(rel) {
+        // An entry that only matches a parent directory, such as `lib`, does
+        // not ship `lib/.npmignore`.
+        return !matcher.matched(rel, false).is_ignore();
+    }
     !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
         && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
@@ -379,6 +388,11 @@ fn should_always_exclude(rel: &str) -> bool {
     ALWAYS_EXCLUDED_SUFFIXES
         .iter()
         .any(|suffix| basename.ends_with(suffix))
+}
+
+fn is_ignore_file(rel: &str) -> bool {
+    let basename = rel.rsplit('/').next().unwrap_or(rel);
+    IGNORE_FILE_BASENAMES.contains(&basename)
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {

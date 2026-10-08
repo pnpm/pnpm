@@ -203,6 +203,57 @@ fn gitignore_excludes_when_no_npmignore() {
 }
 
 #[test]
+fn ignore_files_are_not_packed() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "lib/index.js");
+    fs::write(root.join(".npmignore"), "test/\n").unwrap();
+    fs::write(root.join(".gitignore"), "build/\n").unwrap();
+    fs::write(root.join("lib/.npmignore"), "private.js\n").unwrap();
+    fs::write(root.join("lib/.gitignore"), "out/\n").unwrap();
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["index.js".to_string(), "lib/index.js".into(), "package.json".into()]);
+}
+
+#[test]
+fn files_field_entry_matching_an_ignore_file_packs_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, ".npmignore");
+    touch(root, ".gitignore");
+    touch(root, "lib/index.js");
+    touch(root, "lib/.npmignore");
+    touch(root, "lib/.gitignore");
+    touch(root, "src/.gitignore");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": [".*", "lib", "src/.gitignore"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            ".gitignore".to_string(),
+            ".npmignore".into(),
+            "lib/index.js".into(),
+            "package.json".into(),
+            "src/.gitignore".into(),
+        ],
+    );
+}
+
+#[test]
 fn npmignore_does_not_drop_always_included_files() {
     let dir = tempdir().unwrap();
     let root = dir.path();
