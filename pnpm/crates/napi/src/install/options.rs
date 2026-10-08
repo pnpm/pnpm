@@ -143,6 +143,10 @@ pub struct InstallOptions {
     /// changes. Without it the engine cannot tell whether the hook
     /// changed, so every install resolves again.
     pub read_package_hook_checksum: Option<String>,
+    /// Read by [`rebuild`](fn@crate::rebuild) only: skip the build of a
+    /// package the side-effects cache already holds a build of, restoring
+    /// that build instead.
+    pub skip_if_has_side_effects_cache: Option<bool>,
 }
 
 /// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues).

@@ -54,15 +54,18 @@ pub(super) fn side_effects_cache_key(
 /// snapshot would otherwise run its scripts — but if the prefetch
 /// surfaced a matching side-effects-cache entry, the build is already
 /// represented on disk (seeded on a previous install) and can be
-/// skipped. An explicit `pacquet rebuild` (`force_rebuild`) always
-/// re-runs the scripts, so it bypasses this gate.
+/// skipped. An explicit `pacquet rebuild` (`force_rebuild`) re-runs the
+/// scripts, so it bypasses this gate unless
+/// [`RebuildOptions::skip_if_has_side_effects_cache`] is set.
+///
+/// [`RebuildOptions::skip_if_has_side_effects_cache`]: crate::RebuildOptions::skip_if_has_side_effects_cache
 pub(super) fn already_built<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     cache_key: Option<&str>,
 ) -> Result<bool, BuildModulesError> {
-    if !candidate.force_rebuild
+    if !bypasses_side_effects_cache(context, candidate)
         && context.cache.read
         && let Some(maps_by_snapshot) = context.cache.maps_by_snapshot
         && let Some(maps) = maps_by_snapshot.get(snapshot_key)
@@ -77,6 +80,13 @@ pub(super) fn already_built<Reporter: self::Reporter>(
         );
     }
     Ok(false)
+}
+fn bypasses_side_effects_cache(
+    context: &BuildOneSnapshot<'_>,
+    candidate: &BuildCandidate<'_>,
+) -> bool {
+    candidate.force_rebuild
+        && !context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
 }
 /// Whether a side-effects-cache hit already put this snapshot's build output
 /// on disk, so the build can be skipped.

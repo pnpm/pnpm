@@ -27,7 +27,7 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 | Export | Purpose |
 | --- | --- |
 | `install(options, onLog?, readPackageHook?, onOutput?)` | Install in-memory importers (single or workspace); `readPackageHook` transforms each resolved dependency manifest (must be synchronous). Pass `options.readPackageHookChecksum` so installs reuse the lockfile while the hook is unchanged. Returns `{ stats, depsRequiringBuild?, storeDir }`. |
-| `rebuild(options, onLog?, selectedNames?, onOutput?)` | Re-run dependency build scripts against a materialized install (frozen path). Of the settings the lockfile records, only the patches have to match the options; nothing is resolved. |
+| `rebuild(options, onLog?, selectedNames?, onOutput?)` | Re-run dependency build scripts against a materialized install (frozen path). Of the settings the lockfile records, only the patches have to match the options; nothing is resolved. With `skipIfHasSideEffectsCache`, a package the side-effects cache already holds a build of is restored from the cache instead of rebuilt. |
 | `resolveDependency(wanted, options)` | Resolve an npm-registry specifier to `{ id, manifest, resolvedVia, … }`. |
 | `pack(options, onLog?)` | Build a publishable `.tgz` from a project directory. |
 | `parseBareSpecifier(spec, alias?)` | Split/validate a dependency specifier; `null` when unparsable. |

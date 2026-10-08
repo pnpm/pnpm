@@ -43,6 +43,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         selected_names: Some(std::iter::once("aaa".to_string()).collect()),
         pending_projects: Vec::new(),
         check_lockfile_patches_only: false,
+        skip_if_has_side_effects_cache: false,
     };
 
     BuildModules {
