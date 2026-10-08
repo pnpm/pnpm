@@ -591,3 +591,32 @@ fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
         ],
     );
 }
+
+#[test]
+fn includes_root_copying_license_file() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "dist/index.js");
+    touch(root, "COPYING");
+    touch(root, "COPYING.txt");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["dist/**"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "COPYING".to_string(),
+            "COPYING.txt".into(),
+            "dist/index.js".into(),
+            "package.json".into(),
+        ],
+    );
+}
+

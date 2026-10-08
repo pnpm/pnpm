@@ -807,6 +807,56 @@ fn workspace_license_is_injected_into_a_sub_package() {
     assert!(names.contains(&"package/licenseX.json".to_string()));
 }
 
+#[test]
+fn workspace_copying_license_is_injected_into_a_sub_package() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join("COPYING"), "GPL").unwrap();
+    let pkg_dir = workspace
+        .path()
+        .join("packages")
+        .join("foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
+    )
+    .unwrap();
+
+    let opts = PackOptions {
+        dir: pkg_dir.clone(),
+        workspace_dir: Some(workspace.path().to_path_buf()),
+        scripts: crate::PackScripts {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: "pacquet".to_string(),
+            extra_bin_paths: Vec::new(),
+            extra_env: HashMap::new(),
+        },
+        manifest: crate::PackManifestOptions {
+            catalogs: BTreeMap::new(),
+            catalogs_dir: None,
+            embed_readme: false,
+            node_linker: NodeLinker::Isolated,
+            skip_obfuscation: false,
+            before_packing_hooks: Vec::new(),
+            workspace_packages: None,
+        },
+        output: crate::PackOutputOptions {
+            gzip_level: None,
+            dry_run: false,
+            destination: None,
+            out: None,
+            injected_files: Vec::new(),
+            locks: None,
+        },
+    };
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert!(result.contents.contains(&"COPYING".to_string()));
+    let names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
+    assert!(names.contains(&"package/COPYING".to_string()));
+}
+
 /// A symlinked workspace-root `LICENSE` must not be injected: following
 /// it would leak the target's bytes — potentially a file outside the
 /// workspace — into the published tarball.
