@@ -1,8 +1,10 @@
-use crate::cli_args::registry_client::{build_registry_client, join_registry_endpoint};
+use crate::cli_args::registry_client::{
+    apply_auth_and_otp, build_registry_client, join_registry_endpoint,
+};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, send_with_retry};
+use pnpm_network::{RetryOpts, ThrottledClient, normalize_registry_url, send_with_retry};
 use serde::Deserialize;
 
 /// Errors from `pacquet whoami`.
@@ -52,13 +54,14 @@ pub(crate) async fn fetch_whoami(
     auth_header: &str,
     retry_opts: RetryOpts,
 ) -> miette::Result<String> {
+    let normalized = normalize_registry_url(registry_url);
     let url = join_registry_endpoint(registry_url, "-/whoami")
-        .unwrap_or_else(|_| format!("{registry_url}-/whoami"));
+        .unwrap_or_else(|_| format!("{normalized}-/whoami"));
     // Diagnostic context omits the URL: a registry configured as
     // `https://user:password@host/` carries inline credentials (accepted by
     // `AuthHeaders`), which must not reach stderr / CI logs.
     let (client, response) = send_with_retry(http_client, &url, retry_opts, |client| {
-        client.get(&url).header("authorization", auth_header)
+        apply_auth_and_otp(client.get(&url), Some(auth_header), None)
     })
     .await
     .into_diagnostic()

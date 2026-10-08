@@ -6,6 +6,10 @@ use pnpm_registry::PackageVersion;
 /// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]
 pub struct DocsArgs {
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
     /// Package name (optionally with @version).
     pub package: String,
 }
@@ -17,8 +21,13 @@ impl DocsArgs {
     }
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
-        let (_, manifest) =
-            super::view::fetch_package_metadata(config, None, &self.package, "docs").await?;
+        let (_, manifest) = super::view::fetch_package_metadata(
+            config,
+            self.registry.as_deref(),
+            &self.package,
+            "docs",
+        )
+        .await?;
         Ok(documentation_url_from_manifest(&manifest))
     }
 }

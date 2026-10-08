@@ -20,6 +20,10 @@ use std::{borrow::Cow, collections::HashMap};
 /// Opens the URL of the package's repository in a browser.
 #[derive(Debug, Args)]
 pub struct RepoArgs {
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
     /// Package names (optionally with @version) to look up.
     pub packages: Vec<String>,
 }
@@ -33,7 +37,7 @@ impl RepoArgs {
         let prefix = dir.to_string_lossy().into_owned();
 
         let http_client = build_registry_client(config)?;
-        let registries = resolve_registries_with_override(config, None);
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
 
         let retry_opts = config.retry_opts();
 

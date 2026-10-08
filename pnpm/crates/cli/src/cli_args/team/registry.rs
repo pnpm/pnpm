@@ -9,7 +9,7 @@ use crate::cli_args::{
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
 use miette::IntoDiagnostic;
-use pnpm_network::read_limited_body;
+use pnpm_network::{normalize_registry_url, read_limited_body};
 use reqwest::Response;
 use serde::Deserialize;
 
@@ -17,18 +17,21 @@ const TEAM_BODY_LIMIT: usize = 1024 * 1024;
 
 pub(super) fn team_url(registry_url: &str, scope: &str, team: &str) -> String {
     let path = format!("-/team/{}/{}", encode_uri_component(scope), encode_uri_component(team));
-    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
+    let normalized = normalize_registry_url(registry_url);
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{normalized}{path}"))
 }
 
 pub(super) fn team_user_url(registry_url: &str, scope: &str, team: &str) -> String {
     let path =
         format!("-/team/{}/{}/user", encode_uri_component(scope), encode_uri_component(team));
-    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
+    let normalized = normalize_registry_url(registry_url);
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{normalized}{path}"))
 }
 
 pub(super) fn org_team_url(registry_url: &str, scope: &str) -> String {
     let path = format!("-/org/{}/team", encode_uri_component(scope));
-    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{registry_url}{path}"))
+    let normalized = normalize_registry_url(registry_url);
+    join_registry_endpoint(registry_url, &path).unwrap_or_else(|_| format!("{normalized}{path}"))
 }
 
 #[derive(Deserialize)]
