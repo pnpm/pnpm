@@ -151,6 +151,8 @@ impl PreparedInstall for PinnedToolchain {
         else {
             return Ok(());
         };
+        // Checked again for a directory created since preparing.
+        refuse_occupied_link(&self.file)?;
         // Read as written, so a link whose target is gone is put back too.
         self.replaced = Some(
             fs::read_link(&link_path)
