@@ -591,3 +591,33 @@ fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
         ],
     );
 }
+
+#[test]
+fn only_includes_root_readme_and_license_with_extension() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "dist/index.js");
+    touch(root, "README.md");
+    touch(root, "README_INTERNAL.md");
+    touch(root, "license.txt");
+    touch(root, "license-key.json");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["dist/**"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "README.md".to_string(),
+            "dist/index.js".into(),
+            "license.txt".into(),
+            "package.json".into(),
+        ],
+    );
+}
