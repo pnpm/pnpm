@@ -123,6 +123,16 @@ pub enum RegistryError {
     #[from(skip)]
     TeamsConfigManaged { action: &'static str },
 
+    /// A conditional write whose `If-Match` names a version the resource no
+    /// longer has. Maps to 412.
+    #[display("{resource} changed since version {expected}; read it again and repeat the change")]
+    #[from(skip)]
+    PreconditionFailed {
+        #[error(not(source))]
+        resource: String,
+        expected: String,
+    },
+
     /// A rules edit hit the admin API on a registry whose rules are declared
     /// in the configuration. Maps to 403.
     #[display(

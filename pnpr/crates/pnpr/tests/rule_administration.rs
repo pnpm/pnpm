@@ -194,3 +194,136 @@ async fn unreadable_stored_changes_close_the_registry() {
     assert!(!names.contains(&"local"), "{names:?}");
     assert!(names.contains(&"fixed"), "{names:?}");
 }
+
+/// A rules request carrying `If-Match: "<version>"`. Returns the status and
+/// the `ETag` the response carries.
+async fn send_if_match(
+    app: &axum::Router,
+    method: &str,
+    token: &str,
+    version: &str,
+    body: Option<Value>,
+) -> (StatusCode, Option<String>) {
+    let request = Request::builder()
+        .method(method)
+        .uri(RULES)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .header("if-match", format!(r#""{version}""#))
+        .body(body.map_or_else(Body::empty, |body| Body::from(body.to_string())))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let etag = response
+        .headers()
+        .get("etag")
+        .map(|etag| {
+            etag.to_str()
+                .unwrap()
+                .trim_matches('"')
+                .to_string()
+        });
+    (response.status(), etag)
+}
+
+#[tokio::test]
+async fn a_change_based_on_a_stale_version_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let app = router(load_config(dir.path()));
+    let root = add_user(&app, "root").await;
+    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    let loaded = rules["version"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(loaded, "config");
+
+    let mine = json!({ "access": ["$authenticated"] });
+    let (status, saved) = send_if_match(&app, "PUT", &root, &loaded, Some(mine.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    let saved = saved.unwrap();
+    assert_ne!(saved, loaded);
+
+    assert_eq!(
+        send_if_match(&app, "PUT", &root, &loaded, Some(mine)).await.0,
+        StatusCode::PRECONDITION_FAILED,
+    );
+    assert_eq!(
+        send_if_match(&app, "DELETE", &root, &loaded, None).await.0,
+        StatusCode::PRECONDITION_FAILED,
+    );
+    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(rules["access"], json!(["$authenticated"]));
+
+    assert_eq!(send_if_match(&app, "DELETE", &root, &saved, None).await.0, StatusCode::NO_CONTENT);
+    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(rules["access"], json!(["$all"]));
+}
+
+#[tokio::test]
+async fn a_change_without_if_match_replaces_whatever_is_stored() {
+    let dir = TempDir::new().unwrap();
+    let app = router(load_config(dir.path()));
+    let root = add_user(&app, "root").await;
+    let first = json!({ "access": ["$authenticated"] });
+    assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(first)).await.0, StatusCode::OK);
+    let second = json!({ "access": ["root"] });
+    assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(second)).await.0, StatusCode::OK);
+    let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(rules["access"], json!(["root"]));
+}
+
+/// A rules request with a raw `If-Match` value. Returns the status.
+async fn send_raw_if_match(app: &axum::Router, token: &str, value: &[u8]) -> StatusCode {
+    let request = Request::builder()
+        .method("PUT")
+        .uri(RULES)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .header("if-match", axum::http::HeaderValue::from_bytes(value).unwrap())
+        .body(Body::from(json!({ "access": ["root"] }).to_string()))
+        .unwrap();
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap()
+        .status()
+}
+
+#[tokio::test]
+async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
+    let dir = TempDir::new().unwrap();
+    let app = router(load_config(dir.path()));
+    let root = add_user(&app, "root").await;
+    let cases: [(&[u8], StatusCode); 6] = [
+        (b"\xff", StatusCode::BAD_REQUEST),
+        (b"config", StatusCode::BAD_REQUEST),
+        (br#"W/"config""#, StatusCode::PRECONDITION_FAILED),
+        (br#""other""#, StatusCode::PRECONDITION_FAILED),
+        (br#""other", "config""#, StatusCode::OK),
+        (b"*", StatusCode::OK),
+    ];
+    for (value, expected) in cases {
+        let status = send_raw_if_match(&app, &root, value).await;
+        assert_eq!(status, expected, "{}", String::from_utf8_lossy(value));
+    }
+}
+
+#[tokio::test]
+async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version() {
+    let dir = TempDir::new().unwrap();
+    let writer = router(load_config(dir.path()));
+    let reader = router(load_config(dir.path()));
+    let root = add_user(&writer, "root").await;
+    let reader_root = add_user(&reader, "root").await;
+    let (_, before) = send(&reader, "GET", RULES, Some(&reader_root), None).await;
+
+    let change = json!({ "access": ["$authenticated"] });
+    assert_eq!(send(&writer, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
+    let (_, after) = send(&reader, "GET", RULES, Some(&reader_root), None).await;
+    assert_ne!(after["version"], before["version"]);
+    assert_eq!(after["access"], json!(["$authenticated"]));
+}

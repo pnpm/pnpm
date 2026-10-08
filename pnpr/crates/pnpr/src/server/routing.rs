@@ -99,7 +99,13 @@ fn finish_router(
                     Method::POST,
                     Method::DELETE,
                 ])
-                .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
+                .allow_headers([
+                    header::AUTHORIZATION,
+                    header::ACCEPT,
+                    header::CONTENT_TYPE,
+                    header::IF_MATCH,
+                ])
+                .expose_headers([header::ETAG]),
         );
     }
     Ok(with_observability_layers(router).with_state(state))
