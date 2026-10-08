@@ -4705,6 +4705,7 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-rust-toolchain",
  "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
  "pnpm-tarball",
@@ -6294,6 +6295,33 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+]
+
+[[package]]
+name = "pnpm-rust-toolchain"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "flate2",
+ "miette 7.6.0",
+ "mockito",
+ "pnpm-config",
+ "pnpm-crypto-shasums-file",
+ "pnpm-detect-libc",
+ "pnpm-http",
+ "pnpm-network",
+ "pnpm-reporter",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "sha2",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+ "toml",
 ]
 
 [[package]]

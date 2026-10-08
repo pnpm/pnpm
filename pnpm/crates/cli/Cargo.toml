@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 pnpm-python-installer = { workspace = true }
+pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }
 cargo-util-schemas = { workspace = true }
 pnpm-auth-commands = { workspace = true }

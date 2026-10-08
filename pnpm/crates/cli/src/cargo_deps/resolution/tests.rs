@@ -45,7 +45,10 @@ replace-with = "checkout-source"
     assert_eq!(settings.len(), 2);
     assert_eq!(settings["unstable.bindeps"], toml::Value::Boolean(true));
     assert_eq!(settings["resolver.incompatible-rust-versions"].as_str(), Some("fallback"));
-    assert_eq!(command.get_current_dir(), Some(build_std::sysroot(&child).unwrap().as_path()));
+    assert_eq!(
+        command.get_current_dir(),
+        Some(build_std::sysroot(&child, None).unwrap().as_path()),
+    );
     let args = command
         .get_args()
         .map(|arg| arg.to_string_lossy().into_owned())

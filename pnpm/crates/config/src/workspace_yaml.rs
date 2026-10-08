@@ -5,10 +5,10 @@ pub(crate) use readable::read_readable_settings;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, LockfileSetting, PackageExtension, PeerDependencyMeta,
-    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
-    SideEffectsCacheSetting, SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings,
-    UpdateConfig, UpdateSettings, decided_allow_builds,
+    DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, LockfileSetting, PackageExtension,
+    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
+    RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
+    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};

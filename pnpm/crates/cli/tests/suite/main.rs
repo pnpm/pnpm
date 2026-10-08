@@ -149,6 +149,7 @@ mod root;
 mod run;
 mod run_recursive;
 mod runtime;
+mod rust_toolchain;
 mod sbom;
 mod scope_report;
 mod script_override;

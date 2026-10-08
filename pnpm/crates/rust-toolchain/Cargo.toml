@@ -1,0 +1,45 @@
+[package]
+name = "pnpm-rust-toolchain"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-config = { workspace = true }
+pnpm-crypto-shasums-file = { workspace = true }
+pnpm-detect-libc = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-tarball = { workspace = true }
+derive_more = { workspace = true }
+flate2 = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+ssri = { workspace = true }
+tar = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+mockito = { workspace = true }
+pnpm-store-dir = { workspace = true }
+pretty_assertions = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
+
+[lints]
+workspace = true
