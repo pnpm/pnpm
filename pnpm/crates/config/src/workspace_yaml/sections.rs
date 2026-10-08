@@ -113,13 +113,15 @@ pub enum Tool {
     Node,
     Bun,
     Python,
+    Rust,
 }
 
 /// What pnpm is told about one tool it downloads, keyed by the tool
 /// under `tools`.
 ///
 /// A tool here is a program pnpm fetches to run something with: a
-/// JavaScript runtime, a Python interpreter, another package manager.
+/// JavaScript runtime, a Python interpreter, a Rust toolchain, another
+/// package manager.
 /// Where the packages of an ecosystem come from is a separate question,
 /// answered by `registry` and the `registries` entries that name an
 /// ecosystem.
@@ -153,7 +155,7 @@ impl Tool {
     pub fn has_channels(self) -> bool {
         match self {
             Self::Node => true,
-            Self::Bun | Self::Python => false,
+            Self::Bun | Self::Python | Self::Rust => false,
         }
     }
 }
@@ -213,6 +215,10 @@ impl Default for PythonSettings {
 /// [python-build-standalone]: https://github.com/astral-sh/python-build-standalone
 pub const DEFAULT_PYTHON_DOWNLOAD_URL: &str =
     "https://github.com/astral-sh/python-build-standalone/releases";
+
+/// The server Rust releases are published on, which rustup reads as
+/// `RUSTUP_DIST_SERVER`. Every release lives under its `dist` directory.
+pub const DEFAULT_RUST_DIST_SERVER: &str = "https://static.rust-lang.org";
 
 /// `lockfile` as written: either a bare boolean, or the section that turns
 /// the lockfile on and configures what it records.

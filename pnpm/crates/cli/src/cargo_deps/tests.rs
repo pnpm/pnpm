@@ -501,7 +501,7 @@ async fn sparse_index_fetch_uses_configured_request_auth() {
 }
 
 async fn discovered_roots(manifests: &[PathBuf]) -> Vec<PathBuf> {
-    discover_workspace_roots(manifests).await
+    discover_workspace_roots(manifests, None).await
         .unwrap()
         .into_iter()
         .map(|workspace| workspace.root)
@@ -527,7 +527,7 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
     fs::write(member.join("src/lib.rs"), "").unwrap();
 
     let canonical_root = dunce::canonicalize(&cargo_root).unwrap();
-    assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), canonical_root);
+    assert_eq!(workspace_root(&member.join("Cargo.toml"), None).await.unwrap(), canonical_root);
     assert_eq!(
         discovered_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")]).await,
         [canonical_root],

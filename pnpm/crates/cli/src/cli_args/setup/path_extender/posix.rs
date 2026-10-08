@@ -53,9 +53,8 @@ fn update_shell(
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
     match current_shell {
-        Some("bash" | "zsh" | "ksh" | "dash" | "sh") => {
-            // SAFETY of the unwrap: the match guarantees `current_shell` is `Some`.
-            setup_shell(current_shell.unwrap(), pnpm_home_dir, opts)
+        Some(shell @ ("bash" | "zsh" | "ksh" | "dash" | "sh")) => {
+            setup_shell(shell, pnpm_home_dir, opts)
         }
         Some("fish") => setup_fish_shell(pnpm_home_dir, opts),
         Some("nu") => setup_nu_shell(pnpm_home_dir, opts),

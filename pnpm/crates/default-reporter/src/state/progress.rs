@@ -63,10 +63,12 @@ impl ReporterState {
             &requester,
             false,
         );
-        let mut slot =
-            std::mem::take(&mut self.downloads.progress.get_mut(&requester).unwrap().slot);
+        let Some(entry) = self.downloads.progress.get_mut(&requester) else { return };
+        let mut slot = std::mem::take(&mut entry.slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
-        self.downloads.progress.get_mut(&requester).unwrap().slot = slot;
+        if let Some(entry) = self.downloads.progress.get_mut(&requester) {
+            entry.slot = slot;
+        }
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
@@ -84,12 +86,13 @@ impl ReporterState {
                     prefix,
                     true,
                 );
-                let mut slot =
-                    std::mem::take(&mut self.downloads.progress.get_mut(prefix).unwrap().slot);
+                let Some(entry) = self.downloads.progress.get_mut(prefix) else { return };
+                let mut slot = std::mem::take(&mut entry.slot);
                 self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
-                let entry = self.downloads.progress.get_mut(prefix).unwrap();
-                entry.slot = slot;
-                entry.done = true;
+                if let Some(entry) = self.downloads.progress.get_mut(prefix) {
+                    entry.slot = slot;
+                    entry.done = true;
+                }
             }
             _ => {}
         }
@@ -114,8 +117,6 @@ impl ReporterState {
                 let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
                 let size = entry.size;
                 let msg = self.downloading_message(package_id, *downloaded, size);
-                let mut slot =
-                    std::mem::take(&mut self.downloads.tarballs.get_mut(package_id).unwrap().slot);
                 // A finished download stops being rewritten in place and
                 // scrolls away with the rest of the output.
                 let placement = if *downloaded == size {
@@ -123,8 +124,12 @@ impl ReporterState {
                 } else {
                     BlockPlacement::Pinned
                 };
+                let Some(entry) = self.downloads.tarballs.get_mut(package_id) else { return };
+                let mut slot = std::mem::take(&mut entry.slot);
                 self.display.frame.emit(&mut slot, msg, placement);
-                self.downloads.tarballs.get_mut(package_id).unwrap().slot = slot;
+                if let Some(entry) = self.downloads.tarballs.get_mut(package_id) {
+                    entry.slot = slot;
+                }
             }
         }
     }

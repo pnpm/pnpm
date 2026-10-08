@@ -103,6 +103,32 @@ settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. Unsuppor
 
 With [`pnprServer`](/pnpr/install-acceleration) set, pnpm asks the server to resolve the Cargo graph instead of fetching one sparse-index file per crate. A server that does not answer for Cargo makes pnpm fall back to resolving locally.
 
+## Rust toolchain
+
+Added in: v12.11.0
+
+`pnpm install` installs the Rust toolchain that the workspace's [toolchain file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) names. pnpm reads `rust-toolchain.toml`, or the older `rust-toolchain`, the way rustup does. Each Cargo manifest uses the nearest file at or above it inside the repository.
+
+```toml title="rust-toolchain.toml"
+[toolchain]
+channel = "1.95.0"
+components = ["rust-src"]
+targets = ["wasm32-unknown-unknown"]
+```
+
+* `channel` accepts a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`.
+* `profile` accepts `minimal` (`rustc`, `cargo`, and the standard library) and `default`, which adds `rustfmt` and `clippy`. pnpm leaves out `rust-docs` unless `components` lists it.
+* `components` and `targets` add components and standard libraries for other targets.
+* A file that sets `path`, sets no `channel`, names a toolchain linked with `rustup toolchain link`, or asks for another profile such as `complete` is left to rustup. So is a machine Rust publishes no toolchain for.
+
+pnpm verifies the release manifest against the Rust release signing key and checks every download against the hash the manifest lists. The toolchain is stored once per machine under `rust` in the [store](./settings/store.md#storedir) and linked into `.pnpm/rust` beside the toolchain file.
+
+`pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script.
+
+A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
+
+[`runtimeOnFail`](./settings/cli.md#runtimeonfail) set to `error`, `warn`, or `ignore` turns this off and leaves the toolchain to rustup. Download toolchains from a mirror with [`tools.rust.mirror`](./settings/cli.md#tools).
+
 ## Settings
 
 ### cargo.enabled

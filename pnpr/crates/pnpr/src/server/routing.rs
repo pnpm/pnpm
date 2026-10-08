@@ -1,7 +1,7 @@
 mod team_handlers;
 use team_handlers::{
-    delete_team, delete_team_user, get_org_package_list, get_team_users, get_teams, put_team,
-    put_team_user,
+    delete_team, delete_team_package, delete_team_user, get_org_package_list, get_team_packages,
+    get_team_users, get_teams, put_team, put_team_package, put_team_user,
 };
 
 mod npm_handlers;
@@ -53,6 +53,7 @@ use super::{
     serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
     serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
     staged,
+    team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
 };
@@ -470,6 +471,13 @@ fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
             get(get_team_users)
                 .put(put_team_user)
                 .delete(delete_team_user)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(
+            &path("/-/team/{scope}/{team}/package"),
+            get(get_team_packages)
+                .put(put_team_package)
+                .delete(delete_team_package)
                 .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
         )
 }

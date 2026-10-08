@@ -124,9 +124,8 @@ fn format_details(body: &str) -> Option<String> {
 }
 
 pub(super) fn ping_endpoint_url(registry_url: &str) -> String {
-    let normalized = normalize_registry_url(registry_url);
     join_registry_endpoint(registry_url, "-/ping?write=true")
-        .unwrap_or_else(|_| format!("{normalized}-/ping?write=true"))
+        .unwrap_or_else(|_| format!("{}-/ping?write=true", normalize_registry_url(registry_url)))
 }
 
 #[cfg(test)]

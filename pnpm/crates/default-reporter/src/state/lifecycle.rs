@@ -55,19 +55,21 @@ impl ReporterState {
         match message {
             LifecycleMessage::Script { stage, wd, script, .. } => {
                 let line = self.rendering.script_line(stage, wd, script);
-                self.scripts.entries.get_mut(key).unwrap().script = line;
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.script = line;
+                }
             }
             LifecycleMessage::Exit { exit_code, wd, .. } => {
                 let status = self.exit_status(key, *exit_code, wd);
-                self.scripts.entries.get_mut(key).unwrap().status = status;
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.status = status;
+                }
             }
             LifecycleMessage::Stdio { line, stdio, .. } => {
                 let formatted = self.rendering.format_indented_output(line, *stdio);
-                self.scripts.entries
-                    .get_mut(key)
-                    .unwrap()
-                    .output
-                    .push(formatted);
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.output.push(formatted);
+                }
             }
         }
     }
@@ -91,7 +93,9 @@ impl ReporterState {
 
     pub(super) fn render_script(&mut self, key: &str, message: &LifecycleMessage) -> String {
         self.update_lifecycle_cache(key, message);
-        let entry = &self.scripts.entries[key];
+        let Some(entry) = self.scripts.entries.get(key) else {
+            return String::new();
+        };
         let exit_nonzero =
             matches!(message, LifecycleMessage::Exit { exit_code, .. } if *exit_code != 0);
         let mut lines = vec![entry.script.clone()];
@@ -112,7 +116,9 @@ impl ReporterState {
         dep_path: &str,
         wd: &str,
     ) -> String {
-        if self.scripts.entries[key].label.is_none() {
+        if let Some(entry) = self.scripts.entries.get(key)
+            && entry.label.is_none()
+        {
             let mut label = highlight_last_folder(
                 &format_prefix_no_trim(&self.rendering.cwd, wd),
                 &self.rendering.colors,
@@ -122,9 +128,14 @@ impl ReporterState {
                 let _ = write!(label, " [{dep_path}]");
             }
             let _ = write!(label, ": Running {stage} script");
-            self.scripts.entries.get_mut(key).unwrap().label = Some(label);
+            if let Some(entry) = self.scripts.entries.get_mut(key) {
+                entry.label = Some(label);
+            }
         }
-        let label = self.scripts.entries[key].label.clone().unwrap();
+        let label = self.scripts.entries
+            .get(key)
+            .and_then(|entry| entry.label.clone())
+            .unwrap_or_default();
         let LifecycleMessage::Exit { exit_code, optional, .. } = message else {
             self.update_lifecycle_cache(key, message);
             return format!("{label}...");

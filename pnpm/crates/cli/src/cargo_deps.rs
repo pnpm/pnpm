@@ -2,6 +2,7 @@ pub(crate) mod add;
 
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
+pub(crate) use toolchain::installs_toolchains;
 
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
@@ -50,6 +51,7 @@ mod checksum_cache;
 mod git;
 mod registry_auth;
 mod resolution;
+mod toolchain;
 
 const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 
@@ -86,8 +88,16 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<InstallTask<'static>> {
-    let workspaces =
-        discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
+    let manifests = inventory.manifests(EcosystemManifest::Cargo).await?;
+    let checkout = checkout(inventory.workspace_root());
+    toolchain::provision::<Reporter>(
+        context.config,
+        &context.http_client,
+        manifests,
+        checkout.as_deref(),
+    )
+    .await?;
+    let workspaces = discover_workspace_roots(manifests, checkout.as_deref()).await?;
     if context.frozen_lockfile {
         workspaces.iter().try_for_each(verify_existing_lockfile)?;
     }
@@ -99,7 +109,6 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
         .iter()
         .flat_map(|root| metadata_paths(root))
         .collect();
-    let checkout = checkout(inventory.workspace_root());
     Ok(InstallTask::new(
         metadata,
         prepare::<Reporter>(context, roots, checkout, CargoLockfilePolicy::UseExisting),

@@ -13,6 +13,7 @@ use pnpm_install_coordinator::InstallPlan;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use std::{
+    borrow::Cow,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -20,6 +21,31 @@ use std::{
 /// Report whether a non-Node.js ecosystem participates in this install.
 pub(crate) fn is_enabled(config: &Config) -> bool {
     config.cargo.enabled || config.python.enabled
+}
+
+/// The directories a script or command run for the project in `dir` finds
+/// executables in before `PATH`: the toolchains pnpm installed for it, then
+/// `extraBinPaths`.
+pub(crate) fn execution_paths<'a>(config: &'a Config, dir: &Path) -> Cow<'a, [PathBuf]> {
+    let paths = pnpm_python_installer::execution_paths(config, dir);
+    match rust_bin_dir(config, dir) {
+        Some(rust) => Cow::Owned(
+            std::iter::once(rust)
+                .chain(paths.iter().cloned())
+                .collect(),
+        ),
+        None => paths,
+    }
+}
+
+/// The `bin` directory of the Rust toolchain pnpm linked for the project in
+/// `dir`.
+pub(crate) fn rust_bin_dir(config: &Config, dir: &Path) -> Option<PathBuf> {
+    if !config.cargo.enabled || !cargo_deps::installs_toolchains(config) {
+        return None;
+    }
+    let workspace = config.workspace_dir.as_deref().unwrap_or(dir);
+    pnpm_rust_toolchain::linked_bin_dir(config, dir, workspace)
 }
 
 #[derive(Clone)]

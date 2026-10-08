@@ -332,7 +332,7 @@ fn command_search_path(
     if project != dir {
         prepend.push(project.join(&modules_dir_name).join(".bin"));
     }
-    prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
+    prepend.extend(crate::ecosystem_install::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
 }
 

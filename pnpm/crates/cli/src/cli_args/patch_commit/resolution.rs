@@ -24,7 +24,7 @@ pub(super) fn resolve_patch_dir(
         let query_str = user_param.to_string_lossy();
         let query = PatchQuery::new(&query_str);
         let buckets = collect_matches(all_states, modules_dir, &query);
-        if let Some(resolved) = pick_candidate(query_str.into_owned(), buckets)? {
+        if let Some(resolved) = pick_candidate(&query_str, buckets)? {
             return Ok(resolved);
         }
     }
@@ -178,35 +178,31 @@ fn collect_matches(
 }
 
 fn pick_candidate(
-    query_str: String,
+    query_str: &str,
     buckets: MatchBuckets,
 ) -> Result<Option<ResolvedPatchDir>, PatchCommitError> {
-    if buckets.exact.len() == 1 {
-        let (patch_dir, state_value) = buckets.exact
-            .into_iter()
-            .next()
-            .unwrap();
-        return Ok(Some(ResolvedPatchDir { patch_dir, state_value }));
+    if let Some(candidate) = pick_from_bucket(query_str, buckets.exact)? {
+        return Ok(Some(candidate));
     }
-    if buckets.exact.len() > 1 {
-        let candidates = buckets.exact
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect();
-        return Err(PatchCommitError::AmbiguousPatchTarget { query: query_str, candidates });
+    pick_from_bucket(query_str, buckets.name)
+}
+
+fn pick_from_bucket(
+    query_str: &str,
+    bucket: Vec<(PathBuf, EditDirState)>,
+) -> Result<Option<ResolvedPatchDir>, PatchCommitError> {
+    let mut iter = bucket.into_iter();
+    match (iter.next(), iter.next()) {
+        (Some((patch_dir, state_value)), None) => {
+            Ok(Some(ResolvedPatchDir { patch_dir, state_value }))
+        }
+        (Some(first), Some(second)) => {
+            let mut candidates = vec![first.0, second.0];
+            candidates.extend(iter.map(|(path, _)| path));
+            Err(PatchCommitError::AmbiguousPatchTarget { query: query_str.to_string(), candidates })
+        }
+        (None, _) => Ok(None),
     }
-    if buckets.name.len() == 1 {
-        let (patch_dir, state_value) = buckets.name.into_iter().next().unwrap();
-        return Ok(Some(ResolvedPatchDir { patch_dir, state_value }));
-    }
-    if buckets.name.len() > 1 {
-        let candidates = buckets.name
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect();
-        return Err(PatchCommitError::AmbiguousPatchTarget { query: query_str, candidates });
-    }
-    Ok(None)
 }
 
 pub(super) fn format_candidates(candidates: &[PathBuf]) -> String {

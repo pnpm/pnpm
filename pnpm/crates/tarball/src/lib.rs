@@ -3,6 +3,7 @@ extern crate pnpm_http as reqwest;
 
 pub use archive_options::*;
 pub use archive_request::CacheHeaders;
+pub use bounded_reader::BoundedReader;
 pub use download::*;
 pub use error::*;
 pub use extract::read_buffered_tar_entry;
@@ -26,6 +27,7 @@ pub use zip_archive::*;
 mod archive_options;
 mod archive_request;
 mod archive_retry;
+mod bounded_reader;
 mod download;
 mod error;
 mod extract;

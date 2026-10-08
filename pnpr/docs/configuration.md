@@ -397,8 +397,11 @@ registries:
 - If pnpr cannot read the stored changes, the registry admits nobody until a
   read succeeds.
 - Only hosted registries accept `rulesManagedBy`.
+- `npm access grant` and `npm access revoke` edit the lists of a package the
+  `packages:` map declares by name.
 
-See [Admin endpoints](endpoints.md#admin-endpoints).
+See [Admin endpoints](endpoints.md#admin-endpoints) and
+[Team package access](endpoints.md#team-package-access).
 
 ## `oci`
 
