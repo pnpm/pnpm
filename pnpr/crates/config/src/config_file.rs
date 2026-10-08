@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig, LogFormat,
-    LogLevel, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv, UpstreamAuthFile,
-    default_storage_string, env_replace_lossy, oidc,
+    LogLevel, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv, TeamsManagement,
+    UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -58,6 +58,10 @@ pub(super) struct HostedFile {
     /// registries (YAML anchors cover a shared roster in one file).
     #[serde(default)]
     pub(super) teams: IndexMap<String, AccessSpec>,
+    /// Whether `teams:` is the roster or only the seed of one the team API
+    /// edits. Omitted ⇒ `config`.
+    #[serde(default, rename = "teamsManagedBy")]
+    pub(super) teams_managed_by: TeamsManagement,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
@@ -291,6 +295,8 @@ pub(super) fn default_log_type() -> String {
 
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct AuthFile {
+    #[serde(default)]
+    pub(super) admins: Vec<String>,
     #[serde(default)]
     pub(super) oidc: Vec<oidc::OidcProvider>,
     #[serde(default)]

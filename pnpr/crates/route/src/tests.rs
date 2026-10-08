@@ -493,13 +493,15 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken};
+    use pnpr_policy::{AccessList, AccessToken, TeamDirectory};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
     upstream.access = Some(AccessList::new(vec![AccessToken::Team {
         name: "platform".to_string(),
-        members: ["alice".to_string()].into(),
+        directory: TeamDirectory::new(
+            [("platform".to_string(), ["alice".to_string()].into())].into(),
+        ),
     }]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);

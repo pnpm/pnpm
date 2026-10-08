@@ -33,6 +33,9 @@ defaultRegistry: main
 
 An allowed origin must contain only an `http` or `https` scheme, a host, and an
 optional port. Listing an exact origin is the whole grant: there is no wildcard.
+An allowed origin may send `GET`, `HEAD`, `PUT`, `POST`, and `DELETE` requests
+with an `Authorization` header. pnpr never sets cookies that authenticate
+requests, so a cross-origin write needs the caller's token.
 
 The upstream `search` setting opts one registry into browser-facing search, and
 also enables `/-/org/{scope}/package` discovery for it. pnpr applies registry
@@ -71,6 +74,9 @@ Each entry carries its `name`, its `kind` (`hosted`, `upstream`, or `router`),
 and its `ecosystem`; the identity is the pair `(ecosystem, name)`. Concrete
 registries report their namespace `patterns` and routers their ordered
 `sources`, and either field is `null` when the caller's access rules do not
-permit disclosing it. Upstream addresses, credentials, storage paths, and
-package access rules are never returned. Responses are private and must not be
-cached.
+permit disclosing it. A hosted registry also reports
+`teamsManagedBy` (`config` or `api`, see
+[Managing teams through the API](configuration.md#managing-teams-through-the-api)).
+The top-level `admin` flag says whether the caller is one of the `auth.admins`.
+Upstream addresses, credentials, storage paths, and package access rules are
+never returned. Responses are private and must not be cached.

@@ -12,131 +12,19 @@
 //! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`), a
 //! bare *username*, or a `team:<name>` reference to a team the owning
 //! registry declares. Teams are registry-scoped — the registry is the
-//! tenant, so it owns its principal sets — and a `team:` token is
-//! resolved to the declared member set when the config is loaded, so
-//! evaluation needs only the caller's identity.
+//! tenant, so it owns its principal sets — and a `team:` token reads the
+//! registry's live [`TeamDirectory`], so evaluation needs only the caller's
+//! identity.
 
-use std::collections::{BTreeMap, BTreeSet};
+pub use access::{AccessList, AccessToken, Identity};
+pub use teams::{TeamDirectory, Teams};
+
+mod access;
+mod teams;
+
+use std::collections::BTreeMap;
 
 use pnpr_registry::PackagePattern;
-
-/// A single token in an access list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AccessToken {
-    /// `$all` — anyone, authenticated or not.
-    All,
-    /// `$authenticated` — any caller carrying valid Bearer or Basic
-    /// credentials.
-    Authenticated,
-    /// `$anonymous` — only callers *without* valid credentials.
-    Anonymous,
-    /// A bare token: a username. Matches an authenticated caller whose
-    /// username equals it — never a team name; teams are referenced with
-    /// the explicit `team:` form.
-    User(String),
-    /// A `team:<name>` reference, resolved to the owning registry's
-    /// declared member set at config load (an undeclared team is a config
-    /// error there). Matches an authenticated caller whose username is a
-    /// member. `name` is kept for diagnostics only.
-    Team { name: String, members: BTreeSet<String> },
-}
-
-/// Only the `$`-sigiled spellings are built-ins; any other token is a
-/// username, which can only *narrow* access, so this stays infallible.
-/// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
-/// `$...`) and `team:` references are handled at YAML load (`AccessSpec`
-/// in the config module): the former are rejected, the latter resolved
-/// against the registry's declared teams. A programmatic caller passing
-/// one of those spellings just gets a username that matches nobody.
-impl From<&str> for AccessToken {
-    fn from(token: &str) -> Self {
-        match token {
-            "$all" => AccessToken::All,
-            "$authenticated" => AccessToken::Authenticated,
-            "$anonymous" => AccessToken::Anonymous,
-            name => AccessToken::User(name.to_string()),
-        }
-    }
-}
-
-/// One `access` / `publish` permission: the set of tokens that satisfy
-/// it. An empty list admits no one (an explicit `unpublish: []`).
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct AccessList(Vec<AccessToken>);
-
-impl AccessList {
-    /// Build from already-resolved tokens.
-    #[must_use]
-    pub fn new(tokens: Vec<AccessToken>) -> Self {
-        Self(tokens)
-    }
-
-    /// Build from individual built-in or username tokens (e.g. the
-    /// elements of a YAML sequence). Each string is one token, taken
-    /// verbatim; `team:` references cannot be built this way.
-    pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
-    where
-        Tokens: IntoIterator<Item = Token>,
-        Token: AsRef<str>,
-    {
-        Self(
-            tokens
-                .into_iter()
-                .map(|token| AccessToken::from(token.as_ref()))
-                .collect(),
-        )
-    }
-
-    /// Whether `identity` satisfies any token in the list.
-    #[must_use]
-    pub fn allows(&self, identity: &Identity) -> bool {
-        self.0
-            .iter()
-            .any(|token| identity.satisfies(token))
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-/// The resolved caller identity an [`AccessList`] is evaluated against.
-/// Just the authenticated username (or its absence): team membership
-/// lives in the [`AccessToken::Team`] tokens, resolved at config load,
-/// so identity carries no memberships.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Identity {
-    /// No valid credentials were presented.
-    Anonymous,
-    /// Authenticated as `username`.
-    User { username: String },
-}
-
-impl Identity {
-    #[must_use]
-    pub fn user(username: impl Into<String>) -> Self {
-        Self::User { username: username.into() }
-    }
-
-    #[must_use]
-    pub fn is_authenticated(&self) -> bool {
-        matches!(self, Identity::User { .. })
-    }
-
-    fn satisfies(&self, token: &AccessToken) -> bool {
-        match (token, self) {
-            (AccessToken::All, _) => true,
-            (AccessToken::Authenticated, Identity::User { .. }) => true,
-            (AccessToken::Anonymous, Identity::Anonymous) => true,
-            (AccessToken::User(name), Identity::User { username }) => name == username,
-            (AccessToken::Team { members, .. }, Identity::User { username }) => {
-                members.contains(username)
-            }
-            _ => false,
-        }
-    }
-}
 
 /// One entry of a registry's `packages:` map: a namespace claim
 /// ([`PackagePattern`] key) plus optional per-package rules. `access`
@@ -308,6 +196,21 @@ impl PackageRules {
         self.rules
             .iter()
             .any(|rule| rule.publish.is_some() || rule.unpublish.is_some())
+    }
+
+    /// Whether any permission list, the registry defaults included, holds a
+    /// `team:<team>` token.
+    #[must_use]
+    pub fn references_team(&self, team: &str) -> bool {
+        let defaults = [&self.default_access, &self.default_publish, &self.default_unpublish];
+        defaults
+            .into_iter()
+            .any(|list| list.references_team(team))
+            || self.rules
+                .iter()
+                .flat_map(|rule| [&rule.access, &rule.publish, &rule.unpublish])
+                .flatten()
+                .any(|list| list.references_team(team))
     }
 
     /// Whether any package carries an explicit access policy.

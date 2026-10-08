@@ -42,17 +42,19 @@ use serde::Deserialize;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, TargetRegistry, addressed_registry,
-    authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, TargetRegistry,
+    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
     delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
     get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
-    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
-    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_get_pipeline_run,
-    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
-    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
-    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
+    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi, remove_dist_tag,
+    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
+    serve_packument, serve_ping, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
+    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
+    serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    staged,
+    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -89,7 +91,14 @@ fn finish_router(
         router = router.layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(cors_origins))
-                .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
+                .allow_methods([
+                    Method::GET,
+                    Method::HEAD,
+                    Method::OPTIONS,
+                    Method::PUT,
+                    Method::POST,
+                    Method::DELETE,
+                ])
                 .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
         );
     }
@@ -295,20 +304,13 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        router = staged_routes(router, base)
+        router = team_routes(staged_routes(router, base), base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
                 put(put_package_dist_tag).delete(delete_package_dist_tag),
-            )
-            .route(&path("/-/org/{scope}/team"), get(get_teams).put(put_team))
-            .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
-            .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
-            .route(
-                &path("/-/team/{scope}/{team}/user"),
-                get(get_team_users).put(put_team_user).delete(delete_team_user),
             )
             // Package addresses. npm spells a scoped name either as two
             // literal segments (`/@scope/name`) or as one percent-encoded
@@ -439,4 +441,26 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
         .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+/// npm's org and team endpoints. Each write names one team or one user, so
+/// its body is capped far below a publish.
+fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(
+            &path("/-/org/{scope}/team"),
+            get(get_teams)
+                .put(put_team)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
+        .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
+        .route(
+            &path("/-/team/{scope}/{team}/user"),
+            get(get_team_users)
+                .put(put_team_user)
+                .delete(delete_team_user)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
 }

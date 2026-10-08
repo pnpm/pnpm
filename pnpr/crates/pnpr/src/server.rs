@@ -17,7 +17,7 @@ use pipeline_runs::{
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, reject_team_mutation, serve_org_packages};
+use organizations::{get_org_teams, get_team_members, serve_org_packages};
 
 mod package_search;
 use package_search::{
@@ -89,6 +89,8 @@ mod registry_directory;
 mod routing;
 mod staged;
 mod striped_locks;
+mod team_mutations;
+mod team_rosters;
 
 #[cfg(test)]
 mod tests;
@@ -172,6 +174,9 @@ const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 /// 100 MiB publish limit would hand unauthenticated callers a cheap
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
+
+/// Cap on a team mutation body, which names one team or one user.
+const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 
 /// The `PoC` accepts blobs inline on artifact publication. Keep the buffered
 /// request at the same ceiling as an npm package publish.

@@ -14,7 +14,7 @@ mod server_options;
 
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, S3Settings, Teams, UpstreamAuthFile, UpstreamConfig,
+    Interval, LogFormat, LogLevel, S3Settings, TeamDirectory, UpstreamAuthFile, UpstreamConfig,
     UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval, resolve_relative,
     resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
@@ -76,7 +76,7 @@ fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
 /// [`resolve_upstream_config`] with no declared teams, as every serving-knob
 /// case here has.
 fn resolve_upstream(name: &str, file: UpstreamConfigFile) -> Result<UpstreamConfig, RegistryError> {
-    resolve_upstream_config::<FakeEnv>(name, file, &Teams::default())
+    resolve_upstream_config::<FakeEnv>(name, file, &TeamDirectory::default())
 }
 
 fn user(name: &str) -> Identity {

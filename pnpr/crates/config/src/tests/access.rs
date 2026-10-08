@@ -315,3 +315,29 @@ fn team_declarations_are_validated() {
         );
     }
 }
+
+#[test]
+fn auth_admins_are_usernames() {
+    let yaml = "storage: ./s\nauth:\n  admins: [alice]\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.identity.is_admin(&user("alice")));
+    assert!(!config.identity.is_admin(&user("bob")));
+    assert!(!config.identity.is_admin(&Identity::Anonymous));
+
+    let yaml = "storage: ./s\nauth:\n  admins: [$authenticated]\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a built-in group is not an admin");
+    assert!(err.to_string().contains("auth.admins"), "{err}");
+}
+
+#[test]
+fn teams_managed_by_is_hosted_only() {
+    let hosted = "storage: ./s\nregistries:\n  local:\n    type: hosted\n    teamsManagedBy: api\n";
+    let config = Config::from_yaml_str(hosted, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.routing.hosted["local"].teams_managed_by, super::super::TeamsManagement::Api);
+
+    let upstream = "storage: ./s\nregistries:\n  up:\n    type: upstream\n    \
+                    url: https://registry.npmjs.org/\n    public: true\n    teamsManagedBy: api\n";
+    Config::from_yaml_str(upstream, Path::new("/x"), listen(), None)
+        .expect_err("an upstream has no roster to manage");
+}

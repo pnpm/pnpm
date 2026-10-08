@@ -91,6 +91,7 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
+    super::team_rosters::refresh_team_rosters(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let peer = request

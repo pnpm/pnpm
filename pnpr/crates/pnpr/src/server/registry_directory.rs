@@ -3,7 +3,7 @@ use axum::{
     extract::State,
     response::{IntoResponse as _, Response},
 };
-use pnpr_config::Config;
+use pnpr_config::{Config, TeamsManagement};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use serde_json::{Value, json};
 
@@ -36,6 +36,7 @@ pub(super) async fn serve(
     private_no_cache(
         Json(json!({
             "registries": entries, "defaultRegistries": defaults, "ecosystems": ecosystems,
+            "admin": config.identity.is_admin(&identity),
         }))
         .into_response(),
     )
@@ -107,11 +108,22 @@ fn directory_entry(
         }
         Registry::Router { .. } => ("router", None, disclosed_sources(&sources, visible)),
     };
-    Some(json!({
+    let mut entry = json!({
         "name": Registries::local_name(key), "kind": kind,
         "ecosystem": ecosystem.to_string(),
         "patterns": patterns, "sources": route_sources,
-    }))
+    });
+    if let Some(hosted) = config.routing.hosted.get(key) {
+        entry["teamsManagedBy"] = json!(teams_management_name(hosted.teams_managed_by));
+    }
+    Some(entry)
+}
+
+fn teams_management_name(management: TeamsManagement) -> &'static str {
+    match management {
+        TeamsManagement::Config => "config",
+        TeamsManagement::Api => "api",
+    }
 }
 
 /// A router's sources, disclosed only when the caller can see every one.

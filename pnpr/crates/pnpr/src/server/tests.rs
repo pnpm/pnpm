@@ -24,7 +24,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
-use pnpr_policy::{AccessList, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, PackageRule, PackageRules, TeamDirectory};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Arc,
@@ -363,7 +363,9 @@ async fn team_tokens_reach_package_authorization() {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
                 name: "platform".to_string(),
-                members: ["alice".to_string()].into(),
+                directory: TeamDirectory::new(
+                    [("platform".to_string(), ["alice".to_string()].into())].into(),
+                ),
             }])),
             publish: None,
             unpublish: None,
@@ -500,7 +502,7 @@ fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
-    config.routing.hosted.get_mut("local").unwrap().teams = teams
+    let roster = teams
         .into_iter()
         .map(|(team, members)| {
             (
@@ -512,6 +514,7 @@ fn config_with_teams(tmp: &TempDir) -> Config {
             )
         })
         .collect();
+    config.routing.hosted.get_mut("local").unwrap().teams = TeamDirectory::new(roster);
     config
 }
 

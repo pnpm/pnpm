@@ -1,7 +1,9 @@
 use super::{
-    AppState, AuthedCaller, Deserialize, Path, Response, State, TargetRegistry, get_org_teams,
-    get_team_members, private_no_cache, reject_team_mutation, serve_org_packages,
+    AppState, AuthedCaller, Deserialize, Path, Response, State, TargetRegistry, TeamScope,
+    add_team_member, create_team, destroy_team, get_org_teams, get_team_members, private_no_cache,
+    remove_team_member, serve_org_packages,
 };
+use axum::body::Bytes;
 
 #[derive(Deserialize)]
 pub(super) struct ScopePath {
@@ -15,8 +17,7 @@ pub(super) struct TeamPath {
 }
 
 // --------------------------------------------------------------------
-// Orgs and teams. Membership is config-managed, so every mutation is
-// rejected with an explanation rather than silently ignored.
+// Orgs and teams.
 // --------------------------------------------------------------------
 
 /// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
@@ -47,8 +48,10 @@ pub(super) async fn put_team(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
+    body: Bytes,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "create a team")
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    create_team(&state, &identity, target, &body).await
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}`.
@@ -56,9 +59,10 @@ pub(super) async fn delete_team(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<ScopePath>,
+    Path(path): Path<TeamPath>,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "destroy a team")
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    destroy_team(&state, &identity, target, &path.team).await
 }
 
 /// `GET {base}/-/team/{scope}/{team}/user`.
@@ -82,9 +86,11 @@ pub(super) async fn put_team_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<ScopePath>,
+    Path(path): Path<TeamPath>,
+    body: Bytes,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "add a team member")
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    add_team_member(&state, &identity, target, &path.team, &body).await
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}/user`.
@@ -92,13 +98,9 @@ pub(super) async fn delete_team_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<ScopePath>,
+    Path(path): Path<TeamPath>,
+    body: Bytes,
 ) -> Response {
-    reject_team_mutation(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.scope,
-        "remove a team member",
-    )
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    remove_team_member(&state, &identity, target, &path.team, &body).await
 }
