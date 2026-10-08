@@ -126,30 +126,27 @@ fn only_a_link_to_the_toolchain_the_file_asks_for_is_taken() {
     fs::create_dir_all(&committed).unwrap();
     assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None);
 
-    #[cfg(unix)]
-    {
-        let host = super::host::host_triple().unwrap();
-        let mut request = request("1.95.0");
-        request.profile = Profile::Default;
-        let toolchain =
-            toolchain_dir(&config.store_dir.root().join("rust"), &request.channel, &host, &request);
-        fs::create_dir_all(toolchain.join("bin")).unwrap();
-        fs::remove_dir_all(checkout.path().join(".pnpm/rust")).unwrap();
-        std::os::unix::fs::symlink(&toolchain, checkout.path().join(".pnpm/rust")).unwrap();
-        let installed = Some(dunce::canonicalize(toolchain.join("bin")).unwrap());
-        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
+    let host = super::host::host_triple().unwrap();
+    let mut request = request("1.95.0");
+    request.profile = Profile::Default;
+    let toolchain =
+        toolchain_dir(&config.store_dir.root().join("rust"), &request.channel, &host, &request);
+    fs::create_dir_all(toolchain.join("bin")).unwrap();
+    fs::remove_dir_all(checkout.path().join(".pnpm/rust")).unwrap();
+    pnpm_fs::force_symlink_dir(&toolchain, &checkout.path().join(".pnpm/rust")).unwrap();
+    let installed = Some(dunce::canonicalize(toolchain.join("bin")).unwrap());
+    assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
 
-        fs::write(&toolchain_file, "stable").unwrap();
-        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
+    fs::write(&toolchain_file, "stable").unwrap();
+    assert_eq!(linked_bin_dir(&config, &member, checkout.path()), installed);
 
-        for changed in [
-            "1.96.0",
-            "[toolchain]\npath = \"/opt/rust\"\n",
-            "[toolchain]\nchannel = \"1.95.0\"\nprofile = \"minimal\"\n",
-        ] {
-            fs::write(&toolchain_file, changed).unwrap();
-            assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None, "{changed}");
-        }
+    for changed in [
+        "1.96.0",
+        "[toolchain]\npath = \"/opt/rust\"\n",
+        "[toolchain]\nchannel = \"1.95.0\"\nprofile = \"minimal\"\n",
+    ] {
+        fs::write(&toolchain_file, changed).unwrap();
+        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None, "{changed}");
     }
 }
 
