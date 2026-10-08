@@ -270,10 +270,19 @@ fn materialize(
         if !owned && fs::symlink_metadata(&path).is_ok() {
             return Err(AgentSkillsError::Occupied { path });
         }
-        pnpm_fs::force_symlink_dir(target, &path)
-            .map_err(|source| AgentSkillsError::Io { path: path.clone(), source })?;
+        create_link(target, &path).map_err(|source| AgentSkillsError::Io { path, source })?;
     }
     Ok(())
+}
+
+/// The link target is relative and `target` is canonical, so the link is
+/// placed through the canonical form of its directory. Otherwise a symlink
+/// in the workspace path, such as `/var` on macOS, leaves it dangling.
+fn create_link(target: &Path, path: &Path) -> io::Result<()> {
+    let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(io::Error::from(io::ErrorKind::InvalidInput));
+    };
+    pnpm_fs::force_symlink_dir(target, &fs::canonicalize(dir)?.join(name)).map(drop)
 }
 
 /// Whether `path` is a link that resolves to `target`, as one a previous

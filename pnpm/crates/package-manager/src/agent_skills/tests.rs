@@ -145,6 +145,20 @@ fn creates_the_dir_of_the_agent_named_by_the_environment() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn links_through_a_symlinked_workspace_path() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    let aliases = tempfile::tempdir().expect("create alias dir");
+    let alias = aliases.path().join("workspace");
+    std::os::unix::fs::symlink(root.path(), &alias).unwrap();
+
+    sync(&alias, &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
+
+    assert!(alias.join(".claude/skills/pnpm-foo-guide/SKILL.md").is_file(),);
+}
+
 #[test]
 fn explicit_dirs_replace_detection() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
