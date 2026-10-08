@@ -21,10 +21,15 @@ impl FsSetPermissions for Host {
     }
 }
 
-pub(super) fn set_executable<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
-    if is_executable_by_everyone(permission_bits(path)?) {
+pub(super) fn ensure_executable<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
+    let mode = permission_bits(path)?;
+    if is_executable_by_everyone(mode) && mode & 0o002 == 0 {
         return Ok(());
     }
+    set_executable::<Sys>(path)
+}
+
+pub(super) fn set_executable<Sys: FsSetPermissions>(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
     let permissions = Permissions::from_mode(0o755);
     #[cfg(target_os = "wasi")]

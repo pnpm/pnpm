@@ -1,4 +1,4 @@
-use super::{FsSetPermissions, ensure_executable_bits, set_executable};
+use super::{FsSetPermissions, ensure_executable, ensure_executable_bits};
 use std::{
     fs::{self, Permissions},
     io,
@@ -35,7 +35,7 @@ fn shim_owned_by_another_user_does_not_require_chmod() {
     fs::write(&shim, "#!/bin/sh\n").unwrap();
     for mode in [0o755, 0o775] {
         fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
-        set_executable::<DeniedPermissions>(&shim).unwrap();
+        ensure_executable::<DeniedPermissions>(&shim).unwrap();
     }
 }
 
@@ -47,16 +47,34 @@ fn shim_missing_executable_bits_still_requires_chmod() {
     fs::write(&shim, "#!/bin/sh\n").unwrap();
     for mode in [0o644, 0o744] {
         fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
-        let error = set_executable::<DeniedPermissions>(&shim).unwrap_err();
+        let error = ensure_executable::<DeniedPermissions>(&shim).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 
-        set_executable::<crate::capabilities::Host>(&shim).unwrap();
+        ensure_executable::<crate::capabilities::Host>(&shim).unwrap();
         let mode = fs::metadata(&shim)
             .unwrap()
             .permissions()
             .mode();
         assert_eq!(mode & 0o777, 0o755);
     }
+}
+
+#[test]
+fn world_writable_shim_still_requires_chmod() {
+    let tmp = tempdir().unwrap();
+    let shim = tmp.path().join("node_modules/.bin/foo");
+    fs::create_dir_all(shim.parent().unwrap()).unwrap();
+    fs::write(&shim, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&shim, Permissions::from_mode(0o777)).unwrap();
+    let error = ensure_executable::<DeniedPermissions>(&shim).unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+
+    ensure_executable::<crate::capabilities::Host>(&shim).unwrap();
+    let mode = fs::metadata(&shim)
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o755);
 }
 
 #[test]

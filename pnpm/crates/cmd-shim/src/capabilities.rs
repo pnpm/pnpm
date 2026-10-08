@@ -155,14 +155,23 @@ pub trait FsWrite {
     }
 }
 
-/// Make `path` executable, setting its permission bits to `0o755` unless
-/// every execute bit is already set. Used to chmod the shim file.
+/// Make a shim file executable.
 ///
-/// The method is always present so callers don't have to
+/// The methods are always present so callers don't have to
 /// `#[cfg(any(unix, target_os = "wasi"))]` every chmod call site. On Windows the production
 /// impl is a no-op (Windows has no equivalent permission concept).
 pub trait FsSetExecutable {
+    /// Replace the permission bits at `path` with `0o755`. For a shim this
+    /// run created, which it therefore owns.
     fn set_executable(path: &Path) -> io::Result<()>;
+
+    /// [`set_executable`](Self::set_executable), skipped when every execute
+    /// bit is already set and the file is not world-writable. For a shim that
+    /// may already exist: only its owner may chmod it, even to its current
+    /// mode, and a world-writable shim must not stay that way.
+    fn ensure_executable(path: &Path) -> io::Result<()> {
+        Self::set_executable(path)
+    }
 }
 
 /// Add missing executable bits to bin targets whose real path is inside
@@ -325,6 +334,10 @@ fn set_file_executable(file: &std::fs::File) -> io::Result<()> {
 impl FsSetExecutable for Host {
     fn set_executable(path: &Path) -> io::Result<()> {
         executable::set_executable::<Host>(path)
+    }
+
+    fn ensure_executable(path: &Path) -> io::Result<()> {
+        executable::ensure_executable::<Host>(path)
     }
 }
 
