@@ -1,4 +1,4 @@
-//! The admin API for package rules: `/-/pnpr/v0/admin/rules/{registry}`.
+//! The admin API for package rules: `/-/pnpr/v0/admin/rules/{ecosystem}/{name}`.
 //! Every endpoint requires one of the `auth.admins`.
 
 use super::{
@@ -16,12 +16,13 @@ use axum::{
     routing::get,
 };
 use pnpr_config::{HostedConfig, Management};
+use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
 pub(super) fn rule_admin_routes() -> Router<AppState> {
     Router::new()
         .route(
-            "/-/pnpr/v0/admin/rules/{*registry}",
+            "/-/pnpr/v0/admin/rules/{ecosystem}/{name}",
             get(get_rules)
                 .put(put_rules)
                 .delete(delete_rules)
@@ -29,12 +30,15 @@ pub(super) fn rule_admin_routes() -> Router<AppState> {
         )
 }
 
+/// A registry as the registry directory names it: its ecosystem and its
+/// name within that ecosystem.
 #[derive(Deserialize)]
 struct RegistryPath {
-    registry: String,
+    ecosystem: String,
+    name: String,
 }
 
-/// `GET /-/pnpr/v0/admin/rules/{registry}` — the hosted registry's current
+/// `GET /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — the hosted registry's current
 /// rules, and whether the admin API may change them.
 async fn get_rules(
     State(state): State<AppState>,
@@ -43,7 +47,7 @@ async fn get_rules(
 ) -> Response {
     let result = (|| {
         require_admin(&state, &identity, "read", "the package rules".to_string())?;
-        let hosted = hosted_registry(&state, &path.registry)?;
+        let (_, hosted) = hosted_registry(&state, &path)?;
         let mut view = rules_view(&hosted.rules.snapshot());
         view["rulesManagedBy"] = serde_json::json!(management_name(hosted.rules_managed_by));
         Ok(json_response(StatusCode::OK, &view))
@@ -51,7 +55,7 @@ async fn get_rules(
     private_no_cache(respond(result))
 }
 
-/// `PUT /-/pnpr/v0/admin/rules/{registry}` — replace the stored changes with
+/// `PUT /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — replace the stored changes with
 /// the body's, and answer with the rules that result.
 async fn put_rules(
     State(state): State<AppState>,
@@ -60,18 +64,18 @@ async fn put_rules(
     body: Bytes,
 ) -> Response {
     let result = async {
-        let hosted = managed_registry(&state, &identity, &path.registry)?;
+        let (registry, hosted) = managed_registry(&state, &identity, &path)?;
         let changes: RuleChanges = serde_json::from_slice(&body)
             .map_err(|err| RegistryError::BadRequest {
                 reason: format!("invalid request body: {err}"),
             })?;
-        replace_rules(&state, &path.registry, changes).await?;
+        replace_rules(&state, registry, changes).await?;
         Ok(json_response(StatusCode::OK, &rules_view(&hosted.rules.snapshot())))
     };
     respond(result.await)
 }
 
-/// `DELETE /-/pnpr/v0/admin/rules/{registry}` — drop the stored changes, so
+/// `DELETE /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — drop the stored changes, so
 /// the configuration's rules apply again.
 async fn delete_rules(
     State(state): State<AppState>,
@@ -79,30 +83,40 @@ async fn delete_rules(
     Path(path): Path<RegistryPath>,
 ) -> Response {
     let result = async {
-        managed_registry(&state, &identity, &path.registry)?;
-        reset_rules(&state, &path.registry).await?;
+        let (registry, _) = managed_registry(&state, &identity, &path)?;
+        reset_rules(&state, registry).await?;
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)
 }
 
-/// The hosted registry whose rules an admin may change.
+/// The hosted registry whose rules an admin may change, with its key.
 fn managed_registry<'a>(
     state: &'a AppState,
     identity: &pnpr_policy::Identity,
-    registry: &str,
-) -> Result<&'a HostedConfig, RegistryError> {
+    path: &RegistryPath,
+) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
     require_admin(state, identity, "change", "the package rules".to_string())?;
-    let hosted = hosted_registry(state, registry)?;
+    let (registry, hosted) = hosted_registry(state, path)?;
     if hosted.rules_managed_by == Management::Config {
         return Err(RegistryError::RulesConfigManaged);
     }
-    Ok(hosted)
+    Ok((registry, hosted))
 }
 
+/// The hosted registry `path` names, with its key.
 fn hosted_registry<'a>(
     state: &'a AppState,
-    registry: &str,
-) -> Result<&'a HostedConfig, RegistryError> {
-    state.inner.config.routing.hosted.get(registry).ok_or(RegistryError::NotFound)
+    path: &RegistryPath,
+) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
+    let routing = &state.inner.config.routing;
+    let ecosystem = Ecosystem::all()
+        .find(|ecosystem| ecosystem.as_str() == path.ecosystem)
+        .ok_or(RegistryError::NotFound)?;
+    let registry =
+        routing.registries.addressed(&path.name, ecosystem).ok_or(RegistryError::NotFound)?;
+    routing.hosted
+        .get_key_value(registry)
+        .map(|(key, hosted)| (key.as_str(), hosted))
+        .ok_or(RegistryError::NotFound)
 }

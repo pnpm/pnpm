@@ -42,7 +42,7 @@ registries:
 defaultRegistry: main
 ";
 
-const RULES: &str = "/-/pnpr/v0/admin/rules/local";
+const RULES: &str = "/-/pnpr/v0/admin/rules/npm/local";
 
 fn load_config(dir: &Path) -> Config {
     let storage = dir.join("storage");
@@ -148,14 +148,14 @@ async fn only_admins_change_rules_and_only_where_the_api_manages_them() {
         StatusCode::FORBIDDEN,
     );
     assert_eq!(send(&app, "GET", RULES, None, None).await.0, StatusCode::UNAUTHORIZED);
-    let fixed = "/-/pnpr/v0/admin/rules/fixed";
+    let fixed = "/-/pnpr/v0/admin/rules/npm/fixed";
     assert_eq!(
         send(&app, "PUT", fixed, Some(&root), Some(change.clone())).await.0,
         StatusCode::FORBIDDEN,
     );
     let (status, rules) = send(&app, "GET", fixed, Some(&root), None).await;
     assert_eq!((status, &rules["rulesManagedBy"]), (StatusCode::OK, &json!("config")));
-    let missing = "/-/pnpr/v0/admin/rules/missing";
+    let missing = "/-/pnpr/v0/admin/rules/npm/missing";
     assert_eq!(
         send(&app, "PUT", missing, Some(&root), Some(change)).await.0,
         StatusCode::NOT_FOUND,
