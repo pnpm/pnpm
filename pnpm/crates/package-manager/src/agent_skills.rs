@@ -23,7 +23,7 @@ use pnpm_modules_yaml::IncludedDependencies;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// The prefix of every entry pnpm links into an agent skill directory.
@@ -226,27 +226,36 @@ fn prune(
     for entry in linked
         .iter()
         .filter(|entry| !keep.contains(*entry))
+        .filter(|entry| is_link_entry(entry))
     {
         let path = workspace_root.join(entry);
-        remove_entry(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        remove_link(&path).map_err(|source| AgentSkillsError::Io { path, source })?;
     }
     Ok(())
 }
 
-/// Remove a link, junction, or copied directory without following it.
-fn remove_entry(path: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
+/// `.modules.yaml` is not trusted to name only pnpm's links, so pruning
+/// touches nothing but a `pnpm-*` entry reached without `..`.
+fn is_link_entry(entry: &str) -> bool {
+    let path = Path::new(entry);
+    let named_as_link = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with(AGENT_SKILL_LINK_PREFIX));
+    named_as_link
+        && path
+            .components()
+            .all(|component| component != Component::ParentDir)
+}
+
+/// Remove a link or junction without following it. Anything else at the path
+/// was put there by someone other than pnpm and is left alone.
+fn remove_link(path: &Path) -> io::Result<()> {
+    match pnpm_fs::is_symlink_or_junction(path) {
+        Ok(true) => pnpm_fs::remove_symlink_dir(path),
+        Ok(false) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
-        Ok(metadata) => {
-            if pnpm_fs::is_symlink_or_junction(path)? {
-                pnpm_fs::remove_symlink_dir(path)
-            } else if metadata.is_dir() {
-                fs::remove_dir_all(path)
-            } else {
-                fs::remove_file(path)
-            }
-        }
     }
 }
 

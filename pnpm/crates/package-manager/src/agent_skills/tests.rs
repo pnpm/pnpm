@@ -212,6 +212,30 @@ fn prunes_entries_that_are_no_longer_approved() {
 }
 
 #[test]
+fn prunes_only_recorded_links() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(skills.join("pnpm-replaced")).unwrap();
+    fs::create_dir_all(skills.join("hand-written")).unwrap();
+    fs::create_dir_all(root.path().join("pnpm-outside")).unwrap();
+    let recorded = [
+        ".claude/skills/pnpm-replaced".to_string(),
+        ".claude/skills/hand-written".to_string(),
+        ".claude/skills/../../pnpm-outside".to_string(),
+    ];
+
+    sync(root.path(), &lockfile, &config(&[], None), &recorded, None).unwrap();
+
+    assert!(skills.join("pnpm-replaced").exists());
+    assert!(skills.join("hand-written").exists());
+    assert!(
+        root.path()
+            .join("pnpm-outside")
+            .exists()
+    );
+}
+
+#[test]
 fn an_empty_dirs_list_turns_skills_off() {
     let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
