@@ -70,7 +70,7 @@ async fn offline_raises_no_offline_nodejs_resolution() {
     );
 }
 
-fn locked_node_opts(update: UpdateBehavior) -> ResolveOptions {
+fn locked_node_opts(update: UpdateBehavior, update_checksums: bool) -> ResolveOptions {
     ResolveOptions {
         refresh: ResolutionRefreshOptions {
             current_pkg: Some(CurrentPkg {
@@ -84,6 +84,7 @@ fn locked_node_opts(update: UpdateBehavior) -> ResolveOptions {
                 manifest: None,
             }),
             update,
+            update_checksums,
             ..ResolutionRefreshOptions::default()
         },
         ..ResolveOptions::default()
@@ -100,7 +101,7 @@ async fn keeps_the_locked_runtime_without_network() {
         ..WantedDependency::default()
     };
     let result = resolver
-        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off))
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
         .await
         .unwrap()
         .expect("node resolver claims the runtime dependency");
@@ -109,7 +110,7 @@ async fn keeps_the_locked_runtime_without_network() {
 }
 
 #[tokio::test]
-async fn update_re_resolves_the_locked_runtime() {
+async fn update_and_checksum_refresh_re_resolve_the_locked_runtime() {
     let mut resolver = resolver();
     resolver.offline = true;
     let wanted = WantedDependency {
@@ -117,14 +118,16 @@ async fn update_re_resolves_the_locked_runtime() {
         bare_specifier: Some("runtime:^26".to_string()),
         ..WantedDependency::default()
     };
-    let err = resolver
-        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Compatible))
-        .await
-        .unwrap_err();
-    assert!(matches!(
-        err.downcast_ref::<super::NodeResolverError>(),
-        Some(super::NodeResolverError::Offline),
-    ));
+    for opts in [
+        locked_node_opts(UpdateBehavior::Compatible, false),
+        locked_node_opts(UpdateBehavior::Off, true),
+    ] {
+        let err = resolver.resolve(&wanted, &opts).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<super::NodeResolverError>(),
+            Some(super::NodeResolverError::Offline),
+        ));
+    }
 }
 
 #[test]

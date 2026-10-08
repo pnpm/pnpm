@@ -123,6 +123,14 @@ fn fresh_resolves_a_runtime_range_that_excludes_the_locked_version() {
 }
 
 #[test]
+fn fresh_resolves_an_unchanged_runtime_range_the_locked_version_left() {
+    let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:27.0.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^26").is_none());
+    let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.11.1");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:26.10.0").is_none());
+}
+
+#[test]
 fn reuses_a_locked_runtime_under_an_unchanged_non_range_selector() {
     let lockfile = single_dep_lockfile("node", "runtime:lts", "runtime:24.11.0");
     assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:lts").is_some());

@@ -279,7 +279,6 @@ fn update_moves_a_channel_qualified_devengines_runtime_range() {
     );
 }
 
-/// pnpm/pnpm#16764
 #[test]
 fn add_keeps_the_locked_devengines_runtime_version() {
     let root = tempfile::tempdir().unwrap();

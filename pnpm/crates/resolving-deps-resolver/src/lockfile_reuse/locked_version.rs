@@ -27,29 +27,26 @@ pub(super) fn admits_locked_version(
     Some(range.satisfies(ver_peer.version_semver()?))
 }
 
-/// Whether a `runtime:` dependency keeps its locked version: the selector is
-/// unchanged, or it names the same release channel (`rc/^24` keeps only an
-/// `rc/` pin) and its range admits `locked_version`.
+/// Whether a `runtime:` dependency keeps its locked version: a range selector
+/// names the locked release channel (`rc/^24` keeps only an `rc/` pin) and
+/// admits `locked_version`, and any other selector is unchanged.
 fn runtime_selector_keeps_locked_version(
     locked_specifier: &str,
     bare_specifier: &str,
     locked_version: &Version,
 ) -> bool {
-    if locked_specifier == bare_specifier {
-        return true;
-    }
     let (Some(locked), Some(wanted)) = (
         locked_specifier.strip_prefix(Prefix::Runtime.as_str()),
         bare_specifier.strip_prefix(Prefix::Runtime.as_str()),
     ) else {
-        return false;
+        return locked_specifier == bare_specifier;
     };
     let (locked_channel, _) = split_release_channel(locked);
     let (wanted_channel, wanted_range) = split_release_channel(wanted);
-    locked_channel == wanted_channel
-        && wanted_range
-            .parse::<Range>()
-            .is_ok_and(|range| range.satisfies(locked_version))
+    match wanted_range.parse::<Range>() {
+        Ok(range) => locked_channel == wanted_channel && range.satisfies(locked_version),
+        Err(_) => locked_specifier == bare_specifier,
+    }
 }
 
 fn split_release_channel(selector: &str) -> (Option<&str>, &str) {
