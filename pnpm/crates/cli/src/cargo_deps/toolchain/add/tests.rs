@@ -89,12 +89,18 @@ fn a_workspace_that_does_not_resolve_is_refused() {
 }
 
 #[test]
-fn an_entry_that_is_not_a_link_is_refused() {
+fn publishing_refuses_an_entry_that_is_not_a_link() {
     let root = tempfile::tempdir().unwrap();
-    let file = root.path().join("rust-toolchain.toml");
-    fs::create_dir_all(root.path().join(".pnpm/rust")).unwrap();
+    let project = root.path().join("project");
+    let toolchain = root.path().join("1.96.0");
+    fs::create_dir_all(&toolchain).unwrap();
+    let mut pin = pinned(&project, &toolchain);
+    let occupant = project.join(".pnpm/rust");
+    fs::create_dir_all(&occupant).unwrap();
+    fs::write(occupant.join("kept"), "").unwrap();
 
-    let error = super::refuse_occupied_link(&file).expect_err("a directory is not a link");
+    let error = pin.publish().expect_err("a directory is not a link");
 
     assert!(error.to_string().contains("is not a link pnpm made"), "{error}");
+    assert!(occupant.join("kept").exists());
 }
