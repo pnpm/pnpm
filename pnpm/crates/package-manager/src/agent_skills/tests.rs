@@ -394,6 +394,39 @@ fn finds_a_dependency_hoisted_to_the_workspace_root() {
 }
 
 #[test]
+fn a_custom_modules_dir_names_only_the_root_one() {
+    let root = tempfile::tempdir().expect("create workspace");
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    install_package(&root.path().join("packages/b/node_modules/foo"), &["guide"]);
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    )
+    .expect("parse lockfile");
+    let locations = BTreeMap::from([(
+        "foo@1.0.0".to_string(),
+        vec!["packages/b/node_modules/foo".to_string()],
+    )]);
+    let config = Config {
+        node_linker: pnpm_config::NodeLinker::Hoisted,
+        modules_dir: root.path().join("my_modules"),
+        ..config(&[], None)
+    };
+
+    let state = sync_agent_skills(&SyncAgentSkills {
+        config: &config,
+        workspace_root: root.path(),
+        lockfile: &lockfile,
+        included: ALL_GROUPS,
+        linked: &[],
+        agent_dir: None,
+        hoisted_locations: Some(&locations),
+    })
+    .unwrap();
+
+    assert_eq!(state.pending, ["foo@1.0.0"]);
+}
+
+#[test]
 fn a_hoisted_copy_of_another_version_is_not_the_dependency() {
     let (root, lockfile) = hoisted_workspace("2.0.0");
 

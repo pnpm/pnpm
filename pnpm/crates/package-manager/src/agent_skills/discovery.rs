@@ -103,13 +103,19 @@ impl<'a> Locator<'a> {
             Self::Hoisted { importer_id, locations } => (importer_id, locations),
         };
         let recorded = locations.get(dep_path)?;
-        let modules_dir_name = input.config.modules_dir_name().to_string_lossy();
+        // Only the root's modules directory is the configured one: the
+        // hoisted linker keeps `node_modules` in workspace projects.
+        let root_modules_dir = input.config.modules_dir
+            .strip_prefix(input.workspace_root)
+            .map_or_else(|_| input.config.modules_dir_name().into(), Path::to_path_buf)
+            .to_string_lossy()
+            .replace('\\', "/");
         Path::new(importer_id)
             .ancestors()
             .map(|dir| dir.to_string_lossy().replace('\\', "/"))
             .map(|dir| match dir.as_str() {
-                "" | "." => format!("{modules_dir_name}/{alias}"),
-                dir => format!("{dir}/{modules_dir_name}/{alias}"),
+                "" | "." => format!("{root_modules_dir}/{alias}"),
+                dir => format!("{dir}/node_modules/{alias}"),
             })
             .find(|location| recorded.contains(location))
             .map(|location| input.workspace_root.join(location))
