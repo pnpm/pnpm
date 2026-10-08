@@ -44,9 +44,10 @@ fn applies_skills_dirs() {
 
 #[test]
 fn names_a_bounded_number_of_unknown_capabilities() {
-    let capabilities: String = (0..=NAMED_UNRECOGNIZED_SETTINGS)
+    let capabilities = (0..=NAMED_UNRECOGNIZED_SETTINGS)
         .map(|index| format!("    cap{index}: true\n"))
-        .collect();
+        .collect::<Vec<_>>()
+        .concat();
     let yaml = format!("permissions:\n  esbuild:\n{capabilities}");
     let mut settings = parse(&yaml);
     settings.collect_key_issues(&yaml);

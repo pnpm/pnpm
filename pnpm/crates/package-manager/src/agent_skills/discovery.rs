@@ -32,12 +32,11 @@ pub(super) struct SkillSource {
 /// older one ships skills.
 pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSource> {
     let groups = selected_groups(input.included);
-    let modules_dir_name = input.config.modules_dir_name();
     let mut by_key: BTreeMap<String, SkillSource> = BTreeMap::new();
     let mut shipped: HashMap<String, ShippedSkills> = HashMap::new();
     for (importer_id, snapshot) in &input.lockfile.importers {
-        let modules_dir =
-            importer_root_dir(input.workspace_root, importer_id).join(modules_dir_name);
+        let modules_dir = importer_root_dir(input.workspace_root, importer_id)
+            .join(input.config.modules_dir_name());
         for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
             let Some(resolved) = spec.version.resolved_key(alias) else { continue };
             let alias = alias.to_string();
