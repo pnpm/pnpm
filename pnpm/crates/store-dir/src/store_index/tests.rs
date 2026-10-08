@@ -222,7 +222,6 @@ fn delete_many_shrinks_index_db() {
     idx.delete_many(&keys[1..]).unwrap();
 
     let pages_after = pragma(&idx, "page_count");
-    eprintln!("page_count: {pages_before} -> {pages_after}");
     assert!(pages_after < pages_before);
     assert_eq!(pragma(&idx, "freelist_count"), 0);
     let db_len = std::fs::metadata(dir.path().join("index.db")).unwrap().len();
