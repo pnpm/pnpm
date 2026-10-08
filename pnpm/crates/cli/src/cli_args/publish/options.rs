@@ -46,8 +46,7 @@ impl PublishArgs {
                 access: self.flags.registry.access.as_deref().and_then(Access::parse),
                 tag: self.flags.registry.tag.clone().unwrap_or_else(|| "latest".to_owned()),
                 otp,
-                // An absent `--provenance` leaves the decision to the OIDC flow.
-                provenance: self.flags.registry.provenance.then_some(true),
+                provenance: self.provenance(config),
                 http: OidcHttpOptions {
                     fetch_retries: Some(config.fetch_retries),
                     fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),
@@ -56,6 +55,18 @@ impl PublishArgs {
                     fetch_timeout: Some(config.fetch_timeout),
                 },
             },
+        }
+    }
+
+    /// `None` leaves the decision to the OIDC flow.
+    fn provenance(&self, config: &Config) -> Option<bool> {
+        let flags = &self.flags.registry;
+        if flags.provenance {
+            Some(true)
+        } else if flags.no_provenance {
+            Some(false)
+        } else {
+            config.provenance
         }
     }
 }

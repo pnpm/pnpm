@@ -188,6 +188,7 @@ fn create_config(
         ignore_pnpmfile: false,
         git_checks: true,
         publish_wait_timeout: 0,
+        provenance: None,
         tag_version_prefix: "v".to_string(),
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,

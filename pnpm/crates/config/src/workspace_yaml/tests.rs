@@ -88,6 +88,8 @@ mod registry_ecosystems;
 
 mod registry_network_concurrency;
 
+mod provenance;
+
 mod publish_wait_timeout;
 
 mod env_placeholders;

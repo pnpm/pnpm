@@ -20,6 +20,7 @@ fn from_resolved_reports_every_setting() {
         scope: Some("@acme".to_string()),
         pnpr_server: Some("https://pnpr.example".to_string()),
         frozen_lockfile: Some(true),
+        provenance: Some(false),
         reporter_hide_prefix: Some(true),
         loglevel: Some(LogLevel::Error),
         reporter: Some(ReporterType::Silent),
