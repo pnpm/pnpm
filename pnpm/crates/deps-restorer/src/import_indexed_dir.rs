@@ -186,25 +186,17 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     let existing_kind = existing_dirent_kind(dir_path)?;
     #[cfg(windows)]
-    if !opts.force {
-        match existing_kind {
-            Some(file_type) if !file_type.is_dir() => return Ok(()),
-            Some(_) if marker_present(dir_path, cas_paths) => return Ok(()),
-            _ => {}
-        }
+    if !opts.force
+        && existing_kind.is_some_and(|file_type| {
+            !file_type.is_dir() || marker_present(dir_path, cas_paths)
+        })
+    {
+        return Ok(());
     }
     #[cfg(windows)]
-    let sanitized = windows_filenames::sanitize_filenames(cas_paths)?;
+    let sanitized = sanitize_windows_filenames::<Reporter>(dir_path, cas_paths)?;
     #[cfg(windows)]
-    let cas_paths = if let Some(sanitized) = &sanitized {
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "The package linked to {dir_path:?} has files with invalid names: {:?}. They are renamed on Windows.",
-            sanitized.renamed
-        ));
-        &sanitized.paths
-    } else {
-        cas_paths
-    };
+    let cas_paths = sanitized.as_ref().map_or(cas_paths, |sanitized| &sanitized.paths);
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
@@ -252,6 +244,21 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
+}
+
+#[cfg(windows)]
+fn sanitize_windows_filenames<Reporter: self::Reporter>(
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Result<Option<windows_filenames::SanitizedFilenames>, ImportIndexedDirError> {
+    let sanitized = windows_filenames::sanitize_filenames(cas_paths)?;
+    if let Some(sanitized) = &sanitized {
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "The package linked to {dir_path:?} has files with invalid names: {:?}. They are renamed on Windows.",
+            sanitized.renamed,
+        ));
+    }
+    Ok(sanitized)
 }
 
 fn force_import_existing_dir<Reporter: self::Reporter>(

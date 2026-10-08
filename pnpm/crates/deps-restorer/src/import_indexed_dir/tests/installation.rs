@@ -15,10 +15,7 @@ fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
     let src_root = tmp.path().join("cas");
     let manifest = write_source(&src_root, "manifest", b"{}");
     let asset = write_source(&src_root, "asset", b"asset");
-    let cas = cas_map(&[
-        ("package.json", manifest),
-        ("assets/icon.svg?as=metadata.d.ts", asset),
-    ]);
+    let cas = cas_map(&[("package.json", manifest), ("assets/icon.svg?as=metadata.d.ts", asset)]);
     let target = tmp.path().join("pkg");
 
     for opts in [ImportIndexedDirOpts::default(), ImportIndexedDirOpts::default(), FORCE_SHARED] {

@@ -25,8 +25,13 @@ fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value
 #[cfg(windows)]
 #[test]
 fn local_tarball_with_invalid_windows_filename_installs() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -48,7 +53,10 @@ fn local_tarball_with_invalid_windows_filename_installs() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let installed = workspace.join("node_modules/filename-fixture/assets/icon.svgas=metadata.d.ts");
     assert_eq!(fs::read(&installed).unwrap(), b"export default 42;");
 
