@@ -11,6 +11,13 @@ fn addon_entry_point_configures_rayon_pool() {
             .to_string(),
     });
     let current_threads = rayon::current_num_threads();
-    assert!(current_threads >= pnpm_package_manager::MIN_RAYON_THREADS);
-    assert!(current_threads <= pnpm_package_manager::MAX_RAYON_THREADS);
+    let override_threads = std::env::var("RAYON_NUM_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok());
+    if let Some(expected) = override_threads {
+        assert_eq!(current_threads, expected);
+    } else {
+        assert!(current_threads >= pnpm_package_manager::MIN_RAYON_THREADS);
+        assert!(current_threads <= pnpm_package_manager::MAX_RAYON_THREADS);
+    }
 }
