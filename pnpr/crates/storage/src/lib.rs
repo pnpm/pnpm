@@ -24,7 +24,11 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
+pub use registry_records::RegistryRecord;
+
 mod staged_records;
+
+mod registry_records;
 
 mod atomic_write;
 use atomic_write::create_tmp_file;

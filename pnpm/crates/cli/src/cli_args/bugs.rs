@@ -1,9 +1,13 @@
-use super::package_spec::PackageSpec;
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{
+        build_registry_client, resolve_registries_with_override,
+        resolve_target_registry_for_package,
+    },
+};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
-use pnpm_network::normalize_registry_url;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_registry::{PackageTag, PackageVersion};
@@ -43,61 +47,47 @@ impl BugsArgs {
         if self.packages.is_empty() {
             let url = get_bugs_url_from_current_project(dir)?;
             open_url::<Sys>(&url);
-        } else {
-            let http_client = build_registry_client(config)
-                .wrap_err("build the network client for registry requests")?;
+            return Ok(());
+        }
 
-            let registries =
-                crate::cli_args::registry_client::resolve_registries_with_override(config, None);
+        let http_client = build_registry_client(config)
+            .wrap_err("build the network client for registry requests")?;
 
-            let futures = self.packages
-                .iter()
-                .map(|spec| {
-                    let target_registry = self.target_registry(&registries, spec);
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let registry_override = self.registry.as_deref();
 
-                    let http_client = &http_client;
-                    let auth_headers = &config.auth_headers;
-                    async move {
-                        get_bugs_url_from_registry(
-                            spec,
-                            &target_registry,
-                            http_client,
-                            auth_headers,
-                        )
+        let futures = self.packages
+            .iter()
+            .map(|spec| {
+                let target_registry =
+                    resolve_package_target_registry(&registries, registry_override, spec);
+
+                let http_client = &http_client;
+                let auth_headers = &config.auth_headers;
+                async move {
+                    get_bugs_url_from_registry(spec, &target_registry, http_client, auth_headers)
                         .await
                         .wrap_err_with(|| format!(r#"look up bugs URL for "{spec}""#))
-                    }
-                });
+                }
+            });
 
-            let results: Vec<miette::Result<String>> =
-                futures_util::future::join_all(futures).await;
-            for res in results {
-                let url = res?;
-                open_url::<Sys>(&url);
-            }
+        let results: Vec<miette::Result<String>> = futures_util::future::join_all(futures).await;
+        for res in results {
+            let url = res?;
+            open_url::<Sys>(&url);
         }
         Ok(())
     }
 }
 
-impl BugsArgs {
-    fn target_registry(
-        &self,
-        registries: &std::collections::HashMap<String, String>,
-        spec: &str,
-    ) -> String {
-        if let Some(registry) = &self.registry {
-            return normalize_registry_url(registry).into_owned();
-        }
-        let parsed = PackageSpec::parse(spec);
-        let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
-        let registry = pnpm_resolving_npm_resolver::pick_registry_for_package(
-            registries,
-            package_name,
-            Some(spec),
-        );
-        normalize_registry_url(&registry).into_owned()
-    }
+fn resolve_package_target_registry(
+    registries: &std::collections::HashMap<String, String>,
+    registry_override: Option<&str>,
+    spec: &str,
+) -> String {
+    let parsed = PackageSpec::parse(spec);
+    let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
+    resolve_target_registry_for_package(registries, registry_override, package_name, Some(spec))
 }
 
 fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {

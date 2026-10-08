@@ -1,12 +1,18 @@
-use super::{
-    AccessArgs, AccessError, Config, Method, Response, RetryOpts, StatusCode, ThrottledClient,
-    ThrottledClientGuard, send_with_retry,
-};
+use super::{AccessArgs, AccessError, Config};
 use crate::cli_args::{
-    registry_client::build_registry_client_with_otp_guard,
+    registry_client::{
+        apply_auth_and_otp, auth_header_for_package, build_registry_client_with_otp_guard,
+        join_registry_endpoint, resolve_registries_with_override,
+        resolve_target_registry_for_package,
+    },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{
+    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, escaped_package_name,
+    send_with_retry,
+};
+use reqwest::{Method, Response, StatusCode};
+use std::collections::HashMap;
 
 pub(super) struct AccessContext<'a> {
     pub(super) config: &'a Config,
@@ -18,24 +24,110 @@ pub(super) struct AccessContext<'a> {
 }
 
 pub(super) fn build_access_context<'a>(
-    args: &AccessArgs,
+    args: &'a AccessArgs,
     config: &'a Config,
+    action: &str,
+    params: &[String],
 ) -> miette::Result<AccessContext<'a>> {
-    let registry = args.registry
-        .as_deref()
-        .map_or_else(|| config.registry.clone(), |url| normalize_registry_url(url).into_owned());
-
-    let http_client =
-        build_registry_client_with_otp_guard(config, args.otp.as_deref(), [registry.as_str()])?;
+    let registries = resolve_registries_with_override(config, args.registry.as_deref());
+    let target_registry =
+        target_registry_for_action(&registries, args.registry.as_deref(), action, params);
+    let http_client = build_registry_client_with_otp_guard(
+        config,
+        args.otp.as_deref(),
+        [target_registry.as_str()],
+    )?;
 
     Ok(AccessContext {
         config,
         http_client,
         retry_opts: config.retry_opts(),
-        registry,
+        registry: target_registry,
         json: args.json,
         otp: args.otp.clone(),
     })
+}
+
+pub(super) fn target_registry_for_action(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    action: &str,
+    params: &[String],
+) -> String {
+    let package_name = match action {
+        "list_packages" => return registry_for_list(registries, registry_override, params),
+        "list_collaborators" | "get_status" => params.first().map(String::as_str),
+        "set_status" | "set_mfa" | "revoke" => params.get(1).map(String::as_str),
+        "grant" => params.get(2).map(String::as_str),
+        _ => None,
+    };
+    resolve_target_registry_for_package(
+        registries,
+        registry_override,
+        package_name.unwrap_or_default(),
+        None,
+    )
+}
+
+pub(super) fn registry_for_scope(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    scope: &str,
+) -> String {
+    let pkg_name = format!("@{scope}/_");
+    resolve_target_registry_for_package(registries, registry_override, &pkg_name, None)
+}
+
+pub(super) fn registry_for_list(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    params: &[String],
+) -> String {
+    match params.first() {
+        Some(raw) => {
+            let entity = raw
+                .split(':')
+                .next()
+                .unwrap_or(raw.as_str());
+            if let Some(scope) = entity.strip_prefix('@') {
+                registry_for_scope(registries, registry_override, scope)
+            } else if raw.contains(':') {
+                registry_for_scope(registries, registry_override, entity)
+            } else {
+                resolve_target_registry_for_package(registries, registry_override, "", None)
+            }
+        }
+        None => resolve_target_registry_for_package(registries, registry_override, "", None),
+    }
+}
+
+pub(super) fn auth_header_for_list(
+    config: &Config,
+    params: &[String],
+    registry: &str,
+) -> Option<String> {
+    let scope = params
+        .first()
+        .and_then(|raw| {
+            let entity = raw
+                .split(':')
+                .next()
+                .unwrap_or(raw.as_str());
+            if let Some(scope) = entity.strip_prefix('@') {
+                Some(scope)
+            } else if raw.contains(':') {
+                Some(entity)
+            } else {
+                None
+            }
+        });
+    match scope {
+        Some(scope_name) => {
+            let pkg_name = format!("@{scope_name}/_");
+            auth_header_for_package(config, registry, &pkg_name)
+        }
+        None => config.auth_headers.for_url(registry),
+    }
 }
 
 /// GET `url`, carrying the registry's authorization header when there is
@@ -46,11 +138,7 @@ pub(super) async fn send_get<'client>(
     auth_header: Option<&str>,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client.get(url);
-        if let Some(auth) = auth_header {
-            builder = builder.header("authorization", auth);
-        }
-        builder
+        apply_auth_and_otp(client.get(url), auth_header, None)
     })
     .await
 }
@@ -66,17 +154,11 @@ pub(super) async fn send_json<'client>(
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     let body_bytes = serde_json::to_vec(body).expect("a serializable object");
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client
+        let builder = client
             .request(method.clone(), url)
             .header("content-type", "application/json")
             .body(body_bytes.clone());
-        if let Some(auth) = auth_header {
-            builder = builder.header("authorization", auth);
-        }
-        if let Some(otp) = &context.otp {
-            builder = builder.header("npm-otp", otp);
-        }
-        builder
+        apply_auth_and_otp(builder, auth_header, context.otp.as_deref())
     })
     .await
 }
@@ -114,4 +196,55 @@ pub(super) async fn write_error_from_response(
                 .into()
         }
     }
+}
+
+pub(super) fn package_access_url(registry: &str, package_name: &str) -> String {
+    let path = format!("-/package/{}/access", escaped_package_name(package_name));
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(super) fn team_package_url(registry: &str, scope: &str, team: &str) -> String {
+    let path =
+        format!("-/team/{}/{}/package", encode_uri_component(scope), encode_uri_component(team));
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(super) fn package_collaborators_url(
+    registry: &str,
+    package_name: &str,
+    user: Option<&str>,
+) -> String {
+    let base_path =
+        format!("-/package/{}/collaborators?format=cli", escaped_package_name(package_name));
+    let path = match user {
+        Some(user_name) => format!("{base_path}&user={}", encode_uri_component(user_name)),
+        None => base_path,
+    };
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
+}
+
+pub(crate) fn list_packages_url(registry: &str, params: &[String]) -> String {
+    let path = match params.first() {
+        None => "-/-/package?format=cli".to_string(),
+        Some(raw) if !raw.contains(':') => match raw.strip_prefix('@') {
+            Some(org_name) => {
+                format!("-/org/{}/package?format=cli", encode_uri_component(org_name))
+            }
+            None => format!("-/user/{}/package?format=cli", encode_uri_component(raw)),
+        },
+        Some(raw) => {
+            let parts: Vec<&str> = raw.splitn(2, ':').collect();
+            let team = parts.get(1).unwrap_or(&"");
+            let team_path = if team.is_empty() {
+                String::new()
+            } else {
+                format!("{}/", encode_uri_component(team))
+            };
+            let scope = parts[0]
+                .strip_prefix('@')
+                .unwrap_or(parts[0]);
+            format!("-/team/{}/{team_path}package?format=cli", encode_uri_component(scope))
+        }
+    };
+    join_registry_endpoint(registry, &path).unwrap_or_else(|_| format!("{registry}{path}"))
 }

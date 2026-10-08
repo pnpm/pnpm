@@ -18,7 +18,7 @@
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=2 --filter=...[origin/main] --no-sort --if-present .test",
     "compile-only": "pn typecheck-all && pn -F=pnpm compile",
-    "typecheck-all": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.10.0 pnpm11/__utils__/scripts/src/typecheck-only.ts",
+    "typecheck-all": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.11.1 pnpm11/__utils__/scripts/src/typecheck-only.ts",
     "compile": "pn compile-only && pn update-manifests",
     "build:pnpm": "cargo build --release --bin pnpm",
     "build:pnpm:wasm": "node pnpm/wasm/build.mjs",
@@ -93,7 +93,7 @@
     },
     "runtime": {
       "name": "node",
-      "version": "26.10.0",
+      "version": "26.11.1",
       "onFail": "download"
     }
   }

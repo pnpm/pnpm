@@ -17,7 +17,7 @@ use pipeline_runs::{
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, reject_team_mutation, serve_org_packages};
+use organizations::{get_org_teams, get_team_members, serve_org_packages};
 
 mod package_search;
 use package_search::{
@@ -64,9 +64,9 @@ use upstream_packuments::{
 mod request_access;
 use request_access::{
     authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_artifact_caller, require_caller, require_pipeline_caller, require_resolver_caller,
-    revision_registry_is_private, revision_source_registry, single_authorization_header,
-    upstream_cache_namespace,
+    require_admin, require_artifact_caller, require_caller, require_pipeline_caller,
+    require_resolver_caller, revision_registry_is_private, revision_source_registry,
+    single_authorization_header, upstream_cache_namespace,
 };
 
 mod user_accounts;
@@ -80,15 +80,22 @@ mod cargo;
 mod compiler_cache;
 mod documents;
 mod ecosystem;
+mod managed_state;
 mod oci;
 mod oidc;
+mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;
 mod registry_directory;
 mod routing;
+mod rule_admin;
+mod rule_overrides;
 mod staged;
 mod striped_locks;
+mod team_mutations;
+mod team_rosters;
+mod user_admin;
 
 #[cfg(test)]
 mod tests;
@@ -172,6 +179,9 @@ const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 /// 100 MiB publish limit would hand unauthenticated callers a cheap
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
+
+/// Cap on a team mutation body, which names one team or one user.
+const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
 
 /// The `PoC` accepts blobs inline on artifact publication. Keep the buffered
 /// request at the same ceiling as an npm package publish.

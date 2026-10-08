@@ -82,6 +82,31 @@ fn resolve_registry_for_package_picks_and_normalizes() {
 }
 
 #[test]
+fn resolve_target_registry_for_package_honors_override_over_scope() {
+    let mut registries = std::collections::HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@my-scope".to_string(), "https://npm.pkg.github.com/my-org/".to_string());
+
+    assert_eq!(
+        super::resolve_target_registry_for_package(
+            &registries,
+            Some("https://custom.registry.org"),
+            "@my-scope/pkg",
+            None,
+        ),
+        "https://custom.registry.org/",
+    );
+    assert_eq!(
+        super::resolve_target_registry_for_package(&registries, None, "@my-scope/pkg", None,),
+        "https://npm.pkg.github.com/my-org/",
+    );
+    assert_eq!(
+        super::resolve_target_registry_for_package(&registries, None, "lodash", None,),
+        "https://registry.npmjs.org/",
+    );
+}
+
+#[test]
 fn package_endpoint_url_escapes_scoped_names() {
     assert_eq!(
         super::package_endpoint_url("https://registry.npmjs.org", "lodash").unwrap(),
@@ -95,4 +120,37 @@ fn package_endpoint_url_escapes_scoped_names() {
         super::package_endpoint_url("https://registry.org/prefix", "@scope/pkg").unwrap(),
         "https://registry.org/prefix/@scope%2fpkg",
     );
+}
+
+#[test]
+fn apply_auth_and_otp_attaches_headers() {
+    let client = reqwest::Client::new();
+
+    let with_both = super::apply_auth_and_otp(
+        client.get("https://registry.npmjs.org"),
+        Some("Bearer token"),
+        Some("123456"),
+    )
+    .build()
+    .unwrap();
+    assert_eq!(
+        with_both
+            .headers()
+            .get("authorization")
+            .unwrap(),
+        "Bearer token",
+    );
+    assert_eq!(
+        with_both
+            .headers()
+            .get("npm-otp")
+            .unwrap(),
+        "123456",
+    );
+
+    let with_none = super::apply_auth_and_otp(client.get("https://registry.npmjs.org"), None, None)
+        .build()
+        .unwrap();
+    assert!(!with_none.headers().contains_key("authorization"));
+    assert!(!with_none.headers().contains_key("npm-otp"));
 }

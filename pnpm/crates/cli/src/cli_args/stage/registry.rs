@@ -5,6 +5,7 @@ use super::{
     WebAuthFetchOptions, WebAuthHost, WithOtpError, body_display_string, read_limited_body,
     redact_url_credentials, send_with_retry,
 };
+use crate::cli_args::registry_client::apply_auth_and_otp;
 
 /// A failed `-/stage` registry response
 /// (`ERR_PNPM_STAGE_REGISTRY_ERROR`), with the same message shape as the
@@ -259,17 +260,11 @@ async fn stage_send<'client>(
     otp: Option<&str>,
 ) -> Result<(pnpm_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client
+        let builder = client
             .request(method.clone(), url)
             .header("npm-auth-type", "web")
             .header("npm-command", "stage");
-        if let Some(auth_header) = &context.auth_header {
-            builder = builder.header("authorization", auth_header);
-        }
-        if let Some(otp) = otp {
-            builder = builder.header("npm-otp", otp);
-        }
-        builder
+        apply_auth_and_otp(builder, context.auth_header.as_deref(), otp)
     })
     .await
 }

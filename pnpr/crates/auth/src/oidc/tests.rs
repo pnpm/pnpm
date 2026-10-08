@@ -1,5 +1,7 @@
 use super::{
-    MetadataFreshness, OidcState, token_payload, verify_workload,
+    MetadataFreshness, OidcState, SessionUser,
+    groups::granted_teams,
+    token_payload, verify_workload,
     workload::{binding_matches, validate_times},
 };
 use axum::{
@@ -11,7 +13,9 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL
 use chrono::Utc;
 use openidconnect::core::CoreProviderMetadata;
 use p256::ecdsa::{Signature, SigningKey, signature::Signer as _};
-use pnpr_config::oidc::{OidcBinding, OidcLogin, OidcProvider, OidcWorkload};
+use pnpr_config::oidc::{
+    OidcBinding, OidcGroups, OidcLogin, OidcProvider, OidcTeamGrant, OidcWorkload,
+};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::{
@@ -61,7 +65,8 @@ fn config(issuer: &str) -> OidcProvider {
 fn payload(issuer: &str) -> Value {
     let now = Utc::now().timestamp();
     json!({"iss": issuer, "aud": "pnpr-ci", "sub": "repo:org/repo:ref:refs/heads/main",
-        "repository_id": "123", "iat": now, "nbf": now, "exp": now + 300})
+        "repository_id": "123", "groups": ["platform-eng", "sales"],
+        "iat": now, "nbf": now, "exp": now + 300})
 }
 
 fn metadata(issuer: &str) -> Value {
@@ -244,6 +249,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     config.login = Some(OidcLogin {
         client_secret: Some("secret".to_string()),
         users: vec![config.workloads.remove(0).identity],
+        groups: Some(groups(&[("platform-eng", "platform"), ("finance", "finance")])),
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
@@ -256,7 +262,16 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     let session =
         state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
-    assert_eq!(state.session(&session.token).unwrap(), Some("ci".to_string()));
+    let user = state
+        .session(&session.token)
+        .unwrap()
+        .unwrap();
+    assert_eq!(user.username, "ci");
+    let teams: Vec<&str> = user.teams
+        .iter()
+        .map(|grant| grant.team.as_str())
+        .collect();
+    assert_eq!(teams, ["platform"]);
     assert!(session.expires <= Utc::now().timestamp() + 300);
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     assert!(state.revoke_session(&session.token));
@@ -277,9 +292,10 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
 #[test]
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
-    assert!(state.issue_session("alice", 0).is_err());
+    let alice = || SessionUser { username: "alice".to_string(), teams: Vec::new() };
+    assert!(state.issue_session(alice(), 0).is_err());
     let session = state
-        .issue_session("alice", Utc::now().timestamp() + 60)
+        .issue_session(alice(), Utc::now().timestamp() + 60)
         .unwrap();
     state.sessions
         .lock()
@@ -341,8 +357,11 @@ fn verifies_rs256_workload_tokens() {
 async fn rejects_expired_state_and_wrong_nonce() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login =
-        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    config.login = Some(OidcLogin {
+        client_secret: None,
+        users: vec![config.workloads.remove(0).identity],
+        groups: None,
+    });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
@@ -374,6 +393,7 @@ async fn selects_client_secret_post_from_discovery() {
     config.login = Some(OidcLogin {
         client_secret: Some("secret".to_string()),
         users: vec![config.workloads.remove(0).identity],
+        groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     *provider.auth_method.lock().unwrap() = "client_secret_post".to_string();
@@ -393,8 +413,11 @@ async fn selects_client_secret_post_from_discovery() {
 async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login =
-        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    config.login = Some(OidcLogin {
+        client_secret: None,
+        users: vec![config.workloads.remove(0).identity],
+        groups: None,
+    });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
@@ -448,8 +471,11 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
 async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login =
-        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    config.login = Some(OidcLogin {
+        client_secret: None,
+        users: vec![config.workloads.remove(0).identity],
+        groups: None,
+    });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let first = state.finish("example", &start.state, &start.browser_secret, "invalid");
@@ -472,8 +498,11 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
 async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login =
-        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    config.login = Some(OidcLogin {
+        client_secret: None,
+        users: vec![config.workloads.remove(0).identity],
+        groups: None,
+    });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     for index in 0..super::MAX_ENTRIES + 32 {
@@ -505,4 +534,40 @@ impl DiscoveryGate {
             self.release_discovery.notified().await;
         }
     }
+}
+
+/// Groups config granting, for each `(group, team)`, `team` on registry
+/// `private`.
+fn groups(grants: &[(&str, &str)]) -> OidcGroups {
+    let teams = grants
+        .iter()
+        .map(|(group, team)| OidcTeamGrant {
+            group: (*group).to_string(),
+            registry: "private".to_string(),
+            team: (*team).to_string(),
+        })
+        .collect();
+    OidcGroups { claim: "groups".to_string(), teams }
+}
+
+#[test]
+fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
+    let login = OidcLogin {
+        client_secret: None,
+        users: Vec::new(),
+        groups: Some(groups(&[("eng", "platform"), ("eng", "release"), ("ops", "ops")])),
+    };
+    let teams = |payload: Value| -> Vec<String> {
+        granted_teams(&login, &payload)
+            .into_iter()
+            .map(|grant| grant.team)
+            .collect()
+    };
+    assert_eq!(teams(json!({"groups": ["eng"]})), ["platform", "release"]);
+    assert_eq!(teams(json!({"groups": "ops"})), ["ops"]);
+    assert!(teams(json!({"groups": [1, "eng"]})).is_empty());
+    assert!(teams(json!({"groups": {"eng": true}})).is_empty());
+    assert!(teams(json!({})).is_empty());
+    let no_groups = OidcLogin { groups: None, ..login.clone() };
+    assert!(granted_teams(&no_groups, &json!({"groups": ["eng"]})).is_empty());
 }

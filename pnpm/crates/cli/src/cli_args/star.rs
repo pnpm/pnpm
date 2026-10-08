@@ -1,5 +1,9 @@
 use crate::cli_args::{
-    registry_client::build_registry_client,
+    registry_client::{
+        apply_auth_and_otp, auth_header_for_package, build_registry_client, join_registry_endpoint,
+        package_endpoint_url, resolve_registries_with_override,
+        resolve_target_registry_for_package,
+    },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
     whoami::fetch_whoami,
 };
@@ -7,11 +11,17 @@ use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
+use pnpm_network::{
+    RetryOpts, ThrottledClient, escaped_package_name, normalize_registry_url, send_with_retry,
+};
 use serde_json::{Map, Value, json};
 
 #[derive(Debug, Parser)]
 pub struct StarArgs {
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
     pub package_name: String,
 }
 
@@ -44,7 +54,7 @@ pub enum StarError {
 
 impl StarArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<()> {
-        star_action(config, &self.package_name, true).await
+        star_action(config, self.registry.as_deref(), &self.package_name, true).await
     }
 }
 
@@ -53,17 +63,19 @@ impl StarArgs {
 /// configured for the registry.
 pub(crate) async fn star_action(
     config: &Config,
+    registry_override: Option<&str>,
     package_name: &str,
     is_star: bool,
 ) -> miette::Result<()> {
     let action = action_word(is_star);
-    let auth_header = config.auth_headers
-        .for_url(&config.registry)
+    let registries = resolve_registries_with_override(config, registry_override);
+    let registry_url =
+        resolve_target_registry_for_package(&registries, registry_override, package_name, None);
+    let auth_header = auth_header_for_package(config, &registry_url, package_name)
         .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
     let retry_opts = config.retry_opts();
-    fetch_star(&config.registry, &http_client, &auth_header, retry_opts, package_name, is_star)
-        .await
+    fetch_star(&registry_url, &http_client, &auth_header, retry_opts, package_name, is_star).await
 }
 
 pub(crate) async fn fetch_star(
@@ -75,15 +87,20 @@ pub(crate) async fn fetch_star(
     is_star: bool,
 ) -> miette::Result<()> {
     let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
-    let star_url = format!("{registry_url}-/user/v1/star");
+    let normalized = normalize_registry_url(registry_url);
+    let star_url = join_registry_endpoint(registry_url, "-/user/v1/star")
+        .unwrap_or_else(|_| format!("{normalized}-/user/v1/star"));
     let body = json!({ "name": package_name, "package": package_name }).to_string();
 
     let (client, response) = send_with_retry(http_client, &star_url, retry_opts, |client| {
-        client
-            .request(method.clone(), &star_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
-            .body(body.clone())
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &star_url)
+                .header("content-type", "application/json")
+                .body(body.clone()),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -113,7 +130,9 @@ async fn perform_legacy_star_action(
 ) -> miette::Result<()> {
     let action = action_word(is_star);
     let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
-    let pkg_url = format!("{registry_url}{escaped_name}");
+    let normalized = normalize_registry_url(registry_url);
+    let pkg_url = package_endpoint_url(registry_url, package_name)
+        .unwrap_or_else(|_| format!("{normalized}{escaped_name}"));
 
     let mut pkg_data =
         fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
@@ -144,11 +163,14 @@ async fn put_updated_package_document(
     action: &'static str,
 ) -> miette::Result<()> {
     let (client, response) = send_with_retry(http_client, update_url, retry_opts, |client| {
-        client
-            .put(update_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
-            .body(update_body.clone())
+        apply_auth_and_otp(
+            client
+                .put(update_url)
+                .header("content-type", "application/json")
+                .body(update_body.clone()),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -173,10 +195,11 @@ async fn fetch_package_document(
     package_name: &str,
 ) -> miette::Result<Value> {
     let (client, response) = send_with_retry(http_client, pkg_url, retry_opts, |client| {
-        client
-            .get(pkg_url)
-            .header("authorization", auth_header)
-            .header("accept", "application/json")
+        apply_auth_and_otp(
+            client.get(pkg_url).header("accept", "application/json"),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -238,13 +261,19 @@ async fn fetch_alternate_star(
 ) -> miette::Result<()> {
     let action = action_word(is_star);
     let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
-    let escaped_name = encode_package_name(package_name);
-    let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
+    let escaped_name = escaped_package_name(package_name);
+    let alt_endpoint = format!("-/user/package/{escaped_name}/star");
+    let normalized = normalize_registry_url(registry_url);
+    let alt_star_url = join_registry_endpoint(registry_url, &alt_endpoint)
+        .unwrap_or_else(|_| format!("{normalized}{alt_endpoint}"));
     let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
-        client
-            .request(method.clone(), &alt_star_url)
-            .header("authorization", auth_header)
-            .header("content-type", "application/json")
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &alt_star_url)
+                .header("content-type", "application/json"),
+            Some(auth_header),
+            None,
+        )
     })
     .await
     .into_diagnostic()
@@ -280,3 +309,6 @@ async fn star_error(response: reqwest::Response, action: &'static str) -> StarEr
         read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
     StarError::Failed { action, status: status.as_u16(), status_text, body }
 }
+
+#[cfg(test)]
+mod tests;

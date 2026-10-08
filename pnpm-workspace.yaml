@@ -401,7 +401,7 @@ catalog:
   human-id: ^4.2.2
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
-  keyv: 6.0.0-rc.1
+  keyv: 6.1.0
   lcov-result-merger: ^6.0.0
   # libnpmpublish 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.

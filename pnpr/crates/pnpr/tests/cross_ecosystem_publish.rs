@@ -12,7 +12,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use npm::sri_sha512;
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
-    Registries, Registry, Teams, router_with_auth,
+    Registries, Registry, router_with_auth,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -34,11 +34,10 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     for (name, org) in [("crates", "crates"), ("python", "python")] {
         config.routing.hosted.insert(
             name.to_string(),
-            HostedConfig {
-                org: org.to_string(),
-                rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$all"]))),
-                teams: Teams::default(),
-            },
+            HostedConfig::new(
+                org,
+                PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$all"]))),
+            ),
         );
     }
     let mut graph: indexmap::IndexMap<String, Registry> = config.routing

@@ -1,5 +1,6 @@
 mod workload_verification;
 
+mod groups;
 mod sessions;
 
 mod provider_config;
@@ -30,7 +31,7 @@ use p256::ecdsa::{
     Signature, SigningKey,
     signature::{Signer as _, Verifier as _},
 };
-use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcWorkload};
+use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcTeamGrant, OidcWorkload};
 use pnpr_error::{RegistryError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -82,8 +83,16 @@ struct PendingLogin {
 }
 
 struct Session {
-    username: String,
+    user: SessionUser,
     expires: i64,
+}
+
+/// Who a browser session signed in as.
+#[derive(Debug, Clone)]
+pub struct SessionUser {
+    pub username: String,
+    /// The team grants the session's groups claim earned at sign-in.
+    pub teams: Vec<OidcTeamGrant>,
 }
 
 pub struct LoginStart {
@@ -179,7 +188,7 @@ impl OidcState {
             &Nonce::new(login.nonce),
         )
         .await?;
-        let binding = bound_user(&provider.config, token)?;
+        let user = bound_user(&provider.config, token)?;
         let now = Utc::now().timestamp();
         if login.expires <= now {
             return Err(rejected());
@@ -189,7 +198,7 @@ impl OidcState {
         if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
             return Err(rejected());
         }
-        let session = self.issue_session(&binding.username, expiration)?;
+        let session = self.issue_session(user, expiration)?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
     }

@@ -6,11 +6,15 @@ pub mod oidc;
 pub use logging::{LogConfig, LogFormat, LogLevel};
 
 pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
-    TokensConfig,
+    AuthConfig, BackendConfig, HtpasswdConfig, IdentityConfig, LibsqlSettings, MaxUsers,
+    SqlBackendSettings, TokensConfig,
 };
 
-pub use access::{AccessSpec, PackageAccess, Teams};
+pub use access::{
+    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
+};
+pub use hosted::{HostedConfig, Management};
+pub use pnpr_policy::{TeamDirectory, Teams};
 
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 
@@ -24,7 +28,7 @@ mod logging;
 use logging::build_log_config;
 
 mod backend_config;
-use backend_config::{build_auth_config, build_backend_config};
+use backend_config::{build_backend_config, build_identity_config};
 
 mod loading;
 
@@ -47,7 +51,8 @@ use registry_graph::{
 };
 
 mod access;
-use access::build_teams;
+mod hosted;
+use access::{build_admins, build_teams};
 
 mod s3;
 
@@ -64,7 +69,7 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
@@ -172,20 +177,6 @@ pub struct StorageConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct IdentityConfig {
-    /// Where to read/write the htpasswd-format user file and the
-    /// token database. Both stores are in-memory when their paths
-    /// are `None`.
-    pub auth: AuthConfig,
-    /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus `SQLite` token database. The YAML `backend:` block can
-    /// switch both stores to one shared SQL database so several
-    /// stateless pnpr replicas see a consistent set of accounts.
-    pub backend: BackendConfig,
-}
-
-#[derive(Debug, Clone)]
 pub struct RoutingConfig {
     /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
@@ -227,27 +218,6 @@ impl Default for OciConfig {
             max_manifest_bytes: 4 * 1024 * 1024,
         }
     }
-}
-
-/// A resolved hosted registry: the `org` namespace it serves and its
-/// `packages:` rules — the namespace it claims plus the per-package
-/// `access` / `publish` / `unpublish` policies, with the registry-level
-/// `access:` as the default an entry's omitted fields fall back to.
-#[derive(Debug, Clone)]
-pub struct HostedConfig {
-    /// The storage/serving namespace, so two hosted registries holding the same
-    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
-    pub org: String,
-    /// The registry's `packages:` map: namespace and per-package rules in one
-    /// declaration, selected by specificity. The effective `access` gates
-    /// reads *and* the write routing (publish, dist-tag, unpublish), with a
-    /// denied caller masked as not-found either way.
-    pub rules: PackageRules,
-    /// The registry's declared `teams:` map, retained so the npm team API
-    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`) can
-    /// list them. Membership is config-declared: the API serves reads only,
-    /// and team mutations are rejected.
-    pub teams: Teams,
 }
 
 /// Exact browser origins allowed to call pnpr across origins.
@@ -627,7 +597,7 @@ fn parse_storage_access(
         .map(|(name, policy)| {
             validate_registry_name(&name)?;
             let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&Teams::default())
+                spec.to_access_list(&TeamDirectory::default())
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("storage namespace {name:?}: {reason}"),
                     })

@@ -4,6 +4,7 @@ use super::{
     header, hosted_with_access, json, mock_package, mock_packument_for_tarball,
     read_registry_directory, registry_groups, router, router_config, router_with_auth,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn scoped_packument_is_served() {
@@ -696,7 +697,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let tmp = TempDir::new().unwrap();
     let config = registry_groups::grouped_config(tmp.path(), "alice");
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
         let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;

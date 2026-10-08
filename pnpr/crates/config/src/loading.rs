@@ -1,7 +1,7 @@
 use super::{
     Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Path, PathBuf, RegistryError, ResolvedFileRegistries, SocketAddr, build_auth_config,
-    build_backend_config, build_cors_config, build_features, build_log_config, build_osv_config,
+    Path, PathBuf, RegistryError, ResolvedFileRegistries, SocketAddr, build_backend_config,
+    build_cors_config, build_features, build_identity_config, build_log_config, build_osv_config,
     build_route_policy, config_file_in, parse_config_file, reject_removed_blocks,
     resolution_secret, resolve_file_registries, resolve_storage_paths,
 };
@@ -234,10 +234,7 @@ impl Config {
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             },
             storage,
-            identity: super::IdentityConfig {
-                auth: build_auth_config(&file.auth, base_dir),
-                backend,
-            },
+            identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
             routing: super::RoutingConfig {
                 upstreams,

@@ -59,7 +59,7 @@ fn route_registry<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<C
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
         CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
         CliCommand::View(args) => dispatch_query::view(ctx, args),
-        CliCommand::Whoami => dispatch_query::whoami(ctx),
+        CliCommand::Whoami(args) => dispatch_query::whoami(ctx, args),
         CliCommand::Star(args) => dispatch_query::star(ctx, args),
         CliCommand::Unstar(args) => dispatch_query::unstar(ctx, args),
         CliCommand::Stars(args) => dispatch_query::stars(ctx, args),

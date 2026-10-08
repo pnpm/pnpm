@@ -7,8 +7,11 @@ pub struct PublishRegistryArgs {
     #[clap(long, value_parser = ["public", "restricted"])]
     pub access: Option<String>,
     /// Generate a provenance attestation for the published package.
-    #[clap(long)]
+    #[clap(long, overrides_with = "no_provenance")]
     pub provenance: bool,
+    /// Do not generate a provenance attestation, even under trusted publishing.
+    #[clap(long = "no-provenance", hide = true, overrides_with = "provenance")]
+    pub no_provenance: bool,
     /// One-time password for two-factor-authenticated registries.
     #[clap(long)]
     pub otp: Option<String>,

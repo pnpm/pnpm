@@ -1,10 +1,14 @@
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::{
+    apply_auth_and_otp, build_registry_client, join_registry_endpoint,
+    resolve_registries_with_override,
+};
 use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, send_with_retry,
+    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, normalize_registry_url,
+    send_with_retry,
 };
 use reqwest::Response;
 use serde_json::Value;
@@ -26,6 +30,10 @@ fn parse_stars_response(body: &Value) -> Option<String> {
 
 #[derive(Debug, Parser)]
 pub struct StarsArgs {
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
     pub username: Option<String>,
 }
 
@@ -47,8 +55,11 @@ pub enum StarsError {
 
 impl StarsArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<Option<String>> {
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let default_registry =
+            registries.get("default").map_or(config.registry.as_str(), String::as_str);
         let auth_header =
-            config.auth_headers.for_url(&config.registry).ok_or(StarsError::Unauthorized);
+            config.auth_headers.for_url(default_registry).ok_or(StarsError::Unauthorized);
         let http_client = build_registry_client(config)?;
         let retry_opts = config.retry_opts();
 
@@ -57,7 +68,15 @@ impl StarsArgs {
             if auth_header.is_err() {
                 return Err(StarsError::Unauthorized.into());
             }
-            user = Some(crate::cli_args::whoami::whoami(config).await?);
+            user = Some(
+                crate::cli_args::whoami::fetch_whoami(
+                    default_registry,
+                    &http_client,
+                    auth_header.as_ref().unwrap(),
+                    retry_opts,
+                )
+                .await?,
+            );
         }
 
         let is_self = self.username.is_none();
@@ -67,7 +86,7 @@ impl StarsArgs {
             if auth_header_str.is_empty() { None } else { Some(auth_header_str.as_str()) };
 
         let request = StarsRequest {
-            registry_url: &config.registry,
+            registry_url: default_registry,
             http_client: &http_client,
             auth_header: auth_header_val,
             retry_opts,
@@ -91,7 +110,9 @@ impl StarsRequest<'_> {
     /// with something other than the list, so a `None` here means the
     /// per-user endpoint still has to be asked.
     async fn own_stars(&self) -> miette::Result<Option<Value>> {
-        let star_url = format!("{}-/user/v1/star", self.registry_url);
+        let normalized = normalize_registry_url(self.registry_url);
+        let star_url = join_registry_endpoint(self.registry_url, "-/user/v1/star")
+            .unwrap_or_else(|_| format!("{normalized}-/user/v1/star"));
         let (client, response) = self.get(&star_url, "requesting the self stars endpoint").await?;
         if !response.status().is_success() {
             drop(client);
@@ -108,11 +129,7 @@ impl StarsRequest<'_> {
         context: &'static str,
     ) -> miette::Result<(ThrottledClientGuard<'_>, Response)> {
         send_with_retry(self.http_client, url, self.retry_opts, |client| {
-            let mut req = client.get(url);
-            if let Some(auth) = self.auth_header {
-                req = req.header("authorization", auth);
-            }
-            req
+            apply_auth_and_otp(client.get(url), self.auth_header, None)
         })
         .await
         .into_diagnostic()
@@ -123,7 +140,10 @@ impl StarsRequest<'_> {
     /// `-/user/<name>/stars` serve the same document under `-/util/`.
     async fn user_stars(&self, username: &str) -> miette::Result<Value> {
         let encoded_username = encode_uri_component(username);
-        let stars_url = format!("{}-/user/{encoded_username}/stars", self.registry_url);
+        let endpoint = format!("-/user/{encoded_username}/stars");
+        let normalized = normalize_registry_url(self.registry_url);
+        let stars_url = join_registry_endpoint(self.registry_url, &endpoint)
+            .unwrap_or_else(|_| format!("{normalized}{endpoint}"));
         let (client, response) = self.get(&stars_url, "requesting the user stars endpoint").await?;
         if response.status().is_success() {
             let body = response.json().await.into_diagnostic()?;
@@ -132,7 +152,9 @@ impl StarsRequest<'_> {
         }
         drop(client);
 
-        let util_stars_url = format!("{}-/util/user/{encoded_username}/stars", self.registry_url);
+        let util_endpoint = format!("-/util/user/{encoded_username}/stars");
+        let util_stars_url = join_registry_endpoint(self.registry_url, &util_endpoint)
+            .unwrap_or_else(|_| format!("{normalized}{util_endpoint}"));
         let (client, response) =
             self.get(&util_stars_url, "requesting the alt user stars endpoint").await?;
         if !response.status().is_success() {

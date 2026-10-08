@@ -1,9 +1,9 @@
 use super::deprecate::{
-    DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, PackageSpec,
-    auth_header_for_registry, fetch_package_meta, package_url, parse_package_spec,
-    registry_for_package, registry_operation_error, registry_operation_failed,
-    registry_write_error, write_error_for_status,
+    DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, fetch_package_meta,
+    package_url, parse_package_spec, registry_for_package, registry_operation_error,
+    registry_operation_failed, registry_write_error, write_error_for_status,
 };
+use crate::cli_args::{package_spec::PackageSpec, registry_client::auth_header_for_package};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -146,7 +146,7 @@ impl UnpublishArgs {
         &self,
         config: &Config,
     ) -> miette::Result<String> {
-        let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp.clone())?;
+        let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp.clone())?;
 
         let spec = self.params.first().ok_or(UnpublishError::PackageRequired)?;
         let PackageSpec {
@@ -155,7 +155,7 @@ impl UnpublishArgs {
         } = parse_package_spec(spec)?;
 
         let registry_url = registry_for_package(&context, &package_name);
-        let auth_header = auth_header_for_registry(&context, &registry_url, &package_name);
+        let auth_header = auth_header_for_package(context.config, &registry_url, &package_name);
         let package_url = package_url(&package_name, &registry_url)?;
 
         let pkg: Packument =

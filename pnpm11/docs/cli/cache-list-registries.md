@@ -11,7 +11,7 @@ This command is experimental
 
 Lists all registries that have their metadata cache locally, one URL per line:
 
-```
+```text
 https://registry.npmjs.org/
 https://npm.example.com:8443/team-a/
 ```

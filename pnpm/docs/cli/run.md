@@ -214,6 +214,7 @@ An example of a `pnpm-exec-summary.json` file:
       "duration": 1865.914958
     }
   }
+}
 ```
 
 Possible values of `status` are: 'passed', 'queued', 'running'.

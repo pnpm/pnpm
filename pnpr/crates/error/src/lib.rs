@@ -114,15 +114,40 @@ pub enum RegistryError {
         resource: String,
     },
 
-    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
-    /// pnpr teams are declared in the registry configuration and cannot be
-    /// changed over HTTP. Maps to 403.
+    /// A team mutation (create/destroy/add/rm) hit the npm team API on a
+    /// registry whose teams are declared in the configuration. Maps to 403.
     #[display(
         "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
          registry operator to update the config"
     )]
     #[from(skip)]
     TeamsConfigManaged { action: &'static str },
+
+    /// A conditional write whose `If-Match` names a version the resource no
+    /// longer has. Maps to 412.
+    #[display("{resource} changed since version {expected}; read it again and repeat the change")]
+    #[from(skip)]
+    PreconditionFailed {
+        #[error(not(source))]
+        resource: String,
+        expected: String,
+    },
+
+    /// A rules edit hit the admin API on a registry whose rules are declared
+    /// in the configuration. Maps to 403.
+    #[display(
+        "The package rules of this registry are declared in the pnpr configuration; to change \
+         them, ask the registry operator to update the config"
+    )]
+    #[from(skip)]
+    RulesConfigManaged,
+
+    /// An admin edit that the current state refuses. Maps to 409.
+    #[from(skip)]
+    AdminConflict {
+        #[error(not(source))]
+        reason: String,
+    },
 
     /// Tarball payload from a publish couldn't be decoded — bad
     /// base64, length mismatch, or integrity mismatch.

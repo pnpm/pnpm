@@ -5,6 +5,7 @@ use super::{
     satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
 };
 use crate::cli_args::audit::patched_range_for_style;
+use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
 /// act on each: ones with a concrete vulnerable range (guarded against and
@@ -354,6 +355,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
     let lockfile = crate::state::command_lockfile(&state.lockfile, &lockfile_path)?;
+    let targets = vulnerable_locked_versions(lockfile.document, &classification.vulnerabilities);
     let resources = update_resources(state, classification, age_excludes);
     Update {
         manifest: &mut state.manifest,
@@ -368,6 +370,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
                 depth: usize::MAX,
                 workspace_packages: None,
                 interactive: false,
+                targets: Some(&targets),
             },
             version: pnpm_package_manager::UpdateVersionOptions {
                 latest: false,
@@ -387,6 +390,32 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
         miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
     })?;
     Ok(())
+}
+
+/// The locked versions an advisory's vulnerable range covers. The update
+/// re-resolves only these, so every other dependency keeps its locked version.
+fn vulnerable_locked_versions(
+    lockfile: Option<&Lockfile>,
+    vulnerabilities: &HashMap<String, Vec<(u64, Range)>>,
+) -> UpdateTargets {
+    let mut targets = UpdateTargets::default();
+    for key in lockfile
+        .and_then(|lockfile| lockfile.snapshots.as_ref())
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
+        let name = key.name.to_string();
+        let (Some(version), Some(entries)) =
+            (key.suffix.version_semver(), vulnerabilities.get(&name))
+        else {
+            continue;
+        };
+        if entries.iter().any(|(_, range)| satisfies_including_prerelease(version, range)) {
+            targets.insert_version(name, version.clone());
+        }
+    }
+    targets
 }
 
 fn update_resources(

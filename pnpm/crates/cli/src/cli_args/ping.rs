@@ -1,6 +1,6 @@
-//! `pacquet ping` — test connectivity to the configured registry.
-
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::{
+    apply_auth_and_otp, build_registry_client, join_registry_endpoint,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -37,7 +37,7 @@ impl PingArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<String> {
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
         let normalized_registry_url = normalize_registry_url(registry_url);
-        let ping_url = format!("{normalized_registry_url}-/ping?write=true");
+        let ping_url = ping_endpoint_url(registry_url);
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
 
@@ -77,11 +77,7 @@ async fn fetch_ping(
 ) -> miette::Result<(u128, String)> {
     let start = Instant::now();
     let (client, response) = send_with_retry(http_client, ping_url, retry_opts, |client| {
-        let request = client.get(ping_url);
-        match auth_header {
-            Some(value) => request.header("authorization", value),
-            None => request,
-        }
+        apply_auth_and_otp(client.get(ping_url), auth_header, None)
     })
     .await
     .map_err(|error| PingError::Unreachable { message: redact_and_sanitize(&error.to_string()) })?;
@@ -125,6 +121,12 @@ fn format_details(body: &str) -> Option<String> {
         _ => false,
     };
     if non_empty { serde_json::to_string_pretty(&value).ok() } else { None }
+}
+
+pub(super) fn ping_endpoint_url(registry_url: &str) -> String {
+    let normalized = normalize_registry_url(registry_url);
+    join_registry_endpoint(registry_url, "-/ping?write=true")
+        .unwrap_or_else(|_| format!("{normalized}-/ping?write=true"))
 }
 
 #[cfg(test)]

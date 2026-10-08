@@ -12,6 +12,8 @@ mod pausing_store;
 mod registry_groups;
 #[path = "common/storage.rs"]
 mod storage;
+#[path = "common/tokens.rs"]
+mod tokens;
 
 mod auth_persistence;
 mod auth_publish;
@@ -27,6 +29,9 @@ mod policy;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
+mod rule_administration;
 mod s3_backend;
 mod server;
 mod staged_publish;
+mod team_administration;
+mod user_administration;

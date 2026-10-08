@@ -6,17 +6,20 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
+use crate::cli_args::registry_client::{
+    build_registry_client, package_endpoint_url, resolve_registries_with_override,
+    resolve_target_registry_for_package,
+};
 use chrono::{DateTime, Utc};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
-use pnpm_network::RetryOpts;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
-    fetch_full_metadata, parse_bare_specifier, pick_package_from_meta, pick_registry_for_package,
+    fetch_full_metadata, parse_bare_specifier, pick_package_from_meta,
     pick_version_by_version_range,
 };
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -166,43 +169,48 @@ pub(super) async fn fetch_package_metadata(
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let name_hint = alias.unwrap_or(package_spec);
 
-    let registries = crate::cli_args::registry_client::resolve_registries_with_override(
-        config,
-        registry_override,
-    );
-    let registry = pick_registry_for_package(&registries, name_hint, Some(bare));
+    let registries = resolve_registries_with_override(config, registry_override);
+    let registry =
+        resolve_target_registry_for_package(&registries, registry_override, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
         .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;
 
-    let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
+    let meta = fetch_metadata_outcome(config, &registry, &spec.name).await?;
+    let picked = pick_view_version(&meta, &spec)?;
+
+    Ok((meta, picked))
+}
+
+async fn fetch_metadata_outcome(
+    config: &Config,
+    registry: &str,
+    package_name: &str,
+) -> miette::Result<pnpm_registry::Package> {
+    let http_client = build_registry_client(config)?;
     let outcome = fetch_full_metadata(
-        &spec.name,
+        package_name,
         &FetchFullMetadataOptions {
-            registry: &registry,
+            registry,
             full_metadata: true,
             etag: None,
             modified: None,
             http: pnpm_resolving_npm_resolver::MetadataHttpClient {
                 http_client: &http_client,
                 auth_headers: &config.auth_headers,
-                retry_opts: RetryOpts::default(),
+                retry_opts: config.retry_opts(),
             },
         },
     )
     .await
-    .map_err(|error| map_fetch_error(error, &registry, &spec.name))?;
+    .map_err(|error| map_fetch_error(error, registry, package_name))?;
 
-    let meta = match outcome {
-        FetchFullMetadataOutcome::Modified(meta) => *meta,
+    match outcome {
+        FetchFullMetadataOutcome::Modified(meta) => Ok(*meta),
         FetchFullMetadataOutcome::NotModified => {
-            miette::bail!("registry returned 304 Not Modified unexpectedly for {}", spec.name)
+            miette::bail!("registry returned 304 Not Modified unexpectedly for {package_name}")
         }
-    };
-
-    let picked = pick_view_version(&meta, &spec)?;
-
-    Ok((meta, picked))
+    }
 }
 
 /// Build the info object the renderers consume from the picked version's
@@ -271,10 +279,9 @@ fn map_fetch_error(
     if let FetchMetadataError::Network { error: ref source, .. } = error
         && source.status() == Some(reqwest::StatusCode::NOT_FOUND)
     {
-        return ViewError::Fetch404 {
-            url: pnpm_network::redact_url_credentials(&format!("{registry}{pkg_name}")),
-        }
-        .into();
+        let url = package_endpoint_url(registry, pkg_name)
+            .unwrap_or_else(|_| format!("{registry}{pkg_name}"));
+        return ViewError::Fetch404 { url: pnpm_network::redact_url_credentials(&url) }.into();
     }
     miette::Report::new(error)
 }

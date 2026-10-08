@@ -269,23 +269,27 @@ endpoint rather than masking as a `404`.
 
 ## Team endpoints
 
-pnpr serves npm's team-management read endpoints over the teams declared in
-its config, in the shape [`pnpm team`](/cli/team) consumes. Teams are
-[registry-scoped configuration](configuration.md#teams), so these are
-**read-only views**: the listings are served, and every mutation is refused.
+pnpr serves npm's team endpoints in the shape [`pnpm team`](/cli/team)
+consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams declared by the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
 | `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"name": ...}`. |
-| `PUT` | `/-/org/{scope}/team` | Create a team — always `403`. |
-| `DELETE` | `/-/team/{scope}/{team}` | Destroy a team — always `403`. |
-| `PUT` | `/-/team/{scope}/{team}/user` | Add a member — always `403`. |
-| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member — always `403`. |
+| `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
+| `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member. The body is `{"user": "<username>"}`. Returns `204`, also when the user was not a member. |
 
-A refused mutation carries the error code `teams_config_managed`: teams are
-declared in the pnpr configuration, so changing one means updating the config,
-not calling the API.
+Changes are accepted only on a registry with
+[`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
+
+- On any other registry a change returns `403` with the error code
+  `teams_config_managed`.
+- The caller must be one of the `auth.admins`. Others get `401` when
+  anonymous and `403` when signed in.
+- Creating a team that exists, or destroying one a `packages:` rule names,
+  returns `409`. Changing a team that does not exist returns `404`.
 
 Reads resolve `@{scope}` to a hosted registry the same way a package read in
 that scope would, then check that registry's default `access:` list. Unlike
@@ -308,3 +312,49 @@ including a resolver-only server that exposes no registry surface.
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
 | `DELETE` | `/-/user/token/{token}` | npm logout endpoint. Revokes the raw bearer token in the path when it belongs to the authenticated caller. |
+
+## Admin endpoints
+
+These endpoints are always mounted, on the path-less base only. Each requires
+one of the [`auth.admins`](configuration.md#auth). Others get `401` when
+anonymous and `403` when signed in.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/pnpr/v0/admin/users` | Every account, as `{"users": [{"name": ...}]}`, sorted by name. |
+| `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). The body is `{"password": "..."}`. Creating ignores `max_users`. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. The account's tokens stop working as soon as the account is gone, even before they are revoked. If the request fails, repeat it to revoke what is left. |
+| `GET` | `/-/pnpr/v0/admin/users/{name}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{name}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
+| `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the stored changes. |
+| `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `rules_config_managed`. |
+| `DELETE` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Drop the stored rule changes, so the config's rules apply again. Returns `204`. |
+
+To keep two admins from overwriting each other's changes, send the `version`
+you read as `If-Match` with a `PUT` or `DELETE`. If the stored changes have
+moved on since, the request answers `412` and changes nothing. Without
+`If-Match`, or with `If-Match: *`, the last change wins. A weak tag such as
+`W/"..."` never matches, and an `If-Match` that is not a list of quoted
+versions answers `400`.
+
+A rules body lists only what changes. Each list replaces the config's list of
+the same place:
+
+```json
+{
+  "access": ["$authenticated"],
+  "packages": {
+    "@corp/*": { "access": ["team:platform"], "publish": ["alice"] }
+  }
+}
+```
+
+A key the registry's `packages:` map does not declare, a malformed token, or a
+`team:` reference to a team the registry does not have returns `400`. The
+`{ecosystem}` and `{name}` are the pair the
+[registry directory](discovery.md#the-registry-directory) lists, for example
+`npm/private`.
+
+With the default htpasswd store, each replica keeps its own accounts, so an
+account change reaches only the replica that served it. Use a
+[shared auth backend](auth-backends.md) to run several replicas.

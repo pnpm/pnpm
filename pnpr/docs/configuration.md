@@ -341,9 +341,64 @@ access list names the **user** `platform`, even when a team of that name
 exists. Keeping the two apart means someone who can register a username can
 never inherit a team's grants by choosing its name.
 
-Because teams live in the config, they are served read-only over npm's
-team endpoints, and any attempt to create or modify one through the API is
-refused — see [Team endpoints](endpoints.md#team-endpoints).
+### Managing teams through the API {#managing-teams-through-the-api}
+
+By default the `teams:` map is the roster. npm's team endpoints serve it
+read-only and refuse every change. Set `teamsManagedBy: api` on a hosted
+registry to let the [`auth.admins`](#auth) edit its roster with `pnpm team`:
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+registries:
+  private:
+    type: hosted
+    teamsManagedBy: api
+    teams:
+      platform: [alice]
+    packages:
+      '@corp/*':
+        access: [team:platform]
+```
+
+- pnpr stores the roster in the hosted store, so every replica serves the same
+  one. A replica rereads it at most 10 seconds after another replica changes it.
+- If pnpr cannot read a stored roster, that registry's `team:` grants admit
+  nobody until a read succeeds. Other access rules are not affected.
+- The `teams:` map is used only until the first change is stored. After that,
+  editing `teams:` has no effect.
+- A team that a `packages:` rule names cannot be destroyed.
+- Only hosted registries accept `teamsManagedBy`.
+
+See [Team endpoints](endpoints.md#team-endpoints).
+
+### Changing rules through the API {#changing-rules-through-the-api}
+
+Set `rulesManagedBy: api` on a hosted registry to let the
+[`auth.admins`](#auth) change its rules without a config deploy:
+
+```yaml title="pnpr.yaml"
+registries:
+  private:
+    type: hosted
+    rulesManagedBy: api
+    packages:
+      '@corp/*':
+        access: $authenticated
+```
+
+- An admin can replace the registry-level `access:` and the `access`,
+  `publish`, and `unpublish` lists of every key the `packages:` map declares.
+  The keys themselves stay in the config, because they decide which registry
+  serves a name.
+- A change applies at once on the replica that took it. pnpr stores changes in
+  the hosted store, so other replicas apply them within 10 seconds.
+- Resetting the changes brings back the config's rules.
+- If pnpr cannot read the stored changes, the registry admits nobody until a
+  read succeeds.
+- Only hosted registries accept `rulesManagedBy`.
+
+See [Admin endpoints](endpoints.md#admin-endpoints).
 
 ## `oci`
 
@@ -395,6 +450,26 @@ the htpasswd file.
 
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database — see [Auth backends](auth-backends.md).
+
+`auth.admins` lists the usernames that may administer the registry. An admin
+may:
+
+- create and remove accounts, change passwords, and revoke tokens through the
+  [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
+  is disabled;
+- edit the teams of every registry with
+  [`teamsManagedBy: api`](#managing-teams-through-the-api);
+- change the rules of every registry with
+  [`rulesManagedBy: api`](#changing-rules-through-the-api).
+
+The first admin account still has to exist. Let it self-register before you
+set `max_users` to `-1`, or create it in the htpasswd file or the shared
+database.
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+```
 
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
 publishing alongside the password backend — see

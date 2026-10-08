@@ -323,11 +323,20 @@ macro_rules! recording_browser {
             args.run::<RecordingBrowser>(&config, Path::new(".")).await
         }
     };
+    (@helper run_bugs_with_registry_override) => {
+        async fn run_bugs_with_registry_override(
+            registry: String,
+            package: &str,
+        ) -> miette::Result<()> {
+            let args = BugsArgs { registry: Some(registry), packages: vec![package.to_owned()] };
+            args.run::<RecordingBrowser>(&Config::default(), Path::new(".")).await
+        }
+    };
     (@helper $unknown:ident) => {
         compile_error!(concat!(
             "unknown `recording_browser!` helper `",
             stringify!($unknown),
-            "`; expected one of: run_bugs_in_project, run_bugs_against_registry",
+            "`; expected one of: run_bugs_in_project, run_bugs_against_registry, run_bugs_with_registry_override",
         ));
     };
 }
@@ -446,6 +455,50 @@ async fn run_encodes_scoped_package_name_in_registry_request() {
         .await;
 
     run_bugs_against_registry(server.url(), "@scope/pkg").await.expect("bugs must succeed");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/scope/pkg/issues"]);
+}
+
+#[tokio::test]
+async fn run_opens_bugs_url_with_registry_override() {
+    recording_browser!(run_bugs_with_registry_override);
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "is-negative",
+        json!({ "bugs": { "url": "https://github.com/kevva/is-negative/issues" } }),
+    );
+    let mock = server
+        .mock("GET", "/is-negative/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_with_registry_override(server.url(), "is-negative").await
+        .expect("bugs must succeed with registry override");
+
+    mock.assert_async().await;
+    assert_eq!(opened_urls(), ["https://github.com/kevva/is-negative/issues"]);
+}
+
+#[tokio::test]
+async fn run_opens_bugs_url_with_registry_override_for_scoped_package() {
+    recording_browser!(run_bugs_with_registry_override);
+    let mut server = mockito::Server::new_async().await;
+    let body = version_response(
+        "@scope/pkg",
+        json!({ "bugs": { "url": "https://github.com/scope/pkg/issues" } }),
+    );
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create_async()
+        .await;
+
+    run_bugs_with_registry_override(server.url(), "@scope/pkg").await
+        .expect("bugs must succeed with registry override for scoped package");
 
     mock.assert_async().await;
     assert_eq!(opened_urls(), ["https://github.com/scope/pkg/issues"]);

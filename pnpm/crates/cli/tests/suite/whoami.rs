@@ -185,3 +185,42 @@ fn preserves_a_registry_path_prefix() {
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "alice");
     drop((root, server));
 }
+
+#[test]
+fn overrides_registry_with_flag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .match_header("authorization", "Bearer flag-token")
+        .with_status(200)
+        .with_body(r#"{"username":"bob"}"#)
+        .create();
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
+        .expect("write project .npmrc");
+    let auth_file = root.path().join("auth-npmrc");
+    let contents = format!(
+        "{}:_authToken=flag-token\n//127.0.0.1:1/:_authToken=wrong-token\n",
+        nerf(&registry),
+    );
+    fs::write(&auth_file, contents).expect("write auth .npmrc");
+
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("whoami")
+        .with_arg("--registry")
+        .with_arg(&registry)
+        .output()
+        .expect("spawn pacquet whoami");
+
+    mock.assert();
+    assert!(
+        output.status.success(),
+        "whoami with --registry must succeed (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "bob");
+    drop((root, server));
+}

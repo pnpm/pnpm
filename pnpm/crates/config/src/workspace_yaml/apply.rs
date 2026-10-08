@@ -111,6 +111,7 @@ impl WorkspaceSettings {
 
     pub(super) fn apply_optional_settings(&mut self, config: &mut Config) {
         overlay_some(&mut config.frozen_lockfile, self.frozen_lockfile.take());
+        overlay_some(&mut config.provenance, self.provenance.take());
         overlay_some(
             &mut config.prefer_symlinked_executables,
             self.prefer_symlinked_executables.take(),

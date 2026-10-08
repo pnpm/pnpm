@@ -67,7 +67,7 @@ jobs:
         uses: $/.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           tool: cargo-llvm-cov
 
@@ -77,7 +77,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -124,7 +124,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           tool: just
 

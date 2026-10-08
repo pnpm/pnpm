@@ -35,7 +35,7 @@ pnpm --filter=<deployed project name> --prod deploy <target directory>
 
 Usage in a docker image. After building everything in your monorepo, do this in a second image that uses your monorepo base image as a build context or in an additional build stage:
 
-```Dockerfile title="Dockerfile"
+```dockerfile title="Dockerfile"
 # syntax=docker/dockerfile:1.4
 
 FROM workspace as pruned

@@ -45,6 +45,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
+use pnpm_resolving_deps_resolver::UpdateTargets;
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_tarball::MemCache;
 use std::{
@@ -311,6 +312,11 @@ pub struct UpdateSelection<'a> {
     pub workspace_packages: Option<&'a WorkspacePackages>,
     /// `--interactive`: whether the update was invoked interactively.
     pub interactive: bool,
+    /// Narrows an update without selectors to the locked versions these
+    /// targets cover, so every other dependency keeps its locked version, as
+    /// pnpm's `updateMatching` does. `None` leaves the choice to
+    /// [`Self::packages`].
+    pub targets: Option<&'a UpdateTargets>,
 }
 
 #[derive(Clone, Copy)]

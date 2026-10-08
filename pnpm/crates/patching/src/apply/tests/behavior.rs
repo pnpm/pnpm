@@ -27,6 +27,72 @@ fn applies_patch_with_crlf_line_endings() {
     assert_eq!(after, "one\nadded\r\ntwo\n");
 }
 
+/// `diffy` matches the `new file mode` value exactly, so its `\r` must be
+/// gone before parsing. The created file keeps the patch's CRLF endings,
+/// as it does on pnpm 11.
+#[test]
+fn applies_a_crlf_patch_that_creates_a_file() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/sass/ext/_true.scss b/sass/ext/_true.scss"
+        "new file mode 100644"
+        "index 0000000000000000000000000000000000000000..d3f18165a7c5601ad806777478fa35e2e601cfc0"
+        "--- /dev/null"
+        "+++ b/sass/ext/_true.scss"
+        "@@ -0,0 +1,3 @@"
+        "+@function error($error) {"
+        "+  @error $error;"
+        "+}"
+    };
+    let patch = write_patch(patch_dir.path(), &patch.replace('\n', "\r\n"));
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let after = fs::read_to_string(patched.path().join("sass/ext/_true.scss")).unwrap();
+    assert_eq!(after, "@function error($error) {\r\n  @error $error;\r\n}\r\n");
+}
+
+#[test]
+fn applies_a_crlf_patch_that_deletes_a_file() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("gone.txt");
+    fs::write(&target, "one\ntwo\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/gone.txt b/gone.txt"
+        "deleted file mode 100644"
+        "index 1111111111111111111111111111111111111111..0000000000000000000000000000000000000000"
+        "--- a/gone.txt"
+        "+++ /dev/null"
+        "@@ -1,2 +0,0 @@"
+        "-one"
+        "-two"
+    };
+    let patch = write_patch(patch_dir.path(), &patch.replace('\n', "\r\n"));
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert!(!target.exists());
+}
+
+/// A patch with no `---`/`+++` headers takes its paths from the
+/// `diff --git` line, which is another value `diffy` matches exactly.
+#[test]
+fn applies_a_crlf_patch_that_only_changes_the_mode() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("run.sh"), "#!/bin/sh\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/run.sh b/run.sh"
+        "old mode 100644"
+        "new mode 100755"
+    };
+    let patch = write_patch(patch_dir.path(), &patch.replace('\n', "\r\n"));
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+}
+
 #[test]
 fn applies_an_insertion_with_context_on_both_sides() {
     let original = text_block_fnl! {

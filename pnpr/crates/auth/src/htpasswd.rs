@@ -122,7 +122,8 @@ pub(super) async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
     .await?
 }
 
-pub(super) async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
+/// Whether `password` matches the bcrypt `hash`.
+pub async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
     tokio::task::spawn_blocking(move || {
         bcrypt::verify(&password, &hash).map_err(RegistryError::from)
     })

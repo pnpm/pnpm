@@ -505,6 +505,9 @@ pub struct WorkspaceSettings {
     /// See [`Config::publish_wait_timeout`](crate::settings::Config::publish_wait_timeout).
     pub publish_wait_timeout: Option<u64>,
 
+    /// See [`Config::provenance`](crate::settings::Config::provenance).
+    pub provenance: Option<bool>,
+
     /// `tagVersionPrefix` from `pnpm-workspace.yaml`. See
     /// [`Config::tag_version_prefix`](crate::settings::Config::tag_version_prefix).
     /// Unset falls through to the `"v"` default. An empty string removes

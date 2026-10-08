@@ -91,6 +91,7 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
+    super::managed_state::refresh_managed_state(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let peer = request
@@ -145,7 +146,7 @@ async fn bearer_token_identity(
     let Some(parent) = claims.parent.as_ref() else {
         return Ok(Some(Identity::Anonymous));
     };
-    match state.inner.identity.auth.tokens.find_by_key(parent).await {
+    match owned_parent(state, parent).await {
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, peer)
                 .map_err(axum::response::IntoResponse::into_response)?;
@@ -154,6 +155,18 @@ async fn bearer_token_identity(
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
         Err(err) => Err(err.into_response()),
     }
+}
+
+/// The token an OCI bearer token was issued from, while its owner is still an
+/// account, as [`pnpr_auth::TokenBackend::lookup_record`] requires of a token
+/// sent directly.
+async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>, RegistryError> {
+    let auth = &state.inner.identity.auth;
+    let Some(record) = auth.tokens.find_by_key(key).await? else {
+        return Ok(None);
+    };
+    let owned = auth.users.password_hash(&record.username).await?.is_some();
+    Ok(owned.then_some(record))
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
@@ -175,8 +188,8 @@ async fn resolve_caller(
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
-        if let Some(username) = state.inner.identity.oidc.session(&raw_token)? {
-            return Ok(Identity::user(username));
+        if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
+            return Ok(super::oidc_groups::session_identity(&state.inner.config, user));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -294,7 +307,8 @@ pub(super) fn authorize(
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let effective = source_rules(state, source).for_package(package);
+    let rules = source_rules(state, source).snapshot();
+    let effective = rules.for_package(package);
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,

@@ -1,8 +1,11 @@
 use super::{
-    TeamError, TeamInfo, UserInfo, org_team_url, parse_scope_team, render_members, render_teams,
-    team_url, team_user_url,
+    TeamContext, TeamError, parse_scope_team,
+    registry::{TeamInfo, UserInfo, org_team_url, registry_for_scope, team_url, team_user_url},
+    render::{render_members, render_teams},
 };
+use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;
+use std::collections::HashMap;
 
 #[test]
 fn parse_scope_team_returns_scope_only() {
@@ -137,6 +140,22 @@ fn team_url_constructs_correctly() {
 }
 
 #[test]
+fn team_endpoints_preserve_path_prefix() {
+    assert_eq!(
+        org_team_url("https://registry.example.com/npm/", "@myorg"),
+        "https://registry.example.com/npm/-/org/%40myorg/team",
+    );
+    assert_eq!(
+        team_url("https://registry.example.com/npm/", "myorg", "developers"),
+        "https://registry.example.com/npm/-/team/myorg/developers",
+    );
+    assert_eq!(
+        team_user_url("https://registry.example.com/npm/", "myorg", "developers"),
+        "https://registry.example.com/npm/-/team/myorg/developers/user",
+    );
+}
+
+#[test]
 fn normalize_registry_url_adds_trailing_slash() {
     assert_eq!(
         normalize_registry_url("https://registry.example.com"),
@@ -161,4 +180,46 @@ fn team_error_display_and_code() {
     let report: miette::Report = err.into();
     let formatted = format!("{report:?}");
     assert!(formatted.contains("ERR_PNPM_UNAUTHORIZED"));
+}
+
+#[test]
+fn registry_for_scope_uses_scoped_registry_by_default() {
+    let config = Config::default();
+    let registries = HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = TeamContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: None,
+        otp: None,
+        parseable: false,
+        json: false,
+    };
+    let registry = registry_for_scope(&context, "myorg");
+    assert_eq!(registry, "https://scoped.example/npm/");
+}
+
+#[test]
+fn registry_for_scope_honors_registry_override() {
+    let config = Config::default();
+    let registries = HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = TeamContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: Some("https://override.example/npm/"),
+        otp: None,
+        parseable: false,
+        json: false,
+    };
+    let registry = registry_for_scope(&context, "myorg");
+    assert_eq!(registry, "https://override.example/npm/");
 }

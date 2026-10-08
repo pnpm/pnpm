@@ -149,7 +149,7 @@ fn talks_only_to_the_registry(command: &CliCommand) -> bool {
             | CliCommand::Undeprecate(_)
             | CliCommand::Unpublish(_)
             | CliCommand::Unstar(_)
-            | CliCommand::Whoami,
+            | CliCommand::Whoami(_),
     )
 }
 

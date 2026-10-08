@@ -3,12 +3,13 @@ use super::{
     crate_archive, fabricate_crashed_crate_publish, header, json, metadata, publish_body,
     publish_request, recover_publish_journal, registry_groups, router_with_auth, sha256_hex,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn publish_then_resolve_and_download_a_hosted_crate() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -137,7 +138,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
 async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -222,7 +223,7 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
 async fn yank_and_unyank_flip_the_index_entry() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -319,7 +320,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
 async fn a_publishers_description_cannot_grow_a_search_response() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -358,7 +359,7 @@ async fn a_publishers_description_cannot_grow_a_search_response() {
 async fn search_reports_the_newest_unyanked_release() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -452,7 +453,7 @@ async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let config = cargo_config(storage.clone(), "http://upstream.invalid/", "$all");
     let app = router_with_auth(config.clone(), auth);
     let archive = crate_archive("demo", "0.2.0");
@@ -486,7 +487,7 @@ async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
 async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(registry_groups::grouped_config(tmp.path(), "$all"), auth);
     let archive = crate_archive("demo", "0.1.0");
     let request = Request::put("/cargo/~internal/api/v1/crates/new")
