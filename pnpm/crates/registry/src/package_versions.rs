@@ -25,7 +25,7 @@
 //! refetch, and the etag lives in the intact headers record, so nothing
 //! else would ever repair the file.
 
-pub use mirror::{MirrorFile, MirrorFragments, read_exact_at};
+pub use mirror::{MirrorFile, read_exact_at};
 
 use std::{
     borrow::Cow,
