@@ -43,7 +43,7 @@ fn sanitizes_collisions_and_empty_components() {
     let input = entries(&["name?.txt", "name.txt", "?/file", "longfilename.txt", "LONG~LMQ?.TXT"]);
     let sanitized = sanitize_filenames(&input).unwrap();
     assert_eq!(sanitized.paths.len(), 4);
-    assert_eq!(sanitized.paths["name.txt"], PathBuf::from("name?.txt"));
+    assert_eq!(sanitized.paths["name.txt"], PathBuf::from("name.txt"));
     let reversed = sanitize_filenames(&entries(&["name.txt", "name?.txt"])).unwrap();
     assert_eq!(sanitized.paths["name.txt"], reversed.paths["name.txt"]);
     assert_eq!(sanitized.paths["file"], PathBuf::from("?/file"));
@@ -64,4 +64,15 @@ fn rejects_sanitized_paths_that_need_a_file_and_a_directory() {
     assert!(sanitize_filenames(&entries(&["foo?", "foo/bar"])).is_none());
     assert!(sanitize_filenames(&entries(&["Foo?", "foo/bar"])).is_none());
     assert!(sanitize_filenames(&entries(&["foo?", "foobar/baz"])).is_some());
+}
+
+#[test]
+fn keeps_one_source_per_case_insensitive_path() {
+    let input =
+        entries(&["name?.txt", "NAME.txt", "b?.txt", "B*.txt", "package.json", "package?.json"]);
+    let sanitized = sanitize_filenames(&input).unwrap();
+    assert_eq!(sanitized.paths.len(), 3);
+    assert_eq!(sanitized.paths["NAME.txt"], PathBuf::from("NAME.txt"));
+    assert_eq!(sanitized.paths["b.txt"], PathBuf::from("b?.txt"));
+    assert_eq!(sanitized.paths["package.json"], PathBuf::from("package.json"));
 }

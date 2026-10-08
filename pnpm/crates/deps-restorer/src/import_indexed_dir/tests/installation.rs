@@ -80,8 +80,6 @@ fn renamed_windows_filename_collision_installs_one_file() {
     let renamed = write_source(&src_root, "renamed", b"renamed");
     let cas = cas_map(&[("name.txt", original), ("name*.txt", renamed)]);
     let target = tmp.path().join("pkg");
-    let sanitized = super::super::windows_filenames::sanitize_filenames(&cas).unwrap();
-    let expected = fs::read(&sanitized.paths["name.txt"]).unwrap();
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
@@ -91,7 +89,7 @@ fn renamed_windows_filename_collision_installs_one_file() {
         ImportIndexedDirOpts::default(),
     )
     .expect("colliding sanitized paths should not be rejected");
-    assert_eq!(fs::read(target.join("name.txt")).unwrap(), expected);
+    assert_eq!(fs::read(target.join("name.txt")).unwrap(), b"original");
 }
 
 #[cfg(windows)]

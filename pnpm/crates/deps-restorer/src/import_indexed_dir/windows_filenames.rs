@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 pub(super) struct SanitizedFilenames {
     pub paths: HashMap<String, PathBuf>,
@@ -9,42 +6,50 @@ pub(super) struct SanitizedFilenames {
 }
 
 /// Rename invalid Windows filename components, as pnpm 11's fallback does.
+///
+/// Paths that Windows treats as equal (case-insensitively) keep one source.
+/// A name that needed no renaming wins over a renamed one, so `package?.json`
+/// never replaces `package.json`. Otherwise the later name in sorted order wins.
 pub(super) fn sanitize_filenames(
     cas_paths: &HashMap<String, PathBuf>,
 ) -> Option<SanitizedFilenames> {
-    let mut paths = HashMap::with_capacity(cas_paths.len());
-    let mut renamed = Vec::new();
-    let mut entries: Vec<_> = cas_paths.iter().collect();
-    entries.sort_unstable_by_key(|(filename, _)| *filename);
-    for (filename, source) in entries {
+    let mut entries = Vec::with_capacity(cas_paths.len());
+    for (filename, source) in cas_paths {
         let sanitized = sanitize_path(filename);
         if sanitized.is_empty() {
             return None;
         }
+        entries.push((sanitized, filename, source));
+    }
+    entries.sort_unstable_by_key(|(sanitized, filename, _)| (sanitized == *filename, *filename));
+    let mut paths = HashMap::with_capacity(entries.len());
+    let mut spelling_by_folded_path = HashMap::with_capacity(entries.len());
+    let mut renamed = Vec::new();
+    for (sanitized, filename, source) in entries {
         if sanitized != *filename {
             renamed.push(filename.clone());
         }
+        if let Some(replaced) =
+            spelling_by_folded_path.insert(sanitized.to_lowercase(), sanitized.clone())
+        {
+            paths.remove(&replaced);
+        }
         paths.insert(sanitized, source.clone());
     }
-    if renamed.is_empty() || has_file_dir_conflict(&paths) {
+    if renamed.is_empty() || has_file_dir_conflict(&spelling_by_folded_path) {
         return None;
     }
     Some(SanitizedFilenames { paths, renamed })
 }
 
-/// Whether one path is a proper ancestor of another, compared
-/// case-insensitively as Windows does: `foo?` and `foo/bar` would need
-/// `foo` to be both a file and a directory.
-fn has_file_dir_conflict(paths: &HashMap<String, PathBuf>) -> bool {
-    let lowercase_paths: HashSet<String> = paths
+/// Whether one case-folded path is a proper ancestor of another: `foo?` and
+/// `foo/bar` would need `foo` to be both a file and a directory.
+fn has_file_dir_conflict(spelling_by_folded_path: &HashMap<String, String>) -> bool {
+    spelling_by_folded_path
         .keys()
-        .map(|path| path.to_lowercase())
-        .collect();
-    lowercase_paths
-        .iter()
         .any(|path| {
             path.match_indices('/')
-                .any(|(slash, _)| lowercase_paths.contains(&path[..slash]))
+                .any(|(slash, _)| spelling_by_folded_path.contains_key(&path[..slash]))
         })
 }
 
