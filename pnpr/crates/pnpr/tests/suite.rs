@@ -31,3 +31,4 @@ mod s3_backend;
 mod server;
 mod staged_publish;
 mod team_administration;
+mod user_administration;

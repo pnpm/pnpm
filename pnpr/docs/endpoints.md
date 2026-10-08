@@ -312,3 +312,21 @@ including a resolver-only server that exposes no registry surface.
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. |
 | `DELETE` | `/-/npm/v1/tokens/token/{key}` | Revokes one of the caller's tokens by listing-side token key. |
 | `DELETE` | `/-/user/token/{token}` | npm logout endpoint. Revokes the raw bearer token in the path when it belongs to the authenticated caller. |
+
+## Admin endpoints
+
+These endpoints are always mounted, on the path-less base only. Each requires
+one of the [`auth.admins`](configuration.md#auth). Others get `401` when
+anonymous and `403` when signed in.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/pnpr/v0/admin/users` | Every account, as `{"users": [{"name": ...}]}`, sorted by name. |
+| `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). The body is `{"password": "..."}`. Creating ignores `max_users`. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. |
+| `GET` | `/-/pnpr/v0/admin/users/{name}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{name}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
+
+With the default htpasswd store, each replica keeps its own accounts, so an
+account change reaches only the replica that served it. Use a
+[shared auth backend](auth-backends.md) to run several replicas.

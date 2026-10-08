@@ -147,6 +147,26 @@ pub(super) fn require_caller(identity: &Identity, resource: &str) -> Result<Stri
     }
 }
 
+/// Require that an endpoint's caller is one of the `auth.admins`: 401 for an
+/// anonymous caller, 403 for anyone else. `action` and `resource` complete
+/// the 403 message.
+pub(super) fn require_admin(
+    state: &AppState,
+    identity: &Identity,
+    action: &'static str,
+    resource: String,
+) -> Result<(), RegistryError> {
+    if state.inner.config.identity.is_admin(identity) {
+        return Ok(());
+    }
+    match identity {
+        Identity::User { username } => {
+            Err(RegistryError::Forbidden { user: username.clone(), action, resource })
+        }
+        Identity::Anonymous => Err(RegistryError::Unauthenticated { resource }),
+    }
+}
+
 pub(super) async fn caller_username(
     state: &AppState,
     headers: &HeaderMap,

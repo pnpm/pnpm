@@ -188,6 +188,37 @@ impl AuthSqlBackend for PostgresDatabase {
             .await?;
         Ok(())
     }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar("SELECT username FROM users ORDER BY username").fetch_all(&self.pool)
+            .await?)
+    }
+
+    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool> {
+        let updated = sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE username = $1")
+            .bind(username)
+            .bind(bcrypt_hash)
+            .execute(&self.pool)
+            .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let removed = sqlx::query("DELETE FROM users WHERE username = $1")
+            .bind(username)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+        if removed > 0 {
+            sqlx::query("UPDATE auth_counters SET value = value - 1 WHERE name = $1 AND value > 0")
+                .bind("users")
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(removed > 0)
+    }
 }
 
 impl PostgresDatabase {

@@ -101,6 +101,10 @@ trait AuthSqlBackend: Send + Sync {
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
+    async fn list_usernames(&self) -> Result<Vec<String>>;
+    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
+    /// Remove the user and take one off the `users` counter in one transaction.
+    async fn delete_user(&self, username: &str) -> Result<bool>;
 }
 
 #[derive(Clone)]
@@ -147,6 +151,28 @@ where
                 }
             },
         }
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        with_auth_timeout(self.timeout, self.db.list_usernames()).await
+    }
+
+    /// Inserts as an uncapped store would, so the `users` counter still
+    /// counts the new user.
+    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+        validate_username(username)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        let inserted = self.db.insert_user(username, &hash, MaxUsers::Unlimited).await?;
+        Ok(matches!(inserted, InsertUser::Created))
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.db.update_password_hash(username, &hash).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        self.db.delete_user(username).await
     }
 }
 

@@ -533,3 +533,47 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
         "the error should name the row, so an operator can find it: {message}",
     );
 }
+
+/// The admin operations every [`UserBackend`] supports, starting from an
+/// empty store.
+pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
+    assert!(users.create_user("alice", "first").await.unwrap());
+    assert!(!users.create_user("alice", "other").await.unwrap());
+    assert_eq!(users.list_users().await.unwrap(), ["alice"]);
+
+    assert!(users.set_password("alice", "second").await.unwrap());
+    assert!(users.add_or_login("alice", "first").await.is_err());
+    assert!(matches!(
+        users.add_or_login("alice", "second").await.unwrap(),
+        (UpsertOutcome::LoggedIn, _),
+    ));
+    assert!(!users.set_password("bob", "x").await.unwrap());
+
+    assert!(users.delete_user("alice").await.unwrap());
+    assert!(!users.delete_user("alice").await.unwrap());
+    assert!(
+        users
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[tokio::test]
+async fn user_store_supports_the_admin_operations() {
+    assert_admin_round_trip(&test_user_store()).await;
+}
+
+#[tokio::test]
+async fn admin_created_users_bypass_disabled_registration_and_persist() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
+    assert!(store.create_user("alice", "secret").await.unwrap());
+    assert!(store.create_user("bob", "secret").await.unwrap());
+    assert!(store.delete_user("bob").await.unwrap());
+
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}

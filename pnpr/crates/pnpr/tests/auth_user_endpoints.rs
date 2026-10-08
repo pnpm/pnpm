@@ -120,6 +120,22 @@ impl UserBackend for CanonicalUserBackend {
         assert_eq!(username, "alice");
         Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
     }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        Ok(vec!["Alice".to_string()])
+    }
+
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
 }
 
 #[tokio::test]

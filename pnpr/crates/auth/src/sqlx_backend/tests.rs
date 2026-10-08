@@ -71,6 +71,18 @@ impl AuthSqlBackend for CanonicalBackend {
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
     }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<bool> {
+        Ok(false)
+    }
 }
 
 #[async_trait]
@@ -115,6 +127,18 @@ impl AuthSqlBackend for SlowLookupBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<bool> {
+        Ok(false)
     }
 }
 
@@ -162,6 +186,18 @@ impl AuthSqlBackend for SlowWriteBackend {
         tokio::time::sleep(Duration::from_millis(20)).await;
         Ok(())
     }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<bool> {
+        Ok(false)
+    }
 }
 
 #[async_trait]
@@ -207,6 +243,18 @@ impl AuthSqlBackend for CountingLookupBackend {
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
     }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<bool> {
+        Ok(false)
+    }
 }
 
 #[async_trait]
@@ -251,6 +299,18 @@ impl AuthSqlBackend for CappedBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(&self, _username: &str, _bcrypt_hash: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<bool> {
+        Ok(false)
     }
 }
 
