@@ -17,6 +17,7 @@ pub use hosted::{HostedConfig, Management};
 pub use pnpr_policy::{TeamDirectory, Teams};
 
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
+pub use scim::ScimConfig;
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
@@ -55,6 +56,7 @@ mod hosted;
 use access::{build_admins, build_teams};
 
 mod s3;
+mod scim;
 
 mod upstream;
 

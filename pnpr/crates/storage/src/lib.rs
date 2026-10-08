@@ -24,7 +24,7 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
-pub use registry_records::RegistryRecord;
+pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
 mod staged_records;
 

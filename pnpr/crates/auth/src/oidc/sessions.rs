@@ -29,6 +29,15 @@ impl OidcState {
             .is_some()
     }
 
+    /// Revoke every browser session `username` holds on this process,
+    /// returning how many there were.
+    pub fn revoke_user_sessions(&self, username: &str) -> usize {
+        let mut sessions = self.sessions.lock().expect("OIDC session mutex poisoned");
+        let before = sessions.len();
+        sessions.retain(|_, session| session.user.username != username);
+        before - sessions.len()
+    }
+
     pub(super) fn issue_session(&self, user: SessionUser, expiration: i64) -> Result<LoginSession> {
         let now = Utc::now().timestamp();
         let expires = expiration.min(now + 3600);

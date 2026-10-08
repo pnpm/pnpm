@@ -91,6 +91,7 @@ mod registry_directory;
 mod routing;
 mod rule_admin;
 mod rule_overrides;
+mod scim;
 mod staged;
 mod striped_locks;
 mod team_mutations;

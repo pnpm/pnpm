@@ -132,6 +132,13 @@ async fn log_in(
     name: &str,
     password: &str,
 ) -> Result<(UpsertOutcome, String, String), RegistryError> {
+    if super::scim::is_deprovisioned(state, name) {
+        return Err(RegistryError::Forbidden {
+            user: name.to_string(),
+            action: "sign in to",
+            resource: "this account, which an identity provider deprovisioned".to_string(),
+        });
+    }
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {

@@ -1,5 +1,7 @@
 use super::{
-    AppState, Config, IndexMap, RegistryError, rule_overrides::reload_rules,
+    AppState, Config, IndexMap, RegistryError,
+    rule_overrides::reload_rules,
+    scim::{ScimState, reload_directory},
     team_rosters::reload_roster,
 };
 use futures_util::future::join_all;
@@ -24,9 +26,9 @@ const STATE_RETRY: Duration = Duration::from_secs(1);
 /// replaced it first.
 pub(super) const WRITE_ATTEMPTS: usize = 5;
 
-/// The parts of hosted registries that admins manage through the admin API:
-/// team rosters (`teamsManagedBy: api`) and package rules
-/// (`rulesManagedBy: api`).
+/// The state admins and identity providers manage at runtime: team rosters
+/// (`teamsManagedBy: api`), package rules (`rulesManagedBy: api`), and the
+/// SCIM directory (`auth.scim`).
 ///
 /// The hosted store holds each one as a [`RegistryRecord`], so every replica
 /// sees the same state. A registry with no stored record yet serves its YAML.
@@ -36,6 +38,9 @@ pub(super) struct ManagedState {
     /// Each rules-managed registry's rules as the YAML declares them, keyed
     /// by registry name. Stored changes apply on top of these.
     pub(super) rule_bases: IndexMap<String, Arc<RuleTable>>,
+    /// The usernames the SCIM directory marks inactive. `None` without
+    /// `auth.scim`.
+    pub(super) scim: Option<ScimState>,
     /// When the state is next due for a reload. `None` before the first.
     due_at: Mutex<Option<Instant>>,
     /// Held by a reload and by every edit, so a reload that read the store
@@ -56,11 +61,12 @@ impl ManagedState {
         let rule_bases = managed(|hosted| hosted.rules_managed_by)
             .map(|(name, hosted)| (name.clone(), hosted.rules.snapshot()))
             .collect();
-        Self { roster_seeds, rule_bases, due_at: Mutex::new(None), reload: Arc::default() }
+        let scim = config.identity.auth.scim.as_ref().map(|_| ScimState::default());
+        Self { roster_seeds, rule_bases, scim, due_at: Mutex::new(None), reload: Arc::default() }
     }
 
     fn is_empty(&self) -> bool {
-        self.roster_seeds.is_empty() && self.rule_bases.is_empty()
+        self.roster_seeds.is_empty() && self.rule_bases.is_empty() && self.scim.is_none()
     }
 
     fn due_at(&self) -> Option<Instant> {
@@ -108,7 +114,12 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let rules =
         managed.rule_bases.iter().map(|(registry, base)| reload_rules(&state, registry, base));
     let rules_read = join_all(rules).await.into_iter().all(|read| read);
-    managed.schedule(if rosters_read && rules_read { STATE_TTL } else { STATE_RETRY });
+    let scim_read = match &managed.scim {
+        Some(scim) => reload_directory(&state, scim).await,
+        None => true,
+    };
+    let all_read = rosters_read && rules_read && scim_read;
+    managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
 }
 
 /// Store `bytes` as the record of `kind` for `registry`: create it when

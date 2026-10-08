@@ -102,6 +102,9 @@ pub(super) async fn authenticate(
     if let Some(raw) = header.as_deref().and_then(token_credentials) {
         match bearer_token_identity(&state, &raw, &method, &path, peer).await {
             Ok(Some(identity)) => {
+                if let Err(err) = refuse_deprovisioned(&state, &identity) {
+                    return err.into_response();
+                }
                 request
                     .extensions_mut()
                     .insert(AuthedCaller(identity));
@@ -112,7 +115,11 @@ pub(super) async fn authenticate(
         }
     }
 
-    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
+    let resolved = resolve_caller(&state, header.as_deref(), &method, &path, peer).await;
+    let identity = match resolved.and_then(|identity| {
+        refuse_deprovisioned(&state, &identity)?;
+        Ok(identity)
+    }) {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
@@ -120,6 +127,21 @@ pub(super) async fn authenticate(
         .extensions_mut()
         .insert(AuthedCaller(identity));
     next.run(request).await
+}
+
+/// Refuse the credentials of a user a SCIM client deprovisioned. Its stored
+/// tokens are already revoked, but a browser session on another replica
+/// lives until that replica reloads the directory.
+pub(super) fn refuse_deprovisioned(
+    state: &AppState,
+    identity: &Identity,
+) -> Result<(), RegistryError> {
+    match identity {
+        Identity::User { username, .. } if super::scim::is_deprovisioned(state, username) => {
+            Err(RegistryError::Unauthenticated { resource: "a deprovisioned account".to_string() })
+        }
+        _ => Ok(()),
+    }
 }
 
 /// The identity an OCI bearer token carries, or `None` when the credential is

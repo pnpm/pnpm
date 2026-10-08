@@ -172,12 +172,20 @@ pub(super) async fn caller_username(
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
-    if let Some(raw) = authorization.and_then(authentication::bearer_credentials)
-        && let Some(user) = state.inner.identity.oidc.session(raw)?
+    let username = match authorization.and_then(authentication::bearer_credentials) {
+        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => {
+            Some(user.username)
+        }
+        _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
+    };
+    if let Some(username) = &username
+        && super::scim::is_deprovisioned(state, username)
     {
-        return Ok(Some(user.username));
+        return Err(RegistryError::Unauthenticated {
+            resource: "a deprovisioned account".to_string(),
+        });
     }
-    identify(authorization, state.inner.identity.auth.tokens.as_ref()).await
+    Ok(username)
 }
 
 pub(super) async fn require_resolver_caller(

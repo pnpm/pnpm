@@ -8,13 +8,20 @@ pub enum RegistryRecord {
     TeamRoster,
     /// The rule changes of a registry whose rules the admin API manages.
     RuleOverrides,
+    /// The accounts a SCIM client provisioned, under the key
+    /// [`SCIM_DIRECTORY`] rather than a registry name.
+    ScimUsers,
 }
+
+/// The key of the one [`RegistryRecord::ScimUsers`] record.
+pub const SCIM_DIRECTORY: &str = "directory";
 
 impl RegistryRecord {
     const fn namespace(self) -> &'static str {
         match self {
             RegistryRecord::TeamRoster => ".team-rosters/v0",
             RegistryRecord::RuleOverrides => ".rule-overrides/v0",
+            RegistryRecord::ScimUsers => ".scim-users/v0",
         }
     }
 }
