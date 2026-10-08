@@ -30,6 +30,7 @@ fn test_user_store() -> UserStore {
         path: None,
         max_users: MaxUsers::Unlimited,
         bcrypt_cost: TEST_COST,
+        persist_lock: tokio::sync::Mutex::new(()),
     }
 }
 
@@ -154,6 +155,7 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
         // tasks to clear the initial missing-user check before either
         // takes the lock — i.e. to actually exercise the race window.
         bcrypt_cost: 8,
+        persist_lock: tokio::sync::Mutex::new(()),
     });
     let barrier = Arc::new(Barrier::new(3));
 
@@ -248,6 +250,7 @@ async fn max_users_minus_one_disables_registration() {
         path: None,
         max_users: MaxUsers::Disabled,
         bcrypt_cost: TEST_COST,
+        persist_lock: tokio::sync::Mutex::new(()),
     };
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
@@ -269,6 +272,7 @@ async fn max_users_caps_new_registrations() {
         path: None,
         max_users: MaxUsers::Limited(2),
         bcrypt_cost: TEST_COST,
+        persist_lock: tokio::sync::Mutex::new(()),
     };
     store.add_or_login("alice", "x").await.unwrap();
     store.add_or_login("bob", "x").await.unwrap();
@@ -576,4 +580,27 @@ async fn admin_created_users_bypass_disabled_registration_and_persist() {
 
     let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_edits_leave_the_file_matching_memory() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store =
+        Arc::new(UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap());
+    let mut edits = tokio::task::JoinSet::new();
+    for index in 0..32 {
+        let store = Arc::clone(&store);
+        edits.spawn(async move {
+            let name = format!("user{index}");
+            store.create_user(&name, "x").await.unwrap();
+            if index % 2 == 0 {
+                store.delete_user(&name).await.unwrap();
+            }
+        });
+    }
+    edits.join_all().await;
+
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), store.list_users().await.unwrap());
 }

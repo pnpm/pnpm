@@ -111,7 +111,7 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
             Ok(o) => o,
             Err(err) => return err.into_response(),
         };
-    let token = match state.inner.identity.auth.tokens.issue(&username).await {
+    let token = match issue_login_token(state, &username).await {
         Ok(t) => t,
         Err(err) => return err.into_response(),
     };
@@ -128,6 +128,20 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         .header(header::CACHE_CONTROL, "no-cache")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Issue a token for a login that just verified `username`. An admin may
+/// remove the account between the check and the issue, after the removal
+/// revoked the account's tokens, so the account is checked again once the
+/// token exists and the token is revoked when it is gone.
+async fn issue_login_token(state: &AppState, username: &str) -> Result<String, RegistryError> {
+    let auth = &state.inner.identity.auth;
+    let token = auth.tokens.issue(username).await?;
+    if auth.users.exists(username).await? {
+        return Ok(token);
+    }
+    auth.tokens.revoke_by_raw(&token).await?;
+    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
 }
 
 /// `GET /-/whoami` — return the username of the caller, or 401 if

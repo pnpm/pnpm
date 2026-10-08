@@ -6,9 +6,15 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{
+    AuthState, Config, RegistryError, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserStore, router, router_with_auth,
+};
 use serde_json::{Value, json};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    sync::Arc,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -168,4 +174,100 @@ async fn only_admins_use_the_user_api() {
         );
         assert_eq!(send(&app, method, path, None, body).await.0, StatusCode::UNAUTHORIZED);
     }
+}
+
+/// A user store whose one account is removed between a login's password
+/// check and its token.
+struct RemovedDuringLogin;
+
+#[async_trait::async_trait]
+impl UserBackend for RemovedDuringLogin {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        _password: &str,
+    ) -> pnpr::Result<(UpsertOutcome, String)> {
+        Ok((UpsertOutcome::LoggedIn, username.to_string()))
+    }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn exists(&self, _username: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+}
+
+#[tokio::test]
+async fn a_login_racing_a_removal_keeps_no_token() {
+    let dir = TempDir::new().unwrap();
+    let tokens = Arc::new(TokenStore::in_memory());
+    let auth = AuthState { users: Arc::new(RemovedDuringLogin), tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(&dir), auth);
+
+    assert_eq!(login(&app, "bob", "x").await, Err(StatusCode::UNAUTHORIZED));
+    assert!(
+        tokens
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+/// A token store that cannot revoke.
+struct FailingRevocation(TokenStore);
+
+#[async_trait::async_trait]
+impl TokenBackend for FailingRevocation {
+    async fn issue(&self, username: &str) -> pnpr::Result<String> {
+        self.0.issue(username).await
+    }
+
+    async fn lookup(&self, raw: &str) -> pnpr::Result<Option<String>> {
+        self.0.lookup(raw).await
+    }
+
+    async fn find_by_key(&self, key: &str) -> pnpr::Result<Option<TokenRecord>> {
+        self.0.find_by_key(key).await
+    }
+
+    async fn list_for_user(&self, username: &str) -> pnpr::Result<Vec<(String, TokenRecord)>> {
+        self.0.list_for_user(username).await
+    }
+
+    async fn revoke_by_key(&self, _key: &str) -> pnpr::Result<Option<TokenRecord>> {
+        Err(RegistryError::Internal { reason: "revocation is down".to_string() })
+    }
+}
+
+#[tokio::test]
+async fn a_failed_revocation_keeps_the_account() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    let auth = AuthState {
+        users: Arc::clone(&users) as _,
+        tokens: Arc::new(FailingRevocation(TokenStore::in_memory())),
+    };
+    let app = router_with_auth(load_config(&dir), auth);
+    let root = login(&app, "root", "secret").await.unwrap();
+    users.create_user("bob", "x").await.unwrap();
+    login(&app, "bob", "x").await.unwrap();
+
+    let (status, _) = send(&app, "DELETE", "/-/pnpr/v0/admin/users/bob", Some(&root), None).await;
+    assert!(status.is_server_error(), "{status}");
+    assert!(users.exists("bob").await.unwrap());
 }

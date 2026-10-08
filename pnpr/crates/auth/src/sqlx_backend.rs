@@ -157,6 +157,10 @@ where
         with_auth_timeout(self.timeout, self.db.list_usernames()).await
     }
 
+    async fn exists(&self, username: &str) -> Result<bool> {
+        Ok(with_auth_timeout(self.timeout, self.db.stored_user(username)).await?.is_some())
+    }
+
     /// Inserts as an uncapped store would, so the `users` counter still
     /// counts the new user.
     async fn create_user(&self, username: &str, password: &str) -> Result<bool> {

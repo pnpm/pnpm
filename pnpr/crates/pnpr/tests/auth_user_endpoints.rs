@@ -125,6 +125,10 @@ impl UserBackend for CanonicalUserBackend {
         Ok(vec!["Alice".to_string()])
     }
 
+    async fn exists(&self, username: &str) -> pnpr::Result<bool> {
+        Ok(username == "Alice")
+    }
+
     async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
         Ok(false)
     }

@@ -282,6 +282,9 @@ pub trait UserBackend: Send + Sync {
     /// Every stored username, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
+    /// Whether `username` is stored.
+    async fn exists(&self, username: &str) -> Result<bool>;
+
     /// Create `username` on an administrator's behalf, reporting `false`
     /// when it exists. Not bound by the self-registration cap.
     async fn create_user(&self, username: &str, password: &str) -> Result<bool>;

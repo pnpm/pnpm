@@ -17,6 +17,9 @@ pub struct UserStore {
     pub(crate) path: Option<PathBuf>,
     pub(crate) max_users: MaxUsers,
     pub(crate) bcrypt_cost: u32,
+    /// Held across serializing and writing the file, so writes land in
+    /// the order their contents were taken.
+    pub(crate) persist_lock: tokio::sync::Mutex<()>,
 }
 
 impl UserStore {
@@ -35,6 +38,7 @@ impl UserStore {
             path: None,
             max_users,
             bcrypt_cost: DEFAULT_BCRYPT_COST,
+            persist_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -58,7 +62,13 @@ impl UserStore {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
             Err(err) => return Err(err.into()),
         };
-        Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
+        Ok(Self {
+            users: Mutex::new(users),
+            path: Some(path),
+            max_users,
+            bcrypt_cost,
+            persist_lock: tokio::sync::Mutex::new(()),
+        })
     }
 
     /// Reject registration before spending time hashing a new password.
@@ -85,21 +95,21 @@ impl UserStore {
         &self,
         edit: impl FnOnce(&mut HashMap<String, String>) -> bool,
     ) -> Result<bool> {
-        let snapshot = {
-            let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            if !edit(&mut users) {
-                return Ok(false);
-            }
-            serialize_htpasswd(&users)
-        };
-        self.persist(snapshot).await?;
+        if !edit(&mut self.users.lock().expect("UserStore mutex poisoned")) {
+            return Ok(false);
+        }
+        self.persist().await?;
         Ok(true)
     }
 
-    async fn persist(&self, body: String) -> Result<()> {
+    /// Write the users as they stand now. Every edit calls this after it
+    /// lands, so the last write holds every edit.
+    async fn persist(&self) -> Result<()> {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
+        let _persist = self.persist_lock.lock().await;
+        let body = serialize_htpasswd(&self.users.lock().expect("UserStore mutex poisoned"));
         tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
         Ok(())
     }
@@ -132,7 +142,7 @@ impl UserBackend for UserStore {
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         enum NextStep {
-            Persist(String),
+            Persist,
             VerifyExisting(String),
         }
         let next_step = {
@@ -146,13 +156,13 @@ impl UserBackend for UserStore {
                 }
                 (None, _) => {
                     users.insert(username.to_string(), hash);
-                    NextStep::Persist(serialize_htpasswd(&users))
+                    NextStep::Persist
                 }
             }
         };
         match next_step {
-            NextStep::Persist(snapshot) => {
-                self.persist(snapshot).await?;
+            NextStep::Persist => {
+                self.persist().await?;
                 Ok((UpsertOutcome::Created, username.to_string()))
             }
             NextStep::VerifyExisting(stored) => {
@@ -170,6 +180,13 @@ impl UserBackend for UserStore {
             .collect();
         names.sort();
         Ok(names)
+    }
+
+    async fn exists(&self, username: &str) -> Result<bool> {
+        Ok(self.users
+            .lock()
+            .expect("UserStore mutex poisoned")
+            .contains_key(username))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<bool> {

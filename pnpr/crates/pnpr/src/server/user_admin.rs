@@ -90,7 +90,10 @@ async fn put_user(
 }
 
 /// `DELETE /-/pnpr/v0/admin/users/{user}` — remove the user and revoke every
-/// token it holds.
+/// token it holds. The tokens are revoked before the account goes, so a
+/// failed revocation leaves the account in place, and again after, for any
+/// token a login racing the removal issued. A retried request finishes a
+/// removal whose second sweep failed.
 async fn delete_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -98,18 +101,25 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
-        let auth = &state.inner.identity.auth;
-        let removed = auth.users.delete_user(&path.user).await?;
-        let tokens = auth.tokens.list_for_user(&path.user).await?;
-        for (key, _) in &tokens {
-            auth.tokens.revoke_by_key(key).await?;
-        }
-        if !removed && tokens.is_empty() {
+        let revoked_before = revoke_all_tokens(&state, &path.user).await?;
+        let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
+        let revoked_after = revoke_all_tokens(&state, &path.user).await?;
+        if !removed && revoked_before + revoked_after == 0 {
             return Err(RegistryError::NotFound);
         }
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)
+}
+
+/// Revoke every token `user` holds, returning how many there were.
+async fn revoke_all_tokens(state: &AppState, user: &str) -> Result<usize, RegistryError> {
+    let tokens = &state.inner.identity.auth.tokens;
+    let held = tokens.list_for_user(user).await?;
+    for (key, _) in &held {
+        tokens.revoke_by_key(key).await?;
+    }
+    Ok(held.len())
 }
 
 /// `GET /-/pnpr/v0/admin/users/{user}/tokens` — the user's tokens in the

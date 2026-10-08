@@ -178,6 +178,10 @@ impl UserBackend for LibsqlAuth {
         self.list_usernames().await
     }
 
+    async fn exists(&self, username: &str) -> Result<bool> {
+        Ok(self.stored_hash(username).await?.is_some())
+    }
+
     async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
         self.insert_user_for_admin(username, password).await
     }
