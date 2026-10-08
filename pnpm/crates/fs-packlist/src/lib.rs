@@ -21,11 +21,11 @@
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
-//!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
-//!    in `main` / `bin`. The packed package's `package.yaml` /
-//!    `package.json5` are included too, but a bundled dependency's are
-//!    not. These survive `.npmignore` rejection and the `files`-field
-//!    filter.
+//!    `README`, `COPYING`, and `LICEN[SC]E`, with any extension, at
+//!    the root, plus the paths declared in `main` / `bin`. The packed
+//!    package's `package.yaml` / `package.json5` are included too, but
+//!    a bundled dependency's are not. These survive `.npmignore`
+//!    rejection and the `files`-field filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
 //!    `bundledDependencies`), transitively include every reachable
@@ -77,10 +77,10 @@ pub enum PacklistError {
     },
 }
 
-/// Case-insensitive prefix matches for files always-included at the
-/// package root regardless of `.npmignore` / `files`. Mirrors
-/// `npm-packlist`'s `alwaysIncluded` set.
-const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence"];
+/// Lowercased stems of the files always-included at the package root
+/// regardless of `.npmignore` / `files`. Each matches the bare stem or the
+/// stem plus an extension, see [`is_always_included_at_root`].
+const ALWAYS_INCLUDED_STEMS: &[&str] = &["readme", "copying", "license", "licence"];
 
 /// Version-control directory names that exclude every file under
 /// them at any depth. Drops VCS state from a published package
@@ -457,9 +457,18 @@ fn is_always_included_at_root(rel: &str) -> bool {
     if lower == "package.json" {
         return true;
     }
-    ALWAYS_INCLUDED_PREFIXES
+    // npm-packlist's `/<stem>{,.*[^~$]}`: `README` and `README.md` ship,
+    // `README_INTERNAL.md` and the editor backup `README.md~` do not.
+    ALWAYS_INCLUDED_STEMS
         .iter()
-        .any(|prefix| lower.starts_with(prefix))
+        .any(|stem| {
+            lower
+                .strip_prefix(stem)
+                .is_some_and(|rest| {
+                    rest.is_empty()
+                        || (rest.len() >= 2 && rest.starts_with('.') && !rest.ends_with(['~', '$']))
+                })
+        })
 }
 
 fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
