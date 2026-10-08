@@ -316,7 +316,6 @@ async fn lookup_record_surfaces_token_restrictions() {
     tokens.inner
         .lock()
         .expect("TokenStore mutex poisoned")
-        .tokens
         .insert(
             sha256_hex(raw.as_bytes()),
             TokenRecord {
@@ -437,7 +436,6 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
         store.inner
             .lock()
             .expect("TokenStore mutex poisoned")
-            .tokens
             .is_empty(),
         "failed persistence must not leave an in-memory bearer token active",
     );
@@ -641,5 +639,61 @@ async fn local_tokens_of_a_removed_owner_stop_authenticating() {
             .unwrap()
             .len(),
         1,
+    );
+}
+
+#[tokio::test]
+async fn tokens_list_per_owner_across_revocation_and_reload() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tokens.db");
+    let store = TokenStore::open(path.clone()).unwrap();
+    let alice = store.issue("alice").await.unwrap();
+    store.issue("alice").await.unwrap();
+    store.issue("bob").await.unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        2,
+    );
+
+    store
+        .revoke_by_key(&sha256_hex(alice.as_bytes()))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    let reopened = TokenStore::open(path).unwrap();
+    assert_eq!(
+        reopened
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        reopened
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert!(
+        reopened
+            .list_for_user("carol")
+            .await
+            .unwrap()
+            .is_empty(),
     );
 }

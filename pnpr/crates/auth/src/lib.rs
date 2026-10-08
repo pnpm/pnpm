@@ -56,7 +56,7 @@ use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
