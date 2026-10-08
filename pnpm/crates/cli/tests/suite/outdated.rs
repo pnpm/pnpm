@@ -529,6 +529,27 @@ fn outdated_catalog_npm_alias_reports_real_name() {
     drop((root, anchor));
 }
 
+/// An override that redirects a dependency to an npm alias is checked
+/// against the alias target's versions, not the original package's.
+#[test]
+fn outdated_npm_alias_override_checks_the_alias_target() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(
+        &workspace,
+        "overrides",
+        format!("{{ '{DEP}': 'npm:{FOO}@100.1.0' }}"),
+    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "the alias target is at its latest: {stdout}");
+
+    drop((root, anchor));
+}
+
 /// `--compatible` compares against the range the catalog entry holds.
 #[test]
 fn outdated_compatible_uses_the_catalog_range() {

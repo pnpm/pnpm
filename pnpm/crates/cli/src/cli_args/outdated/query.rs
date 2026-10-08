@@ -2,18 +2,21 @@ use super::{
     Arc, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Config, Cow,
     DefaultResolver, DependencyGroup, HashMap, LatestQuery, Lockfile, Matcher, PackageManifest,
     PickPolicy, ResolveOptions, ResolverWantedDependency, ThrottledClient, Version,
-    configured_catalogs, create_configured_registry_resolver, create_matcher, github_actions,
-    parse_catalog_protocol, resolve_from_catalog,
+    VersionOverride, VersionsOverrider, configured_catalogs, create_configured_registry_resolver,
+    create_matcher, github_actions, parse_catalog_protocol, parse_overrides_iter, project_dir,
+    resolve_from_catalog,
 };
 
 /// State shared by every importer inspected in one `outdated` (or
 /// `update --interactive`) run: one resolver and metadata cache, so a
 /// dependency several workspace projects share is fetched once, plus the
-/// catalogs their `catalog:` specifiers dereference against.
+/// catalogs their `catalog:` specifiers dereference against and the
+/// overrides applied to their manifests.
 pub(crate) struct OutdatedRun {
     pub(super) resolver: DefaultResolver,
     pub(super) resolve_options: ResolveOptions,
     pub(super) catalogs: Catalogs,
+    pub(super) overrides: Vec<VersionOverride>,
 }
 
 impl OutdatedRun {
@@ -28,6 +31,13 @@ impl OutdatedRun {
         }
         let resolver = create_configured_registry_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
+        let catalogs = configured_catalogs(config)?;
+        let overrides = config.overrides
+            .as_ref()
+            .map(|overrides| parse_overrides_iter(overrides, &catalogs))
+            .transpose()
+            .map_err(miette::Report::new)?
+            .unwrap_or_default();
         Ok(Self {
             resolver,
             resolve_options: ResolveOptions {
@@ -42,8 +52,22 @@ impl OutdatedRun {
                 },
                 ..ResolveOptions::default()
             },
-            catalogs: configured_catalogs(config)?,
+            catalogs,
+            overrides,
         })
+    }
+
+    /// `manifest` with the overrides applied, as the install that wrote
+    /// the lockfile read it.
+    fn overridden_manifest<'a>(&self, manifest: &'a PackageManifest) -> Cow<'a, PackageManifest> {
+        if self.overrides.is_empty() {
+            return Cow::Borrowed(manifest);
+        }
+        let project_dir = project_dir(manifest);
+        let mut overridden = manifest.clone();
+        VersionsOverrider::new(&self.overrides, project_dir)
+            .apply(&mut overridden, Some(project_dir));
+        Cow::Owned(overridden)
     }
 }
 
@@ -196,6 +220,7 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     query: &OutdatedQuery<'_>,
     run: &OutdatedRun,
 ) -> miette::Result<Vec<OutdatedPackage>> {
+    let manifest = &run.overridden_manifest(manifest);
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, query.include_direct);
     let current_versions = &current_versions;

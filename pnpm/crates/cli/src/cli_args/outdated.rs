@@ -44,11 +44,12 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_config_parse_overrides::{VersionOverride, parse_overrides_iter};
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
 use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manager::{PickPolicy, create_configured_registry_resolver};
+use pnpm_package_manager::{PickPolicy, VersionsOverrider, create_configured_registry_resolver};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_default_resolver::DefaultResolver;
