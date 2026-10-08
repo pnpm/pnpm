@@ -11,6 +11,9 @@ pub(crate) fn host_triple() -> Option<String> {
         "linux" => {
             let architecture = match architecture {
                 "x86_64" | "aarch64" | "s390x" | "powerpc64le" | "loongarch64" => architecture,
+                // Rust names both POWER byte orders `powerpc64`, and builds
+                // a host toolchain only for the little-endian one.
+                "powerpc64" if cfg!(target_endian = "little") => "powerpc64le",
                 "riscv64" => "riscv64gc",
                 _ => return None,
             };

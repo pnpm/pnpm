@@ -1,4 +1,4 @@
-use super::{newest_installed, toolchain_dir, unpack};
+use super::{newest_installed, publish, toolchain_dir, unpack};
 use crate::{Channel, Profile, ToolchainRequest};
 use flate2::{Compression, write::GzEncoder};
 use pretty_assertions::assert_eq;
@@ -104,11 +104,46 @@ fn refuses_entries_that_are_not_regular_files() {
 
 #[test]
 fn refuses_entries_that_leave_the_toolchain() {
-    let destination = tempfile::tempdir().unwrap();
-    let archive = gzipped_tar(&[Entry::RawPath("rustc-1.90.0/rustc/../../../escaped")]);
-    let error = unpack(&archive, destination.path()).expect_err("a traversal is refused");
-    eprintln!("{error}");
-    assert!(walk(destination.path()).is_empty());
+    for path in [
+        "rustc-1.90.0/rustc/../../../escaped",
+        r"rustc-1.90.0/rustc/..\..\..\escaped",
+        r"rustc-1.90.0/rustc/C:\escaped",
+        "/rustc-1.90.0/rustc/escaped",
+    ] {
+        let destination = tempfile::tempdir().unwrap();
+        let archive = gzipped_tar(&[Entry::RawPath(path)]);
+        let error = unpack(&archive, destination.path()).expect_err(path);
+        eprintln!("{path}: {error}");
+        assert!(walk(destination.path()).is_empty());
+    }
+}
+
+#[test]
+fn publishing_moves_the_toolchain_into_place() {
+    let store = tempfile::tempdir().unwrap();
+    let dir = store.path().join("1.90.0");
+    let staged = tempfile::TempDir::new_in(store.path()).unwrap();
+    fs::write(staged.path().join("marker"), "first").unwrap();
+
+    publish(staged, &dir).unwrap();
+
+    assert_eq!(fs::read_to_string(dir.join("marker")).unwrap(), "first");
+    assert_eq!(fs::read_dir(store.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn losing_a_publishing_race_keeps_the_winner_and_cleans_up() {
+    let store = tempfile::tempdir().unwrap();
+    let dir = store.path().join("1.90.0");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("marker"), "winner").unwrap();
+    let staged = tempfile::TempDir::new_in(store.path()).unwrap();
+    fs::write(staged.path().join("marker"), "loser").unwrap();
+
+    publish(staged, &dir).unwrap();
+
+    assert_eq!(fs::read_to_string(dir.join("marker")).unwrap(), "winner");
+    assert_eq!(fs::read_dir(store.path()).unwrap().count(), 1);
 }
 
 #[test]

@@ -112,16 +112,27 @@ async fn downloads_from_the_mirror_and_checks_the_signed_hash() {
 }
 
 #[test]
-fn links_the_toolchain_beside_the_toolchain_file() {
+fn only_a_link_into_the_store_is_taken() {
     let checkout = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let config = config(store.path(), "http://127.0.0.1:9");
     let member = checkout.path().join("crates/member");
     fs::create_dir_all(&member).unwrap();
     fs::write(checkout.path().join("rust-toolchain.toml"), "stable").unwrap();
-    assert_eq!(linked_bin_dir(&member, checkout.path()), None);
+    assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None);
 
-    let bin_dir = checkout.path().join(".pnpm/rust/bin");
-    fs::create_dir_all(&bin_dir).unwrap();
-    assert_eq!(linked_bin_dir(&member, checkout.path()), Some(bin_dir));
+    let committed = checkout.path().join(".pnpm/rust/bin");
+    fs::create_dir_all(&committed).unwrap();
+    assert_eq!(linked_bin_dir(&config, &member, checkout.path()), None);
+
+    #[cfg(unix)]
+    {
+        let toolchain = config.store_dir.root().join("rust/1.95.0-host-digest");
+        fs::create_dir_all(toolchain.join("bin")).unwrap();
+        fs::remove_dir_all(checkout.path().join(".pnpm/rust")).unwrap();
+        std::os::unix::fs::symlink(&toolchain, checkout.path().join(".pnpm/rust")).unwrap();
+        assert_eq!(linked_bin_dir(&config, &member, checkout.path()), Some(committed));
+    }
 }
 
 #[tokio::test]

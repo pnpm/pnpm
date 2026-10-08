@@ -6302,6 +6302,7 @@ name = "pnpm-rust-toolchain"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "flate2",
  "miette 7.6.0",
  "mockito",

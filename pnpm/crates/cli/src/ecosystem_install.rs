@@ -41,11 +41,11 @@ pub(crate) fn execution_paths<'a>(config: &'a Config, dir: &Path) -> Cow<'a, [Pa
 /// The `bin` directory of the Rust toolchain pnpm linked for the project in
 /// `dir`.
 pub(crate) fn rust_bin_dir(config: &Config, dir: &Path) -> Option<PathBuf> {
-    if !config.cargo.enabled {
+    if !config.cargo.enabled || !cargo_deps::installs_toolchains(config) {
         return None;
     }
     let workspace = config.workspace_dir.as_deref().unwrap_or(dir);
-    pnpm_rust_toolchain::linked_bin_dir(dir, workspace)
+    pnpm_rust_toolchain::linked_bin_dir(config, dir, workspace)
 }
 
 #[derive(Clone)]

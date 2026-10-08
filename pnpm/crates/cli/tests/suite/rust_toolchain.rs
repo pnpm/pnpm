@@ -12,17 +12,40 @@ const MARKER: &str = "linked-rust-toolchain";
 fn workspace_with_linked_toolchain(cargo_enabled: bool) -> CommandTempCwd<()> {
     let env = CommandTempCwd::init();
     let workspace = &env.workspace;
+    let store = env.root.path().join("store");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!("cargo:\n  enabled: {cargo_enabled}\n"),
+        format!("storeDir: {}\ncargo:\n  enabled: {cargo_enabled}\n", store.display()),
     )
     .unwrap();
     fs::write(workspace.join("rust-toolchain.toml"), "[toolchain]\nchannel = \"stable\"\n")
         .unwrap();
     let manifest = json!({ "name": "root", "private": true, "scripts": { "build": "cargo" } });
     fs::write(workspace.join("package.json"), manifest.to_string()).unwrap();
-    write_fake_bin(&workspace.join(".pnpm/rust/bin"), "cargo", MARKER);
+    let toolchain = pnpm_store_dir::StoreDir::from(store).root().join("rust/1.95.0-host-digest");
+    write_fake_bin(&toolchain.join("bin"), "cargo", MARKER);
+    fs::create_dir_all(workspace.join(".pnpm")).unwrap();
+    pnpm_fs::force_symlink_dir(&toolchain, &workspace.join(".pnpm/rust")).unwrap();
     env
+}
+
+#[test]
+fn a_toolchain_the_checkout_committed_is_not_put_on_the_path() {
+    let CommandTempCwd { workspace, root, .. } = workspace_with_linked_toolchain(true);
+    fs::remove_file(workspace.join(".pnpm/rust"))
+        .or_else(|_| fs::remove_dir(workspace.join(".pnpm/rust")))
+        .unwrap();
+    write_fake_bin(&workspace.join(".pnpm/rust/bin"), "cargo", MARKER);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["exec", "cargo", "--version"])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("{stdout}");
+    assert!(!stdout.contains(MARKER));
+    drop(root);
 }
 
 #[test]

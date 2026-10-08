@@ -24,6 +24,16 @@ pub fn find_toolchain_file(dir: &Path, boundary: &Path) -> Option<PathBuf> {
         .take_while(|ancestor| ancestor.starts_with(boundary))
         .flat_map(|ancestor| TOOLCHAIN_FILE_NAMES.map(|name| ancestor.join(name)))
         .find(|file| file.is_file())
+        .filter(|file| inside(file, boundary))
+}
+
+/// Whether `file`, with every link resolved, is still inside `boundary`: a
+/// toolchain file the checkout links to a file elsewhere is not read.
+fn inside(file: &Path, boundary: &Path) -> bool {
+    dunce::canonicalize(file)
+        .ok()
+        .zip(dunce::canonicalize(boundary).ok())
+        .is_some_and(|(file, boundary)| file.starts_with(boundary))
 }
 
 /// What a toolchain file asks for.
@@ -76,6 +86,8 @@ pub enum Unmanaged {
     /// A name rustup resolves without the distribution server, such as a
     /// toolchain linked with `rustup toolchain link`.
     UnknownChannel(String),
+    /// A profile pnpm does not install, such as `complete`.
+    UnsupportedProfile(String),
 }
 
 #[derive(Deserialize)]
@@ -140,18 +152,14 @@ pub(crate) fn parse_toolchain_file(
     let Some(channel) = Channel::parse(&channel_name) else {
         return Ok(Err(Unmanaged::UnknownChannel(channel_name)));
     };
-    let profile = parse_profile(profile.as_deref())?;
+    let profile = match profile.as_deref() {
+        None | Some("default") => Profile::Default,
+        Some("minimal") => Profile::Minimal,
+        Some(other) => return Ok(Err(Unmanaged::UnsupportedProfile(other.to_string()))),
+    };
     let components = sorted_names(components)?;
     let targets = sorted_names(targets)?;
     Ok(Ok(ToolchainRequest { channel, profile, components, targets }))
-}
-
-fn parse_profile(profile: Option<&str>) -> Result<Profile, String> {
-    match profile {
-        None | Some("default") => Ok(Profile::Default),
-        Some("minimal") => Ok(Profile::Minimal),
-        Some(other) => Err(format!("pnpm cannot install the {other:?} profile")),
-    }
 }
 
 /// Component or target names, deduplicated and sorted.

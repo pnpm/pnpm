@@ -78,7 +78,7 @@ async fn install_for_host<Reporter: self::Reporter>(
     request: &ToolchainRequest,
     host: &str,
 ) -> Result<InstalledToolchain, RustToolchainError> {
-    let toolchains = config.store_dir.root().join("rust");
+    let toolchains = toolchains_dir(config);
     if request.channel.is_pinned() {
         let dir = install::toolchain_dir(&toolchains, &request.channel, host, request);
         if dir.is_dir() {
@@ -111,14 +111,24 @@ async fn install_for_host<Reporter: self::Reporter>(
 /// The `bin` directory of the toolchain pnpm linked for `dir`: the one beside
 /// the toolchain file rustup reads there, searched for no higher than
 /// `boundary`.
+///
+/// Only a link into `config`'s store is taken, so neither a toolchain the
+/// checkout committed nor a link an earlier install left behind with another
+/// store is run as one pnpm installed.
 #[must_use]
-pub fn linked_bin_dir(dir: &Path, boundary: &Path) -> Option<PathBuf> {
+pub fn linked_bin_dir(config: &Config, dir: &Path, boundary: &Path) -> Option<PathBuf> {
     let file = find_toolchain_file(dir, boundary)?;
-    let bin_dir = file
+    let link = file
         .parent()?
-        .join(TOOLCHAIN_LINK.iter().collect::<PathBuf>())
-        .join("bin");
-    bin_dir.is_dir().then_some(bin_dir)
+        .join(TOOLCHAIN_LINK.iter().collect::<PathBuf>());
+    let target = dunce::canonicalize(&link).ok()?;
+    let toolchains = dunce::canonicalize(toolchains_dir(config)).ok()?;
+    let bin_dir = link.join("bin");
+    (target.parent() == Some(toolchains.as_path()) && bin_dir.is_dir()).then_some(bin_dir)
+}
+
+fn toolchains_dir(config: &Config) -> PathBuf {
+    config.store_dir.root().join("rust")
 }
 
 /// Errors raised while reading a toolchain file or installing the toolchain

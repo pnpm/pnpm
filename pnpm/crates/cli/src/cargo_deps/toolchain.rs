@@ -7,8 +7,8 @@ use pnpm_config::{Config, RuntimeOnFail};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_rust_toolchain::{
-    InstalledToolchain, TOOLCHAIN_LINK, Unmanaged, find_toolchain_file, install_toolchain,
-    read_toolchain_file,
+    InstalledToolchain, RustToolchainError, TOOLCHAIN_LINK, ToolchainRequest, Unmanaged,
+    find_toolchain_file, install_toolchain, read_toolchain_file,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -25,10 +25,7 @@ use std::{
 static PROVISIONED: Mutex<BTreeMap<PathBuf, InstalledToolchain>> = Mutex::new(BTreeMap::new());
 
 /// Install the toolchain named by the toolchain file of each Cargo manifest,
-/// and link it beside the file.
-///
-/// Every `runtimeOnFail` mode but `download` leaves the toolchain to
-/// rustup, as it leaves an unmet runtime to the machine.
+/// and link it beside the file, where [`installs_toolchains`].
 pub(super) async fn provision<Reporter: self::Reporter>(
     config: &Config,
     http_client: &ThrottledClient,
@@ -36,7 +33,7 @@ pub(super) async fn provision<Reporter: self::Reporter>(
     checkout: Option<&Path>,
 ) -> Result<()> {
     let Some(checkout) = checkout else { return Ok(()) };
-    if !matches!(config.runtime_on_fail, None | Some(RuntimeOnFail::Download)) {
+    if !installs_toolchains(config) {
         return Ok(());
     }
     let files = manifests
@@ -48,21 +45,18 @@ pub(super) async fn provision<Reporter: self::Reporter>(
         .collect::<BTreeSet<_>>();
     // One toolchain is hundreds of megabytes, so they are downloaded in turn.
     for file in files {
-        let request = match read_toolchain_file(&file)? {
-            Ok(request) => request,
-            Err(Unmanaged::UnknownChannel(channel)) => {
-                Reporter::emit(&LogEvent::Global(GlobalLog {
-                    level: LogLevel::Warn,
-                    message: format!(
-                        "pnpm does not install the Rust toolchain {} names: {channel:?} is not a release channel",
-                        file.display(),
-                    ),
-                }));
+        let Some(request) = managed_request::<Reporter>(&file)? else { continue };
+        let toolchain = match install_toolchain::<Reporter>(config, http_client, &request).await {
+            Ok(toolchain) => toolchain,
+            Err(
+                error @ (RustToolchainError::UnsupportedHost
+                | RustToolchainError::NotPublishedForHost { .. }),
+            ) => {
+                leave_to_rustup::<Reporter>(&file, &error.to_string());
                 continue;
             }
-            Err(Unmanaged::CustomPath | Unmanaged::NoChannel) => continue,
+            Err(error) => return Err(error.into()),
         };
-        let toolchain = install_toolchain::<Reporter>(config, http_client, &request).await?;
         let dir = file.parent().expect("a toolchain file has a parent directory");
         link(dir, &toolchain.dir)?;
         PROVISIONED
@@ -71,6 +65,37 @@ pub(super) async fn provision<Reporter: self::Reporter>(
             .insert(file, toolchain);
     }
     Ok(())
+}
+
+/// What the toolchain file at `file` asks pnpm to install. `None` for a
+/// file left to rustup.
+fn managed_request<Reporter: self::Reporter>(file: &Path) -> Result<Option<ToolchainRequest>> {
+    let reason = match read_toolchain_file(file)? {
+        Ok(request) => return Ok(Some(request)),
+        Err(Unmanaged::CustomPath | Unmanaged::NoChannel) => return Ok(None),
+        Err(Unmanaged::UnknownChannel(channel)) => format!("{channel:?} is not a release channel"),
+        Err(Unmanaged::UnsupportedProfile(profile)) => {
+            format!("the {profile:?} profile is not supported")
+        }
+    };
+    leave_to_rustup::<Reporter>(file, &reason);
+    Ok(None)
+}
+
+/// Every `runtimeOnFail` mode but `download` leaves the toolchain to
+/// rustup, as it leaves an unmet runtime to the machine.
+pub(crate) fn installs_toolchains(config: &Config) -> bool {
+    matches!(config.runtime_on_fail, None | Some(RuntimeOnFail::Download))
+}
+
+fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "pnpm does not install the Rust toolchain {} names: {reason}",
+            file.display(),
+        ),
+    }));
 }
 
 fn link(dir: &Path, toolchain: &Path) -> Result<()> {

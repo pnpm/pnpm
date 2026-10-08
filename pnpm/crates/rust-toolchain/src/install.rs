@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fmt::Write as _,
     fs, io,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
@@ -48,7 +48,7 @@ fn selection_digest(request: &ToolchainRequest) -> String {
         hasher.update(b"\n");
         hasher.update(name);
     }
-    hasher.finalize()[..4]
+    hasher.finalize()[..8]
         .iter()
         .fold(String::new(), |mut digest, byte| {
             write!(digest, "{byte:02x}").expect("writing to a String does not fail");
@@ -159,23 +159,43 @@ pub(crate) async fn install<Reporter: self::Reporter>(
     let staged = tempfile::TempDir::new_in(parent).map_err(install_error)?;
     for archive in archives {
         let body = crate::manifest::get(config, client, &archive.url, MAX_ARCHIVE_BYTES).await?;
-        let mut checker = ssri::IntegrityChecker::new(archive.integrity.clone());
-        checker.input(&body);
-        if checker.result().is_err() {
-            return Err(RustToolchainError::IntegrityMismatch { url: archive.url.clone() });
-        }
         let destination = staged.path().to_path_buf();
-        let url = archive.url.clone();
-        tokio::task::spawn_blocking(move || unpack(&body, &destination)).await
-            .map_err(|error| install_error(io::Error::other(error)))?
-            .map_err(|reason| RustToolchainError::Unpack { url, reason })?;
+        let archive = archive.clone();
+        tokio::task::spawn_blocking(move || verify_and_unpack(&archive, &body, &destination))
+            .await
+            .map_err(|error| install_error(io::Error::other(error)))??;
     }
-    match fs::rename(staged.keep(), dir) {
-        Ok(()) => Ok(()),
+    publish(staged, dir).map_err(install_error)
+}
+
+/// Hashing and unpacking a component of a hundred megabytes is work for a
+/// blocking thread.
+fn verify_and_unpack(
+    archive: &Archive,
+    body: &[u8],
+    destination: &Path,
+) -> Result<(), RustToolchainError> {
+    let mut checker = ssri::IntegrityChecker::new(archive.integrity.clone());
+    checker.input(body);
+    if checker.result().is_err() {
+        return Err(RustToolchainError::IntegrityMismatch { url: archive.url.clone() });
+    }
+    unpack(body, destination)
+        .map_err(|reason| RustToolchainError::Unpack { url: archive.url.clone(), reason })
+}
+
+/// Move a fully unpacked toolchain into place. The staging directory is
+/// removed when it is not the one that ends up there.
+pub(crate) fn publish(staged: tempfile::TempDir, dir: &Path) -> io::Result<()> {
+    match fs::rename(staged.path(), dir) {
+        Ok(()) => {
+            let _ = staged.keep();
+            Ok(())
+        }
         // Another install of the same toolchain won the race, and unpacked
         // the same archives this one did.
         Err(_) if dir.is_dir() => Ok(()),
-        Err(error) => Err(install_error(error)),
+        Err(error) => Err(error),
     }
 }
 
@@ -197,24 +217,21 @@ pub(crate) fn unpack(gzipped: &[u8], destination: &Path) -> Result<(), String> {
             return Err(format!("it holds more than {MAX_ENTRIES} entries"));
         }
         let mut entry = entry.map_err(|error| error.to_string())?;
-        let path = entry
-            .path()
-            .map_err(|error| error.to_string())?
-            .into_owned();
+        let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
         let Some(relative) = installed_path(&path)? else { continue };
         let entry_type = entry.header().entry_type();
         if entry_type.is_dir() {
             continue;
         }
         if !entry_type.is_file() {
-            return Err(format!("{} is not a regular file", path.display()));
+            return Err(format!("{path} is not a regular file"));
         }
         let target = destination.join(relative);
         let parent = target.parent().expect("an installed file has a parent directory");
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         entry
             .unpack(&target)
-            .map_err(|error| format!("{}: {error}", path.display()))?;
+            .map_err(|error| format!("{path}: {error}"))?;
     }
     Ok(())
 }
@@ -222,17 +239,25 @@ pub(crate) fn unpack(gzipped: &[u8], destination: &Path) -> Result<(), String> {
 /// Where an archive entry is installed, relative to the toolchain
 /// directory. `None` for what is not installed. A path that would leave the
 /// toolchain directory is refused.
-fn installed_path(path: &Path) -> Result<Option<PathBuf>, String> {
+///
+/// `\` counts as a separator, as it does on Windows, so an entry means the
+/// same on every platform.
+fn installed_path(path: &str) -> Result<Option<PathBuf>, String> {
+    if path.starts_with(['/', '\\']) {
+        return Err(format!("{path} leaves the archive"));
+    }
     let mut segments = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::Normal(segment) => segments.push(segment),
-            Component::CurDir => {}
-            _ => return Err(format!("{} leaves the archive", path.display())),
+    for segment in path.split(['/', '\\']) {
+        match segment {
+            "" | "." => {}
+            ".." => return Err(format!("{path} leaves the archive")),
+            // A drive or a stream, which Windows would not read as a file name.
+            _ if segment.contains(':') => return Err(format!("{path} leaves the archive")),
+            _ => segments.push(segment),
         }
     }
     let [_, _, rest @ ..] = segments.as_slice() else { return Ok(None) };
-    if rest.is_empty() || rest == [std::ffi::OsStr::new("manifest.in")] {
+    if rest.is_empty() || rest == ["manifest.in"] {
         return Ok(None);
     }
     Ok(Some(rest.iter().collect()))

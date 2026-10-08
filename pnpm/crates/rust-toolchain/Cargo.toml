@@ -19,6 +19,7 @@ pnpm-network = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-tarball = { workspace = true }
 derive_more = { workspace = true }
+dunce = { workspace = true }
 flate2 = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true }

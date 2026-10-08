@@ -2,6 +2,7 @@ pub(crate) mod add;
 
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
+pub(crate) use toolchain::installs_toolchains;
 
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},

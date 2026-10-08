@@ -55,10 +55,28 @@ fn a_moving_channel_resolves_to_the_release_version() {
     );
     assert_eq!(
         manifest
-            .pinned(&Channel::parse("nightly").unwrap())
+            .pinned(&Channel::parse("1.8").unwrap())
             .unwrap(),
-        Channel::parse("nightly-2016-04-12").unwrap(),
+        Channel::parse("1.8.0").unwrap(),
     );
+    assert_eq!(
+        manifest
+            .pinned(&Channel::parse("stable-2016-04-12").unwrap())
+            .unwrap(),
+        Channel::parse("stable-2016-04-12").unwrap(),
+    );
+}
+
+#[test]
+fn a_signed_manifest_of_another_release_is_refused() {
+    let manifest = signed_manifest();
+    for channel in ["1.95.0", "1.9", "nightly", "beta-2016-04-12", "stable-2016-04-13"] {
+        let error = manifest
+            .pinned(&Channel::parse(channel).unwrap())
+            .expect_err(channel);
+        eprintln!("{channel}: {error}");
+        assert!(matches!(error, RustToolchainError::InvalidManifest { .. }), "{error:?}");
+    }
 }
 
 #[test]

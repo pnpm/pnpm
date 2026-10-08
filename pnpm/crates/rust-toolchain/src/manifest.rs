@@ -133,31 +133,23 @@ pub(crate) async fn get(
 }
 
 impl Manifest {
-    /// The pinned name of the release this manifest describes: what a
-    /// channel that moves resolved to.
+    /// The pinned name of the release this manifest describes, which is
+    /// what a channel that moves resolved to.
+    ///
+    /// The signature proves the manifest is a Rust release, not that it is
+    /// the release `channel` names: a mirror could answer with an older one.
+    /// So the release the manifest describes has to be one `channel` names.
     pub(crate) fn pinned(&self, channel: &Channel) -> Result<Channel, RustToolchainError> {
-        if channel.is_pinned() {
-            return Ok(channel.clone());
-        }
-        let invalid = |reason: &str| RustToolchainError::InvalidManifest {
-            url: self.url.clone(),
-            reason: reason.to_string(),
-        };
-        match channel {
-            Channel::Named {
-                name: name @ (ChannelName::Beta | ChannelName::Nightly),
-                ..
-            } => {
-                let date = parse_date(&self.date).ok_or_else(|| invalid("`date` is not a date"))?;
-                Ok(Channel::Named { name: *name, date: Some(date.to_string()) })
-            }
-            _ => self.pkg
-                .get("rustc")
-                .and_then(|rustc| rustc.version.split_whitespace().next())
-                .and_then(Channel::parse)
-                .filter(|version| matches!(version, Channel::Version { patch: Some(_), .. }))
-                .ok_or_else(|| invalid("the rustc package names no release version")),
-        }
+        let invalid =
+            |reason: String| RustToolchainError::InvalidManifest { url: self.url.clone(), reason };
+        let version = self.pkg
+            .get("rustc")
+            .and_then(|rustc| rustc.version.split_whitespace().next())
+            .ok_or_else(|| invalid("the rustc package names no release version".to_string()))?;
+        let date =
+            parse_date(&self.date).ok_or_else(|| invalid("`date` is not a date".to_string()))?;
+        release_named_by(channel, version, date)
+            .ok_or_else(|| invalid(format!("it describes Rust {version} of {date}, not {channel}")))
     }
 
     /// The archives to unpack into a toolchain for `host` that `request`
@@ -239,6 +231,42 @@ impl Manifest {
         };
         Ok(Archive { url, integrity })
     }
+}
+
+/// The pinned name of the release of `version` published on `date`, if
+/// `channel` names that release.
+fn release_named_by(channel: &Channel, version: &str, date: &str) -> Option<Channel> {
+    let Channel::Named { name, date: wanted } = channel else {
+        return stable_release(version)
+            .filter(|release| channel == release || channel.accepts(release));
+    };
+    if wanted
+        .as_deref()
+        .is_some_and(|wanted| wanted != date)
+    {
+        return None;
+    }
+    match name {
+        ChannelName::Stable if wanted.is_some() => stable_release(version).map(|_| channel.clone()),
+        ChannelName::Stable => stable_release(version),
+        ChannelName::Beta => prerelease(*name, "-beta", version, date),
+        ChannelName::Nightly => prerelease(*name, "-nightly", version, date),
+    }
+}
+
+/// The dated release of `name` that `version` is, if its version carries
+/// the channel's `marker`.
+fn prerelease(name: ChannelName, marker: &str, version: &str, date: &str) -> Option<Channel> {
+    version
+        .contains(marker)
+        .then(|| Channel::Named { name, date: Some(date.to_string()) })
+}
+
+/// `version` as the pinned name of a stable release, which a beta or
+/// nightly version is not.
+fn stable_release(version: &str) -> Option<Channel> {
+    Channel::parse(version)
+        .filter(|release| matches!(release, Channel::Version { patch: Some(_), .. }))
 }
 
 #[cfg(test)]

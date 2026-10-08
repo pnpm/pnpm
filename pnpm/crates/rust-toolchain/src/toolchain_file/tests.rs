@@ -49,13 +49,17 @@ fn leaves_toolchains_rustup_finds_elsewhere_alone() {
         parse_toolchain_file("my-toolchain").unwrap(),
         Err(Unmanaged::UnknownChannel("my-toolchain".to_string())),
     );
+    assert_eq!(
+        parse_toolchain_file("[toolchain]\nchannel = \"stable\"\nprofile = \"complete\"\n")
+            .unwrap(),
+        Err(Unmanaged::UnsupportedProfile("complete".to_string())),
+    );
 }
 
 #[test]
 fn refuses_what_rustup_would_refuse() {
     for contents in [
         "[toolchain]\nchannel = \"stable\"\npath = \"/opt/rust\"\n",
-        "[toolchain]\nchannel = \"stable\"\nprofile = \"complete\"\n",
         "[toolchain]\nchannel = \"stable\"\ncomponents = [\"../x\"]\n",
         "[toolchain\n",
     ] {
@@ -78,4 +82,17 @@ fn finds_the_nearest_file_within_the_boundary() {
 
     fs::write(checkout.join("rust-toolchain"), "stable").unwrap();
     assert_eq!(find_toolchain_file(&member, &checkout), Some(checkout.join("rust-toolchain")));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_toolchain_file_linked_outside_the_checkout_is_not_read() {
+    let root = tempfile::tempdir().unwrap();
+    let checkout = root.path().join("checkout");
+    fs::create_dir_all(&checkout).unwrap();
+    fs::write(root.path().join("secret"), "stable").unwrap();
+    std::os::unix::fs::symlink(root.path().join("secret"), checkout.join("rust-toolchain"))
+        .unwrap();
+
+    assert_eq!(find_toolchain_file(&checkout, &checkout), None);
 }

@@ -119,7 +119,7 @@ targets = ["wasm32-unknown-unknown"]
 * `channel` accepts a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`.
 * `profile` accepts `minimal` (`rustc`, `cargo`, and the standard library) and `default`, which adds `rustfmt` and `clippy`. pnpm leaves out `rust-docs` unless `components` lists it.
 * `components` and `targets` add components and standard libraries for other targets.
-* A file that sets `path`, sets no `channel`, or names a toolchain linked with `rustup toolchain link` is left to rustup.
+* A file that sets `path`, sets no `channel`, names a toolchain linked with `rustup toolchain link`, or asks for another profile such as `complete` is left to rustup. So is a machine Rust publishes no toolchain for.
 
 pnpm verifies the release manifest against the Rust release signing key and checks every download against the hash the manifest lists. The toolchain is stored once per machine under `rust` in the [store](./settings/store.md#storedir) and linked into `.pnpm/rust` beside the toolchain file.
 
