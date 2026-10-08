@@ -275,3 +275,41 @@ fn format_person_renders_name_and_optional_email() {
     let without_email = format_person(&json!({ "name": "bob" }));
     assert!(without_email.contains("bob") && !without_email.contains('<'), "{without_email}");
 }
+
+#[tokio::test]
+async fn fetch_package_metadata_honors_registry_override_for_scoped_package() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "@scope/acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/@scope/acme-1.0.0.tgz" }
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/@scope%2Facme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut config = pnpm_config::Config::default();
+    config.registries_by_scope.insert("@scope".to_string(), "https://other.registry/".to_string());
+
+    let server_url = server.url();
+    let (pkg, version) =
+        super::fetch_package_metadata(&config, Some(&server_url), "@scope/acme", "view")
+            .await
+            .expect("fetch package metadata");
+
+    assert_eq!(pkg.name, "@scope/acme");
+    assert_eq!(version.version.to_string(), "1.0.0");
+    mock.assert_async().await;
+}

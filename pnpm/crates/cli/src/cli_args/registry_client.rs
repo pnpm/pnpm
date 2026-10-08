@@ -40,6 +40,21 @@ pub fn resolve_registry_for_package(
     normalize_registry_url(&raw).into_owned()
 }
 
+/// Resolve the target registry URL for a package, giving precedence to an
+/// explicit CLI registry override when present, otherwise picking from
+/// configured registries.
+pub fn resolve_target_registry_for_package(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    package_name: &str,
+    publish_registry: Option<&str>,
+) -> String {
+    if let Some(registry) = registry_override {
+        return normalize_registry_url(registry).into_owned();
+    }
+    resolve_registry_for_package(registries, package_name, publish_registry)
+}
+
 /// Look up the authorization header for the given package on the registry URL.
 pub fn auth_header_for_package(
     config: &Config,

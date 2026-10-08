@@ -82,6 +82,31 @@ fn resolve_registry_for_package_picks_and_normalizes() {
 }
 
 #[test]
+fn resolve_target_registry_for_package_honors_override_over_scope() {
+    let mut registries = std::collections::HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@my-scope".to_string(), "https://npm.pkg.github.com/my-org/".to_string());
+
+    assert_eq!(
+        super::resolve_target_registry_for_package(
+            &registries,
+            Some("https://custom.registry.org"),
+            "@my-scope/pkg",
+            None,
+        ),
+        "https://custom.registry.org/",
+    );
+    assert_eq!(
+        super::resolve_target_registry_for_package(&registries, None, "@my-scope/pkg", None,),
+        "https://npm.pkg.github.com/my-org/",
+    );
+    assert_eq!(
+        super::resolve_target_registry_for_package(&registries, None, "lodash", None,),
+        "https://registry.npmjs.org/",
+    );
+}
+
+#[test]
 fn package_endpoint_url_escapes_scoped_names() {
     assert_eq!(
         super::package_endpoint_url("https://registry.npmjs.org", "lodash").unwrap(),

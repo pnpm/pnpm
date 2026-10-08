@@ -1,7 +1,8 @@
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        build_registry_client, resolve_registries_with_override, resolve_registry_for_package,
+        build_registry_client, resolve_registries_with_override,
+        resolve_target_registry_for_package,
     },
 };
 use clap::Args;
@@ -36,27 +37,43 @@ impl RepoArgs {
     ) -> miette::Result<()> {
         let prefix = dir.to_string_lossy().into_owned();
 
-        let http_client = build_registry_client(config)?;
-        let registries = resolve_registries_with_override(config, self.registry.as_deref());
-
-        let retry_opts = config.retry_opts();
-
         let urls = if self.packages.is_empty() {
             vec![get_repo_url_from_current_project(dir)?]
         } else {
-            let mut urls = Vec::with_capacity(self.packages.len());
-            for pkg in &self.packages {
-                urls.push(
-                    get_repo_url_from_registry(config, pkg, &http_client, &registries, &retry_opts)
-                        .await?,
-                );
-            }
-            urls
+            self.resolve_repo_urls(config).await?
         };
         for url in urls {
             open_repo_url::<Sys, Rep>(&url, &prefix);
         }
         Ok(())
+    }
+
+    async fn resolve_repo_urls(&self, config: &Config) -> miette::Result<Vec<String>> {
+        let http_client = build_registry_client(config)?;
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let retry_opts = config.retry_opts();
+        let registry_override = self.registry.as_deref();
+
+        let futures = self.packages
+            .iter()
+            .map(|pkg| {
+                let http_client = &http_client;
+                let registries = &registries;
+                let retry_opts = &retry_opts;
+                async move {
+                    get_repo_url_from_registry(
+                        config,
+                        pkg,
+                        http_client,
+                        registries,
+                        registry_override,
+                        retry_opts,
+                    )
+                    .await
+                }
+            });
+
+        futures_util::future::join_all(futures).await.into_iter().collect()
     }
 }
 
@@ -100,11 +117,17 @@ async fn get_repo_url_from_registry(
     raw_spec: &str,
     http_client: &ThrottledClient,
     registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
     retry_opts: &RetryOpts,
 ) -> miette::Result<String> {
     let parsed = PackageSpec::parse(raw_spec);
     let (resolved_name, range, bare) = resolve_spec_dependency(raw_spec, parsed.as_ref());
-    let registry = resolve_registry_for_package(registries, resolved_name, Some(bare));
+    let registry = resolve_target_registry_for_package(
+        registries,
+        registry_override,
+        resolved_name,
+        Some(bare),
+    );
 
     let outcome = fetch_full_metadata(
         resolved_name,
@@ -124,14 +147,14 @@ async fn get_repo_url_from_registry(
     .into_diagnostic()
     .wrap_err_with(|| format!("fetch package info for {raw_spec}"))?;
 
-    let package = match outcome {
-        FetchFullMetadataOutcome::Modified(pkg) => *pkg,
+    match outcome {
+        FetchFullMetadataOutcome::Modified(pkg) => {
+            Ok(pick_repository_url_from_package(&pkg, range)?)
+        }
         FetchFullMetadataOutcome::NotModified => {
             miette::bail!("registry returned 304 Not Modified unexpectedly")
         }
-    };
-
-    Ok(pick_repository_url_from_package(&package, range)?)
+    }
 }
 
 fn resolve_spec_dependency<'a>(
