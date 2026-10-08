@@ -238,6 +238,7 @@
         "errors",
         "logos",
         "limitations",
+        "code-signing-policy",
         "symlinked-node-modules-structure",
         "store-loader",
         "how-peers-are-resolved",
