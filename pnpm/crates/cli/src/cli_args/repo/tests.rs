@@ -112,7 +112,7 @@ async fn test_opens_repository_url_from_local_manifest() {
         r#"{"name": "test-pkg", "repository": "https://github.com/test/pkg"}"#,
     )
     .unwrap();
-    RepoArgs { packages: Vec::new() }
+    RepoArgs { registry: None, packages: Vec::new() }
         .run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
         .await
         .expect("open repository URL");

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{OwnerArgs, OwnerError};
 use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;
@@ -234,7 +236,7 @@ async fn owner_ls_500_returns_registry_error() {
 async fn owner_ls_scoped_package_encodes_correctly() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/@scope%2Fpkg/owners")
+        .mock("GET", "/-/package/@scope%2fpkg/owners")
         .with_status(200)
         .with_body(json!([{"username": "alice", "email": "a@b.com"}]).to_string())
         .create_async()
@@ -624,4 +626,20 @@ fn normalize_registry_url_preserves_trailing_slash() {
         pnpm_network::normalize_registry_url("https://registry.example.com/"),
         "https://registry.example.com/",
     );
+}
+
+#[test]
+fn owners_endpoint_preserves_path_prefix() {
+    let config = Config::default();
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.example/npm/".to_string())]);
+    let context = super::OwnerContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        otp: None,
+    };
+    let endpoint = super::owners_endpoint(&context, "@scope/my-pkg");
+    assert_eq!(endpoint.url, "https://registry.example/npm/-/package/@scope%2fmy-pkg/owners");
 }

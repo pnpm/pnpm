@@ -138,6 +138,22 @@ fn team_url_constructs_correctly() {
 }
 
 #[test]
+fn team_endpoints_preserve_path_prefix() {
+    assert_eq!(
+        org_team_url("https://registry.example.com/npm/", "@myorg"),
+        "https://registry.example.com/npm/-/org/%40myorg/team",
+    );
+    assert_eq!(
+        team_url("https://registry.example.com/npm/", "myorg", "developers"),
+        "https://registry.example.com/npm/-/team/myorg/developers",
+    );
+    assert_eq!(
+        team_user_url("https://registry.example.com/npm/", "myorg", "developers"),
+        "https://registry.example.com/npm/-/team/myorg/developers/user",
+    );
+}
+
+#[test]
 fn normalize_registry_url_adds_trailing_slash() {
     assert_eq!(
         normalize_registry_url("https://registry.example.com"),
