@@ -149,7 +149,7 @@ impl UnpublishArgs {
         &self,
         config: &Config,
     ) -> miette::Result<String> {
-        let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp.clone())?;
+        let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp.clone())?;
 
         let spec = self.params.first().ok_or(UnpublishError::PackageRequired)?;
         let PackageSpec {
