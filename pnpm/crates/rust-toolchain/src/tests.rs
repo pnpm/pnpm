@@ -214,3 +214,34 @@ async fn a_moving_channel_does_not_move_back_to_an_older_release() {
 
     assert!(matches!(error, RustToolchainError::OlderRelease { .. }), "{error:?}");
 }
+
+#[tokio::test]
+async fn an_unreachable_server_falls_back_to_the_newest_installed_release() {
+    let store = tempfile::tempdir().unwrap();
+    // Nothing listens there.
+    let config = config(store.path(), "http://127.0.0.1:9");
+    let toolchains = config.store_dir.root().join("rust");
+    let stable = request("stable");
+    let installed = toolchain_dir(&toolchains, &Channel::parse("1.95.0").unwrap(), HOST, &stable);
+    fs::create_dir_all(&installed).unwrap();
+
+    let toolchain = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &stable,
+        HOST,
+    )
+    .await
+    .unwrap();
+    assert_eq!(toolchain, InstalledToolchain { dir: installed });
+
+    let error = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &request("1.96.0"),
+        HOST,
+    )
+    .await
+    .expect_err("a pinned release that is not installed needs the server");
+    assert!(matches!(error, RustToolchainError::Network { .. }), "{error:?}");
+}

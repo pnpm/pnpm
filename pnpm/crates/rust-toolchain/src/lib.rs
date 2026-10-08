@@ -61,8 +61,9 @@ impl InstalledToolchain {
 /// install put in the store.
 ///
 /// A channel that moves, such as `stable`, is read from the distribution
-/// server again once a day, so that a new release is picked up. Offline, the
-/// newest installed release of the channel is used.
+/// server again once a day, so that a new release is picked up. Offline, or
+/// when the server cannot be reached, the newest installed release of the
+/// channel is used.
 pub async fn install_toolchain<Reporter: self::Reporter>(
     config: &Config,
     client: &ThrottledClient,
@@ -86,7 +87,10 @@ async fn install_for_host<Reporter: self::Reporter>(
         return Err(RustToolchainError::Offline { channel: request.channel.to_string() });
     }
     let server = manifest::dist_server(config);
-    let manifest = manifest::fetch(config, client, server, &request.channel).await?;
+    let manifest = match manifest::fetch(config, client, server, &request.channel).await {
+        Ok(manifest) => manifest,
+        Err(error) => return installed_after_failed_fetch(&toolchains, host, request, error),
+    };
     let pinned = manifest.pinned(&request.channel)?;
     refuse_older_release(&toolchains, host, request, &pinned)?;
     let dir = install::toolchain_dir(&toolchains, &pinned, host, request);
@@ -117,6 +121,27 @@ fn installed_without_download(
         .or_else(|| {
             config.offline.then(|| install::newest_installed(toolchains, host, request)).flatten()
         })
+}
+
+/// The newest installed release of a moving channel, when the distribution
+/// server could not be reached to say which release it is now. A failure
+/// the server answered for, such as a bad signature, is not covered.
+fn installed_after_failed_fetch(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+    error: RustToolchainError,
+) -> Result<InstalledToolchain, RustToolchainError> {
+    let unreachable = matches!(
+        error,
+        RustToolchainError::Network { .. } | RustToolchainError::StatusNotOk { .. },
+    );
+    if !unreachable || request.channel.is_pinned() {
+        return Err(error);
+    }
+    install::newest_installed(toolchains, host, request)
+        .map(|dir| InstalledToolchain { dir })
+        .ok_or(error)
 }
 
 /// A channel never moves back to an older release, so one that appears to
