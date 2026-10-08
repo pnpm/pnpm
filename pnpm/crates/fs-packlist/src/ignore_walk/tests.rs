@@ -66,3 +66,9 @@ fn leading_exclamation_marks_toggle_negation() {
     assert!(!IgnoreRule::parse("!!lib").negate);
     assert!(IgnoreRule::parse("!(lib)").negate);
 }
+
+#[test]
+fn many_stars_do_not_backtrack_exponentially() {
+    let rule = IgnoreRule::parse(&format!("{}b", "*a".repeat(30)));
+    assert!(!rule.matches(&"a".repeat(200), false));
+}

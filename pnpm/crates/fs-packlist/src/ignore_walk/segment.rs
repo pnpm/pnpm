@@ -1,10 +1,11 @@
 //! One `/`-free segment of an ignore rule: minimatch's wildcards, character
 //! classes, and extglobs, matched case-insensitively.
 
-/// A parsed segment. Matching is a backtracking walk over the nodes.
+/// A parsed segment.
 #[derive(Debug)]
 pub(super) struct SegmentPattern {
     nodes: Vec<Node>,
+    has_extglob: bool,
 }
 
 #[derive(Debug)]
@@ -51,7 +52,10 @@ impl SegmentPattern {
         let chars: Vec<char> = segment.chars().collect();
         let mut parser = Parser { chars: &chars, pos: 0 };
         let nodes = parser.parse_sequence(false);
-        SegmentPattern { nodes }
+        let has_extglob = nodes
+            .iter()
+            .any(|node| matches!(node, Node::Extglob(..)));
+        SegmentPattern { nodes, has_extglob }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -65,7 +69,12 @@ impl SegmentPattern {
             return false;
         }
         let chars: Vec<char> = name.chars().collect();
-        Matcher { chars: &chars }.sequence(&self.nodes, 0, &|end| end == chars.len())
+        let matcher = Matcher { chars: &chars };
+        if self.has_extglob {
+            matcher.sequence(&self.nodes, 0, &|end| end == chars.len())
+        } else {
+            matcher.wildcard(&self.nodes)
+        }
     }
 }
 
@@ -232,21 +241,46 @@ impl Matcher<'_> {
         };
         let tail_then_rest = |end: usize| self.sequence(tail, end, rest);
         match node {
-            Node::Literal(literal) => {
-                self.char_at(pos).is_some_and(|current| chars_eq_ignoring_case(current, *literal))
-                    && tail_then_rest(pos + 1)
-            }
-            Node::AnyChar => self.char_at(pos).is_some() && tail_then_rest(pos + 1),
             Node::AnyRun => (pos..=self.chars.len()).any(tail_then_rest),
-            Node::Class(class) => {
-                self.char_at(pos)
-                    .is_some_and(|current| class.matches(current))
-                    && tail_then_rest(pos + 1)
-            }
             Node::Extglob(kind, alternatives) => {
                 self.extglob(*kind, alternatives, pos, &tail_then_rest)
             }
+            single => {
+                self.char_at(pos)
+                    .is_some_and(|current| single.matches_char(current))
+                    && tail_then_rest(pos + 1)
+            }
         }
+    }
+
+    /// Matches nodes without extglobs. Only the latest `*` is ever retried,
+    /// so the work stays proportional to the name length times the node
+    /// count however many `*`s a rule holds.
+    fn wildcard(&self, nodes: &[Node]) -> bool {
+        let (mut node_index, mut pos) = (0, 0);
+        let mut retry: Option<(usize, usize)> = None;
+        while let Some(&current) = self.chars.get(pos) {
+            match nodes.get(node_index) {
+                Some(Node::AnyRun) => {
+                    retry = Some((node_index, pos));
+                    node_index += 1;
+                    continue;
+                }
+                Some(node) if node.matches_char(current) => {
+                    node_index += 1;
+                    pos += 1;
+                    continue;
+                }
+                _ => {}
+            }
+            let Some((star_index, star_pos)) = retry else { return false };
+            retry = Some((star_index, star_pos + 1));
+            node_index = star_index + 1;
+            pos = star_pos + 1;
+        }
+        nodes[node_index..]
+            .iter()
+            .all(|node| matches!(node, Node::AnyRun))
     }
 
     /// `!(…)` follows minimatch: it fails when an alternative followed by the
@@ -291,6 +325,18 @@ impl Matcher<'_> {
 
     fn char_at(&self, pos: usize) -> Option<char> {
         self.chars.get(pos).copied()
+    }
+}
+
+impl Node {
+    /// Whether a node that consumes exactly one character accepts `current`.
+    fn matches_char(&self, current: char) -> bool {
+        match self {
+            Node::Literal(literal) => chars_eq_ignoring_case(current, *literal),
+            Node::AnyChar => true,
+            Node::Class(class) => class.matches(current),
+            Node::AnyRun | Node::Extglob(..) => false,
+        }
     }
 }
 
