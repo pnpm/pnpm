@@ -94,10 +94,10 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
-  if (Object.hasOwn(settings, 'httpProxy')) {
+  if (settings.httpProxy != null) {
     assertString(settings.httpProxy, 'httpProxy')
   }
-  if (Object.hasOwn(settings, 'httpsProxy')) {
+  if (settings.httpsProxy != null) {
     assertString(settings.httpsProxy, 'httpsProxy')
   }
   translateRegistrySettings(settings)
