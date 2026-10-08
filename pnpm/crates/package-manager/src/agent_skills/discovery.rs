@@ -3,6 +3,7 @@ use crate::{
     allow_build_key_from_ignored_build, importer_root_dir, is_git_hosted_dep_path,
     normalize_build_dep_path, selected_groups,
 };
+use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -35,10 +36,8 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
     let mut by_key: BTreeMap<String, SkillSource> = BTreeMap::new();
     let mut shipped: HashMap<String, ShippedSkills> = HashMap::new();
     for (importer_id, snapshot) in &input.lockfile.importers {
-        let modules_dir = importer_root_dir(input.workspace_root, importer_id)
-            .join(input.config.modules_dir_name());
-        // A filtered install leaves the other importers uninstalled.
-        if !modules_dir.is_dir() {
+        let modules_dirs = modules_dirs(input, importer_id);
+        if modules_dirs.is_empty() {
             continue;
         }
         for (alias, spec) in snapshot.dependencies_by_groups(groups.iter().copied()) {
@@ -48,7 +47,7 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
             let Some(skills) = cached_skills(
                 &mut shipped,
                 probe_key(importer_id, &resolved),
-                &modules_dir.join(&alias),
+                &package_dir(&modules_dirs, &alias),
             ) else {
                 continue;
             };
@@ -59,6 +58,37 @@ pub(super) fn discover_skill_sources(input: &SyncAgentSkills<'_>) -> Vec<SkillSo
         .into_values()
         .filter(|source| !source.skills.is_empty())
         .collect()
+}
+
+/// The `node_modules` directories an importer's direct dependencies are
+/// installed in, nearest first. The hoisted linker may leave a dependency,
+/// or the whole directory, only in an ancestor up to the workspace root. A
+/// filtered install leaves the other importers with none.
+fn modules_dirs(input: &SyncAgentSkills<'_>, importer_id: &str) -> Vec<PathBuf> {
+    let importer_dir = importer_root_dir(input.workspace_root, importer_id);
+    let modules_dir_name = input.config.modules_dir_name();
+    let searched: Vec<&Path> = if input.config.node_linker == NodeLinker::Hoisted {
+        importer_dir
+            .ancestors()
+            .take_while(|dir| dir.starts_with(input.workspace_root))
+            .collect()
+    } else {
+        vec![&importer_dir]
+    };
+    searched
+        .into_iter()
+        .map(|dir| dir.join(modules_dir_name))
+        .filter(|dir| dir.is_dir())
+        .collect()
+}
+
+/// The nearest `<modules_dir>/<alias>` that exists, or the nearest one.
+fn package_dir(modules_dirs: &[PathBuf], alias: &str) -> PathBuf {
+    modules_dirs
+        .iter()
+        .map(|dir| dir.join(alias))
+        .find(|dir| fs::symlink_metadata(dir).is_ok())
+        .unwrap_or_else(|| modules_dirs[0].join(alias))
 }
 
 /// A registry package is one directory however many importers depend on

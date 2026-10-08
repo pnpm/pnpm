@@ -349,6 +349,23 @@ fn ignores_a_skill_that_resolves_outside_its_package() {
 }
 
 #[test]
+fn finds_a_dependency_hoisted_to_the_workspace_root() {
+    let root = tempfile::tempdir().expect("create workspace");
+    fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
+    fs::create_dir_all(root.path().join("packages/b")).unwrap();
+    install_package(&root.path().join("node_modules/foo"), &["guide"]);
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/b:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    )
+    .expect("parse lockfile");
+    let config = Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..config(&[], None) };
+
+    let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+
+    assert_eq!(state.pending, ["foo@1.0.0"]);
+}
+
+#[test]
 fn a_missing_higher_version_does_not_hide_an_installed_one() {
     let root = tempfile::tempdir().expect("create workspace");
     fs::create_dir_all(root.path().join(".claude/skills")).unwrap();
