@@ -83,6 +83,7 @@ mod ecosystem;
 mod managed_state;
 mod oci;
 mod oidc;
+mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;

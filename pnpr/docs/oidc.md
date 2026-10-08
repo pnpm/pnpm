@@ -39,6 +39,45 @@ subject to a pnpr username, and the registry's existing access rules and teams
 then apply. Extra `claims` are exact string matches and all of them must match.
 There is no automatic account creation, and no linking by email.
 
+### Teams from groups
+
+A signed-in session can also join teams through the groups your identity
+provider puts in the ID token:
+
+```yaml title="pnpr.yaml"
+auth:
+  oidc:
+    - name: company
+      issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+      audience: your-client-id
+      login:
+        users:
+          - subject: 'the-users-stable-sub-claim'
+            username: alice
+        groups:
+          claim: groups
+          teams:
+            - group: platform-engineers
+              registry: private
+              team: platform
+```
+
+- `claim` names the ID-token claim that lists the groups, either as a list of
+  strings or as one string. It defaults to `groups`.
+- A session whose claim lists `group` is a member of `team` on the hosted
+  registry `registry`, as if the team listed its username. `registry` is the
+  registry's key in `registries:`.
+- The membership lasts as long as the session. Removing someone from a group
+  takes effect at their next sign-in, within an hour. It never applies to the
+  user's password logins or `npm token`s.
+- On a registry whose teams are the config's, the team must be declared in its
+  `teams:`. With [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api),
+  it may name a team the admin API creates later.
+
+Configure the provider to issue the claim. Entra ID emits group object IDs
+under `groups` once group claims are enabled for the application. Okta emits
+`groups` when a groups claim is added to the authorization server.
+
 Use the issuer your provider publishes:
 
 | Provider | Issuer |

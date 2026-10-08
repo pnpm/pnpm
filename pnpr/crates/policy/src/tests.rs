@@ -1,4 +1,6 @@
-use super::{AccessList, AccessToken, Identity, PackageRule, RuleTable, TeamDirectory, Teams};
+use super::{
+    AccessList, AccessToken, Identity, Membership, PackageRule, RuleTable, TeamDirectory, Teams,
+};
 use pnpr_registry::{Ecosystem, PackagePattern};
 
 fn list(token: &str) -> AccessList {
@@ -276,4 +278,18 @@ fn falls_back_to_safe_defaults_when_no_rules_match() {
     assert!(effective.publish.allows(&user("alice")));
     assert!(!effective.unpublish.allows(&Identity::Anonymous));
     assert!(!effective.unpublish.allows(&user("alice")));
+}
+
+#[test]
+fn a_credential_membership_satisfies_team_tokens_of_that_roster_only() {
+    let (token, directory) = team_token("platform", &[]);
+    let list = AccessList::new(vec![token]);
+    let membership =
+        |directory: TeamDirectory, team: &str| Membership { directory, team: team.to_string() };
+
+    assert!(list.allows(&Identity::member("bob", vec![membership(directory.clone(), "platform")])));
+    assert!(!list.allows(&Identity::member("bob", vec![membership(directory, "other")])));
+    let other_registry = TeamDirectory::new(Teams::default());
+    assert!(!list.allows(&Identity::member("bob", vec![membership(other_registry, "platform")])));
+    assert!(!list.allows(&user("bob")));
 }

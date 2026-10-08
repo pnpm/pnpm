@@ -5,6 +5,7 @@ use super::{
     user_accounts::token_timestamp_millis,
 };
 mod compiler_cache;
+mod oidc_groups;
 
 use super::{
     PeerAddr,

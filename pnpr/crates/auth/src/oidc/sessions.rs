@@ -1,11 +1,11 @@
 use super::{
-    LoginSession, MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, Session, Utc, random_secret,
-    rejected, unavailable,
+    LoginSession, MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, Session, SessionUser, Utc,
+    random_secret, rejected, unavailable,
 };
 
 impl OidcState {
     /// Resolves only pnpr-issued browser sessions. Unknown or expired session tokens fail closed.
-    pub fn session(&self, raw: &str) -> Result<Option<String>> {
+    pub fn session(&self, raw: &str) -> Result<Option<SessionUser>> {
         if !raw.starts_with(SESSION_PREFIX) {
             return Ok(None);
         }
@@ -15,7 +15,7 @@ impl OidcState {
         if let Some(session) = sessions.get(&hash)
             && session.expires > now
         {
-            return Ok(Some(session.username.clone()));
+            return Ok(Some(session.user.clone()));
         }
         sessions.remove(&hash);
         Err(rejected())
@@ -29,7 +29,7 @@ impl OidcState {
             .is_some()
     }
 
-    pub(super) fn issue_session(&self, username: &str, expiration: i64) -> Result<LoginSession> {
+    pub(super) fn issue_session(&self, user: SessionUser, expiration: i64) -> Result<LoginSession> {
         let now = Utc::now().timestamp();
         let expires = expiration.min(now + 3600);
         if expires <= now {
@@ -41,10 +41,7 @@ impl OidcState {
         if sessions.len() >= MAX_ENTRIES {
             return Err(unavailable());
         }
-        sessions.insert(
-            super::super::sha256_hex(token.as_bytes()),
-            Session { username: username.to_string(), expires },
-        );
+        sessions.insert(super::super::sha256_hex(token.as_bytes()), Session { user, expires });
         Ok(LoginSession { token, expires })
     }
 }

@@ -1,4 +1,5 @@
 use super::TeamDirectory;
+use std::sync::Arc;
 
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,22 +88,38 @@ impl AccessList {
     }
 }
 
-/// The resolved caller identity an [`AccessList`] is evaluated against.
-/// Just the authenticated username (or its absence): team membership
-/// lives in the [`AccessToken::Team`] tokens' directory, so identity carries
-/// no memberships.
+/// The resolved caller identity an [`AccessList`] is evaluated against: the
+/// authenticated username (or its absence), and the team memberships the
+/// credential itself carries. Rosters live in the [`AccessToken::Team`]
+/// tokens' directory, so a credential that carries no memberships still
+/// reaches its roster teams.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
     /// No valid credentials were presented.
     Anonymous,
     /// Authenticated as `username`.
-    User { username: String },
+    User { username: String, memberships: Arc<[Membership]> },
+}
+
+/// A team membership that a credential carries, such as one an OIDC session
+/// earned from its groups claim: membership of `team` in the roster
+/// `directory`, whatever the roster itself lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Membership {
+    pub directory: TeamDirectory,
+    pub team: String,
 }
 
 impl Identity {
     #[must_use]
     pub fn user(username: impl Into<String>) -> Self {
-        Self::User { username: username.into() }
+        Self::member(username, Vec::new())
+    }
+
+    /// A user whose credential carries `memberships`.
+    #[must_use]
+    pub fn member(username: impl Into<String>, memberships: Vec<Membership>) -> Self {
+        Self::User { username: username.into(), memberships: memberships.into() }
     }
 
     #[must_use]
@@ -115,9 +132,14 @@ impl Identity {
             (AccessToken::All, _) => true,
             (AccessToken::Authenticated, Identity::User { .. }) => true,
             (AccessToken::Anonymous, Identity::Anonymous) => true,
-            (AccessToken::User(name), Identity::User { username }) => name == username,
-            (AccessToken::Team { name, directory }, Identity::User { username }) => {
+            (AccessToken::User(name), Identity::User { username, .. }) => name == username,
+            (AccessToken::Team { name, directory }, Identity::User { username, memberships }) => {
                 directory.has_member(name, username)
+                    || memberships
+                        .iter()
+                        .any(|membership| {
+                            membership.directory == *directory && membership.team == *name
+                        })
             }
             _ => false,
         }

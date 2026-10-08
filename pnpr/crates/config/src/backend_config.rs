@@ -168,7 +168,7 @@ impl IdentityConfig {
     #[must_use]
     pub fn is_admin(&self, identity: &Identity) -> bool {
         match identity {
-            Identity::User { username } => self.admins.contains(username),
+            Identity::User { username, .. } => self.admins.contains(username),
             Identity::Anonymous => false,
         }
     }
