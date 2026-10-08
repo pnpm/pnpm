@@ -84,7 +84,7 @@ async fn a_304_over_a_damaged_fragment_refetches_and_rewrites_the_mirror() {
     let opts = options(&registry, cache.path(), false, &http_client, &auth_headers);
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("refetched metadata");
     assert!(pkg.versions.get("1.0.0").is_some());
-    assert!(!pkg.versions.has_corrupt_mirror_fragment());
+    assert!(!pkg.versions.corrupt_mirror_fragment_found());
     let persisted = load_meta(&mirror_path).expect("rewritten mirror");
     assert!(persisted.versions.get("1.0.0").is_some());
     revalidate.assert_async().await;

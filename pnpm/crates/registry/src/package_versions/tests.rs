@@ -69,7 +69,7 @@ fn undecodable_fragment_behaves_as_absent() {
     assert!(package.versions.get("9.9.9").is_none());
     assert!(package.versions.get("1.0.0").is_some());
     assert_eq!(package.versions.iter().count(), 1);
-    assert!(!package.versions.has_corrupt_mirror_fragment());
+    assert!(!package.versions.corrupt_mirror_fragment_found());
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn policy_field_walk_reports_a_damaged_mirror_fragment() {
     let versions = mirror_versions();
 
     assert_eq!(versions.iter_policy_fields().count(), 1);
-    assert!(versions.has_corrupt_mirror_fragment());
+    assert!(versions.corrupt_mirror_fragment_found());
 }
 
 /// The walk must keep exactly the versions a full decode keeps, so a policy
@@ -185,10 +185,10 @@ fn a_damaged_mirror_fragment_is_reported_once_hydrated() {
     let versions = mirror_versions();
 
     assert!(versions.get("1.0.0").is_some());
-    assert!(!versions.has_corrupt_mirror_fragment());
+    assert!(!versions.corrupt_mirror_fragment_found());
 
     assert!(versions.get("2.0.0").is_none());
-    assert!(versions.has_corrupt_mirror_fragment());
+    assert!(versions.corrupt_mirror_fragment_found());
 }
 
 /// The publish-date filter hands out a filtered view of the same
@@ -200,8 +200,8 @@ fn a_filtered_view_shares_the_damage_report() {
     let filtered = versions.filtered(|version| version == "2.0.0");
 
     assert!(filtered.get("2.0.0").is_none());
-    assert!(filtered.has_corrupt_mirror_fragment());
-    assert!(versions.has_corrupt_mirror_fragment());
+    assert!(filtered.corrupt_mirror_fragment_found());
+    assert!(versions.corrupt_mirror_fragment_found());
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn probing_a_damaged_mirror_fragment_for_deprecation_reports_it() {
         mirror_spans(DAMAGED, [("1.0.0".to_string(), 0, u32::try_from(DAMAGED.len()).unwrap())]);
 
     assert!(!versions.is_deprecated("1.0.0"));
-    assert!(versions.has_corrupt_mirror_fragment());
+    assert!(versions.corrupt_mirror_fragment_found());
 }
 
 #[test]
@@ -583,24 +583,26 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
 
     assert!(versions.get("1.0.0").is_none());
     assert!(!versions.is_deprecated("1.0.0"));
-    assert!(!versions.has_corrupt_mirror_fragment());
+    assert!(!versions.corrupt_mirror_fragment_found());
 }
 
 #[test]
-fn checking_mirror_fragments_reports_damage_without_hydrating() {
+fn checking_every_mirror_fragment_finds_damage_without_hydrating() {
     let versions = mirror_versions();
 
-    assert!(versions.check_mirror_fragments());
+    versions.check_every_mirror_fragment();
+    assert!(versions.corrupt_mirror_fragment_found());
     assert!(!versions.is_hydrated("1.0.0"));
 }
 
 #[test]
-fn checking_intact_mirror_fragments_reports_nothing() {
+fn checking_every_intact_mirror_fragment_finds_nothing() {
     const VALID: &str =
         r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#;
     let versions =
         mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
 
-    assert!(!versions.check_mirror_fragments());
+    versions.check_every_mirror_fragment();
+    assert!(!versions.corrupt_mirror_fragment_found());
     assert!(!versions.is_hydrated("1.0.0"));
 }
