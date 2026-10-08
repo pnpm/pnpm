@@ -5,7 +5,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{AuthState, Config, router, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -208,4 +208,36 @@ async fn without_auth_scim_the_endpoints_are_not_served() {
     let app = router(Config::from_yaml(&path, listen, None).unwrap());
     let (status, _) = scim(&app, "GET", USERS, None).await;
     assert!(status == StatusCode::NOT_FOUND || status == StatusCode::BAD_GATEWAY, "{status}");
+}
+
+#[tokio::test]
+async fn reactivating_a_user_first_removes_credentials_a_failed_cleanup_left() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
+    assert_eq!(
+        scim(&app, "PATCH", &format!("{USERS}/alice"), Some(deactivate())).await.0,
+        StatusCode::OK,
+    );
+    // What a cleanup that failed while alice was inactive would leave behind.
+    auth.users.create_user("alice", "secret").await.unwrap();
+    let left_behind = auth.tokens.issue("alice").await.unwrap();
+
+    let reactivate = json!({
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [{ "op": "replace", "path": "active", "value": true }],
+    });
+    assert_eq!(
+        scim(&app, "PATCH", &format!("{USERS}/alice"), Some(reactivate)).await.0,
+        StatusCode::OK,
+    );
+    assert_eq!(whoami(&app, &left_behind).await, StatusCode::UNAUTHORIZED);
+    assert!(
+        auth.users
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }

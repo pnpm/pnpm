@@ -48,7 +48,7 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    Ok((username.to_string(), ScimUser { active, removed: false, attributes }))
+    Ok((username.to_string(), ScimUser { active, attributes, ..ScimUser::default() }))
 }
 
 /// Apply a `PatchOp` body to `user`. `active` and top-level or `name.*`
@@ -118,39 +118,46 @@ fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), Reg
             reason: format!("{path} cannot be changed through PATCH"),
         });
     }
-    let (parent, child) = path
-        .split_once('.')
-        .map_or((path, None), |(parent, child)| (parent, Some(child)));
-    let attributes = &mut user.attributes;
-    match (child, value) {
-        (None, Some(value)) => {
-            attributes.insert(parent.to_string(), value.clone());
-        }
-        (None, None) => {
-            attributes.remove(parent);
-        }
-        (Some(child), value) => set_child(attributes, parent, child, value),
-    }
+    let keys = attribute_keys(path);
+    set_nested(&mut user.attributes, &keys, value);
     Ok(())
 }
 
-fn set_child(
-    attributes: &mut Map<String, Value>,
-    parent: &str,
-    child: &str,
-    value: Option<&Value>,
-) {
+/// The keys of `path` in a stored resource. An extension attribute such as
+/// `urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager.value`
+/// lives under its schema URN, which itself contains dots.
+fn attribute_keys(path: &str) -> Vec<&str> {
+    let (urn, attribute) = match path.rsplit_once(':') {
+        // A whole schema URN, as an operation without a path names it.
+        Some((_, "User")) => return vec![path],
+        Some((urn, attribute)) if path.starts_with("urn:") => (Some(urn), attribute),
+        _ => (None, path),
+    };
+    urn.into_iter()
+        .chain(attribute.split('.'))
+        .collect()
+}
+
+/// Set or, with `None`, remove the value under `keys`, creating the objects
+/// on the way.
+fn set_nested(attributes: &mut Map<String, Value>, keys: &[&str], value: Option<&Value>) {
+    let [key, rest @ ..] = keys else { return };
+    if rest.is_empty() {
+        match value {
+            Some(value) => attributes.insert((*key).to_string(), value.clone()),
+            None => attributes.remove(*key),
+        };
+        return;
+    }
     let entry = attributes
-        .entry(parent.to_string())
+        .entry((*key).to_string())
         .or_insert_with(|| json!({}));
     if !entry.is_object() {
         *entry = json!({});
     }
-    let Some(object) = entry.as_object_mut() else { return };
-    match value {
-        Some(value) => object.insert(child.to_string(), value.clone()),
-        None => object.remove(child),
-    };
+    if let Some(object) = entry.as_object_mut() {
+        set_nested(object, rest, value);
+    }
 }
 
 /// SCIM `active`, which some clients send as the string `"True"` or

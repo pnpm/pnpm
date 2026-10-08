@@ -39,10 +39,14 @@ user, pnpr:
 
 pnpr also refuses every credential of that username and any new sign-in with
 it. Other replicas apply this within 10 seconds, the same delay as
-[admin API changes](configuration.md#changing-rules-through-the-api).
+[admin API changes](configuration.md#changing-rules-through-the-api), and end
+their own browser sessions for the user. A session that predates a
+deprovisioning never works again, even if the user is provisioned again.
 
 pnpr keeps refusing a deleted user. Provisioning the same `userName` again
 with `POST`, or setting `active` back to `true`, lets the user sign in again.
+Before it does, pnpr repeats the cleanup above, so no credential from before
+the deprovisioning comes back.
 
 Provisioning a user does not create a password account. Users sign in through
 OIDC, or an admin creates the account.
@@ -62,7 +66,8 @@ All paths are under `/-/pnpr/v0/scim/v2`.
 | `DELETE` | `/Users/{id}` | Deprovision the user and stop listing it. Returns `204`. |
 
 pnpr reads only `userName` and `active`. It stores the other attributes it
-receives and returns them unchanged. Groups, bulk operations, sorting, and
+receives, extension attributes under their schema URN, and returns them
+unchanged. Groups, bulk operations, sorting, and
 ETags are not supported. Assign teams with OIDC
 [groups](oidc.md#teams-from-groups) or the
 [team endpoints](endpoints.md#team-endpoints).

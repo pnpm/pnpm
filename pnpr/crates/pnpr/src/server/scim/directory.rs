@@ -10,8 +10,8 @@ use pnpr_storage::{RegistryRecord, SCIM_DIRECTORY};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, PoisonError, RwLock},
+    collections::{BTreeMap, BTreeSet, HashMap},
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
 /// The stored record: every username a SCIM client has provisioned, keyed
@@ -29,27 +29,67 @@ pub(super) struct ScimUser {
     /// username keeps being refused, but the SCIM API no longer lists it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub(super) removed: bool,
+    /// How many writes have made the user inactive. A replica that sees it
+    /// change ends its own browser sessions for the user, even when a later
+    /// write has made the user active again before the replica reloaded.
+    #[serde(default)]
+    pub(super) deprovisions: u64,
     /// The attributes other than `userName` and `active`, as the client sent
     /// them.
     #[serde(default)]
     pub(super) attributes: Map<String, Value>,
 }
 
+impl Directory {
+    /// Store `user` as `username`, carrying over its deprovision count and
+    /// counting this write if it makes the user inactive.
+    pub(super) fn store(&mut self, username: &str, mut user: ScimUser) -> ScimUser {
+        let previous = self.users.get(username);
+        user.deprovisions = previous.map_or(0, |previous| previous.deprovisions);
+        if !user.active && previous.is_none_or(|previous| previous.active) {
+            user.deprovisions += 1;
+        }
+        self.users.insert(username.to_string(), user.clone());
+        user
+    }
+}
+
 /// This replica's copy of the usernames the directory marks inactive.
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
     inactive: RwLock<Arc<BTreeSet<String>>>,
+    /// The deprovision count of each user as this replica last read it.
+    seen: Mutex<HashMap<String, u64>>,
 }
 
 impl ScimState {
-    fn publish(&self, directory: &Directory) {
+    fn publish(&self, state: &AppState, directory: &Directory) {
         let inactive = directory.users
             .iter()
             .filter(|(_, user)| !user.active)
             .map(|(name, _)| name.clone())
             .collect();
         *self.inactive.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(inactive);
+        let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
+        for name in newly_deprovisioned(&mut seen, directory) {
+            state.inner.identity.oidc.revoke_user_sessions(&name);
+        }
     }
+}
+
+/// The users `directory` has deprovisioned since `seen` was last updated,
+/// which it then records.
+pub(super) fn newly_deprovisioned(
+    seen: &mut HashMap<String, u64>,
+    directory: &Directory,
+) -> Vec<String> {
+    directory.users
+        .iter()
+        .filter(|(name, user)| {
+            seen.insert((*name).clone(), user.deprovisions).unwrap_or(0) != user.deprovisions
+        })
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 /// Whether a SCIM client deprovisioned `username`. Always `false` without
@@ -71,7 +111,7 @@ pub(in super::super) fn is_deprovisioned(state: &AppState, username: &str) -> bo
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
     match read_directory(state).await {
         Ok((directory, _)) => {
-            scim.publish(&directory);
+            scim.publish(state, &directory);
             true
         }
         Err(err) => {
@@ -115,13 +155,27 @@ where
         let bytes = serde_json::to_vec(&directory)?;
         let kind = RegistryRecord::ScimUsers;
         if store_registry_record(state, kind, SCIM_DIRECTORY, stored.as_deref(), &bytes).await? {
-            scim.publish(&directory);
+            scim.publish(state, &directory);
             return Ok(output);
         }
     }
     Err(RegistryError::AdminConflict {
         reason: "the SCIM directory kept changing; retry the request".to_string(),
     })
+}
+
+/// Run [`deprovision`] again for a user the directory holds as inactive,
+/// before a write can make it active. A cleanup that failed when the user was
+/// made inactive must not leave its credentials working once it is active.
+pub(super) async fn clean_up_before_reactivating(
+    state: &AppState,
+    username: &str,
+) -> Result<(), RegistryError> {
+    let (directory, _) = read_directory(state).await?;
+    if directory.users.get(username).is_some_and(|user| !user.active) {
+        deprovision(state, username).await?;
+    }
+    Ok(())
 }
 
 /// Take away everything `username` could sign in or authenticate with: its

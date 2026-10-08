@@ -12,6 +12,8 @@ pub(super) use directory::{ScimState, is_deprovisioned, reload_directory};
 mod directory;
 mod discovery;
 mod resources;
+#[cfg(test)]
+mod tests;
 
 use super::{
     AppState, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, ecosystem::sha256_hex,
@@ -24,7 +26,7 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
-use directory::{deprovision, read_directory, update_directory};
+use directory::{clean_up_before_reactivating, deprovision, read_directory, update_directory};
 use resources::{apply_patch, list_response, parse_filter, parse_user, user_resource};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -140,14 +142,14 @@ async fn get_user(
 async fn create_user(State(state): State<AppState>, _client: ScimClient, body: Bytes) -> Response {
     let result = async {
         let (username, user) = parse_user(&parse_json(&body)?)?;
+        clean_up_before_reactivating(&state, &username).await?;
         let created = update_directory(&state, |directory| {
             if directory.users.get(&username).is_some_and(|existing| !existing.removed) {
                 return Err(RegistryError::AdminConflict {
                     reason: format!("user {username:?} already exists"),
                 });
             }
-            directory.users.insert(username.clone(), user.clone());
-            Ok(user.clone())
+            Ok(directory.store(&username, user.clone()))
         })
         .await?;
         finish_write(&state, &username, &created, StatusCode::CREATED).await
@@ -167,10 +169,10 @@ async fn replace_user(
         if username != path.id {
             return Err(RegistryError::BadRequest { reason: "userName cannot change".to_string() });
         }
+        clean_up_before_reactivating(&state, &path.id).await?;
         let replaced = update_directory(&state, |directory| {
-            let existing = existing_user(directory, &path.id)?;
-            *existing = user.clone();
-            Ok(existing.clone())
+            existing_user(directory, &path.id)?;
+            Ok(directory.store(&path.id, user.clone()))
         })
         .await?;
         finish_write(&state, &path.id, &replaced, StatusCode::OK).await
@@ -187,12 +189,11 @@ async fn patch_user(
 ) -> Response {
     let result = async {
         let patch = parse_json(&body)?;
+        clean_up_before_reactivating(&state, &path.id).await?;
         let patched = update_directory(&state, |directory| {
-            let existing = existing_user(directory, &path.id)?;
-            let mut user = existing.clone();
+            let mut user = existing_user(directory, &path.id)?.clone();
             apply_patch(&mut user, &patch)?;
-            *existing = user;
-            Ok(existing.clone())
+            Ok(directory.store(&path.id, user))
         })
         .await?;
         finish_write(&state, &path.id, &patched, StatusCode::OK).await
@@ -208,9 +209,10 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         update_directory(&state, |directory| {
-            let existing = existing_user(directory, &path.id)?;
-            existing.active = false;
-            existing.removed = true;
+            let mut user = existing_user(directory, &path.id)?.clone();
+            user.active = false;
+            user.removed = true;
+            directory.store(&path.id, user);
             Ok(())
         })
         .await?;
