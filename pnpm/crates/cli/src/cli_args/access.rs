@@ -183,7 +183,6 @@ pub enum AccessError {
 impl AccessArgs {
     pub async fn run(mut self, config: &Config) -> miette::Result<Option<String>> {
         let mut params = std::mem::take(&mut self.params);
-        let context = build_access_context(&self, config)?;
 
         if params.is_empty() {
             return Err(AccessError::SubcommandRequired.into());
@@ -193,6 +192,7 @@ impl AccessArgs {
         let second = if params.is_empty() { None } else { Some(params.remove(0)) };
 
         let (action, rest) = parse_access_action(&first, second, params)?;
+        let context = build_access_context(&self, config, action, &rest)?;
 
         match action {
             "list_packages" => list_packages(&context, &rest).await.map(Some),

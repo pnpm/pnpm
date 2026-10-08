@@ -18,8 +18,7 @@ pub(super) struct AccessContext<'a> {
     pub(super) config: &'a Config,
     pub(super) http_client: ThrottledClient,
     pub(super) retry_opts: RetryOpts,
-    pub(super) registries: HashMap<String, String>,
-    pub(super) registry_override: Option<&'a str>,
+    pub(super) registry: String,
     pub(super) json: bool,
     pub(super) otp: Option<String>,
 }
@@ -27,45 +26,63 @@ pub(super) struct AccessContext<'a> {
 pub(super) fn build_access_context<'a>(
     args: &'a AccessArgs,
     config: &'a Config,
+    action: &str,
+    params: &[String],
 ) -> miette::Result<AccessContext<'a>> {
     let registries = resolve_registries_with_override(config, args.registry.as_deref());
+    let target_registry =
+        target_registry_for_action(&registries, args.registry.as_deref(), action, params);
     let http_client = build_registry_client_with_otp_guard(
         config,
         args.otp.as_deref(),
-        registries.values().map(String::as_str),
+        [target_registry.as_str()],
     )?;
 
     Ok(AccessContext {
         config,
         http_client,
         retry_opts: config.retry_opts(),
-        registries,
-        registry_override: args.registry.as_deref(),
+        registry: target_registry,
         json: args.json,
         otp: args.otp.clone(),
     })
 }
 
-pub(super) fn registry_for_package(context: &AccessContext<'_>, package_name: &str) -> String {
+pub(super) fn target_registry_for_action(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    action: &str,
+    params: &[String],
+) -> String {
+    let package_name = match action {
+        "list_packages" => return registry_for_list(registries, registry_override, params),
+        "list_collaborators" | "get_status" => params.first().map(String::as_str),
+        "set_status" | "set_mfa" | "revoke" => params.get(1).map(String::as_str),
+        "grant" => params.get(2).map(String::as_str),
+        _ => None,
+    };
     resolve_target_registry_for_package(
-        &context.registries,
-        context.registry_override,
-        package_name,
+        registries,
+        registry_override,
+        package_name.unwrap_or_default(),
         None,
     )
 }
 
-pub(super) fn registry_for_scope(context: &AccessContext<'_>, scope: &str) -> String {
+pub(super) fn registry_for_scope(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    scope: &str,
+) -> String {
     let pkg_name = format!("@{scope}/_");
-    resolve_target_registry_for_package(
-        &context.registries,
-        context.registry_override,
-        &pkg_name,
-        None,
-    )
+    resolve_target_registry_for_package(registries, registry_override, &pkg_name, None)
 }
 
-pub(super) fn registry_for_list(context: &AccessContext<'_>, params: &[String]) -> String {
+pub(super) fn registry_for_list(
+    registries: &HashMap<String, String>,
+    registry_override: Option<&str>,
+    params: &[String],
+) -> String {
     match params.first() {
         Some(raw) => {
             let entity = raw
@@ -73,19 +90,19 @@ pub(super) fn registry_for_list(context: &AccessContext<'_>, params: &[String]) 
                 .next()
                 .unwrap_or(raw.as_str());
             if let Some(scope) = entity.strip_prefix('@') {
-                registry_for_scope(context, scope)
+                registry_for_scope(registries, registry_override, scope)
             } else if raw.contains(':') {
-                registry_for_scope(context, entity)
+                registry_for_scope(registries, registry_override, entity)
             } else {
-                registry_for_package(context, "")
+                resolve_target_registry_for_package(registries, registry_override, "", None)
             }
         }
-        None => registry_for_package(context, ""),
+        None => resolve_target_registry_for_package(registries, registry_override, "", None),
     }
 }
 
 pub(super) fn auth_header_for_list(
-    context: &AccessContext<'_>,
+    config: &Config,
     params: &[String],
     registry: &str,
 ) -> Option<String> {
@@ -107,9 +124,9 @@ pub(super) fn auth_header_for_list(
     match scope {
         Some(scope_name) => {
             let pkg_name = format!("@{scope_name}/_");
-            auth_header_for_package(context.config, registry, &pkg_name)
+            auth_header_for_package(config, registry, &pkg_name)
         }
-        None => context.config.auth_headers.for_url(registry),
+        None => config.auth_headers.for_url(registry),
     }
 }
 
