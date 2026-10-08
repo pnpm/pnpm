@@ -11,7 +11,8 @@
         "configuration",
         "storage",
         "auth-backends",
-        "oidc"
+        "oidc",
+        "scim"
       ]
     },
     "ecosystems",

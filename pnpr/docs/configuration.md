@@ -478,6 +478,9 @@ An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
 publishing alongside the password backend — see
 [OpenID Connect](oidc.md).
 
+`auth.scim` lets an identity provider deprovision accounts — see
+[SCIM deprovisioning](scim.md).
+
 ## `secret`
 
 ```yaml title="pnpr.yaml"
