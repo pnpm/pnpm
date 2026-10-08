@@ -1,7 +1,8 @@
 use super::{
     AppState, AuthedCaller, Deserialize, Path, Response, State, TargetRegistry, TeamScope,
-    add_team_member, create_team, destroy_team, get_org_teams, get_team_members, private_no_cache,
-    remove_team_member, serve_org_packages,
+    add_team_member, create_team, destroy_team, get_org_teams, get_team_members, grant_team_access,
+    list_team_packages, private_no_cache, remove_team_member, revoke_team_access,
+    serve_org_packages,
 };
 use axum::body::Bytes;
 
@@ -103,4 +104,39 @@ pub(super) async fn delete_team_user(
 ) -> Response {
     let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
     remove_team_member(&state, &identity, target, &path.team, &body).await
+}
+
+/// `GET {base}/-/team/{scope}/{team}/package`.
+pub(super) async fn get_team_packages(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TeamPath>,
+) -> Response {
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    private_no_cache(list_team_packages(&state, &identity, &target, &path.team))
+}
+
+/// `PUT {base}/-/team/{scope}/{team}/package`.
+pub(super) async fn put_team_package(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TeamPath>,
+    body: Bytes,
+) -> Response {
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    grant_team_access(&state, &identity, target, &path.team, &body).await
+}
+
+/// `DELETE {base}/-/team/{scope}/{team}/package`.
+pub(super) async fn delete_team_package(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TeamPath>,
+    body: Bytes,
+) -> Response {
+    let target = TeamScope { registry: registry.as_deref(), scope: &path.scope };
+    revoke_team_access(&state, &identity, target, &path.team, &body).await
 }
