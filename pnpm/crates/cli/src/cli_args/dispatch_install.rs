@@ -83,7 +83,12 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
 /// Resolve each selector to the spelling its ecosystem's add path reads,
 /// leaving the npm ones in [`AddArgs::package_names`] and returning the rest.
 fn route_package_specifiers(args: &mut AddArgs) -> miette::Result<Vec<EcosystemPackageSpecifier>> {
-    let plan = PackageSpecifierPlan::parse(std::mem::take(&mut args.package_names))?;
+    let mut plan = PackageSpecifierPlan::parse(std::mem::take(&mut args.package_names))?;
+    // A global add installs the toolchain itself rather than pinning a
+    // project, and takes `rust` from the selectors on its own.
+    if !args.target.global {
+        plan.take_rust_toolchains()?;
+    }
     check_specifier_combination(args, &plan)?;
     args.package_names = plan.node_packages;
     Ok(plan.ecosystem_packages)
@@ -148,6 +153,9 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
     }
     if args.target.workspace && args.target.config {
         return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
+    }
+    if args.target.config && plan.has_rust_toolchain() {
+        return Err(miette::miette!("The Rust toolchain cannot be a configuration dependency"));
     }
     check_non_npm_targets(args, plan)
 }

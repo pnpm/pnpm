@@ -59,9 +59,15 @@ fn selection_digest(request: &ToolchainRequest) -> String {
 /// Whether the toolchain directory `name` holds a release `request`'s channel
 /// names, with the components and targets it asks for.
 pub(crate) fn is_installation_of(name: &str, host: &str, request: &ToolchainRequest) -> bool {
+    release_of(name, host, request).is_some()
+}
+
+/// The release the toolchain directory `name` holds, when it holds one
+/// `request`'s channel names with the components and targets it asks for.
+pub(crate) fn release_of(name: &str, host: &str, request: &ToolchainRequest) -> Option<Channel> {
     name.strip_suffix(&format!("-{host}-{}", selection_digest(request)))
         .and_then(Channel::parse)
-        .is_some_and(|pinned| request.channel == pinned || request.channel.accepts(&pinned))
+        .filter(|pinned| request.channel == *pinned || request.channel.accepts(pinned))
 }
 
 /// The newest installed toolchain the channel `request` names may resolve
@@ -130,6 +136,18 @@ pub(crate) fn recent_resolution(
     let pinned = Channel::parse(&fs::read_to_string(&record).ok()?)?;
     let dir = toolchain_dir(toolchains, &pinned, host, request);
     (request.channel.accepts(&pinned) && dir.is_dir()).then_some(dir)
+}
+
+/// Age the record of what a moving channel resolved to past
+/// [`CHANNEL_MAX_AGE`], so the next install asks the server again. The
+/// record stays, as the floor the channel may not move back past.
+pub(crate) fn expire_resolution(toolchains: &Path, host: &str, request: &ToolchainRequest) {
+    let record = resolution_record(toolchains, host, request);
+    if let Some(expired) = std::time::SystemTime::now().checked_sub(CHANNEL_MAX_AGE * 2)
+        && let Ok(file) = fs::File::options().write(true).open(record)
+    {
+        let _ = file.set_modified(expired);
+    }
 }
 
 /// What a moving channel last resolved to, however long ago. A channel

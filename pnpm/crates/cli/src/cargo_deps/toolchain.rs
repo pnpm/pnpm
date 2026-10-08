@@ -1,6 +1,8 @@
 //! The Rust toolchain a rustup toolchain file in the checkout names,
 //! installed by pnpm and linked beside the file.
 
+pub(crate) mod add;
+
 use super::workspace_directory::{ensure_workspace_directory, force_workspace_symlink};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::{Config, RuntimeOnFail};
@@ -69,7 +71,9 @@ pub(super) async fn provision<Reporter: self::Reporter>(
 
 /// What the toolchain file at `file` asks pnpm to install. `None` for a
 /// file left to rustup.
-fn managed_request<Reporter: self::Reporter>(file: &Path) -> Result<Option<ToolchainRequest>> {
+pub(super) fn managed_request<Reporter: self::Reporter>(
+    file: &Path,
+) -> Result<Option<ToolchainRequest>> {
     let reason = match read_toolchain_file(file)? {
         Ok(request) => return Ok(Some(request)),
         Err(Unmanaged::CustomPath | Unmanaged::NoChannel) => return Ok(None),
@@ -88,7 +92,7 @@ pub(crate) fn installs_toolchains(config: &Config) -> bool {
     matches!(config.runtime_on_fail, None | Some(RuntimeOnFail::Download))
 }
 
-fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
+pub(super) fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Warn,
         message: format!(
@@ -98,7 +102,7 @@ fn leave_to_rustup<Reporter: self::Reporter>(file: &Path, reason: &str) {
     }));
 }
 
-fn link(dir: &Path, toolchain: &Path) -> Result<()> {
+pub(super) fn link(dir: &Path, toolchain: &Path) -> Result<()> {
     let (name, parents) = TOOLCHAIN_LINK.split_last().expect("the link has a name");
     let directory = ensure_workspace_directory(dir, parents)?;
     force_workspace_symlink(&directory, toolchain, name)

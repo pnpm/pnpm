@@ -5,7 +5,8 @@
 //! toolchain file selects only a release the Rust project signed, so the
 //! toolchain is installed and run without the trust gate. It is installed
 //! into the store pnpm's own configuration names, never one the project
-//! does. Where no toolchain file applies, the shim steps aside for the next
+//! does. Where no toolchain file applies, the toolchain `pnpm add -g rust`
+//! installed runs, and without one the shim steps aside for the next
 //! program of its name on `PATH`, such as a rustup proxy.
 
 use super::{
@@ -16,11 +17,12 @@ use pnpm_config::Config;
 use pnpm_crypto_hash::create_hex_hash_bytes;
 use pnpm_reporter::{LogEvent, Reporter};
 use pnpm_rust_toolchain::{
-    InstalledToolchain, ToolchainRequest, find_toolchain_file, install_toolchain,
-    installed_toolchain,
+    Channel, InstalledToolchain, ToolchainRequest, expire_resolution, find_toolchain_file,
+    install_toolchain, installed_release, installed_toolchain, read_toolchain_file,
 };
 use std::{
     ffi::{OsStr, OsString},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -36,23 +38,111 @@ pub(crate) const RUST_SHIM_BINS: &[&str] =
 /// reason as [`super::runtime_env::RUNTIME_ENVS_DIR_NAME`].
 const RUST_ENVS_DIR_NAME: &str = "global-shim-rust";
 
-/// The toolchain the nearest toolchain file at or above `cwd` asks pnpm to
-/// install. `None` where there is no such file, or where rustup decides:
-/// the nearest file is one rustup handles itself, or a directory override
-/// (`rustup override set`) at or below the file's directory applies, which
-/// rustup ranks above the file.
-pub(super) fn find_rust_candidate(cwd: &Path, rustup_settings: Option<&Path>) -> Option<Candidate> {
-    let root = cwd.ancestors().last()?;
-    let file = find_toolchain_file(cwd, root)?;
-    let project_dir = file.parent()?;
-    if rustup_settings
-        .and_then(|settings| rustup_override_dir(cwd, settings))
-        .is_some_and(|override_dir| override_dir.starts_with(project_dir))
-    {
-        return None;
+/// The file in the global bin directory that names the toolchain
+/// `pnpm add -g rust` installed, in the plain `rust-toolchain` format.
+const GLOBAL_TOOLCHAIN_FILE: &str = ".pnpm-rust-toolchain";
+
+/// The toolchain `pnpm add -g rust` installed for the shims in `bin_dir`.
+pub(crate) fn global_toolchain(bin_dir: &Path) -> Option<ToolchainRequest> {
+    read_toolchain_file(&bin_dir.join(GLOBAL_TOOLCHAIN_FILE)).ok()?.ok()
+}
+
+/// Make `channel` the toolchain the shims in `bin_dir` run outside a
+/// project that names one.
+pub(crate) fn record_global_toolchain(bin_dir: &Path, channel: &Channel) -> io::Result<()> {
+    pnpm_fs::write_atomic(&bin_dir.join(GLOBAL_TOOLCHAIN_FILE), format!("{channel}\n").as_bytes())
+}
+
+/// Forget the global toolchain. Reports whether one was recorded.
+pub(crate) fn remove_global_toolchain(bin_dir: &Path) -> io::Result<bool> {
+    match std::fs::remove_file(bin_dir.join(GLOBAL_TOOLCHAIN_FILE)) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
     }
-    let bytes = std::fs::read(&file).ok()?;
-    let request = pnpm_rust_toolchain::read_toolchain_file(&file).ok()?.ok()?;
+}
+
+/// Run the toolchain `pnpm add -g rust` installed, for an invocation no
+/// project or rustup selection applies to, or the next `name` on `PATH`
+/// when there is none.
+pub(super) fn run_global_rust(
+    shim: &ShimInvocation<'_>,
+    args: &[OsString],
+    state_dir: &Path,
+) -> i32 {
+    match global_toolchain(shim.bin_dir) {
+        Some(request) => run_rust_toolchain(state_dir, &request, shim.name, args),
+        None => run_next_on_path(shim, args),
+    }
+}
+
+/// Install the toolchain `request` names into the store the shims run it
+/// from, which pnpm's own configuration names.
+pub(crate) async fn install_for_shims<Reporter: self::Reporter>(
+    request: &ToolchainRequest,
+) -> miette::Result<InstalledToolchain> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    let config = trusted_rust_config(&state_dir)?;
+    let client = crate::State::new_http_client(&config).map_err(miette::Report::new)?;
+    install_toolchain::<Reporter>(&config, &client, request).await.map_err(miette::Report::new)
+}
+
+/// The release `request` last resolved to for the shims, and where it is
+/// installed.
+pub(crate) fn installed_release_for_shims(
+    request: &ToolchainRequest,
+) -> Option<(Channel, InstalledToolchain)> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    installed_release(&trusted_rust_config(&state_dir).ok()?, request)
+}
+
+/// Make the next install of `request` for the shims ask the distribution
+/// server which release a moving channel is now.
+pub(crate) fn expire_for_shims(request: &ToolchainRequest) -> miette::Result<()> {
+    let state_dir = super::settings::trusted_shim_settings().state_dir;
+    expire_resolution(&trusted_rust_config(&state_dir)?, request);
+    Ok(())
+}
+
+/// Who decides the toolchain a Rust tool run in some directory uses.
+pub(super) enum RustSelection {
+    /// The nearest toolchain file names a toolchain pnpm installs.
+    Managed(Candidate),
+    /// rustup does: the nearest toolchain file is one rustup handles itself,
+    /// or a directory override (`rustup override set`) at or below the
+    /// file's directory applies, which rustup ranks above the file.
+    Rustup,
+    /// Nothing about the directory does, so the machine's default applies.
+    Unpinned,
+}
+
+/// Who decides the toolchain for `cwd`, reading the nearest toolchain file
+/// at or above it and rustup's directory overrides in `rustup_settings`.
+pub(super) fn find_rust_candidate(cwd: &Path, rustup_settings: Option<&Path>) -> RustSelection {
+    let override_dir = rustup_settings.and_then(|settings| rustup_override_dir(cwd, settings));
+    let file = cwd
+        .ancestors()
+        .last()
+        .and_then(|root| find_toolchain_file(cwd, root));
+    let Some((file, project_dir)) = file
+        .as_deref()
+        .and_then(|file| Some((file, file.parent()?)))
+    else {
+        return if override_dir.is_some() {
+            RustSelection::Rustup
+        } else {
+            RustSelection::Unpinned
+        };
+    };
+    if override_dir.is_some_and(|override_dir| override_dir.starts_with(project_dir)) {
+        return RustSelection::Rustup;
+    }
+    managed_candidate(file, project_dir).map_or(RustSelection::Rustup, RustSelection::Managed)
+}
+
+fn managed_candidate(file: &Path, project_dir: &Path) -> Option<Candidate> {
+    let bytes = std::fs::read(file).ok()?;
+    let request = pnpm_rust_toolchain::read_toolchain_file(file).ok()?.ok()?;
     Some(Candidate::RustToolchain {
         project_dir: project_dir.to_path_buf(),
         request,
@@ -115,7 +205,7 @@ pub(super) fn run_rust_toolchain(
     let program = toolchain.executable(name);
     if !program.is_file() {
         eprintln!(
-            "pnpm: Rust {} as the toolchain file asks for it has no {name}. List the component that provides it under `components`.",
+            "pnpm: Rust {} as installed has no {name}. List the component that provides it under `components` in rust-toolchain.toml.",
             request.channel,
         );
         return 127;

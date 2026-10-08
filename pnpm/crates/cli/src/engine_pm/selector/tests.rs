@@ -53,3 +53,21 @@ fn a_request_that_locates_a_package_is_left_alone() {
     assert_eq!(tool_install_selector("yarn@yarnpkg/berry"), None);
     assert_eq!(tool_install_selector("node@nodejs/node#main"), None);
 }
+
+#[test]
+fn rust_names_the_toolchain() {
+    let channel = |request: &str| {
+        super::rust_toolchain_request(request)
+            .map(|channel| {
+                channel.map(|channel| channel.to_string()).map_err(|error| error.to_string())
+            })
+    };
+    assert_eq!(channel("rust"), Some(Ok("stable".to_string())));
+    assert_eq!(channel("rust@latest"), Some(Ok("stable".to_string())));
+    assert_eq!(channel("rust@1.95"), Some(Ok("1.95".to_string())));
+    assert_eq!(channel("rust@nightly-2026-01-01"), Some(Ok("nightly-2026-01-01".to_string())));
+    assert!(matches!(channel("rust@^1.95"), Some(Err(_))));
+    assert_eq!(channel("rust@npm:rust@1.0.8"), None);
+    assert_eq!(channel("rustc"), None);
+    assert_eq!(channel("@scope/rust"), None);
+}
