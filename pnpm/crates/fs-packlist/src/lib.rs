@@ -457,9 +457,11 @@ fn is_always_included_at_root(rel: &str) -> bool {
     if lower == "package.json" {
         return true;
     }
-    ALWAYS_INCLUDED_PREFIXES
-        .iter()
-        .any(|prefix| lower.starts_with(prefix))
+    ALWAYS_INCLUDED_PREFIXES.iter().any(|prefix| {
+        lower
+            .strip_prefix(prefix)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    })
 }
 
 fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
