@@ -1,10 +1,73 @@
-use super::{Host, LinkBinsOptions, PackageBinSource, json, link_bins_of_packages, tempdir};
+use super::{
+    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
+    FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource, json, link_bins_of_packages,
+    tempdir,
+};
 use std::{
-    fs,
+    fs, io,
     os::unix::fs::{PermissionsExt, symlink},
+    path::{Path, PathBuf},
     process::Command,
     sync::Arc,
 };
+
+/// Relinking a current shim another user owns must not chmod it: the kernel
+/// refuses that, even to the shim's current mode.
+#[test]
+fn relinking_a_current_shim_skips_its_chmod() {
+    struct ChmodDenied;
+    impl FsReadHead for ChmodDenied {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            Host::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for ChmodDenied {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            Host::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for ChmodDenied {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            Host::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for ChmodDenied {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            Host::walk_files(path)
+        }
+    }
+    impl FsWrite for ChmodDenied {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            Host::write(path, bytes)
+        }
+    }
+    impl FsSetExecutable for ChmodDenied {
+        fn set_executable(_: &Path) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+        fn ensure_executable(path: &Path) -> io::Result<()> {
+            Host::ensure_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for ChmodDenied {
+        fn ensure_executable_bits(path: &Path, modules: Option<&Path>) -> io::Result<()> {
+            Host::ensure_executable_bits(path, modules)
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let package = tmp.path().join("node_modules/foo");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let packages =
+        [PackageBinSource::new(package, Arc::new(json!({"name": "foo", "bin": "cli.js"})))];
+    let bins = tmp.path().join("node_modules/.bin");
+    link_bins_of_packages::<Host>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+    let shim = fs::read(bins.join("foo")).unwrap();
+
+    link_bins_of_packages::<ChmodDenied>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(fs::read(bins.join("foo")).unwrap(), shim);
+}
 
 #[test]
 fn linking_workspace_bins_preserves_source_permissions() {
