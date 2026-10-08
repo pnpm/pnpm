@@ -73,10 +73,7 @@ async fn read_rules(
     else {
         return Ok((base.clone(), rules_version(None)));
     };
-    let changes: RuleChanges = serde_json::from_slice(&bytes)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("the stored rules of registry {registry:?} are unreadable: {err}"),
-        })?;
+    let changes = parse_changes(registry, Some(&bytes))?;
     let table = apply_changes(state, registry, base, changes, Compile::Stored)
         .map_err(|reason| RegistryError::Internal { reason })?;
     Ok((table, rules_version(Some(&bytes))))
@@ -133,6 +130,50 @@ pub(super) async fn replace_rules(
     Err(RegistryError::AdminConflict {
         reason: format!("the rules of registry {registry:?} kept changing; retry the request"),
     })
+}
+
+/// Apply `edit` to the stored rule changes of `registry` and store the
+/// result, rereading and reapplying it when another writer replaced them
+/// first. `edit` sees the registry's YAML rules too. The result is checked
+/// like a `PUT` before anything is written, and applies on this replica at
+/// once.
+pub(super) async fn update_rules<Edit>(
+    state: &AppState,
+    registry: &str,
+    edit: Edit,
+) -> Result<(), RegistryError>
+where
+    Edit: Fn(&mut RuleChanges, &RuleTable) -> Result<(), RegistryError>,
+{
+    let managed = &state.inner.identity.managed;
+    let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
+    let _reload = managed.reload.lock().await;
+    for _ in 0..WRITE_ATTEMPTS {
+        let kind = RegistryRecord::RuleOverrides;
+        let stored = state.inner.storage.read_registry_record(kind, registry).await?;
+        let mut changes = parse_changes(registry, stored.as_deref())?;
+        edit(&mut changes, base)?;
+        let bytes = serde_json::to_vec(&changes)?;
+        let table = apply_changes(state, registry, base, changes, Compile::Strict)
+            .map_err(|reason| RegistryError::BadRequest { reason })?;
+        if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
+            publish_rules(state, registry, table);
+            return Ok(());
+        }
+    }
+    Err(RegistryError::AdminConflict {
+        reason: format!("the rules of registry {registry:?} kept changing; retry the request"),
+    })
+}
+
+fn parse_changes(registry: &str, stored: Option<&[u8]>) -> Result<RuleChanges, RegistryError> {
+    let Some(bytes) = stored else {
+        return Ok(RuleChanges::default());
+    };
+    serde_json::from_slice(bytes)
+        .map_err(|err| RegistryError::Internal {
+            reason: format!("the stored rules of registry {registry:?} are unreadable: {err}"),
+        })
 }
 
 fn check_version(

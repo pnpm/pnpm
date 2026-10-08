@@ -149,4 +149,18 @@ impl RuleTable {
     pub fn rules(&self) -> &[PackageRule] {
         &self.rules
     }
+
+    /// The registry-level `publish` default an entry's omitted `publish`
+    /// falls back to.
+    #[must_use]
+    pub fn default_publish(&self) -> &AccessList {
+        &self.default_publish
+    }
+
+    /// The registry-level `unpublish` default an entry's omitted `unpublish`
+    /// falls back to.
+    #[must_use]
+    pub fn default_unpublish(&self) -> &AccessList {
+        &self.default_unpublish
+    }
 }

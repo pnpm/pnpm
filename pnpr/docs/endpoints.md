@@ -297,6 +297,28 @@ the stage endpoints, a denial here is **masked as `404`** — team and member
 names must not become an existence probe for a private registry. A registry
 that declares no teams returns an empty array.
 
+### Team package access
+
+`npm access grant`, `npm access revoke`, and `npm access list packages
+<scope:team>` edit and read the `packages:` rules of a registry with
+[`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/-/team/{scope}/{team}/package` | The `packages:` keys whose `access` list names `team:<team>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
+| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<team>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<team>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
+
+- The package must be a `packages:` key of its own, such as `'@acme/app'`.
+  A package that only a pattern such as `'@acme/*'` covers returns `400`,
+  because editing the pattern would grant every package it covers.
+- A grant edits the lists that apply to the package now, and stores only the
+  lists it changes, the same way a `PUT` to the
+  [rules admin API](#admin-endpoints) does.
+- The caller must be one of the `auth.admins`, and the team must exist.
+- On a registry without `rulesManagedBy: api` a change returns `403` with
+  `rules_config_managed`.
+
 ## User and token endpoints
 
 These endpoints are **always mounted**, whichever surfaces are enabled, and

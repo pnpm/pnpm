@@ -93,6 +93,7 @@ mod rule_admin;
 mod rule_overrides;
 mod staged;
 mod striped_locks;
+mod team_access;
 mod team_mutations;
 mod team_rosters;
 mod user_admin;

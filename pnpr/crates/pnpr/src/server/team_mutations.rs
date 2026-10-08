@@ -151,7 +151,9 @@ fn team_members<'a>(
     teams.get_mut(team).ok_or(RegistryError::NotFound)
 }
 
-fn parse_body<'a, Body: Deserialize<'a>>(body: &'a Bytes) -> Result<Body, RegistryError> {
+pub(super) fn parse_body<'a, Body: Deserialize<'a>>(
+    body: &'a Bytes,
+) -> Result<Body, RegistryError> {
     serde_json::from_slice(body)
         .map_err(|err| RegistryError::BadRequest { reason: format!("invalid request body: {err}") })
 }
