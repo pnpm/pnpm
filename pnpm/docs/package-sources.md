@@ -215,7 +215,7 @@ Added in: v12.0.0 (pnpm v12 only)
 
 For repositories on GitHub, GitLab, and Bitbucket, the specifier is an **identity**, not a choice of transport. All of the following name the same dependency and resolve identically:
 
-```
+```text
 kevva/is-positive
 github:kevva/is-positive
 git+https://github.com/kevva/is-positive.git
