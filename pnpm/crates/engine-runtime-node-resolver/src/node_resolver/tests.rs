@@ -110,6 +110,23 @@ async fn keeps_the_locked_runtime_without_network() {
 }
 
 #[tokio::test]
+async fn a_kept_runtime_still_rejects_an_unknown_release_channel() {
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:unknown/^26".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver()
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err.downcast_ref::<super::NodeResolverError>(),
+        Some(super::NodeResolverError::InvalidReleaseChannel(_)),
+    ));
+}
+
+#[tokio::test]
 async fn update_and_checksum_refresh_re_resolve_the_locked_runtime() {
     let mut resolver = resolver();
     resolver.offline = true;

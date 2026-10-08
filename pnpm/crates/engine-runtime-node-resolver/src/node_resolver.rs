@@ -160,6 +160,10 @@ impl NodeResolver {
             return Ok(None);
         };
         if let Some((current, version)) = opts.refresh.kept_runtime() {
+            parse_node_specifier(version_spec)
+                .map_err(|err| {
+                    Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+                })?;
             return Ok(Some(node_resolve_result(
                 wanted_dependency,
                 current.id.clone(),
