@@ -358,3 +358,14 @@ fn strips_the_carriage_return_from_value_headers_only() {
         ],
     );
 }
+
+/// A CRLF patch saved without a final newline ends its last header in a
+/// bare `\r`.
+#[test]
+fn strips_the_carriage_return_from_an_unterminated_final_header() {
+    let normalized = strip_cr_from_extended_headers(
+        "diff --git a/run.sh b/run.sh\r\nnew mode 100755\r".to_string(),
+    );
+
+    assert_eq!(normalized, "diff --git a/run.sh b/run.sh\nnew mode 100755");
+}

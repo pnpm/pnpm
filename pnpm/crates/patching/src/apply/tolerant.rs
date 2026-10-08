@@ -86,8 +86,12 @@ pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
     }
     let mut kept = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
-        let header = line
-            .strip_suffix("\r\n")
+        let (content, newline) = match line.strip_suffix('\n') {
+            Some(content) => (content, "\n"),
+            None => (line, ""),
+        };
+        let header = content
+            .strip_suffix('\r')
             .filter(|header| {
                 VALUE_EXTENDED_HEADERS
                     .iter()
@@ -96,7 +100,7 @@ pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
         match header {
             Some(header) => {
                 kept.push_str(header);
-                kept.push('\n');
+                kept.push_str(newline);
             }
             None => kept.push_str(line),
         }
