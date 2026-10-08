@@ -283,7 +283,7 @@ impl PackageManifest {
             contents
         };
         if self.crlf {
-            contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
+            contents = serialization::normalize_crlf(&contents);
         }
         Ok(contents)
     }

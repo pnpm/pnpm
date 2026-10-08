@@ -63,6 +63,10 @@ fn join_registry_endpoint_resolves_path_relative_to_registry() {
             .unwrap(),
         "https://custom.registry.com/prefix/-/package/foo/dist-tags",
     );
+    assert_eq!(
+        super::join_registry_url("https://registry.npmjs.org", "-/v1/search").unwrap().as_str(),
+        "https://registry.npmjs.org/-/v1/search",
+    );
 }
 
 #[test]

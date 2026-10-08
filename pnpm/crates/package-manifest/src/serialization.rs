@@ -328,3 +328,21 @@ impl PackageManifest {
             .map_err(|source| PackageManifestError::EditYaml { path: self.path.clone(), source })
     }
 }
+
+pub(super) fn normalize_crlf(input: &str) -> String {
+    let mut output = String::with_capacity(input.len() + input.len() / 30);
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\r' {
+            if chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            output.push_str("\r\n");
+        } else if ch == '\n' {
+            output.push_str("\r\n");
+        } else {
+            output.push(ch);
+        }
+    }
+    output
+}
