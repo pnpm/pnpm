@@ -15,7 +15,9 @@ use super::{
     publish::{PublishArgs, PublishFlags},
     sanitize::body_display_string,
 };
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::{
+    build_registry_client, resolve_target_registry_for_package,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -31,7 +33,6 @@ use pnpm_network_web_auth::{
 };
 use pnpm_publish::{Host, PublishSummary, resolve_otp_from_env};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use registry::{
@@ -335,7 +336,12 @@ impl StageArgs {
             self.registry.as_deref(),
         );
         let registry = match package_name {
-            Some(package) => pick_registry_for_package(&registries, package, None),
+            Some(package) => resolve_target_registry_for_package(
+                &registries,
+                self.registry.as_deref(),
+                package,
+                None,
+            ),
             None => registries
                 .get("default")
                 .cloned()

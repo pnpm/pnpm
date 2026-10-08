@@ -1,7 +1,8 @@
 use crate::cli_args::{
     registry_client::{
         apply_auth_and_otp, auth_header_for_package, build_registry_client_with_otp_guard,
-        join_registry_endpoint, resolve_registries_with_override, resolve_registry_for_package,
+        join_registry_endpoint, resolve_registries_with_override,
+        resolve_target_registry_for_package,
     },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
@@ -107,6 +108,7 @@ pub(super) struct OwnerContext<'a> {
     pub(super) http_client: ThrottledClient,
     pub(super) retry_opts: RetryOpts,
     pub(super) registries: HashMap<String, String>,
+    pub(super) registry_override: Option<&'a str>,
     pub(super) otp: Option<String>,
 }
 
@@ -141,6 +143,7 @@ impl OwnerArgs {
             http_client,
             retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
         })
     }
@@ -235,7 +238,12 @@ pub(super) struct OwnersEndpoint {
 }
 
 pub(super) fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
-    let registry_url = resolve_registry_for_package(&context.registries, package_name, None);
+    let registry_url = resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    );
     let auth_header = auth_header_for_package(context.config, &registry_url, package_name);
     let escaped = escaped_package_name(package_name);
     let path = format!("-/package/{escaped}/owners");

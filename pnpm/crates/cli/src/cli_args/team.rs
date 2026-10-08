@@ -169,6 +169,7 @@ struct TeamContext<'a> {
     http_client: ThrottledClient,
     retry_opts: RetryOpts,
     registries: HashMap<String, String>,
+    registry_override: Option<&'a str>,
     otp: Option<String>,
     parseable: bool,
     json: bool,
@@ -224,7 +225,7 @@ impl TeamArgs {
         }
     }
 
-    fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
+    fn context<'a>(&'a self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
         let registries = crate::cli_args::registry_client::resolve_registries_with_override(
             config,
             self.registry.as_deref(),
@@ -239,6 +240,7 @@ impl TeamArgs {
             http_client,
             retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
             parseable: self.parseable,
             json: self.json,

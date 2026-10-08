@@ -4,7 +4,7 @@ use super::{
 use crate::cli_args::{
     registry_client::{
         apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
-        resolve_registry_for_package,
+        resolve_target_registry_for_package,
     },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
@@ -113,7 +113,12 @@ pub(super) async fn fetch_team_members(
 
 pub(super) fn registry_for_scope(context: &TeamContext<'_>, scope: &str) -> String {
     let pkg_name = format!("@{scope}/_");
-    resolve_registry_for_package(&context.registries, &pkg_name, None)
+    resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        &pkg_name,
+        None,
+    )
 }
 
 pub(super) fn auth_header_for_registry(

@@ -155,13 +155,14 @@ pub(crate) struct DeprecateContext<'a> {
     pub(crate) http_client: ThrottledClient,
     pub(crate) retry_opts: RetryOpts,
     pub(crate) registries: HashMap<String, String>,
+    pub(crate) registry_override: Option<&'a str>,
     pub(crate) otp: Option<String>,
 }
 
 impl DeprecateContext<'_> {
     pub(crate) fn new<'a>(
         config: &'a Config,
-        registry: Option<&str>,
+        registry: Option<&'a str>,
         otp: Option<String>,
     ) -> miette::Result<DeprecateContext<'a>> {
         let registries =
@@ -171,6 +172,7 @@ impl DeprecateContext<'_> {
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
             retry_opts: config.retry_opts(),
             registries,
+            registry_override: registry,
             otp,
         })
     }

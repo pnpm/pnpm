@@ -1,7 +1,8 @@
 use crate::cli_args::{
     registry_client::{
         apply_auth_and_otp, auth_header_for_package, build_registry_client, join_registry_endpoint,
-        package_endpoint_url, resolve_registries_with_override, resolve_registry_for_package,
+        package_endpoint_url, resolve_registries_with_override,
+        resolve_target_registry_for_package,
     },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
     whoami::fetch_whoami,
@@ -68,7 +69,8 @@ pub(crate) async fn star_action(
 ) -> miette::Result<()> {
     let action = action_word(is_star);
     let registries = resolve_registries_with_override(config, registry_override);
-    let registry_url = resolve_registry_for_package(&registries, package_name, None);
+    let registry_url =
+        resolve_target_registry_for_package(&registries, registry_override, package_name, None);
     let auth_header = auth_header_for_package(config, &registry_url, package_name)
         .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
@@ -307,3 +309,6 @@ async fn star_error(response: reqwest::Response, action: &'static str) -> StarEr
         read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
     StarError::Failed { action, status: status.as_u16(), status_text, body }
 }
+
+#[cfg(test)]
+mod tests;
