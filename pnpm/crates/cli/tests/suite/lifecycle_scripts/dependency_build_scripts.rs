@@ -5,6 +5,7 @@ use super::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
+use pnpm_modules_yaml::{Host, read_modules_manifest, write_modules_manifest};
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, process::Command};
 
@@ -825,6 +826,66 @@ fn rebuild_after_allow_builds_changes() {
     assert!(scripts_pkg.join("generated-by-postinstall.js").exists());
 
     drop((root, mock_instance, frozen_root));
+}
+
+/// Recorded settings that drifted make an install recreate the modules
+/// directory. A rebuild leaves every file in place and runs the scripts.
+#[test]
+fn rebuild_keeps_the_modules_dir_when_its_recorded_settings_drifted() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let modules_dir = workspace.join("node_modules");
+    let mut modules = read_modules_manifest::<Host>(&modules_dir)
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists");
+    modules.hoist_pattern = None;
+    modules.node_linker = None;
+    write_modules_manifest::<Host>(&modules_dir, modules).expect("write .modules.yaml");
+
+    let scripts_pkg = modules_dir.join(
+        ".pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    let kept = scripts_pkg.join("kept-by-rebuild.txt");
+    fs::write(&kept, "").expect("write marker");
+    let generated = scripts_pkg.join("generated-by-postinstall.js");
+    fs::remove_file(&generated).expect("remove the build output");
+
+    let CommandTempCwd {
+        pacquet: rebuild,
+        root: rebuild_root,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    rebuild
+        .with_current_dir(&workspace)
+        .with_arg("rebuild")
+        .assert()
+        .success();
+
+    assert!(kept.exists(), "a rebuild must not recreate node_modules");
+    assert!(generated.exists(), "a rebuild runs the scripts");
+
+    drop((root, mock_instance, rebuild_root));
 }
 
 #[test]
