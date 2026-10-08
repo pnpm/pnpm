@@ -98,6 +98,7 @@ mod team_access;
 mod team_mutations;
 mod team_rosters;
 mod user_admin;
+mod web_ui;
 
 #[cfg(test)]
 mod tests;

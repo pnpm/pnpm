@@ -6,6 +6,7 @@ use super::{
 };
 mod compiler_cache;
 mod oidc_groups;
+mod web_ui;
 
 use super::{
     PeerAddr,

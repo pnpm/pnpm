@@ -20,6 +20,7 @@ const NON_TYPESCRIPT_PKGS = new Set([
   'pacquet',
   '@pnpm/napi',
   '@pnpm/pnpr',
+  '@pnpm/pnpr-ui',
   '@pnpm/esm-loader',
 ])
 

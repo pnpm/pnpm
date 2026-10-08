@@ -185,6 +185,9 @@ pub(super) struct ConfigFile {
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]
     pub(super) cors: CorsFile,
+    /// pnpr-only web UI settings.
+    #[serde(default)]
+    pub(super) ui: UiFile,
     #[serde(default)]
     pub(super) oci: OciConfig,
     /// pnpr-only block: store the hosted (published) packages in an
@@ -257,6 +260,19 @@ pub(super) struct ConfigFile {
 pub(super) struct CorsFile {
     #[serde(default)]
     pub(super) allowed_origins: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct UiFile {
+    pub(super) enabled: bool,
+    pub(super) dir: Option<String>,
+}
+
+impl Default for UiFile {
+    fn default() -> Self {
+        Self { enabled: true, dir: None }
+    }
 }
 
 /// Marker for a present top-level `packages:` key, whatever its value.
