@@ -3091,6 +3091,13 @@
   dir: pnpm/npm/napi
   intents:
     - napi-rebuild-checks-only-patches
+"@pnpm/napi@12.11.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-rebuild-skip-if-has-side-effects-cache
+    - rebuild-inspects-selected-only
+    - rebuild-keeps-modules-dir
+    - size-napi-rayon-pool
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -5890,6 +5897,55 @@ pacquet@12.10.1:
     - loaded-linker-node-runtime
     - skip-nested-checkouts-in-ecosystem-install
     - slow-request-warning-excludes-queue
+pacquet@12.11.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - access-command-registry-resolution
+    - agent-skills-in-dependencies
+    - audit-fix-update-only-vulnerable
+    - auto-installed-peer-not-optional
+    - bootstrap-download-reads-npmrc
+    - cargo-optional-sources-include
+    - catalog-prune-remove-partial-workspace
+    - cli-registry-flags-and-endpoints
+    - config-dependency-release-age
+    - crlf-patches-apply
+    - deploy-resolution-settings
+    - deploy-sorted-dependencies
+    - fix-qemu-io-driver-panic
+    - fix-windows-hoist-junction-race
+    - hardlink-group-writable-store
+    - injected-copy-files-field-dedicated-lockfiles
+    - injected-sync-half-written-manifest
+    - install-rust-toolchain
+    - keep-built-slots-on-repeat-install
+    - keep-colors-of-streamed-script-output
+    - keep-locked-runtime-on-add
+    - lifecycle-failure-in-live-output
+    - loaded-linker-unsupported-node
+    - lockfile-verification-memory
+    - npmignore-extglob-negations
+    - outdated-applies-overrides
+    - pack-readme-prefix
+    - patch-file-mode-changes
+    - permissions-setting
+    - publish-provenance-false
+    - rebuild-inspects-selected-only
+    - rebuild-keeps-modules-dir
+    - registry-endpoints-access-search
+    - registry-endpoints-and-retries
+    - registry-url-normalization-and-cli-resolution
+    - removal-override-meta-only-optional-peer
+    - repo-parallel-lookups-and-registry-override
+    - rust-global-install
+    - rust-toolchain-shims
+    - standardize-package-commands-registry-override
+    - store-prune-vacuum-index
+    - switch-past-unreadable-workspace-settings
+    - tls-unclean-close-metadata
+    - whoami-registry-option
+    - windows-invalid-package-filenames
+    - workspace-optional-peer
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
