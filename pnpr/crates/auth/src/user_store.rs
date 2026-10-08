@@ -93,6 +93,11 @@ impl UserStore {
         }
     }
 
+    /// Whether `username` is stored.
+    pub(crate) fn holds(&self, username: &str) -> bool {
+        self.snapshot().contains_key(username)
+    }
+
     fn snapshot(&self) -> std::sync::MutexGuard<'_, Users> {
         self.users.lock().unwrap_or_else(PoisonError::into_inner)
     }

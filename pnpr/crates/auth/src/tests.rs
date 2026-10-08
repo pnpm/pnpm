@@ -1,6 +1,6 @@
 use super::{
-    MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
+    MAX_USERNAME_CHARS, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
     token_timestamp_to_sql, validate_username,
 };
 use pnpr_config::MaxUsers;
@@ -602,4 +602,44 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     assert!(store.create_user("alice", "x").await.unwrap());
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}
+
+#[tokio::test]
+async fn local_tokens_of_a_removed_owner_stop_authenticating() {
+    let users = Arc::new(test_user_store());
+    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+    users.create_user("alice", "x").await.unwrap();
+    let token = tokens.issue("alice").await.unwrap();
+    assert_eq!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+
+    users.delete_user("alice").await.unwrap();
+    assert!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        tokens
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        tokens
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
 }

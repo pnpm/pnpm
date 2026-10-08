@@ -148,10 +148,13 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>> {
-        let row = sqlx::query("SELECT username FROM tokens WHERE token_hash = $1")
-            .bind(token_hash)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
+             WHERE t.token_hash = $1",
+        )
+        .bind(token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
         row.map(|row| row.try_get(0))
             .transpose()
             .map_err(RegistryError::from)
@@ -161,6 +164,17 @@ impl AuthSqlBackend for PostgresDatabase {
         let row = sqlx::query(
             "SELECT username, created_at, last_used_at, readonly, cidr_whitelist
              FROM tokens WHERE token_hash = $1",
+        )
+        .bind(token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+    }
+
+    async fn find_owned_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+        let row = sqlx::query(
+            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist
+             FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = $1",
         )
         .bind(token_hash)
         .fetch_optional(&self.pool)

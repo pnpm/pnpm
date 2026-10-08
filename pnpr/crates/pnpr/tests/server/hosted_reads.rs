@@ -4,6 +4,7 @@ use super::{
     hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, json,
     router_with_auth, seed_hosted, sha512_integrity,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn hosted_registry_serves_only_what_it_hosts() {
@@ -57,7 +58,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         None,
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     // An unauthorized (anonymous) caller gets 404, not 403 — the org's package
@@ -188,7 +189,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let tarball = b"acme-widget-1.0.0-bytes";
@@ -320,7 +321,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let tarball = b"public-hosted-original";
     let integrity_text = sha512_integrity(tarball);
     let integrity = integrity_text.parse().unwrap();
@@ -415,7 +416,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let tarball = b"shared-hosted-original";
     let integrity = sha512_integrity(tarball).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
@@ -487,8 +488,8 @@ async fn hosted_digest_route_rechecks_package_access() {
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
-    let alice = auth.tokens.issue("alice").await.unwrap();
-    let bob = auth.tokens.issue("bob").await.unwrap();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
     let tarball = b"private-hosted-original";
     let integrity = sha512_integrity(tarball).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
@@ -582,7 +583,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     registries.validate().expect("patterned hosted config is valid");
     config.routing.registries = registries;
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let publish_body = |pkg: &str| {
@@ -677,8 +678,8 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
         None,
     );
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
@@ -730,8 +731,8 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
     corp.access = Some(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
@@ -778,8 +779,8 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let tarball = b"corp-tool-1.0.0-bytes";
@@ -899,8 +900,8 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             Some("corp".to_string()),
         );
         let auth = AuthState::in_memory();
-        let member = auth.tokens.issue("alice").await.unwrap();
-        let outsider = auth.tokens.issue("mallory").await.unwrap();
+        let member = issue_token(&auth, "alice").await;
+        let outsider = issue_token(&auth, "mallory").await;
         let app = router_with_auth(config, auth);
 
         for authorization in [None, Some(format!("Bearer {outsider}"))] {

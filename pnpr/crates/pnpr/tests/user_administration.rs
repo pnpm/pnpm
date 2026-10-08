@@ -7,8 +7,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, RegistryError, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
-    UserBackend, UserStore, router, router_with_auth,
+    AuthState, Config, OwnedTokens, RegistryError, TokenBackend, TokenRecord, TokenStore,
+    UpsertOutcome, UserBackend, UserStore, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -365,4 +365,19 @@ async fn a_registration_gets_no_token_for_an_account_recreated_with_another_pass
             .unwrap()
             .is_empty(),
     );
+}
+
+#[tokio::test]
+async fn a_removed_account_loses_its_tokens_without_any_revocation() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(UserStore::in_memory());
+    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(tokens) };
+    let app = router_with_auth(load_config(&dir), auth);
+    users.create_user("bob", "x").await.unwrap();
+    let bob = login(&app, "bob", "x").await.unwrap();
+    assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
+
+    users.delete_user("bob").await.unwrap();
+    assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
 }
