@@ -35,7 +35,7 @@ fn main() {
 /// Reads `PNPM_VERSION` from the config crate, the one place the version is
 /// committed. The release workflow verifies it against the tag.
 fn read_pnpm_version() -> String {
-    const PREFIX: &str = "pub const PNPM_VERSION: &str = \"";
+    const PREFIX: &str = r#"pub const PNPM_VERSION: &str = ""#;
     let source = fs::read_to_string(DEFAULTS_RS).expect("read pnpm-config's defaults.rs");
     let start = source.find(PREFIX).expect("find PNPM_VERSION in defaults.rs") + PREFIX.len();
     let length = source[start..].find('"').expect("find the end of PNPM_VERSION");
