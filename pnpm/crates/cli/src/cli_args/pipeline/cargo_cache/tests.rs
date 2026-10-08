@@ -1,5 +1,5 @@
-use super::CargoCache;
-use std::{fs, process::Command};
+use super::{CargoCache, prepend_path};
+use std::{collections::BTreeMap, env, fs, path::PathBuf, process::Command};
 
 fn project() -> tempfile::TempDir {
     let project = tempfile::tempdir().unwrap();
@@ -295,4 +295,22 @@ fn snapshots_preserve_read_only_files() {
     let metadata = fs::metadata(restored.target.join("read-only")).unwrap();
     assert!(metadata.permissions().readonly());
     assert_eq!(metadata.modified().unwrap(), timestamp);
+}
+
+#[test]
+fn the_linked_toolchain_comes_first_on_the_key_path() {
+    let mut environment = BTreeMap::from([(
+        "PATH".to_string(),
+        env::join_paths(["/usr/bin", "/bin"])
+            .unwrap()
+            .into_string()
+            .unwrap(),
+    )]);
+
+    prepend_path(&mut environment, PathBuf::from("/checkout/.pnpm/rust/bin"));
+
+    assert_eq!(
+        env::split_paths(&environment["PATH"]).collect::<Vec<_>>(),
+        ["/checkout/.pnpm/rust/bin", "/usr/bin", "/bin"].map(PathBuf::from),
+    );
 }

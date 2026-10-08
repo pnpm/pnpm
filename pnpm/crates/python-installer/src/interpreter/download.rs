@@ -19,6 +19,7 @@ use pnpm_config::{Config, DEFAULT_PYTHON_DOWNLOAD_URL, RuntimeOnFail, Tool};
 use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_tarball::BoundedReader;
 use std::{
     io::Write as _,
     path::{Path, PathBuf},
@@ -434,26 +435,9 @@ const READ: &str = "read the Python interpreter pnpm downloaded";
 fn reader(
     archive: &Path,
     bounds: Bounds,
-) -> Result<Bounded<flate2::read::GzDecoder<std::fs::File>>> {
+) -> Result<BoundedReader<flate2::read::GzDecoder<std::fs::File>>> {
     let file = std::fs::File::open(archive).into_diagnostic().wrap_err(READ)?;
-    Ok(Bounded { inner: flate2::read::GzDecoder::new(file), left: bounds.bytes })
-}
-
-/// A stream that ends in an error once it has given out more than it was
-/// allowed to.
-struct Bounded<Stream> {
-    inner: Stream,
-    left: u64,
-}
-
-impl<Stream: std::io::Read> std::io::Read for Bounded<Stream> {
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        let read = self.inner.read(buffer)?;
-        self.left = self.left
-            .checked_sub(read as u64)
-            .ok_or_else(|| std::io::Error::other("it unpacks to more than it may"))?;
-        Ok(read)
-    }
+    Ok(BoundedReader::new(flate2::read::GzDecoder::new(file), bounds.bytes))
 }
 
 #[cfg(test)]

@@ -19,8 +19,9 @@ pub(super) async fn include_packages(
         return Ok(packages);
     }
     let root = root.to_path_buf();
+    let checkout = checkout.map(Path::to_path_buf);
     tokio::task::spawn_blocking(move || {
-        let sysroot = sysroot(&root)?;
+        let sysroot = sysroot(&root, checkout.as_deref())?;
         packages.merge(read_packages(&sysroot)?)
     })
     .await
@@ -53,8 +54,8 @@ fn requests_build_std(contents: &str) -> Result<bool> {
     Ok(!crates.is_empty())
 }
 
-pub(super) fn sysroot(root: &Path) -> Result<PathBuf> {
-    let output = Command::new("rustc")
+pub(super) fn sysroot(root: &Path, checkout: Option<&Path>) -> Result<PathBuf> {
+    let output = Command::new(super::toolchain::program("rustc", root, checkout))
         .current_dir(root)
         .args(["--print", "sysroot"])
         .output()

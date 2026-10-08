@@ -134,10 +134,14 @@ fn execute_task_with_cargo_cache(
         return execute_task_scripts(options);
     };
     let cargo = cargo_cache::CargoCache::open(root, directory).into_diagnostic()?;
-    let environment = cargo_cache::cache_environment(
+    let mut environment = cargo_cache::cache_environment(
         options.environment.extra_env,
         settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
     );
+    // The scripts run the toolchain pnpm linked, so the key describes that one.
+    if let Some(rust) = crate::ecosystem_install::rust_bin_dir(options.config, root) {
+        cargo_cache::prepend_path(&mut environment, rust);
+    }
     let cargo_cacheable = !options.invocation.no_cache
         && settings.is_some_and(|settings| settings.cache != Some(false));
     let snapshot = cargo_cacheable

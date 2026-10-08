@@ -20,6 +20,7 @@ extern crate pnpm_http as reqwest;
 
 pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
 pub use errors::{FetchShasumsFileError, FetchVerifiedNodeShasumsError, PickFileChecksumError};
+pub use signatures::{ReleaseSignatureError, TrustedReleaseKey, is_signed_by_trusted_key};
 
 mod disk_cache;
 mod errors;
