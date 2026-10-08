@@ -447,7 +447,7 @@ where
         }
         wanted.push(DependencySpec {
             alias: name.to_string(),
-            range: range.to_string(),
+            bare_specifier: range.to_string(),
             optional: optional_names.contains(name),
             injected: injected_names.contains(name),
         });
@@ -473,7 +473,7 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DependencySpec {
     pub alias: String,
-    pub range: String,
+    pub bare_specifier: String,
     /// Declared under `optionalDependencies`.
     pub optional: bool,
     /// The importer manifest's `dependenciesMeta[alias].injected` flag. It
@@ -492,10 +492,15 @@ pub struct DependencySpec {
 /// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
 /// surface `injected`.
 pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {
-    let DependencySpec { alias, range, optional, injected } = spec;
+    let DependencySpec {
+        alias,
+        bare_specifier,
+        optional,
+        injected,
+    } = spec;
     WantedDependency {
         alias: Some(alias),
-        bare_specifier: Some(range),
+        bare_specifier: Some(bare_specifier),
         optional: Some(optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()

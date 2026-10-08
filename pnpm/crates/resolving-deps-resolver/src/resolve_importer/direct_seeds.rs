@@ -30,7 +30,7 @@ impl DirectSeeds {
         Ok(Self {
             wanted_specifier_by_alias: initial_wanted
                 .iter()
-                .map(|spec| (spec.alias.clone(), spec.range.clone()))
+                .map(|spec| (spec.alias.clone(), spec.bare_specifier.clone()))
                 .collect(),
             parent_pkg_aliases: initial_wanted
                 .iter()

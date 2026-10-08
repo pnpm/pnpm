@@ -119,7 +119,7 @@ where
         .into_iter()
         .map(|name| DependencySpec {
             alias: name.to_string(),
-            range: ranges[name].to_string(),
+            bare_specifier: ranges[name].to_string(),
             optional: optional_names.contains(name),
             injected: injected_names.contains(name),
         })

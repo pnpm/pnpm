@@ -38,10 +38,10 @@ pub(crate) fn resolve_catalog_specifiers(
     specs
         .into_iter()
         .map(|spec| {
-            resolve_catalog_specifier(spec.alias, spec.range, catalogs, anchor)
-                .map(|(alias, range)| DependencySpec {
+            resolve_catalog_specifier(spec.alias, spec.bare_specifier, catalogs, anchor)
+                .map(|(alias, bare_specifier)| DependencySpec {
                     alias,
-                    range,
+                    bare_specifier,
                     optional: spec.optional,
                     injected: spec.injected,
                 })

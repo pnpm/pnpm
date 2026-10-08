@@ -24,7 +24,7 @@ pub(crate) fn record_changed_direct_deps(
     let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
     let bucket = changed.entry(importer_id.to_string()).or_default();
-    for DependencySpec { alias, range: spec, .. } in wanted {
+    for DependencySpec { alias, bare_specifier: spec, .. } in wanted {
         let unchanged = prior
             .and_then(|importer| importer_dep_specifier(importer, alias))
             .is_some_and(|recorded| {

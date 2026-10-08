@@ -81,7 +81,7 @@ fn collect_direct_ranges(
             continue;
         };
         for spec in wanted {
-            if let Ok(range) = spec.range.parse::<Range>() {
+            if let Ok(range) = spec.bare_specifier.parse::<Range>() {
                 direct_ranges
                     .entry(spec.alias)
                     .or_default()

@@ -49,7 +49,7 @@ fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
         wanted,
         vec![DependencySpec {
             alias: "foo".to_string(),
-            range: "workspace:*".to_string(),
+            bare_specifier: "workspace:*".to_string(),
             optional: false,
             injected: false,
         }],
@@ -73,7 +73,7 @@ fn peer_only_dep_is_wanted_with_auto_install_peers() {
         wanted,
         vec![DependencySpec {
             alias: "peer-only".to_string(),
-            range: "^2.0.0".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
             optional: false,
             injected: false,
         }],
@@ -98,7 +98,7 @@ fn peer_only_dep_is_not_wanted_without_auto_install_peers() {
         wanted,
         vec![DependencySpec {
             alias: "regular".to_string(),
-            range: "^1.0.0".to_string(),
+            bare_specifier: "^1.0.0".to_string(),
             optional: false,
             injected: false,
         }],
@@ -123,7 +123,7 @@ fn later_regular_group_range_replaces_earlier_one() {
         wanted,
         vec![DependencySpec {
             alias: "foo".to_string(),
-            range: "^2.0.0".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
             optional: true,
             injected: false,
         }],
@@ -153,7 +153,7 @@ fn regular_dep_range_wins_over_dev_range_of_same_alias() {
         wanted,
         vec![DependencySpec {
             alias: "foo".to_string(),
-            range: "1.0.0".to_string(),
+            bare_specifier: "1.0.0".to_string(),
             optional: false,
             injected: false,
         }],

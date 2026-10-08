@@ -173,7 +173,7 @@ pub(super) fn extract_children(
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
         out.push(DependencySpec {
             alias: name.to_string(),
-            range: specifier,
+            bare_specifier: specifier,
             optional: false,
             injected: false,
         });
@@ -234,7 +234,7 @@ fn collect_deps(
             }
             out.push(DependencySpec {
                 alias: name.clone(),
-                range: range_str.to_string(),
+                bare_specifier: range_str.to_string(),
                 optional,
                 injected: dependency_is_injected(manifest, name),
             });

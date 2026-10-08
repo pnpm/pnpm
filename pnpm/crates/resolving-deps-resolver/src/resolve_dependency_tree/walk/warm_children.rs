@@ -75,7 +75,7 @@ pub(super) async fn warm_result_children<Chain>(
         .map(|spec| {
             let wanted = WantedDependency {
                 alias: Some(spec.alias.clone()),
-                bare_specifier: Some(spec.range.clone()),
+                bare_specifier: Some(spec.bare_specifier.clone()),
                 optional: Some(spec.optional),
                 injected: spec.injected.then_some(true),
                 ..WantedDependency::default()

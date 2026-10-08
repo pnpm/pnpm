@@ -33,7 +33,7 @@ fn child_wanted_for_react(ctx: &TreeCtx) -> (Option<String>, Option<String>) {
     };
     let spec = DependencySpec {
         alias: "react".to_string(),
-        range: "^17.0.0 || ^18.0.0".to_string(),
+        bare_specifier: "^17.0.0 || ^18.0.0".to_string(),
         optional: false,
         injected: false,
     };

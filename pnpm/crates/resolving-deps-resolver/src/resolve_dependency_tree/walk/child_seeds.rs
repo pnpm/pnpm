@@ -173,20 +173,26 @@ pub(super) fn child_wanted(
     spec: &DependencySpec,
     depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
-    let DependencySpec { alias, range, optional, injected } = spec;
+    let DependencySpec {
+        alias,
+        bare_specifier,
+        optional,
+        injected,
+    } = spec;
     let mut wanted = WantedDependency {
         alias: Some(alias.clone()),
-        bare_specifier: Some(range.clone()),
+        bare_specifier: Some(bare_specifier.clone()),
         optional: Some(*optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()
     };
-    let mut prior =
-        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, alias, range));
+    let mut prior = scope.prior_children_snapshot.and_then(|snapshot| {
+        prior_child_key(snapshot, alias, bare_specifier)
+    });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
             .version_semver()
-            .zip(range.parse::<node_semver::Range>().ok())
+            .zip(bare_specifier.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
                 higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
             })
@@ -283,10 +289,10 @@ pub(super) fn resolve_catalog_child_specs(
     child_specs
         .into_iter()
         .map(|spec| {
-            resolve_catalog_specifier(spec.alias, spec.range, catalogs, anchor)
-                .map(|(alias, range)| DependencySpec {
+            resolve_catalog_specifier(spec.alias, spec.bare_specifier, catalogs, anchor)
+                .map(|(alias, bare_specifier)| DependencySpec {
                     alias,
-                    range,
+                    bare_specifier,
                     optional: spec.optional,
                     injected: spec.injected,
                 })
