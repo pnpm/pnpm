@@ -10,8 +10,7 @@ use super::{
     render::{render_json_report, render_text_report},
     report::{
         AuditAdvisory, AuditFinding, AuditMetadata, AuditReport, AuditVulnerabilityCounts, Cwe,
-        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, redact_url_userinfo,
-        sanitize_control_chars,
+        RawBulkAdvisory, bulk_response_to_audit_report, normalize_ghsa_id, sanitize_control_chars,
     },
     request::{Include, lockfile_to_audit_request},
     version_ranges::{is_range_subset, patched_range_for_style, satisfies_safe},
@@ -23,6 +22,7 @@ use chrono::{DateTime, Utc};
 use pnpm_lockfile::{
     EnvLockfile, Lockfile, PeerEdgeOptions, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
 };
+use pnpm_network::redact_url_credentials;
 use pnpm_registry::RangeSpecStyle;
 use std::collections::HashSet;
 
@@ -579,18 +579,20 @@ fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
 }
 
 #[test]
-fn redact_url_userinfo_removes_credentials_from_audit_endpoint() {
+fn redact_url_credentials_removes_credentials_from_audit_endpoint() {
     assert_eq!(
-        redact_url_userinfo(
+        redact_url_credentials(
             "https://user:secret@registry.example.com/npm/-/npm/v1/security/advisories/bulk"
         ),
         "https://registry.example.com/npm/-/npm/v1/security/advisories/bulk",
     );
     assert_eq!(
-        redact_url_userinfo("https://user@registry.example.com/-/npm/v1/security/advisories/bulk"),
+        redact_url_credentials(
+            "https://user@registry.example.com/-/npm/v1/security/advisories/bulk"
+        ),
         "https://registry.example.com/-/npm/v1/security/advisories/bulk",
     );
-    assert_eq!(redact_url_userinfo("not a url"), "not a url");
+    assert_eq!(redact_url_credentials("not a url"), "not a url");
 }
 
 #[test]

@@ -1,11 +1,14 @@
-use crate::cli_args::{registry_client::build_registry_client, whoami::fetch_whoami};
+use crate::cli_args::{
+    registry_client::build_registry_client,
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+    whoami::fetch_whoami,
+};
 use clap::Parser;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
 use serde_json::{Map, Value, json};
-use std::time::Duration;
 
 #[derive(Debug, Parser)]
 pub struct StarArgs {
@@ -58,12 +61,7 @@ pub(crate) async fn star_action(
         .for_url(&config.registry)
         .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
+    let retry_opts = config.retry_opts();
     fetch_star(&config.registry, &http_client, &auth_header, retry_opts, package_name, is_star)
         .await
 }
@@ -122,40 +120,48 @@ async fn perform_legacy_star_action(
 
     apply_star_to_users(&mut pkg_data, &username, is_star);
 
-    let rev = pkg_data.get("_rev").and_then(Value::as_str);
-    let update_url = match rev {
+    let update_url = match pkg_data.get("_rev").and_then(Value::as_str) {
         Some(rev) => format!("{pkg_url}/-rev/{rev}"),
-        None => pkg_url.clone(),
+        None => pkg_url,
     };
-    let update_body = pkg_data.to_string();
+    put_updated_package_document(
+        http_client,
+        &update_url,
+        auth_header,
+        retry_opts,
+        pkg_data.to_string(),
+        action,
+    )
+    .await
+}
 
-    let (client2, update_response) =
-        send_with_retry(http_client, &update_url, retry_opts, |client| {
-            client
-                .put(&update_url)
-                .header("authorization", auth_header)
-                .header("content-type", "application/json")
-                .body(update_body.clone())
-        })
-        .await
-        .into_diagnostic()
-        .wrap_err("updating the package metadata")?;
+async fn put_updated_package_document(
+    http_client: &ThrottledClient,
+    update_url: &str,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    update_body: String,
+    action: &'static str,
+) -> miette::Result<()> {
+    let (client, response) = send_with_retry(http_client, update_url, retry_opts, |client| {
+        client
+            .put(update_url)
+            .header("authorization", auth_header)
+            .header("content-type", "application/json")
+            .body(update_body.clone())
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("updating the package metadata")?;
 
-    if !update_response.status().is_success() {
-        let status = update_response.status();
-        let body = update_response.text().await.unwrap_or_default();
-        return Err(StarError::LegacyFailed {
-            action,
-            status: status.as_u16(),
-            status_text: status
-                .canonical_reason()
-                .unwrap_or_default()
-                .to_string(),
-            body,
-        }
-        .into());
+    if !response.status().is_success() {
+        let (status, status_text, body) =
+            read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+        return Err(
+            StarError::LegacyFailed { action, status: status.as_u16(), status_text, body }.into()
+        );
     }
-    drop(client2);
+    drop(client);
     Ok(())
 }
 
@@ -270,15 +276,7 @@ async fn fetch_alternate_star(
 }
 
 async fn star_error(response: reqwest::Response, action: &'static str) -> StarError {
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    StarError::Failed {
-        action,
-        status: status.as_u16(),
-        status_text: status
-            .canonical_reason()
-            .unwrap_or_default()
-            .to_string(),
-        body,
-    }
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+    StarError::Failed { action, status: status.as_u16(), status_text, body }
 }

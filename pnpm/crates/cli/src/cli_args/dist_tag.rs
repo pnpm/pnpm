@@ -1,27 +1,22 @@
 mod registry;
 
-use super::sanitize;
+use super::{package_spec::PackageSpec, sanitize};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, normalize_registry_url, read_limited_body,
-    redact_url_credentials, retry_async, send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
+    retry_async, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use registry::{
     DeleteDistTagRequest, SetDistTagRequest, auth_header_for_registry, delete_dist_tag,
     fetch_dist_tags, package_name_for_url, registry_for_package, set_dist_tag,
 };
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DIST_TAGS_BODY_LIMIT: usize = 1024 * 1024;
 const DIST_TAG_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -176,11 +171,6 @@ struct DistTagContext<'a> {
     otp: Option<String>,
 }
 
-struct PackageSpec {
-    name: String,
-    version: Option<String>,
-}
-
 impl DistTagArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
         let context = self.context(config)?;
@@ -196,22 +186,14 @@ impl DistTagArgs {
     }
 
     fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-        }
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
         Ok(DistTagContext {
             config,
             http_client: crate::cli_args::registry_client::build_registry_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),
         })
@@ -295,11 +277,8 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
 }
 
 fn parse_package_spec(spec: &str) -> Result<PackageSpec, DistTagError> {
-    let parsed = parse_wanted_dependency(spec);
-    let name =
-        parsed.alias.ok_or_else(|| DistTagError::InvalidPackageSpec { spec: spec.to_string() })?;
-    let version = parsed.bare_specifier.filter(|version| !version.is_empty());
-    Ok(PackageSpec { name, version })
+    PackageSpec::parse(spec)
+        .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: spec.to_string() })
 }
 
 fn normalize_exact_semver(version: &str) -> Option<String> {

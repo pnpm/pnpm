@@ -14,9 +14,7 @@
 //! `CacheValue::Available` hit, or a brief park on the slot's `Notify`
 //! while the prefetch finishes).
 
-use crate::{
-    install_package_by_snapshot::tarball_url_and_integrity, retry_config::retry_opts_from_config,
-};
+use crate::install_package_by_snapshot::tarball_url_and_integrity;
 use dashmap::DashSet;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, LockfileResolution};
@@ -348,7 +346,7 @@ impl PrefetchHttpClient {
                 || Arc::clone(&config.auth_headers),
                 Arc::clone,
             ),
-            retry_opts: retry_opts_from_config(config),
+            retry_opts: config.retry_opts(),
             offline: config.offline,
         }
     }

@@ -144,6 +144,7 @@ fn build_modules_collects_ignored_builds() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -228,6 +229,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -312,6 +314,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -395,6 +398,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -474,6 +478,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
             requires_build_by_snapshot: Some(&requires_build_by_snapshot),
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -568,6 +573,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -659,6 +665,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -839,6 +846,7 @@ fn using_side_effects_cache_skips_rebuild() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -992,6 +1000,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

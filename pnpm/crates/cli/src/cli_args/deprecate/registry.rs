@@ -1,10 +1,14 @@
 use super::{
     BTreeMap, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext,
-    DeprecateError, Deserialize, LimitedBody, Response, Serialize, StatusCode,
-    parse_wanted_dependency, pick_registry_for_package, read_limited_body, redact_url_credentials,
-    retry_async, sanitize, send_with_retry,
+    DeprecateError, Deserialize, LimitedBody, Response, Serialize, StatusCode, read_limited_body,
+    redact_url_credentials, retry_async, sanitize, send_with_retry,
 };
-use pnpm_network::{escaped_package_name, normalize_registry_url};
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{
+        auth_header_for_package, package_endpoint_url, resolve_registry_for_package,
+    },
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct PackageMeta {
@@ -201,7 +205,7 @@ where
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {
-    pick_registry_for_package(&context.registries, package_name, None)
+    resolve_registry_for_package(&context.registries, package_name, None)
 }
 
 pub(crate) fn auth_header_for_registry(
@@ -209,22 +213,17 @@ pub(crate) fn auth_header_for_registry(
     registry_url: &str,
     package_name: &str,
 ) -> Option<String> {
-    context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
+    auth_header_for_package(context.config, registry_url, package_name)
 }
 
 pub(crate) fn package_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
     let package_name = package_name_for_url(package_name)?;
-    registry_endpoint_url(registry_url, &escaped_package_name(&package_name))
+    package_endpoint_url(registry_url, &package_name)
+        .map_err(|source| registry_operation_error("build registry URL", source))
 }
 
 pub(crate) fn package_name_for_url(package_name: &str) -> Result<String, DeprecateError> {
-    parse_wanted_dependency(package_name).alias
+    PackageSpec::parse(package_name)
+        .map(|spec| spec.name)
         .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: package_name.to_string() })
-}
-
-pub(crate) fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
-        .map_err(|source| registry_operation_error("build registry URL", source))
 }

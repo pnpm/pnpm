@@ -13,10 +13,10 @@ use super::{
     DependencyGroup, Deserialize, HashMap, HashSet, IntoDiagnostic, Lockfile, MultiSelect,
     PackageVersionGuard, Range, RangeSpecStyle, Reporter, ResolutionObserver, State, Update, Utc,
     Version, blue, color_severity, encode_package_name, green, normalize_ghsa_id,
-    normalize_registry, parse_packument_timestamp, red, redact_url_userinfo,
-    retry_opts_from_config, satisfies_including_prerelease, send_with_retry, severity_name,
+    parse_packument_timestamp, red, satisfies_including_prerelease, send_with_retry, severity_name,
     severity_number,
 };
+use pnpm_network::{normalize_registry_url, redact_url_credentials};
 use update::advisory_choices;
 
 /// Filter `report`'s advisories down to the set both fix methods and the
@@ -194,14 +194,14 @@ pub(crate) async fn fetch_publish_times(
         deprecated: Option<String>,
     }
 
-    let registry = normalize_registry(registry);
+    let registry = normalize_registry_url(registry);
     let url = format!("{registry}{}", encode_package_name(name));
     // The URL is user-configured and may embed credentials; keep only the
     // redacted form, like the audit request does, so retry diagnostics never
     // print them (auth travels in the header instead).
-    let url = redact_url_userinfo(&url);
+    let url = redact_url_credentials(&url);
     let authorization = config.auth_headers.for_url_with_package(&registry, Some(name));
-    let retry_opts = retry_opts_from_config(config);
+    let retry_opts = config.retry_opts();
     let (_guard, response) = send_with_retry(http_client, &url, retry_opts, |client| {
         // Full metadata: the abbreviated packument has no `time` field.
         let mut request = client.get(&url).header("accept", "application/json; q=1.0, */*");

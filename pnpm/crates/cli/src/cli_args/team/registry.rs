@@ -1,12 +1,11 @@
 use super::{
-    Deserialize, IntoDiagnostic, RedirectGuard, Response, TeamContext, TeamError,
-    encode_uri_component, pick_registry_for_package, redact_url_credentials, send_with_retry,
+    Deserialize, IntoDiagnostic, Response, TeamContext, TeamError, encode_uri_component,
+    pick_registry_for_package, redact_url_credentials, send_with_retry,
 };
+use crate::cli_args::sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body};
 use pnpm_network::{normalize_registry_url, read_limited_body};
 
 const TEAM_BODY_LIMIT: usize = 1024 * 1024;
-
-const TEAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 pub(super) fn team_url(registry_url: &str, scope: &str, team: &str) -> String {
     format!(
@@ -163,15 +162,8 @@ pub(super) async fn registry_error_from_response(
     response: Response,
     action: String,
 ) -> miette::Report {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_string();
-    let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
-        Ok(body) => super::sanitize::body_display_string(&body),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
 
     if status == reqwest::StatusCode::UNAUTHORIZED {
         return TeamError::Unauthorized { action, body }.into();
@@ -186,38 +178,4 @@ pub(super) async fn registry_error_from_response(
         return TeamError::Conflict { body }.into();
     }
     TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into()
-}
-
-// When an OTP is in play, restrict redirects to the configured
-// registry origins so a redirect cannot forward the `npm-otp` header
-// to another host (reqwest only strips standard auth headers on
-// cross-host redirects). Mirrors the `access` command's guard.
-//
-// Deliberate divergence from pnpm: the TypeScript fetch layer
-// follows a cross-host redirect after stripping `authorization` and
-// `npm-otp`, so the request proceeds without credentials and fails
-// at the target; here it fails at the redirect hop instead. reqwest
-// redirect policies cannot strip custom headers per hop, so matching
-// pnpm exactly needs a manual redirect loop in pnpm-network — a
-// follow-up that would cover `access` too.
-pub(super) fn redirect_guard(
-    registries: &std::collections::HashMap<String, String>,
-) -> RedirectGuard {
-    let origins: Vec<(String, String, Option<u16>)> = registries
-        .values()
-        .filter_map(|registry| {
-            let url = reqwest::Url::parse(registry).ok()?;
-            Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-        })
-        .collect();
-    let guard: RedirectGuard = std::sync::Arc::new(move |target: &reqwest::Url| -> bool {
-        origins
-            .iter()
-            .any(|(scheme, host, port)| {
-                target.scheme() == scheme
-                    && target.host_str() == Some(host.as_str())
-                    && target.port() == *port
-            })
-    });
-    guard
 }

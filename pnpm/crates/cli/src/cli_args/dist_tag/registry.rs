@@ -1,10 +1,15 @@
 use super::{
     AuthType, BTreeMap, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT, Deserialize,
     DistTagContext, DistTagError, RequestBuilder, Response, StatusCode, encode_uri_component,
-    parse_wanted_dependency, pick_registry_for_package, read_limited_body, redact_url_credentials,
-    retry_async, sanitize, send_with_retry,
+    read_limited_body, redact_url_credentials, retry_async, sanitize, send_with_retry,
 };
-use pnpm_network::{escaped_package_name, normalize_registry_url};
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{
+        auth_header_for_package, join_registry_endpoint, resolve_registry_for_package,
+    },
+};
+use pnpm_network::escaped_package_name;
 
 pub(super) struct SetDistTagRequest<'a> {
     pub(super) package_name: &'a str,
@@ -261,7 +266,7 @@ fn display_safe_web_otp_url(value: &str) -> Option<String> {
 }
 
 pub(super) fn registry_for_package(context: &DistTagContext<'_>, package_name: &str) -> String {
-    pick_registry_for_package(&context.registries, package_name, None)
+    resolve_registry_for_package(&context.registries, package_name, None)
 }
 
 pub(super) fn auth_header_for_registry(
@@ -269,7 +274,7 @@ pub(super) fn auth_header_for_registry(
     registry_url: &str,
     package_name: &str,
 ) -> Option<String> {
-    context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
+    auth_header_for_package(context.config, registry_url, package_name)
 }
 
 fn dist_tags_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
@@ -293,13 +298,12 @@ fn dist_tag_url(package_name: &str, registry_url: &str, tag: &str) -> miette::Re
 }
 
 pub(super) fn package_name_for_url(package_name: &str) -> Result<String, DistTagError> {
-    parse_wanted_dependency(package_name).alias
+    PackageSpec::parse(package_name)
+        .map(|spec| spec.name)
         .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: package_name.to_string() })
 }
 
 fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
+    join_registry_endpoint(registry_url, path)
         .map_err(|source| registry_operation_error("build registry dist-tag URL", source))
 }

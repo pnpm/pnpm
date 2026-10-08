@@ -2,7 +2,6 @@
 //! chain and command-level registry lookups, so they pick byte-identical
 //! versions (`minimumReleaseAge` and `resolutionMode` included).
 
-use crate::retry_config::retry_opts_from_config;
 use chrono::{DateTime, Utc};
 use pnpm_config::{
     Config, NeedsFullMetadataFor, ResolutionMode,
@@ -190,7 +189,7 @@ fn create_configured_npm_resolver(
             fetch_locker: shared_packument_fetch_locker(),
             picked_manifest_cache: shared_picked_manifest_cache(),
             cache_dir: Some(config.cache_dir.clone()),
-            retry_opts: retry_opts_from_config(config),
+            retry_opts: config.retry_opts(),
         },
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
             full_metadata: policy.full_metadata,
@@ -245,7 +244,7 @@ pub(crate) fn pick_package_context<'a>(
             http: pnpm_resolving_npm_resolver::MetadataHttpClient {
                 http_client,
                 auth_headers: &config.auth_headers,
-                retry_opts: retry_opts_from_config(config),
+                retry_opts: config.retry_opts(),
             },
         },
     }

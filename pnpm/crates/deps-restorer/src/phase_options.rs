@@ -5,7 +5,7 @@ use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, Snap
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_store_dir::StoreIndexWriter;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
@@ -158,6 +158,8 @@ pub struct BuildPhaseGraph<'a> {
     /// `ignoreScripts`, only these can add new `pendingBuilds`; the
     /// install orchestrator separately carries forward existing entries.
     pub materialized_snapshots: &'a [PackageKey],
+    /// See [`crate::BuildGraphInputs::build_scope`].
+    pub build_scope: Option<&'a HashSet<PackageKey>>,
 }
 
 #[derive(Clone, Copy)]

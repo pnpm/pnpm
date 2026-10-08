@@ -266,6 +266,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -372,6 +373,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -502,6 +504,7 @@ async fn write_path_disabled_skips_upload() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -654,6 +657,7 @@ async fn upload_error_does_not_interrupt_install() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

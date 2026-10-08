@@ -227,16 +227,8 @@ impl AuthHeaders {
     /// Cargo tokens are bare, and future readers may supply `Basic` or another
     /// registry-defined value. An invalid or unsupported URL is ignored.
     pub fn insert_url_header(&mut self, url: &str, header: String) {
-        let mut terminated;
-        let url = if url.ends_with('/') {
-            url
-        } else {
-            terminated = String::with_capacity(url.len() + 1);
-            terminated.push_str(url);
-            terminated.push('/');
-            &terminated
-        };
-        let uri = nerf_dart(url);
+        let normalized = crate::normalize_registry_url(url);
+        let uri = nerf_dart(&normalized);
         if uri.is_empty() {
             return;
         }

@@ -4,6 +4,7 @@ use super::{
     ResolveProjectsOptions, State, discover_workspace_projects,
     get_catalogs_from_workspace_manifest, prefetch_allowed,
 };
+use pnpm_network::normalize_registry_url;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 
@@ -244,7 +245,7 @@ impl PnprBenchmarkRegistryOverride {
         let resolve_registry = std::env::var(BENCHMARK_PNPR_SERVER_REGISTRY_ENV)
             .ok()
             .filter(|registry| !registry.is_empty())
-            .map(|registry| normalize_registry(&registry))?;
+            .map(|registry| normalize_registry_url(&registry).into_owned())?;
         let tarball_rewrite_from = std::env::var(BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV)
             .ok()
             .filter(|registry| !registry.is_empty());
@@ -287,10 +288,10 @@ impl BenchmarkRegistryRewrite {
         Registry: AsRef<str>,
         Registries: IntoIterator<Item = Registry>,
     {
-        let to = normalize_registry(to);
+        let to = normalize_registry_url(to).into_owned();
         let mut from_registries = Vec::new();
         for registry in from {
-            let registry = normalize_registry(registry.as_ref());
+            let registry = normalize_registry_url(registry.as_ref()).into_owned();
             if registry != to && !from_registries.contains(&registry) {
                 from_registries.push(registry);
             }
@@ -304,10 +305,6 @@ impl BenchmarkRegistryRewrite {
             .find_map(|from| url.strip_prefix(from))
             .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
     }
-}
-
-fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 pub(super) fn rewrite_resolution_registry(

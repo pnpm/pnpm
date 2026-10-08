@@ -1,4 +1,4 @@
-use crate::_utils::{append_workspace_yaml_key, read_lockfile};
+use crate::_utils::{ManifestDeps, WorkspaceFixture, append_workspace_yaml_key, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -100,4 +100,109 @@ fn locked_version(workspace: &Path, importer_id: &str) -> String {
         .expect("is-positive importer entry")
         .version
         .to_string()
+}
+
+#[test]
+fn optional_peer_keeps_its_workspace_provider() {
+    assert_optional_workspace_peer(&optional_workspace_peer_fixture(""));
+}
+
+#[test]
+fn optional_peer_keeps_its_workspace_provider_with_an_override() {
+    assert_optional_workspace_peer(&optional_workspace_peer_fixture(
+        "overrides:\n  is-positive: workspace:is-positive@*\n",
+    ));
+}
+
+#[test]
+fn optional_peer_keeps_an_aliased_workspace_provider() {
+    let fixture = optional_workspace_peer_fixture("");
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[("positive", "workspace:is-positive@*")],
+            ..ManifestDeps::default()
+        },
+    );
+    assert_optional_workspace_peer(&fixture);
+}
+
+#[test]
+fn optional_peer_keeps_a_selected_version_different_from_the_workspace_provider() {
+    let fixture = optional_workspace_peer_fixture("");
+    fixture.project(
+        "other",
+        "other",
+        ManifestDeps { prod: &[("is-positive", "2.0.0")], ..ManifestDeps::default() },
+    );
+    let manifest_path = fixture.workspace.join("fixtures/peer-consumer/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["peerDependencies"]["is-positive"] = serde_json::json!("^2.0.0");
+    fs::write(manifest_path, manifest.to_string()).expect("update the peer range");
+
+    for command in ["install", "dedupe"] {
+        fixture.run([command]);
+        let peer = optional_workspace_peer_path(&fixture);
+        assert_eq!(
+            fs::canonicalize(peer).expect("resolve the optional peer"),
+            fs::canonicalize(fixture.workspace.join("packages/other/node_modules/is-positive"))
+                .expect("resolve the selected registry provider"),
+        );
+    }
+}
+
+fn optional_workspace_peer_fixture(settings: &str) -> WorkspaceFixture {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(settings);
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[("is-positive", "workspace:*")], ..ManifestDeps::default() },
+    );
+    let provider = fixture.workspace.join("packages/is-positive");
+    write_manifest(
+        &provider,
+        &serde_json::json!({
+            "name": "is-positive",
+            "version": "1.0.0",
+            "dependencies": { "peer-consumer": "file:../../fixtures/peer-consumer" },
+        }),
+    );
+    write_manifest(
+        &fixture.workspace.join("fixtures/peer-consumer"),
+        &serde_json::json!({
+            "name": "peer-consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "is-positive": "*" },
+            "peerDependenciesMeta": { "is-positive": { "optional": true } },
+        }),
+    );
+
+    fixture
+}
+
+fn assert_optional_workspace_peer(fixture: &WorkspaceFixture) {
+    for command in ["install", "dedupe"] {
+        fixture.run([command]);
+        let peer = optional_workspace_peer_path(fixture);
+        assert_eq!(
+            fs::canonicalize(peer).expect("resolve the optional peer"),
+            fs::canonicalize(fixture.workspace.join("packages/is-positive"))
+                .expect("resolve the workspace provider"),
+        );
+        let lockfile = fixture.wanted();
+        let snapshots = lockfile.snapshots.expect("lockfile snapshots");
+        assert!(
+            !snapshots.contains_key(&"is-positive@1.0.0".parse().unwrap()),
+            "the registry copy must not be installed: {snapshots:#?}",
+        );
+    }
+}
+
+fn optional_workspace_peer_path(fixture: &WorkspaceFixture) -> std::path::PathBuf {
+    fs::canonicalize(fixture.workspace.join("packages/is-positive/node_modules/peer-consumer"))
+        .expect("resolve the consumer")
+        .parent()
+        .unwrap()
+        .join("is-positive")
 }

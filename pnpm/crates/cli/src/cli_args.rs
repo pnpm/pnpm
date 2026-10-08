@@ -53,6 +53,7 @@ pub mod owner;
 pub mod pack;
 pub mod pack_app;
 pub(crate) mod package_manager;
+pub mod package_spec;
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;

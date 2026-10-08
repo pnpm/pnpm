@@ -12,7 +12,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, normalize_registry_url};
+use pnpm_network::RetryOpts;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
@@ -166,13 +166,10 @@ pub(super) async fn fetch_package_metadata(
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let name_hint = alias.unwrap_or(package_spec);
 
-    let mut registries: std::collections::HashMap<String, String> = config
-        .resolved_registries()
-        .into_iter()
-        .collect();
-    if let Some(registry) = registry_override {
-        registries.insert("default".to_string(), normalize_registry_url(registry).into_owned());
-    }
+    let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+        config,
+        registry_override,
+    );
     let registry = pick_registry_for_package(&registries, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)

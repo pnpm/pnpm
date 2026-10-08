@@ -204,8 +204,7 @@ impl NpmrcAuth {
     ) {
         if let Some(registry) = self.routes.default.take() {
             declared.registry = true;
-            config.registry =
-                if registry.ends_with('/') { registry } else { format!("{registry}/") };
+            config.registry = pnpm_network::normalize_registry_url(&registry).into_owned();
         }
         declared.scopes.extend(self.routes.scoped.keys().cloned());
         config.registries_by_scope.append(&mut self.routes.scoped);

@@ -265,7 +265,7 @@ impl PackumentCaches {
 
 impl ResolverChainInputs<'_> {
     fn retry_opts(&self) -> pnpm_network::RetryOpts {
-        crate::retry_config::retry_opts_from_config(self.config)
+        self.config.retry_opts()
     }
 
     fn npm_resolver(&self, caches: &PackumentCaches) -> Arc<dyn Resolver> {

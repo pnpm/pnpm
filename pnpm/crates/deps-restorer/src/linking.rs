@@ -21,7 +21,7 @@ use pnpm_config::NodeLinker;
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
 };
 
@@ -119,6 +119,9 @@ pub struct LinkPhaseOutput {
     pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<PathBuf>>>,
     /// See [`crate::HoistedLinkerOutput::hoisted_build_snapshots`].
     pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
+    /// See [`crate::BuildGraphInputs::build_scope`]. Set for the isolated
+    /// linker only.
+    pub build_scope: Option<HashSet<PackageKey>>,
     /// Publicly-hoisted aliases carrying bins. Public hoist promotes a
     /// transitive dep to `<root>/node_modules/<alias>`, whose bin then
     /// competes for the same `<root>/node_modules/.bin` slot as a root
@@ -148,6 +151,7 @@ impl LinkPhaseOutput {
             hoisted_locations: BTreeMap::new(),
             hoisted_pkg_roots_by_key: None,
             hoisted_build_snapshots: None,
+            build_scope: None,
             publicly_hoisted_for_post_build: Vec::new(),
             held_back_bins_dirs: Vec::new(),
             hoisted_bin_sources: crate::HoistedBinSources::default(),
@@ -353,6 +357,7 @@ fn write_project_links<Reporter: self::Reporter>(
     pre_hoist: Option<HoistPlan>,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
     let config = inputs.ctx.config;
+    let build_scope = crate::build_scope::isolated_build_scope(&inputs);
     let hoisted = link_hoisted_projects::<Reporter>(&mut inputs, skipped)?;
 
     let bin_deps = public_workspace_bin_deps(pre_hoist.as_ref());
@@ -382,6 +387,7 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_locations: hoisted.hoisted_locations,
         hoisted_pkg_roots_by_key: hoisted.hoisted_pkg_roots_by_key,
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
+        build_scope,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
         held_back_bins_dirs: hoisted.held_back_bins_dirs,
         hoisted_bin_sources: hoisted.hoisted_bin_sources,

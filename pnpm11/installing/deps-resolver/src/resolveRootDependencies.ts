@@ -4,7 +4,7 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 import type { WantedDependency } from './getWantedDependencies.js'
 import { getHoistableRootDeps } from './hoistableRootDeps.js'
-import { getHoistableOptionalPeers, getLockfileOnlyVersions, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
+import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
 import {
@@ -312,6 +312,14 @@ async function hoistOptionalPeersOfImporter (
     (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions)
   )
   if (!Object.keys(optionalDependencies).length) return false
+  for (const [name, version] of Object.entries(optionalDependencies)) {
+    optionalDependencies[name] = getOptionalPeerSpecifier({
+      name,
+      version,
+      workspaceRootDeps: hoisting.workspaceRootDeps,
+      rootDepVersions: hoisting.rootDepVersions,
+    })
+  }
   await resolveHoistedDependencies(hoisting, index, getNonDevWantedDependencies({ optionalDependencies }))
   return true
 }

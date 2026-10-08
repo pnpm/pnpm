@@ -22,7 +22,8 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials, send_with_retry,
+    RetryOpts, ThrottledClient, normalize_registry_url, read_limited_body, redact_url_credentials,
+    send_with_retry,
 };
 use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, OtpSession, WebAuthFetchOptions,
@@ -42,7 +43,7 @@ use render::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc};
 use summarize_tarball::{create_tarball_filename, summarize_tarball};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
@@ -329,13 +330,10 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_owned(), registry.clone());
-        }
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
         let registry = match package_name {
             Some(package) => pick_registry_for_package(&registries, package, None),
             None => registries
@@ -343,18 +341,13 @@ impl StageArgs {
                 .cloned()
                 .unwrap_or_default(),
         };
-        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        let registry = normalize_registry_url(&registry).into_owned();
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
         Ok(StageContext {
             registry,
             auth_header,
             http_client: build_registry_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
             web_auth_fetch_options: WebAuthFetchOptions {
                 timeout: Some(config.fetch_timeout),
