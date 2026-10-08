@@ -309,3 +309,21 @@ fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
     assert_eq!(published, device_and_inode(&target.join("index.js")));
     assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
 }
+
+#[test]
+fn sync_replaces_a_target_manifest_left_half_written() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
+    create_file(&target.join("package.json"), "");
+
+    let patchers = DirPatcher::from_multiple_targets(&source, std::slice::from_ref(&target), true)
+        .expect("a half-written target manifest is diffed, not parsed");
+    for patcher in patchers {
+        patcher.apply().expect("apply patch");
+    }
+    assert_eq!(
+        fs::read_to_string(target.join("package.json")).expect("read target manifest"),
+        r#"{"name":"pkg","version":"1.0.0"}"#,
+    );
+}
