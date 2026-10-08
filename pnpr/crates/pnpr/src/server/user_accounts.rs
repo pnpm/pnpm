@@ -133,11 +133,7 @@ async fn log_in(
     password: &str,
 ) -> Result<(UpsertOutcome, String, String), RegistryError> {
     if super::scim::is_deprovisioned(state, name) {
-        return Err(RegistryError::Forbidden {
-            user: name.to_string(),
-            action: "sign in to",
-            resource: "this account, which an identity provider deprovisioned".to_string(),
-        });
+        return Err(deprovisioned(name));
     }
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
@@ -148,11 +144,39 @@ async fn log_in(
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
+    if super::scim::is_deprovisioned(state, &username) {
+        undo_login(state, &username, &token, outcome).await?;
+        return Err(deprovisioned(&username));
+    }
     if still_the_same_account(state, &username, password, verified.as_deref()).await? {
         return Ok((outcome, username, token));
     }
     state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
     Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+}
+
+fn deprovisioned(name: &str) -> RegistryError {
+    RegistryError::Forbidden {
+        user: name.to_string(),
+        action: "sign in to",
+        resource: "this account, which an identity provider deprovisioned".to_string(),
+    }
+}
+
+/// Take back the token a login issued, and the account it created, when a
+/// SCIM deprovisioning of the user landed while the login ran.
+async fn undo_login(
+    state: &AppState,
+    username: &str,
+    token: &str,
+    outcome: UpsertOutcome,
+) -> Result<(), RegistryError> {
+    let auth = &state.inner.identity.auth;
+    auth.tokens.revoke_by_raw(token).await?;
+    if matches!(outcome, UpsertOutcome::Created) {
+        auth.users.delete_user(username).await?;
+    }
+    Ok(())
 }
 
 /// Whether the account a login verified, or created, is still the one stored,

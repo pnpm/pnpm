@@ -5,11 +5,15 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router, router_with_auth};
+use pnpr::{
+    AuthState, Config, TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, router,
+    router_with_auth,
+};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::Path,
+    sync::{Arc, OnceLock},
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -235,6 +239,76 @@ async fn reactivating_a_user_first_removes_credentials_a_failed_cleanup_left() {
     assert_eq!(whoami(&app, &left_behind).await, StatusCode::UNAUTHORIZED);
     assert!(
         auth.users
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+/// A user store whose registration lets a SCIM client deactivate the user
+/// first, as if the deactivation landed while the login ran.
+struct DeactivatedDuringLogin {
+    users: UserStore,
+    app: OnceLock<axum::Router>,
+}
+
+#[async_trait::async_trait]
+impl UserBackend for DeactivatedDuringLogin {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> pnpr::Result<(UpsertOutcome, String)> {
+        let app = self.app.get().expect("router set");
+        let (status, _) =
+            scim(app, "PATCH", &format!("{USERS}/{username}"), Some(deactivate())).await;
+        assert_eq!(status, StatusCode::OK);
+        self.users.add_or_login(username, password).await
+    }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        self.users.list_users().await
+    }
+
+    async fn password_hash(&self, username: &str) -> pnpr::Result<Option<String>> {
+        self.users.password_hash(username).await
+    }
+
+    async fn create_user(&self, username: &str, password: &str) -> pnpr::Result<bool> {
+        self.users.create_user(username, password).await
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> pnpr::Result<bool> {
+        self.users.set_password(username, password).await
+    }
+
+    async fn delete_user(&self, username: &str) -> pnpr::Result<bool> {
+        self.users.delete_user(username).await
+    }
+}
+
+#[tokio::test]
+async fn a_login_racing_a_deactivation_keeps_no_token_or_account() {
+    let dir = TempDir::new().unwrap();
+    let users =
+        Arc::new(DeactivatedDuringLogin { users: UserStore::in_memory(), app: OnceLock::new() });
+    let tokens = Arc::new(TokenStore::in_memory());
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(dir.path()), auth);
+    users.app.set(app.clone()).unwrap();
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
+
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
+    assert!(
+        tokens
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        users.users
             .password_hash("alice")
             .await
             .unwrap()
