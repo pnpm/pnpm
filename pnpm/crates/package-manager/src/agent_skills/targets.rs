@@ -8,19 +8,35 @@ use std::{
 
 /// Environment variables by which an agent identifies itself, and the
 /// agent skill directory each one reads.
+///
+/// Specific agent indicators are checked before generic fallbacks.
 const AGENT_ENV_DIRS: &[(&str, &str)] = &[
     ("CLAUDECODE", ".claude/skills"),
+    ("CLAUDE_CODE", ".claude/skills"),
     ("CURSOR_AGENT", ".cursor/skills"),
     ("GEMINI_CLI", ".gemini/skills"),
+    ("ANTIGRAVITY_AGENT", ".agents/skills"),
+    ("COPILOT_AGENT", ".github/skills"),
+    ("COPILOT_CLI", ".github/skills"),
+    ("CODEX_THREAD_ID", ".agents/skills"),
+    ("CODEX_SANDBOX", ".agents/skills"),
+    ("AI_AGENT", ".agents/skills"),
 ];
 
 /// The agent skill directory of the agent running pnpm, when one
 /// identifies itself in the environment.
 #[must_use]
 pub fn agent_skills_dir_from_env() -> Option<&'static str> {
+    agent_skills_dir_from_lookup(|var| std::env::var_os(var))
+}
+
+#[must_use]
+pub(crate) fn agent_skills_dir_from_lookup(
+    mut lookup: impl FnMut(&str) -> Option<std::ffi::OsString>,
+) -> Option<&'static str> {
     AGENT_ENV_DIRS
         .iter()
-        .find(|(var, _)| std::env::var_os(var).is_some_and(|value| !value.is_empty()))
+        .find(|(var, _)| lookup(var).is_some_and(|value| !value.is_empty()))
         .map(|(_, dir)| *dir)
 }
 
@@ -73,15 +89,32 @@ pub(super) fn targets_changed(
 }
 
 fn candidate_dirs(config: &Config, workspace_root: &Path, agent_dir: Option<&str>) -> Vec<PathBuf> {
-    if let Some(dirs) = &config.skills_dirs {
-        return dirs
-            .iter()
+    let raw_dirs: Vec<PathBuf> = if let Some(dirs) = &config.skills_dirs {
+        dirs.iter()
             .map(|dir| workspace_root.join(dir))
-            .collect();
+            .collect()
+    } else {
+        let mut dirs = existing_agent_dirs(workspace_root);
+        dirs.extend(agent_dir.map(|dir| workspace_root.join(dir)));
+        dirs
+    };
+    raw_dirs
+        .into_iter()
+        .filter(|dir| is_contained_in_workspace(workspace_root, dir))
+        .collect()
+}
+
+fn is_contained_in_workspace(workspace_root: &Path, dir: &Path) -> bool {
+    if !pnpm_fs::is_subdir(workspace_root, dir) {
+        return false;
     }
-    let mut dirs = existing_agent_dirs(workspace_root);
-    dirs.extend(agent_dir.map(|dir| workspace_root.join(dir)));
-    dirs
+    let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {
+        return false;
+    };
+    let Ok(resolved_dir) = pnpm_fs::realpath_missing(dir) else {
+        return false;
+    };
+    pnpm_fs::is_subdir(&canonical_root, &resolved_dir)
 }
 
 /// `<workspace_root>/.<agent>/skills` for every agent directory present.
@@ -101,3 +134,6 @@ fn existing_agent_dirs(workspace_root: &Path) -> Vec<PathBuf> {
     dirs.sort();
     dirs
 }
+
+#[cfg(test)]
+mod tests;
