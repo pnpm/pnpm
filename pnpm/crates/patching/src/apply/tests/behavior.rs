@@ -387,6 +387,93 @@ fn mode_change_on_symlink_does_not_mutate_target_outside_package() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn directory_symlink_pointing_outside_package_is_rejected() {
+    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("victim.sh");
+    fs::write(&victim, "#!/bin/sh\necho external\n").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let patched = tempdir().unwrap();
+    let ext_link = patched.path().join("ext");
+    unix_fs::symlink(outside.path(), &ext_link).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/ext/victim.sh b/ext/victim.sh"
+        "old mode 100644"
+        "new mode 100755"
+        "--- a/ext/victim.sh"
+        "+++ b/ext/victim.sh"
+        "@@ -1,2 +1,2 @@"
+        " #!/bin/sh"
+        "-echo external"
+        "+echo pwned"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    let err = apply_patch_to_dir(patched.path(), &patch)
+        .expect_err("patch through escaping directory symlink must be rejected");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(
+        message.contains("escapes target dir via symlink"),
+        "expected symlink escape error, got: {message}",
+    );
+
+    assert_eq!(
+        fs::metadata(&victim)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o644,
+        "external file permissions must be untouched",
+    );
+    assert_eq!(
+        fs::read_to_string(&victim).unwrap(),
+        "#!/bin/sh\necho external\n",
+        "external file content must be untouched",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn create_on_symlink_target_errors_even_if_content_matches() {
+    use std::os::unix::fs as unix_fs;
+
+    let outside = tempdir().unwrap();
+    let victim = outside.path().join("target.txt");
+    fs::write(&victim, "pre-existing\n").unwrap();
+
+    let patched = tempdir().unwrap();
+    let symlink = patched.path().join("target.txt");
+    unix_fs::symlink(&victim, &symlink).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "diff --git a/target.txt b/target.txt"
+        "new file mode 100644"
+        "--- /dev/null"
+        "+++ b/target.txt"
+        "@@ -0,0 +1 @@"
+        "+pre-existing"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    let err = apply_patch_to_dir(patched.path(), &patch)
+        .expect_err("create over symlink must be rejected even if referent matches");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("already exists"), "got: {message}");
+    assert!(fs::symlink_metadata(&symlink).unwrap().is_symlink(), "target must remain a symlink");
+}
+
 #[test]
 fn applies_an_insertion_with_context_on_both_sides() {
     let original = text_block_fnl! {

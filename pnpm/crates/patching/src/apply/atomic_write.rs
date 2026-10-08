@@ -61,7 +61,7 @@ pub(super) fn write_atomic_with_mode(
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
 
-        let mut file = match OpenOptions::new()
+        let file = match OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&tmp)
@@ -74,20 +74,7 @@ pub(super) fn write_atomic_with_mode(
             Err(error) => return Err(error),
         };
 
-        if let Err(error) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
-        }
-        // Close before chmod / rename. Required on Windows: `MoveFileEx`
-        // over a still-open source handle fails with a sharing
-        // violation. Not strictly required on Unix but matches the
-        // pattern in `save_lockfile::write_atomic`. No `sync_all`: this
-        // routine is atomic against IO errors, not power loss — see
-        // the `fn` doc above.
-        drop(file);
-
-        return replace_with_permissions(&tmp, target, permissions);
+        return stage_and_replace(file, &tmp, target, content, permissions);
     }
 
     Err(last_already_exists.unwrap_or_else(|| {
@@ -96,6 +83,39 @@ pub(super) fn write_atomic_with_mode(
             "exhausted temp-path attempts for atomic patch write",
         )
     }))
+}
+
+#[cfg(not(target_os = "wasi"))]
+fn stage_and_replace(
+    mut file: fs::File,
+    tmp: &Path,
+    target: &Path,
+    content: &[u8],
+    permissions: Option<&Permissions>,
+) -> io::Result<()> {
+    if let Err(error) = file.write_all(content) {
+        drop(file);
+        let _ = fs::remove_file(tmp);
+        return Err(error);
+    }
+
+    if let Some(permissions) = permissions
+        && let Err(error) = file.set_permissions(permissions.clone())
+    {
+        drop(file);
+        let _ = fs::remove_file(tmp);
+        return Err(error);
+    }
+
+    // Close before rename. Required on Windows: `MoveFileEx`
+    // over a still-open source handle fails with a sharing
+    // violation.
+    drop(file);
+
+    fs::rename(tmp, target)
+        .inspect_err(|_| {
+            let _ = fs::remove_file(tmp);
+        })
 }
 
 #[cfg(target_os = "wasi")]
@@ -185,25 +205,6 @@ pub(super) fn needs_mode_change(target: &Path, new_mode: Option<&FileMode>) -> b
 #[cfg(not(unix))]
 pub(super) fn needs_mode_change(_target: &Path, _new_mode: Option<&FileMode>) -> bool {
     false
-}
-
-#[cfg(not(target_os = "wasi"))]
-fn replace_with_permissions(
-    tmp: &Path,
-    target: &Path,
-    permissions: Option<&Permissions>,
-) -> io::Result<()> {
-    if let Some(permissions) = permissions {
-        fs::set_permissions(tmp, permissions.clone())
-            .inspect_err(|_| {
-                let _ = fs::remove_file(tmp);
-            })?;
-    }
-
-    fs::rename(tmp, target)
-        .inspect_err(|_| {
-            let _ = fs::remove_file(tmp);
-        })
 }
 
 #[cfg(any(unix, target_os = "wasi"))]

@@ -77,6 +77,12 @@ pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
+    let canonical_dir = fs::canonicalize(patched_dir)
+        .map_err(|source| PatchApplyError::PatchFailed {
+            patch_file_path: patch_file_path.to_path_buf(),
+            patched_dir: patched_dir.to_path_buf(),
+            message: format!("canonicalize {}: {source}", patched_dir.display()),
+        })?;
     let text = read_patch_text(patch_file_path)?;
 
     let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
@@ -85,7 +91,7 @@ pub fn apply_patch_to_dir(
             patch_file_path: patch_file_path.to_path_buf(),
             message: source.to_string(),
         })?;
-        apply_one_file(patched_dir, patch_file_path, &file_patch)?;
+        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch)?;
     }
     Ok(())
 }
@@ -122,11 +128,12 @@ fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
 
 fn apply_one_file(
     patched_dir: &Path,
+    canonical_dir: &Path,
     patch_file_path: &Path,
     file_patch: &FilePatch<'_, str>,
 ) -> Result<(), PatchApplyError> {
     let operation = file_patch.operation().strip_prefix(1);
-    let apply = FileApply { patched_dir, patch_file_path };
+    let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
 
     let text_patch = || {
         file_patch
@@ -157,6 +164,7 @@ fn apply_one_file(
 /// One patch record being applied to one file of `patched_dir`.
 struct FileApply<'a> {
     patched_dir: &'a Path,
+    canonical_dir: &'a Path,
     patch_file_path: &'a Path,
 }
 
@@ -170,10 +178,8 @@ impl FileApply<'_> {
     }
 
     /// Reject patch paths that try to escape `patched_dir`: absolute paths,
-    /// `..` segments, and (on Windows) drive-letter prefixes and root
-    /// components. A patch is attacker-controlled data — an
-    /// `a/../../outside` header could otherwise read, write, or delete files
-    /// outside the package directory.
+    /// `..` segments, drive-letter prefixes, root components, or intermediate
+    /// directory symlinks traversing outside `patched_dir`.
     fn resolve_target(&self, rel: &Path) -> Result<PathBuf, PatchApplyError> {
         let escapes = rel.is_absolute()
             || rel
@@ -187,7 +193,42 @@ impl FileApply<'_> {
         if escapes {
             return Err(self.failed(format!("patch path escapes target dir: {}", rel.display())));
         }
+        self.ensure_parents_within_dir(rel)?;
         Ok(self.patched_dir.join(rel))
+    }
+
+    fn ensure_parents_within_dir(&self, rel: &Path) -> Result<(), PatchApplyError> {
+        let Some(parent) = rel.parent() else {
+            return Ok(());
+        };
+        let mut current = self.canonical_dir.to_path_buf();
+        for component in parent.components() {
+            current.push(component);
+            self.check_ancestor_symlink(&mut current, rel)?;
+        }
+        Ok(())
+    }
+
+    fn check_ancestor_symlink(
+        &self,
+        current: &mut PathBuf,
+        rel: &Path,
+    ) -> Result<(), PatchApplyError> {
+        if current.symlink_metadata().is_err() {
+            return Ok(());
+        }
+        let canonical = fs::canonicalize(&current)
+            .map_err(|source| {
+                self.failed(format!("canonicalize {}: {source}", current.display()))
+            })?;
+        if !canonical.starts_with(self.canonical_dir) {
+            return Err(self.failed(format!(
+                "patch path escapes target dir via symlink: {}",
+                rel.display(),
+            )));
+        }
+        *current = canonical;
+        Ok(())
     }
 
     fn modify(
@@ -205,10 +246,10 @@ impl FileApply<'_> {
             Ok(updated) => updated,
             // File is already in the post-patch state — reverse applies
             // cleanly. If the patch requested a mode change that is not yet
-            // reflected, re-write atomically to break store hardlinks and safely
-            // isolate without mutating inodes in-place.
+            // reflected, or the target is still a symlink, re-write atomically
+            // to break store hardlinks and safely isolate without mutating inodes in-place.
             Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
-                if atomic_write::needs_mode_change(target, new_mode) {
+                if atomic_write::needs_mode_change(target, new_mode) || target.is_symlink() {
                     original
                 } else {
                     return Ok(());
@@ -248,9 +289,8 @@ impl FileApply<'_> {
     ) -> Result<(), PatchApplyError> {
         let created = tolerant::apply("", text_patch)
             .map_err(|message| self.failed(format!("create {}: {message}", target.display())))?;
-        if target.try_exists().unwrap_or(false)
-            && self.existing_file_matches(target, &created, new_mode)?
-        {
+        let exists = target.symlink_metadata().is_ok();
+        if exists && self.existing_file_matches(target, &created, new_mode)? {
             return Ok(());
         }
         if let Some(parent) = target.parent() {
@@ -270,6 +310,10 @@ impl FileApply<'_> {
         created: &str,
         new_mode: Option<&FileMode>,
     ) -> Result<bool, PatchApplyError> {
+        if target.is_symlink() {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
         let existing = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
         if String::from_utf8_lossy(&existing) != created {
