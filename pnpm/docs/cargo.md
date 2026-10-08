@@ -125,7 +125,7 @@ pnpm verifies the release manifest against the Rust release signing key and chec
 
 `pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script.
 
-A channel that moves, such as `stable`, is checked on every online install, so a new release is installed when it comes out. Offline, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
+A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
 
 [`runtimeOnFail`](./settings/cli.md#runtimeonfail) set to `error`, `warn`, or `ignore` turns this off and leaves the toolchain to rustup. Download toolchains from a mirror with [`tools.rust.mirror`](./settings/cli.md#tools).
 

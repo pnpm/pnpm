@@ -14,6 +14,7 @@ repository.workspace = true
 pnpm-config = { workspace = true }
 pnpm-crypto-shasums-file = { workspace = true }
 pnpm-detect-libc = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-tarball = { workspace = true }

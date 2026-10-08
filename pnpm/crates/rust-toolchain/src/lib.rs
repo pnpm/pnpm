@@ -61,7 +61,7 @@ impl InstalledToolchain {
 /// install put in the store.
 ///
 /// A channel that moves, such as `stable`, is read from the distribution
-/// server on every install so that a new release is picked up. Offline, the
+/// server again once a day, so that a new release is picked up. Offline, the
 /// newest installed release of the channel is used.
 pub async fn install_toolchain<Reporter: self::Reporter>(
     config: &Config,
@@ -84,6 +84,8 @@ async fn install_for_host<Reporter: self::Reporter>(
         if dir.is_dir() {
             return Ok(InstalledToolchain { dir });
         }
+    } else if let Some(dir) = install::recent_resolution(&toolchains, host, request) {
+        return Ok(InstalledToolchain { dir });
     } else if config.offline
         && let Some(dir) = install::newest_installed(&toolchains, host, request)
     {
@@ -99,6 +101,9 @@ async fn install_for_host<Reporter: self::Reporter>(
     if !dir.is_dir() {
         let archives = manifest.archives(server, &pinned, host, request)?;
         install::install::<Reporter>(config, client, &pinned, host, &archives, &dir).await?;
+    }
+    if !request.channel.is_pinned() {
+        install::record_resolution(&toolchains, host, request, &pinned);
     }
     Ok(InstalledToolchain { dir })
 }

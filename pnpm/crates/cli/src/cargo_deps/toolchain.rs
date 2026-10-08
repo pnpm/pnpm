@@ -7,13 +7,22 @@ use pnpm_config::{Config, RuntimeOnFail};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_rust_toolchain::{
-    TOOLCHAIN_LINK, Unmanaged, find_toolchain_file, install_toolchain, linked_bin_dir,
+    InstalledToolchain, TOOLCHAIN_LINK, Unmanaged, find_toolchain_file, install_toolchain,
     read_toolchain_file,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
+    sync::Mutex,
 };
+
+/// The toolchains this process installed or found in the store, by the
+/// toolchain file that names them.
+///
+/// The commands pnpm runs during an install take their toolchain from here
+/// rather than from the `.pnpm/rust` link, which the checkout could have
+/// committed: installing must not run what the repository ships.
+static PROVISIONED: Mutex<BTreeMap<PathBuf, InstalledToolchain>> = Mutex::new(BTreeMap::new());
 
 /// Install the toolchain named by the toolchain file of each Cargo manifest,
 /// and link it beside the file.
@@ -56,6 +65,10 @@ pub(super) async fn provision<Reporter: self::Reporter>(
         let toolchain = install_toolchain::<Reporter>(config, http_client, &request).await?;
         let dir = file.parent().expect("a toolchain file has a parent directory");
         link(dir, &toolchain.dir)?;
+        PROVISIONED
+            .lock()
+            .expect("the provisioned toolchains are not poisoned")
+            .insert(file, toolchain);
     }
     Ok(())
 }
@@ -69,13 +82,21 @@ fn link(dir: &Path, toolchain: &Path) -> Result<()> {
     Ok(())
 }
 
-/// `tool`, such as `cargo`, from the toolchain pnpm linked for `dir`, or
-/// `tool` as `PATH` finds it where pnpm linked none.
+/// `tool`, such as `cargo`, from the toolchain pnpm provisioned for `dir`, or
+/// `tool` as `PATH` finds it where pnpm provisioned none.
 pub(super) fn program(tool: &str, dir: &Path, checkout: Option<&Path>) -> PathBuf {
     checkout
         .zip(dunce::canonicalize(dir).ok())
-        .and_then(|(checkout, dir)| linked_bin_dir(&dir, checkout))
-        .map(|bin_dir| bin_dir.join(format!("{tool}{}", std::env::consts::EXE_SUFFIX)))
-        .filter(|program| program.is_file())
+        .and_then(|(checkout, dir)| find_toolchain_file(&dir, checkout))
+        .and_then(|file| {
+            PROVISIONED
+                .lock()
+                .expect("the provisioned toolchains are not poisoned")
+                .get(&file)
+                .map(|toolchain| toolchain.executable(tool))
+        })
         .unwrap_or_else(|| PathBuf::from(tool))
 }
+
+#[cfg(test)]
+mod tests;

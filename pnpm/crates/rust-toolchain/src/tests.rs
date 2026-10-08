@@ -1,6 +1,7 @@
 use super::{
     Channel, InstalledToolchain, Profile, RustToolchainError, ToolchainRequest,
-    install::toolchain_dir, install_for_host, linked_bin_dir,
+    install::{record_resolution, toolchain_dir},
+    install_for_host, linked_bin_dir,
 };
 use pnpm_config::{Config, Tool, ToolSettings};
 use pnpm_network::ThrottledClient;
@@ -121,4 +122,28 @@ fn links_the_toolchain_beside_the_toolchain_file() {
     let bin_dir = checkout.path().join(".pnpm/rust/bin");
     fs::create_dir_all(&bin_dir).unwrap();
     assert_eq!(linked_bin_dir(&member, checkout.path()), Some(bin_dir));
+}
+
+#[tokio::test]
+async fn a_moving_channel_resolved_today_needs_no_download() {
+    let store = tempfile::tempdir().unwrap();
+    // Nothing listens there, so a download would fail the test.
+    let config = config(store.path(), "http://127.0.0.1:9");
+    let request = request("stable");
+    let toolchains = config.store_dir.root().join("rust");
+    let pinned = Channel::parse("1.95.0").unwrap();
+    let dir = toolchain_dir(&toolchains, &pinned, HOST, &request);
+    fs::create_dir_all(&dir).unwrap();
+    record_resolution(&toolchains, HOST, &request, &pinned);
+
+    let installed = install_for_host::<SilentReporter>(
+        &config,
+        &ThrottledClient::new_for_installs(),
+        &request,
+        HOST,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(installed, InstalledToolchain { dir });
 }

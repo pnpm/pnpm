@@ -6308,6 +6308,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-crypto-shasums-file",
  "pnpm-detect-libc",
+ "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
  "pnpm-reporter",

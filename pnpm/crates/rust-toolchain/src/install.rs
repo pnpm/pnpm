@@ -12,6 +12,7 @@ use std::{
     fs, io,
     path::{Component, Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 /// `rustc`, the largest archive, is about 130 MB.
@@ -76,6 +77,55 @@ pub(crate) fn newest_installed(
         })
         .max()
         .map(|(_, dir)| dir)
+}
+
+/// How long a channel that moves is taken to resolve to the release it
+/// resolved to last, before the distribution server is asked again.
+const CHANNEL_MAX_AGE: Duration = Duration::from_hours(24);
+
+/// Where the release a moving channel last resolved to is recorded.
+fn resolution_record(toolchains: &Path, host: &str, request: &ToolchainRequest) -> PathBuf {
+    toolchains
+        .join(".channels")
+        .join(format!("{}-{host}-{}", request.channel, selection_digest(request)))
+}
+
+/// The toolchain a moving channel resolved to within the last
+/// [`CHANNEL_MAX_AGE`], if it is still installed.
+pub(crate) fn recent_resolution(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+) -> Option<PathBuf> {
+    let record = resolution_record(toolchains, host, request);
+    let age = fs::metadata(&record)
+        .ok()?
+        .modified()
+        .ok()?
+        .elapsed()
+        .ok()?;
+    if age > CHANNEL_MAX_AGE {
+        return None;
+    }
+    let pinned = Channel::parse(&fs::read_to_string(&record).ok()?)?;
+    let dir = toolchain_dir(toolchains, &pinned, host, request);
+    (request.channel.accepts(&pinned) && dir.is_dir()).then_some(dir)
+}
+
+/// Record what a moving channel resolved to. A record that cannot be
+/// written only costs the next install a manifest download.
+pub(crate) fn record_resolution(
+    toolchains: &Path,
+    host: &str,
+    request: &ToolchainRequest,
+    pinned: &Channel,
+) {
+    let record = resolution_record(toolchains, host, request);
+    if let Some(parent) = record.parent()
+        && fs::create_dir_all(parent).is_ok()
+    {
+        let _ = pnpm_fs::write_atomic(&record, pinned.to_string().as_bytes());
+    }
 }
 
 fn release_order(pinned: &Channel) -> (u64, u64, u64, String) {
