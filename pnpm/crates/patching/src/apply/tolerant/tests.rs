@@ -1,4 +1,4 @@
-use super::{apply, drop_context_no_newline_markers};
+use super::{apply, drop_context_no_newline_markers, strip_cr_from_extended_headers};
 use diffy::Patch;
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block_fnl;
@@ -317,5 +317,44 @@ fn drops_only_the_no_newline_markers_that_follow_context() {
     assert_eq!(
         drop_context_no_newline_markers(patch.to_string().replace('\n', "\r\n")),
         expected.to_string().replace('\n', "\r\n"),
+    );
+}
+
+/// Only the extended headers whose value `diffy` matches exactly lose
+/// their `\r`: the `index`/`similarity index` line diffy ignores, the
+/// `---`/`+++` paths, and hunk content all keep it.
+#[test]
+fn strips_the_carriage_return_from_value_headers_only() {
+    let patch = text_block_fnl! {
+        "diff --git a/file.txt b/file.txt"
+        "old mode 100644"
+        "new mode 100755"
+        "rename from old.txt"
+        "copy to new.txt"
+        "similarity index 100%"
+        "index 1111111..2222222 100644"
+        "--- a/file.txt"
+        "@@ -1 +1 @@"
+        "-one"
+        "+two"
+    };
+    let normalized = strip_cr_from_extended_headers(patch.to_string().replace('\n', "\r\n"));
+
+    assert_eq!(
+        normalized.split('\n').collect::<Vec<_>>(),
+        [
+            "diff --git a/file.txt b/file.txt",
+            "old mode 100644",
+            "new mode 100755",
+            "rename from old.txt",
+            "copy to new.txt",
+            "similarity index 100%\r",
+            "index 1111111..2222222 100644\r",
+            "--- a/file.txt\r",
+            "@@ -1 +1 @@\r",
+            "-one\r",
+            "+two\r",
+            "",
+        ],
     );
 }
