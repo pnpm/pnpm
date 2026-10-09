@@ -3102,6 +3102,10 @@
   dir: pnpm/npm/napi
   intents:
     - enable-modules-dir-fetches-into-store
+"@pnpm/napi@12.11.2":
+  dir: pnpm/npm/napi
+  intents:
+    - enable-modules-dir-fetches-reused-packages
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -5961,6 +5965,12 @@ pacquet@12.11.1:
     - package-manager-pin-unpublished-running-version
     - shared-node-modules-bin-chmod
     - stage-publish-failure-message
+pacquet@12.11.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - enable-modules-dir-fetches-reused-packages
+    - update-config-hook-filter
+    - workspace-concurrency-infinity
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
