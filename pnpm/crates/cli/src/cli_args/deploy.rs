@@ -133,7 +133,7 @@ struct ProjectInfo {
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
     /// The peers declared with a `workspace:` range, which only a workspace
-    /// project can satisfy.
+    /// project satisfies.
     workspace_protocol_peers: HashSet<PkgName>,
     /// Names the project declares as prod or optional dependencies. A peer it
     /// depends on itself is already bound by that edge, whether or not the

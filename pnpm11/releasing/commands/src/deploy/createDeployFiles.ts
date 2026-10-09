@@ -156,17 +156,38 @@ function convertWorkspaceImporters (
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
     const manifest = peerBearingProjects.get(projectRootDirRealPath)
     if (manifest == null) continue
+    const devDependencies = projectSnapshot.devDependencies ?? {}
+    const recordedPeers = Object.keys(manifest.peerDependencies ?? {}).filter(peerName =>
+      injectedWorkspace || isRecordedWorkspaceProtocolPeerLink(peerName, manifest, devDependencies[peerName], convertOptions)
+    )
     linkedWorkspaceProjects.set(depPath, {
       manifest,
-      dedupedPeerResolutions: injectedWorkspace
-        ? convertResolvedDependencies(
-          pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
-          convertOptions
-        )
-        : undefined,
+      dedupedPeerResolutions: convertResolvedDependencies(pick(recordedPeers, devDependencies), convertOptions),
     })
   }
   return linkedWorkspaceProjects
+}
+
+/**
+ * Without injection, a linked package's dev dependencies say nothing about what
+ * injecting it would bind. The one exception to approximating that choice is a
+ * peer declared with a `workspace:` range whose dev dependency links a
+ * workspace project: the range admits only that project, and the workspace
+ * links it there.
+ */
+function isRecordedWorkspaceProtocolPeerLink (
+  peerName: string,
+  manifest: ProjectManifest,
+  devReference: string | undefined,
+  opts: Pick<ConvertOptions, 'allProjects' | 'lockfileDir' | 'projectRootDirRealPath'>
+): boolean {
+  const peerRange = manifest.peerDependencies?.[peerName]
+  if (peerRange == null || !peerRange.startsWith('workspace:')) return false
+  if (devReference == null || !devReference.startsWith('link:')) return false
+  const target = resolveLinkOrFile(devReference, opts)
+  return target != null && opts.allProjects.some(project =>
+    project.rootDir === target.resolvedPath || project.rootDirRealPath === target.resolvedPath
+  )
 }
 
 /**
