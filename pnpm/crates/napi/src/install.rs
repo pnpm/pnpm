@@ -355,7 +355,7 @@ fn updates_everything(
 
 /// `enableModulesDir: false` ("do not create a `node_modules` directory") is
 /// not a lockfile-only install: the engine reads it from the config, skips
-/// `node_modules` yet fetches every package into the store, and leaves a
+/// `node_modules` yet fetches every registry package into the store, and leaves a
 /// rebuild alone. `ignorePackageManifest` overrides `lockfileOnly`: it
 /// materializes the virtual store from the lockfile, which the lockfile-only
 /// short-circuit would skip entirely (the TS fetch handler forces

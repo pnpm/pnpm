@@ -94,12 +94,21 @@ fn registry_entries(
         {
             continue;
         }
-        let (tarball_url, integrity) =
+        // An entry the install itself could not fetch (a named registry the
+        // config lacks, a revision the lockfile misstates) is left to the
+        // consumer and its own error; a prefetch has nothing to report.
+        let Ok((tarball_url, Some(integrity))) =
             tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                .expect("registry resolutions are always fetchable");
+        else {
+            tracing::debug!(
+                target: "pacquet::install",
+                %package_key,
+                "skipping the tarball prefetch of an unfetchable registry entry",
+            );
+            continue;
+        };
         let package_id = package_key.pkg_id();
-        let integrity =
-            integrity.expect("registry resolutions always carry an integrity").to_string();
+        let integrity = integrity.to_string();
         let revision_addressed = matches!(
             &metadata.resolution,
             LockfileResolution::Registry(registry) if registry.revision.is_some(),

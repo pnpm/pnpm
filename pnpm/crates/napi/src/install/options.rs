@@ -77,7 +77,7 @@ pub struct InstallOptions {
     pub inject_workspace_packages: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     /// `false` writes nothing under `node_modules` but still resolves,
-    /// writes the lockfile, and fetches every package into the store, for
+    /// writes the lockfile, and fetches every registry package into the store, for
     /// a `node_modules` that something else mounts from the store.
     pub enable_modules_dir: Option<bool>,
     /// Install from the lockfile alone, ignoring the project manifests —

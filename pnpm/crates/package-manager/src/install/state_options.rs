@@ -201,7 +201,8 @@ pub(crate) struct RecordedWorkspace<'a> {
 pub(crate) enum ResolveOnly {
     /// `--lockfile-only` or `--dry-run`: nothing is fetched either.
     LockfileOnly,
-    /// `enableModulesDir: false`: every package is fetched into the store.
+    /// `enableModulesDir: false`: every registry package is fetched into the
+    /// store.
     /// See `RunMode::fetches_into_store` in the run module.
     FetchIntoStore,
 }
