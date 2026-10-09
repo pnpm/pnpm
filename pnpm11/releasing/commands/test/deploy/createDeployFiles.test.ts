@@ -278,7 +278,7 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
 // A package may legitimately be named after an Object.prototype member, and a
 // plain property read would find that member and report a binding that does not
 // exist.
-test('createDeployFiles binds a peer whose name collides with an Object prototype member', () => {
+test.each(['*', 'workspace:*'])('createDeployFiles binds a peer whose name collides with an Object prototype member (range %s)', (peerRange) => {
   const lockfileDir = path.resolve('workspace')
   const libDir = path.join(lockfileDir, 'lib')
   const projectId = '.' as ProjectId
@@ -312,7 +312,7 @@ test('createDeployFiles binds a peer whose name collides with an Object prototyp
       {
         rootDir: libDir as ProjectRootDir,
         rootDirRealPath: libDir as ProjectRootDirRealPath,
-        manifest: { name: 'lib', version: '1.0.0', peerDependencies: { constructor: '*' } },
+        manifest: { name: 'lib', version: '1.0.0', peerDependencies: { constructor: peerRange } },
       },
     ],
     deployDir: path.join(lockfileDir, 'out'),

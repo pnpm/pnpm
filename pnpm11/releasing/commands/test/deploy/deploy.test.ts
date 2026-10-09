@@ -645,6 +645,71 @@ test('native deploy keeps the dev link of a workspace: peer of a linked workspac
   expect(peerVersionOf('project-4')).toBe('1.0.1')
 })
 
+test('native deploy keeps the dev link of an aliased workspace: peer of a linked workspace package (pnpm/pnpm#16807)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-4': 'workspace:*',
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        compat: 'workspace:@pnpm.e2e/peer-a@*',
+      },
+      devDependencies: {
+        compat: 'workspace:@pnpm.e2e/peer-a@*',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+    {
+      location: 'peer-a',
+      package: {
+        name: '@pnpm.e2e/peer-a',
+        version: '2.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const project2Dir = fs.realpathSync(path.join(deployDir, 'node_modules', 'project-2'))
+  expect(loadJsonFileSync<{ version: string }>(path.join(path.dirname(project2Dir), 'compat/package.json')).version).toBe('2.0.0')
+})
+
 // A workspace: range alone does not pick a candidate. project-2 records no
 // binding of its peer, so injecting it would bind project-1's registry copy,
 // while the deployed graph also holds the workspace project through project-4.
