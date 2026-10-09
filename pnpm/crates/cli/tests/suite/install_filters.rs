@@ -110,6 +110,40 @@ fn filtered_install_materializes_the_workspace_root() {
     );
 }
 
+#[test]
+fn update_config_hook_filter_selects_the_installed_projects() {
+    let (fixture, selected, unselected, _) = workspace_with_installable_root(ManifestDeps {
+        prod: &[(PARENT, "100.0.0")],
+        ..Default::default()
+    });
+    fs::write(
+        fixture.workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig (config) { return Object.assign(config, { filter: config.filter ?? ['selected'] }) } }\n",
+    )
+    .expect("write updateConfig hook");
+
+    fixture.run(["install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+}
+
+#[test]
+fn command_line_filter_outranks_update_config_hook_filter() {
+    let (fixture, selected, unselected, _) = workspace_with_installable_root(ManifestDeps {
+        prod: &[(PARENT, "100.0.0")],
+        ..Default::default()
+    });
+    fs::write(
+        fixture.workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig (config) { return Object.assign(config, { filter: ['unselected'] }) } }\n",
+    )
+    .expect("write updateConfig hook");
+
+    fixture.run(["--filter", "selected", "install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+}
+
 fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
     let fixture = WorkspaceFixture::new();
     let selected = fixture.project(

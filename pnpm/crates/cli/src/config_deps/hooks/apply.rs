@@ -90,6 +90,7 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     apply_state_dir_change(config, &delta);
+    apply_project_selector_changes(config, &delta)?;
     if delta.get("shamefullyHoist").is_some() || config.cli_settings.contains("shamefullyHoist") {
         config.apply_shamefully_hoist_derivation();
     }
@@ -166,6 +167,38 @@ fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_
         let defaults = defaults.get_or_insert_with(Config::default);
         WorkspaceSettings::reset_setting_to_default::<Host>(config, defaults, key, base_dir);
     }
+}
+
+/// Apply the `filter` / `filterProd` selectors a hook set. Either one
+/// replaces the `{.}...` default, which pnpm falls back to only when
+/// nothing selected projects.
+fn apply_project_selector_changes(config: &mut Config, delta: &Value) -> Result<()> {
+    let filter = hook_selectors(delta, "filter")?;
+    let filter_prod = hook_selectors(delta, "filterProd")?;
+    if filter.is_none() && filter_prod.is_none() {
+        return Ok(());
+    }
+    if let Some(filter) = filter {
+        config.filter = filter;
+    } else if !config.cli_settings.contains("filter") {
+        config.filter.clear();
+    }
+    if let Some(filter_prod) = filter_prod {
+        config.filter_prod = filter_prod;
+    }
+    Ok(())
+}
+
+/// The selectors the hook output holds under `key`, if it set any.
+fn hook_selectors(delta: &Value, key: &str) -> Result<Option<Vec<String>>> {
+    delta
+        .get(key)
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
 }
 
 /// `stateDir` resolves against the host's state root rather than the

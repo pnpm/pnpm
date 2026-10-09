@@ -193,6 +193,13 @@ fn seed_hook_input(
     // The pnpmfiles being run, which is what the setting resolves to and
     // what pnpm reports, rather than only a pinned `pnpmfile` value.
     object.insert("pnpmfile".to_string(), serde_json::to_value(pnpmfiles).into_diagnostic()?);
+    // The hook reads only the selectors the command line gave, not the
+    // `{.}...` default a recursive-by-default command falls back to.
+    for (key, selectors) in [("filter", &config.filter), ("filterProd", &config.filter_prod)] {
+        if config.cli_settings.contains(key) {
+            object.insert(key.to_string(), serde_json::to_value(selectors).into_diagnostic()?);
+        }
+    }
     // A setting nothing set is absent, as it is on pnpm 11, so that
     // `'key' in config` answers there and a hook doesn't read a null as a
     // configured value.
