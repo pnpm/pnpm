@@ -11,7 +11,7 @@ async function installWithMatchingPin (entry) {
   const { packageManager } = JSON.parse(readFileSync('package.json', 'utf8'))
   const version = packageManager.slice('pnpm@'.length)
   // A matching pin records integrity even when the running build is unpublished.
-  const server = createServer(async (request, response) => {
+  const server = createServer((request, response) => {
     if (request.url === '/pnpm') {
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({
@@ -27,14 +27,8 @@ async function installWithMatchingPin (entry) {
       }))
       return
     }
-    try {
-      const upstream = await fetch(`https://registry.npmjs.org${request.url}`)
-      response.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') })
-      response.end(Buffer.from(await upstream.arrayBuffer()))
-    } catch (error) {
-      response.writeHead(502)
-      response.end(String(error))
-    }
+    response.writeHead(404)
+    response.end('Fixture package not found')
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
