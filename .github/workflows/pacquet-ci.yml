@@ -677,6 +677,14 @@ jobs:
           # a library built by a newer one.
           packages: cargo-dylint@6.0.4 dylint-link@6.0.4
 
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      - name: Bundle the runtime loader the Rust crates embed
+        run: pnpm install --frozen-lockfile --filter @pnpm/esm-loader
+
       - name: Run dylint
         # Not a `pnpm pipeline`: pnpm runs scripts with the workspace toolchain
         # first on `PATH`, and cargo-dylint needs the rustup proxies there to
