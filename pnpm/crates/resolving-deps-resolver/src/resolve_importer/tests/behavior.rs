@@ -329,6 +329,69 @@ async fn auto_installs_a_peer_declared_with_compatible_workspace_and_plain_range
     );
 }
 
+#[tokio::test]
+async fn auto_installs_a_peer_declared_with_different_workspace_shorthands() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("wants-caret".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-caret", "peer", "workspace:^"),
+    );
+    table.insert(
+        ("wants-tilde".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-tilde", "peer", "workspace:~"),
+    );
+    table.insert(
+        ("peer".to_string(), "workspace:*".to_string()),
+        fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-caret": "1.0.0",
+        "wants-tilde": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(resolved_specifiers(&resolver, "peer"), vec!["workspace:*".to_string()]);
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("peer"),
+        Some(&DepPath::from("peer@1.0.0".to_string())),
+    );
+}
+
+#[tokio::test]
+async fn auto_installs_a_peer_declared_with_a_workspace_shorthand_and_a_plain_range() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("wants-workspace".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-workspace", "peer-c", "workspace:^"),
+    );
+    table.insert(
+        ("wants-plain".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-plain", "peer-c", "^1.0.0"),
+    );
+    table.insert(
+        ("peer-c".to_string(), "^1.0.0".to_string()),
+        fake_result("peer-c", "1.0.0", serde_json::json!({ "name": "peer-c", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-workspace": "1.0.0",
+        "wants-plain": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("peer-c"),
+        Some(&DepPath::from("peer-c@1.0.0".to_string())),
+    );
+}
+
 /// The overrider stands in for a version-scoped `peer-c@^1` override,
 /// which only matches a semver range.
 #[tokio::test]

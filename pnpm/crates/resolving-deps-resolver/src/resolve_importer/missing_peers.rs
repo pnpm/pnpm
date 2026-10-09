@@ -54,7 +54,7 @@ pub(super) fn classify_missing_peer(
     // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
     // it to a comparable range itself. The optional path below dedupes onto
     // an already-present version, so it uses the display range instead.
-    let required_ranges: Vec<&str> = entries
+    let mut required_ranges: Vec<&str> = entries
         .iter()
         .filter(|entry| !entry.optional)
         .map(|entry| hoistable_peer_range(&entry.raw_range))
@@ -65,6 +65,20 @@ pub(super) fn classify_missing_peer(
             return MissingPeerKind::Unhoistable;
         }
         return MissingPeerKind::Optional(ordered);
+    }
+    // A workspace shorthand admits any version of the workspace project, so
+    // it narrows nothing next to another consumer's range. Distinct
+    // shorthands alone would not intersect as semver, so they merge into one.
+    if required_ranges
+        .iter()
+        .any(|range| !is_workspace_shorthand(range))
+    {
+        required_ranges.retain(|range| !is_workspace_shorthand(range));
+    } else if required_ranges
+        .windows(2)
+        .any(|pair| pair[0] != pair[1])
+    {
+        required_ranges = vec!["workspace:*"];
     }
     match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
         Some(range) => MissingPeerKind::Required(range),
@@ -86,6 +100,10 @@ fn hoistable_peer_range(raw_range: &str) -> &str {
         Some(body) if !matches!(body, "*" | "^" | "~") && Range::parse(body).is_ok() => body,
         _ => raw_range,
     }
+}
+
+fn is_workspace_shorthand(range: &str) -> bool {
+    matches!(range, "workspace:*" | "workspace:^" | "workspace:~")
 }
 
 /// The distinct wanted ranges the entries name, in first-seen order.
