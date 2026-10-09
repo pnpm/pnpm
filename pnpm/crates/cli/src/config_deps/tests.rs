@@ -782,3 +782,42 @@ async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shame
 
     assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
 }
+
+#[tokio::test]
+async fn update_config_filter_prod_replaces_the_default_filter() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filterProd = ['app']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.filter = vec!["{.}...".to_string()];
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(config.filter.is_empty());
+    assert_eq!(config.filter_prod, ["app"]);
+}
+
+#[tokio::test]
+async fn update_config_hook_reads_only_command_line_filters() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filterProd = [String('filterProd' in config)]; config.filter = [...config.filter, 'hook']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.filter = vec!["cli".to_string()];
+    config.cli_settings.insert("filter".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.filter, ["cli"]);
+    assert_eq!(config.filter_prod, ["false"]);
+}
