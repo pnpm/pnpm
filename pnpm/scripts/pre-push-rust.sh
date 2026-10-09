@@ -43,12 +43,8 @@ if command -v cargo >/dev/null 2>&1; then
         # runs `git checkout` in its own clone of rust-clippy, and an inherited
         # GIT_DIR makes that checkout read this repository instead and fail
         # (https://github.com/trailofbits/dylint/issues/2105).
-        # pnpm runs this hook with the workspace toolchain first on PATH.
-        # cargo-dylint builds its lint library with the nightly the library
-        # pins, which only the rustup proxies installed beside `rustup` select.
-        rustup_proxies=$(dirname "$(command -v rustup || command -v cargo)")
         # shellcheck disable=SC2046
-        if ! (unset $(git rev-parse --local-env-vars) && PATH="$rustup_proxies:$PATH" RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace); then
+        if ! (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' node pnpm/scripts/cargo-dylint.mjs --all -- --all-targets --workspace); then
             red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
             failed=1
         fi

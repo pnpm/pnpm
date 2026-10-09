@@ -19,10 +19,12 @@ function stubbedCheckout (context) {
   const stub = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\nexit 0\n`, { mode: 0o755 })
   stub('cargo', `if [ "$1" = dylint ]; then env | grep '^GIT_' > '${record}'; fi`)
   stub('cargo-dylint', '')
+  stub('rustup', '')
   stub('typos', '')
   stub('taplo', '')
   fs.mkdirSync(path.join(dir, 'pnpm/scripts'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'pnpm/scripts/rustfmt.mjs'), '')
+  fs.copyFileSync(path.join(path.dirname(SCRIPT), 'cargo-dylint.mjs'), path.join(dir, 'pnpm/scripts/cargo-dylint.mjs'))
   return { dir, bin, record }
 }
 

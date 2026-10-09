@@ -682,13 +682,7 @@ jobs:
         with:
           install: false
 
-      - name: Bundle the runtime loader the Rust crates embed
-        run: pnpm install --frozen-lockfile --filter @pnpm/esm-loader
-
       - name: Run dylint
-        # Not a `pnpm pipeline`: pnpm runs scripts with the workspace toolchain
-        # first on `PATH`, and cargo-dylint needs the rustup proxies there to
-        # build the lint library with the nightly the library pins.
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
         # `-- -D warnings` after `cargo dylint`'s `--`: `cargo dylint`
         # forwards args after `--` to `cargo check`, which would treat
@@ -696,7 +690,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: cargo dylint --all -- --all-targets --workspace
+        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does
