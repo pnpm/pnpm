@@ -36,7 +36,7 @@ if command -v cargo >/dev/null 2>&1; then
         failed=1
     fi
 
-    if command -v cargo-dylint >/dev/null 2>&1; then
+    if command -v cargo-dylint >/dev/null 2>&1 && command -v rustup >/dev/null 2>&1; then
         yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
         # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
         # ...) to hooks. When dylint builds a driver for a new toolchain it
@@ -49,7 +49,7 @@ if command -v cargo >/dev/null 2>&1; then
             failed=1
         fi
     else
-        yellow '! cargo-dylint not found on PATH — skipping dylint check (install from source with `cargo install cargo-dylint dylint-link`).'
+        yellow '! cargo-dylint or rustup not found on PATH — skipping dylint check (install rustup, then cargo-dylint from source with `cargo install cargo-dylint dylint-link`).'
     fi
 else
     yellow '! cargo not found on PATH — skipping Rust format, doc, and dylint checks.'

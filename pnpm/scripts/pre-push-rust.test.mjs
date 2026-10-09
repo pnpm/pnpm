@@ -10,7 +10,7 @@ import { temporaryRepo } from './git-fixture.mjs'
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'pre-push-rust.sh')
 
-function stubbedCheckout (context) {
+function stubbedCheckout (context, { rustup = true } = {}) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pre-push-')))
   context.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   const bin = path.join(dir, 'bin')
@@ -19,7 +19,7 @@ function stubbedCheckout (context) {
   const stub = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\nexit 0\n`, { mode: 0o755 })
   stub('cargo', `if [ "$1" = dylint ]; then env | grep '^GIT_' > '${record}'; fi`)
   stub('cargo-dylint', '')
-  stub('rustup', '')
+  if (rustup) stub('rustup', '')
   stub('typos', '')
   stub('taplo', '')
   fs.mkdirSync(path.join(dir, 'pnpm/scripts'), { recursive: true })
@@ -45,4 +45,18 @@ test('runs cargo dylint without the git variables a hook inherits', { skip: proc
 
   assert.equal(result.status, 0, result.stderr)
   assert.equal(fs.readFileSync(record, 'utf8'), '')
+})
+
+test('skips cargo dylint when rustup is not on PATH', { skip: process.platform === 'win32' }, (context) => {
+  const { dir, bin, record } = stubbedCheckout(context, { rustup: false })
+
+  const result = spawnSync('bash', [SCRIPT], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stderr, /skipping dylint check/)
+  assert.equal(fs.existsSync(record), false)
 })
