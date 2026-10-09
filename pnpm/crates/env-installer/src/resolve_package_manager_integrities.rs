@@ -210,14 +210,9 @@ fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolut
 /// Whether `error` is the registry answering that `version`, the pnpm now
 /// running, is not among the versions it publishes.
 ///
-/// A pin naming the running pnpm asks for nothing to be downloaded, so a
-/// registry that does not serve that version leaves no integrity to record
-/// rather than naming a pin that cannot be satisfied. It reads that way for
-/// a release the registry has yet to serve, such as a mirror still syncing
-/// one, and for a build that is never published at all.
-///
-/// Narrow by construction: a pin naming any other version, and every other
-/// way resolution can fail, stays an error.
+/// Such a pin asks for no download, so this is no integrity left to record
+/// rather than a pin that cannot be satisfied: a mirror mid-sync, or a build
+/// that is never published.
 #[must_use]
 pub fn running_version_unpublished(error: &ConfigDepError, version: &str) -> bool {
     version == PNPM_VERSION

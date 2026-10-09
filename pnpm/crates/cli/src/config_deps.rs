@@ -86,20 +86,12 @@ pub async fn prepare<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Record the pin of the pnpm that is already running, tolerating a version
-/// the registry does not publish.
+/// Record the pin of the pnpm already running, warning instead of failing
+/// when [`running_version_unpublished`] holds. The pin stays in the
+/// manifest, and a later run records it.
 ///
-/// Such a pin asks for no download, so a version the registry does not
-/// serve leaves nothing to record and must not fail the command: the pin
-/// stays in the manifest, and a later run records it once the version is
-/// served. Mirrors mid-sync and builds that are never published both land
-/// here. [`running_version_unpublished`] bounds it, so any other pin and
-/// every other resolution failure still fail.
-///
-/// Only the paths that record the pin and read nothing back use this. The
-/// engine installer and `pnpm self-update` resolve the same entries to
-/// install or verify them, where an unserved version is a real failure, and
-/// they keep [`sync_package_manager_dependencies`].
+/// A caller that reads back what it recorded, to install or verify it, wants
+/// [`sync_package_manager_dependencies`] instead.
 pub async fn record_running_package_manager_pin(
     config: &Config,
     root_dir: &Path,
