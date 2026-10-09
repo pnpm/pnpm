@@ -36,10 +36,15 @@ fn project(registry: &TestRegistry) -> Project {
     Project { dir, config: config.leak(), manifest }
 }
 
-/// `lockfile_only` is the explicit `--lockfile-only` and `frozen` the
-/// explicit `--frozen-lockfile`; the config's `enable_modules_dir = false`
+/// The explicit flags of one run; the config's `enable_modules_dir = false`
 /// is set either way.
-async fn install(project: &Project, lockfile_only: bool, frozen: bool) {
+#[derive(Default)]
+struct Flags {
+    lockfile_only: bool,
+    frozen: bool,
+}
+
+async fn install(project: &Project, Flags { lockfile_only, frozen }: Flags) {
     let lockfile = frozen.then(|| read_lockfile(project.dir.path()));
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
@@ -139,7 +144,7 @@ async fn fresh_install_without_modules_dir_fetches_the_packages_into_the_store()
     let registry = TestRegistry::start();
     let project = project(&registry);
 
-    install(&project, false, false).await;
+    install(&project, Flags::default()).await;
 
     assert!(!project.config.modules_dir.exists(), "no node_modules is written");
     let lockfile = read_lockfile(project.dir.path());
@@ -158,7 +163,7 @@ async fn frozen_install_without_modules_dir_fetches_the_packages_into_the_store(
     let project = project(&registry);
 
     // `--lockfile-only` writes the lockfile and still fetches nothing.
-    install(&project, true, false).await;
+    install(&project, Flags { lockfile_only: true, ..Flags::default() }).await;
     let lockfile = read_lockfile(project.dir.path());
     let (mut installable, incompatible) = store_keys(&lockfile);
     installable.sort();
@@ -167,7 +172,7 @@ async fn frozen_install_without_modules_dir_fetches_the_packages_into_the_store(
         "a lockfile-only run fetches nothing"
     );
 
-    install(&project, false, true).await;
+    install(&project, Flags { frozen: true, ..Flags::default() }).await;
 
     assert!(!project.config.modules_dir.exists(), "no node_modules is written");
     assert_eq!(keys_in_store(project.config, &installable), installable);

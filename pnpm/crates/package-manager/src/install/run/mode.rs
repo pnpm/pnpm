@@ -1,6 +1,6 @@
 use super::{
     super::{effective_node_version, included_dependencies},
-    InstallError, InstallOwned, InstallRunOptions, InstallView,
+    InstallError, InstallExecution, InstallOwned, InstallRunOptions, InstallView,
 };
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
@@ -10,12 +10,6 @@ use std::{io::IsTerminal, path::PathBuf};
 /// What the run's flags settle into before anything is read from disk.
 pub(super) struct RunMode {
     pub(super) lockfile_only: bool,
-    /// `enableModulesDir: false` without `--lockfile-only`: the run writes
-    /// no `node_modules`, like a lockfile-only run, but still fetches every
-    /// package into the store, as pnpm's TypeScript engine did. Whoever
-    /// mounts `node_modules` afterwards (a FUSE daemon, for one) serves it
-    /// from the store instead of downloading each package on first access.
-    pub(super) fetches_into_store: bool,
     pub(super) resolve_only: bool,
     pub(super) prefer_frozen_lockfile: bool,
     pub(super) included: IncludedDependencies,
@@ -48,7 +42,6 @@ impl RunMode {
         reject_conflicting_store_config(install.context.config)?;
         Ok(Self {
             lockfile_only,
-            fetches_into_store: lockfile_only && !install.execution.lockfile_only,
             // `--dry-run` resolves but never materializes, so it borrows the
             // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
             // workspace-state) while additionally skipping the lockfile write.
@@ -72,6 +65,46 @@ impl RunMode {
             verified_file_integrity_baseline,
         })
     }
+}
+
+impl RunMode {
+    /// `enableModulesDir: false` without `--lockfile-only` or `--dry-run`:
+    /// the run writes no `node_modules`, like a lockfile-only run, but still
+    /// fetches every package into the store, as pnpm's TypeScript engine
+    /// did. Whoever mounts `node_modules` afterwards (a FUSE daemon, for
+    /// one) serves it from the store instead of downloading each package on
+    /// first access.
+    pub(super) fn fetches_into_store(&self, execution: InstallExecution) -> bool {
+        fetches_into_store(self.lockfile_only, execution)
+    }
+
+    /// Why the run materializes nothing, when it does not.
+    pub(super) fn resolve_only(&self, execution: InstallExecution) -> Option<ResolveOnly> {
+        if !self.resolve_only {
+            None
+        } else if self.fetches_into_store(execution) {
+            Some(ResolveOnly::FetchIntoStore)
+        } else {
+            Some(ResolveOnly::LockfileOnly)
+        }
+    }
+}
+
+/// Whether a run whose `lockfile_only` is [`effective_lockfile_only`] fetches
+/// into the store: only when neither `--lockfile-only` nor `--dry-run` asked
+/// for the lockfile alone, which leaves `enableModulesDir: false`.
+fn fetches_into_store(lockfile_only: bool, execution: InstallExecution) -> bool {
+    lockfile_only && !execution.lockfile_only && !execution.dry_run
+}
+
+/// Why a run materializes no `node_modules`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResolveOnly {
+    /// `--lockfile-only` or `--dry-run`: nothing is fetched either.
+    LockfileOnly,
+    /// `enableModulesDir: false`: every package is fetched into the store.
+    /// See [`RunMode::fetches_into_store`].
+    FetchIntoStore,
 }
 
 /// A prompt only reaches a person on an interactive terminal outside CI.
@@ -160,5 +193,32 @@ impl Drop for WorkspaceManifestRollbackGuard {
                 let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InstallExecution, fetches_into_store};
+
+    fn execution(lockfile_only: bool, dry_run: bool) -> InstallExecution {
+        InstallExecution {
+            skip_runtimes: false,
+            mutation: crate::ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only,
+            dry_run,
+        }
+    }
+
+    #[test]
+    fn only_a_disabled_modules_dir_fetches_into_the_store() {
+        // The effective lockfile-only came from the config alone.
+        assert!(fetches_into_store(true, execution(false, false)));
+        // `--lockfile-only` and `--dry-run` fetch nothing, modules dir or not.
+        assert!(!fetches_into_store(true, execution(true, false)));
+        assert!(!fetches_into_store(true, execution(false, true)));
+        // A run that materializes `node_modules` fetches as part of that.
+        assert!(!fetches_into_store(false, execution(false, false)));
     }
 }

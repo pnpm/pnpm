@@ -61,9 +61,7 @@ pub(super) struct MaterializationExecution<'a> {
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    pub(super) resolve_only: bool,
-    /// See `RunMode::fetches_into_store`.
-    pub(super) fetches_into_store: bool,
+    pub(super) resolve_only: Option<crate::install::run::ResolveOnly>,
     pub(super) can_prompt: bool,
     pub(super) save_lockfile: bool,
     pub(super) prefix: &'a str,
@@ -216,8 +214,9 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
                 node_linker: self.install.execution.node_linker,
-                lockfile_only: self.execution.resolve_only,
-                fetches_into_store: self.execution.fetches_into_store,
+                lockfile_only: self.execution.resolve_only.is_some(),
+                fetches_into_store: self.execution.resolve_only
+                    == Some(crate::install::run::ResolveOnly::FetchIntoStore),
                 skip_runtimes: self.install.execution.skip_runtimes,
                 dry_run: self.install.execution.dry_run,
                 can_prompt: self.execution.can_prompt,

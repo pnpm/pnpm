@@ -25,6 +25,8 @@ mod custom_fetcher_reuse;
 mod execution;
 mod manifest_validation;
 mod mode;
+mod store_fetch;
+pub(super) use mode::ResolveOnly;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
 mod time_machine_capture;

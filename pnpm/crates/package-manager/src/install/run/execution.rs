@@ -79,31 +79,14 @@ impl<'a> RunExecution<'a> {
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }
-        let Some(mut dispatched) = dispatch::<Reporter>(
-            Settled {
-                install: self.install,
-                owned: &self.owned,
-                mode: &self.mode,
-                loaded,
-                lockfiles,
-                verification: &verification,
-                projects: crate::install::run::dispatch::SettledProjects {
-                    workspace: &self.workspace,
-                    scope,
-                    project_manifests,
-                },
-            },
-            &mut self.options,
-        )
-        .await?
-        else {
-            if self.mode.fetches_into_store {
-                fetch_wanted_lockfile_into_store::<Reporter>(
-                    (self.install.context.config, &self.owned, &self.workspace.prefix),
-                    lockfiles,
-                )
+        let settled = Settled::new(
+            (self.install, &self.owned, &self.mode, &self.workspace),
+            (loaded, lockfiles, &verification),
+            (scope, project_manifests),
+        );
+        let Some(mut dispatched) = dispatch::<Reporter>(settled, &mut self.options).await? else {
+            super::store_fetch::fetch_wanted_lockfile::<Reporter>(self.store_fetch(), lockfiles)
                 .await?;
-            }
             return Ok(self.take_settled_outcome());
         };
         let materialized = materialize::<Reporter>(self.materialization_inputs(
@@ -114,9 +97,7 @@ impl<'a> RunExecution<'a> {
             (verification, &AtomicU8::new(0)),
         ))
         .await?;
-        if self.mode.fetches_into_store {
-            crate::store_fetch::wait_for_tarball_downloads(&self.owned.tarball_mem_cache).await?;
-        }
+        super::store_fetch::wait_for_prefetched_tarballs(self.store_fetch()).await?;
         self.finish_materialization::<Reporter>(
             (scope, project_manifests),
             loaded,
@@ -125,6 +106,15 @@ impl<'a> RunExecution<'a> {
             materialized,
         )
         .await
+    }
+
+    fn store_fetch(&self) -> super::store_fetch::StoreFetchRun<'_> {
+        super::store_fetch::StoreFetchRun {
+            mode: &self.mode,
+            install: self.install,
+            owned: &self.owned,
+            requester: &self.workspace.prefix,
+        }
     }
 
     async fn finish_materialization<Reporter: self::Reporter + 'static>(
@@ -198,7 +188,7 @@ impl<'a> RunExecution<'a> {
                 logged_methods,
             ),
             execution: self.mode.materialization_execution(
-                &self.owned,
+                (&self.owned, self.install.execution),
                 &self.options,
                 dispatched.take_frozen_path,
                 early_host_detection,
@@ -299,30 +289,6 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
-/// The frozen half of `RunMode::fetches_into_store`: the wanted lockfile is
-/// the resolution, so its packages are fetched from it. The fresh half is the
-/// resolver's prefetch, which `install_settled` waits for after resolving.
-/// Takes the run's parts rather than the run: a borrow of the whole run
-/// across the await would need its boxed verification future to be `Sync`.
-async fn fetch_wanted_lockfile_into_store<Reporter: self::Reporter + 'static>(
-    (config, owned, requester): (&'static pnpm_config::Config, &super::InstallOwned, &str),
-    lockfiles: &Lockfiles<'_>,
-) -> Result<(), InstallError> {
-    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    crate::store_fetch::fetch_lockfile_into_store::<Reporter>(
-        crate::store_fetch::StoreFetchInputs {
-            lockfile,
-            config,
-            http_client: &owned.http_client_arc,
-            mem_cache: &owned.tarball_mem_cache,
-            auth_override: owned.resolution.auth_override.as_ref(),
-            requester,
-            supported_architectures: owned.projects.supported_architectures.as_ref(),
-        },
-    )
-    .await
-}
-
 pub(super) async fn wait_for_workspace_dependencies(
     dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
 ) -> Result<(), InstallError> {
@@ -397,7 +363,7 @@ impl Dispatched<'_> {
 impl super::RunMode {
     fn materialization_execution<'r>(
         &mut self,
-        owned: &'r super::InstallOwned,
+        (owned, execution): (&'r super::InstallOwned, super::InstallExecution),
         options: &super::InstallRunOptions<'_, '_>,
         take_frozen_path: bool,
         early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
@@ -408,8 +374,7 @@ impl super::RunMode {
             take_frozen_path,
             supported_architectures: owned.projects.supported_architectures.as_ref(),
             early_host_detection,
-            resolve_only: self.resolve_only,
-            fetches_into_store: self.fetches_into_store,
+            resolve_only: self.resolve_only(execution),
             can_prompt: self.can_prompt,
             save_lockfile: options.save.lockfile,
             prefix,
