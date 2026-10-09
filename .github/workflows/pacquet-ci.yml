@@ -677,12 +677,10 @@ jobs:
           # a library built by a newer one.
           packages: cargo-dylint@6.0.4 dylint-link@6.0.4
 
-      - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-        with:
-          install: false
-
       - name: Run dylint
+        # Not a `pnpm pipeline`: pnpm runs scripts with the workspace toolchain
+        # first on `PATH`, and cargo-dylint needs the rustup proxies there to
+        # build the lint library with the nightly the library pins.
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
         # `-- -D warnings` after `cargo dylint`'s `--`: `cargo dylint`
         # forwards args after `--` to `cargo check`, which would treat
@@ -690,7 +688,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
+        run: cargo dylint --all -- --all-targets --workspace
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does
