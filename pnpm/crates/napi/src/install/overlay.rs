@@ -55,7 +55,9 @@ fn build_layout_overlay(
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
         pnpm_home_dir: options.pnpm_home_dir.as_ref().map(PathBuf::from),
         virtual_store_only: fetch_shaped.then_some(true),
-        enable_modules_dir: fetch_shaped.then_some(true),
+        // The engine reads `enableModulesDir: false` from the config: no
+        // `node_modules`, every package fetched into the store.
+        enable_modules_dir: if fetch_shaped { Some(true) } else { options.enable_modules_dir },
         registry: None,
         registries: options.registries
             .as_ref()
