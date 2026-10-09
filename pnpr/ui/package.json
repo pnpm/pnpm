@@ -6,7 +6,7 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@pnpm/pnpr.apps.pnpr-web": "0.2.4",
+    "@pnpm/pnpr.apps.pnpr-web": "0.2.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-router-dom": "6.30.6"

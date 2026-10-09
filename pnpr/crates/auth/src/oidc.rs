@@ -1,7 +1,12 @@
+pub use handoffs::HANDOFF_TTL;
+pub use sessions::{LoginReturn, LoginSession};
+
 mod workload_verification;
 
 mod groups;
+mod handoffs;
 mod sessions;
+use sessions::BrowserSessions;
 
 mod provider_config;
 use provider_config::{build_providers, secure_url};
@@ -63,7 +68,7 @@ pub struct OidcState {
     consumed: Mutex<HashMap<String, i64>>,
     attempts: Mutex<VecDeque<String>>,
     exchanges: Semaphore,
-    sessions: Mutex<HashMap<String, Session>>,
+    browser: BrowserSessions,
 }
 
 struct Provider {
@@ -85,11 +90,8 @@ struct PendingLogin {
     verifier: String,
     state_hash: String,
     expires: i64,
-}
-
-struct Session {
-    user: SessionUser,
-    expires: i64,
+    #[serde(default)]
+    returns_to: LoginReturn,
 }
 
 /// Who a browser session signed in as.
@@ -104,11 +106,6 @@ pub struct LoginStart {
     pub url: String,
     pub state: String,
     pub browser_secret: String,
-}
-
-pub struct LoginSession {
-    pub token: String,
-    pub expires: i64,
 }
 
 impl OidcState {
@@ -132,11 +129,11 @@ impl OidcState {
             consumed: Mutex::new(HashMap::new()),
             attempts: Mutex::new(VecDeque::new()),
             exchanges: Semaphore::new(16),
-            sessions: Mutex::new(HashMap::new()),
+            browser: BrowserSessions::default(),
         })
     }
 
-    pub async fn start(&self, provider_name: &str) -> Result<LoginStart> {
+    pub async fn start(&self, provider_name: &str, returns_to: LoginReturn) -> Result<LoginStart> {
         let provider = self.providers.get(provider_name).ok_or(RegistryError::NotFound)?;
         if provider.config.login.is_none() {
             return Err(RegistryError::NotFound);
@@ -158,6 +155,7 @@ impl OidcState {
             verifier: verifier.secret().clone(),
             state_hash: super::sha256_hex(state.secret().as_bytes()),
             expires: Utc::now().timestamp() + LOGIN_TTL.as_secs() as i64,
+            returns_to,
         };
         let browser_secret = self.seal_login(&pending)?;
         Ok(LoginStart { url: url.to_string(), state: state.secret().clone(), browser_secret })
@@ -203,7 +201,7 @@ impl OidcState {
         if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
             return Err(rejected());
         }
-        let session = self.issue_session(user, expiration)?;
+        let session = self.issue_session(user, expiration, login.returns_to)?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
     }

@@ -19,8 +19,9 @@ where pnpr can find the UI. With npm, run
 
 Start pnpr and open `http://127.0.0.1:7677/-/ui/`. The UI talks to the server
 that serves it, so it needs no [CORS](discovery.md) setting. To see private
-packages, enter a token on the Connect screen. The UI keeps the token in memory
-only, so a reload asks for it again.
+packages, sign in with a password or with an [OIDC provider](oidc.md#browser-sign-in) that
+offers browser sign-in. The UI keeps the session token in the tab's session
+storage, so it survives a reload and ends when the tab closes.
 
 pnpr serves the UI only when the
 [registry surface](configuration.md#registry-resolver-and-artifact-surfaces) is
