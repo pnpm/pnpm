@@ -17,6 +17,17 @@ use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::sync::Arc;
 
+/// Which of the lockfile's packages a store fetch is for.
+#[derive(Clone, Copy)]
+pub(crate) enum StoreFetchScope {
+    /// The frozen path: nothing was fetched yet, and the fetch reports every
+    /// package.
+    WholeLockfile,
+    /// The fresh path: the resolver prefetched what it resolved, and this
+    /// fetches the packages it reused from the lockfile.
+    NotPrefetched,
+}
+
 pub(crate) struct StoreFetchInputs<'a> {
     pub lockfile: &'a Lockfile,
     pub config: &'static Config,
@@ -33,6 +44,7 @@ pub(crate) struct StoreFetchInputs<'a> {
 /// out.
 pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static>(
     inputs: StoreFetchInputs<'_>,
+    scope: StoreFetchScope,
 ) -> Result<(), InstallError> {
     let prefetcher = TarballPrefetcher::new(
         inputs.config,
@@ -42,12 +54,24 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
         inputs.requester,
     )
     .await;
-    let fetched = prefetcher.fetch_lockfile::<Reporter>(
-        inputs.lockfile,
-        inputs.config,
-        inputs.supported_architectures,
-    )
-    .await;
+    let fetched = match scope {
+        StoreFetchScope::WholeLockfile => {
+            prefetcher.fetch_lockfile::<Reporter>(
+                inputs.lockfile,
+                inputs.config,
+                inputs.supported_architectures,
+            )
+            .await
+        }
+        StoreFetchScope::NotPrefetched => {
+            prefetcher.fetch_missing::<Reporter>(
+                inputs.lockfile,
+                inputs.config,
+                inputs.supported_architectures,
+            )
+            .await
+        }
+    };
     prefetcher.shutdown().await;
     fetched.map_err(InstallError::StoreFetch)
 }
