@@ -1,8 +1,8 @@
 use super::{
     CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant, IntoDiagnostic,
     LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph, RunContext,
-    RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCache, TaskNode, Value, capture,
-    cargo_cache, env, make_node_package_map_option, make_node_require_option,
+    RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value, cache_tiers::CacheTiers,
+    capture, cargo_cache, env, make_node_package_map_option, make_node_require_option,
     package_map_path_for_execution, pnp_path_for_execution, run_stages, sync_injected_deps,
 };
 use crate::cli_args::reporter::script_output_colors;
@@ -13,7 +13,7 @@ pub(super) struct RunTaskOptions<'a, 'graph> {
     pub(super) graph: &'a ProjectGraph<GraphPkg<'graph>>,
     pub(super) config: &'a Config,
     pub(super) invocation: &'a PipelineInvocation,
-    pub(super) cache: &'a TaskCache,
+    pub(super) cache: CacheTiers<'a>,
     pub(super) task_key: Option<&'a str>,
     pub(super) environment: TaskEnvironment<'a>,
     pub(super) reporting: TaskReporting<'a>,
@@ -56,14 +56,7 @@ pub(super) fn run_pipeline_task(
         && let Some(cache_key) = cache_key
         && let Some(captured) = execution.captured
     {
-        let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
-            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!("{summary_key}: failed to store the task in the cache: {error}"),
-                prefix: root.to_string_lossy().into_owned(),
-            }));
-        }
+        store_in_cache(options, cache_key, captured, start);
     }
     let disposition =
         if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
@@ -76,6 +69,34 @@ pub(super) fn run_pipeline_task(
     })
 }
 
+/// Store a task that passed in the local tier and start uploading it.
+fn store_in_cache(
+    options: &RunTaskOptions<'_, '_>,
+    cache_key: &str,
+    captured: Vec<capture::CapturedScript>,
+    start: Instant,
+) {
+    let outputs = options.config.tasks
+        .get(&options.node.task_name)
+        .and_then(|settings| settings.outputs.as_deref())
+        .unwrap_or_default();
+    let root = options.node.project.as_path();
+    match options.cache.local.store(
+        cache_key,
+        root,
+        options.reporting.summary_key,
+        outputs,
+        captured,
+    ) {
+        Ok(()) => options.cache.upload(cache_key, start.elapsed(), |reason| {
+            task_warning(options, reason);
+        }),
+        Err(error) => {
+            task_warning(options, &format!("failed to store the task in the cache: {error}"));
+        }
+    }
+}
+
 /// The status of a task served from the cache, or `None` when nothing is
 /// stored under `cache_key` or the restore refused.
 fn try_restore(
@@ -85,10 +106,11 @@ fn try_restore(
 ) -> miette::Result<Option<ExecutionStatus>> {
     let root = options.node.project.as_path();
     let summary_key = options.reporting.summary_key;
-    let Some(stored) = options.cache.lookup(cache_key) else {
+    let Some(stored) = options.cache.lookup(cache_key, |reason| task_warning(options, reason))
+    else {
         return Ok(None);
     };
-    match options.cache.restore(&stored, root, summary_key) {
+    match options.cache.local.restore(&stored, root, summary_key) {
         Ok(()) => {
             capture::replay(&stored.scripts, root, options.reporting.emit);
             sync_injected_deps_if_configured(options.config, options.node, options.graph)?;
@@ -115,14 +137,18 @@ fn try_restore(
             // A file the restore cannot account for is the user's;
             // overwriting it silently is how caches lose trust. The
             // task runs normally instead.
-            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!("{summary_key}: not restoring from cache: {reason}"),
-                prefix: root.to_string_lossy().into_owned(),
-            }));
+            task_warning(options, &format!("not restoring from cache: {reason}"));
             Ok(None)
         }
     }
+}
+
+fn task_warning(options: &RunTaskOptions<'_, '_>, message: &str) {
+    (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!("{}: {message}", options.reporting.summary_key),
+        prefix: options.node.project.to_string_lossy().into_owned(),
+    }));
 }
 
 fn execute_task_with_cargo_cache(
@@ -227,11 +253,7 @@ fn publish_cargo_snapshot(
 }
 
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
-    (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!("{}: Cargo build cache: {reason}", options.reporting.summary_key),
-        prefix: options.node.project.to_string_lossy().into_owned(),
-    }));
+    task_warning(options, &format!("Cargo build cache: {reason}"));
 }
 
 struct TaskExecution {

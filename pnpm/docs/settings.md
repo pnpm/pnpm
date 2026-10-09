@@ -383,7 +383,7 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [initVersion](./cli/init.md#initversion), [initLicense](./cli/init.md#initlicense) and [initAuthorName / initAuthorEmail / initAuthorUrl](./cli/init.md#initauthorname-initauthoremail-initauthorurl)
 * [legacyDirFiltering](./filtering.md#legacydirfiltering)
 * [concurrencyGroups](./workspace-task-orchestration.md#concurrencygroups)
-* [tasks](./workspace-task-orchestration.md#configure-task-dependencies), [pipelines](./cli/pipeline.md#pipelines) and [pipelineBase](./cli/pipeline.md#pipelinebase)
+* [tasks](./workspace-task-orchestration.md#configure-task-dependencies), [pipelines](./cli/pipeline.md#pipelines), [pipelineBase](./cli/pipeline.md#pipelinebase) and [pipelineRemoteCache](./cli/pipeline.md#pipelineremotecache)
 * [cargo.enabled](./cargo.md#cargoenabled) and [Cargo index](./cargo.md#cargo-index)
 * [python.enabled](./python.md#pythonenabled), [python.executable](./python.md#pythonexecutable), [Python indexes](./python.md#python-indexes), [python.extras](./python.md#pythonextras) and [python.groups](./python.md#pythongroups)
 * [python.versions](./python.md#pythonversions), [python.overrides](./python.md#pythonoverrides) and [python.constraints](./python.md#pythonconstraints)

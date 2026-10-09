@@ -300,6 +300,56 @@ impl RemoteSideEffectsCacheSettings {
     }
 }
 
+/// A remote tier for `pnpm pipeline`'s task cache, served over the Turborepo
+/// Remote Cache API.
+///
+/// Like [`RemoteSideEffectsCacheSettings`], one section assembled from
+/// several sources: a repository may name the server and the team, while
+/// the credential, the signing secret, and the decision to upload travel
+/// with the machine. Loading a `pnpm-workspace.yaml` that sets one of those
+/// fails with
+/// [`LoadWorkspaceYamlError::WorkspacePipelineRemoteCacheTrust`](crate::workspace_yaml::error::LoadWorkspaceYamlError::WorkspacePipelineRemoteCacheTrust).
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct PipelineRemoteCacheSettings {
+    /// The API base the `/v8/artifacts` routes hang off, such as
+    /// `https://vercel.com/api`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Sent as `teamId` when it starts with `team_`, as `slug` otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<String>,
+    /// Bearer token. Without one, the `.npmrc` credentials for
+    /// [`Self::url`] are used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    /// HMAC-SHA256 secret every artifact is signed and verified with. The
+    /// remote tier stays off without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature_key: Option<String>,
+    /// Upload the results of tasks that ran. Defaults to `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload: Option<bool>,
+}
+
+impl PipelineRemoteCacheSettings {
+    /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
+    pub(crate) fn overlay(&mut self, other: Self) {
+        let Self {
+            url,
+            team,
+            token,
+            signature_key,
+            upload,
+        } = other;
+        overlay_some(&mut self.url, url);
+        overlay_some(&mut self.team, team);
+        overlay_some(&mut self.token, token);
+        overlay_some(&mut self.signature_key, signature_key);
+        overlay_some(&mut self.upload, upload);
+    }
+}
+
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the
 /// deprecated top-level `auditLevel` and the `auditConfig` entry.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]

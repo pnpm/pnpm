@@ -177,6 +177,7 @@ impl WorkspaceSettings {
             save_prefix: config.save_prefix.clone(),
             tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
+            pipeline_remote_cache: config.pipeline_remote_cache.clone(),
             concurrency_groups: Some(config.concurrency_groups.clone()),
 
             // `child_concurrency` / `workspace_concurrency` are resolved to

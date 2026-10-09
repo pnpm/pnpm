@@ -4,13 +4,14 @@ use super::{
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
     LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
     NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
-    PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
-    PythonSettings, RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
-    SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
-    SkillsSettings, SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings,
-    TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings,
-    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
+    PackagePermissions, Path, PathBuf, PeerDependencyRules, PipelineRemoteCacheSettings,
+    Placeholder, PmOnFail, PnpmfileSetting, PythonSettings, RegistryEntry,
+    RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings,
+    SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
+    UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings, redact_and_sanitize,
+    resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -876,6 +877,10 @@ pub struct WorkspaceSettings {
     /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
     /// `pnpm pipeline` resolves its affected-selection merge base against.
     pub pipeline_base: Option<String>,
+
+    /// `pipelineRemoteCache` from `pnpm-workspace.yaml` or the global
+    /// config file. See [`PipelineRemoteCacheSettings`].
+    pub pipeline_remote_cache: Option<PipelineRemoteCacheSettings>,
 
     /// The problem keys [`Self::collect_key_issues`] found in the file this
     /// was parsed from. Not a setting: carried here so the CLI can report

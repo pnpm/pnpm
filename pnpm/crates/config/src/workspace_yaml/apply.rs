@@ -57,7 +57,7 @@ impl WorkspaceSettings {
             overlay(&mut config.macos_backup.exclude_store_dir, macos_backup.exclude_store_dir);
         }
 
-        overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
+        self.apply_pipeline_settings(config);
         if let Some(concurrency_groups) = self.concurrency_groups.take() {
             config.concurrency_groups.extend(concurrency_groups);
         }
@@ -82,6 +82,15 @@ impl WorkspaceSettings {
         self.apply_process_settings(config);
         self.apply_resolution_settings(config, base_dir);
         self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
+    }
+
+    /// The remote cache overlays rather than replaces: a repository names
+    /// the server while the machine supplies the secrets.
+    fn apply_pipeline_settings(&mut self, config: &mut Config) {
+        overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
+        if let Some(remote) = self.pipeline_remote_cache.take() {
+            config.pipeline_remote_cache.get_or_insert_default().overlay(remote);
+        }
     }
 
     pub(super) fn apply_update_settings(

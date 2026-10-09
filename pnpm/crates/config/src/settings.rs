@@ -2,10 +2,10 @@ use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
     InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    PackageManagerBootstrap, PathBuf, Pipe, PipelineRemoteCacheSettings, PmOnFail, ProjectConfig,
+    PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode,
+    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool,
+    ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
@@ -1707,6 +1707,10 @@ pub struct Config {
     /// `pnpm pipeline` resolves its affected-selection merge base against.
     /// `None` falls back to the command's default.
     pub pipeline_base: Option<String>,
+
+    /// `pipelineRemoteCache`: the remote tier of `pnpm pipeline`'s task
+    /// cache. See [`PipelineRemoteCacheSettings`].
+    pub pipeline_remote_cache: Option<PipelineRemoteCacheSettings>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See

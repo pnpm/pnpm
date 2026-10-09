@@ -1,8 +1,25 @@
 use super::{
-    BTreeMap, Config, EnvVar, RemoteSideEffectsCacheSettings, side_effects_cache_remote_env,
+    BTreeMap, Config, EnvVar, PipelineRemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    side_effects_cache_remote_env,
 };
 
 impl Config {
+    /// `PNPM_PIPELINE_REMOTE_CACHE_*` overlays `pipelineRemoteCache`, so a CI
+    /// runner can inject the token and signing secret it must not commit.
+    pub(crate) fn apply_pipeline_remote_cache_env<Sys: EnvVar>(&mut self) {
+        let read = |suffix: &str| Sys::var(&format!("PNPM_PIPELINE_REMOTE_CACHE_{suffix}"));
+        let settings = PipelineRemoteCacheSettings {
+            url: read("URL"),
+            team: read("TEAM"),
+            token: read("TOKEN"),
+            signature_key: read("SIGNATURE_KEY"),
+            upload: read("UPLOAD").map(|upload| upload == "true"),
+        };
+        if settings != PipelineRemoteCacheSettings::default() {
+            self.pipeline_remote_cache.get_or_insert_default().overlay(settings);
+        }
+    }
+
     /// The environment is the last word on the remote side-effects cache: it is
     /// where a CI runner injects the signing material that must not be
     /// committed, and where a build job flips publication on for one

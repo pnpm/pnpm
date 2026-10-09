@@ -232,6 +232,7 @@ impl Config {
         env_settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
+        self.apply_pipeline_remote_cache_env::<Sys>();
         if let Some(configured_state_dir) = configured_state_dir
             .as_deref()
             .filter(|value| !value.is_empty())

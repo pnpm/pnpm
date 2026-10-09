@@ -879,3 +879,83 @@ fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
     assert_eq!(config.hoist_pattern, Some(vec!["eslint-*".to_string()]));
     assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
 }
+
+#[test]
+fn rejects_workspace_controlled_pipeline_remote_cache_secrets() {
+    for (setting, field) in [
+        ("token: repository-controlled-token", "token"),
+        ("signatureKey: repository-controlled-key", "signatureKey"),
+        ("upload: true", "upload"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("pipelineRemoteCache:\n  url: https://cache.example.com\n  {setting}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(&format!("pipelineRemoteCache.{field}")), "{error}");
+    }
+}
+
+#[test]
+fn a_workspace_naming_the_pipeline_remote_cache_keeps_the_machines_secrets() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "pipelineRemoteCache:\n  url: https://cache.example.com\n  team: team_acme\n",
+    )
+    .unwrap();
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        "pipelineRemoteCache:\n  token: machine-token\n  signatureKey: machine-key\n  upload: true\n",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .unwrap()
+        .apply_to(&mut config, dir.path());
+
+    assert_eq!(
+        config.pipeline_remote_cache,
+        Some(crate::PipelineRemoteCacheSettings {
+            url: Some("https://cache.example.com".to_string()),
+            team: Some("team_acme".to_string()),
+            token: Some("machine-token".to_string()),
+            signature_key: Some("machine-key".to_string()),
+            upload: Some(true),
+        }),
+    );
+}
+
+#[test]
+fn pipeline_remote_cache_environment_overrides_the_files() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_PIPELINE_REMOTE_CACHE_TOKEN" => Some("ci-token".to_string()),
+                "PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY" => Some("ci-key".to_string()),
+                "PNPM_PIPELINE_REMOTE_CACHE_UPLOAD" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    config.pipeline_remote_cache = Some(crate::PipelineRemoteCacheSettings {
+        url: Some("https://cache.example.com".to_string()),
+        token: Some("file-token".to_string()),
+        ..Default::default()
+    });
+    config.apply_pipeline_remote_cache_env::<Env>();
+
+    let remote = config.pipeline_remote_cache.expect("pipeline remote cache config");
+    assert_eq!(remote.url.as_deref(), Some("https://cache.example.com"));
+    assert_eq!(remote.token.as_deref(), Some("ci-token"));
+    assert_eq!(remote.signature_key.as_deref(), Some("ci-key"));
+    assert_eq!(remote.upload, Some(true));
+}

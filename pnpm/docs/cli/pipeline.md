@@ -92,6 +92,41 @@ tasks:
 
 pnpm points Cargo's target and build directories at that path and always executes the task, restoring an immutable snapshot of the previous build state rather than the task's own outputs. The directory must be relative to the project and ignored by git. Snapshots are stored apart from installed packages, so evicting one can never break an installation.
 
+## Sharing the cache between machines
+
+Added in: v12.12.0
+
+A cacheable task's result can also be stored on a server that speaks the [Turborepo Remote Cache API](https://turborepo.com/docs/core-concepts/remote-caching), such as Vercel Remote Cache or a self-hosted implementation. A CI run that uploads its results lets a later run on another machine restore them instead of running the tasks.
+
+The workspace names the server and, for Vercel, the team:
+
+```yaml title="pnpm-workspace.yaml"
+pipelineRemoteCache:
+  url: https://vercel.com/api
+  team: team_abc123
+```
+
+The token, the signing key, and the decision to upload come from the [global configuration file](./config.md) or the environment. A `pnpm-workspace.yaml` that sets one of them fails to load.
+
+```yaml title="~/.config/pnpm/config.yaml"
+pipelineRemoteCache:
+  token: <access token>
+  signatureKey: <shared secret>
+```
+
+On the machine that should populate the cache, usually CI, turn uploads on as well:
+
+```sh
+export PNPM_PIPELINE_REMOTE_CACHE_TOKEN=<access token>
+export PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY=<shared secret>
+export PNPM_PIPELINE_REMOTE_CACHE_UPLOAD=true
+pnpm pipeline
+```
+
+pnpm signs every upload with `signatureKey` and restores only results whose signature matches it. Everyone who can upload or restore holds the same secret, so give it only to machines whose results you trust. A remote result that is missing, unsigned, or fails its signature check is a miss, and the task runs. A server that cannot be reached never fails the run.
+
+[Cargo build state](#reusing-cargo-build-state) stays on the local machine.
+
 ## Reporting a run
 
 Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration); `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
@@ -169,3 +204,22 @@ Named sets of task names, keyed by pipeline name.
 * Type: **String**
 
 The git ref the affected selection resolves its merge base against.
+
+### pipelineRemoteCache
+
+Added in: v12.12.0
+
+* Default: **undefined**
+* Type: **Object**
+
+The server that shares task results between machines. See [Sharing the cache between machines](#sharing-the-cache-between-machines).
+
+| Field | Where it may be set | Environment variable | Meaning |
+| --- | --- | --- | --- |
+| `url` | Anywhere | `PNPM_PIPELINE_REMOTE_CACHE_URL` | The API base URL, such as `https://vercel.com/api`. It must use HTTPS unless it points at a loopback address. |
+| `team` | Anywhere | `PNPM_PIPELINE_REMOTE_CACHE_TEAM` | A Vercel team ID (`team_...`) or team slug. |
+| `token` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_TOKEN` | The bearer token. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
+| `signatureKey` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY` | The secret results are signed and verified with. Without it, the remote cache is off. |
+| `upload` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_UPLOAD` | `true` uploads the results of tasks that ran. Defaults to `false`. |
+
+The environment variables take precedence over both files.

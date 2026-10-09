@@ -243,6 +243,21 @@ impl TaskCache {
         self.write_output_record(task_id, &record)
     }
 
+    /// Publish an entry that `fill` writes into an empty staging directory,
+    /// the way [`Self::store`] publishes one. An entry already under `key`
+    /// is kept.
+    pub fn import(&self, key: &str, fill: impl FnOnce(&Path) -> io::Result<()>) -> io::Result<()> {
+        let entry_dir = self.entry_dir(key);
+        let parent = entry_dir.parent().expect("cache entry parent");
+        fs::create_dir_all(parent)?;
+        let staging = tempfile::Builder::new().prefix(".import-").tempdir_in(parent)?;
+        fill(staging.path())?;
+        match fs::rename(staging.path(), &entry_dir) {
+            Err(_) if entry_dir.exists() => Ok(()),
+            result => result,
+        }
+    }
+
     fn matches_snapshot(&self, key: &str, expected: &StoredTask) -> io::Result<bool> {
         let Some(stored) = self.lookup(key) else {
             return Ok(false);

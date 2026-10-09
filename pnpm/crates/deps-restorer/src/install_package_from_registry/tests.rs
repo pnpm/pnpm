@@ -256,6 +256,7 @@ fn create_config(
         tasks: Default::default(),
         pipelines: Default::default(),
         pipeline_base: Default::default(),
+        pipeline_remote_cache: None,
         concurrency_groups: Default::default(),
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
