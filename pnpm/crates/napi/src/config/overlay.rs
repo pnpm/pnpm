@@ -2,6 +2,7 @@ use super::{
     BTreeMap, Config, ConfigOverlay, HashMap, Host, Path, StoreDir, default_registry, nerf_dart,
     normalize_auth_key,
 };
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 /// Store, home and cache directories.
 pub(super) fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {
@@ -21,15 +22,16 @@ pub(super) fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir
 /// Registry endpoints and the transport settings used to reach them.
 pub(super) fn apply_registries(config: &mut Config, overlay: &ConfigOverlay) {
     if let Some(registry) = &overlay.registry {
-        config.registry.clone_from(registry);
-        config.registries_by_scope.insert("default".to_string(), registry.clone());
+        config.registry = normalize_registry_url(registry).into_owned();
+        config.registries_by_scope.insert("default".to_string(), config.registry.clone());
     }
     if let Some(registries) = &overlay.registries {
         for (scope, url) in registries {
-            config.registries_by_scope.insert(scope.clone(), url.clone());
+            let url = normalize_registry_url(url).into_owned();
             if scope == "default" {
-                config.registry.clone_from(url);
+                config.registry.clone_from(&url);
             }
+            config.registries_by_scope.insert(scope.clone(), url);
         }
     }
     if let Some(proxy) = &overlay.proxy {
@@ -258,10 +260,14 @@ pub(super) fn pin_unkeyed_header(
             // Normalized on the way in, so a host key spelled without the
             // trailing slash still counts as "already keyed at that URI"
             // below instead of colliding with the pinned entry later.
+            let canonical_uri = canonicalize_npm_registry_url(uri);
+            if canonical_uri != *uri {
+                by_uri.insert(normalize_auth_key(canonical_uri.into_owned()), header.clone());
+            }
             by_uri.insert(normalize_auth_key(uri.clone()), header.clone());
         }
     }
-    let default_uri = nerf_dart(default_registry);
+    let default_uri = nerf_dart(&normalize_registry_url(default_registry));
     if let Some(header) = unkeyed
         && !default_uri.is_empty()
     {

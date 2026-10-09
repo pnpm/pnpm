@@ -29,6 +29,39 @@ fn a_global_store_overlay_keeps_project_state_local() {
 }
 
 #[test]
+fn embedded_registry_alias_keeps_routes_and_credentials_together() {
+    let root = tempfile::tempdir().unwrap();
+    for credential_key in ["", "//registry.npmjs.com/", "//registry.npmjs.org/"] {
+        let overlay = ConfigOverlay {
+            registry: Some("https://registry.npmjs.com".to_string()),
+            registries: Some(BTreeMap::from([(
+                "@org".to_string(),
+                "https://registry.npmjs.com/".to_string(),
+            )])),
+            auth_header_by_uri: Some(BTreeMap::from([(
+                credential_key.to_string(),
+                "Bearer host-secret".to_string(),
+            )])),
+            ..ConfigOverlay::default()
+        };
+        let config = build_config(root.path(), &overlay).unwrap();
+        assert_eq!(config.registry, "https://registry.npmjs.org/");
+        assert_eq!(config.registries_by_scope["default"], "https://registry.npmjs.org/");
+        assert_eq!(config.registries_by_scope["@org"], "https://registry.npmjs.org/");
+        assert_eq!(
+            config.auth_headers.for_url(&config.registry),
+            Some("Bearer host-secret".to_string()),
+        );
+        let original_header =
+            (credential_key == "//registry.npmjs.com/").then(|| "Bearer host-secret".to_string());
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.com/custom/pkg.tgz"),
+            original_header,
+        );
+    }
+}
+
+#[test]
 fn concurrent_publication_retains_one_interned_config() {
     const CALLER_COUNT: usize = 32;
     let temp_dir = tempfile::tempdir().expect("create temporary config directory");

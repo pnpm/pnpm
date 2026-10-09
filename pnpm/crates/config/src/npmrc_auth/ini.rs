@@ -3,7 +3,7 @@ use super::{
     expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key, resolve_cafile,
     split_ini_creds_key, split_ssl_key,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 #[derive(Clone, Copy)]
 struct ParseOptions {
@@ -217,8 +217,7 @@ impl NpmrcAuth {
             return;
         }
         if let Some((uri, suffix)) = split_ini_creds_key(key) {
-            let entry = self.creds_entry_mut(uri);
-            apply_creds_field(entry, suffix, value);
+            self.apply_uri_creds_field(uri, suffix, &value);
             return;
         }
         if let Some((uri, field, is_file)) = split_ssl_key(key) {
@@ -260,8 +259,12 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
-        apply_tls_field(entry, field, resolved);
+        let canonical_uri = canonicalize_npm_registry_url(uri);
+        let alias = (canonical_uri != uri).then_some(canonical_uri.as_ref());
+        for uri in std::iter::once(uri).chain(alias) {
+            let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+            apply_tls_field(entry, field, resolved.clone());
+        }
     }
 
     pub(super) fn warn_ignored_request_destination_env(&mut self, key: &str) {
