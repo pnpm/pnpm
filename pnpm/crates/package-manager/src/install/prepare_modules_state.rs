@@ -65,8 +65,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent =
-        modules_layout_drifted(modules_manifest, inputs.tree.config, inputs.tree.node_linker);
+    let is_inconsistent = modules_layout_drifted(modules_manifest, &inputs);
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
@@ -157,12 +156,38 @@ fn prepare_modules_layout(
     Ok(())
 }
 
+/// An up-to-date tree skips the materialization that links agent skills,
+/// but an approval, a `skills.dirs` change, or a new agent directory still
+/// changes what to link. Only a project with approved, linked, or pending
+/// skills pays for the check.
+fn resync_agent_skills_when_up_to_date<Reporter: self::Reporter>(
+    inputs: &PrepareModulesStateInputs<'_, '_>,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> Result<(), InstallError> {
+    let config = inputs.tree.config;
+    if config.allow_skills.is_empty()
+        && modules.linked_skills.is_none()
+        && modules.pending_skills.is_none()
+    {
+        return Ok(());
+    }
+    let pending = crate::agent_skills::resync_agent_skills_at(
+        config,
+        inputs.tree.workspace_root,
+        inputs.lockfiles.current,
+    )
+    .map_err(InstallError::ResyncAgentSkills)?;
+    crate::agent_skills::report_pending_skills::<Reporter>(pending);
+    Ok(())
+}
+
 async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, '_>,
     wanted_lockfile: &Lockfile,
     modules: &pnpm_modules_yaml::ModulesLayout,
     recorded_auto_dedupe: Option<bool>,
 ) -> Result<(), InstallError> {
+    resync_agent_skills_when_up_to_date::<Reporter>(&inputs, modules)?;
     report_up_to_date::<Reporter>(UpToDateInstall {
         tree: crate::install::state_options::ModulesTreeContext {
             config: inputs.tree.config,
@@ -284,11 +309,18 @@ fn read_previous_modules_metadata(
 /// The purge keys off *layout* drift only, not `included`: an included
 /// (`--prod` <-> full) change is handled by relinking, so it must not wipe the
 /// user's `node_modules` contents. See [`modules_layout_consistent_with`].
+///
+/// A rebuild never purges: it runs the build scripts against the tree as it
+/// is, as `pnpm rebuild` in the TypeScript CLI does, which reads the modules
+/// directory without validating its recorded settings.
 fn modules_layout_drifted(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
-    config: &Config,
-    node_linker: NodeLinker,
+    inputs: &PrepareModulesStateInputs<'_, '_>,
 ) -> bool {
+    if inputs.repeat.rebuild.is_some() {
+        return false;
+    }
+    let config = inputs.tree.config;
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
         return config.modules_dir
@@ -296,7 +328,7 @@ fn modules_layout_drifted(
             .try_exists()
             .unwrap_or(true);
     };
-    !modules_layout_consistent_with(modules, config, node_linker)
+    !modules_layout_consistent_with(modules, config, inputs.tree.node_linker)
 }
 
 fn load_recorded_workspace_state(

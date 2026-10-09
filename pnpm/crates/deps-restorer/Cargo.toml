@@ -83,6 +83,7 @@ walkdir = { workspace = true }
 libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+pnpm-text-sanitize = { workspace = true }
 same-file = { workspace = true }
 sysinfo = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }

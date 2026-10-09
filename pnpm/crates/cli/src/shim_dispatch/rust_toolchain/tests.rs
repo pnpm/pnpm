@@ -1,4 +1,4 @@
-use super::{find_rust_candidate, next_on_path};
+use super::{RustSelection, find_rust_candidate, next_on_path};
 use crate::shim_dispatch::Candidate;
 use std::{fs, path::Path};
 
@@ -11,7 +11,7 @@ fn the_nearest_toolchain_file_decides() {
     fs::write(root.path().join("rust-toolchain.toml"), "1.94.0").unwrap();
     fs::write(project.join("rust-toolchain.toml"), "1.95.0").unwrap();
 
-    let Some(Candidate::RustToolchain { project_dir, request, .. }) =
+    let RustSelection::Managed(Candidate::RustToolchain { project_dir, request, .. }) =
         find_rust_candidate(&member, None)
     else {
         panic!("the project's toolchain file names a toolchain");
@@ -22,7 +22,11 @@ fn the_nearest_toolchain_file_decides() {
     // rustup reads the nearest file, so one it handles itself stops the
     // search rather than letting a file further up decide.
     fs::write(project.join("rust-toolchain.toml"), "[toolchain]\npath = \"/opt/rust\"\n").unwrap();
-    assert!(find_rust_candidate(&member, None).is_none());
+    assert!(matches!(find_rust_candidate(&member, None), RustSelection::Rustup));
+
+    fs::remove_file(project.join("rust-toolchain.toml")).unwrap();
+    fs::remove_file(root.path().join("rust-toolchain.toml")).unwrap();
+    assert!(matches!(find_rust_candidate(&member, None), RustSelection::Unpinned));
 }
 
 #[test]
@@ -86,11 +90,30 @@ fn a_rustup_directory_override_at_or_below_the_file_decides() {
     };
 
     write_override(root.path());
-    assert!(find_rust_candidate(&member, Some(&settings)).is_some());
+    assert!(matches!(find_rust_candidate(&member, Some(&settings)), RustSelection::Managed(_)));
 
     write_override(&member);
-    assert!(find_rust_candidate(&member, Some(&settings)).is_none());
+    assert!(matches!(find_rust_candidate(&member, Some(&settings)), RustSelection::Rustup));
 
     write_override(&project);
-    assert!(find_rust_candidate(&member, Some(&settings)).is_none());
+    assert!(matches!(find_rust_candidate(&member, Some(&settings)), RustSelection::Rustup));
+}
+
+#[test]
+fn a_rustup_directory_override_without_a_toolchain_file_is_rustups() {
+    let root = tempfile::tempdir().unwrap();
+    let settings = root.path().join("settings.toml");
+    let mut overrides = toml::Table::new();
+    overrides.insert(
+        root.path()
+            .to_str()
+            .unwrap()
+            .to_string(),
+        "nightly".into(),
+    );
+    let mut table = toml::Table::new();
+    table.insert("overrides".to_string(), overrides.into());
+    fs::write(&settings, table.to_string()).unwrap();
+
+    assert!(matches!(find_rust_candidate(root.path(), Some(&settings)), RustSelection::Rustup));
 }

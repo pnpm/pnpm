@@ -1,10 +1,11 @@
 use super::{
     super::{dispatch_script, rebuild, script_override},
-    ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
+    ApproveArgs, ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
     DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs, InstallPipeline,
-    LinkArgs, PruneArgs, PrunePipeline, RebuildArgs, RunCtx, RuntimeArgs, UnlinkArgs,
-    apply_install_cli_config, apply_update_config, derive_config_root, global,
-    installed_project_config, resolve_bool_override, warn_about_config_root,
+    LinkArgs, PermissionsArgs, PermissionsCommand, PruneArgs, PrunePipeline, RebuildArgs, RunCtx,
+    RuntimeArgs, UnlinkArgs, apply_install_cli_config, apply_update_config, derive_config_root,
+    global, installed_project_config, render_permissions, resolve_bool_override,
+    warn_about_config_root,
 };
 use crate::cli_args::reporter::{CliReporter, selected_reporter};
 
@@ -221,6 +222,37 @@ pub(in super::super) fn env<'a>(
             Ok(())
         }),
     })
+}
+
+pub(in super::super) fn permissions<'a>(
+    ctx: &RunCtx<'a>,
+    args: PermissionsArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    match args.command {
+        Some(PermissionsCommand::Approve(args)) => approve(ctx, args),
+        Some(PermissionsCommand::List) | None => {
+            let config = ctx.prepared_config();
+            let manifest_path = ctx.locations.manifest_path;
+            Ok(Box::pin(async move {
+                let config = installed_project_config(config.await?, manifest_path);
+                print!("{}", render_permissions(config)?);
+                Ok(())
+            }))
+        }
+    }
+}
+
+pub(in super::super) fn approve<'a>(
+    ctx: &RunCtx<'a>,
+    args: ApproveArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = ctx.prepared_config();
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    Ok(Box::pin(async move {
+        let config = installed_project_config(config.await?, manifest_path);
+        Box::pin(args.run::<CliReporter>(dir, config, manifest_path)).await
+    }))
 }
 
 pub(in super::super) fn approve_builds<'a>(

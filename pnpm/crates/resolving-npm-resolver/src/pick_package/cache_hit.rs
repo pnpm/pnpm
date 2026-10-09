@@ -118,7 +118,7 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     } else {
         (meta, picked)
     };
-    if meta.versions.has_corrupt_mirror_fragment() {
+    if meta.versions.corrupt_mirror_fragment_found() {
         return Ok(None);
     }
     if !ctx.cache_policy.offline

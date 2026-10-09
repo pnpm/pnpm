@@ -175,6 +175,106 @@ fn sorted_names(mut names: Vec<String>) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// The toolchain file `contents` (a new one for `None`) with its channel
+/// set to `channel`. Everything else the file says, comments included, is
+/// kept. A file that names a toolchain by `path`, or spells the table in a
+/// form this edit does not read, is refused rather than rewritten.
+pub fn with_channel(contents: Option<&str>, channel: &Channel) -> Result<String, String> {
+    let Some(contents) = contents else {
+        return Ok(format!("[toolchain]\n{}\n", channel_line(channel)));
+    };
+    let trimmed = contents.trim();
+    // A one-line comment is TOML, not a channel name.
+    if !trimmed.is_empty() && !trimmed.contains(['\n', '=', '[']) && !trimmed.starts_with('#') {
+        return Ok(format!("{channel}\n"));
+    }
+    let updated = set_toolchain_channel(contents, channel)?;
+    match parse_toolchain_file(&updated) {
+        Ok(Ok(request)) if request.channel == *channel => Ok(updated),
+        Ok(Err(Unmanaged::CustomPath)) => Err("it names a toolchain by `path`".to_string()),
+        _ => Err("pnpm cannot update the `[toolchain]` table as it is written".to_string()),
+    }
+}
+
+/// `contents` with the `channel` key of its `[toolchain]` table set,
+/// replacing the line that holds it or adding one under the header.
+fn set_toolchain_channel(contents: &str, channel: &Channel) -> Result<String, String> {
+    let line = channel_line(channel);
+    let mut lines: Vec<String> = contents
+        .lines()
+        .map(str::to_string)
+        .collect();
+    match locate_channel(&lines) {
+        ChannelLocation::Line(index) => lines[index] = replaced_channel_line(&lines[index], &line),
+        ChannelLocation::Header(index) => lines.insert(index + 1, line),
+        ChannelLocation::NoTable => return Ok(with_toolchain_table(contents, &line)),
+    }
+    Ok(join_lines(&lines, contents))
+}
+
+fn channel_line(channel: &Channel) -> String {
+    format!(r#"channel = "{channel}""#)
+}
+
+/// Where the `channel` key of the `[toolchain]` table is, or where it goes.
+enum ChannelLocation {
+    Line(usize),
+    Header(usize),
+    NoTable,
+}
+
+fn locate_channel(lines: &[String]) -> ChannelLocation {
+    let mut header = None;
+    let mut in_toolchain = false;
+    for (index, text) in lines.iter().enumerate() {
+        let trimmed = text.trim_start();
+        if trimmed.starts_with('[') {
+            in_toolchain = trimmed.split('#').next().map(str::trim) == Some("[toolchain]");
+            header = header.or_else(|| in_toolchain.then_some(index));
+        } else if in_toolchain && is_channel_key(trimmed) {
+            return ChannelLocation::Line(index);
+        }
+    }
+    header.map_or(ChannelLocation::NoTable, ChannelLocation::Header)
+}
+
+fn is_channel_key(line: &str) -> bool {
+    line.split_once('=')
+        .is_some_and(|(key, _)| key.trim() == "channel")
+}
+
+/// `line` in place of the channel line `text`, with its indentation and its
+/// comment. A channel name never holds a `#`, so one on the line starts the
+/// comment.
+fn replaced_channel_line(text: &str, line: &str) -> String {
+    let trimmed = text.trim_start();
+    let indent = &text[..text.len() - trimmed.len()];
+    match trimmed.find('#') {
+        Some(start) => format!("{indent}{line} {}", &trimmed[start..]),
+        None => format!("{indent}{line}"),
+    }
+}
+
+/// `contents` with a `[toolchain]` table holding `line` appended.
+fn with_toolchain_table(contents: &str, line: &str) -> String {
+    let separator = if contents.is_empty() || contents.ends_with("\n\n") {
+        ""
+    } else if contents.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    };
+    format!("{contents}{separator}[toolchain]\n{line}\n")
+}
+
+fn join_lines(lines: &[String], original: &str) -> String {
+    let mut joined = lines.join("\n");
+    if original.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
+
 fn is_component_name(name: &str) -> bool {
     !name.is_empty()
         && name

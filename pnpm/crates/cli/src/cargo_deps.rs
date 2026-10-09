@@ -1,4 +1,5 @@
 pub(crate) mod add;
+pub(crate) mod toolchain;
 
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
@@ -51,7 +52,6 @@ mod checksum_cache;
 mod git;
 mod registry_auth;
 mod resolution;
-mod toolchain;
 
 const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 

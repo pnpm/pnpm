@@ -1,8 +1,8 @@
 use super::super::{
     Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
     PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
-    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
-    project_requires_lifecycle_scripts, write_modules_manifest,
+    current_contains_dep_path, keep_recorded_layout, merge_filtered_modules_metadata,
+    merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -15,9 +15,10 @@ pub(super) struct CommitModulesStateInputs<'a> {
     pub(crate) write: crate::install::state_options::LockfileWritePolicy,
     pub(crate) force_prune: bool,
 }
+/// Returns the packages whose agent skills await approval.
 pub(super) fn commit_modules_state(
     mut inputs: CommitModulesStateInputs<'_>,
-) -> Result<(), InstallError> {
+) -> Result<Vec<String>, InstallError> {
     let (pruned_at, pending_builds, allow_build_policy) =
         prepare_committed_build_state(&mut inputs)?;
 
@@ -36,6 +37,9 @@ pub(super) fn commit_modules_state(
         pruned_at,
     );
     merge_committed_modules_metadata(&inputs, &mut next_modules, allow_build_policy.as_ref());
+    // A skills failure fails the install only once the rest of the state is
+    // written, so the next install starts from what this one materialized.
+    let pending_skills = record_agent_skills(&inputs, &mut next_modules);
     let phase_start = std::time::Instant::now();
     write_modules_manifest::<Host>(&inputs.tree.config.modules_dir, next_modules)
         .map_err(InstallError::WriteModules)?;
@@ -55,7 +59,44 @@ pub(super) fn commit_modules_state(
         })?;
     }
 
-    Ok(())
+    pending_skills
+}
+/// Link the approved agent skills of the installed direct dependencies and
+/// record the result in `next_modules`. Returns the approval keys of the
+/// packages whose skills await approval.
+fn record_agent_skills(
+    inputs: &CommitModulesStateInputs<'_>,
+    next_modules: &mut Modules,
+) -> Result<Vec<String>, InstallError> {
+    // Carried over until a sync replaces them, so the entries pnpm linked
+    // stay recorded, and prunable, whatever happens below.
+    if let Some(prior) = inputs.prior.metadata {
+        next_modules.pending_skills.clone_from(&prior.pending_skills);
+        next_modules.linked_skills.clone_from(&prior.linked_skills);
+    }
+    let Some(lockfile) = inputs.lockfiles.materialized else { return Ok(Vec::new()) };
+    let linked = inputs.prior.metadata
+        .and_then(|modules| modules.linked_skills.as_deref())
+        .unwrap_or_default();
+    let state = crate::sync_agent_skills(&crate::SyncAgentSkills {
+        config: inputs.tree.config,
+        workspace_root: inputs.tree.workspace_root,
+        lockfile,
+        included: inputs.tree.included,
+        linked,
+        agent_dir: crate::agent_skills_dir_from_env(),
+        hoisted_locations: next_modules.hoisted_locations.as_ref(),
+    })
+    .map_err(InstallError::AgentSkills)?;
+    let pending_keys = state.pending_keys();
+    next_modules.pending_skills = (!state.pending.is_empty()).then(|| {
+        state.pending
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    });
+    next_modules.linked_skills = (!state.linked.is_empty()).then_some(state.linked);
+    Ok(pending_keys)
 }
 pub(super) fn prepare_committed_build_state(
     inputs: &mut CommitModulesStateInputs<'_>,
@@ -107,6 +148,11 @@ pub(super) fn merge_committed_modules_metadata(
     next_modules: &mut Modules,
     allow_build_policy: Option<&crate::AllowBuildPolicy>,
 ) {
+    if inputs.builds.rebuild.is_some()
+        && let Some(recorded) = inputs.prior.layout
+    {
+        keep_recorded_layout(next_modules, recorded);
+    }
     if let (Some(previous), Some(current), Some(policy)) =
         (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
     {

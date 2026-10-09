@@ -80,7 +80,7 @@ impl PickState<'_> {
         else {
             return None;
         };
-        if picked_meta.versions.has_corrupt_mirror_fragment() {
+        if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
         self.promote_unverified(ctx, opts, &meta);
@@ -128,7 +128,7 @@ impl PickState<'_> {
         else {
             return None;
         };
-        if picked_meta.versions.has_corrupt_mirror_fragment() {
+        if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
         if picked.version.to_string() != stable_version {
@@ -183,7 +183,7 @@ impl PickState<'_> {
         else {
             return None;
         };
-        if picked_meta.versions.has_corrupt_mirror_fragment() {
+        if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
         self.promote_unverified(ctx, opts, &meta);
@@ -246,7 +246,7 @@ impl PickState<'_> {
         else {
             return None;
         };
-        if picked_meta.versions.has_corrupt_mirror_fragment() {
+        if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
         // Same rationale as the version-spec fast path — promote the
@@ -297,7 +297,7 @@ impl PickState<'_> {
         let meta = self.upgraded_meta(ctx, spec, opts, meta).await?;
         let (picked_meta, picked) =
             pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-        let corrupt_mirror = picked_meta.versions.has_corrupt_mirror_fragment();
+        let corrupt_mirror = picked_meta.versions.corrupt_mirror_fragment_found();
         if picked.is_some() && !corrupt_mirror {
             return Ok(Some(PickPackageResult { meta: picked_meta, picked_package: picked }));
         }
@@ -349,7 +349,7 @@ impl PickState<'_> {
             opts.blocked_versions,
         )
         .await?;
-        if meta.versions.has_corrupt_mirror_fragment() {
+        if meta.versions.corrupt_mirror_fragment_found() {
             return Err(PickPackageError::NoOfflineMeta {
                 spec_name: spec.name.clone(),
                 spec_fetch_spec: spec.fetch_spec.clone(),

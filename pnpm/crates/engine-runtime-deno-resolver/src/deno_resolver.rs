@@ -8,8 +8,9 @@ use pnpm_lockfile::{LockfileResolution, VariationsResolution};
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency, resolve_package_version,
+    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    resolve_package_version,
 };
 
 use crate::read_deno_assets::{ReadDenoAssetsError, read_deno_assets};
@@ -73,12 +74,21 @@ impl DenoResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "deno") else {
             return Ok(None);
         };
         let version_spec = normalize_runtime_spec(version_spec);
+        if let Some((current, version)) = opts.refresh.kept_runtime() {
+            return Ok(Some(deno_resolve_result(
+                wanted_dependency,
+                current.id.clone(),
+                current.resolution.clone(),
+                version,
+                None,
+            )));
+        }
 
         let version = resolve_package_version(
             self.npm_resolver.as_ref(),
@@ -97,25 +107,13 @@ impl DenoResolver {
 
         let variants = read_deno_assets(&self.http_client, &version).await
             .map_err(|err| Box::new(DenoResolverError::ReadAssets(err)) as ResolveError)?;
-        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
-        let manifest = serde_json::json!({
-            "name": "deno",
-            "version": version,
-            "bin": deno_bin_for_current_os(current_platform()),
-        });
-
-        Ok(Some(ResolveResult {
-            id: format!("deno@runtime:{version}").into(),
-            resolution,
-            resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
-            alias: wanted_dependency.alias.clone(),
-            policy_violation: None,
-            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                manifest: Some(std::sync::Arc::new(manifest)),
-                ..Default::default()
-            },
-        }))
+        Ok(Some(deno_resolve_result(
+            wanted_dependency,
+            format!("deno@runtime:{version}").into(),
+            LockfileResolution::Variations(VariationsResolution { variants }),
+            &version,
+            Some(format!("runtime:{version_spec}")),
+        )))
     }
 
     async fn resolve_latest_impl(
@@ -160,6 +158,32 @@ impl DenoResolver {
                 "version": name_ver.suffix.to_string(),
             }))),
         }))
+    }
+}
+
+fn deno_resolve_result(
+    wanted_dependency: &WantedDependency,
+    id: PkgResolutionId,
+    resolution: LockfileResolution,
+    version: &str,
+    normalized_bare_specifier: Option<String>,
+) -> ResolveResult {
+    let manifest = serde_json::json!({
+        "name": "deno",
+        "version": version,
+        "bin": deno_bin_for_current_os(current_platform()),
+    });
+    ResolveResult {
+        id,
+        resolution,
+        resolved_via: RESOLVED_VIA.to_string(),
+        normalized_bare_specifier,
+        alias: wanted_dependency.alias.clone(),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            manifest: Some(std::sync::Arc::new(manifest)),
+            ..Default::default()
+        },
     }
 }
 

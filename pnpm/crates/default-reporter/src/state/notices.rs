@@ -2,9 +2,10 @@ use super::{
     BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog,
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
     LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
-    ReporterState, RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, UpdateCheckLog, Utc, cached_verdict, detect_install_source,
-    entries_label, is_strictly_newer, normalize, pretty_ms, relative, update_command, zoom_out,
+    PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, Utc, cached_verdict,
+    detect_install_source, entries_label, is_strictly_newer, normalize, pretty_ms, relative,
+    update_command, zoom_out,
 };
 
 /// `name@version` as a deprecation warning prints it.
@@ -53,6 +54,16 @@ impl ReporterState {
             r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
         );
         self.display.frame.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
+    }
+
+    pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
+        if log.package_names.is_empty() {
+            return;
+        }
+        self.display.frame.push_block(format!(
+            "Agent skills awaiting approval: {}.\nRun \"pnpm approve\" to review them.",
+            log.package_names.join(", "),
+        ));
     }
 
     /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and

@@ -36,13 +36,13 @@ pub fn check_deps_status_before_run_at(
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
         return cannot_check_deps();
     };
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
+    let workspace_root = workspace_dir_opt.as_deref().unwrap_or(dir);
     // One shared lockfile is written at the workspace root, whose
     // manifest heads the importer list the install recorded. Dedicated
     // per-project lockfiles give every project its own lockfile, state
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
-    let manifest_dir = if config.shares_one_lockfile() { workspace_root.as_path() } else { dir };
+    let manifest_dir = if config.shares_one_lockfile() { workspace_root } else { dir };
     let manifest = match read_gate_manifest(
         manifest_dir,
         workspace_dir_opt.is_some(),
@@ -70,7 +70,7 @@ pub fn check_deps_status_before_run_at(
             config: &config,
             manifest: &manifest,
             workspace_manifest: workspace_manifest.as_ref(),
-            workspace_root: &workspace_root,
+            workspace_root,
             lockfile_root: &lockfile_root,
         },
         selected_project_dirs,
@@ -242,8 +242,8 @@ pub(super) fn configured_catalogs(
     config: &Config,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Option<Catalogs> {
-    match config.catalogs.clone() {
-        Some(catalogs) => Some(catalogs),
+    match &config.catalogs {
+        Some(catalogs) => Some(catalogs.clone()),
         None => get_catalogs_from_workspace_manifest(workspace_manifest).ok(),
     }
 }

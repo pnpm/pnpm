@@ -429,6 +429,15 @@ cors:
     - https://registry-ui.example.com
 ```
 
+## `ui`
+
+Whether and from where pnpr serves its web UI. See [Web UI](web-ui.md#settings).
+
+```yaml title="pnpr.yaml"
+ui:
+  enabled: true
+```
+
 ## `auth`
 
 By default users are stored in an htpasswd file and tokens in a local SQLite

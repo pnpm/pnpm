@@ -4,9 +4,12 @@ use super::{
     exact_release_version, normalize_node_runtime_version_specifier, parse_node_specifier,
     read_musl_assets, read_node_assets_from_mirror,
 };
-use pnpm_lockfile::PlatformAssetResolution;
+use pnpm_lockfile::{LockfileResolution, PlatformAssetResolution, VariationsResolution};
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg, ResolutionRefreshOptions, ResolveOptions, Resolver, UpdateBehavior,
+    WantedDependency,
+};
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 
@@ -65,6 +68,83 @@ async fn offline_raises_no_offline_nodejs_resolution() {
             .as_deref(),
         Some("ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION"),
     );
+}
+
+fn locked_node_opts(update: UpdateBehavior, update_checksums: bool) -> ResolveOptions {
+    ResolveOptions {
+        refresh: ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: "node@runtime:26.10.0".into(),
+                name: Some("node".to_string()),
+                version: Some("26.10.0".to_string()),
+                resolution: LockfileResolution::Variations(VariationsResolution {
+                    variants: Vec::new(),
+                }),
+                published_at: None,
+                manifest: None,
+            }),
+            update,
+            update_checksums,
+            ..ResolutionRefreshOptions::default()
+        },
+        ..ResolveOptions::default()
+    }
+}
+
+#[tokio::test]
+async fn keeps_the_locked_runtime_without_network() {
+    let mut resolver = resolver();
+    resolver.offline = true;
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:^26".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
+        .await
+        .unwrap()
+        .expect("node resolver claims the runtime dependency");
+    assert_eq!(result.id.as_str(), "node@runtime:26.10.0");
+    assert_eq!(result.normalized_bare_specifier, None);
+}
+
+#[tokio::test]
+async fn a_kept_runtime_still_rejects_an_unknown_release_channel() {
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:unknown/^26".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver()
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err.downcast_ref::<super::NodeResolverError>(),
+        Some(super::NodeResolverError::InvalidReleaseChannel(_)),
+    ));
+}
+
+#[tokio::test]
+async fn update_and_checksum_refresh_re_resolve_the_locked_runtime() {
+    let mut resolver = resolver();
+    resolver.offline = true;
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:^26".to_string()),
+        ..WantedDependency::default()
+    };
+    for opts in [
+        locked_node_opts(UpdateBehavior::Compatible, false),
+        locked_node_opts(UpdateBehavior::Off, true),
+    ] {
+        let err = resolver.resolve(&wanted, &opts).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<super::NodeResolverError>(),
+            Some(super::NodeResolverError::Offline),
+        ));
+    }
 }
 
 #[test]

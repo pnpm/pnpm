@@ -1,0 +1,23 @@
+{
+  "name": "@pnpm/pnpr-ui",
+  "private": true,
+  "version": "0.1.0-alpha.14",
+  "description": "The web UI that pnpr serves at /-/ui/",
+  "keywords": [
+    "pnpm",
+    "pnpr",
+    "registry"
+  ],
+  "license": "SEE LICENSE IN LICENSE.md",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpr",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pnpr/npm/pnpr-ui"
+  },
+  "files": [
+    "dist",
+    "LICENSE.md"
+  ]
+}

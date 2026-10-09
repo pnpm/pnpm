@@ -18,6 +18,7 @@ pub use pnpr_policy::{TeamDirectory, Teams};
 
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
+pub use web_ui::UiConfig;
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
@@ -57,6 +58,9 @@ use access::{build_admins, build_teams};
 
 mod s3;
 mod scim;
+
+mod web_ui;
+use web_ui::build_ui_config;
 
 mod upstream;
 
@@ -150,6 +154,7 @@ pub struct HttpConfig {
     /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
     /// response headers unless an operator explicitly names trusted origins.
     pub cors: CorsConfig,
+    pub ui: UiConfig,
     /// OCI authentication and size limits.
     pub oci: OciConfig,
     /// How long a cached packument is considered fresh before it is

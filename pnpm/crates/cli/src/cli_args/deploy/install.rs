@@ -247,6 +247,7 @@ impl DeployArgs {
         // manifest, where `copy_project` may have left the deployed
         // project's own pnpmfile.
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
+        deploy_config.disable_agent_skills();
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
     }

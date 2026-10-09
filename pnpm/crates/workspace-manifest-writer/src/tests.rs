@@ -876,3 +876,5 @@ mod integrity;
 
 mod render;
 mod scalar_aliases;
+
+mod permissions;

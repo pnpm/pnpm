@@ -307,6 +307,8 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [verifyDepsBeforeRun](./settings/build.md#verifydepsbeforerun)
 * [strictDepBuilds](./settings/build.md#strictdepbuilds)
 * [allowBuilds](./settings/build.md#allowbuilds)
+* [permissions](./settings/build.md#permissions)
+* [skills.dirs](./settings/build.md#skillsdirs)
 * [dangerouslyAllowAllBuilds](./settings/build.md#dangerouslyallowallbuilds)
 
 ### Versioning Settings

@@ -71,6 +71,16 @@ Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Clas
 
 A specifier that locates a package rather than asking for a released version — `pnpm add yarn@npm:yarn@1.22.22`, `pnpm add yarn@yarnpkg/berry` — installs what it names, as an ordinary dependency.
 
+## Adding the Rust toolchain
+
+Added in: v12.11.0
+
+`rust` names the [Rust toolchain](../cargo.md#rust-toolchain), not the npm package of that name. The version is a Rust release channel: a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`. A bare `rust` asks for `stable`.
+
+In a project, `pnpm add rust@1.95` pins the toolchain in the `rust-toolchain.toml` that governs the project, the nearest one at or above it in the workspace. It creates one in the project if there is none, and changes only the `channel`, keeping the rest of the file. With [`cargo.enabled`](../cargo.md#cargoenabled), the toolchain is installed too. Nothing is added to `package.json`.
+
+`pnpm add -g rust@stable` installs the toolchain globally. The `cargo`, `rustc`, and other Rust commands run it outside projects whose `rust-toolchain.toml` names a toolchain of their own. `pnpm update -g rust` installs the newest release of its channel, `pnpm ls -g` lists it, and `pnpm remove -g rust` removes it.
+
 ## Protocol-prefixed selectors
 
 A selector may carry the protocol in front of the name rather than after it:

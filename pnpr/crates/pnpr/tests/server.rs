@@ -34,6 +34,9 @@ mod packuments;
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
 
+#[path = "server/web_ui.rs"]
+mod web_ui;
+
 use crate::registry_groups;
 
 use axum::{

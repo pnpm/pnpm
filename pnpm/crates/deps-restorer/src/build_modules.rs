@@ -2,8 +2,8 @@ pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
 pub(crate) mod slots;
 pub use allow_build_policy::{
-    AllowBuildPolicy, allow_build_key_from_ignored_build, normalize_build_dep_path,
-    parse_allow_build_selector,
+    AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
+    normalize_build_dep_path, parse_allow_build_selector,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
@@ -158,9 +158,10 @@ pub enum BuildModulesError {
 /// Effect on [`BuildModules`]: a selected package is built even when the
 /// side-effects cache reports it already built (an explicit rebuild always
 /// re-runs the scripts). The allow-policy gate is unchanged — a rebuild
-/// never builds a disallowed package — and non-selected packages keep
-/// their normal install gating so a partial rebuild does not drop the
-/// ignored-builds record for the packages it did not touch.
+/// never builds a disallowed package. A package outside the selection is
+/// neither inspected nor built, as under pnpm's `rebuild <pkg>`; the
+/// ignored-builds record keeps the entries of the packages a partial
+/// rebuild did not touch.
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
     /// Allow-build keys (the package name for registry deps, the full
@@ -231,6 +232,13 @@ impl RebuildOptions {
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
+
+    /// Whether the snapshot installed under `key` is in the rebuild
+    /// selection, by its package name or its allow-build key.
+    #[must_use]
+    pub fn selects_snapshot(&self, key: &PackageKey) -> bool {
+        self.selected_names.is_none() || self.settles_dependency(&key.to_string())
+    }
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -256,9 +264,9 @@ pub struct BuildModules<'a> {
     /// Forced-rebuild selection. `None` for a normal install — every
     /// package follows the standard `requires_build` + allow-policy +
     /// side-effects-cache gates. `Some` (a `pacquet rebuild` /
-    /// `approve-builds`) restricts the build to the selected names and
-    /// forces them past the side-effects `is_built` gate. See
-    /// [`RebuildOptions`].
+    /// `approve-builds`) restricts the inspection and the build to the
+    /// selected names and forces them past the side-effects `is_built`
+    /// gate. See [`RebuildOptions`].
     pub rebuild: Option<&'a RebuildOptions>,
 }
 
@@ -383,6 +391,7 @@ impl BuildModules<'_> {
             },
             prefetched: self.graph.requires_build_by_snapshot,
             patches: self.graph.patches,
+            rebuild: self.rebuild,
         })
     }
 

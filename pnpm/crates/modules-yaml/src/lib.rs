@@ -167,6 +167,18 @@ pub struct Modules {
     /// matching pnpm's delete-when-falsy encoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_only: Option<bool>,
+
+    /// The direct dependencies whose agent skills await approval, as
+    /// peer-free depPaths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_skills: Option<IndexSet<DepPath>>,
+
+    /// The agent skill entries pnpm linked, as `/`-separated paths
+    /// relative to the workspace root, or absolute when outside it. An
+    /// install prunes only these, so an entry pnpm did not write is never
+    /// removed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_skills: Option<Vec<String>>,
 }
 
 /// A lightweight version of [`Modules`] that skips deserializing the potentially
@@ -220,6 +232,12 @@ pub struct ModulesLayout {
     /// check, which skips the hoist-pattern comparison when it is set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_only: Option<bool>,
+    /// See [`Modules::pending_skills`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_skills: Option<IndexSet<DepPath>>,
+    /// See [`Modules::linked_skills`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_skills: Option<Vec<String>>,
 }
 
 /// Which dependency groups the install pipeline included.

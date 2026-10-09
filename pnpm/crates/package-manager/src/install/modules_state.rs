@@ -455,6 +455,37 @@ pub(super) fn build_modules_manifest(
     }
 }
 
+/// A rebuild leaves the tree laid out as the previous install left it, so
+/// the manifest it writes keeps the layout settings that install recorded
+/// and a later install still sees a changed setting as drift. A setting the
+/// previous manifest did not record takes the current value.
+pub(super) fn keep_recorded_layout(
+    next: &mut Modules,
+    recorded: &pnpm_modules_yaml::ModulesLayout,
+) {
+    if recorded.node_linker.is_some() {
+        next.node_linker = recorded.node_linker;
+    }
+    if recorded.layout_version.is_some() {
+        next.layout_version = recorded.layout_version;
+    }
+    if let Some(pattern) = &recorded.hoist_pattern {
+        next.hoist_pattern = Some(pattern.clone());
+    }
+    if let Some(pattern) = &recorded.public_hoist_pattern {
+        next.public_hoist_pattern = Some(pattern.clone());
+    }
+    if !recorded.store_dir.is_empty() {
+        next.store_dir.clone_from(&recorded.store_dir);
+    }
+    if !recorded.virtual_store_dir.is_empty() {
+        next.virtual_store_dir.clone_from(&recorded.virtual_store_dir);
+    }
+    if recorded.virtual_store_dir_max_length != 0 {
+        next.virtual_store_dir_max_length = recorded.virtual_store_dir_max_length;
+    }
+}
+
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now
 /// that the projects' scripts have run.
 ///

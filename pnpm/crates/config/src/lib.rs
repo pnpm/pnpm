@@ -45,11 +45,12 @@ pub use shim_policy::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, GLOBAL_CONFIG_YAML_FILENAME,
-    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_TASK_SETTINGS,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
-    RemoteSideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UnrecognizedTaskSettings,
-    UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
-    WorkspaceSettings, decided_allow_builds,
+    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS, PackageExtension,
+    PackagePermissions, PeerDependencyMeta, PeerDependencyRules, PermissionCapability,
+    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, SkillsSettings, TaskSettings,
+    Tool, ToolSettings, UnrecognizedSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,

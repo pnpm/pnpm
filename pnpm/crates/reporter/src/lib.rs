@@ -127,6 +127,11 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
+    /// One per install that found direct dependencies whose agent skills
+    /// await approval (`pnpm:pending-skills`).
+    #[serde(rename = "pnpm:pending-skills")]
+    PendingSkills(PendingSkillsLog),
+
     /// The latest pnpm the registry offers, next to the running one
     /// (`pnpm:update-check`). Emitted at most once a day by the
     /// install-family commands the update notifier covers; the default
@@ -345,6 +350,15 @@ pub struct IgnoredScriptsLog {
     /// the package names, matching pnpm's `ignoredScriptsLogger.debug`.
     #[serde(skip)]
     pub strict_dep_builds: bool,
+}
+
+/// `pnpm:pending-skills` payload: the packages whose agent skills await
+/// approval, by the keys `permissions` approves them under, sorted.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSkillsLog {
+    pub level: LogLevel,
+    pub package_names: Vec<String>,
 }
 
 /// `pnpm:update-check` payload: the running pnpm version and the latest

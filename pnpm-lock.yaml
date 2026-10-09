@@ -5243,6 +5243,9 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../store/controller-types
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@reflink/reflink':
         specifier: 'catalog:'
         version: 0.1.19
@@ -11207,6 +11210,8 @@ importers:
         version: 'link:'
 
   pnpr/npm/pnpr: {}
+
+  pnpr/npm/pnpr-ui: {}
 
 packages:
 

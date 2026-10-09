@@ -11,6 +11,7 @@ pub async fn rebuild(
     selected_names: Option<Vec<String>>,
     on_output: Option<OutputSink>,
 ) -> napi::Result<()> {
+    pnpm_package_manager::configure_rayon_pool();
     let _guard = engine_call_lock().lock().await;
     let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();

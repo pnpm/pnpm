@@ -2,7 +2,7 @@ use super::{
     Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
     Path, PathBuf, RegistryError, ResolvedFileRegistries, SocketAddr, build_backend_config,
     build_cors_config, build_features, build_identity_config, build_log_config, build_osv_config,
-    build_route_policy, config_file_in, parse_config_file, reject_removed_blocks,
+    build_route_policy, build_ui_config, config_file_in, parse_config_file, reject_removed_blocks,
     resolution_secret, resolve_file_registries, resolve_storage_paths,
 };
 
@@ -209,6 +209,7 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir);
         let backend = build_backend_config(file.backend, base_dir)?;
         let cors = build_cors_config(file.cors)?;
+        let ui = build_ui_config(file.ui, base_dir);
         reject_removed_blocks(file.packages.as_ref(), file.groups.as_ref())?;
         let features = build_features(
             !file.registries.is_empty(),
@@ -230,6 +231,7 @@ impl Config {
                 listen,
                 public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
                 cors,
+                ui,
                 oci: file.oci,
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             },

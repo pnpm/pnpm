@@ -1,4 +1,6 @@
-use super::{Profile, ToolchainRequest, Unmanaged, find_toolchain_file, parse_toolchain_file};
+use super::{
+    Profile, ToolchainRequest, Unmanaged, find_toolchain_file, parse_toolchain_file, with_channel,
+};
 use crate::Channel;
 use pretty_assertions::assert_eq;
 use std::fs;
@@ -95,4 +97,64 @@ fn a_toolchain_file_linked_outside_the_checkout_is_not_read() {
         .unwrap();
 
     assert_eq!(find_toolchain_file(&checkout, &checkout), None);
+}
+
+#[test]
+fn sets_the_channel_and_keeps_the_rest_of_the_file() {
+    let channel = Channel::parse("1.96.0").unwrap();
+    assert_eq!(with_channel(None, &channel).unwrap(), "[toolchain]\nchannel = \"1.96.0\"\n");
+    assert_eq!(with_channel(Some("1.95.0\n"), &channel).unwrap(), "1.96.0\n");
+    assert_eq!(
+        with_channel(
+            Some(
+                "# pinned for CI\n[toolchain]\n  channel = \"1.95.0\" # bump with care\ncomponents = [\"rust-src\"]\n"
+            ),
+            &channel,
+        )
+        .unwrap(),
+        "# pinned for CI\n[toolchain]\n  channel = \"1.96.0\" # bump with care\ncomponents = [\"rust-src\"]\n",
+    );
+    assert_eq!(
+        with_channel(Some("[toolchain]\nprofile = \"minimal\"\n"), &channel).unwrap(),
+        "[toolchain]\nchannel = \"1.96.0\"\nprofile = \"minimal\"\n",
+    );
+}
+
+#[test]
+fn keeps_a_comment_only_file() {
+    let channel = Channel::parse("1.96.0").unwrap();
+    assert_eq!(
+        with_channel(Some("# pinned by CI\n"), &channel).unwrap(),
+        "# pinned by CI\n\n[toolchain]\nchannel = \"1.96.0\"\n",
+    );
+    assert_eq!(
+        with_channel(Some("# the toolchain CI uses\n"), &channel).unwrap(),
+        "# the toolchain CI uses\n\n[toolchain]\nchannel = \"1.96.0\"\n",
+    );
+}
+
+#[test]
+fn refuses_a_file_it_cannot_update_faithfully() {
+    let channel = Channel::parse("1.96.0").unwrap();
+    for contents in [
+        "[toolchain]\npath = \"/opt/rust\"\n",
+        "toolchain = { channel = \"1.95.0\" }\n",
+        "toolchain.channel = \"1.95.0\"\n",
+    ] {
+        let error = with_channel(Some(contents), &channel).expect_err(contents);
+        eprintln!("{contents:?}: {error}");
+    }
+}
+
+#[test]
+fn sets_the_channel_of_a_toolchain_table_before_another_table() {
+    let channel = Channel::parse("1.96.0").unwrap();
+    assert_eq!(
+        with_channel(
+            Some("[toolchain]\nprofile = \"minimal\"\n\n[other]\nchannel = \"x\"\n"),
+            &channel
+        )
+        .unwrap(),
+        "[toolchain]\nchannel = \"1.96.0\"\nprofile = \"minimal\"\n\n[other]\nchannel = \"x\"\n",
+    );
 }

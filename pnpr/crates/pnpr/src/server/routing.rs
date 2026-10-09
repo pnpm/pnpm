@@ -70,16 +70,22 @@ pub(super) fn router_with_auth_and_osv(
         artifacts: config.features.artifacts.enabled,
         pipeline: config.features.pipeline.enabled,
     };
+    let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
     let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
-    finish_router(state, surfaces, cors_origins)
+    finish_router(state, surfaces, cors_origins, ui_dir.as_deref())
 }
 
 fn finish_router(
     state: AppState,
     surfaces: EnabledSurfaces,
     cors_origins: Vec<HeaderValue>,
+    ui_dir: Option<&std::path::Path>,
 ) -> pnpr_error::Result<Router> {
-    let router = surface_routes(&state, surfaces);
+    let mut router = surface_routes(&state, surfaces);
+    if let Some(dir) = ui_dir {
+        tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
+        router = router.merge(super::web_ui::routes(dir));
+    }
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,

@@ -58,6 +58,7 @@ packages:
   - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpm/wasm
   - pnpr/npm/pnpr
+  - pnpr/npm/pnpr-ui
   - '!vendor/**'
   - '!bench-work-env/**'
   - '!**/example/**'
@@ -170,11 +171,13 @@ versioning:
     - '@pnpm/logger'
   # Groups that always release together at one shared version:
   #   - the Rust CLI wrapper and its NAPI addon;
+  #   - the pnpr wrapper and the web UI it serves;
   #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
   #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
   #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
+    - [ '@pnpm/pnpr', '@pnpm/pnpr-ui' ]
     - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
   # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
   # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
@@ -191,6 +194,7 @@ versioning:
         - '!./pnpm11/pnpm/artifacts/**'
   lanes:
     '@pnpm/pnpr': alpha
+    '@pnpm/pnpr-ui': alpha
 
 allowBuilds:
   '@parcel/watcher': false

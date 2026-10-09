@@ -438,6 +438,7 @@ fn build_engine_install_config(
     cfg.dangerously_allow_all_builds = false;
     cfg.strict_dep_builds = false;
     cfg.allow_builds.clear();
+    cfg.disable_agent_skills();
     if let Some(packages) = shared_engine_packages {
         cfg.global_virtual_store_dir = base_config.store_dir.links();
         for name in packages {

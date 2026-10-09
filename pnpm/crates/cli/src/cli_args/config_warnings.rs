@@ -10,7 +10,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, ProjectConfig, UnrecognizedTaskSettings, WorkspaceKeyIssues,
+    Config, ProjectConfig, UnrecognizedSettings, WorkspaceKeyIssues,
     known_settings::annotate_unknown_setting, naming_cases::to_camel_case,
     refused_keys::where_refused_key_belongs,
 };
@@ -182,7 +182,7 @@ pub(crate) fn report_workspace_key_issues(
         emit_config_warning(&refused_workspace_keys_warning(&issues.refused));
     }
     let unrecognized = annotate_unknown_settings(&issues.unrecognized);
-    let task_settings = render_task_settings(&issues.unrecognized_task_settings);
+    let task_settings = render_unrecognized_settings(&issues.unrecognized_task_settings);
     if !strict && let Some(unrecognized) = unrecognized.as_deref() {
         emit_config_warning(&format!(
             "The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {unrecognized}.",
@@ -198,6 +198,7 @@ pub(crate) fn report_workspace_key_issues(
             "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {task_settings}.",
         ));
     }
+    warn_unrecognized_permissions(&issues.unrecognized_permissions);
     if !issues.non_camel_case.is_empty() {
         emit_config_warning(&non_camel_case_workspace_keys_warning(&issues.non_camel_case));
     }
@@ -211,6 +212,13 @@ pub(crate) fn report_workspace_key_issues(
         return Err(UnrecognizedTaskSettingsError { settings }.into());
     }
     Ok(())
+}
+
+fn warn_unrecognized_permissions(permissions: &UnrecognizedSettings) {
+    let Some(paths) = render_unrecognized_settings(permissions) else { return };
+    emit_config_warning(&format!(
+        "The following permissions in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {paths}.",
+    ));
 }
 
 fn refused_workspace_keys_warning(keys: &[String]) -> String {
@@ -237,7 +245,7 @@ fn annotate_unknown_settings(keys: &[String]) -> Option<String> {
     )
 }
 
-fn render_task_settings(settings: &UnrecognizedTaskSettings) -> Option<String> {
+fn render_unrecognized_settings(settings: &UnrecognizedSettings) -> Option<String> {
     if settings.total == 0 {
         return None;
     }
