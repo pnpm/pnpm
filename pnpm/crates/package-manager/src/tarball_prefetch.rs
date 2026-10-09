@@ -14,115 +14,19 @@
 //! `CacheValue::Available` hit, or a brief park on the slot's `Notify`
 //! while the prefetch finishes).
 
-use crate::install_package_by_snapshot::tarball_url_and_integrity;
 use dashmap::DashSet;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageMetadata};
+use pnpm_lockfile::Lockfile;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_is_installable::{
-    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
-};
+use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, SilentReporter};
-use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
-    StoreIndexWriter, store_index_key,
-};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter};
 use pnpm_tarball::{
     IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
 };
 use ssri::Integrity;
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::task::JoinSet;
-
-/// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
-/// may spawn a download for, staged so the whole batch can be filtered
-/// through a single store-index existence probe first.
-struct PendingPrefetch {
-    store_key: String,
-    package_id: String,
-    package_url: String,
-    integrity: String,
-    revision_addressed: bool,
-}
-
-/// Drop every pending entry whose `(integrity, package_id)` row already
-/// exists in `index.db`, with one batched existence probe.
-async fn without_store_hits(
-    index: Option<SharedReadonlyStoreIndex>,
-    pending: Vec<PendingPrefetch>,
-) -> Vec<PendingPrefetch> {
-    let Some(index) = index else {
-        return pending;
-    };
-    let keys: Vec<String> = pending
-        .iter()
-        .map(|entry| entry.store_key.clone())
-        .collect();
-    let hits = tokio::task::spawn_blocking(move || {
-        let Ok(guard) = index.lock() else {
-            return HashSet::new();
-        };
-        guard.contains_many(&keys).unwrap_or_default()
-    })
-    .await
-    .unwrap_or_default();
-    pending
-        .into_iter()
-        .filter(|entry| !hits.contains(&entry.store_key))
-        .collect()
-}
-
-/// The lockfile's registry entries the host can install, staged for one
-/// batched store-index probe. Packages for another platform are left out:
-/// the materialization never fetches them either.
-fn registry_entries(
-    lockfile: &Lockfile,
-    config: &Config,
-    supported_architectures: Option<&SupportedArchitectures>,
-) -> Vec<PendingPrefetch> {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return Vec::new();
-    };
-    let mut pending = Vec::with_capacity(packages.len());
-    for (package_key, metadata) in packages {
-        if !matches!(&metadata.resolution, LockfileResolution::Registry(_))
-            || !host_can_install(metadata, supported_architectures)
-        {
-            continue;
-        }
-        // An entry the install itself could not fetch (a named registry the
-        // config lacks, a revision the lockfile misstates) is left to the
-        // consumer and its own error; a prefetch has nothing to report.
-        let Ok((tarball_url, Some(integrity))) =
-            tarball_url_and_integrity(&metadata.resolution, package_key, config)
-        else {
-            tracing::debug!(
-                target: "pacquet::install",
-                %package_key,
-                "skipping the tarball prefetch of an unfetchable registry entry",
-            );
-            continue;
-        };
-        let package_id = package_key.pkg_id();
-        let integrity = integrity.to_string();
-        let revision_addressed = matches!(
-            &metadata.resolution,
-            LockfileResolution::Registry(registry) if registry.revision.is_some(),
-        );
-        pending.push(PendingPrefetch {
-            store_key: store_index_key(&integrity, &package_id),
-            package_id,
-            package_url: tarball_url.into_owned(),
-            integrity,
-            revision_addressed,
-        });
-    }
-    pending
-}
 
 fn resolved(package_id: String, requester: String) -> ProgressMessage {
     ProgressMessage::Resolved { package_id, requester }
@@ -130,23 +34,6 @@ fn resolved(package_id: String, requester: String) -> ProgressMessage {
 
 fn found_in_store(package_id: String, requester: String) -> ProgressMessage {
     ProgressMessage::FoundInStore { package_id, requester }
-}
-
-fn host_can_install(
-    metadata: &PackageMetadata,
-    supported_architectures: Option<&SupportedArchitectures>,
-) -> bool {
-    platform_is_supported(
-        WantedPlatformRef {
-            os: metadata.os.as_deref(),
-            cpu: metadata.cpu.as_deref(),
-            libc: metadata.libc.as_deref(),
-        },
-        supported_architectures,
-        pnpm_graph_hasher::host_platform(),
-        pnpm_graph_hasher::host_arch(),
-        pnpm_graph_hasher::host_libc(),
-    )
 }
 
 /// One background tarball download. Every field is owned (an `Arc`
@@ -397,8 +284,9 @@ impl TarballPrefetcher {
         lockfile: &Lockfile,
         config: &Config,
         supported_architectures: Option<&SupportedArchitectures>,
-    ) -> Result<(), TarballError> {
-        let entries = registry_entries(lockfile, config, supported_architectures);
+    ) -> Result<(), StoreFetchError> {
+        let entries = fetchable_entries(lockfile, config, supported_architectures)
+            .map_err(StoreFetchError::Entry)?;
         let mut in_store: HashMap<String, String> = entries
             .iter()
             .map(|entry| (entry.store_key.clone(), entry.package_id.clone()))
@@ -415,7 +303,7 @@ impl TarballPrefetcher {
         }
         let mut downloads = self.spawn_fetches::<Reporter>(missing);
         while let Some(joined) = downloads.join_next().await {
-            joined.expect("tarball download task panicked")?;
+            joined.expect("tarball download task panicked").map_err(StoreFetchError::Download)?;
         }
         Ok(())
     }
@@ -468,6 +356,10 @@ impl TarballPrefetcher {
         StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
+
+mod lockfile_entries;
+pub use lockfile_entries::StoreFetchError;
+use lockfile_entries::{PendingPrefetch, fetchable_entries, registry_entries, without_store_hits};
 
 #[cfg(test)]
 mod tests;

@@ -1,4 +1,8 @@
-use super::{PendingPrefetch, TarballDownload, run_tarball_download, without_store_hits};
+use super::{
+    TarballDownload,
+    lockfile_entries::{PendingPrefetch, registry_entry, without_store_hits},
+    run_tarball_download,
+};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
@@ -170,4 +174,29 @@ async fn revision_prefetch_does_not_retry_a_transient_failure() {
 
     assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
     failure.assert_async().await;
+}
+
+/// The store fetch stages what the install itself could fetch, so an
+/// entry whose integrity has nothing to check is an error rather than a
+/// package left out of the store.
+#[test]
+fn an_unfetchable_registry_entry_fails_the_staging() {
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  foo@1.0.0:\n    resolution: {integrity: ''}\nsnapshots:\n  foo@1.0.0: {}\n",
+    )
+    .expect("parse lockfile");
+    let (key, metadata) = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .iter()
+        .next()
+        .expect("entry");
+    let config = pnpm_config::Config::new().leak();
+
+    let staged = registry_entry(key, metadata, config, None);
+
+    assert!(matches!(
+        staged,
+        Err(pnpm_deps_restorer::InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
+    ));
 }

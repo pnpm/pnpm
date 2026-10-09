@@ -113,9 +113,9 @@ pub enum InstallError {
     },
 
     /// `enableModulesDir: false` fetches the lockfile's packages into the
-    /// store, and one of the downloads failed.
+    /// store, and an entry could not be staged or a download failed.
     #[diagnostic(transparent)]
-    StoreFetch(#[error(source)] pnpm_tarball::TarballError),
+    StoreFetch(#[error(source)] crate::StoreFetchError),
 
     /// `enableModulesDir: false` waited for the tarballs the resolver
     /// prefetched, and some of them failed. A failed slot keeps no error,

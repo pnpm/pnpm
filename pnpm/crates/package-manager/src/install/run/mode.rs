@@ -71,7 +71,8 @@ impl RunMode {
 impl RunMode {
     /// `enableModulesDir: false` without `--lockfile-only` or `--dry-run`:
     /// the run writes no `node_modules`, like a lockfile-only run, but still
-    /// fetches every registry package into the store, as pnpm's TypeScript engine
+    /// fetches the registry packages the host can install into the store, as
+    /// pnpm's TypeScript engine
     /// did. Whoever mounts `node_modules` afterwards (a FUSE daemon, for
     /// one) serves it from the store instead of downloading each package on
     /// first access.
