@@ -96,36 +96,41 @@ pnpm points Cargo's target and build directories at that path and always execute
 
 Added in: v12.12.0
 
-A cacheable task's result can also be stored on a server that speaks the [Turborepo Remote Cache API](https://turborepo.com/docs/core-concepts/remote-caching), such as Vercel Remote Cache or a self-hosted implementation. A CI run that uploads its results lets a later run on another machine restore them instead of running the tasks.
+A cacheable task's result can also be shared through the server [`remoteCache`](../settings/build.md#remotecache) names: a server that speaks the Turborepo Remote Cache API, such as Vercel Remote Cache, or a [pnpr](/pnpr) server. A CI run that publishes its results lets a later run on another machine restore them instead of running the tasks.
 
-The workspace names the server and, for Vercel, the team:
+Results are signed artifacts, the same kind the [remote side-effects cache](../settings/build.md#sideeffectscacheremote) uses. A machine restores a result only when it is signed by one of its `trustedKeys`, so only the machines that hold a private key can publish results others will use.
 
 ```yaml title="pnpm-workspace.yaml"
-pipelineRemoteCache:
-  url: https://vercel.com/api
-  team: team_abc123
+remoteCache:
+  org: acme
 ```
-
-The token, the signing key, and the decision to upload come from the [global configuration file](./config.md) or the environment. A `pnpm-workspace.yaml` that sets one of them fails to load.
 
 ```yaml title="~/.config/pnpm/config.yaml"
-pipelineRemoteCache:
+remoteCache:
+  url: https://vercel.com/api
+  team: team_abc123
   token: <access token>
-  signatureKey: <shared secret>
+  trustedKeys:
+    ci-2026: <base64 public key>
 ```
 
-On the machine that should populate the cache, usually CI, turn uploads on as well:
+On the machine that publishes, usually CI, add the private key and turn publishing on:
 
 ```sh
-export PNPM_PIPELINE_REMOTE_CACHE_TOKEN=<access token>
-export PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY=<shared secret>
-export PNPM_PIPELINE_REMOTE_CACHE_UPLOAD=true
+export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
+export PNPM_REMOTE_CACHE_TEAM=team_abc123
+export PNPM_REMOTE_CACHE_TOKEN=<access token>
+export PNPM_REMOTE_CACHE_TRUSTED_KEYS='{"ci-2026":"<base64 public key>"}'
+export PNPM_REMOTE_CACHE_PRIVATE_KEY=<base64 private key>
+export PNPM_REMOTE_CACHE_KEY_ID=ci-2026
+export PNPM_REMOTE_CACHE_BUILDER_ID=ci
+export PNPM_REMOTE_CACHE_PUBLISH=true
 pnpm pipeline
 ```
 
-pnpm signs every upload with `signatureKey` and restores only results whose signature matches it. Everyone who can upload or restore holds the same secret, so give it only to machines whose results you trust. A remote result that is missing, unsigned, or fails its signature check is a miss, and the task runs. A server that cannot be reached never fails the run.
+See [Shared side-effects cache](/pnpr/shared-side-effects-cache#publishing-from-a-builder) for how to generate a key pair.
 
-[Cargo build state](#reusing-cargo-build-state) stays on the local machine.
+A remote result that is missing, untrusted, or fails verification is a miss, and the task runs. A server that cannot be reached never fails the run. A task's outputs must stay within 64 MiB and 10,000 files to be published. [Cargo build state](#reusing-cargo-build-state) stays on the local machine.
 
 ## Reporting a run
 
@@ -204,22 +209,3 @@ Named sets of task names, keyed by pipeline name.
 * Type: **String**
 
 The git ref the affected selection resolves its merge base against.
-
-### pipelineRemoteCache
-
-Added in: v12.12.0
-
-* Default: **undefined**
-* Type: **Object**
-
-The server that shares task results between machines. See [Sharing the cache between machines](#sharing-the-cache-between-machines).
-
-| Field | Where it may be set | Environment variable | Meaning |
-| --- | --- | --- | --- |
-| `url` | Anywhere | `PNPM_PIPELINE_REMOTE_CACHE_URL` | The API base URL, such as `https://vercel.com/api`. It must use HTTPS unless it points at a loopback address. |
-| `team` | Anywhere | `PNPM_PIPELINE_REMOTE_CACHE_TEAM` | A Vercel team ID (`team_...`) or team slug. |
-| `token` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_TOKEN` | The bearer token. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
-| `signatureKey` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY` | The secret results are signed and verified with. Without it, the remote cache is off. |
-| `upload` | Global config or environment | `PNPM_PIPELINE_REMOTE_CACHE_UPLOAD` | `true` uploads the results of tasks that ran. Defaults to `false`. |
-
-The environment variables take precedence over both files.

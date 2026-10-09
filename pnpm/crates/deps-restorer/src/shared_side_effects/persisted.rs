@@ -1,6 +1,5 @@
 use super::planning::CandidateGroup;
 use crate::{SideEffectsBySnapshot, SideEffectsMapsBySnapshot};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_lockfile::PackageKey;
 use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
 use pnpm_shared_artifact_protocol::compatibility_rank;
@@ -184,28 +183,20 @@ pub(super) fn quarantine_remote_side_effects(
 /// narrow what the install trusts, so the whole lookup is abandoned rather than
 /// run against a partial key set.
 pub(super) fn decoded_trusted_keys(
-    settings: &pnpm_config::RemoteSideEffectsCacheSettings,
+    settings: &pnpm_config::RemoteCacheSettings,
 ) -> Option<BTreeMap<String, Vec<u8>>> {
     let encoded = settings.trusted_keys
         .as_ref()
         .filter(|keys| !keys.is_empty())?;
-    let mut trusted_keys = BTreeMap::new();
-    for (key_id, public_key) in encoded {
-        let public_key = match BASE64.decode(public_key) {
-            Ok(public_key) => public_key,
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    key_id,
-                    %error,
-                    "remote side-effects public key is not valid base64",
-                );
-                return None;
-            }
-        };
-        trusted_keys.insert(key_id.clone(), public_key);
-    }
-    Some(trusted_keys)
+    pnpm_pnpr_client::decode_trusted_keys(encoded)
+        .inspect_err(|key_id| {
+            tracing::warn!(
+                target: "pacquet::install",
+                key_id,
+                "remote side-effects public key is not valid base64",
+            );
+        })
+        .ok()
 }
 /// Reads the store in chunks this size while hashing, so a large CAS blob
 /// is never held in memory whole.

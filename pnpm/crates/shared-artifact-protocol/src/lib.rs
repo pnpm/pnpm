@@ -9,6 +9,7 @@ pub use compatibility::{
     linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
     platform_fingerprint, validate_supported_tags, windows_supported_tags, windows_tag,
 };
+pub use signatures::decode_trusted_keys;
 pub use validation::{blob_id, validate_manifest_path, verify_blob};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};

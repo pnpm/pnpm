@@ -87,12 +87,13 @@ Added in: v12.0.0
 * Type: **Object**
 
 Opt in to reusing a dependency's build output across machines, by restoring
-signed, organization-scoped artifacts through a [pnpr](/pnpr) server instead of
-running the package's lifecycle scripts locally. This is a proof of concept: it
-is off unless configured, it needs a pnpr server started with
-`artifacts.enabled: true`, and it restores artifacts on Linux/glibc, macOS, and
-Windows, on x64 and arm64. Other operating systems and libc families build
-locally.
+signed, organization-scoped artifacts instead of running the package's
+lifecycle scripts locally. The artifacts live on the server
+[`remoteCache`](#remotecache) names: a [pnpr](/pnpr) server started with
+`artifacts.enabled: true`, or, since v12.12.0, a server that speaks the
+Turborepo Remote Cache API. This is a proof of concept: it is off unless
+configured, and it restores artifacts on Linux/glibc, macOS, and Windows, on
+x64 and arm64. Other operating systems and libc families build locally.
 
 A repository declares eligibility and nothing else:
 
@@ -100,9 +101,10 @@ A repository declares eligibility and nothing else:
 pnprServer: http://127.0.0.1:7677
 allowBuilds:
   native-addon: true
+remoteCache:
+  org: acme
 sideEffectsCache:
   remote:
-    org: acme
     packages:
       - native-addon
 ```
@@ -119,13 +121,16 @@ here does not review its build scripts for you — under the default
 package denied with `allowBuilds: false` is never built, from the cache or
 otherwise.
 
-Everything describing the *act of signing* — `publish`, `keyId`, `builderId`,
-`imageDigest`, `architectureBaseline`, `buildEnv`, `trustedKeys` and
-`privateKey` — is refused in `pnpm-workspace.yaml` with
-`ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`, and is read from the [global
-configuration file](../cli/config.md) or the environment instead. A cloned
-repository is not a trust root, and must not be able to turn the machine's
-signing key into a signing oracle.
+The organization and the trust material are set under
+[`remoteCache`](#remotecache). They can also be set under
+`sideEffectsCache.remote`, where they lived before v12.12.0, and `remoteCache`
+wins where both set a field. Everything describing the *act of signing* —
+`publish`, `keyId`, `builderId`, `imageDigest`, `architectureBaseline`,
+`buildEnv`, `trustedKeys` and `privateKey` — is refused in
+`pnpm-workspace.yaml` with `ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`, and
+is read from the [global configuration file](../cli/config.md) or the
+environment instead. A cloned repository is not a trust root, and must not be
+able to turn the machine's signing key into a signing oracle.
 
 Any cache failure — an unreachable server, an unverifiable signature, an
 incompatible platform, a bad blob — falls back to the ordinary local build. See
@@ -136,7 +141,7 @@ Since v12.1.0, a restored artifact is saved in the shared store
 together with its signed origin. Before a later install reuses it, pnpm checks
 the signature again against the machine's current keys and revalidates its
 owner, package and source identity, platform, policy, and stored files. A bad
-remote variant is quarantined for that pnpr server and is not selected again.
+remote variant is quarantined for that server and is not selected again.
 
 :::note
 
@@ -150,6 +155,62 @@ either way. That is what lets a repository declare the org in
 config under whichever spelling it already used.
 
 :::
+
+### remoteCache
+
+Added in: v12.12.0
+
+* Default: **undefined**
+* Type: **Object**
+
+The server that shares build output between machines, and the keys every
+shared artifact is signed and verified with. Both
+[`sideEffectsCache.remote`](#sideeffectscacheremote) and the task cache of
+[`pnpm pipeline`](../cli/pipeline.md#sharing-the-cache-between-machines) use
+it.
+
+With `url`, artifacts live on a server that speaks the Turborepo Remote Cache
+API, such as Vercel Remote Cache or a self-hosted implementation. Without it,
+they live on [`pnprServer`](/pnpr/install-acceleration#enabling-it).
+
+```yaml title="pnpm-workspace.yaml"
+remoteCache:
+  org: acme
+```
+
+```yaml title="~/.config/pnpm/config.yaml"
+remoteCache:
+  url: https://vercel.com/api
+  team: team_abc123
+  token: <access token>
+  trustedKeys:
+    ci-2026: <base64 P-256 SubjectPublicKeyInfo DER public key>
+```
+
+| Field | Where it may be set | Meaning |
+| --- | --- | --- |
+| `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. It must use HTTPS unless it points at a loopback address. |
+| `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
+| `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, the pnpr account name. |
+| `token` | Global config or environment | The bearer token for `url`. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
+| `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
+| `publish` | Global config or environment | `true` publishes what this machine builds. Defaults to `false`. |
+| `privateKey`, `keyId`, `builderId` | Global config or environment | The key that signs published artifacts, the id consumers trust it under, and a label for the builder. Required with `publish`. |
+| `imageDigest`, `architectureBaseline`, `buildEnv` | Global config or environment | Optional provenance recorded in the signed artifact. |
+
+Every field is also read from the environment as `PNPM_REMOTE_CACHE_` followed
+by the field name in upper snake case, such as `PNPM_REMOTE_CACHE_TOKEN`.
+`trustedKeys` and `buildEnv` take a JSON object there. The environment takes
+precedence over both files. A `pnpm-workspace.yaml` that sets a field marked
+"Global config or environment" fails with
+`ERR_PNPM_WORKSPACE_REMOTE_CACHE_TRUST`. A repository that could name the
+server could have the machine's token sent to a server of its choosing.
+
+A Turborepo Remote Cache server holds one build per package for each
+combination of operating system, CPU architecture, and Node.js major. The
+first build published wins. A machine restores it when it meets the build's
+minimum OS or glibc version, so publish from the machine with the oldest
+system you support.
 
 ### unsafePerm
 

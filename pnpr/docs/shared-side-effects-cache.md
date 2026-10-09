@@ -142,6 +142,12 @@ over both files — the shape a CI runner wants for material it must not commit:
 The `PNPM_REMOTE_SIDE_EFFECTS_CACHE_*` names still work, and the ones above win
 when both are set.
 
+Since pnpm v12.12.0, `org` and the trust material can also be set under the
+[`remoteCache`](/settings/build#remotecache) setting, which the task cache of
+`pnpm pipeline` shares. A field set there wins over the same field under
+`sideEffectsCache.remote`. `remoteCache.url` stores the artifacts on a server
+that speaks the Turborepo Remote Cache API instead of on pnpr.
+
 The repository and the machine each contribute the half they own: a workspace
 naming `org` and `packages` keeps whatever trust material the global
 file or the environment supplied.

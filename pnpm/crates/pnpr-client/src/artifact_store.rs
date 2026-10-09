@@ -1,0 +1,112 @@
+//! Where shared artifacts are looked up, downloaded from, and published to:
+//! a pnpr server, or a server that speaks the Turborepo Remote Cache API.
+//!
+//! Both transports carry the same signed envelopes, and every answer goes
+//! through the same client-side verification, so neither server is trusted
+//! for what it serves.
+
+pub use turborepo::TurborepoArtifactStore;
+
+use super::{
+    ArtifactBlobRequest, BTreeMap, PnprClient, PnprClientError, PublishArtifactRequest,
+    ResolveArtifactsOptions, VerifiedArtifact,
+    artifacts::{retain_permitted_candidates, select_verified_artifacts},
+};
+use pnpm_config::{Config, RemoteCacheSettings};
+
+pub enum ArtifactStore {
+    Pnpr { client: PnprClient, authorization: Option<String> },
+    Turborepo(TurborepoArtifactStore),
+}
+
+impl ArtifactStore {
+    /// The server `remoteCache.url` names, or `pnprServer` without one.
+    /// `Ok(None)` when neither is set.
+    pub fn from_config(
+        config: &Config,
+        settings: &RemoteCacheSettings,
+    ) -> Result<Option<ArtifactStore>, PnprClientError> {
+        if let Some(url) = settings.url.as_deref() {
+            let authorization = settings.token
+                .as_ref()
+                .map(|token| format!("Bearer {token}"))
+                .or_else(|| config.auth_headers.for_secure_url(url));
+            return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
+                .map(|store| Some(ArtifactStore::Turborepo(store)));
+        }
+        Ok(config.pnpr_server
+            .as_deref()
+            .map(|server| ArtifactStore::Pnpr {
+                client: PnprClient::new(server),
+                authorization: config.auth_headers.for_url(server),
+            }))
+    }
+
+    /// The server's URL. Quarantine records are kept per channel, so an
+    /// artifact one server served badly is not held against another.
+    #[must_use]
+    pub fn channel(&self) -> &str {
+        match self {
+            Self::Pnpr { client, .. } => &client.base_url,
+            Self::Turborepo(store) => store.channel(),
+        }
+    }
+
+    /// Confirm the server can answer artifact requests. A Turborepo server
+    /// has no capability handshake, so it is assumed to.
+    pub async fn handshake(&self) -> Result<(), PnprClientError> {
+        match self {
+            Self::Pnpr { client, .. } => client.handshake_artifacts().await,
+            Self::Turborepo(_) => Ok(()),
+        }
+    }
+
+    /// The best verified, compatible artifact of each candidate the server
+    /// holds one for.
+    pub async fn resolve_artifacts(
+        &self,
+        mut opts: ResolveArtifactsOptions,
+    ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
+        match self {
+            Self::Pnpr { client, authorization } => {
+                opts.authorization.clone_from(authorization);
+                client.resolve_artifacts(opts).await
+            }
+            Self::Turborepo(store) => {
+                if !retain_permitted_candidates(&mut opts)? {
+                    return Ok(BTreeMap::new());
+                }
+                let response = store.fetch_artifacts(&opts).await?;
+                select_verified_artifacts(&opts, response)
+            }
+        }
+    }
+
+    /// One blob of an artifact [`Self::resolve_artifacts`] selected, checked
+    /// against its integrity.
+    pub async fn download_artifact_blob(
+        &self,
+        request: &ArtifactBlobRequest,
+    ) -> Result<Vec<u8>, PnprClientError> {
+        match self {
+            Self::Pnpr { client, authorization } => {
+                client.download_artifact_blob(request, authorization.as_deref()).await
+            }
+            Self::Turborepo(store) => store.fetched_blob(request),
+        }
+    }
+
+    pub async fn publish_artifact(
+        &self,
+        request: &PublishArtifactRequest,
+    ) -> Result<(), PnprClientError> {
+        match self {
+            Self::Pnpr { client, authorization } => {
+                client.publish_artifact(request, authorization.as_deref()).await
+            }
+            Self::Turborepo(store) => store.publish(request).await,
+        }
+    }
+}
+
+mod turborepo;

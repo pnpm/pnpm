@@ -371,3 +371,6 @@ mod dependencies;
 
 #[path = "integration/integrity.rs"]
 mod integrity;
+
+#[path = "integration/artifact_store.rs"]
+mod artifact_store;

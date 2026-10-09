@@ -128,7 +128,7 @@ impl WorkspaceSettings {
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
             provenance,
-            registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache,
+            registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache, remote_cache,
             reporter_hide_prefix, loglevel, reporter, max_sockets, patched_dependencies, patches_dir,
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, force_ignores_platform,
@@ -140,7 +140,7 @@ impl WorkspaceSettings {
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
             init_license, init_version, pm_on_fail, versioning, save_catalog_name,
-            save_prefix, tag_version_prefix, pipeline_base, pipeline_remote_cache, child_concurrency, workspace_concurrency, catalogs,
+            save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups,
         });
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {

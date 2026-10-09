@@ -204,17 +204,17 @@ pub enum LoadWorkspaceYamlError {
     )]
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 
-    /// A machine-only field of the pipeline's remote cache appeared in a
-    /// committed file — see [`PipelineRemoteCacheSettings`](crate::workspace_yaml::sections::PipelineRemoteCacheSettings).
-    #[display("pipelineRemoteCache.{field} cannot be set by a workspace ({})", path.display())]
+    /// A machine-only field of `remoteCache` appeared in a committed file —
+    /// see [`RemoteCacheSettings`](crate::workspace_yaml::sections::RemoteCacheSettings).
+    #[display("remoteCache.{field} cannot be set by a workspace ({})", path.display())]
     #[diagnostic(
-        code(ERR_PNPM_WORKSPACE_PIPELINE_REMOTE_CACHE_TRUST),
+        code(ERR_PNPM_WORKSPACE_REMOTE_CACHE_TRUST),
         help(
             "Set it in the global config file or in the environment instead of {}.",
             path.display(),
         )
     )]
-    WorkspacePipelineRemoteCacheTrust { path: PathBuf, field: &'static str },
+    WorkspaceRemoteCacheTrust { path: PathBuf, field: &'static str },
 
     #[diagnostic(transparent)]
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),

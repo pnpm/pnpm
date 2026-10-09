@@ -141,30 +141,27 @@ impl WorkspaceSettings {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
         }
-        self.reject_machine_only_pipeline_remote_cache_fields(path)
+        self.reject_machine_only_remote_cache_fields(path)
     }
 
-    /// `token` and `signatureKey` are secrets a committed file must not hold,
-    /// and `upload` decides what this machine publishes under them.
-    fn reject_machine_only_pipeline_remote_cache_fields(
+    /// The token and everything that describes signing belong to the
+    /// machine, for the reasons [`Self::reject_repo_controlled_trust_material`]
+    /// gives for `sideEffectsCache.remote`.
+    fn reject_machine_only_remote_cache_fields(
         &self,
         path: &Path,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(settings) = self.pipeline_remote_cache.as_ref() else {
+        let Some(settings) = self.remote_cache.as_ref() else {
             return Ok(());
         };
-        let machine_only = [
-            ("token", settings.token.is_some()),
-            ("signatureKey", settings.signature_key.is_some()),
-            ("upload", settings.upload.is_some()),
-        ];
-        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
+        let Some((field, _)) = settings
+            .machine_only_fields()
+            .into_iter()
+            .find(|(_, is_set)| *is_set)
+        else {
             return Ok(());
         };
-        Err(LoadWorkspaceYamlError::WorkspacePipelineRemoteCacheTrust {
-            path: path.to_path_buf(),
-            field,
-        })
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust { path: path.to_path_buf(), field })
     }
 
     pub(super) fn reject_machine_only_fields(

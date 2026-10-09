@@ -279,7 +279,7 @@ pub(super) fn verified_persisted_diff<'a>(
             stored_remote_side_effects_are_verified(
                 diff,
                 candidate,
-                plan.config.pnpr_server.as_deref(),
+                Some(plan.setup.store.channel()),
                 &plan.setup.supported_tags,
                 &plan.setup.trusted_keys,
             )

@@ -1,152 +1,162 @@
-//! The remote tier of the task cache, spoken over the Turborepo Remote Cache
-//! API: `GET` and `PUT` of `/v8/artifacts/<key>`. An artifact is one local
-//! cache entry as a gzipped tar, signed the way Turborepo signs
-//! `x-artifact-tag`: HMAC-SHA256 over the key, the team, and the body.
+//! The remote tier of the task cache: one `workspace-task` artifact of the
+//! shared artifact protocol per task key, kept on the [`ArtifactStore`]
+//! `remoteCache` names, and signed and verified with the same keys as the
+//! remote side-effects cache.
 //!
-//! The remote tier only ever adds entries to the local one. A downloaded
-//! entry is restored through the same checks as a local entry.
+//! An artifact's manifest mirrors a local entry: `meta.json` and the files
+//! under `outputs/`. A verified artifact is written into the local tier and
+//! restored from there through the same checks as a local entry.
 
 use super::cache::{StoredTask, TaskCache};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use flate2::{Compression, read::GzDecoder, write::GzEncoder};
-use hmac::{Hmac, Mac};
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, is_url_secure_for_credentials, read_limited_body};
-use reqwest::{RequestBuilder, StatusCode};
-use sha2::Sha256;
+use pnpm_pnpr_client::{
+    ArtifactBlobRequest, ArtifactBlobUpload, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactSigner, ArtifactStore, ArtifactSubject,
+    CompatibilityConstraints, OwnerScope, PublishArtifactRequest, ResolveArtifactsOptions,
+    VerifiedArtifact, WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    decode_trusted_keys,
+};
 use std::{
+    collections::{BTreeMap, HashSet},
     fs, io,
-    io::Read,
     path::{Component, Path},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 use tokio::{runtime::Handle, task::JoinHandle};
 
-const ARTIFACT_TAG_HEADER: &str = "x-artifact-tag";
-const ARTIFACT_DURATION_HEADER: &str = "x-artifact-duration";
-const MAX_ARTIFACT_BYTES: usize = 512 * 1024 * 1024;
-const MAX_UNPACKED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+/// A task as the artifact's subject names it.
+pub(super) struct TaskIdentity<'a> {
+    /// The project's path relative to the workspace root.
+    pub(super) project: &'a str,
+    pub(super) task: &'a str,
+}
 
 pub(super) struct RemoteTaskCache {
-    client: Arc<ThrottledClient>,
-    artifacts_url: String,
-    /// `?teamId=…` or `?slug=…`, or empty.
-    team_query: String,
-    authorization: Option<String>,
-    signer: ArtifactSigner,
-    upload: bool,
+    store: Arc<ArtifactStore>,
+    owner: OwnerScope,
+    trusted_keys: BTreeMap<String, Vec<u8>>,
+    publisher: Option<TaskPublisher>,
     runtime: Handle,
     uploads: Mutex<Vec<JoinHandle<Result<(), String>>>>,
 }
 
+/// Signs local entries as `workspace-task` artifacts.
+struct TaskPublisher(ArtifactSigner);
+
 impl RemoteTaskCache {
-    /// The remote tier `pipelineRemoteCache` configures. `Ok(None)` when it
-    /// names no server, `Err` with the reason when it names one that cannot
-    /// be used.
+    /// The remote tier `remoteCache` configures. `Ok(None)` when no store is
+    /// named, or when only `pnprServer` is set and nothing asks for shared
+    /// artifacts. `Err` with the reason when the configuration cannot work.
     pub(super) fn open(config: &Config) -> Result<Option<RemoteTaskCache>, String> {
-        let Some(settings) = &config.pipeline_remote_cache else {
-            return Ok(None);
-        };
-        let Some(url) = settings.url.as_deref() else {
-            return Ok(None);
-        };
-        if !is_url_secure_for_credentials(url) {
-            return Err(format!("{url} is neither HTTPS nor a loopback address"));
-        }
-        let Some(signature_key) = settings.signature_key
-            .as_deref()
-            .filter(|key| !key.is_empty())
+        let settings = config.remote_cache_settings();
+        let Some(store) =
+            ArtifactStore::from_config(config, &settings).map_err(|error| error.to_string())?
         else {
-            return Err("pipelineRemoteCache.signatureKey is not set".to_string());
+            return Ok(None);
         };
-        let client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .map_err(|error| error.to_string())?;
-        let runtime = Handle::try_current().map_err(|error| error.to_string())?;
-        let team = settings.team.clone().unwrap_or_default();
+        if settings.url.is_none()
+            && settings.org.is_none()
+            && settings.trusted_keys.is_none()
+        {
+            return Ok(None);
+        }
+        let org = settings.org.as_deref().ok_or("remoteCache.org is not set")?;
+        let trusted_keys = settings.trusted_keys
+            .as_ref()
+            .filter(|keys| !keys.is_empty())
+            .ok_or("remoteCache.trustedKeys is not set")?;
+        let trusted_keys = decode_trusted_keys(trusted_keys)
+            .map_err(|key_id| format!("the trusted key {key_id:?} is not valid base64"))?;
+        let publisher = (settings.publish == Some(true))
+            .then(|| ArtifactSigner::from_settings(&settings).map(TaskPublisher))
+            .transpose()?;
         Ok(Some(RemoteTaskCache {
-            client: Arc::new(client),
-            artifacts_url: format!("{}/v8/artifacts", url.trim_end_matches('/')),
-            team_query: team_query(&team),
-            authorization: settings.token
-                .as_ref()
-                .map(|token| format!("Bearer {token}"))
-                .or_else(|| config.auth_headers.for_secure_url(url)),
-            signer: ArtifactSigner { key: signature_key.as_bytes().to_vec(), team },
-            upload: settings.upload == Some(true),
-            runtime,
+            store: Arc::new(store),
+            owner: OwnerScope::organization(org),
+            trusted_keys,
+            publisher,
+            runtime: Handle::try_current().map_err(|error| error.to_string())?,
             uploads: Mutex::new(Vec::new()),
         }))
     }
 
-    /// Download the artifact stored under `key` into `cache`. `Ok(false)`
-    /// when the server has none.
+    /// Download the artifact stored for `key` into `cache`. `Ok(false)`
+    /// when the store holds no artifact this machine trusts.
     ///
     /// Blocks, so it must run off the async runtime's worker threads.
-    pub(super) fn fetch(&self, key: &str, cache: &TaskCache) -> Result<bool, String> {
-        let Some(body) = self.runtime.block_on(self.download(key))? else {
+    pub(super) fn fetch(
+        &self,
+        key: &str,
+        task: &TaskIdentity<'_>,
+        cache: &TaskCache,
+    ) -> Result<bool, String> {
+        let Some(files) = self.runtime.block_on(self.download(key, task))? else {
             return Ok(false);
         };
         cache
-            .import(key, |staging| unpack(&body, staging))
-            .map_err(|error| format!("unpacking the artifact: {error}"))?;
+            .import(key, |staging| write_entry(&files, staging))
+            .map_err(|error| format!("writing the artifact: {error}"))?;
         Ok(true)
     }
 
-    async fn download(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
-        let url = self.artifact_url(key);
-        let client = self.client.acquire_for_url(&url).await;
-        let response = self
-            .authorize(client.get(&url))
-            .send()
+    async fn download(
+        &self,
+        key: &str,
+        task: &TaskIdentity<'_>,
+    ) -> Result<Option<Vec<(ArtifactFile, Vec<u8>)>>, String> {
+        let resolved = self.store
+            .resolve_artifacts(ResolveArtifactsOptions {
+                candidates: vec![self.candidate(key, task)],
+                supported_tags: Vec::new(),
+                trusted_keys: self.trusted_keys.clone(),
+                quarantined_envelope_digests: BTreeMap::new(),
+                on_rejected_artifact: None,
+                authorization: None,
+                build_policy: ArtifactBuildPolicy {
+                    eligible_packages: HashSet::new(),
+                    allowed_builds: HashSet::new(),
+                    ignore_scripts: false,
+                },
+            })
             .await
             .map_err(|error| error.to_string())?;
-        if response.status() == StatusCode::NOT_FOUND {
+        let Some(VerifiedArtifact { payload, .. }) = resolved.into_values().next() else {
             return Ok(None);
+        };
+        let mut files = Vec::with_capacity(payload.manifest.added.len());
+        for file in payload.manifest.added {
+            let bytes = self.store
+                .download_artifact_blob(&ArtifactBlobRequest {
+                    owner: self.owner.clone(),
+                    integrity: file.integrity.clone(),
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+            files.push((file, bytes));
         }
-        if !response.status().is_success() {
-            return Err(format!("the server answered {}", response.status()));
-        }
-        let tag = response
-            .headers()
-            .get(ARTIFACT_TAG_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string);
-        let body = read_limited_body(response, MAX_ARTIFACT_BYTES).await
-            .map_err(|error| error.to_string())?;
-        if body.truncated {
-            return Err(format!("the artifact is larger than {MAX_ARTIFACT_BYTES} bytes"));
-        }
-        self.signer.verify(key, &body.bytes, tag.as_deref())?;
-        Ok(Some(body.bytes))
+        Ok(Some(files))
     }
 
-    /// Start uploading `stored` under `key` when uploads are on. The upload
-    /// runs in the background; [`Self::finish_uploads`] waits for it.
+    /// Start publishing `stored` under `key` when this machine publishes.
+    /// The upload runs in the background; [`Self::finish_uploads`] waits for
+    /// it.
     pub(super) fn upload(
         &self,
         key: &str,
+        task: &TaskIdentity<'_>,
         stored: &StoredTask,
-        duration: Duration,
     ) -> Result<(), String> {
-        if !self.upload {
+        let Some(publisher) = &self.publisher else {
             return Ok(());
-        }
-        let body = pack(stored).map_err(|error| format!("packing the artifact: {error}"))?;
-        let request = PendingUpload {
-            url: self.artifact_url(key),
-            tag: self.signer.sign(key, &body),
-            authorization: self.authorization.clone(),
-            duration_ms: duration.as_millis().to_string(),
-            body,
         };
-        let client = Arc::clone(&self.client);
-        let upload = self.runtime.spawn(async move { request.send(&client).await });
+        let request = publisher
+            .sign(self.candidate(key, task), stored)
+            .map_err(|error| format!("signing the artifact: {error}"))?;
+        let store = Arc::clone(&self.store);
+        let upload = self.runtime.spawn(async move {
+            store.publish_artifact(&request).await.map_err(|error| error.to_string())
+        });
         self.uploads
             .lock()
             .expect("upload list lock is not poisoned")
@@ -166,156 +176,125 @@ impl RemoteTaskCache {
         // which cannot block on it.
         std::thread::scope(|scope| {
             scope
-                .spawn(|| self.wait_for(uploads))
+                .spawn(|| self.runtime.block_on(join_uploads(uploads)))
                 .join()
                 .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
         })
     }
 
-    fn wait_for(&self, uploads: Vec<JoinHandle<Result<(), String>>>) -> Vec<String> {
-        self.runtime.block_on(async {
-            let mut failures = Vec::new();
-            for upload in uploads {
-                match upload.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(reason)) => failures.push(reason),
-                    Err(error) => failures.push(error.to_string()),
-                }
-            }
-            failures
+    fn candidate(&self, key: &str, task: &TaskIdentity<'_>) -> ArtifactCandidate {
+        ArtifactCandidate {
+            key: format!("{WORKSPACE_TASK_INPUT_KEY_PREFIX}{key}"),
+            subject: ArtifactSubject::workspace_task(task.project, task.task),
+            owner: self.owner.clone(),
+        }
+    }
+}
+
+async fn join_uploads(uploads: Vec<JoinHandle<Result<(), String>>>) -> Vec<String> {
+    let mut failures = Vec::new();
+    for upload in uploads {
+        match upload.await {
+            Ok(Ok(())) => {}
+            Ok(Err(reason)) => failures.push(reason),
+            Err(error) => failures.push(error.to_string()),
+        }
+    }
+    failures
+}
+
+impl TaskPublisher {
+    /// The local entry as a signed publication. The task key already covers
+    /// the platform, so the artifact claims every machine.
+    fn sign(
+        &self,
+        candidate: ArtifactCandidate,
+        stored: &StoredTask,
+    ) -> io::Result<PublishArtifactRequest> {
+        let mut added = Vec::with_capacity(stored.files.len() + 1);
+        let mut blobs = BTreeMap::new();
+        let entry_files = std::iter::once("meta.json".to_string())
+            .chain(
+                stored.files
+                    .iter()
+                    .map(|file| format!("outputs/{file}")),
+            );
+        for path in entry_files {
+            let (file, bytes) = artifact_file(&stored.entry_dir, path)?;
+            blobs
+                .entry(file.integrity.clone())
+                .or_insert_with(|| ArtifactBlobUpload {
+                    integrity: file.integrity.clone(),
+                    data: BASE64.encode(bytes),
+                });
+            added.push(file);
+        }
+        let payload = ArtifactPayload {
+            kind: WORKSPACE_TASK_ARTIFACT_KIND.to_string(),
+            subject: candidate.subject,
+            input_key: candidate.key.clone(),
+            owner: candidate.owner,
+            builder_id: self.0.builder_id.clone(),
+            builder_profile: self.0.builder_profile.clone(),
+            compatibility: CompatibilityConstraints::Universal,
+            manifest: ArtifactManifest { added, deleted: Vec::new() },
+        };
+        let envelope = self.0.sign(&payload).map_err(io::Error::other)?;
+        Ok(PublishArtifactRequest {
+            key: candidate.key,
+            envelope,
+            blobs: blobs.into_values().collect(),
         })
     }
+}
 
-    fn artifact_url(&self, key: &str) -> String {
-        format!("{}/{key}{}", self.artifacts_url, self.team_query)
+/// One file of a local entry as the manifest lists it, with its bytes.
+fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, Vec<u8>)> {
+    let source = entry_dir.join(&path);
+    let bytes = fs::read(&source)?;
+    let mode = if is_executable(&source)? { 0o755 } else { 0o644 };
+    let file = ArtifactFile {
+        integrity: ssri::IntegrityOpts::new()
+            .algorithm(ssri::Algorithm::Sha512)
+            .chain(&bytes)
+            .result()
+            .to_string(),
+        mode,
+        size: bytes.len() as u64,
+        path,
+    };
+    Ok((file, bytes))
+}
+
+fn is_executable(path: &Path) -> io::Result<bool> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        Ok(pnpm_fs::file_mode::is_executable(fs::metadata(path)?.permissions().mode()))
     }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(false)
+    }
+}
 
-    fn authorize(&self, request: RequestBuilder) -> RequestBuilder {
-        match &self.authorization {
-            Some(authorization) => request.header("authorization", authorization),
-            None => request,
+/// Write a verified artifact's files into an empty `staging` directory. Only
+/// `meta.json` and regular files under `outputs/` are accepted, so nothing
+/// an artifact carries can write outside `staging`.
+fn write_entry(files: &[(ArtifactFile, Vec<u8>)], staging: &Path) -> io::Result<()> {
+    for (file, bytes) in files {
+        if !is_entry_path(Path::new(&file.path)) || !matches!(file.mode, 0o644 | 0o755) {
+            return Err(io::Error::other(format!("unexpected entry {}", file.path)));
         }
-    }
-}
-
-/// The `x-artifact-tag` of an artifact: base64 HMAC-SHA256 over the key, the
-/// team, and the body, keyed by `pipelineRemoteCache.signatureKey`.
-struct ArtifactSigner {
-    key: Vec<u8>,
-    team: String,
-}
-
-impl ArtifactSigner {
-    fn mac(&self, cache_key: &str, body: &[u8]) -> Hmac<Sha256> {
-        let mut mac =
-            Hmac::<Sha256>::new_from_slice(&self.key).expect("HMAC accepts keys of any length");
-        mac.update(cache_key.as_bytes());
-        mac.update(self.team.as_bytes());
-        mac.update(body);
-        mac
-    }
-
-    fn sign(&self, cache_key: &str, body: &[u8]) -> String {
-        BASE64.encode(
-            self.mac(cache_key, body)
-                .finalize()
-                .into_bytes(),
-        )
-    }
-
-    fn verify(&self, cache_key: &str, body: &[u8], tag: Option<&str>) -> Result<(), String> {
-        let tag = tag.ok_or("the artifact is not signed")?;
-        let tag = BASE64.decode(tag).map_err(|_| "the artifact signature is malformed")?;
-        self.mac(cache_key, body)
-            .verify_slice(&tag)
-            .map_err(|_| "the artifact signature does not match".to_string())
-    }
-}
-
-/// Turborepo's convention: a Vercel team id starts with `team_`, anything
-/// else is a team slug.
-fn team_query(team: &str) -> String {
-    if team.is_empty() {
-        return String::new();
-    }
-    let name = if team.starts_with("team_") { "teamId" } else { "slug" };
-    let query =
-        url::form_urlencoded::Serializer::new(String::new()).append_pair(name, team).finish();
-    format!("?{query}")
-}
-
-struct PendingUpload {
-    url: String,
-    tag: String,
-    authorization: Option<String>,
-    duration_ms: String,
-    body: Vec<u8>,
-}
-
-impl PendingUpload {
-    async fn send(self, client: &ThrottledClient) -> Result<(), String> {
-        let guard = client.acquire_for_url(&self.url).await;
-        let mut request = guard
-            .put(&self.url)
-            .header("content-type", "application/octet-stream")
-            .header(ARTIFACT_TAG_HEADER, &self.tag)
-            .header(ARTIFACT_DURATION_HEADER, &self.duration_ms);
-        if let Some(authorization) = &self.authorization {
-            request = request.header("authorization", authorization);
+        let target = staging.join(&file.path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
         }
-        let response = request
-            .body(self.body)
-            .send()
-            .await
-            .map_err(|error| format!("{}: {error}", self.url))?;
-        if !response.status().is_success() {
-            return Err(format!("{}: the server answered {}", self.url, response.status()));
-        }
-        Ok(())
-    }
-}
-
-/// `meta.json` and the `outputs/` tree of a local entry, as a gzipped tar.
-fn pack(stored: &StoredTask) -> io::Result<Vec<u8>> {
-    let mut builder = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::default()));
-    builder.mode(tar::HeaderMode::Deterministic);
-    builder.follow_symlinks(false);
-    builder.append_path_with_name(stored.entry_dir.join("meta.json"), "meta.json")?;
-    for relative in &stored.files {
-        builder.append_path_with_name(
-            stored.entry_dir.join("outputs").join(relative),
-            format!("outputs/{relative}"),
-        )?;
-    }
-    builder.into_inner()?.finish()
-}
-
-/// Unpack an artifact into an empty `staging` directory. Only `meta.json`
-/// and regular files and directories under `outputs/` are accepted, so
-/// nothing an artifact carries can write outside `staging`.
-fn unpack(archive: &[u8], staging: &Path) -> io::Result<()> {
-    let mut archive = tar::Archive::new(GzDecoder::new(archive).take(MAX_UNPACKED_BYTES));
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        let path = entry.path()?.into_owned();
-        if !is_entry_path(&path) {
-            return Err(io::Error::other(format!("unexpected path {}", path.display())));
-        }
-        let target = staging.join(&path);
-        match entry.header().entry_type() {
-            tar::EntryType::Directory => fs::create_dir_all(&target)?,
-            tar::EntryType::Regular => {
-                if let Some(parent) = target.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                io::copy(&mut entry, &mut fs::File::create_new(&target)?)?;
-            }
-            other => {
-                return Err(io::Error::other(format!(
-                    "unexpected {other:?} entry {}",
-                    path.display(),
-                )));
-            }
+        let mut output = fs::File::create_new(&target)?;
+        io::Write::write_all(&mut output, bytes)?;
+        if file.mode == 0o755 {
+            pnpm_fs::file_mode::make_file_executable(&output)?;
         }
     }
     Ok(())
@@ -329,7 +308,9 @@ fn is_entry_path(path: &Path) -> bool {
         .all(|component| matches!(component, Component::Normal(_)));
     match first {
         Some(Component::Normal(name)) if name == "meta.json" => components.next().is_none(),
-        Some(Component::Normal(name)) if name == "outputs" => rest_is_normal,
+        Some(Component::Normal(name)) if name == "outputs" => {
+            rest_is_normal && components.next().is_some()
+        }
         _ => false,
     }
 }

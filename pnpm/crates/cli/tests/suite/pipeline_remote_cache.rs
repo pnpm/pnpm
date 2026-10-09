@@ -1,21 +1,42 @@
 use assert_cmd::prelude::*;
-use mockito::Matcher;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use p256::{
+    SecretKey,
+    pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+};
+use pnpm_testing_utils::{command_env::CommandTestExt, turborepo_cache::TurborepoCache};
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
-    sync::{Arc, Mutex},
 };
 
-const ARTIFACT_PATH: &str = "^/v8/artifacts/[0-9a-f]+$";
 const TEAM: &str = "team_pipeline";
 const TOKEN: &str = "remote-cache-token";
-const SIGNATURE_KEY: &str = "remote-cache-signature-key";
+const KEY_ID: &str = "ci-2026";
 
-/// A one-project workspace whose `build` writes `out/result` and logs each
-/// real run to `runs`, which lies outside the task's inputs and outputs.
-fn workspace(root: &Path, server_url: &str) -> std::path::PathBuf {
+/// The base64 private and public halves of a fixture key pair.
+fn key_pair(seed: u8) -> (String, String) {
+    let secret = SecretKey::from_slice(&[seed; 32]).expect("fixture private key");
+    let private_key = BASE64.encode(
+        secret
+            .to_pkcs8_der()
+            .expect("encode private key")
+            .as_bytes(),
+    );
+    let public_key = BASE64.encode(
+        secret
+            .public_key()
+            .to_public_key_der()
+            .expect("encode public key")
+            .as_bytes(),
+    );
+    (private_key, public_key)
+}
+
+/// A one-project workspace whose `build` writes `out/nested/result` and logs
+/// each real run to `runs`, which lies outside the task's inputs and outputs.
+fn workspace(root: &Path) -> PathBuf {
     let project = root.join("project");
     fs::create_dir(&project).unwrap();
     pnpm_testing_utils::git_repo::init_isolated_repo(&project);
@@ -29,7 +50,7 @@ fn workspace(root: &Path, server_url: &str) -> std::path::PathBuf {
     }).to_string()).unwrap();
     fs::write(
         project.join("pnpm-workspace.yaml"),
-        format!("packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\npipelineRemoteCache:\n  url: {server_url}\n  team: {TEAM}\n"),
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\nremoteCache:\n  org: acme\n",
     )
     .unwrap();
     project
@@ -47,8 +68,15 @@ fn pnpm_on_machine(project: &Path, machine: &Path, runs: &Path) -> Command {
     command
 }
 
-/// An uploaded artifact's body and its `x-artifact-tag`.
-type UploadedArtifact = (Vec<u8>, String);
+/// [`pnpm_on_machine`] on a machine that names `cache` in its environment.
+fn pnpm_with_cache(project: &Path, machine: &Path, runs: &Path, cache: &TurborepoCache) -> Command {
+    let mut command = pnpm_on_machine(project, machine, runs);
+    command
+        .env("PNPM_REMOTE_CACHE_URL", cache.url())
+        .env("PNPM_REMOTE_CACHE_TEAM", TEAM)
+        .env("PNPM_REMOTE_CACHE_TOKEN", TOKEN);
+    command
+}
 
 fn combined_output(output: &Output) -> String {
     format!(
@@ -59,109 +87,74 @@ fn combined_output(output: &Output) -> String {
 }
 
 #[test]
-fn a_task_uploaded_from_one_machine_is_restored_on_another() {
-    let mut server = mockito::Server::new();
+fn a_task_published_from_one_machine_is_restored_on_another() {
+    let cache = TurborepoCache::start();
     let root = tempfile::tempdir().unwrap();
-    let project = workspace(root.path(), &server.url());
+    let project = workspace(root.path());
     let runs = root.path().join("runs");
     fs::write(&runs, "").unwrap();
+    let (private_key, public_key) = key_pair(7);
 
     let builder = root.path().join("builder");
     fs::create_dir_all(builder.join("config/pnpm")).unwrap();
     fs::write(
         builder.join("config/pnpm/config.yaml"),
-        format!("pipelineRemoteCache:\n  token: {TOKEN}\n  signatureKey: {SIGNATURE_KEY}\n  upload: true\n"),
+        format!("remoteCache:\n  url: {}\n  team: {TEAM}\n  token: {TOKEN}\n  trustedKeys:\n    {KEY_ID}: {public_key}\n  privateKey: {private_key}\n  keyId: {KEY_ID}\n  builderId: ci/main/1\n  publish: true\n", cache.url()),
     )
     .unwrap();
     pnpm_on_machine(&project, &builder, &runs)
         .arg("install")
         .assert()
         .success();
-
-    let miss = server
-        .mock("GET", Matcher::Regex(ARTIFACT_PATH.to_string()))
-        .match_query(Matcher::UrlEncoded("teamId".to_string(), TEAM.to_string()))
-        .match_header("authorization", format!("Bearer {TOKEN}").as_str())
-        .with_status(404)
-        .expect(1)
-        .create();
-    let uploaded: Arc<Mutex<Option<UploadedArtifact>>> = Arc::default();
-    let upload = server
-        .mock("PUT", Matcher::Regex(ARTIFACT_PATH.to_string()))
-        .match_query(Matcher::UrlEncoded("teamId".to_string(), TEAM.to_string()))
-        .match_header("authorization", format!("Bearer {TOKEN}").as_str())
-        .match_header("x-artifact-duration", Matcher::Regex("^[0-9]+$".to_string()))
-        .with_body_from_request({
-            let uploaded = Arc::clone(&uploaded);
-            move |request| {
-                let tag = request.header("x-artifact-tag")[0]
-                    .to_str()
-                    .unwrap()
-                    .to_string();
-                *uploaded.lock().unwrap() = Some((request.body().unwrap().clone(), tag));
-                Vec::new()
-            }
-        })
-        .expect(1)
-        .create();
     let built = pnpm_on_machine(&project, &builder, &runs)
         .args(["pipeline", "--full"])
         .assert()
         .success();
-    miss.assert();
-    upload.assert();
-    assert!(
-        !combined_output(built.get_output()).contains("restored from cache"),
-        "{}",
-        combined_output(built.get_output()),
-    );
+    let output = combined_output(built.get_output());
+    assert!(!output.contains("restored from cache"), "{output}");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    assert_eq!(cache.artifacts().len(), 1, "{output}");
+    let requests = cache.requests();
+    dbg!(&requests);
+    assert!(
+        requests
+            .iter()
+            .all(|request| {
+                request.query.as_deref() == Some("teamId=team_pipeline")
+                    && request.authorization.as_deref() == Some(&format!("Bearer {TOKEN}"))
+            }),
+    );
 
-    let (artifact, tag) = uploaded
-        .lock()
-        .unwrap()
-        .take()
-        .expect("the build uploaded an artifact");
-    server.reset();
-    let hit = server
-        .mock("GET", Matcher::Regex(ARTIFACT_PATH.to_string()))
-        .match_query(Matcher::UrlEncoded("teamId".to_string(), TEAM.to_string()))
-        .with_header("x-artifact-tag", &tag)
-        .with_body(&artifact)
-        .create();
     fs::remove_dir_all(project.join("out")).unwrap();
     let consumer = root.path().join("consumer");
-    let restored = pnpm_on_machine(&project, &consumer, &runs)
-        .env("PNPM_PIPELINE_REMOTE_CACHE_TOKEN", TOKEN)
-        .env("PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY", SIGNATURE_KEY)
+    let restored = pnpm_with_cache(&project, &consumer, &runs, &cache)
+        .env("PNPM_REMOTE_CACHE_TRUSTED_KEYS", format!(r#"{{"{KEY_ID}":"{public_key}"}}"#))
         .args(["pipeline", "--full"])
         .assert()
         .success();
-    hit.assert();
     let output = combined_output(restored.get_output());
     assert!(output.contains("restored from cache"), "{output}");
     assert_eq!(fs::read_to_string(project.join("out/nested/result")).unwrap(), "built");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n", "the restored task must not run");
 
     fs::remove_dir_all(project.join("out")).unwrap();
+    let (_, other_public_key) = key_pair(9);
     let untrusting = root.path().join("untrusting");
-    let rejected = pnpm_on_machine(&project, &untrusting, &runs)
-        .env("PNPM_PIPELINE_REMOTE_CACHE_TOKEN", TOKEN)
-        .env("PNPM_PIPELINE_REMOTE_CACHE_SIGNATURE_KEY", "a-different-key")
+    let rejected = pnpm_with_cache(&project, &untrusting, &runs, &cache)
+        .env("PNPM_REMOTE_CACHE_TRUSTED_KEYS", format!(r#"{{"{KEY_ID}":"{other_public_key}"}}"#))
         .args(["pipeline", "--full"])
         .assert()
         .success();
     let output = combined_output(rejected.get_output());
-    assert!(output.contains("the artifact signature does not match"), "{output}");
     assert!(!output.contains("restored from cache"), "{output}");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
 }
 
 #[test]
-fn a_remote_cache_without_a_signature_key_is_off() {
-    let mut server = mockito::Server::new();
+fn a_remote_cache_without_trusted_keys_is_off() {
+    let cache = TurborepoCache::start();
     let root = tempfile::tempdir().unwrap();
-    let project = workspace(root.path(), &server.url());
+    let project = workspace(root.path());
     let runs = root.path().join("runs");
     fs::write(&runs, "").unwrap();
     let machine = root.path().join("machine");
@@ -169,19 +162,14 @@ fn a_remote_cache_without_a_signature_key_is_off() {
         .arg("install")
         .assert()
         .success();
-    let any_request = server
-        .mock("GET", Matcher::Any)
-        .expect(0)
-        .create();
 
-    let result = pnpm_on_machine(&project, &machine, &runs)
-        .env("PNPM_PIPELINE_REMOTE_CACHE_TOKEN", TOKEN)
+    let result = pnpm_with_cache(&project, &machine, &runs, &cache)
         .args(["pipeline", "--full"])
         .assert()
         .success();
 
-    any_request.assert();
+    assert!(cache.requests().is_empty());
     let output = combined_output(result.get_output());
-    assert!(output.contains("pipelineRemoteCache.signatureKey is not set"), "{output}");
+    assert!(output.contains("remoteCache.trustedKeys is not set"), "{output}");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
 }

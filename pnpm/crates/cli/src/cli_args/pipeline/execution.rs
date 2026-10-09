@@ -56,7 +56,7 @@ pub(super) fn run_pipeline_task(
         && let Some(cache_key) = cache_key
         && let Some(captured) = execution.captured
     {
-        store_in_cache(options, cache_key, captured, start);
+        store_in_cache(options, cache_key, captured);
     }
     let disposition =
         if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
@@ -74,7 +74,6 @@ fn store_in_cache(
     options: &RunTaskOptions<'_, '_>,
     cache_key: &str,
     captured: Vec<capture::CapturedScript>,
-    start: Instant,
 ) {
     let outputs = options.config.tasks
         .get(&options.node.task_name)
@@ -88,7 +87,7 @@ fn store_in_cache(
         outputs,
         captured,
     ) {
-        Ok(()) => options.cache.upload(cache_key, start.elapsed(), |reason| {
+        Ok(()) => options.cache.upload(cache_key, options.node, |reason| {
             task_warning(options, reason);
         }),
         Err(error) => {
@@ -106,7 +105,8 @@ fn try_restore(
 ) -> miette::Result<Option<ExecutionStatus>> {
     let root = options.node.project.as_path();
     let summary_key = options.reporting.summary_key;
-    let Some(stored) = options.cache.lookup(cache_key, |reason| task_warning(options, reason))
+    let Some(stored) =
+        options.cache.lookup(cache_key, options.node, |reason| task_warning(options, reason))
     else {
         return Ok(None);
     };

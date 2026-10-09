@@ -25,8 +25,8 @@ use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_pnpr_client::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
-    PackageIdentity, PnprClient, PublishArtifactRequest, SignedArtifactEnvelope,
+    ArtifactPayload, ArtifactSigner, ArtifactStore, ArtifactSubject, CompatibilityConstraints,
+    OwnerScope, PackageIdentity, PublishArtifactRequest,
 };
 use pnpm_store_dir::{CafsFileInfo, StoreIndexWriter};
 use std::{
@@ -38,10 +38,8 @@ use std::{
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 
 pub struct SharedSideEffectsPublisher {
-    signer: BuilderSigningKey,
-    authorization: Option<String>,
-    builder_profile: BuilderProfile,
-    client: PnprClient,
+    signer: ArtifactSigner,
+    store: ArtifactStore,
     organization: String,
     packages: HashSet<String>,
     platform: ArtifactPlatform<'static>,
@@ -107,39 +105,20 @@ pub(crate) fn shared_side_effects_publisher(
     config: &Config,
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<SharedSideEffectsPublisher> {
-    let server = config.pnpr_server.as_deref()?;
-    let settings = config.remote_side_effects_cache.as_ref()?;
+    let packages = &config.remote_side_effects_cache.as_ref()?.packages;
+    let settings = config.remote_cache_settings();
     if settings.publish != Some(true) {
         return None;
     }
     let platform = artifact_platform(importers)?;
-    let private_key = BASE64
-        .decode(settings.private_key.as_ref()?)
-        .ok()?;
-    let key_id = settings.key_id.clone()?;
-    let builder_id = settings.builder_id.clone()?;
-    let organization = non_empty(&settings.org)?.to_string();
-    let environment = settings.build_env.clone().unwrap_or_default();
+    let organization = non_empty(settings.org.as_deref()?)?.to_string();
+    let store = ArtifactStore::from_config(config, &settings).ok()??;
     Some(SharedSideEffectsPublisher {
-        signer: BuilderSigningKey { builder_id, key_id, private_key },
-        authorization: config.auth_headers.for_url(server),
-
-        builder_profile: BuilderProfile {
-            image_digest: settings.image_digest.clone(),
-            architecture_baseline: settings.architecture_baseline
-                .clone()
-                .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
-            environment,
-        },
-        client: PnprClient::new(server),
-
+        signer: ArtifactSigner::from_settings(&settings).ok()?,
+        store,
         organization,
-        packages: settings.packages
-            .iter()
-            .cloned()
-            .collect(),
+        packages: packages.iter().cloned().collect(),
         platform,
-
         runtime: tokio::runtime::Handle::current(),
     })
 }
@@ -178,7 +157,7 @@ impl SharedSideEffectsPublisher {
             input_key: input_key.clone(),
             owner: OwnerScope::organization(self.organization.clone()),
             builder_id: self.signer.builder_id.clone(),
-            builder_profile: self.builder_profile.clone(),
+            builder_profile: self.signer.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
             },
@@ -197,21 +176,11 @@ impl SharedSideEffectsPublisher {
         blobs: Vec<ArtifactBlobUpload>,
     ) -> Result<(), String> {
         self.runtime
-            .block_on(
-                self.client.publish_artifact(
-                    &PublishArtifactRequest {
-                        key: input_key,
-                        envelope: SignedArtifactEnvelope::sign(
-                            payload,
-                            self.signer.key_id.clone(),
-                            &self.signer.private_key,
-                        )
-                        .map_err(|error| error.to_string())?,
-                        blobs,
-                    },
-                    self.authorization.as_deref(),
-                ),
-            )
+            .block_on(self.store.publish_artifact(&PublishArtifactRequest {
+                key: input_key,
+                envelope: self.signer.sign(payload).map_err(|error| error.to_string())?,
+                blobs,
+            }))
             .map_err(|error| error.to_string())
     }
 
@@ -281,12 +250,6 @@ fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
 
 #[cfg(test)]
 mod tests;
-
-struct BuilderSigningKey {
-    builder_id: String,
-    key_id: String,
-    private_key: Vec<u8>,
-}
 
 pub(crate) struct SharedSideEffectsCacheRows<'a> {
     pub base_cas_paths: &'a BaseCasPaths,

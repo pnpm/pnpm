@@ -1,22 +1,45 @@
 use super::{
-    BTreeMap, Config, EnvVar, PipelineRemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    BTreeMap, Config, EnvVar, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
     side_effects_cache_remote_env,
 };
 
 impl Config {
-    /// `PNPM_PIPELINE_REMOTE_CACHE_*` overlays `pipelineRemoteCache`, so a CI
-    /// runner can inject the token and signing secret it must not commit.
-    pub(crate) fn apply_pipeline_remote_cache_env<Sys: EnvVar>(&mut self) {
-        let read = |suffix: &str| Sys::var(&format!("PNPM_PIPELINE_REMOTE_CACHE_{suffix}"));
-        let settings = PipelineRemoteCacheSettings {
+    /// `remoteCache`, with each field it leaves unset taken from
+    /// `sideEffectsCache.remote`, the older home of the signing fields.
+    #[must_use]
+    pub fn remote_cache_settings(&self) -> RemoteCacheSettings {
+        let settings = self.remote_cache
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
+        match &self.remote_side_effects_cache {
+            Some(older) => settings.with_side_effects_fallback(older),
+            None => settings,
+        }
+    }
+
+    /// `PNPM_REMOTE_CACHE_*` overlays `remoteCache`, so a CI runner can
+    /// inject the token and signing material it must not commit. A malformed
+    /// JSON variable is dropped with a warning, as in
+    /// [`Self::apply_remote_side_effects_cache_env`].
+    pub(crate) fn apply_remote_cache_env<Sys: EnvVar>(&mut self) {
+        let read = |suffix: &str| Sys::var(&format!("PNPM_REMOTE_CACHE_{suffix}"));
+        let settings = RemoteCacheSettings {
             url: read("URL"),
             team: read("TEAM"),
             token: read("TOKEN"),
-            signature_key: read("SIGNATURE_KEY"),
-            upload: read("UPLOAD").map(|upload| upload == "true"),
+            org: read("ORG"),
+            trusted_keys: read("TRUSTED_KEYS").and_then(|value| json_map("TRUSTED_KEYS", &value)),
+            private_key: read("PRIVATE_KEY"),
+            key_id: read("KEY_ID"),
+            builder_id: read("BUILDER_ID"),
+            publish: read("PUBLISH").map(|publish| publish == "true"),
+            image_digest: read("IMAGE_DIGEST"),
+            architecture_baseline: read("ARCHITECTURE_BASELINE"),
+            build_env: read("BUILD_ENV").and_then(|value| json_map("BUILD_ENV", &value)),
         };
-        if settings != PipelineRemoteCacheSettings::default() {
-            self.pipeline_remote_cache.get_or_insert_default().overlay(settings);
+        if settings != RemoteCacheSettings::default() {
+            self.remote_cache.get_or_insert_default().overlay(settings);
         }
     }
 
@@ -113,4 +136,17 @@ impl Config {
             self.side_effects_cache && !self.side_effects_cache_readonly,
         )
     }
+}
+
+fn json_map(suffix: &str, value: &str) -> Option<BTreeMap<String, String>> {
+    serde_json::from_str(value)
+        .inspect_err(|error| {
+            tracing::warn!(
+                target: "pacquet::config",
+                variable = format!("PNPM_REMOTE_CACHE_{suffix}"),
+                %error,
+                "remote cache environment variable is not a string-valued JSON object",
+            );
+        })
+        .ok()
 }

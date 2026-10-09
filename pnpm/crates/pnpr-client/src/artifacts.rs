@@ -33,8 +33,16 @@ pub struct ArtifactBuildPolicy {
 }
 
 impl ArtifactBuildPolicy {
-    fn permits(&self, package_name: &str) -> bool {
-        self.eligible_packages.contains(package_name) && self.allowed_builds.contains(package_name)
+    /// A workspace task's output is the workspace's own, so only dependency
+    /// builds are subject to the policy.
+    fn permits(&self, subject: &ArtifactSubject) -> bool {
+        match subject {
+            ArtifactSubject::DependencySideEffects { package, .. } => {
+                self.eligible_packages.contains(&package.name)
+                    && self.allowed_builds.contains(&package.name)
+            }
+            ArtifactSubject::WorkspaceTask { .. } => true,
+        }
     }
 }
 
@@ -186,6 +194,45 @@ fn verify_variant(
     Ok(Some(VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest }))
 }
 
+/// Drop the candidates the options do not permit a lookup for. `false` when
+/// none is left to look up.
+pub(super) fn retain_permitted_candidates(
+    opts: &mut ResolveArtifactsOptions,
+) -> Result<bool, PnprClientError> {
+    validate_supported_tags(&opts.supported_tags)
+        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+    if opts.build_policy.ignore_scripts {
+        return Ok(false);
+    }
+    opts.candidates.retain(|candidate| opts.build_policy.permits(&candidate.subject));
+    index_candidates(&opts.candidates)?;
+    Ok(!opts.candidates.is_empty())
+}
+
+/// The best verified variant of each candidate a server's answer covers.
+/// Every transport's answer goes through here, so the server is never what
+/// an artifact is trusted for.
+pub(super) fn select_verified_artifacts(
+    opts: &ResolveArtifactsOptions,
+    response: ResolveArtifactsResponse,
+) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
+    let candidates = index_candidates(&opts.candidates)?;
+    if response.artifacts.len() > candidates.len() {
+        return Err(PnprClientError::Protocol(
+            "shared artifact response contains more entries than requested".to_string(),
+        ));
+    }
+    let mut selected = BTreeMap::new();
+    let mut response_keys = HashSet::new();
+    for artifact in response.artifacts {
+        let candidate = check_response_key(&artifact, &candidates, &mut response_keys)?;
+        if let Some(best) = best_variant(artifact.variants, candidate, opts)? {
+            selected.insert(candidate.key.clone(), best);
+        }
+    }
+    Ok(selected)
+}
+
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
     let ArtifactCandidate { key: input_key, subject, owner } = candidate;
     payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
@@ -237,37 +284,11 @@ impl PnprClient {
         &self,
         mut opts: ResolveArtifactsOptions,
     ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
-        validate_supported_tags(&opts.supported_tags)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        if opts.build_policy.ignore_scripts {
+        if !retain_permitted_candidates(&mut opts)? {
             return Ok(BTreeMap::new());
         }
-        opts.candidates.retain(|candidate| {
-            let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
-                return false;
-            };
-            opts.build_policy.permits(&package.name)
-        });
-        if opts.candidates.is_empty() {
-            return Ok(BTreeMap::new());
-        }
-        let candidates = index_candidates(&opts.candidates)?;
         let response = self.post_resolve_artifacts(&opts).await?;
-        if response.artifacts.len() > candidates.len() {
-            return Err(PnprClientError::Protocol(
-                "shared artifact response contains more entries than requested".to_string(),
-            ));
-        }
-
-        let mut selected = BTreeMap::new();
-        let mut response_keys = HashSet::new();
-        for artifact in response.artifacts {
-            let candidate = check_response_key(&artifact, &candidates, &mut response_keys)?;
-            if let Some(best) = best_variant(artifact.variants, candidate, &opts)? {
-                selected.insert(candidate.key.clone(), best);
-            }
-        }
-        Ok(selected)
+        select_verified_artifacts(&opts, response)
     }
 
     /// POST the batch and decode the response envelope. A non-success status

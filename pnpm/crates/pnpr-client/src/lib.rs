@@ -21,6 +21,8 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
+pub use artifact_signer::ArtifactSigner;
+pub use artifact_store::{ArtifactStore, TurborepoArtifactStore};
 pub use artifacts::{
     ArtifactBuildPolicy, RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact,
 };
@@ -33,9 +35,9 @@ pub use pnpm_shared_artifact_protocol::{
     DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
     OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
     SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
-    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
-    windows_tag,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, decode_trusted_keys,
+    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
+    platform_fingerprint, windows_supported_tags, windows_tag,
 };
 
 use std::{
@@ -568,6 +570,8 @@ const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
 #[cfg(test)]
 mod tests;
 
+mod artifact_signer;
+mod artifact_store;
 mod artifacts;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 

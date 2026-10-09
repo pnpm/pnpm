@@ -115,6 +115,7 @@ impl WorkspaceSettings {
             python: Some(config.python.clone()),
             tools: Some(config.tools.clone()),
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
+            remote_cache: config.remote_cache.as_deref().cloned(),
             reporter_hide_prefix: config.reporter_hide_prefix,
             loglevel: config.loglevel,
             reporter: config.reporter,
@@ -177,7 +178,6 @@ impl WorkspaceSettings {
             save_prefix: config.save_prefix.clone(),
             tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
-            pipeline_remote_cache: config.pipeline_remote_cache.clone(),
             concurrency_groups: Some(config.concurrency_groups.clone()),
 
             // `child_concurrency` / `workspace_concurrency` are resolved to
