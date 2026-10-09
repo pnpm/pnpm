@@ -124,7 +124,7 @@ pub async fn record_running_package_manager_pin(
         Err(error) if running_version_unpublished(&error, pnpm_version) => {
             emit_config_warning(&format!(
                 "The registry publishes no pnpm {pnpm_version}, so the packageManager pin was \
-                 left unrecorded. Continuing with the running pnpm.",
+                 not recorded in pnpm-lock.yaml. Continuing with the running pnpm.",
             ));
             Ok(())
         }
