@@ -6,6 +6,7 @@ import type {
   LockfileObject,
   PackageSnapshots,
   ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import type {
   DependenciesField,
@@ -156,16 +157,25 @@ function convertWorkspaceImporters (
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
     const manifest = peerBearingProjects.get(projectRootDirRealPath)
     if (manifest == null) continue
-    const devDependencies = projectSnapshot.devDependencies ?? {}
-    const recordedPeers = Object.keys(manifest.peerDependencies ?? {}).filter(peerName =>
-      injectedWorkspace || isRecordedWorkspaceProtocolPeerLink(peerName, manifest, devDependencies[peerName], convertOptions)
-    )
     linkedWorkspaceProjects.set(depPath, {
       manifest,
-      dedupedPeerResolutions: convertResolvedDependencies(pick(recordedPeers, devDependencies), convertOptions),
+      dedupedPeerResolutions: recordedPeerResolutions(manifest, projectSnapshot, injectedWorkspace, convertOptions),
     })
   }
   return linkedWorkspaceProjects
+}
+
+function recordedPeerResolutions (
+  manifest: ProjectManifest,
+  projectSnapshot: ProjectSnapshot,
+  injectedWorkspace: boolean,
+  convertOptions: ConvertOptions
+): ResolvedDependencies | undefined {
+  const devDependencies = projectSnapshot.devDependencies ?? {}
+  const recordedPeers = Object.keys(manifest.peerDependencies ?? {}).filter(peerName =>
+    injectedWorkspace || isRecordedWorkspaceProtocolPeerLink(peerName, manifest, devDependencies[peerName], convertOptions)
+  )
+  return convertResolvedDependencies(pick(recordedPeers, devDependencies), convertOptions)
 }
 
 /**
