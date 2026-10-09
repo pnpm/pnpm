@@ -57,7 +57,7 @@ pub(super) fn classify_missing_peer(
     let required_ranges: Vec<&str> = entries
         .iter()
         .filter(|entry| !entry.optional)
-        .map(|entry| entry.raw_range.as_str())
+        .map(|entry| hoistable_peer_range(&entry.raw_range))
         .collect();
     if required_ranges.is_empty() {
         let ordered = distinct_wanted_ranges(entries);
@@ -69,6 +69,22 @@ pub(super) fn classify_missing_peer(
     match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
         Some(range) => MissingPeerKind::Required(range),
         None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// The specifier a missing required peer is merged and hoisted with.
+///
+/// A `workspace:` range with a semver body hoists as that body, so it
+/// intersects with a plain range for the same peer, matches a
+/// version-scoped override, and a registry package that publishes it
+/// still installs from the registry. The shorthand (`workspace:*`,
+/// `workspace:^`, `workspace:~`) names no version, so it keeps the
+/// protocol to resolve to the workspace project; stripped, `^` and `~`
+/// are unresolvable and `*` would install from the registry.
+fn hoistable_peer_range(raw_range: &str) -> &str {
+    match raw_range.strip_prefix("workspace:") {
+        Some(body) if !matches!(body, "*" | "^" | "~") && Range::parse(body).is_ok() => body,
+        _ => raw_range,
     }
 }
 

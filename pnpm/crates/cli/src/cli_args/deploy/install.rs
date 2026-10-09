@@ -251,6 +251,10 @@ impl DeployArgs {
         // The deploy hook injects only the workspace packages a manifest
         // declares. A `workspace:` peer that the install auto-installs has
         // no declaring manifest, and must still be copied into the deploy.
+        // This applies to every workspace package of the deploy install,
+        // whatever the workspace sets; a legacy deploy saves no lockfile,
+        // so the setting is not recorded anywhere. pnpm 11 left such a
+        // peer missing; installing it is intentional.
         if matches!(mode, DeployInstallMode::Legacy) {
             deploy_config.inject_workspace_packages = true;
         }

@@ -324,10 +324,8 @@ fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy");
-    let virtual_store_entries = virtual_store_entries(&deploy_dir);
-    eprintln!("virtual store entries: {virtual_store_entries:?}");
     assert!(
-        virtual_store_entries
+        virtual_store_entries(&deploy_dir)
             .iter()
             .any(|entry| entry.starts_with("peer@file+")),
         "the workspace peer should be injected into the deploy virtual store",
