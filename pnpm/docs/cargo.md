@@ -123,7 +123,7 @@ targets = ["wasm32-unknown-unknown"]
 
 pnpm verifies the release manifest against the Rust release signing key and checks every download against the hash the manifest lists. The toolchain is stored once per machine under `rust` in the [store](./settings/store.md#storedir) and linked into `.pnpm/rust` beside the toolchain file.
 
-`pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script.
+`pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script. To run a different release for one command, such as a nightly, use [`pnx --package=rust@<channel>`](./cli/pnx.md#running-a-rust-release).
 
 A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, or when the server cannot be reached, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
 

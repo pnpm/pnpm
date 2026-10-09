@@ -1,7 +1,7 @@
 use super::{
     Channel, InstalledToolchain, Profile, RustToolchainError, ToolchainRequest,
     install::{record_resolution, toolchain_dir},
-    install_for_host, linked_bin_dir,
+    install_for_host, linked_bin_dir, parse_toolchain_name,
 };
 use pnpm_config::{Config, Tool, ToolSettings};
 use pnpm_network::ThrottledClient;
@@ -362,4 +362,19 @@ fn reports_the_installed_release_and_expires_a_resolution() {
     assert_eq!(release(&config), Some(pinned.clone()));
     assert_eq!(super::installed_toolchain(&config, &stable), None);
     assert_eq!(super::install::last_resolution(&toolchains, &host, &stable), Some(pinned));
+}
+
+#[test]
+fn reads_toolchain_names_with_this_hosts_triple() {
+    let host = crate::host::host_triple().unwrap();
+    for (name, channel) in [
+        ("nightly-2026-08-27".to_string(), Some("nightly-2026-08-27")),
+        (format!("1.97.0-{host}"), Some("1.97.0")),
+        (format!("nightly-2026-08-27-{host}"), Some("nightly-2026-08-27")),
+        ("1.97.0-sparc-unknown-plan9".to_string(), None),
+        ("my-linked-toolchain".to_string(), None),
+    ] {
+        let parsed = parse_toolchain_name(&name).map(|channel| channel.to_string());
+        assert_eq!(parsed.as_deref(), channel, "{name}");
+    }
 }
