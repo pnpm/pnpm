@@ -42,10 +42,20 @@ fn project(registry: &TestRegistry) -> Project {
 struct Flags {
     lockfile_only: bool,
     frozen: bool,
+    /// Load the lockfile the last run wrote without requiring the run to be
+    /// frozen, so a manifest change resolves only what changed.
+    reuse_lockfile: bool,
 }
 
-async fn install(project: &Project, Flags { lockfile_only, frozen }: Flags) {
-    let lockfile = frozen.then(|| read_lockfile(project.dir.path()));
+async fn install(
+    project: &Project,
+    Flags {
+        lockfile_only,
+        frozen,
+        reuse_lockfile,
+    }: Flags,
+) {
+    let lockfile = (frozen || reuse_lockfile).then(|| read_lockfile(project.dir.path()));
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen,
@@ -180,4 +190,33 @@ async fn frozen_install_without_modules_dir_fetches_the_packages_into_the_store(
         keys_in_store(project.config, &[incompatible]).is_empty(),
         "another platform's package is not fetched",
     );
+}
+
+/// The fresh path resolves only what changed and reuses the rest of the
+/// lockfile. The reused packages never pass through the resolver's prefetch,
+/// yet with no `node_modules` to link they have to reach the store too, as
+/// pnpm v10 fetched every package on this path.
+#[tokio::test]
+async fn fresh_install_reusing_the_lockfile_fetches_the_reused_packages_into_the_store() {
+    let registry = TestRegistry::start();
+    let mut project = project(&registry);
+    // `--lockfile-only` records the resolution and leaves the store empty.
+    install(&project, Flags { lockfile_only: true, ..Flags::default() }).await;
+    let (mut reused, _) = store_keys(&read_lockfile(project.dir.path()));
+    reused.sort();
+    assert!(
+        keys_in_store(project.config, &reused).is_empty(),
+        "a lockfile-only run fetches nothing",
+    );
+
+    project.manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    project.manifest.save().unwrap();
+    install(&project, Flags { reuse_lockfile: true, ..Flags::default() }).await;
+
+    assert!(!project.config.modules_dir.exists(), "no node_modules is written");
+    assert_eq!(keys_in_store(project.config, &reused), reused, "the reused packages are fetched");
+    let (all, _) = store_keys(&read_lockfile(project.dir.path()));
+    assert_eq!(keys_in_store(project.config, &all).len(), all.len(), "so is the added one");
 }

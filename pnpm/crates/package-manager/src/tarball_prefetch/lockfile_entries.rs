@@ -90,6 +90,26 @@ pub(super) async fn without_verified_store_hits(
         .collect()
 }
 
+/// Drop every pending entry the run's tarball cache already holds: the
+/// resolver prefetched it, and that download reported its own status.
+pub(super) fn without_prefetched(
+    mem_cache: &pnpm_tarball::MemCache,
+    pending: Vec<PendingPrefetch>,
+) -> Vec<PendingPrefetch> {
+    pending
+        .into_iter()
+        .filter(|entry| {
+            let integrity = entry.integrity.parse::<ssri::Integrity>().ok();
+            let key = pnpm_tarball::package_mem_cache_key(
+                &entry.package_url,
+                integrity.as_ref(),
+                entry.revision_addressed,
+            );
+            !mem_cache.contains_key(&key)
+        })
+        .collect()
+}
+
 /// One lockfile entry staged for a fetch: `None` for a resolution that is
 /// not a registry tarball or a package the host cannot install, which the
 /// materialization never fetches either.

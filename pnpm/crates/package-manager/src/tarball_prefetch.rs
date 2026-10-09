@@ -20,7 +20,7 @@ mod lockfile_entries;
 
 use dashmap::DashSet;
 use lockfile_entries::{
-    PendingPrefetch, fetchable_entries, registry_entries, without_store_hits,
+    PendingPrefetch, fetchable_entries, registry_entries, without_prefetched, without_store_hits,
     without_verified_store_hits,
 };
 use pnpm_config::Config;
@@ -310,6 +310,29 @@ impl TarballPrefetcher {
         for package_id in in_store.values() {
             self.emit_progress::<Reporter>(found_in_store, package_id);
         }
+        let mut downloads = self.spawn_fetches::<Reporter>(missing);
+        while let Some(joined) = downloads.join_next().await {
+            joined.expect("tarball download task panicked").map_err(StoreFetchError::Download)?;
+        }
+        Ok(())
+    }
+
+    /// Fetch the registry packages of the lockfile that neither the run's
+    /// tarball cache nor the store holds, and wait for the downloads. For a
+    /// run whose resolver already prefetched what it resolved: the packages
+    /// it reused from the lockfile never went through the prefetch. Only the
+    /// downloads report progress; the rest was reported by the resolution.
+    pub async fn fetch_missing<Reporter: self::Reporter + 'static>(
+        &self,
+        lockfile: &Lockfile,
+        config: &Config,
+        supported_architectures: Option<&SupportedArchitectures>,
+    ) -> Result<(), StoreFetchError> {
+        let entries = fetchable_entries(lockfile, config, supported_architectures)
+            .map_err(StoreFetchError::Entry)?;
+        let entries = without_prefetched(&self.mem_cache, entries);
+        let missing =
+            without_verified_store_hits(&self.store, config.verify_store_integrity, entries).await;
         let mut downloads = self.spawn_fetches::<Reporter>(missing);
         while let Some(joined) = downloads.join_next().await {
             joined.expect("tarball download task panicked").map_err(StoreFetchError::Download)?;

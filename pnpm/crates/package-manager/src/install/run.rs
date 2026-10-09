@@ -24,6 +24,7 @@ mod auto_dedupe;
 mod custom_fetcher_reuse;
 mod execution;
 mod manifest_validation;
+mod materialization_inputs;
 mod mode;
 mod store_fetch;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};

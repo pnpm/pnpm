@@ -2,6 +2,8 @@
 //! [`RunMode::fetches_into_store`].
 
 use super::{InstallError, InstallOwned, InstallView, Lockfiles, RunMode};
+use crate::store_fetch::StoreFetchScope;
+use pnpm_lockfile::Lockfile;
 use pnpm_reporter::Reporter;
 use std::sync::Arc;
 
@@ -27,6 +29,29 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
         return Ok(());
     }
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::WholeLockfile).await
+}
+
+/// The fresh half: wait for the downloads the resolver prefetched, then fetch
+/// from the lockfile it produced the packages it reused rather than resolved,
+/// which never went through the prefetch.
+pub(super) async fn finish_fresh_fetch<Reporter: self::Reporter + 'static>(
+    run: StoreFetchRun<'_>,
+    lockfile: Option<&Lockfile>,
+) -> Result<(), InstallError> {
+    wait_for_prefetched_tarballs(run).await?;
+    let Some(lockfile) = lockfile else { return Ok(()) };
+    if !run.mode.fetches_into_store(run.install.execution) {
+        return Ok(());
+    }
+    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::NotPrefetched).await
+}
+
+async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
+    run: StoreFetchRun<'_>,
+    lockfile: &Lockfile,
+    scope: StoreFetchScope,
+) -> Result<(), InstallError> {
     crate::store_fetch::fetch_lockfile_into_store::<Reporter>(
         crate::store_fetch::StoreFetchInputs {
             lockfile,
@@ -37,15 +62,14 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
             requester: run.requester,
             supported_architectures: run.owned.projects.supported_architectures.as_ref(),
         },
+        scope,
     )
     .await
 }
 
-/// The fresh half: the resolver prefetched each tarball as it resolved it,
-/// and a run that materializes nothing waits for those downloads itself.
-pub(super) async fn wait_for_prefetched_tarballs(
-    run: StoreFetchRun<'_>,
-) -> Result<(), InstallError> {
+/// The resolver prefetched each tarball as it resolved it, and a run that
+/// materializes nothing waits for those downloads itself.
+async fn wait_for_prefetched_tarballs(run: StoreFetchRun<'_>) -> Result<(), InstallError> {
     let Some(downloads) = run.prefetch_downloads else {
         return Ok(());
     };
