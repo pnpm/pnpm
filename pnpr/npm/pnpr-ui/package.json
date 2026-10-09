@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pnpr-ui",
   "private": true,
-  "version": "0.1.0-alpha.14",
+  "version": "0.1.0-alpha.15",
   "description": "The web UI that pnpr serves at /-/ui/",
   "keywords": [
     "pnpm",

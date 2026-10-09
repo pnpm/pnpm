@@ -3367,6 +3367,10 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - fix-manifest-utils-prototype-pollution
+"@pnpm/pnpr-ui@0.1.0-alpha.15":
+  dir: pnpr/npm/pnpr-ui
+  intents:
+    - pnpr-web-ui
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -3476,6 +3480,21 @@
     - cargo-index-incremental-discovery
     - pnpr-resolver-connect-guard
     - pnpr-workspace-publish-directory
+"@pnpm/pnpr@0.1.0-alpha.15":
+  dir: pnpr/npm/pnpr
+  intents:
+    - calm-tarballs-compute
+    - pnpr-admin-rule-management
+    - pnpr-admin-team-management
+    - pnpr-admin-user-management
+    - pnpr-npm-access-grant
+    - pnpr-oidc-group-teams
+    - pnpr-quay-layer-cdn
+    - pnpr-rules-if-match
+    - pnpr-scim-deprovisioning
+    - pnpr-tokens-need-an-account
+    - pnpr-ui-sign-in
+    - pnpr-web-ui
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
