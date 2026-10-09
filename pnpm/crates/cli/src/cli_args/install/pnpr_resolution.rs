@@ -3,10 +3,10 @@ use super::{
     Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError,
     PnprLink, PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions,
     State, TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
-    full_workspace_importer_ids, install_from_local_lockfile, link_pnpr_lockfile,
-    merge_and_save_pnpr_lockfile, pnpr_catalogs, pnpr_lockfile_dir, pnpr_request_inputs,
-    report_merged_lockfile_conflicts, resolve_projects_for_pnpr, resolve_projects_options,
-    selection_importer_ids, wanted_lockfile_satisfies_workspace,
+    check_pnpr_applied_settings, full_workspace_importer_ids, install_from_local_lockfile,
+    link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs, pnpr_lockfile_dir,
+    pnpr_request_inputs, report_merged_lockfile_conflicts, resolve_projects_for_pnpr,
+    resolve_projects_options, selection_importer_ids, wanted_lockfile_satisfies_workspace,
 };
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -429,6 +429,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         },
     )
     .await?;
+    check_pnpr_applied_settings(state.config, outcome.lockfile.settings.as_ref())?;
 
     outcome.lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
         state,

@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-The resolver applies the client's `addMissingPeerTypes` setting.
+pnpr now resolves with the `addMissingPeerTypes` setting that pnpm sends.

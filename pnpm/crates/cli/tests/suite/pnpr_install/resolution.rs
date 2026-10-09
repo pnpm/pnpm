@@ -217,6 +217,47 @@ fn package_extensions_resolve_via_pnpr() {
     drop((root, mock_instance));
 }
 
+/// The server applies `addMissingPeerTypes` and records it, so the client's
+/// check that the server honoured the setting passes.
+#[test]
+fn add_missing_peer_types_resolves_via_pnpr() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/abc-optional-peers": "1.0.0",
+            "@pnpm.e2e/peer-a": "1.0.0",
+            "@types/pnpm.e2e__peer-a": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    crate::_utils::append_workspace_yaml_key(&workspace, "addMissingPeerTypes", "true");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("LOCKFILE:\n{lockfile}\n");
+    assert!(lockfile.contains("addMissingPeerTypes: true"));
+    assert!(lockfile.contains("(@types/pnpm.e2e__peer-a@1.0.0)"));
+
+    drop((root, mock_instance));
+}
+
 /// A pnpr-resolved lockfile is rewritten wholesale from the server's
 /// answer, so `time:` has to survive the round trip the same way a
 /// locally resolved install preserves it.
