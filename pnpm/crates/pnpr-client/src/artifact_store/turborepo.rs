@@ -21,7 +21,7 @@ use super::super::{
     PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveArtifactsResponse,
     SignedArtifactEnvelope, response_body_bounded, verify_blob,
 };
-use futures_util::{StreamExt as _, stream};
+use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_shared_artifact_protocol::{
     ArtifactVariant, CompatibilityConstraints, CompatibilityScopes, MAX_ENCODED_SIGNATURE_SIZE,
     MAX_ENCODED_SIGNED_PAYLOAD_SIZE, OwnerScope, ResolvedArtifact, compatibility_scopes,
@@ -172,18 +172,18 @@ impl TurborepoArtifactStore {
         self.put_all(envelopes).await
     }
 
-    /// Store every `(url, body)`, several at a time.
+    /// Store every `(url, body)`, several at a time. The first failure stops
+    /// the rest.
     async fn put_all(
         &self,
         objects: impl Iterator<Item = (String, Vec<u8>)>,
     ) -> Result<(), PnprClientError> {
         let objects: Vec<_> = objects.collect();
-        let results: Vec<_> = stream::iter(objects)
+        stream::iter(objects)
             .map(|(url, body)| async move { self.put(&url, body).await })
             .buffer_unordered(REQUEST_CONCURRENCY)
-            .collect()
-            .await;
-        results.into_iter().collect()
+            .try_collect()
+            .await
     }
 
     /// The body stored at `url`, or `None` when nothing is.

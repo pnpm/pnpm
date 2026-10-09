@@ -9,7 +9,7 @@
 
 use super::cache::{StoredTask, TaskCache};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use futures_util::{StreamExt as _, stream};
+use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_config::Config;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
@@ -147,19 +147,18 @@ impl RemoteTaskCache {
             .iter()
             .map(|file| file.integrity.clone())
             .collect();
-        let downloads: Vec<Result<(String, Vec<u8>), String>> = stream::iter(integrities)
+        let blobs: HashMap<String, Vec<u8>> = stream::iter(integrities)
             .map(|integrity| async move {
                 let request = ArtifactBlobRequest { owner: self.owner.clone(), integrity };
                 let bytes = self.store
                     .download_artifact_blob(&request)
                     .await
                     .map_err(|error| error.to_string())?;
-                Ok((request.integrity, bytes))
+                Ok::<_, String>((request.integrity, bytes))
             })
             .buffer_unordered(DOWNLOAD_CONCURRENCY)
-            .collect()
-            .await;
-        let blobs = downloads.into_iter().collect::<Result<HashMap<_, _>, _>>()?;
+            .try_collect()
+            .await?;
         Ok(Some(DownloadedEntry { files: payload.manifest.added, blobs }))
     }
 
