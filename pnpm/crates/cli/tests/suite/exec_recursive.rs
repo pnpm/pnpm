@@ -314,6 +314,26 @@ fn recursive_exec_respects_workspace_concurrency() {
 }
 
 #[test]
+fn recursive_exec_accepts_infinite_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    write_concurrency_probe(&workspace);
+
+    pacquet
+        .with_args(["--workspace-concurrency=Infinity", "-r", "exec"])
+        .with_args(CONCURRENCY_PROBE_ARGS)
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("exceeded-concurrency").exists(),
+        "Infinity should start all three commands together",
+    );
+
+    drop(root);
+}
+
+#[test]
 fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
