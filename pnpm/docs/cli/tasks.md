@@ -75,6 +75,6 @@ pnpm pm tasks status
 
 ## See also
 
-* [Workspace task orchestration](../workspace-task-orchestration.md#concurrency-groups)
+* [Workspace task orchestration](../workspace-task-orchestration.md#concurrencygroups)
 * [Task priority](../workspace-task-orchestration.md#task-priority)
 * [pnpm pm](./pm.md)
