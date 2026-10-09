@@ -5,8 +5,8 @@ use super::{Config, DlxError, DlxProgram, DlxSpawn, Path, Reporter, exit_unless_
 use crate::{State, shim_dispatch::rust_toolchain::RUST_SHIM_BINS};
 use pnpm_package_manifest::package_manager_spec::split_spec;
 use pnpm_rust_toolchain::{
-    Channel, ToolchainRequest, find_toolchain_file, install_toolchain, parse_toolchain_name,
-    read_toolchain_file,
+    Channel, RustToolchainError, ToolchainRequest, find_toolchain_file, install_toolchain,
+    installed_toolchain, parse_toolchain_name, read_toolchain_file,
 };
 
 /// The release `--package` names when it is `rust@<channel>` and the
@@ -20,7 +20,6 @@ pub(super) fn rust_release(package: &[String], command: &str) -> Option<Channel>
         .flatten()
 }
 
-/// Install `channel` and run its `command`.
 pub(super) async fn run_rust<Reporter: self::Reporter>(
     config: &Config,
     channel: Channel,
@@ -28,11 +27,13 @@ pub(super) async fn run_rust<Reporter: self::Reporter>(
     args: &[String],
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let request = rust_request(channel, spawn.cwd, args);
-    let client = State::new_http_client(config).map_err(miette::Report::new)?;
-    let toolchain = install_toolchain::<Reporter>(config, &client, &request)
-        .await
-        .map_err(miette::Report::new)?;
+    let request = rust_request(channel, spawn.cwd, args)?;
+    let toolchain = if let Some(toolchain) = installed_toolchain(config, &request) {
+        toolchain
+    } else {
+        let client = State::new_http_client(config).map_err(miette::Report::new)?;
+        install_toolchain::<Reporter>(config, &client, &request).await.map_err(miette::Report::new)?
+    };
     let executable = toolchain.executable(command);
     if !executable.is_file() {
         return Err(DlxError::CommandNotFound { command: command.to_string() }.into());
@@ -54,19 +55,27 @@ pub(super) async fn run_rust<Reporter: self::Reporter>(
 }
 
 /// What `channel` is installed with: the profile, components, and targets
-/// of the toolchain file that governs `cwd`, if pnpm reads it, and the
-/// target of every `--target` in `args`.
-fn rust_request(channel: Channel, cwd: &Path, args: &[String]) -> ToolchainRequest {
-    let project = cwd
+/// of the toolchain file that governs `cwd`, unless rustup handles that
+/// file itself, and the target of every `--target` in `args`. A file that
+/// cannot be read is an error.
+fn rust_request(
+    channel: Channel,
+    cwd: &Path,
+    args: &[String],
+) -> Result<ToolchainRequest, RustToolchainError> {
+    let file = cwd
         .ancestors()
         .last()
-        .and_then(|root| find_toolchain_file(cwd, root))
-        .and_then(|file| read_toolchain_file(&file).ok()?.ok());
+        .and_then(|root| find_toolchain_file(cwd, root));
+    let project = file
+        .map(|file| read_toolchain_file(&file))
+        .transpose()?
+        .and_then(Result::ok);
     let request = match project {
         Some(project) => ToolchainRequest { channel, ..project },
         None => ToolchainRequest::for_channel(channel),
     };
-    request.with_targets(target_args(args))
+    Ok(request.with_targets(target_args(args)))
 }
 
 /// The values of `--target` before a `--`, which ends the options the tool

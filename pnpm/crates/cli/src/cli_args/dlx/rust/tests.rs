@@ -39,7 +39,7 @@ fn a_release_keeps_the_project_selection_and_adds_targets() {
     ]
     .map(String::from);
 
-    let request = rust_request(Channel::parse("nightly").unwrap(), &member, &args);
+    let request = rust_request(Channel::parse("nightly").unwrap(), &member, &args).unwrap();
 
     assert_eq!(request.channel.to_string(), "nightly");
     assert_eq!(request.profile, Profile::Minimal);
@@ -47,6 +47,22 @@ fn a_release_keeps_the_project_selection_and_adds_targets() {
     assert_eq!(request.targets, ["wasm32-wasip1", "x86_64-unknown-linux-musl"]);
 
     let elsewhere = tempfile::tempdir().unwrap();
-    let request = rust_request(Channel::parse("nightly").unwrap(), elsewhere.path(), &[]);
+    let request = rust_request(Channel::parse("nightly").unwrap(), elsewhere.path(), &[]).unwrap();
     assert_eq!(request, ToolchainRequest::for_channel(Channel::parse("nightly").unwrap()));
+}
+
+#[test]
+fn a_toolchain_file_that_cannot_be_read_is_an_error() {
+    let root = tempfile::tempdir().unwrap();
+    let nightly = || Channel::parse("nightly").unwrap();
+    fs::write(root.path().join("rust-toolchain.toml"), "[toolchain\n").unwrap();
+    assert!(rust_request(nightly(), root.path(), &[]).is_err());
+
+    // A file rustup handles itself is not one pnpm reads.
+    fs::write(root.path().join("rust-toolchain.toml"), "[toolchain]\npath = \"/opt/rust\"\n")
+        .unwrap();
+    assert_eq!(
+        rust_request(nightly(), root.path(), &[]).unwrap(),
+        ToolchainRequest::for_channel(nightly()),
+    );
 }

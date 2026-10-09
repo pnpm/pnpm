@@ -56,15 +56,15 @@ impl ToolchainRequest {
         Self { channel, profile: Profile::Default, components: Vec::new(), targets: Vec::new() }
     }
 
-    /// The request with the standard libraries of `targets` added. A name
-    /// that is not a target name, such as the path of a target specification
-    /// file, is left out.
+    /// The request with the standard libraries of `targets` added. A value
+    /// that names no published target is left out: a target specification
+    /// file, or `host-tuple`, which Cargo reads as the host's.
     #[must_use]
     pub fn with_targets<'a>(mut self, targets: impl IntoIterator<Item = &'a str>) -> Self {
         self.targets.extend(
             targets
                 .into_iter()
-                .filter(|target| is_component_name(target))
+                .filter(|target| is_published_target_name(target))
                 .map(str::to_string),
         );
         self.targets.sort();
@@ -298,6 +298,10 @@ fn join_lines(lines: &[String], original: &str) -> String {
         joined.push('\n');
     }
     joined
+}
+
+fn is_published_target_name(name: &str) -> bool {
+    is_component_name(name) && !name.ends_with(".json") && name != "host-tuple"
 }
 
 fn is_component_name(name: &str) -> bool {
