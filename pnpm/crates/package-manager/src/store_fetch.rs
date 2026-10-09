@@ -55,6 +55,13 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
 /// Wait for every tarball download in flight on the shared cache. The
 /// slots are collected first: parking on one while iterating the map would
 /// hold its shard against the download that wants to settle it.
+///
+/// Two gaps are accepted, since each only leaves a package to be fetched on
+/// first access, as every package was before. A download the resolver
+/// spawned moments ago may not have claimed its slot yet, and is then not
+/// waited for; it still lands in the store, after the run returns. And an
+/// ordinary download that failed removes its slot so a later caller can
+/// retry, so only a revision-addressed failure is still there to report.
 pub(crate) async fn wait_for_tarball_downloads(mem_cache: &MemCache) -> Result<(), InstallError> {
     let slots: Vec<_> = mem_cache
         .iter()
