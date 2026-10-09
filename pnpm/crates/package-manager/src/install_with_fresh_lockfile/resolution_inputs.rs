@@ -46,9 +46,6 @@ pub(crate) struct ResolverFetchContext<'a> {
     /// Whether a resolved tarball is prefetched — `false` for a run
     /// whose install pass will never ask for those bytes.
     pub prefetch: bool,
-    /// Where a run that fetches into the store keeps the download tasks
-    /// the prefetch spawns, to wait for them.
-    pub tracked: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
 pub(crate) struct ResolverRegistryContext<'a> {

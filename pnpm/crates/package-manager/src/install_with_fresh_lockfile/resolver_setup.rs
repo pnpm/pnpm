@@ -468,7 +468,6 @@ impl ResolverChainInputs<'_> {
             policy: crate::PrefetchPolicy {
                 downloads: self.fetching.prefetch && custom_fetcher_session.is_none(),
                 custom_session: custom_fetcher_session,
-                tracked: self.fetching.tracked,
             },
         }
     }

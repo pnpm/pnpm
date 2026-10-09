@@ -200,10 +200,6 @@ impl FreshInstallExecution {
     pub(crate) fn lockfile_only(self) -> bool {
         self.resolve_only.is_some()
     }
-
-    pub(crate) fn fetches_into_store(self) -> bool {
-        self.resolve_only == Some(ResolveOnly::FetchIntoStore)
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -333,9 +329,6 @@ pub(crate) struct FreshFetchingInputs {
     /// each fresh resolution while the install-side per-package call
     /// in `install_subtree` still takes `&MemCache` via deref.
     pub(crate) tarball_mem_cache: Arc<MemCache>,
-    /// Where a run that fetches into the store keeps the prefetch's download
-    /// tasks; `None` for every other run.
-    pub(crate) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
     /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
     /// stored `ThrottledClient` outlives any per-call borrow.
     pub(crate) http_client_arc: Arc<ThrottledClient>,

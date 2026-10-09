@@ -202,9 +202,6 @@ where
             RunExecution {
                 install,
                 owned,
-                prefetch_downloads: mode
-                    .fetches_into_store(install.execution)
-                    .then(|| Arc::new(crate::PrefetchDownloads::default())),
                 mode,
                 workspace,
                 options,
@@ -224,9 +221,6 @@ struct RunExecution<'a> {
     install: InstallView<'a>,
     owned: InstallOwned,
     mode: RunMode,
-    /// See [`crate::PrefetchDownloads`]; `Some` for a run that fetches into
-    /// the store.
-    prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
     workspace: InstallWorkspace<'a>,
     options: InstallRunOptions<'a, 'a>,
     loaded_workspace_projects: Option<&'a [pnpm_workspace::Project]>,

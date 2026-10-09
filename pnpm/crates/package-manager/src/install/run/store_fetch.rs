@@ -2,8 +2,8 @@
 //! [`RunMode::fetches_into_store`].
 
 use super::{InstallError, InstallOwned, InstallView, Lockfiles, RunMode};
+use pnpm_lockfile::Lockfile;
 use pnpm_reporter::Reporter;
-use std::sync::Arc;
 
 /// The parts of the run the fetch reads. Not the run itself: a borrow of
 /// the whole run across the await would need its boxed verification future
@@ -14,7 +14,6 @@ pub(super) struct StoreFetchRun<'a> {
     pub(super) install: InstallView<'a>,
     pub(super) owned: &'a InstallOwned,
     pub(super) requester: &'a str,
-    pub(super) prefetch_downloads: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
 /// The frozen half: the wanted lockfile is the resolution, so its packages
@@ -23,10 +22,30 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
     run: StoreFetchRun<'_>,
     lockfiles: &Lockfiles<'_>,
 ) -> Result<(), InstallError> {
+    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    fetch_lockfile::<Reporter>(run, lockfile).await
+}
+
+/// The fresh half: the resolution ran without prefetching, so the lockfile
+/// it produced is fetched in one batch, the way the frozen half fetches
+/// the wanted one.
+pub(super) async fn fetch_resolved_lockfile<Reporter: self::Reporter + 'static>(
+    run: StoreFetchRun<'_>,
+    lockfile: Option<&Lockfile>,
+) -> Result<(), InstallError> {
+    let Some(lockfile) = lockfile else {
+        return Ok(());
+    };
+    fetch_lockfile::<Reporter>(run, lockfile).await
+}
+
+async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
+    run: StoreFetchRun<'_>,
+    lockfile: &Lockfile,
+) -> Result<(), InstallError> {
     if !run.mode.fetches_into_store(run.install.execution) {
         return Ok(());
     }
-    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
     crate::store_fetch::fetch_lockfile_into_store::<Reporter>(
         crate::store_fetch::StoreFetchInputs {
             lockfile,
@@ -39,15 +58,4 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
         },
     )
     .await
-}
-
-/// The fresh half: the resolver prefetched each tarball as it resolved it,
-/// and a run that materializes nothing waits for those downloads itself.
-pub(super) async fn wait_for_prefetched_tarballs(
-    run: StoreFetchRun<'_>,
-) -> Result<(), InstallError> {
-    let Some(downloads) = run.prefetch_downloads else {
-        return Ok(());
-    };
-    crate::store_fetch::wait_for_prefetched_downloads(downloads).await
 }

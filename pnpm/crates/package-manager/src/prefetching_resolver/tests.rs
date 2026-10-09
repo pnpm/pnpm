@@ -191,11 +191,7 @@ fn resolver_with_mem_cache(
                 index_writer: Some(&store_index_writer),
                 verified_files_cache: &SharedVerifiedFilesCache::default(),
             },
-            policy: crate::PrefetchPolicy {
-                downloads: prefetch_downloads,
-                custom_session: None,
-                tracked: None,
-            },
+            policy: crate::PrefetchPolicy { downloads: prefetch_downloads, custom_session: None },
         },
     );
     (resolver, mem_cache)

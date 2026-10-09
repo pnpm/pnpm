@@ -117,15 +117,6 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     StoreFetch(#[error(source)] crate::StoreFetchError),
 
-    /// `enableModulesDir: false` waited for the tarballs the resolver
-    /// prefetched, and some of those downloads failed.
-    #[display("Fetching {} package(s) into the store failed: {}", tarballs.len(), tarballs.join(", "))]
-    #[diagnostic(code(ERR_PNPM_STORE_FETCH_FAILED))]
-    StoreFetchFailed {
-        #[error(not(source))]
-        tarballs: Vec<String>,
-    },
-
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES`: with `strictPeerDependencies`
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`
