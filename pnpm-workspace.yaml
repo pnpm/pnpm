@@ -742,6 +742,6 @@ virtualStoreType: global
 autoDedupe: true
 
 registries:
-  https://registry.npmjs.com/:
+  https://registry.npmjs.org/:
     scopes:
       - '@pnpm'
