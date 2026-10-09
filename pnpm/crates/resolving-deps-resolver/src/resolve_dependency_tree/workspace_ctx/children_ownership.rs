@@ -213,17 +213,12 @@ pub(in super::super) enum ChildrenRecording {
 }
 
 impl ChildrenRecording {
-    /// The children to hang on the recording walk's own node, with the
-    /// recording itself: [`ChildrenRecording::PublishedOverStale`] is what
-    /// gates [`fn@make_non_owner_nodes_lazy`].
-    pub(in super::super) fn into_children(
-        self,
-        realized: BTreeMap<String, NodeId>,
-    ) -> (TreeChildren, ChildrenRecording) {
+    /// The children to hang on the recording walk's own node.
+    pub(in super::super) fn children(self, realized: BTreeMap<String, NodeId>) -> TreeChildren {
         match self {
-            ChildrenRecording::Declined => (TreeChildren::Lazy, self),
+            ChildrenRecording::Declined => TreeChildren::Lazy,
             ChildrenRecording::Published | ChildrenRecording::PublishedOverStale => {
-                (TreeChildren::Realized(Arc::new(realized)), self)
+                TreeChildren::Realized(Arc::new(realized))
             }
         }
     }

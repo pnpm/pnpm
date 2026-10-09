@@ -157,7 +157,7 @@ pub(super) fn record_reused_children(
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         },
     );
-    recording.into_children(realized)
+    (recording.children(realized), recording)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child
