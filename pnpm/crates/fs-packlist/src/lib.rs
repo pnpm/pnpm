@@ -92,6 +92,11 @@ const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
 /// `*.orig` exclusion family.
 const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 
+/// Basenames of the ignore files, excluded at any depth as npm-packlist's
+/// default rules do. A `files` entry still ships one it matches at the root,
+/// or one in a subdirectory whose path it names.
+const IGNORE_FILE_BASENAMES: &[&str] = &[".npmignore", ".gitignore"];
+
 /// Walk `pkg_dir` and return forward-slash relative paths for every
 /// file the published tarball should contain. Paths are relative to
 /// `pkg_dir`, with no leading `./`.
@@ -243,8 +248,15 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
         return true;
     }
     let Some(matcher) = selection.files_matcher else {
-        return false;
+        return is_ignore_file(rel);
     };
+    if is_ignore_file(rel) {
+        // npm-packlist re-applies its default rules in each subdirectory, so
+        // a glob such as `lib/*` or `**` ships only the root ignore files.
+        // A nested one ships only when an entry names its path.
+        let named_if_nested = !rel.contains('/') || selection.named_files.contains(rel);
+        return !(named_if_nested && matcher.matched(rel, false).is_ignore());
+    }
     !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
         && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
@@ -309,7 +321,9 @@ fn collect_root_files_matching(
 /// [`should_always_exclude`] is still consulted first so the always-excluded set
 /// wins over manifest fields; npm-packlist does the same and emits no warning,
 /// so this stays silent too — a `tracing::debug!` would be lost in install
-/// logs.
+/// logs. An ignore file ships this way only at the package root: npm-packlist
+/// re-applies its default rules in each subdirectory, after the `main` / `bin`
+/// rules the root adds.
 fn force_include_main_and_bin(
     pkg_dir: &Path,
     selection: &FileSelection<'_>,
@@ -322,6 +336,7 @@ fn force_include_main_and_bin(
         let normalized = normalize_field_path(path);
         if is_contained_field_path(&normalized)
             && !should_always_exclude(&normalized)
+            && !(is_ignore_file(&normalized) && normalized.contains('/'))
             && is_regular_file_within(pkg_dir, &pkg_dir.join(&normalized))
         {
             out.insert(normalized);
@@ -379,6 +394,11 @@ fn should_always_exclude(rel: &str) -> bool {
     ALWAYS_EXCLUDED_SUFFIXES
         .iter()
         .any(|suffix| basename.ends_with(suffix))
+}
+
+fn is_ignore_file(rel: &str) -> bool {
+    let basename = rel.rsplit('/').next().unwrap_or(rel);
+    IGNORE_FILE_BASENAMES.contains(&basename)
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
