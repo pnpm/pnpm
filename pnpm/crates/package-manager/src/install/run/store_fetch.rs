@@ -32,9 +32,9 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
     fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::WholeLockfile).await
 }
 
-/// The fresh half: wait for the downloads the resolver prefetched, then fetch
-/// from the lockfile it produced the packages it reused rather than resolved,
-/// which never went through the prefetch.
+/// Wait for the downloads the resolver prefetched, then fetch the packages it
+/// reused from the lockfile rather than resolved, which never went through
+/// the prefetch.
 pub(super) async fn finish_fresh_fetch<Reporter: self::Reporter + 'static>(
     run: StoreFetchRun<'_>,
     lockfile: Option<&Lockfile>,

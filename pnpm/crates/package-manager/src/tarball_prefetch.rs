@@ -310,11 +310,7 @@ impl TarballPrefetcher {
         for package_id in in_store.values() {
             self.emit_progress::<Reporter>(found_in_store, package_id);
         }
-        let mut downloads = self.spawn_fetches::<Reporter>(missing);
-        while let Some(joined) = downloads.join_next().await {
-            joined.expect("tarball download task panicked").map_err(StoreFetchError::Download)?;
-        }
-        Ok(())
+        self.fetch_all::<Reporter>(missing).await
     }
 
     /// Fetch the registry packages of the lockfile that neither the run's
@@ -333,6 +329,15 @@ impl TarballPrefetcher {
         let entries = without_prefetched(&self.mem_cache, entries);
         let missing =
             without_verified_store_hits(&self.store, config.verify_store_integrity, entries).await;
+        self.fetch_all::<Reporter>(missing).await
+    }
+
+    /// Download every entry and wait for all of them; the first failed
+    /// download is the error.
+    async fn fetch_all<Reporter: self::Reporter + 'static>(
+        &self,
+        missing: Vec<PendingPrefetch>,
+    ) -> Result<(), StoreFetchError> {
         let mut downloads = self.spawn_fetches::<Reporter>(missing);
         while let Some(joined) = downloads.join_next().await {
             joined.expect("tarball download task panicked").map_err(StoreFetchError::Download)?;
