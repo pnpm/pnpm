@@ -61,7 +61,6 @@ async fn a_published_artifact_resolves_on_a_compatible_machine() {
     let (request, public_key, blob) = signed_artifact_fixture();
 
     store.publish_artifact(&request).await.expect("publish");
-    store.publish_artifact(&request).await.expect("a second publication is a no-op");
 
     let resolved = store
         .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
@@ -80,13 +79,6 @@ async fn a_published_artifact_resolves_on_a_compatible_machine() {
 
     let requests = cache.requests();
     dbg!(&requests);
-    assert_eq!(
-        requests
-            .iter()
-            .filter(|request| request.method == "PUT")
-            .count(),
-        1,
-    );
     assert!(
         requests
             .iter()
@@ -308,4 +300,129 @@ async fn a_pnpr_organization_separates_readers_from_publishers() {
         .await
         .expect("resolve");
     assert!(hidden.is_empty(), "an account outside the organization sees nothing");
+}
+
+/// A slot filled by someone without the signing key is not a slot lost: the
+/// next publication replaces what is there.
+#[tokio::test]
+async fn a_publication_replaces_an_unverifiable_object() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (request, public_key, _) = signed_artifact_fixture();
+    store.publish_artifact(&request).await.expect("publish");
+    let hashes: Vec<String> = cache.artifacts().into_keys().collect();
+    for hash in &hashes {
+        cache.store(hash, b"junk".to_vec());
+    }
+    assert!(
+        store
+            .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
+            .await
+            .expect("resolve")
+            .is_empty(),
+    );
+
+    store.publish_artifact(&request).await.expect("publish again");
+    let resolved = store
+        .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
+        .await
+        .expect("resolve");
+    assert!(resolved.contains_key(&request.key));
+}
+
+/// One artifact the server cannot serve is a miss for that artifact alone.
+/// A server that refuses the credentials, or answers no lookup, fails the
+/// whole lookup.
+#[tokio::test]
+async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (dependency, public_key, _) = signed_artifact_fixture();
+    store.publish_artifact(&dependency).await.expect("publish the dependency build");
+    let dependency_hash = cache
+        .artifacts()
+        .into_keys()
+        .next()
+        .expect("one artifact");
+    let (task, task_public_key, _) = workspace_task_fixture();
+    store.publish_artifact(&task).await.expect("publish the task result");
+    let task_hash = cache
+        .artifacts()
+        .into_keys()
+        .find(|hash| *hash != dependency_hash)
+        .expect("a second artifact");
+    let both = || {
+        let mut options = lookup(&public_key, NEWER_GLIBC);
+        options.trusted_keys.insert("acme-2026".to_string(), task_public_key.clone());
+        options.candidates.push(ArtifactCandidate {
+            key: task.key.clone(),
+            subject: ArtifactSubject::workspace_task("packages/app", "build"),
+            owner: OwnerScope::organization("pnpr-client"),
+        });
+        options
+    };
+
+    cache.fail(&dependency_hash, 500);
+    let resolved = store
+        .resolve_artifacts(both())
+        .await
+        .expect("resolve");
+    assert!(resolved.contains_key(&task.key), "the task result still resolves");
+    assert!(!resolved.contains_key(&dependency.key));
+
+    cache.fail(&task_hash, 401);
+    assert!(
+        store
+            .resolve_artifacts(both())
+            .await
+            .is_err(),
+        "refused credentials fail the lookup",
+    );
+}
+
+#[tokio::test]
+async fn a_lookup_the_server_answers_no_part_of_fails() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (task, public_key, _) = workspace_task_fixture();
+    store.publish_artifact(&task).await.expect("publish");
+    let hash = cache
+        .artifacts()
+        .into_keys()
+        .next()
+        .expect("one artifact");
+    cache.fail(&hash, 503);
+
+    let result = store.resolve_artifacts(ResolveArtifactsOptions {
+        candidates: vec![ArtifactCandidate {
+            key: task.key.clone(),
+            subject: ArtifactSubject::workspace_task("packages/app", "build"),
+            owner: OwnerScope::organization("pnpr-client"),
+        }],
+        supported_tags: Vec::new(),
+        ..lookup(&public_key, NEWER_GLIBC)
+    })
+    .await;
+    assert!(result.is_err());
+}
+
+/// A selected artifact's blobs are handed out once, so a run that restores
+/// many artifacts does not keep them all in memory.
+#[tokio::test]
+async fn a_blob_is_handed_out_once() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (request, public_key, blob) = signed_artifact_fixture();
+    store.publish_artifact(&request).await.expect("publish");
+    let resolved = store
+        .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
+        .await
+        .expect("resolve");
+    let artifact = &resolved[&request.key];
+    let blob_request = ArtifactBlobRequest {
+        owner: artifact.payload.owner.clone(),
+        integrity: artifact.payload.manifest.added[0].integrity.clone(),
+    };
+    assert_eq!(store.download_artifact_blob(&blob_request).await.expect("download"), blob);
+    assert!(store.download_artifact_blob(&blob_request).await.is_err());
 }

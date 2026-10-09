@@ -109,11 +109,14 @@ impl PipelineRunStore {
         limit: usize,
     ) -> Result<Vec<PipelineRunEntry>> {
         let limit = limit.clamp(1, MAX_LIST_RUNS);
+        if let Some(workspace) = workspace {
+            validate_name(workspace, "workspace")?;
+        }
         let mut newest = BTreeSet::new();
         for org in orgs {
             validate_name(org, "org")?;
-            let keys = self.storage.list_pipeline_runs(org).await?;
-            keep_newest_runs(&mut newest, (org, workspace), keys, limit);
+            let keys = self.storage.list_pipeline_runs(org, workspace).await?;
+            keep_newest_runs(&mut newest, org, keys, limit);
         }
         let mut entries = Vec::with_capacity(newest.len());
         for RunIdentity { run_id, org, workspace } in newest.into_iter().rev() {
@@ -161,24 +164,21 @@ struct RunIdentity {
     workspace: String,
 }
 
-/// Keep the `limit` highest run identities of one organization's listing,
-/// within `workspace` when one is named.
+/// Keep the `limit` highest run identities of one organization's listing.
 ///
 /// Only what this store writes is a run: anything else under the
 /// organization — a nested path, a file with another suffix — is passed over
 /// rather than failing the listing.
 fn keep_newest_runs(
     newest: &mut BTreeSet<RunIdentity>,
-    (org, only_workspace): (&str, Option<&str>),
+    org: &str,
     keys: Vec<String>,
     limit: usize,
 ) {
     for key in keys {
         let Some((workspace, record)) = key.split_once('/') else { continue };
         let Some(run_id) = record.strip_suffix(RECORD_SUFFIX) else { continue };
-        if only_workspace.is_some_and(|only| only != workspace)
-            || validate_name(workspace, "workspace").is_err()
-            || validate_name(run_id, "runId").is_err()
+        if validate_name(workspace, "workspace").is_err() || validate_name(run_id, "runId").is_err()
         {
             continue;
         }

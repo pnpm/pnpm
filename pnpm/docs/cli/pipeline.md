@@ -114,7 +114,7 @@ remoteCache:
     ci-2026: <base64 public key>
 ```
 
-On the machine that publishes, usually CI, add the private key and turn publishing on:
+On the machine that publishes, usually CI, add the private key and turn publishing on. A published result includes the task's output files and its captured terminal output, so publish only from machines whose logs every reader may see:
 
 ```sh
 export PNPM_REMOTE_CACHE_URL=https://vercel.com/api

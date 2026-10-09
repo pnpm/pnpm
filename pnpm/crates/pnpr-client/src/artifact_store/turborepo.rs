@@ -2,25 +2,30 @@
 //! store.
 //!
 //! The API is a flat store of opaque artifacts addressed by hash
-//! (`GET`, `HEAD`, and `PUT /v8/artifacts/<hash>`). One stored artifact is a
+//! (`GET` and `PUT /v8/artifacts/<hash>`). One stored artifact is a
 //! [`PublishArtifactRequest`] as JSON: the signed envelope and its blobs. It
 //! is stored once per compatibility scope the envelope reaches, under a hash
-//! of the owner, the input key, and the scope. The first publication of a
-//! scope wins, which is the one-artifact-per-scope rule a pnpr server
-//! enforces too.
+//! of the owner, the input key, and the scope, so a scope holds one artifact
+//! as on a pnpr server.
+//!
+//! The API cannot create an object only when it is absent, so a later
+//! publication replaces an earlier one. Only a machine that found nothing it
+//! could restore publishes, and a stored artifact is verified like any other,
+//! so a replacement serves the machines its own build serves.
 
 use super::super::{
     ARTIFACT_REQUEST_TIMEOUT, ArtifactBlobRequest, ArtifactCandidate, BTreeMap, PnprClientError,
-    PublishArtifactRequest, ResolveArtifactsOptions, ResolveArtifactsResponse,
+    PublishArtifactRequest, ResolveArtifactsOptions, ResolveArtifactsResponse, VerifiedArtifact,
     response_body_bounded,
 };
 use futures_util::{StreamExt as _, stream};
+use held_blobs::HeldBlobs;
 use pnpm_shared_artifact_protocol::{
     ArtifactVariant, CompatibilityConstraints, CompatibilityScopes, MAX_ARTIFACT_SIZE,
     MAX_ENCODED_SIGNED_PAYLOAD_SIZE, OwnerScope, ResolvedArtifact, compatibility_scopes,
 };
 use reqwest::{Client, StatusCode, redirect::Policy};
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The scope of an artifact that applies to every machine.
 const UNIVERSAL_SCOPE: &str = "universal";
@@ -28,6 +33,10 @@ const UNIVERSAL_SCOPE: &str = "universal";
 const MAX_ARTIFACT_BODY: usize =
     (MAX_ARTIFACT_SIZE as usize).div_ceil(3) * 4 + MAX_ENCODED_SIGNED_PAYLOAD_SIZE + 1024 * 1024;
 const LOOKUP_CONCURRENCY: usize = 16;
+/// The bytes one lookup may fetch before it verifies anything, so artifacts
+/// a cache-token holder stored without the signing key cannot exhaust memory.
+/// Room for two artifacts of the largest size; a fetch past it is a miss.
+const MAX_LOOKUP_BYTES: usize = 2 * MAX_ARTIFACT_BODY;
 
 pub struct TurborepoArtifactStore {
     http: Client,
@@ -35,9 +44,7 @@ pub struct TurborepoArtifactStore {
     /// `?teamId=…` or `?slug=…`, or empty.
     team_query: String,
     authorization: Option<String>,
-    /// The blobs of every artifact [`Self::fetch_artifacts`] received, by
-    /// integrity. The API has no blob route: an artifact carries its blobs.
-    fetched_blobs: Mutex<HashMap<String, Vec<u8>>>,
+    held_blobs: HeldBlobs,
 }
 
 impl TurborepoArtifactStore {
@@ -62,7 +69,7 @@ impl TurborepoArtifactStore {
             base_url: url.trim_end_matches('/').to_string(),
             team_query: team.map_or_else(String::new, team_query),
             authorization,
-            fetched_blobs: Mutex::new(HashMap::new()),
+            held_blobs: HeldBlobs::default(),
         })
     }
 
@@ -71,15 +78,16 @@ impl TurborepoArtifactStore {
     }
 
     /// The stored artifacts of every candidate, in each scope this consumer
-    /// falls in. An artifact that is missing or malformed is a miss; a server
-    /// that cannot be asked is an error.
+    /// falls in, and the publications they came from. A lookup that is
+    /// missing, malformed, oversized, or fails is a miss. The lookup fails
+    /// only when the server refuses the credentials or answers none of it.
     pub(super) async fn fetch_artifacts(
         &self,
         opts: &ResolveArtifactsOptions,
-    ) -> Result<ResolveArtifactsResponse, PnprClientError> {
+    ) -> Result<(ResolveArtifactsResponse, Vec<PublishArtifactRequest>), PnprClientError> {
         let scopes = consumer_scopes(&opts.supported_tags);
-        // Owned, so the stream's futures borrow nothing but `self`, which
-        // keeps them `Send` for every caller.
+        // Owned, so the stream's futures borrow nothing but `self` and the
+        // budget, which keeps them `Send` for every caller.
         let lookups: Vec<(ArtifactCandidate, String)> = opts.candidates
             .iter()
             .flat_map(|candidate| {
@@ -88,57 +96,75 @@ impl TurborepoArtifactStore {
                     .map(|scope| (candidate.clone(), scope.clone()))
             })
             .collect();
+        let budget = AtomicUsize::new(MAX_LOOKUP_BYTES);
+        let budget = &budget;
         let fetched: Vec<_> = stream::iter(lookups)
-            .map(|(candidate, scope)| async move { self.fetch(&candidate, &scope).await })
+            .map(|(candidate, scope)| async move { self.fetch(&candidate, &scope, budget).await })
             .buffer_unordered(LOOKUP_CONCURRENCY)
             .collect()
             .await;
+        let publications = successful_lookups(fetched)?;
         let mut variants: BTreeMap<String, Vec<ArtifactVariant>> = BTreeMap::new();
-        for fetched in fetched {
-            let Some((key, request)) = fetched? else { continue };
-            let Ok(publication) = request.validate() else { continue };
-            self.fetched_blobs
-                .lock()
-                .expect("blob map lock is not poisoned")
-                .extend(publication.blobs);
+        for request in &publications {
             variants
-                .entry(key)
+                .entry(request.key.clone())
                 .or_default()
-                .push(ArtifactVariant { envelope: request.envelope });
+                .push(ArtifactVariant { envelope: request.envelope.clone() });
         }
-        Ok(ResolveArtifactsResponse {
+        let response = ResolveArtifactsResponse {
             artifacts: variants
                 .into_iter()
                 .map(|(key, variants)| ResolvedArtifact { key, variants })
                 .collect(),
-        })
+        };
+        Ok((response, publications))
     }
 
     async fn fetch(
         &self,
         candidate: &ArtifactCandidate,
         scope: &str,
-    ) -> Result<Option<(String, PublishArtifactRequest)>, PnprClientError> {
+        budget: &AtomicUsize,
+    ) -> Result<Option<PublishArtifactRequest>, LookupFailure> {
         let url = self.artifact_url(&candidate.owner, &candidate.key, scope);
         let response = self
             .authorize(self.http.get(&url))
             .send()
-            .await?;
-        if response.status() == StatusCode::NOT_FOUND {
+            .await
+            .map_err(LookupFailure::failed)?;
+        let status = response.status();
+        if status == StatusCode::NOT_FOUND {
             return Ok(None);
         }
-        if !response.status().is_success() {
-            return Err(PnprClientError::Server(format!(
-                "GET {} returned {}",
-                self.base_url,
-                response.status(),
-            )));
+        if !status.is_success() {
+            let error = PnprClientError::Server(format!("GET {} returned {status}", self.base_url));
+            let refused = matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN);
+            return Err(if refused {
+                LookupFailure::refused(error)
+            } else {
+                LookupFailure::failed(error)
+            });
         }
-        let body = response_body_bounded(response, MAX_ARTIFACT_BODY).await?;
-        Ok(serde_json::from_slice::<PublishArtifactRequest>(&body)
+        let Some(reserved) = reserve(budget, response.content_length()) else {
+            return Ok(None);
+        };
+        let body = response_body_bounded(response, reserved).await;
+        budget.fetch_add(reserved - body.as_ref().map_or(0, Vec::len), Ordering::Relaxed);
+        Ok(body
             .ok()
-            .filter(|request| request.key == candidate.key)
-            .map(|request| (candidate.key.clone(), request)))
+            .and_then(|body| serde_json::from_slice::<PublishArtifactRequest>(&body).ok())
+            .filter(|request| request.key == candidate.key))
+    }
+
+    /// Hold the blobs of the artifacts selected from `publications` until
+    /// they are downloaded. Returns the selection, less any artifact whose
+    /// blobs do not match its manifest.
+    pub(super) fn hold_blobs(
+        &self,
+        selected: BTreeMap<String, VerifiedArtifact>,
+        publications: &[PublishArtifactRequest],
+    ) -> BTreeMap<String, VerifiedArtifact> {
+        self.held_blobs.hold(selected, publications)
     }
 
     pub(super) fn fetched_blob(
@@ -146,20 +172,10 @@ impl TurborepoArtifactStore {
         request: &ArtifactBlobRequest,
     ) -> Result<Vec<u8>, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        self.fetched_blobs
-            .lock()
-            .expect("blob map lock is not poisoned")
-            .get(&request.integrity)
-            .cloned()
-            .ok_or_else(|| {
-                PnprClientError::Protocol(format!(
-                    "blob {:?} is not part of a fetched artifact",
-                    request.integrity,
-                ))
-            })
+        self.held_blobs.take(&request.integrity)
     }
 
-    /// Store the artifact in every scope it reaches that holds none yet.
+    /// Store the artifact in every scope it reaches.
     pub(super) async fn publish(
         &self,
         request: &PublishArtifactRequest,
@@ -170,9 +186,6 @@ impl TurborepoArtifactStore {
             serde_json::to_vec(request).map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         for scope in publication_scopes(&publication.payload.compatibility) {
             let url = self.artifact_url(&publication.payload.owner, &request.key, &scope);
-            if self.exists(&url).await? {
-                continue;
-            }
             let response = self
                 .authorize(self.http.put(&url))
                 .header("content-type", "application/octet-stream")
@@ -190,24 +203,6 @@ impl TurborepoArtifactStore {
         Ok(())
     }
 
-    async fn exists(&self, url: &str) -> Result<bool, PnprClientError> {
-        let status = self
-            .authorize(self.http.head(url))
-            .send()
-            .await?
-            .status();
-        if status == StatusCode::NOT_FOUND {
-            return Ok(false);
-        }
-        if !status.is_success() {
-            return Err(PnprClientError::Server(format!(
-                "HEAD {} returned {status}",
-                self.base_url,
-            )));
-        }
-        Ok(true)
-    }
-
     fn artifact_url(&self, owner: &OwnerScope, input_key: &str, scope: &str) -> String {
         format!(
             "{}/v8/artifacts/{}{}",
@@ -223,6 +218,65 @@ impl TurborepoArtifactStore {
             None => request,
         }
     }
+}
+
+/// Why one lookup of a candidate found nothing.
+struct LookupFailure {
+    error: PnprClientError,
+    /// The server refused the credentials, which every other lookup would
+    /// meet too.
+    refused: bool,
+}
+
+impl LookupFailure {
+    fn failed(error: impl Into<PnprClientError>) -> Self {
+        LookupFailure { error: error.into(), refused: false }
+    }
+
+    fn refused(error: PnprClientError) -> Self {
+        LookupFailure { error, refused: true }
+    }
+}
+
+/// The publications the lookups found. A failed lookup is a miss, unless the
+/// server refused the credentials or every lookup failed.
+fn successful_lookups(
+    fetched: Vec<Result<Option<PublishArtifactRequest>, LookupFailure>>,
+) -> Result<Vec<PublishArtifactRequest>, PnprClientError> {
+    let lookups = fetched.len();
+    let mut publications = Vec::new();
+    let mut failures = Vec::new();
+    for lookup in fetched {
+        match lookup {
+            Ok(found) => publications.extend(found),
+            Err(failure) if failure.refused => return Err(failure.error),
+            Err(failure) => failures.push(failure.error),
+        }
+    }
+    if lookups > 0 && failures.len() == lookups {
+        return Err(failures.swap_remove(0));
+    }
+    for error in failures {
+        tracing::debug!(target: "pacquet::artifacts", %error, "remote cache lookup failed");
+    }
+    Ok(publications)
+}
+
+/// Take room for one body from `budget`: its declared length, or the largest
+/// artifact when it declares none. `None` when the budget cannot hold it.
+fn reserve(budget: &AtomicUsize, content_length: Option<u64>) -> Option<usize> {
+    let wanted = content_length.map_or(MAX_ARTIFACT_BODY, |length| {
+        usize::try_from(length)
+            .unwrap_or(usize::MAX)
+            .min(MAX_ARTIFACT_BODY.saturating_add(1))
+    });
+    if wanted > MAX_ARTIFACT_BODY {
+        return None;
+    }
+    budget
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |left| left.checked_sub(wanted))
+        .ok()
+        .map(|_| wanted)
 }
 
 /// The hash an artifact is stored under: a function of the owner, the input
@@ -262,3 +316,5 @@ fn team_query(team: &str) -> String {
         url::form_urlencoded::Serializer::new(String::new()).append_pair(name, team).finish();
     format!("?{query}")
 }
+
+mod held_blobs;

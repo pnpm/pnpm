@@ -5,7 +5,7 @@ use super::{
 
 impl Config {
     /// `remoteCache`, with each field it leaves unset taken from
-    /// `sideEffectsCache.remote`, the older home of the signing fields.
+    /// `sideEffectsCache.remote`.
     #[must_use]
     pub fn remote_cache_settings(&self) -> RemoteCacheSettings {
         let settings = self.remote_cache

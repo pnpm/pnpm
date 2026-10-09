@@ -18,12 +18,12 @@ use pnpm_pnpr_client::{
     decode_trusted_keys,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs, io,
     path::{Component, Path},
     sync::{Arc, Mutex},
 };
-use tokio::{runtime::Handle, task::JoinHandle};
+use tokio::{runtime::Handle, sync::Semaphore, task::JoinHandle};
 
 /// A task as the artifact's subject names it.
 pub(super) struct TaskIdentity<'a> {
@@ -39,7 +39,11 @@ pub(super) struct RemoteTaskCache {
     publisher: Option<TaskPublisher>,
     runtime: Handle,
     uploads: Mutex<Vec<JoinHandle<Result<(), String>>>>,
+    upload_slots: Arc<Semaphore>,
 }
+
+/// Uploads in flight at once. Each holds a task's outputs in memory.
+const MAX_CONCURRENT_UPLOADS: usize = 4;
 
 /// Signs local entries as `workspace-task` artifacts.
 struct TaskPublisher(ArtifactSigner);
@@ -68,7 +72,13 @@ impl RemoteTaskCache {
             .ok_or("remoteCache.trustedKeys is not set")?;
         let trusted_keys = decode_trusted_keys(trusted_keys)
             .map_err(|key_id| format!("the trusted key {key_id:?} is not valid base64"))?;
-        let publisher = (settings.publish == Some(true))
+        // Only `remoteCache` itself turns task publishing on: a machine that
+        // publishes dependency builds through `sideEffectsCache.remote` has
+        // not agreed to share task outputs and their logs.
+        let publishes_tasks = config.remote_cache
+            .as_ref()
+            .is_some_and(|remote_cache| remote_cache.publish == Some(true));
+        let publisher = publishes_tasks
             .then(|| ArtifactSigner::from_settings(&settings).map(TaskPublisher))
             .transpose()?;
         Ok(Some(RemoteTaskCache {
@@ -78,6 +88,7 @@ impl RemoteTaskCache {
             publisher,
             runtime: Handle::try_current().map_err(|error| error.to_string())?,
             uploads: Mutex::new(Vec::new()),
+            upload_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_UPLOADS)),
         }))
     }
 
@@ -104,7 +115,7 @@ impl RemoteTaskCache {
         &self,
         key: &str,
         task: &TaskIdentity<'_>,
-    ) -> Result<Option<Vec<(ArtifactFile, Vec<u8>)>>, String> {
+    ) -> Result<Option<DownloadedEntry>, String> {
         let resolved = self.store
             .resolve_artifacts(ResolveArtifactsOptions {
                 candidates: vec![self.candidate(key, task)],
@@ -124,8 +135,11 @@ impl RemoteTaskCache {
         let Some(VerifiedArtifact { payload, .. }) = resolved.into_values().next() else {
             return Ok(None);
         };
-        let mut files = Vec::with_capacity(payload.manifest.added.len());
-        for file in payload.manifest.added {
+        let mut blobs = HashMap::new();
+        for file in &payload.manifest.added {
+            if blobs.contains_key(&file.integrity) {
+                continue;
+            }
             let bytes = self.store
                 .download_artifact_blob(&ArtifactBlobRequest {
                     owner: self.owner.clone(),
@@ -133,9 +147,9 @@ impl RemoteTaskCache {
                 })
                 .await
                 .map_err(|error| error.to_string())?;
-            files.push((file, bytes));
+            blobs.insert(file.integrity.clone(), bytes);
         }
-        Ok(Some(files))
+        Ok(Some(DownloadedEntry { files: payload.manifest.added, blobs }))
     }
 
     /// Start publishing `stored` under `key` when this machine publishes.
@@ -154,7 +168,9 @@ impl RemoteTaskCache {
             .sign(self.candidate(key, task), stored)
             .map_err(|error| format!("signing the artifact: {error}"))?;
         let store = Arc::clone(&self.store);
+        let upload_slots = Arc::clone(&self.upload_slots);
         let upload = self.runtime.spawn(async move {
+            let _slot = upload_slots.acquire_owned().await.map_err(|error| error.to_string())?;
             store.publish_artifact(&request).await.map_err(|error| error.to_string())
         });
         self.uploads
@@ -282,8 +298,15 @@ fn is_executable(path: &Path) -> io::Result<bool> {
 /// Write a verified artifact's files into an empty `staging` directory. Only
 /// `meta.json` and regular files under `outputs/` are accepted, so nothing
 /// an artifact carries can write outside `staging`.
-fn write_entry(files: &[(ArtifactFile, Vec<u8>)], staging: &Path) -> io::Result<()> {
-    for (file, bytes) in files {
+/// A verified artifact's manifest files and their blobs, by integrity.
+struct DownloadedEntry {
+    files: Vec<ArtifactFile>,
+    blobs: HashMap<String, Vec<u8>>,
+}
+
+fn write_entry(entry: &DownloadedEntry, staging: &Path) -> io::Result<()> {
+    for file in &entry.files {
+        let bytes = &entry.blobs[&file.integrity];
         if !is_entry_path(Path::new(&file.path)) || !matches!(file.mode, 0o644 | 0o755) {
             return Err(io::Error::other(format!("unexpected entry {}", file.path)));
         }

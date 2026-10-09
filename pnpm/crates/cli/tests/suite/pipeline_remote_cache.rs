@@ -199,3 +199,35 @@ fn a_run_report_needs_the_organization_to_record_it_under() {
     let output = combined_output(result.get_output());
     assert!(output.contains("remoteCache.org does not name the organization"), "{output}");
 }
+
+/// A machine that publishes dependency builds has not agreed to share task
+/// outputs and their logs: only `remoteCache.publish` publishes tasks.
+#[test]
+fn publishing_dependency_builds_does_not_publish_tasks() {
+    let cache = TurborepoCache::start();
+    let root = tempfile::tempdir().unwrap();
+    let project = workspace(root.path());
+    let runs = root.path().join("runs");
+    fs::write(&runs, "").unwrap();
+    let (private_key, public_key) = key_pair(7);
+    let builder = root.path().join("builder");
+    fs::create_dir_all(builder.join("config/pnpm")).unwrap();
+    fs::write(
+        builder.join("config/pnpm/config.yaml"),
+        format!("sideEffectsCache:\n  remote:\n    trustedKeys:\n      {KEY_ID}: {public_key}\n    privateKey: {private_key}\n    keyId: {KEY_ID}\n    builderId: ci/main/1\n    publish: true\n"),
+    )
+    .unwrap();
+    pnpm_on_machine(&project, &builder, &runs)
+        .arg("install")
+        .assert()
+        .success();
+
+    pnpm_with_cache(&project, &builder, &runs, &cache)
+        .args(["pipeline", "--full"])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    assert!(cache.artifacts().is_empty(), "no task may be published");
+    assert!(!cache.requests().is_empty(), "the remote cache is still consulted");
+}

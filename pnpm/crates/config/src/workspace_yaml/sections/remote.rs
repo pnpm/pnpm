@@ -189,19 +189,19 @@ impl RemoteCacheSettings {
     }
 
     /// Fill the signing fields `self` leaves unset from the same fields of
-    /// `sideEffectsCache.remote`, their older home.
+    /// `sideEffectsCache.remote`.
     #[must_use]
-    pub fn with_side_effects_fallback(self, older: &RemoteSideEffectsCacheSettings) -> Self {
+    pub fn with_side_effects_fallback(self, fallback: &RemoteSideEffectsCacheSettings) -> Self {
         let mut merged = Self {
-            org: (!older.org.is_empty()).then(|| older.org.clone()),
-            trusted_keys: older.trusted_keys.clone(),
-            private_key: older.private_key.clone(),
-            key_id: older.key_id.clone(),
-            builder_id: older.builder_id.clone(),
-            publish: older.publish,
-            image_digest: older.image_digest.clone(),
-            architecture_baseline: older.architecture_baseline.clone(),
-            build_env: older.build_env.clone(),
+            org: (!fallback.org.is_empty()).then(|| fallback.org.clone()),
+            trusted_keys: fallback.trusted_keys.clone(),
+            private_key: fallback.private_key.clone(),
+            key_id: fallback.key_id.clone(),
+            builder_id: fallback.builder_id.clone(),
+            publish: fallback.publish,
+            image_digest: fallback.image_digest.clone(),
+            architecture_baseline: fallback.architecture_baseline.clone(),
+            build_env: fallback.build_env.clone(),
             ..Self::default()
         };
         merged.overlay(self);

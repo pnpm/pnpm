@@ -92,12 +92,24 @@ impl Storage {
         self.hosted.create_record(PIPELINE_RUNS_DIR, &key.path()?, bytes).await
     }
 
-    /// One organization's recorded run keys, `<workspace>/<run id>`, in
-    /// unspecified order. Scoped to the organization so a listing costs what
-    /// that organization holds rather than what the deployment holds.
-    pub async fn list_pipeline_runs(&self, org: &str) -> Result<Vec<String>> {
-        let namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(org)?);
-        self.hosted.list_record_keys(&namespace).await
+    /// An organization's recorded run keys, `<workspace>/<run id>`, in
+    /// unspecified order, within `workspace` when one is named. Scoped so a
+    /// listing costs what it asks about rather than what the deployment holds.
+    pub async fn list_pipeline_runs(
+        &self,
+        org: &str,
+        workspace: Option<&str>,
+    ) -> Result<Vec<String>> {
+        let org_namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(org)?);
+        let Some(workspace) = workspace else {
+            return self.hosted.list_record_keys(&org_namespace).await;
+        };
+        let workspace = validated_record_name(workspace)?;
+        let keys = self.hosted.list_record_keys(&format!("{org_namespace}/{workspace}")).await?;
+        Ok(keys
+            .into_iter()
+            .map(|key| format!("{workspace}/{key}"))
+            .collect())
     }
 }
 

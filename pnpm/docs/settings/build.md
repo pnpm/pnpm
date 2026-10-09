@@ -189,12 +189,12 @@ remoteCache:
 
 | Field | Where it may be set | Meaning |
 | --- | --- | --- |
-| `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. It must use HTTPS unless it points at a loopback address. |
+| `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. |
 | `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
 | `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the organizations it declares under [`artifacts.orgs`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |
 | `token` | Global config or environment | The bearer token for `url`. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
 | `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
-| `publish` | Global config or environment | `true` publishes what this machine builds. Defaults to `false`. |
+| `publish` | Global config or environment | `true` publishes what this machine builds: dependency builds and `pnpm pipeline` task results. A task result includes the task's output files and its captured terminal output. Defaults to `false`. Set under `sideEffectsCache.remote`, it publishes dependency builds only. |
 | `privateKey`, `keyId`, `builderId` | Global config or environment | The key that signs published artifacts, the id consumers trust it under, and a label for the builder. Required with `publish`. |
 | `imageDigest`, `architectureBaseline`, `buildEnv` | Global config or environment | Optional provenance recorded in the signed artifact. |
 
@@ -207,10 +207,12 @@ precedence over both files. A `pnpm-workspace.yaml` that sets a field marked
 server could have the machine's token sent to a server of its choosing.
 
 A Turborepo Remote Cache server holds one build per package for each
-combination of operating system, CPU architecture, and Node.js major. The
-first build published wins. A machine restores it when it meets the build's
-minimum OS or glibc version, so publish from the machine with the oldest
-system you support.
+combination of operating system, CPU architecture, and Node.js major, and a
+later publication replaces it. A machine restores a build when it meets the
+build's minimum OS or glibc version, and publishes only when it found none it
+could restore. Publish from the machine with the oldest system you support.
+
+A server that pnpm would send credentials to must use HTTPS or a loopback address. Otherwise the remote cache is not used.
 
 ### unsafePerm
 

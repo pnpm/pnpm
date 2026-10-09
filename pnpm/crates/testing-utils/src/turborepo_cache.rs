@@ -27,6 +27,7 @@ pub struct RecordedRequest {
 #[derive(Default)]
 struct Shared {
     artifacts: Mutex<HashMap<String, Vec<u8>>>,
+    failures: Mutex<HashMap<String, StatusCode>>,
     requests: Mutex<Vec<RecordedRequest>>,
 }
 
@@ -75,6 +76,15 @@ impl TurborepoCache {
             .lock()
             .expect("artifact lock")
             .insert(hash.to_string(), body);
+    }
+
+    /// Answer every request for `hash` with `status`.
+    pub fn fail(&self, hash: &str, status: u16) {
+        let status = StatusCode::from_u16(status).expect("a valid status code");
+        self.shared.failures
+            .lock()
+            .expect("failure lock")
+            .insert(hash.to_string(), status);
     }
 
     #[must_use]
@@ -128,6 +138,13 @@ async fn get_artifact(
     headers: HeaderMap,
 ) -> Result<Vec<u8>, StatusCode> {
     record(&shared, &method, &hash, query, &headers);
+    if let Some(status) = shared.failures
+        .lock()
+        .expect("failure lock")
+        .get(&hash)
+    {
+        return Err(*status);
+    }
     shared.artifacts
         .lock()
         .expect("artifact lock")

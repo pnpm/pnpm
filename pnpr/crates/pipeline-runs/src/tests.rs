@@ -353,3 +353,35 @@ async fn a_path_shaped_organization_is_refused() {
             .is_err(),
     );
 }
+
+/// A listing narrowed to one workspace reads only that workspace's records.
+#[tokio::test]
+async fn a_workspace_listing_does_not_read_other_workspaces() {
+    let root = TempDir::new().unwrap();
+    let storage = storage_in(&HostedStoreConfig::Fs, &root);
+    let store = PipelineRunStore::new(storage.clone());
+    store
+        .publish(&run("wanted", "100-default"))
+        .await
+        .unwrap();
+    storage
+        .create_pipeline_run(
+            &PipelineRunKey { org: ORG, workspace: "other", run_id: "999-default.json" },
+            b"invalid JSON",
+        )
+        .await
+        .unwrap();
+
+    let listed = store
+        .list(&[ORG], Some("wanted"), 10)
+        .await
+        .unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].workspace, "wanted");
+    assert!(
+        store
+            .list(&[ORG], Some("../escape"), 10)
+            .await
+            .is_err(),
+    );
+}

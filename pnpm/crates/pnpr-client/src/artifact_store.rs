@@ -21,7 +21,8 @@ pub enum ArtifactStore {
 
 impl ArtifactStore {
     /// The server `remoteCache.url` names, or `pnprServer` without one.
-    /// `Ok(None)` when neither is set.
+    /// `Ok(None)` when neither is set. Credentials are refused for a server
+    /// that is neither HTTPS nor loopback.
     pub fn from_config(
         config: &Config,
         settings: &RemoteCacheSettings,
@@ -34,12 +35,16 @@ impl ArtifactStore {
             return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
                 .map(|store| Some(ArtifactStore::Turborepo(store)));
         }
-        Ok(config.pnpr_server
-            .as_deref()
-            .map(|server| ArtifactStore::Pnpr {
-                client: PnprClient::new(server),
-                authorization: config.auth_headers.for_url(server),
-            }))
+        let Some(server) = config.pnpr_server.as_deref() else {
+            return Ok(None);
+        };
+        let authorization = config.auth_headers.for_url(server);
+        if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(server) {
+            return Err(PnprClientError::Protocol(
+                "pnpr artifact credentials require HTTPS or a loopback server".to_string(),
+            ));
+        }
+        Ok(Some(ArtifactStore::Pnpr { client: PnprClient::new(server), authorization }))
     }
 
     /// The server's URL. Quarantine records are kept per channel, so an
@@ -76,14 +81,15 @@ impl ArtifactStore {
                 if !retain_permitted_candidates(&mut opts)? {
                     return Ok(BTreeMap::new());
                 }
-                let response = store.fetch_artifacts(&opts).await?;
-                select_verified_artifacts(&opts, response)
+                let (response, publications) = store.fetch_artifacts(&opts).await?;
+                let selected = select_verified_artifacts(&opts, response)?;
+                Ok(store.hold_blobs(selected, &publications))
             }
         }
     }
 
     /// One blob of an artifact [`Self::resolve_artifacts`] selected, checked
-    /// against its integrity.
+    /// against its integrity. Ask once for each distinct blob of an artifact.
     pub async fn download_artifact_blob(
         &self,
         request: &ArtifactBlobRequest,
