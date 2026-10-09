@@ -3,7 +3,7 @@ use super::{
     LoadWorkspaceYamlError, NpmrcAuth, base64_encode_bytes, parse_token_helper_field,
     split_scope_from_uri,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 /// Raw (unparsed) credential fields for a given registry URI.
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
@@ -462,7 +462,7 @@ impl NpmrcAuth {
     pub(super) fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
         let (registry_uri, scope) = split_scope_from_uri(uri);
         self.creds_by_scope_by_uri
-            .entry(registry_uri)
+            .entry(canonicalize_npm_registry_url(&registry_uri).into_owned())
             .or_default()
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()

@@ -3,7 +3,7 @@ use super::{
     expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key, resolve_cafile,
     split_ini_creds_key, split_ssl_key,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 #[derive(Clone, Copy)]
 struct ParseOptions {
@@ -260,7 +260,9 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+        let entry = self.tls.by_uri
+            .entry(canonicalize_npm_registry_url(uri).into_owned())
+            .or_default();
         apply_tls_field(entry, field, resolved);
     }
 

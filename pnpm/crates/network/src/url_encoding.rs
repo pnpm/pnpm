@@ -43,14 +43,24 @@ pub fn escaped_package_name(name: &str) -> String {
     }
 }
 
-/// Append a trailing slash if the registry URL lacks one, borrowing the input
-/// unchanged when it already ends in one. Mirrors npm's `normalize-registry-url`.
+/// Canonicalize npm's HTTPS registry alias and append a trailing slash.
+/// Protocol-relative credential keys use the same canonical host.
 #[must_use]
 pub fn normalize_registry_url(registry: &str) -> Cow<'_, str> {
-    if registry.ends_with('/') {
-        Cow::Borrowed(registry)
-    } else {
-        Cow::Owned(format!("{registry}/"))
+    let registry = canonicalize_npm_registry_url(registry);
+    if registry.ends_with('/') { registry } else { Cow::Owned(format!("{registry}/")) }
+}
+
+/// Canonicalize npm's exact HTTPS registry root or its protocol-relative
+/// credential key. Other endpoints and key spellings remain unchanged.
+#[must_use]
+pub fn canonicalize_npm_registry_url(registry: &str) -> Cow<'_, str> {
+    match registry {
+        "https://registry.npmjs.com" | "https://registry.npmjs.com/" => {
+            Cow::Borrowed("https://registry.npmjs.org/")
+        }
+        "//registry.npmjs.com" | "//registry.npmjs.com/" => Cow::Borrowed("//registry.npmjs.org/"),
+        _ => Cow::Borrowed(registry),
     }
 }
 

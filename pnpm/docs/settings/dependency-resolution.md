@@ -505,6 +505,8 @@ registries:
 
 The two shapes cannot be mixed in one map.
 
+pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. Credentials configured for either hostname at the registry root apply to the canonical registry. HTTP URLs, custom ports, and registry subpaths are unchanged.
+
 Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries

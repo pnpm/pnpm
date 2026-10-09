@@ -334,6 +334,38 @@ async fn create_publish_options_applies_oidc_when_enabled() {
 }
 
 #[tokio::test]
+async fn npm_alias_uses_canonical_oidc_audience_and_exchange_host() {
+    github_sys!(Sys, |request: OidcRequest<'_>| {
+        if request.url.contains("audience=") {
+            assert!(request.url.contains("audience=npm%3Aregistry.npmjs.org"));
+        } else {
+            assert!(request.url.starts_with("https://registry.npmjs.org/"));
+        }
+        github_chain_fetch(&request, &public_repo_id_token())
+    });
+
+    let manifest = json!({
+        "name": "@org/pkg",
+        "publishConfig": { "registry": "https://registry.npmjs.com/" },
+    });
+    let http = OidcHttpOptions::default();
+    let input = CreatePublishOptionsInput {
+        default_registry: REGISTRY,
+        scoped_registries: &BTreeMap::new(),
+        access: None,
+        tag: "latest",
+        otp: None,
+        provenance: None,
+        http: &http,
+    };
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap();
+    assert_eq!(resolved.registry.as_str(), REGISTRY);
+    assert_eq!(resolved.auth_token_override.as_deref(), Some("registry-token"));
+}
+
+#[tokio::test]
 async fn create_publish_options_rejects_unsupported_protocol() {
     struct Sys;
     impl Clock for Sys {

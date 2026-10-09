@@ -3,6 +3,28 @@ use super::{
     STORED_LOGIN, assert_eq, fs, io, load_with_auth_file, load_with_auth_file_and_npmrc, tempdir,
 };
 
+#[test]
+fn npm_alias_normalizes_workspace_routes_and_json_credentials() {
+    for credential_host in ["registry.npmjs.com", "registry.npmjs.org"] {
+        let auth = format!(
+            "_auth:\n  https://{credential_host}/:\n    '@org': {{ authToken: stored-token }}\n",
+        );
+        let config = load_with_auth_file(
+            &auth,
+            Some("registries:\n  https://registry.npmjs.com/:\n    scopes: ['@', '@org']\n"),
+        );
+        assert_eq!(config.registry, "https://registry.npmjs.org/");
+        assert_eq!(config.registries_by_scope["@org"], "https://registry.npmjs.org/");
+        assert_eq!(
+            config.auth_headers.for_url_with_package(
+                "https://registry.npmjs.org/",
+                Some("@org/pkg")
+            ),
+            Some("Bearer stored-token".to_owned()),
+        );
+    }
+}
+
 /// Only what something else declares is kept back; the stored credential
 /// still supplies a route nothing competes for.
 #[test]
