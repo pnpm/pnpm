@@ -1,6 +1,6 @@
 use super::agent_skills_dir_from_lookup;
 use pretty_assertions::assert_eq;
-use std::ffi::OsString;
+use std::{ffi::OsString, fs};
 
 #[test]
 fn detects_claude_code() {
@@ -142,4 +142,40 @@ fn creates_and_returns_safe_target_inside_workspace() {
 
     assert_eq!(targets, vec![expected.clone()]);
     assert!(expected.is_dir());
+}
+
+#[test]
+fn targets_changed_ignores_escaping_target() {
+    let workspace = tempfile::tempdir().expect("create workspace tempdir");
+    let external = tempfile::tempdir().expect("create external tempdir");
+
+    pnpm_fs::symlink_dir(external.path(), &workspace.path().join(".agents"))
+        .expect("symlink .agents to external directory");
+
+    assert!(!super::targets_changed(
+        &pnpm_config::Config::default(),
+        workspace.path(),
+        Some(".agents/skills"),
+        &[],
+    ));
+}
+
+#[test]
+fn accepts_target_symlinked_inside_workspace() {
+    let workspace = tempfile::tempdir().expect("create workspace tempdir");
+    let internal = workspace.path().join("internal_agents");
+    fs::create_dir(&internal).expect("create internal dir");
+
+    pnpm_fs::symlink_dir(&internal, &workspace.path().join(".agents"))
+        .expect("symlink .agents to internal directory");
+
+    let targets = super::target_dirs(
+        &pnpm_config::Config::default(),
+        workspace.path(),
+        Some(".agents/skills"),
+    )
+    .expect("resolve targets");
+
+    assert_eq!(targets, vec![workspace.path().join(".agents/skills")]);
+    assert!(internal.join("skills").is_dir());
 }

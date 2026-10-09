@@ -337,6 +337,17 @@ const GITIGNORE_RULE: &str = "pnpm-*";
 /// file already says.
 fn ignore_links_in(dir: &Path) -> Result<(), AgentSkillsError> {
     let path = dir.join(".gitignore");
+    if let Ok(meta) = fs::symlink_metadata(&path)
+        && meta.file_type().is_symlink()
+    {
+        return Err(AgentSkillsError::Io {
+            path,
+            source: io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "cannot write through a symlinked .gitignore",
+            ),
+        });
+    }
     let existing = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),

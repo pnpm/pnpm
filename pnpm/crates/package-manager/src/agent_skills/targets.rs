@@ -50,11 +50,18 @@ pub(super) fn target_dirs(
     workspace_root: &Path,
     agent_dir: Option<&str>,
 ) -> Result<Vec<PathBuf>, (PathBuf, io::Error)> {
+    let canonical_root =
+        dunce::canonicalize(workspace_root).map_err(|error| (workspace_root.to_path_buf(), error))?;
     let mut seen = HashSet::new();
     let mut targets = Vec::new();
     for dir in candidate_dirs(config, workspace_root, agent_dir) {
-        fs::create_dir_all(&dir).map_err(|error| (dir.clone(), error))?;
-        let canonical = fs::canonicalize(&dir).map_err(|error| (dir.clone(), error))?;
+        if !create_dir_in_workspace(workspace_root, &dir).map_err(|error| (dir.clone(), error))? {
+            continue;
+        }
+        let canonical = dunce::canonicalize(&dir).map_err(|error| (dir.clone(), error))?;
+        if !pnpm_fs::is_subdir(&canonical_root, &canonical) {
+            continue;
+        }
         if seen.insert(canonical) {
             targets.push(dir);
         }
@@ -77,15 +84,87 @@ pub(super) fn targets_changed(
         .filter_map(|entry| Path::new(entry).parent())
         .map(|dir| dir.to_string_lossy().replace('\\', "/"))
         .collect();
+    let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {
+        return true;
+    };
     let mut seen = HashSet::new();
     let mut current = BTreeSet::new();
     for dir in candidate_dirs(config, workspace_root, agent_dir) {
-        let Ok(canonical) = fs::canonicalize(&dir) else { return true };
+        let Ok(canonical) = dunce::canonicalize(&dir) else { return true };
+        if !pnpm_fs::is_subdir(&canonical_root, &canonical) {
+            continue;
+        }
         if seen.insert(canonical) {
             current.insert(recorded_path(workspace_root, &dir));
         }
     }
     previous != current
+}
+
+fn create_dir_in_workspace(workspace_root: &Path, dir: &Path) -> io::Result<bool> {
+    let Ok(rel) = dir.strip_prefix(workspace_root) else {
+        return Ok(false);
+    };
+    let canonical_root = dunce::canonicalize(workspace_root)?;
+    let mut current = workspace_root.to_path_buf();
+    for component in rel.components() {
+        let std::path::Component::Normal(part) = component else {
+            return Ok(false);
+        };
+        current.push(part);
+        if !ensure_dir_component(&canonical_root, &current)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn ensure_dir_component(canonical_root: &Path, current: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(current) {
+        Ok(meta) => validate_existing_component(canonical_root, current, &meta),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            create_and_validate_component(canonical_root, current)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn validate_existing_component(
+    canonical_root: &Path,
+    current: &Path,
+    meta: &fs::Metadata,
+) -> io::Result<bool> {
+    if meta.file_type().is_symlink() {
+        return verify_contained_symlink(canonical_root, current);
+    }
+    if !meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "path component is not a directory",
+        ));
+    }
+    Ok(true)
+}
+
+fn verify_contained_symlink(canonical_root: &Path, current: &Path) -> io::Result<bool> {
+    let canonical = dunce::canonicalize(current)?;
+    Ok(pnpm_fs::is_subdir(canonical_root, &canonical))
+}
+
+fn create_and_validate_component(canonical_root: &Path, current: &Path) -> io::Result<bool> {
+    match fs::create_dir(current) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let meta = fs::symlink_metadata(current)?;
+            return validate_existing_component(canonical_root, current, &meta);
+        }
+        Err(error) => return Err(error),
+    }
+    let meta = fs::symlink_metadata(current)?;
+    if meta.file_type().is_symlink() {
+        return verify_contained_symlink(canonical_root, current);
+    }
+    Ok(true)
 }
 
 fn candidate_dirs(config: &Config, workspace_root: &Path, agent_dir: Option<&str>) -> Vec<PathBuf> {
