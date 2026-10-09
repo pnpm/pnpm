@@ -172,9 +172,10 @@ mod real_package_name_of {
 mod is_update_target {
     use pnpm_resolving_resolver_base::WantedDependency;
 
-    use crate::{UpdateTargets, VersionLine};
-
-    use super::super::{UpdateDepth, UpdateReuseScope, UpdateScope, is_update_target};
+    use crate::{
+        UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+        resolve_dependency_tree::update_scope::{UpdateScope, is_update_target},
+    };
 
     fn wanted_with(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
