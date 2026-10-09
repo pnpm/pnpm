@@ -48,6 +48,31 @@ pub struct ToolchainRequest {
     pub targets: Vec<String>,
 }
 
+impl ToolchainRequest {
+    /// The request for `channel` with rustup's default profile and nothing
+    /// added to it.
+    #[must_use]
+    pub fn for_channel(channel: Channel) -> Self {
+        Self { channel, profile: Profile::Default, components: Vec::new(), targets: Vec::new() }
+    }
+
+    /// The request with the standard libraries of `targets` added. A name
+    /// that is not a target name, such as the path of a target specification
+    /// file, is left out.
+    #[must_use]
+    pub fn with_targets<'a>(mut self, targets: impl IntoIterator<Item = &'a str>) -> Self {
+        self.targets.extend(
+            targets
+                .into_iter()
+                .filter(|target| is_component_name(target))
+                .map(str::to_string),
+        );
+        self.targets.sort();
+        self.targets.dedup();
+        self
+    }
+}
+
 /// The components a toolchain is installed with before the ones its file
 /// lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
