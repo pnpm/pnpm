@@ -1,4 +1,4 @@
-//! The `implicitTypesPeers` manifest transform.
+//! The `addMissingPeerTypes` manifest transform.
 //!
 //! A package that peer-depends on `react` reads React's types from
 //! `@types/react`, which it rarely declares. Without a declaration the
@@ -20,8 +20,8 @@ const TYPES_SCOPE: &str = "@types/";
 /// already names `@types/X` in `dependencies`, `optionalDependencies`,
 /// `peerDependencies`, or `peerDependenciesMeta`.
 #[must_use]
-pub(crate) fn add_implicit_types_peers(manifest: Arc<Value>) -> Arc<Value> {
-    let missing = missing_types_peers(&manifest);
+pub(crate) fn add_missing_peer_types(manifest: Arc<Value>) -> Arc<Value> {
+    let missing = missing_peer_types(&manifest);
     if missing.is_empty() {
         return manifest;
     }
@@ -32,7 +32,7 @@ pub(crate) fn add_implicit_types_peers(manifest: Arc<Value>) -> Arc<Value> {
     manifest
 }
 
-fn missing_types_peers(manifest: &Value) -> Vec<String> {
+fn missing_peer_types(manifest: &Value) -> Vec<String> {
     let Some(peers) = manifest.get("peerDependencies").and_then(Value::as_object) else {
         return Vec::new();
     };

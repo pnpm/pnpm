@@ -509,7 +509,7 @@ pub(crate) fn check_lockfile_settings_drift(
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-                implicit_types_peers: config.implicit_types_peers,
+                add_missing_peer_types: config.add_missing_peer_types,
                 inject_workspace_packages: config.inject_workspace_packages,
                 peers_suffix_max_length: config.peers_suffix_max_length,
                 pnpmfile_checksum,

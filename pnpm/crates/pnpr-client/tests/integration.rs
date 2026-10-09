@@ -246,7 +246,7 @@ fn options(
             auto_install_peers: None,
             dedupe_peers: None,
             exclude_links_from_lockfile: None,
-            implicit_types_peers: None,
+            add_missing_peer_types: None,
             resolution_mode: pnpm_config::ResolutionMode::default(),
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {

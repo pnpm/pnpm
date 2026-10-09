@@ -11,8 +11,8 @@ impl StalenessReason {
         match self {
             StalenessReason::AutoInstallPeersChanged { .. } => Some("settings.autoInstallPeers"),
             StalenessReason::DedupePeersChanged { .. } => Some("settings.dedupePeers"),
-            StalenessReason::ImplicitTypesPeersChanged { .. } => {
-                Some("settings.implicitTypesPeers")
+            StalenessReason::AddMissingPeerTypesChanged { .. } => {
+                Some("settings.addMissingPeerTypes")
             }
             StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
                 Some("settings.excludeLinksFromLockfile")
@@ -90,11 +90,11 @@ fn check_peer_settings(
         });
     }
 
-    let lockfile_implicit_types_peers = recorded_implicit_types_peers(settings);
-    if lockfile_implicit_types_peers != check.implicit_types_peers {
-        return Err(StalenessReason::ImplicitTypesPeersChanged {
-            lockfile: lockfile_implicit_types_peers,
-            config: check.implicit_types_peers,
+    let lockfile_add_missing_peer_types = recorded_add_missing_peer_types(settings);
+    if lockfile_add_missing_peer_types != check.add_missing_peer_types {
+        return Err(StalenessReason::AddMissingPeerTypesChanged {
+            lockfile: lockfile_add_missing_peer_types,
+            config: check.add_missing_peer_types,
         });
     }
     Ok(())
@@ -171,8 +171,8 @@ pub fn recorded_dedupe_peers(recorded: Option<&LockfileSettings>) -> bool {
 
 /// See [`auto_install_peers_changed`].
 #[must_use]
-pub fn recorded_implicit_types_peers(recorded: Option<&LockfileSettings>) -> bool {
-    recorded.and_then(|settings| settings.implicit_types_peers).unwrap_or(false)
+pub fn recorded_add_missing_peer_types(recorded: Option<&LockfileSettings>) -> bool {
+    recorded.and_then(|settings| settings.add_missing_peer_types).unwrap_or(false)
 }
 
 /// See [`auto_install_peers_changed`].

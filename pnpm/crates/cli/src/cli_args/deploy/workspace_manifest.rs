@@ -31,8 +31,8 @@ fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
         ),
         ("virtualStoreType".to_string(), Value::String("project".to_string())),
     ]);
-    if config.implicit_types_peers {
-        manifest.insert("implicitTypesPeers".to_string(), Value::Bool(true));
+    if config.add_missing_peer_types {
+        manifest.insert("addMissingPeerTypes".to_string(), Value::Bool(true));
     }
     if let Some(virtual_store_dir) = configured_virtual_store_dir(config) {
         manifest.insert(

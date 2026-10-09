@@ -17,7 +17,7 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers.then_some(true),
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-        implicit_types_peers: config.implicit_types_peers.then_some(true),
+        add_missing_peer_types: config.add_missing_peer_types.then_some(true),
         inject_workspace_packages: config.inject_workspace_packages,
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pnpm_config::default_peers_suffix_max_length())
@@ -51,7 +51,7 @@ pub(crate) enum ChangedSetting {
     AutoInstallPeers,
     DedupePeers,
     ExcludeLinksFromLockfile,
-    ImplicitTypesPeers,
+    AddMissingPeerTypes,
     PeersSuffixMaxLength,
     InjectWorkspacePackages,
     ResolutionSettings,
@@ -115,10 +115,10 @@ fn changed_settings(
     ) {
         changed.push(ChangedSetting::ExcludeLinksFromLockfile);
     }
-    if pnpm_lockfile::recorded_implicit_types_peers(recorded)
-        != pnpm_lockfile::recorded_implicit_types_peers(Some(settings))
+    if pnpm_lockfile::recorded_add_missing_peer_types(recorded)
+        != pnpm_lockfile::recorded_add_missing_peer_types(Some(settings))
     {
-        changed.push(ChangedSetting::ImplicitTypesPeers);
+        changed.push(ChangedSetting::AddMissingPeerTypes);
     }
     if pnpm_lockfile::recorded_peers_suffix_max_length(recorded)
         != pnpm_lockfile::recorded_peers_suffix_max_length(Some(settings))
@@ -148,7 +148,7 @@ fn setting_cannot_affect_lockfile(
     match setting {
         ChangedSetting::AutoInstallPeers
         | ChangedSetting::DedupePeers
-        | ChangedSetting::ImplicitTypesPeers
+        | ChangedSetting::AddMissingPeerTypes
         | ChangedSetting::PeersSuffixMaxLength => has_no_peer_dependencies(lockfile, manifests),
         ChangedSetting::ExcludeLinksFromLockfile => {
             has_no_linked_dependencies(lockfile, manifests, workspace_package_names)

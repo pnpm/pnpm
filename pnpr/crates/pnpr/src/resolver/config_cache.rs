@@ -37,7 +37,7 @@ pub(super) struct EffectiveResolverSettings {
     pub(super) auto_install_peers: bool,
     pub(super) dedupe_peers: bool,
     pub(super) exclude_links_from_lockfile: bool,
-    pub(super) implicit_types_peers: bool,
+    pub(super) add_missing_peer_types: bool,
 }
 
 impl EffectiveResolverSettings {
@@ -68,9 +68,9 @@ impl EffectiveResolverSettings {
             exclude_links_from_lockfile: request.exclude_links_from_lockfile
                 .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
                 .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
-            implicit_types_peers: request.implicit_types_peers
-                .or_else(|| lockfile_settings.and_then(|settings| settings.implicit_types_peers))
-                .unwrap_or(DEFAULTS.implicit_types_peers),
+            add_missing_peer_types: request.add_missing_peer_types
+                .or_else(|| lockfile_settings.and_then(|settings| settings.add_missing_peer_types))
+                .unwrap_or(DEFAULTS.add_missing_peer_types),
         }
     }
 }
@@ -133,7 +133,7 @@ pub(super) fn intern_config(
     config.auto_install_peers = resolver_settings.auto_install_peers;
     config.dedupe_peers = resolver_settings.dedupe_peers;
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
-    config.implicit_types_peers = resolver_settings.implicit_types_peers;
+    config.add_missing_peer_types = resolver_settings.add_missing_peer_types;
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)

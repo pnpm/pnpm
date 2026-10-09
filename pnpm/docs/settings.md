@@ -263,7 +263,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
   * [Conflict Resolution](./settings/peer-dependencies.md#conflict-resolution)
 * [dedupePeerDependents](./settings/peer-dependencies.md#dedupepeerdependents)
 * [dedupePeers](./settings/peer-dependencies.md#dedupepeers)
-* [implicitTypesPeers](./settings/peer-dependencies.md#implicittypespeers)
+* [addMissingPeerTypes](./settings/peer-dependencies.md#addmissingpeertypes)
 * [strictPeerDependencies](./settings/peer-dependencies.md#strictpeerdependencies)
 * [resolvePeersFromWorkspaceRoot](./settings/peer-dependencies.md#resolvepeersfromworkspaceroot)
 * [peerDependencyRules](./settings/peer-dependencies.md#peerdependencyrules)

@@ -1,10 +1,10 @@
-use super::add_implicit_types_peers;
+use super::add_missing_peer_types;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
 fn transform(manifest: Value) -> Value {
-    Value::clone(&add_implicit_types_peers(Arc::new(manifest)))
+    Value::clone(&add_missing_peer_types(Arc::new(manifest)))
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn skips_peers_that_are_types_packages() {
 fn keeps_the_shared_manifest_when_nothing_is_added() {
     let manifest = Arc::new(json!({ "name": "pkg", "dependencies": { "react": "19" } }));
 
-    let transformed = add_implicit_types_peers(Arc::clone(&manifest));
+    let transformed = add_missing_peer_types(Arc::clone(&manifest));
 
     assert!(Arc::ptr_eq(&manifest, &transformed));
 }

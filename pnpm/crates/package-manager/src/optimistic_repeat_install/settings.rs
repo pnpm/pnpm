@@ -150,8 +150,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
         return_drift_if!(
             self,
-            "implicitTypesPeers",
-            recorded.implicit_types_peers != live.implicit_types_peers,
+            "addMissingPeerTypes",
+            recorded.add_missing_peer_types != live.add_missing_peer_types,
         );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
         return_drift_if!(
@@ -310,7 +310,7 @@ pub(crate) fn current_settings(
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-        implicit_types_peers: config.implicit_types_peers.then_some(true),
+        add_missing_peer_types: config.add_missing_peer_types.then_some(true),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,

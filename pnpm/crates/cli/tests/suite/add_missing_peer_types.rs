@@ -1,4 +1,4 @@
-//! `implicitTypesPeers` links the `@types` package of a peer dependency next to
+//! `addMissingPeerTypes` links the `@types` package of a peer dependency next to
 //! the peer dependent, which the global virtual store needs for TypeScript to
 //! find it.
 //!
@@ -58,13 +58,13 @@ fn wanted_lockfile_text(fixture: &WorkspaceFixture) -> String {
 
 #[test]
 fn links_the_types_package_next_to_the_peer_dependent() {
-    let fixture = fixture("implicitTypesPeers: true\n");
+    let fixture = fixture("addMissingPeerTypes: true\n");
 
     fixture.run(["install"]);
 
     assert!(links_types_next_to_abc(&fixture));
     assert_eq!(
-        fixture.wanted().settings.and_then(|settings| settings.implicit_types_peers),
+        fixture.wanted().settings.and_then(|settings| settings.add_missing_peer_types),
         Some(true),
     );
     let lockfile = wanted_lockfile_text(&fixture);
@@ -81,7 +81,7 @@ fn links_no_undeclared_types_package_by_default() {
     assert!(!links_types_next_to_abc(&fixture));
     let lockfile = wanted_lockfile_text(&fixture);
     eprintln!("{lockfile}");
-    assert!(!lockfile.contains("implicitTypesPeers"));
+    assert!(!lockfile.contains("addMissingPeerTypes"));
     assert!(!lockfile.contains(&format!("({TYPES_PEER_A}@1.0.0)")));
 }
 
@@ -89,7 +89,7 @@ fn links_no_undeclared_types_package_by_default() {
 fn turning_the_setting_on_re_resolves_an_existing_lockfile() {
     let fixture = fixture("");
     fixture.run(["install"]);
-    fixture.append_workspace_yaml("implicitTypesPeers: true\n");
+    fixture.append_workspace_yaml("addMissingPeerTypes: true\n");
 
     fixture.run(["install"]);
 
@@ -100,7 +100,7 @@ fn turning_the_setting_on_re_resolves_an_existing_lockfile() {
 fn a_frozen_install_rejects_a_lockfile_resolved_without_the_setting() {
     let fixture = fixture("");
     fixture.run(["install"]);
-    fixture.append_workspace_yaml("implicitTypesPeers: true\n");
+    fixture.append_workspace_yaml("addMissingPeerTypes: true\n");
 
     let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
 
@@ -108,5 +108,5 @@ fn a_frozen_install_rejects_a_lockfile_resolved_without_the_setting() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("stdout:\n{stdout}\nstderr:\n{stderr}");
     assert!(!output.status.success());
-    assert!(format!("{stdout}{stderr}").contains("implicitTypesPeers"));
+    assert!(format!("{stdout}{stderr}").contains("addMissingPeerTypes"));
 }

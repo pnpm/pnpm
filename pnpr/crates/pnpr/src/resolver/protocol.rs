@@ -188,7 +188,7 @@ pub struct ResolveRequest {
     #[serde(default)]
     pub exclude_links_from_lockfile: Option<bool>,
     #[serde(default)]
-    pub implicit_types_peers: Option<bool>,
+    pub add_missing_peer_types: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse

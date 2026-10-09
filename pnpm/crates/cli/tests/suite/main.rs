@@ -9,6 +9,7 @@ mod _utils;
 
 mod add;
 mod add_jsr;
+mod add_missing_peer_types;
 mod add_types;
 mod agent_skills;
 mod approve_builds;
@@ -69,7 +70,6 @@ mod hoist;
 mod hoisted_node_linker;
 mod hooks;
 mod ignore_workspace;
-mod implicit_types_peers;
 mod import;
 mod import_yarn_patches;
 mod init;

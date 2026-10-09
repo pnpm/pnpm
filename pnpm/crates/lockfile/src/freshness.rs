@@ -16,8 +16,8 @@
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
 pub use recorded_settings::{
-    auto_install_peers_changed, exclude_links_from_lockfile_changed, recorded_dedupe_peers,
-    recorded_implicit_types_peers, recorded_inject_workspace_packages,
+    auto_install_peers_changed, exclude_links_from_lockfile_changed,
+    recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
     recorded_peers_suffix_max_length,
 };
 pub use spec_diff::SpecDiff;
@@ -44,7 +44,7 @@ pub struct ResolutionSettingsCheck<'a> {
     pub auto_install_peers: bool,
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
-    pub implicit_types_peers: bool,
+    pub add_missing_peer_types: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
@@ -251,13 +251,13 @@ pub enum StalenessReason {
     )]
     DedupePeersChanged { lockfile: bool, config: bool },
 
-    /// The lockfile's `settings.implicitTypesPeers` differs from the
-    /// current install's `Config::implicit_types_peers`. Normalized like
+    /// The lockfile's `settings.addMissingPeerTypes` differs from the
+    /// current install's `Config::add_missing_peer_types`. Normalized like
     /// [`Self::DedupePeersChanged`].
     #[display(
-        "`implicitTypesPeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+        "`addMissingPeerTypes` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
-    ImplicitTypesPeersChanged { lockfile: bool, config: bool },
+    AddMissingPeerTypesChanged { lockfile: bool, config: bool },
 
     /// The lockfile's `settings.excludeLinksFromLockfile` differs from
     /// the current install's `Config::exclude_links_from_lockfile`. The
@@ -320,7 +320,7 @@ impl StalenessReason {
             StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
             StalenessReason::AutoInstallPeersChanged { .. }
             | StalenessReason::DedupePeersChanged { .. }
-            | StalenessReason::ImplicitTypesPeersChanged { .. }
+            | StalenessReason::AddMissingPeerTypesChanged { .. }
             | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
             | StalenessReason::PeersSuffixMaxLengthChanged { .. }
             | StalenessReason::InjectWorkspacePackagesChanged { .. } => self.settings_block_key(),
