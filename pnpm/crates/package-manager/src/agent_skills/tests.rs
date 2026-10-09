@@ -530,3 +530,20 @@ fn links_once_into_dirs_that_are_one_directory() {
 
     assert_eq!(state.linked, [".agents/skills/pnpm-foo-guide"]);
 }
+
+#[cfg(unix)]
+#[test]
+fn rejects_symlinked_gitignore() {
+    let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide"])]);
+    let target_dir = root.path().join(".claude/skills");
+    fs::create_dir_all(&target_dir).unwrap();
+    let external = tempfile::tempdir().expect("create external tempdir");
+    let external_file = external.path().join("fake-gitignore");
+    fs::write(&external_file, "").unwrap();
+    std::os::unix::fs::symlink(&external_file, target_dir.join(".gitignore")).unwrap();
+
+    let error =
+        sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+    assert!(matches!(error, AgentSkillsError::Io { .. }));
+    assert_eq!(fs::read_to_string(&external_file).unwrap(), "");
+}
