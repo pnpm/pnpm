@@ -1,6 +1,6 @@
 use super::{
     Body, Config, Ipv4Addr, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode, TempDir,
-    body_json, header, json, router,
+    body_bytes, body_json, header, json, router,
 };
 
 fn config_with_providers(storage: &TempDir) -> Config {
@@ -54,8 +54,8 @@ async fn an_unknown_handoff_code_is_refused() {
     let response = app
         .oneshot(
             Request::post("/-/oidc/handoff")
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(json!({ "code": "unknown" }).to_string()))
+                .header(header::COOKIE, "__Host-pnpr-oidc-handoff=unknown")
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
@@ -64,17 +64,25 @@ async fn an_unknown_handoff_code_is_refused() {
 }
 
 #[tokio::test]
-async fn sign_in_returns_only_to_the_ui() {
+async fn sign_in_returns_only_to_a_served_ui() {
     let storage = TempDir::new().unwrap();
     let app = router(config_with_providers(&storage));
 
-    let response = app
-        .oneshot(
-            Request::get("/-/oidc/company/login?return=https://evil.example")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    for (uri, reason) in [
+        ("/-/oidc/company/login?return=https://evil.example", "return must be ui"),
+        ("/-/oidc/company/login?return=ui", "does not serve the web UI"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(body.contains(reason), "{uri}: {body}");
+    }
 }

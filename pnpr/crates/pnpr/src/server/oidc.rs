@@ -1,11 +1,12 @@
 use super::{AppState, private_no_cache};
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
+    routing::{get, post},
 };
-use pnpr_auth::oidc::{LoginReturn, LoginSession};
+use pnpr_auth::oidc::{HANDOFF_TTL, LoginReturn, LoginSession, OidcState};
 use pnpr_error::RegistryError;
 use serde::Deserialize;
 use serde_json::json;
@@ -14,43 +15,52 @@ use serde_json::json;
 /// `/-/oidc/{provider}/callback`.
 const UI_HANDOFF_PAGE: &str = "../../ui/sign-in/oidc";
 
+/// Carries a handoff code from the callback to the web UI's redemption
+/// request. Only the browser that signed in holds it, so a link cannot sign
+/// another browser in.
+const HANDOFF_COOKIE: &str = "__Host-pnpr-oidc-handoff";
+
+/// The browser sign-in routes. A sign-in can end in the web UI only when
+/// `ui_served`.
+pub(super) fn routes(ui_served: bool) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/-/oidc/{provider}/login",
+            get(move |state: State<AppState>, provider: Path<String>, query: Query<LoginQuery>| {
+                login(state, provider, query, ui_served)
+            }),
+        )
+        .route("/-/oidc/{provider}/callback", get(callback))
+        .route("/-/oidc/handoff", post(redeem_handoff))
+        .route("/-/pnpr/v0/sign-in", get(sign_in_methods))
+}
+
 #[derive(Deserialize)]
 pub(super) struct LoginQuery {
     #[serde(rename = "return")]
     returns_to: Option<String>,
 }
 
-pub(super) async fn login(
+async fn login(
     State(state): State<AppState>,
     Path(provider): Path<String>,
     Query(query): Query<LoginQuery>,
+    ui_served: bool,
 ) -> Response {
     let returns_to = match query.returns_to.as_deref() {
         None => LoginReturn::Token,
-        Some("ui") => LoginReturn::Ui,
-        Some(_) => {
-            return protect(
-                RegistryError::BadRequest { reason: "return must be ui".to_string() }
-                    .into_response(),
-            );
-        }
+        Some("ui") if ui_served => LoginReturn::Ui,
+        Some("ui") => return bad_request("this pnpr does not serve the web UI"),
+        Some(_) => return bad_request("return must be ui"),
     };
     let response = match state.inner.identity.oidc.start(&provider, returns_to).await {
-        Ok(start) => {
-            let mut response = Redirect::to(&start.url).into_response();
-            let cookie = format!(
+        Ok(start) => with_cookie(
+            Redirect::to(&start.url).into_response(),
+            &format!(
                 "__Host-pnpr-oidc-{}={}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=300",
                 start.state, start.browser_secret,
-            );
-            match HeaderValue::from_str(&cookie) {
-                Ok(cookie) => {
-                    response.headers_mut().insert(header::SET_COOKIE, cookie);
-                    response
-                }
-                Err(_) => RegistryError::Internal { reason: "invalid OIDC cookie".to_string() }
-                    .into_response(),
-            }
-        }
+            ),
+        ),
         Err(err) => err.into_response(),
     };
     protect(response)
@@ -62,7 +72,7 @@ pub(super) struct Callback {
     code: Option<String>,
 }
 
-pub(super) async fn callback(
+async fn callback(
     State(state): State<AppState>,
     Path(provider): Path<String>,
     Query(query): Query<Callback>,
@@ -88,27 +98,28 @@ pub(super) async fn callback(
         )
         .await
         {
-            Ok(session) => signed_in(&state, session),
+            Ok(session) => signed_in(&state.inner.identity.oidc, session),
             Err(err) => err.into_response(),
         }
     } else {
         RegistryError::Unauthenticated { resource: "OIDC browser session".to_string() }
             .into_response()
     };
-    let mut response = protect(response);
-    let cookie = format!("{cookie_name}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0");
-    if let Ok(cookie) = HeaderValue::from_str(&cookie) {
-        response.headers_mut().insert(header::SET_COOKIE, cookie);
-    }
-    response
+    with_cookie(protect(response), &expired_cookie(&cookie_name))
 }
 
-/// Where the browser lands after `session` signed in: the web UI with a
-/// handoff code, or a page that shows the token.
-fn signed_in(state: &AppState, session: LoginSession) -> Response {
+/// Where the browser lands after `session` signed in: the web UI, holding a
+/// handoff code in [`HANDOFF_COOKIE`], or a page that shows the token.
+fn signed_in(oidc: &OidcState, session: LoginSession) -> Response {
     if session.returns_to == LoginReturn::Ui {
-        return match state.inner.identity.oidc.hand_off(session) {
-            Ok(code) => Redirect::to(&format!("{UI_HANDOFF_PAGE}?code={code}")).into_response(),
+        return match oidc.hand_off(session) {
+            Ok(code) => with_cookie(
+                Redirect::to(UI_HANDOFF_PAGE).into_response(),
+                &format!(
+                    "{HANDOFF_COOKIE}={code}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={}",
+                    HANDOFF_TTL.as_secs(),
+                ),
+            ),
             Err(err) => err.into_response(),
         };
     }
@@ -120,28 +131,27 @@ fn signed_in(state: &AppState, session: LoginSession) -> Response {
     (StatusCode::OK, message).into_response()
 }
 
-#[derive(Deserialize)]
-pub(super) struct HandoffRequest {
-    code: String,
+/// `POST /-/oidc/handoff`: trades the handoff code that a sign-in started
+/// with `return=ui` left in [`HANDOFF_COOKIE`] for the session token.
+async fn redeem_handoff(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    redeem(&state.inner.identity.oidc, &headers)
 }
 
-/// `POST /-/oidc/handoff`: trades the one-time code that a sign-in started
-/// with `return=ui` redirected to the web UI for the session token.
-pub(super) async fn redeem_handoff(
-    State(state): State<AppState>,
-    Json(request): Json<HandoffRequest>,
-) -> Response {
-    let response = match state.inner.identity.oidc.redeem_handoff(&request.code) {
-        Ok(session) => {
-            Json(json!({ "token": session.token, "expires": session.expires })).into_response()
-        }
-        Err(err) => err.into_response(),
-    };
-    protect(response)
+fn redeem(oidc: &OidcState, headers: &HeaderMap) -> Response {
+    let response =
+        match browser_secret(headers, HANDOFF_COOKIE).map(|code| oidc.redeem_handoff(code)) {
+            Some(Ok(session)) => {
+                Json(json!({ "token": session.token, "expires": session.expires })).into_response()
+            }
+            Some(Err(err)) => err.into_response(),
+            None => RegistryError::Unauthenticated { resource: "OIDC handoff".to_string() }
+                .into_response(),
+        };
+    with_cookie(protect(response), &expired_cookie(HANDOFF_COOKIE))
 }
 
 /// `GET /-/pnpr/v0/sign-in`: the OIDC providers that offer browser sign-in.
-pub(super) async fn sign_in_methods(State(state): State<AppState>) -> Response {
+async fn sign_in_methods(State(state): State<AppState>) -> Response {
     let providers: Vec<_> = state.inner.config.identity.auth.oidc
         .iter()
         .filter(|provider| provider.login.is_some())
@@ -164,6 +174,26 @@ fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h s
         .next()
         .is_none()
         .then_some(secret)
+}
+
+fn expired_cookie(name: &str) -> String {
+    format!("{name}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0")
+}
+
+fn with_cookie(mut response: Response, cookie: &str) -> Response {
+    match HeaderValue::from_str(cookie) {
+        Ok(cookie) => {
+            response.headers_mut().append(header::SET_COOKIE, cookie);
+            response
+        }
+        Err(_) => {
+            RegistryError::Internal { reason: "invalid OIDC cookie".to_string() }.into_response()
+        }
+    }
+}
+
+fn bad_request(reason: &str) -> Response {
+    protect(RegistryError::BadRequest { reason: reason.to_string() }.into_response())
 }
 
 fn protect(response: Response) -> Response {

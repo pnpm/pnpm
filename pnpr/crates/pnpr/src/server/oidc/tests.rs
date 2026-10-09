@@ -1,7 +1,10 @@
-use super::{check_workload_request, validate_workloads};
+use super::{
+    HANDOFF_COOKIE, LoginReturn, LoginSession, OidcState, check_workload_request, redeem,
+    signed_in, validate_workloads,
+};
 use axum::{
     body::Body,
-    http::{Method, Request, StatusCode, Uri},
+    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri, header},
 };
 use pnpr_config::Config;
 use std::net::SocketAddr;
@@ -125,4 +128,42 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
             .unwrap()
             .contains("no-store"),
     );
+}
+
+#[tokio::test]
+async fn a_ui_sign_in_hands_the_token_only_to_the_browser_that_signed_in() {
+    let oidc = OidcState::new(&[], "https://registry.example").unwrap();
+    let session = LoginSession {
+        token: "pnpr_oidc_session".to_string(),
+        expires: chrono::Utc::now().timestamp() + 60,
+        returns_to: LoginReturn::Ui,
+    };
+    let landed = signed_in(&oidc, session);
+    assert!(landed.status().is_redirection());
+    assert_eq!(landed.headers()[header::LOCATION], "../../ui/sign-in/oidc");
+    let cookie = landed.headers()[header::SET_COOKIE].to_str().unwrap();
+    assert!(cookie.contains("; HttpOnly;"), "{cookie}");
+    let pair = cookie.split(';').next().unwrap();
+    assert!(pair.starts_with(&format!("{HANDOFF_COOKIE}=")), "{cookie}");
+    let with_cookie = |pair: &str| {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::COOKIE, HeaderValue::from_str(pair).unwrap());
+        headers
+    };
+
+    for refused in [HeaderMap::new(), with_cookie(&format!("{HANDOFF_COOKIE}=other-code"))] {
+        assert_eq!(redeem(&oidc, &refused).status(), StatusCode::UNAUTHORIZED);
+    }
+    let redeemed = redeem(&oidc, &with_cookie(pair));
+    assert_eq!(redeemed.status(), StatusCode::OK);
+    assert!(
+        redeemed.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .ends_with("Max-Age=0"),
+    );
+    let body = axum::body::to_bytes(redeemed.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["token"], "pnpr_oidc_session");
+    assert_eq!(redeem(&oidc, &with_cookie(pair)).status(), StatusCode::UNAUTHORIZED);
 }

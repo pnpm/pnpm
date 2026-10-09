@@ -81,7 +81,7 @@ fn finish_router(
     cors_origins: Vec<HeaderValue>,
     ui_dir: Option<&std::path::Path>,
 ) -> pnpr_error::Result<Router> {
-    let mut router = surface_routes(&state, surfaces);
+    let mut router = surface_routes(&state, surfaces, ui_dir.is_some());
     if let Some(dir) = ui_dir {
         tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
         router = router.merge(super::web_ui::routes(dir));
@@ -198,18 +198,18 @@ struct EnabledSurfaces {
     pipeline: bool,
 }
 
-fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppState> {
+fn surface_routes(
+    state: &AppState,
+    surfaces: EnabledSurfaces,
+    ui_served: bool,
+) -> Router<AppState> {
     // `/-/ping` is a health check and is always served. The two
     // configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router: Router<AppState> = Router::new()
-        .route("/-/ping", get(serve_ping))
-        .route("/-/oidc/{provider}/login", get(super::oidc::login))
-        .route("/-/oidc/{provider}/callback", get(super::oidc::callback))
-        .route("/-/oidc/handoff", post(super::oidc::redeem_handoff))
-        .route("/-/pnpr/v0/sign-in", get(super::oidc::sign_in_methods));
+    let mut router: Router<AppState> = Router::new().route("/-/ping", get(serve_ping));
     router = router
+        .merge(super::oidc::routes(ui_served))
         .merge(account_routes())
         .merge(super::user_admin::user_admin_routes())
         .merge(super::rule_admin::rule_admin_routes());

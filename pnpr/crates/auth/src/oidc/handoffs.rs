@@ -6,7 +6,7 @@ use super::{
 
 /// How long a handoff code can be redeemed. The UI redeems it on the page the
 /// sign-in redirects to.
-const HANDOFF_TTL: Duration = Duration::from_mins(1);
+pub const HANDOFF_TTL: Duration = Duration::from_mins(1);
 
 pub(super) struct Handoff {
     session: LoginSession,
@@ -33,10 +33,11 @@ impl OidcState {
     /// before it expires.
     pub fn redeem_handoff(&self, code: &str) -> Result<LoginSession> {
         let now = Utc::now().timestamp();
+        let hash = super::super::sha256_hex(code.as_bytes());
         self.browser.handoffs
             .lock()
             .expect("OIDC handoff mutex poisoned")
-            .remove(&super::super::sha256_hex(code.as_bytes()))
+            .remove(&hash)
             .filter(|handoff| handoff.expires > now)
             .map(|handoff| handoff.session)
             .ok_or_else(rejected)

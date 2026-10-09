@@ -34,8 +34,8 @@ their own pages.
 | --- | --- | --- |
 | `GET` | `/-/ping` | Health check. Returns `{}`. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
-| `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. |
-| `POST` | `/-/oidc/handoff` | Trades the one-time `code` that a sign-in with `return=ui` passes to the web UI for `{"token": ..., "expires": ...}`. A code works once, within a minute. |
+| `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
+| `POST` | `/-/oidc/handoff` | Returns `{"token": ..., "expires": ...}` for a sign-in with `return=ui`. The token is released only to the browser that signed in, once, within a minute. |
 
 The [user and token endpoints](#user-and-token-endpoints) below are also
 always available, whichever surfaces are enabled.
