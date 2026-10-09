@@ -71,8 +71,6 @@ pub(super) fn dangerously_allow_all_builds() {
     assert_eq!(policy.check("any-package@1.0.0"), Some(true));
     assert_eq!(policy.check("other-package@2.0.0"), Some(true));
 }
-/// `dangerouslyAllowAllBuilds` with denials in `allowBuilds` allows every
-/// build except the denied ones.
 #[test]
 fn explicit_deny_outranks_dangerously_allow_all_builds() {
     let policy = policy_from_specs([("denied", false), ("pinned@1.0.0", false)], true);

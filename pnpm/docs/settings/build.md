@@ -312,7 +312,7 @@ Added in: v10.9.0
 * Default: **false**
 * Type: **Boolean**
 
-If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`) from dependencies will run automatically, without requiring approval.
+If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`) from dependencies will run automatically, without requiring approval. Packages set to `false` in [`allowBuilds`](#allowbuilds) are still blocked, so the two settings together allow every build except the denied ones.
 
 :::warning
 
