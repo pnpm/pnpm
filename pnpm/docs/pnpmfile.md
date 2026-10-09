@@ -127,24 +127,7 @@ Since v12.8.0, a setting given on the command line takes precedence over the
 hook. The hook still receives the command-line value, but pnpm puts it back
 after the hook returns, so changing it in the hook has no effect. This covers
 flags such as `--registry`, `--config.@acme:registry`, `--store-dir`, `--state-dir`,
-`--filter`, `--filter-prod`, `--config.<key>` overrides, and setting flags such as `--no-optional`.
-
-#### Selecting workspace projects
-
-The hook can set `filter` and `filterProd` to choose the projects a recursive
-command runs on, the same way `--filter` and `--filter-prod` do. `config.filter`
-and `config.filterProd` are present only when they were given on the command
-line. For example, this hook makes `pnpm install` install only project `a`
-unless the command line gives its own filter:
-
-```js title=".pnpmfile.mjs"
-export const hooks = {
-  updateConfig (config) {
-    config.filter ??= ['a']
-    return config
-  }
-}
-```
+`--config.<key>` overrides, and setting flags such as `--no-optional`.
 
 #### Which commands load the pnpmfile
 
