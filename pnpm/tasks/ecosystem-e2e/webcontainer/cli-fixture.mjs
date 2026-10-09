@@ -10,9 +10,12 @@ else createWorkspaceFixture()
 async function installWithMatchingPin (entry) {
   const { packageManager } = JSON.parse(readFileSync('package.json', 'utf8'))
   const version = packageManager.slice('pnpm@'.length)
+  const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`
+  let metadataRequested = false
   // A matching pin records integrity even when the running build is unpublished.
   const server = createServer((request, response) => {
     if (request.url === '/pnpm') {
+      metadataRequested = true
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify({
         name: 'pnpm',
@@ -21,7 +24,7 @@ async function installWithMatchingPin (entry) {
         versions: {
           [version]: {
             name: 'pnpm', version,
-            dist: { tarball: `https://registry.npmjs.org/pnpm/-/pnpm-${version}.tgz`, integrity: `sha512-${Buffer.alloc(64).toString('base64')}` },
+            dist: { tarball: `https://registry.npmjs.org/pnpm/-/pnpm-${version}.tgz`, integrity },
           },
         },
       }))
@@ -43,6 +46,11 @@ async function installWithMatchingPin (entry) {
   } finally {
     await new Promise(resolve => server.close(resolve))
   }
+  if (process.exitCode !== 0) return
+  assert.ok(metadataRequested, 'Matching pin did not request fixture metadata')
+  const envLockfile = readFileSync('pnpm-lock.yaml', 'utf8').split('\n---\n')[0]
+  assert.ok(envLockfile.includes(`    packageManagerDependencies:\n      pnpm:\n        specifier: ${version}\n        version: ${version}`), 'Matching pin was not recorded')
+  assert.ok(envLockfile.includes(`  pnpm@${version}:\n    resolution: {integrity: ${integrity}}`), 'Fixture integrity was not recorded')
 }
 
 function createFrontendFixture () {
@@ -89,3 +97,4 @@ function createApprovalFixture () {
   writeFileSync('package.json', JSON.stringify(manifest))
   appendFileSync('pnpm-workspace.yaml', 'strictDepBuilds: false\n')
 }
+import assert from 'node:assert/strict'

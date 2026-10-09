@@ -47,8 +47,11 @@ pub fn escaped_package_name(name: &str) -> String {
 /// Protocol-relative credential keys use the same canonical host.
 #[must_use]
 pub fn normalize_registry_url(registry: &str) -> Cow<'_, str> {
-    let registry = canonicalize_npm_registry_url(registry);
-    if registry.ends_with('/') { registry } else { Cow::Owned(format!("{registry}/")) }
+    append_trailing_slash(canonicalize_npm_registry_url(registry))
+}
+
+pub(crate) fn append_trailing_slash(url: Cow<'_, str>) -> Cow<'_, str> {
+    if url.ends_with('/') { url } else { Cow::Owned(format!("{url}/")) }
 }
 
 /// Canonicalize npm's exact HTTPS registry root or its protocol-relative

@@ -16,6 +16,27 @@ use std::{
 };
 
 #[test]
+fn registry_alias_does_not_change_outbound_credential_scope() {
+    let mut headers = AuthHeaders::from_map(HashMap::from([(
+        "//registry.npmjs.org/".to_string(),
+        "Bearer canonical-secret".to_string(),
+    )]));
+    for url in ["https://registry.npmjs.com", "https://registry.npmjs.com/"] {
+        assert_eq!(headers.for_url(url), None);
+        assert_eq!(headers.for_url_with_package(url, Some("@org/pkg")), None);
+    }
+    headers.insert_url_header("https://registry.npmjs.com", "Bearer alias-secret".to_string());
+    assert_eq!(
+        headers.for_url("https://registry.npmjs.com/"),
+        Some("Bearer alias-secret".to_string()),
+    );
+    assert_eq!(
+        headers.for_url("https://registry.npmjs.org/"),
+        Some("Bearer canonical-secret".to_string()),
+    );
+}
+
+#[test]
 fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
     let mut headers = AuthHeaders::default().with_secure_transport();
     for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {

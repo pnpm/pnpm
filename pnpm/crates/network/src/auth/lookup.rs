@@ -18,7 +18,7 @@ impl AuthHeaders {
         // `https://npm.pkg.github.com/pnpm` (registry without
         // trailing slash) would nerf-dart to `//npm.pkg.github.com/`
         // and miss a `//npm.pkg.github.com/pnpm/` token.
-        let url_with_slash = crate::normalize_registry_url(url);
+        let url_with_slash = crate::url_encoding::append_trailing_slash(url.into());
         let parsed = ParsedUrl::parse(&url_with_slash)?;
         if let Some(basic) = parsed.basic_auth_header() {
             return Some(basic);
