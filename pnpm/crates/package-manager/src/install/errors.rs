@@ -118,8 +118,7 @@ pub enum InstallError {
     StoreFetch(#[error(source)] crate::StoreFetchError),
 
     /// `enableModulesDir: false` waited for the tarballs the resolver
-    /// prefetched, and some of them failed. A failed slot keeps no error,
-    /// only the archive it was for.
+    /// prefetched, and some of those downloads failed.
     #[display("Fetching {} package(s) into the store failed: {}", tarballs.len(), tarballs.join(", "))]
     #[diagnostic(code(ERR_PNPM_STORE_FETCH_FAILED))]
     StoreFetchFailed {

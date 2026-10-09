@@ -28,6 +28,7 @@ pub use pnpm_deps_restorer::*;
 pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
+pub use prefetch_downloads::{DownloadOutcome, PrefetchDownloads};
 pub use prefetching_resolver::*;
 pub use rayon_pool::*;
 pub use remove::*;
@@ -76,6 +77,7 @@ mod overrides;
 mod package_extender;
 mod patch;
 mod peer_dependency_issues;
+mod prefetch_downloads;
 mod prefetching_resolver;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;

@@ -28,6 +28,8 @@ mod mode;
 mod store_fetch;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
+mod owned;
+use owned::InstallOwned;
 mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
@@ -200,6 +202,9 @@ where
             RunExecution {
                 install,
                 owned,
+                prefetch_downloads: mode
+                    .fetches_into_store(install.execution)
+                    .then(|| Arc::new(crate::PrefetchDownloads::default())),
                 mode,
                 workspace,
                 options,
@@ -219,6 +224,9 @@ struct RunExecution<'a> {
     install: InstallView<'a>,
     owned: InstallOwned,
     mode: RunMode,
+    /// See [`crate::PrefetchDownloads`]; `Some` for a run that fetches into
+    /// the store.
+    prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
     workspace: InstallWorkspace<'a>,
     options: InstallRunOptions<'a, 'a>,
     loaded_workspace_projects: Option<&'a [pnpm_workspace::Project]>,
@@ -363,20 +371,6 @@ pub struct InstallExecution {
     pub node_linker: super::NodeLinker,
     pub lockfile_only: bool,
     pub dry_run: bool,
-}
-
-impl InstallOwned {
-    fn shared_caches(&self) -> Option<&super::SharedInstallCaches> {
-        self.projects.dedicated.as_ref().map(|dedicated| &dedicated.caches)
-    }
-}
-
-/// The install's owned inputs, each consumed by one phase.
-struct InstallOwned {
-    tarball_mem_cache: Arc<super::MemCache>,
-    http_client_arc: Arc<super::ThrottledClient>,
-    projects: super::InstallProjects<Vec<DependencyGroup>>,
-    resolution: crate::install::run::ResolutionInputs,
 }
 
 #[derive(Default)]

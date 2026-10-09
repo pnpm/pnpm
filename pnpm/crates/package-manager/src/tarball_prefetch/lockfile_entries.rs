@@ -11,10 +11,10 @@ use pnpm_package_is_installable::{
     SupportedArchitectures, WantedPlatformRef, platform_is_supported,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
-use pnpm_tarball::TarballError;
+use pnpm_tarball::{PrefetchIntegrityCheck, TarballError, prefetch_cas_paths};
 use std::collections::HashSet;
 
-/// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
+/// One registry lockfile entry [`super::TarballPrefetcher::prefetch_lockfile`]
 /// may spawn a download for, staged so the whole batch can be filtered
 /// through a single store-index existence probe first.
 pub(super) struct PendingPrefetch {
@@ -61,6 +61,33 @@ pub enum StoreFetchError {
     Entry(#[error(source)] InstallPackageBySnapshotError),
     #[diagnostic(transparent)]
     Download(#[error(source)] TarballError),
+}
+
+/// Drop every pending entry the store holds with its files in place, by
+/// the same verified lookup the materialization uses for its warm rows. A
+/// row whose files are gone counts as missing here: no materialization
+/// follows a store-only fetch to download it again.
+pub(super) async fn without_verified_store_hits(
+    store: &pnpm_tarball::ArchiveStoreContext<'static>,
+    verify_store_integrity: bool,
+    pending: Vec<PendingPrefetch>,
+) -> Vec<PendingPrefetch> {
+    let keys: Vec<String> = pending
+        .iter()
+        .map(|entry| entry.store_key.clone())
+        .collect();
+    let verified = prefetch_cas_paths(
+        store.index.clone(),
+        store.dir,
+        keys,
+        PrefetchIntegrityCheck::eager_if(verify_store_integrity),
+        std::sync::Arc::clone(&store.verified_files_cache),
+    )
+    .await;
+    pending
+        .into_iter()
+        .filter(|entry| !verified.cas_paths.contains_key(&entry.store_key))
+        .collect()
 }
 
 /// One lockfile entry staged for a fetch: `None` for a resolution that is

@@ -69,6 +69,8 @@ pub(super) struct MaterializationExecution<'a> {
 
 pub(super) struct MaterializationDownloads {
     pub(super) tarball_mem_cache: Arc<MemCache>,
+    /// See `FreshFetchingInputs::prefetch_downloads`.
+    pub(super) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
     pub(super) http_client_arc: Arc<ThrottledClient>,
     pub(super) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
@@ -253,6 +255,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
+                prefetch_downloads: self.downloads.prefetch_downloads,
                 http_client_arc: self.downloads.http_client_arc,
                 meta_cache: self.lockfiles.verification.meta_cache,
                 fetch_caches: self.downloads.fetch_caches,

@@ -190,6 +190,7 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
             progress_reported: &stores.caches.progress_reported,
             prefetch: install.execution.fetches_into_store()
                 || prefetch_downloads(install.execution.lockfile_only(), shape.materializes_subset),
+            tracked: owned.fetching.prefetch_downloads.as_ref(),
         },
         hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks {
             pnpmfile: owned.pnpmfile_hook_override.take(),

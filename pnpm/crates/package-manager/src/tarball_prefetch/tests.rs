@@ -1,6 +1,8 @@
 use super::{
     TarballDownload,
-    lockfile_entries::{PendingPrefetch, registry_entry, without_store_hits},
+    lockfile_entries::{
+        PendingPrefetch, registry_entry, without_store_hits, without_verified_store_hits,
+    },
     run_tarball_download,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
@@ -199,4 +201,41 @@ fn an_unfetchable_registry_entry_fails_the_staging() {
         staged,
         Err(pnpm_deps_restorer::InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
     ));
+}
+
+/// The store-only fetch has no materialization after it to download a
+/// package whose index row outlived its files, so the verified lookup
+/// treats such a row as missing.
+#[tokio::test]
+async fn a_row_whose_files_are_gone_is_fetched_again() {
+    let store = tempdir().unwrap();
+    let warm = pending("@foo/warm@1.0.0", "sha512-aGVsbG8=");
+    {
+        let idx = StoreIndex::open(store.path()).unwrap();
+        idx.set(&warm.store_key, &sample_index())
+            .unwrap();
+    }
+    let store_dir: &'static StoreDir = Box::leak(Box::new(StoreDir::new(store.path())));
+    let context = pnpm_tarball::ArchiveStoreContext {
+        dir: store_dir,
+        index: StoreIndex::open_readonly(store.path())
+            .map(|idx| Arc::new(std::sync::Mutex::new(idx)))
+            .ok(),
+        index_writer: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        verify_integrity: true,
+        strict_pkg_content_check: true,
+        prefetched_cas_paths: None,
+    };
+    assert!(context.index.is_some(), "readonly index should open after a write");
+
+    let unverified = without_store_hits(
+        context.index.clone(),
+        vec![pending("@foo/warm@1.0.0", "sha512-aGVsbG8=")],
+    )
+    .await;
+    let missing = without_verified_store_hits(&context, true, vec![warm]).await;
+
+    assert!(unverified.is_empty(), "the row alone satisfies the speculative prefetch");
+    assert_eq!(missing.len(), 1, "the files behind the row are gone, so the fetch downloads it");
 }

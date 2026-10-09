@@ -54,7 +54,7 @@ use pnpm_tarball::{
     ArchiveStoreProjection, IngestTarballToStore, MemCache, SharedReportedProgressKeys,
     package_mem_cache_key,
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::{future::Future, marker::PhantomData, sync::Arc};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -88,6 +88,9 @@ pub struct PrefetchPolicy<'a> {
     pub downloads: bool,
     /// Consulted before downloading a tarball to learn its missing hash.
     pub custom_session: Option<&'a Arc<CustomFetcherSession>>,
+    /// Where a run that fetches into the store keeps the download tasks,
+    /// to wait for them; `None` spawns them detached.
+    pub tracked: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -116,6 +119,7 @@ struct PrefetchPlatform {
 struct PrefetchRunPolicy {
     downloads: bool,
     custom_session: Option<Arc<CustomFetcherSession>>,
+    tracked: Option<Arc<crate::PrefetchDownloads>>,
     ignore_scripts: bool,
 }
 
@@ -222,8 +226,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let package_unpacked_size = manifest_unpacked_size(result.package.manifest.as_deref());
         let package_file_count = manifest_file_count(result.package.manifest.as_deref());
         let ctx = Arc::clone(&self.ctx);
+        let tracked_url = package_url.clone();
 
-        tokio::spawn(async move {
+        let download = async move {
             // Report prefetch progress through the install reporter as
             // soon as the fetch/cache-hit outcome is known. pnpm can
             // likewise start package fetching before the dependency
@@ -236,12 +241,31 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 package_unpacked_size,
                 package_file_count,
             );
-            let _ = if revision_addressed {
+            let fetched = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             } else {
                 download.run_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             };
-        });
+            fetched.map(|_| ())
+        };
+        self.spawn_download(tracked_url, download);
+    }
+
+    /// A speculative prefetch drops the task's result: the `MemCache` slot
+    /// carries the outcome to the install pass that looks the archive up
+    /// later. A run that fetches into the store has no such pass and keeps
+    /// the task to wait for it.
+    fn spawn_download(
+        &self,
+        package_url: String,
+        download: impl Future<Output = crate::DownloadOutcome> + Send + 'static,
+    ) {
+        match &self.ctx.policy.tracked {
+            Some(tracked) => tracked.track(package_url, tokio::spawn(download)),
+            None => {
+                tokio::spawn(download);
+            }
+        }
     }
 
     /// Take the single download of this archive, returning `false` when
@@ -329,6 +353,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
             crate::PrefetchPolicy {
                 downloads: prefetch_downloads,
                 custom_session: custom_fetcher_session,
+                tracked,
             },
     } = prefetch_ctx;
     OwnedFetchCtx {
@@ -347,6 +372,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
         policy: PrefetchRunPolicy {
             downloads: *prefetch_downloads,
             custom_session: custom_fetcher_session.cloned(),
+            tracked: tracked.cloned(),
             ignore_scripts: config.ignore_scripts,
         },
     }

@@ -115,6 +115,7 @@ impl<'a> RunExecution<'a> {
             install: self.install,
             owned: &self.owned,
             requester: &self.workspace.prefix,
+            prefetch_downloads: self.prefetch_downloads.as_ref(),
         }
     }
 
@@ -195,7 +196,10 @@ impl<'a> RunExecution<'a> {
                 early_host_detection,
                 &self.workspace.prefix,
             ),
-            downloads: (&self.owned).into(),
+            downloads: crate::install::materialize::MaterializationDownloads {
+                prefetch_downloads: self.prefetch_downloads.clone(),
+                ..(&self.owned).into()
+            },
         }
     }
 
@@ -387,6 +391,7 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
     fn from(owned: &super::InstallOwned) -> Self {
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
+            prefetch_downloads: None,
             http_client_arc: Arc::clone(&owned.http_client_arc),
             fetch_caches: owned.shared_caches().map(|caches| caches.fetch.clone()),
         }

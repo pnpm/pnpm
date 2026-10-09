@@ -76,10 +76,10 @@ pub struct InstallOptions {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub inject_workspace_packages: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
-    /// `false` writes nothing under `node_modules` but still resolves,
-    /// writes the lockfile, and fetches the registry packages the host can
-    /// install into the store, for
-    /// a `node_modules` that something else mounts from the store.
+    /// `false` writes nothing under `node_modules`. The install still
+    /// resolves, writes the lockfile, and fetches the registry packages the
+    /// host can install into the store, for a `node_modules` that something
+    /// else mounts from the store; `lockfileOnly` and a dry run fetch nothing.
     pub enable_modules_dir: Option<bool>,
     /// Install from the lockfile alone, ignoring the project manifests —
     /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import

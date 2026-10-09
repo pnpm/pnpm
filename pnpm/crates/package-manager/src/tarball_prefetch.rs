@@ -14,7 +14,15 @@
 //! `CacheValue::Available` hit, or a brief park on the slot's `Notify`
 //! while the prefetch finishes).
 
+pub use lockfile_entries::StoreFetchError;
+
+mod lockfile_entries;
+
 use dashmap::DashSet;
+use lockfile_entries::{
+    PendingPrefetch, fetchable_entries, registry_entries, without_store_hits,
+    without_verified_store_hits,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::{AuthHeaders, ThrottledClient};
@@ -294,7 +302,8 @@ impl TarballPrefetcher {
         for package_id in in_store.values() {
             self.emit_progress::<Reporter>(resolved, package_id);
         }
-        let missing = without_store_hits(self.store.index.clone(), entries).await;
+        let missing =
+            without_verified_store_hits(&self.store, config.verify_store_integrity, entries).await;
         for entry in &missing {
             in_store.remove(&entry.store_key);
         }
@@ -356,10 +365,6 @@ impl TarballPrefetcher {
         StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
-
-mod lockfile_entries;
-pub use lockfile_entries::StoreFetchError;
-use lockfile_entries::{PendingPrefetch, fetchable_entries, registry_entries, without_store_hits};
 
 #[cfg(test)]
 mod tests;

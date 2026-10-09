@@ -496,7 +496,7 @@ pub(crate) fn claim_cache_entry(
 /// first and registering after loses that wakeup and parks this
 /// task forever (nothing ever notifies the slot again once it is
 /// terminal).
-pub async fn wait_for_cached_tarball(
+pub(crate) async fn wait_for_cached_tarball(
     cache_lock: &RwLock<CacheValue>,
     package_url: &str,
 ) -> Result<Arc<CachedTarball>, TarballError> {
