@@ -80,7 +80,7 @@ jobs:
         path: .pnpr-bin
         key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
     - name: Upload pnpr binaries
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: pnpr-bins-${{ runner.os }}
         path: .pnpr-bin
