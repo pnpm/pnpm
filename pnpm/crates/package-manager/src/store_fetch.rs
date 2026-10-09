@@ -53,8 +53,8 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
 }
 
 /// Wait for the downloads the resolver prefetched for this run. The
-/// failures name their tarballs: a prefetch keeps the download's error
-/// only for the run that waits for it.
+/// failures name their tarballs, with any credentials in the URL redacted:
+/// a prefetch keeps the download's error only for the run that waits for it.
 pub(crate) async fn wait_for_prefetched_downloads(
     downloads: &PrefetchDownloads,
 ) -> Result<(), InstallError> {
@@ -64,7 +64,7 @@ pub(crate) async fn wait_for_prefetched_downloads(
     }
     let mut tarballs: Vec<String> = failed
         .into_iter()
-        .map(|(url, error)| format!("{url}: {error}"))
+        .map(|(url, error)| format!("{}: {error}", pnpm_network::redact_url_for_display(&url)))
         .collect();
     tarballs.sort();
     Err(InstallError::StoreFetchFailed { tarballs })
