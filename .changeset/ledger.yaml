@@ -3098,6 +3098,10 @@
     - rebuild-inspects-selected-only
     - rebuild-keeps-modules-dir
     - size-napi-rayon-pool
+"@pnpm/napi@12.11.1":
+  dir: pnpm/npm/napi
+  intents:
+    - enable-modules-dir-fetches-into-store
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -5946,6 +5950,17 @@ pacquet@12.11.0:
     - whoami-registry-option
     - windows-invalid-package-filenames
     - workspace-optional-peer
+pacquet@12.11.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - agent-skills-environment-variables
+    - dlx-rust-release
+    - enable-modules-dir-fetches-into-store
+    - npm-registry-alias
+    - pack-excludes-ignore-files
+    - package-manager-pin-unpublished-running-version
+    - shared-node-modules-bin-chmod
+    - stage-publish-failure-message
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
