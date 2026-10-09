@@ -112,9 +112,7 @@ setTimeout(sample, 20)
 }
 
 /// Each run waits, for up to 30 seconds, until `count` runs are running at
-/// once, and writes `all-running` when they are. Waiting instead of
-/// sampling a fixed window keeps the result independent of how quickly
-/// the runs start.
+/// once, and writes `all-running` when they are.
 fn write_all_running_probe(workspace: &Path, count: usize) -> [String; 2] {
     let source = format!(
         r"const fs = require('fs')
