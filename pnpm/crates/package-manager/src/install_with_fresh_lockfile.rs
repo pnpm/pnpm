@@ -171,6 +171,11 @@ pub(crate) struct FreshInstallExecution {
     /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
     /// See [`crate::InstallExecution::lockfile_only`].
     pub(crate) lockfile_only: bool,
+    /// With [`Self::lockfile_only`]: the resolver still prefetches every
+    /// tarball into the store, and the run waits for those downloads
+    /// before it returns. `enableModulesDir: false` without
+    /// `--lockfile-only`; see `RunMode::fetches_into_store`.
+    pub(crate) fetches_into_store: bool,
     /// `config.skip_runtimes || --no-runtime`; see
     /// [`crate::add_direct_runtime_skips`].
     pub(crate) skip_runtimes: bool,

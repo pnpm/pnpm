@@ -208,7 +208,9 @@ export interface InstallOptions extends SharedEngineOptions {
   nodeVersion?: string
   /**
    * `false` installs without creating a `node_modules` directory: the graph
-   * resolves and the lockfile is written, but nothing is materialized.
+   * resolves, the lockfile is written, and every package is fetched into the
+   * store, but nothing is materialized. For a `node_modules` that something
+   * else mounts from the store.
    */
   enableModulesDir?: boolean
   /**

@@ -10,6 +10,12 @@ use std::{io::IsTerminal, path::PathBuf};
 /// What the run's flags settle into before anything is read from disk.
 pub(super) struct RunMode {
     pub(super) lockfile_only: bool,
+    /// `enableModulesDir: false` without `--lockfile-only`: the run writes
+    /// no `node_modules`, like a lockfile-only run, but still fetches every
+    /// package into the store, as pnpm's TypeScript engine did. Whoever
+    /// mounts `node_modules` afterwards (a FUSE daemon, for one) serves it
+    /// from the store instead of downloading each package on first access.
+    pub(super) fetches_into_store: bool,
     pub(super) resolve_only: bool,
     pub(super) prefer_frozen_lockfile: bool,
     pub(super) included: IncludedDependencies,
@@ -42,6 +48,7 @@ impl RunMode {
         reject_conflicting_store_config(install.context.config)?;
         Ok(Self {
             lockfile_only,
+            fetches_into_store: lockfile_only && !install.execution.lockfile_only,
             // `--dry-run` resolves but never materializes, so it borrows the
             // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
             // workspace-state) while additionally skipping the lockfile write.
@@ -86,9 +93,10 @@ fn reject_lockfile_only_without_lockfile(
 
 /// `enableModulesDir: false` (with the global virtual store off) is "resolve
 /// and write the lockfile, materialize nothing" — the same pipeline
-/// `--lockfile-only` takes, entered from config. It stays outside the
-/// `lockfile: false` conflict (pnpm accepts that combination and simply
-/// writes nothing), and never turns a rebuild — which runs against an
+/// `--lockfile-only` takes, entered from config, except that the packages
+/// are still fetched into the store (`RunMode::fetches_into_store`). It stays
+/// outside the `lockfile: false` conflict (pnpm accepts that combination and
+/// simply writes nothing), and never turns a rebuild — which runs against an
 /// already-materialized `node_modules` — into a silent no-op.
 fn effective_lockfile_only(
     config: &Config,

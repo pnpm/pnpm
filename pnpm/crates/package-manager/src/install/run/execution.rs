@@ -97,6 +97,13 @@ impl<'a> RunExecution<'a> {
         )
         .await?
         else {
+            if self.mode.fetches_into_store {
+                fetch_wanted_lockfile_into_store::<Reporter>(
+                    (self.install.context.config, &self.owned, &self.workspace.prefix),
+                    lockfiles,
+                )
+                .await?;
+            }
             return Ok(self.take_settled_outcome());
         };
         let materialized = materialize::<Reporter>(self.materialization_inputs(
@@ -107,6 +114,9 @@ impl<'a> RunExecution<'a> {
             (verification, &AtomicU8::new(0)),
         ))
         .await?;
+        if self.mode.fetches_into_store {
+            crate::store_fetch::wait_for_tarball_downloads(&self.owned.tarball_mem_cache).await?;
+        }
         self.finish_materialization::<Reporter>(
             (scope, project_manifests),
             loaded,
@@ -289,6 +299,30 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
+/// The frozen half of `RunMode::fetches_into_store`: the wanted lockfile is
+/// the resolution, so its packages are fetched from it. The fresh half is the
+/// resolver's prefetch, which `install_settled` waits for after resolving.
+/// Takes the run's parts rather than the run: a borrow of the whole run
+/// across the await would need its boxed verification future to be `Sync`.
+async fn fetch_wanted_lockfile_into_store<Reporter: self::Reporter + 'static>(
+    (config, owned, requester): (&'static pnpm_config::Config, &super::InstallOwned, &str),
+    lockfiles: &Lockfiles<'_>,
+) -> Result<(), InstallError> {
+    let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
+    crate::store_fetch::fetch_lockfile_into_store::<Reporter>(
+        crate::store_fetch::StoreFetchInputs {
+            lockfile,
+            config,
+            http_client: &owned.http_client_arc,
+            mem_cache: &owned.tarball_mem_cache,
+            auth_override: owned.resolution.auth_override.as_ref(),
+            requester,
+            supported_architectures: owned.projects.supported_architectures.as_ref(),
+        },
+    )
+    .await
+}
+
 pub(super) async fn wait_for_workspace_dependencies(
     dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
 ) -> Result<(), InstallError> {
@@ -375,6 +409,7 @@ impl super::RunMode {
             supported_architectures: owned.projects.supported_architectures.as_ref(),
             early_host_detection,
             resolve_only: self.resolve_only,
+            fetches_into_store: self.fetches_into_store,
             can_prompt: self.can_prompt,
             save_lockfile: options.save.lockfile,
             prefix,

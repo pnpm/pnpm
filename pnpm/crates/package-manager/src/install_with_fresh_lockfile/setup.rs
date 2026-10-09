@@ -188,10 +188,8 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
             tarballs: &owned.fetching.tarball_mem_cache,
             auth_headers: &access.auth_headers,
             progress_reported: &stores.caches.progress_reported,
-            prefetch: prefetch_downloads(
-                install.execution.lockfile_only,
-                shape.materializes_subset,
-            ),
+            prefetch: install.execution.fetches_into_store
+                || prefetch_downloads(install.execution.lockfile_only, shape.materializes_subset),
         },
         hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks {
             pnpmfile: owned.pnpmfile_hook_override.take(),
@@ -424,7 +422,9 @@ pub(super) async fn pnpmfile_checksum(
 }
 /// Whether the resolver prefetches the tarball of each package it resolves.
 /// A lockfile-only resolve never fetches, and see
-/// [`InstallShape::materializes_subset`] for the other case.
+/// [`InstallShape::materializes_subset`] for the other case. A run that
+/// fetches into the store (`FreshInstallExecution::fetches_into_store`)
+/// prefetches regardless: the prefetch is its fetch.
 pub(super) fn prefetch_downloads(lockfile_only: bool, materializes_subset: bool) -> bool {
     !lockfile_only && !materializes_subset
 }

@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeSet, DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput,
     NoProxySetting, ProxyConfigInput, begin_stats, build_overlay, install_options,
-    install_options_for, network_config, reject_unsupported_install_options, run_install_inner,
-    script_deps_install_options, take_deps_requiring_build, take_stats,
+    install_options_for, is_lockfile_only, network_config, reject_unsupported_install_options,
+    run_install_inner, script_deps_install_options, take_deps_requiring_build, take_stats,
 };
 
 #[test]
@@ -102,6 +102,19 @@ fn newly_supported_install_options_are_accepted() {
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
     assert_eq!(build_overlay(&options, false).expect("overlay").max_sockets, Some(20));
+}
+
+/// `enableModulesDir: false` is the engine's concern (no `node_modules`,
+/// packages fetched into the store); only `lockfileOnly` asks for a
+/// lockfile-only install.
+#[test]
+fn enable_modules_dir_false_is_not_a_lockfile_only_install() {
+    let mut options = install_options();
+    options.enable_modules_dir = Some(false);
+    assert!(!is_lockfile_only(&options, &EngineMode::Install(None), false));
+
+    options.lockfile_only = Some(true);
+    assert!(is_lockfile_only(&options, &EngineMode::Install(None), false));
 }
 
 /// An empty list and an uncomputed one are different answers. The first

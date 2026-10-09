@@ -17,20 +17,26 @@
 use crate::install_package_by_snapshot::tarball_url_and_integrity;
 use dashmap::DashSet;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{Lockfile, LockfileResolution, PackageMetadata};
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_reporter::SilentReporter;
+use pnpm_package_is_installable::{
+    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
+};
+use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, SilentReporter};
 use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pnpm_tarball::{IngestTarballToStore, MemCache, RetryOpts, TarballError};
+use pnpm_tarball::{
+    IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
+};
 use ssri::Integrity;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
 };
+use tokio::task::JoinSet;
 
 /// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
 /// may spawn a download for, staged so the whole batch can be filtered
@@ -70,6 +76,70 @@ async fn without_store_hits(
         .collect()
 }
 
+/// The lockfile's registry entries the host can install, staged for one
+/// batched store-index probe. Packages for another platform are left out:
+/// the materialization never fetches them either.
+fn registry_entries(
+    lockfile: &Lockfile,
+    config: &Config,
+    supported_architectures: Option<&SupportedArchitectures>,
+) -> Vec<PendingPrefetch> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut pending = Vec::with_capacity(packages.len());
+    for (package_key, metadata) in packages {
+        if !matches!(&metadata.resolution, LockfileResolution::Registry(_))
+            || !host_can_install(metadata, supported_architectures)
+        {
+            continue;
+        }
+        let (tarball_url, integrity) =
+            tarball_url_and_integrity(&metadata.resolution, package_key, config)
+                .expect("registry resolutions are always fetchable");
+        let package_id = package_key.pkg_id();
+        let integrity =
+            integrity.expect("registry resolutions always carry an integrity").to_string();
+        let revision_addressed = matches!(
+            &metadata.resolution,
+            LockfileResolution::Registry(registry) if registry.revision.is_some(),
+        );
+        pending.push(PendingPrefetch {
+            store_key: store_index_key(&integrity, &package_id),
+            package_id,
+            package_url: tarball_url.into_owned(),
+            integrity,
+            revision_addressed,
+        });
+    }
+    pending
+}
+
+fn resolved(package_id: String, requester: String) -> ProgressMessage {
+    ProgressMessage::Resolved { package_id, requester }
+}
+
+fn found_in_store(package_id: String, requester: String) -> ProgressMessage {
+    ProgressMessage::FoundInStore { package_id, requester }
+}
+
+fn host_can_install(
+    metadata: &PackageMetadata,
+    supported_architectures: Option<&SupportedArchitectures>,
+) -> bool {
+    platform_is_supported(
+        WantedPlatformRef {
+            os: metadata.os.as_deref(),
+            cpu: metadata.cpu.as_deref(),
+            libc: metadata.libc.as_deref(),
+        },
+        supported_architectures,
+        pnpm_graph_hasher::host_platform(),
+        pnpm_graph_hasher::host_arch(),
+        pnpm_graph_hasher::host_libc(),
+    )
+}
+
 /// One background tarball download. Every field is owned (an `Arc`
 /// clone or a `Copy` scalar) so the spawned task captures an
 /// independent set without borrowing the caller's scope.
@@ -79,6 +149,9 @@ pub(crate) struct TarballDownload {
     pub store: pnpm_tarball::ArchiveStoreContext<'static>,
     pub fetching: crate::tarball_prefetch::PrefetchHttpClient,
     pub package: crate::tarball_prefetch::TarballDownloadPackage,
+    /// `Some` when the download reports its package status to the install
+    /// reporter; the pnpr client prefetch runs silently and passes `None`.
+    pub progress_reported: Option<SharedReportedProgressKeys>,
 }
 
 #[derive(Clone)]
@@ -104,11 +177,11 @@ pub(crate) struct TarballDownloadPackage {
 /// the install pass that later looks up the same archive.
 pub(crate) fn spawn_tarball_download(download: TarballDownload) {
     tokio::spawn(async move {
-        let _ = run_tarball_download(download).await;
+        let _ = run_tarball_download::<SilentReporter>(download).await;
     });
 }
 
-async fn run_tarball_download(
+async fn run_tarball_download<Reporter: self::Reporter>(
     download: TarballDownload,
 ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
     let ingest = IngestTarballToStore {
@@ -126,17 +199,17 @@ async fn run_tarball_download(
 
         ignore_file_pattern: None,
 
-        // The client prefetch routes through `SilentReporter`, so
-        // there's no install reporter to dedup progress events
+        // The client prefetch routes through `SilentReporter` and passes
+        // `None`: there's no install reporter to dedup progress events
         // against — the frozen materialization install emits its own
         // progress as it consumes each tarball from the mem cache.
-        progress_reported: None,
+        progress_reported: download.progress_reported,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     };
     if download.package.revision_addressed {
-        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
+        ingest.run_revision_addressed_with_mem_cache::<Reporter>(&download.mem_cache).await
     } else {
-        ingest.run_with_mem_cache::<SilentReporter>(&download.mem_cache).await
+        ingest.run_with_mem_cache::<Reporter>(&download.mem_cache).await
     }
 }
 
@@ -246,12 +319,8 @@ impl TarballPrefetcher {
         )) {
             return;
         }
-        spawn_tarball_download(TarballDownload {
-            mem_cache: Arc::clone(&self.mem_cache),
-            requester: Arc::clone(&self.requester),
-            store: self.store.clone(),
-            fetching: self.fetching.clone(),
-            package: crate::tarball_prefetch::TarballDownloadPackage {
+        spawn_tarball_download(self.download(
+            TarballDownloadPackage {
                 id: package_id,
                 url: package_url,
                 integrity,
@@ -259,7 +328,23 @@ impl TarballPrefetcher {
                 file_count,
                 revision_addressed,
             },
-        });
+            None,
+        ));
+    }
+
+    fn download(
+        &self,
+        package: TarballDownloadPackage,
+        progress_reported: Option<SharedReportedProgressKeys>,
+    ) -> TarballDownload {
+        TarballDownload {
+            mem_cache: Arc::clone(&self.mem_cache),
+            requester: Arc::clone(&self.requester),
+            store: self.store.clone(),
+            fetching: self.fetching.clone(),
+            package,
+            progress_reported,
+        }
     }
 
     /// Fire a background download for every registry-resolved entry of a
@@ -278,32 +363,7 @@ impl TarballPrefetcher {
     /// gone missing is skipped here too; the materialization pass's
     /// per-snapshot cache-miss fallback re-downloads it.
     pub async fn prefetch_lockfile(&self, lockfile: &Lockfile, config: &Config) {
-        let Some(packages) = lockfile.packages.as_ref() else {
-            return;
-        };
-        let mut pending = Vec::with_capacity(packages.len());
-        for (package_key, metadata) in packages {
-            if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
-                continue;
-            }
-            let (tarball_url, integrity) =
-                tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                    .expect("registry resolutions are always fetchable");
-            let package_id = package_key.pkg_id();
-            let integrity =
-                integrity.expect("registry resolutions always carry an integrity").to_string();
-            let revision_addressed = matches!(
-                &metadata.resolution,
-                LockfileResolution::Registry(registry) if registry.revision.is_some(),
-            );
-            pending.push(PendingPrefetch {
-                store_key: store_index_key(&integrity, &package_id),
-                package_id,
-                package_url: tarball_url.into_owned(),
-                integrity,
-                revision_addressed,
-            });
-        }
+        let pending = registry_entries(lockfile, config, config.supported_architectures.as_ref());
         for entry in without_store_hits(self.store.index.clone(), pending).await {
             let PendingPrefetch {
                 package_id,
@@ -316,6 +376,75 @@ impl TarballPrefetcher {
             // queue without a work estimate.
             self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
         }
+    }
+
+    /// Fetch every registry package of the lockfile that the store lacks,
+    /// and wait for the downloads. This is the fetch itself rather than an
+    /// overlap with other work, so it reports each package the way an
+    /// install does (`resolved`, then `found_in_store` or `fetched`) and a
+    /// failed download is an error.
+    pub async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
+        &self,
+        lockfile: &Lockfile,
+        config: &Config,
+        supported_architectures: Option<&SupportedArchitectures>,
+    ) -> Result<(), TarballError> {
+        let entries = registry_entries(lockfile, config, supported_architectures);
+        let mut in_store: HashMap<String, String> = entries
+            .iter()
+            .map(|entry| (entry.store_key.clone(), entry.package_id.clone()))
+            .collect();
+        for package_id in in_store.values() {
+            self.emit_progress::<Reporter>(resolved, package_id);
+        }
+        let missing = without_store_hits(self.store.index.clone(), entries).await;
+        for entry in &missing {
+            in_store.remove(&entry.store_key);
+        }
+        for package_id in in_store.values() {
+            self.emit_progress::<Reporter>(found_in_store, package_id);
+        }
+        let mut downloads = self.spawn_fetches::<Reporter>(missing);
+        while let Some(joined) = downloads.join_next().await {
+            joined.expect("tarball download task panicked")?;
+        }
+        Ok(())
+    }
+
+    /// One download task per entry, all reporting through one progress
+    /// key set so no package is counted twice.
+    fn spawn_fetches<Reporter: self::Reporter + 'static>(
+        &self,
+        missing: Vec<PendingPrefetch>,
+    ) -> JoinSet<Result<Arc<HashMap<String, PathBuf>>, TarballError>> {
+        let progress_reported = SharedReportedProgressKeys::default();
+        let mut downloads = JoinSet::new();
+        for entry in missing {
+            let Ok(integrity) = entry.integrity.parse::<Integrity>() else { continue };
+            downloads.spawn(run_tarball_download::<Reporter>(self.download(
+                TarballDownloadPackage {
+                    id: entry.package_id,
+                    url: entry.package_url,
+                    integrity,
+                    unpacked_size: None,
+                    file_count: None,
+                    revision_addressed: entry.revision_addressed,
+                },
+                Some(Arc::clone(&progress_reported)),
+            )));
+        }
+        downloads
+    }
+
+    fn emit_progress<Reporter: self::Reporter>(
+        &self,
+        message: fn(String, String) -> ProgressMessage,
+        package_id: &str,
+    ) {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: message(package_id.to_owned(), self.requester.to_string()),
+        }));
     }
 
     /// Drain the store-index writer. Call after the materialization

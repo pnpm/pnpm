@@ -1,5 +1,6 @@
 use super::{PendingPrefetch, TarballDownload, run_tarball_download, without_store_hits};
 use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
     store_index_key,
@@ -91,6 +92,7 @@ fn revision_download(
             strict_pkg_content_check: true,
             prefetched_cas_paths: None,
         },
+        progress_reported: None,
         fetching: crate::tarball_prefetch::PrefetchHttpClient {
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
@@ -132,7 +134,7 @@ async fn revision_prefetch_does_not_follow_redirects() {
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
 
-    let err = run_tarball_download(revision_download(
+    let err = run_tarball_download::<SilentReporter>(revision_download(
         store_dir,
         format!("{}/revision.tgz", server.url()),
         integrity,
@@ -158,7 +160,7 @@ async fn revision_prefetch_does_not_retry_a_transient_failure() {
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
 
-    let err = run_tarball_download(revision_download(
+    let err = run_tarball_download::<SilentReporter>(revision_download(
         store_dir,
         format!("{}/revision.tgz", server.url()),
         integrity,

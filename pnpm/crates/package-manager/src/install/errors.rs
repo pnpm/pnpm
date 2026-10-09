@@ -112,6 +112,21 @@ pub enum InstallError {
         package_names: Vec<String>,
     },
 
+    /// `enableModulesDir: false` fetches the lockfile's packages into the
+    /// store, and one of the downloads failed.
+    #[diagnostic(transparent)]
+    StoreFetch(#[error(source)] pnpm_tarball::TarballError),
+
+    /// `enableModulesDir: false` waited for the tarballs the resolver
+    /// prefetched, and some of them failed. A failed slot keeps no error,
+    /// only the archive it was for.
+    #[display("Fetching {} package(s) into the store failed: {}", tarballs.len(), tarballs.join(", "))]
+    #[diagnostic(code(ERR_PNPM_STORE_FETCH_FAILED))]
+    StoreFetchFailed {
+        #[error(not(source))]
+        tarballs: Vec<String>,
+    },
+
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES`: with `strictPeerDependencies`
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`

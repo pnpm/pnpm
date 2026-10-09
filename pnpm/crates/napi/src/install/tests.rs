@@ -1,8 +1,9 @@
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
-    PeerIssuesOptions, ProxyConfigInput, build_overlay, peer_issues::peer_issues_install_options,
-    rebuild::rebuild_options, reject_non_object_manifests, reject_unsupported_install_options,
-    run_install_inner, take_deps_requiring_build,
+    PeerIssuesOptions, ProxyConfigInput, build_overlay, is_lockfile_only,
+    peer_issues::peer_issues_install_options, rebuild::rebuild_options,
+    reject_non_object_manifests, reject_unsupported_install_options, run_install_inner,
+    take_deps_requiring_build,
 };
 use crate::{
     config::{ConfigOverlay, resolve_config},
