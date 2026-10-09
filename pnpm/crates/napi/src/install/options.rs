@@ -125,7 +125,8 @@ pub struct InstallOptions {
     pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
-    /// Allow every dependency's build scripts to run.
+    /// Allow every dependency's build scripts to run, except the ones
+    /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,

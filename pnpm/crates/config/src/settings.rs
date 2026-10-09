@@ -1130,8 +1130,8 @@ pub struct Config {
     pub agent_skills_disabled: bool,
 
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
-    /// `true`, every package may run lifecycle scripts regardless of
-    /// `allow_builds`. Default `false` to match pnpm v11.
+    /// `true`, every package may run lifecycle scripts except the ones
+    /// `allow_builds` sets to `false`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
 
     /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the

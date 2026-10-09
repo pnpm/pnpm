@@ -132,7 +132,8 @@ pub struct ConfigOverlay {
     // `Debug` output feeds the config intern cache key, so iteration order must
     // be stable.
     pub allow_builds: Option<BTreeMap<String, bool>>,
-    /// Allow every dependency's build scripts to run.
+    /// Allow every dependency's build scripts to run, except the ones
+    /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,

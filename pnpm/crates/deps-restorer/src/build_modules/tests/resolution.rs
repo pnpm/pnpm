@@ -1,4 +1,3 @@
-use super::policy_from_specs;
 use crate::VirtualStoreLayout;
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
@@ -6,11 +5,6 @@ use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::PathBuf};
 use tempfile::tempdir;
 
-#[test]
-fn dangerously_allow_all_overrides_deny() {
-    let policy = policy_from_specs([("@pnpm.e2e/pkg", false)], true);
-    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(true));
-}
 /// With an override map (the hoisted linker), the helper returns
 /// the override entry verbatim — no virtual-store layout lookup.
 #[test]

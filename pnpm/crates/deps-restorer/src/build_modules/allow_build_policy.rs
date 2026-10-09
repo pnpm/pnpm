@@ -111,13 +111,12 @@ impl AllowBuildPolicy {
         self
     }
 
-    /// Check whether a package is allowed to run build scripts.
+    /// Check whether a package is allowed to run build scripts. An
+    /// explicit `false` in `allowBuilds` outranks
+    /// `dangerouslyAllowAllBuilds`, so the two together allow every
+    /// build except the denied ones.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<bool> {
-        if self.dangerously_allow_all {
-            return Some(true);
-        }
-
         let normalized_dep_path = normalize_build_dep_path(dep_path);
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
@@ -125,6 +124,9 @@ impl AllowBuildPolicy {
         let name_at_version = format!("{name}@{version}");
         if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
+        }
+        if self.dangerously_allow_all {
+            return Some(true);
         }
         if self.allowed_dep_paths.contains(&normalized_dep_path)
             || git_repo_key.is_some_and(|key| self.allowed_git_repos.contains(key))
