@@ -122,6 +122,7 @@ impl WorkspaceSettings {
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
         self.ignore_compatibility_db = None;
+        self.implicit_types_peers = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;

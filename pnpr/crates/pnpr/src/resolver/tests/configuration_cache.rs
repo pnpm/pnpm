@@ -370,17 +370,20 @@ fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
         auto_install_peers: false,
         dedupe_peers: Some(true),
         exclude_links_from_lockfile: true,
+        implicit_types_peers: Some(true),
         ..pnpm_lockfile::LockfileSettings::default()
     };
     let adopted = intern(&request(Some(client_settings)));
     assert!(!adopted.auto_install_peers);
     assert!(adopted.dedupe_peers);
     assert!(adopted.exclude_links_from_lockfile);
+    assert!(adopted.implicit_types_peers);
 
     let defaults = intern(&request(None));
     assert!(defaults.auto_install_peers);
     assert!(!defaults.dedupe_peers);
     assert!(!defaults.exclude_links_from_lockfile);
+    assert!(!defaults.implicit_types_peers);
 }
 
 #[test]
@@ -678,5 +681,35 @@ fn intern_config_resolves_in_the_client_s_resolution_mode() {
             .expect("config cache")
             .len(),
         3,
+    );
+}
+
+#[test]
+fn intern_config_keys_implicit_types_peers() {
+    use super::super::intern_config;
+    use pnpm_store_dir::StoreDir;
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-types-peers-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-types-peers-cache");
+    let intern = |implicit_types_peers| {
+        let request = ResolveRequest {
+            registry: Some("https://a.test/".to_string()),
+            implicit_types_peers: Some(implicit_types_peers),
+            ..ResolveRequest::default()
+        };
+        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let on = intern(true);
+    let off = intern(false);
+
+    assert!(on.implicit_types_peers);
+    assert!(!off.implicit_types_peers);
+    let cache_request = ResolveRequest::default();
+    assert_ne!(
+        resolution_cache_key(on, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(off, &cache_request).expect("resolution cache key"),
     );
 }

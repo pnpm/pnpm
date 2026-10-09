@@ -808,6 +808,11 @@ pub struct Config {
     /// manifests are patched during resolution.
     pub ignore_compatibility_db: bool,
 
+    /// When `true`, every peer dependency `X` of a dependency also makes
+    /// `@types/X` an optional peer of it, unless the package already
+    /// declares `@types/X`. The `implicitTypesPeers` setting; default `false`.
+    pub implicit_types_peers: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all

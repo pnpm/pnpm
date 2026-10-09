@@ -96,6 +96,7 @@ pub(super) fn resolve_projects_options(
             auto_install_peers: Some(state.config.auto_install_peers),
             dedupe_peers: Some(state.config.dedupe_peers),
             exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
+            implicit_types_peers: Some(state.config.implicit_types_peers),
             resolution_mode: state.config.resolution_mode,
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {

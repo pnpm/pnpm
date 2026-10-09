@@ -247,6 +247,8 @@ impl ReuseSeedInputs<'_> {
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),
             )
+            && pnpm_lockfile::recorded_implicit_types_peers(lockfile.settings.as_ref())
+                == self.config.implicit_types_peers
     }
 
     fn rewrite_context<'c>(

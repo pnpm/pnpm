@@ -360,6 +360,7 @@ fn check_frozen_settings(
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                implicit_types_peers: config.implicit_types_peers,
                 inject_workspace_packages: config.inject_workspace_packages,
                 peers_suffix_max_length: config.peers_suffix_max_length,
                 pnpmfile_checksum: PnpmfileChecksumCheck::Skip,

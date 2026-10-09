@@ -195,6 +195,7 @@ pub(super) fn resolution_cache_key(
         "autoInstallPeers": config.auto_install_peers,
         "dedupePeers": config.dedupe_peers,
         "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
+        "implicitTypesPeers": config.implicit_types_peers,
         "projects": projects,
         "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,

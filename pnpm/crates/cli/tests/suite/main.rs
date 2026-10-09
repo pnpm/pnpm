@@ -69,6 +69,7 @@ mod hoist;
 mod hoisted_node_linker;
 mod hooks;
 mod ignore_workspace;
+mod implicit_types_peers;
 mod import;
 mod import_yarn_patches;
 mod init;

@@ -139,6 +139,7 @@ pub struct ResolutionSettings {
     pub auto_install_peers: Option<bool>,
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
+    pub implicit_types_peers: Option<bool>,
     /// The client's `resolutionMode`. The server picks versions the way
     /// the client would, instead of falling back to its own default.
     pub resolution_mode: ResolutionMode,

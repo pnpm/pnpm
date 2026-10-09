@@ -51,6 +51,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
+            implicit_types_peers: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),

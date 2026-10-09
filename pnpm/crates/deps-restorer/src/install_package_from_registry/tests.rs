@@ -147,6 +147,7 @@ fn create_config(
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
         ignore_compatibility_db: false,
+        implicit_types_peers: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
