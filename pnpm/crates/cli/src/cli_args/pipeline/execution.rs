@@ -87,9 +87,7 @@ fn store_in_cache(
         outputs,
         captured,
     ) {
-        Ok(()) => options.cache.upload(cache_key, options.node, |reason| {
-            task_warning(options, reason);
-        }),
+        Ok(()) => options.cache.upload(cache_key, options.node),
         Err(error) => {
             task_warning(options, &format!("failed to store the task in the cache: {error}"));
         }

@@ -39,8 +39,9 @@ impl CacheTiers<'_> {
         }
     }
 
-    /// Start publishing the local entry stored under `key`.
-    pub(super) fn upload(&self, key: &str, node: &TaskNode, warn: impl Fn(&str)) {
+    /// Start publishing the local entry stored under `key`. Failures are
+    /// reported when the run waits for its uploads.
+    pub(super) fn upload(&self, key: &str, node: &TaskNode) {
         let Some(remote) = self.remote else {
             return;
         };
@@ -49,9 +50,7 @@ impl CacheTiers<'_> {
         };
         let project = self.local.project_rel(&node.project);
         let task = TaskIdentity { project: &project, task: &node.task_name };
-        if let Err(reason) = remote.upload(key, &task, &stored) {
-            warn(&format!("remote cache: {reason}"));
-        }
+        remote.upload(key, &task, stored);
     }
 }
 

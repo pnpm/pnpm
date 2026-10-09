@@ -9,6 +9,7 @@
 
 use super::cache::{StoredTask, TaskCache};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use futures_util::{StreamExt as _, stream};
 use pnpm_config::Config;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
@@ -36,14 +37,17 @@ pub(super) struct RemoteTaskCache {
     store: Arc<ArtifactStore>,
     owner: OwnerScope,
     trusted_keys: BTreeMap<String, Vec<u8>>,
-    publisher: Option<TaskPublisher>,
+    publisher: Option<Arc<TaskPublisher>>,
     runtime: Handle,
     uploads: Mutex<Vec<JoinHandle<Result<(), String>>>>,
     upload_slots: Arc<Semaphore>,
 }
 
-/// Uploads in flight at once. A slot is taken before a task's outputs are
-/// read, so this also bounds how many are held in memory.
+/// Blob downloads one restore has in flight at once.
+const DOWNLOAD_CONCURRENCY: usize = 8;
+
+/// Uploads in flight at once. An upload reads and encodes the task's outputs
+/// only once it holds a slot, so this also bounds how many are in memory.
 const MAX_CONCURRENT_UPLOADS: usize = 4;
 
 /// Signs local entries as `workspace-task` artifacts.
@@ -80,7 +84,10 @@ impl RemoteTaskCache {
             .as_ref()
             .is_some_and(|remote_cache| remote_cache.publish == Some(true));
         let publisher = publishes_tasks
-            .then(|| ArtifactSigner::from_settings(&settings).map(TaskPublisher))
+            .then(|| {
+                ArtifactSigner::from_settings(&settings)
+                    .map(|signer| Arc::new(TaskPublisher(signer)))
+            })
             .transpose()?;
         Ok(Some(RemoteTaskCache {
             store: Arc::new(store),
@@ -136,52 +143,48 @@ impl RemoteTaskCache {
         let Some(VerifiedArtifact { payload, .. }) = resolved.into_values().next() else {
             return Ok(None);
         };
-        let mut blobs = HashMap::new();
-        for file in &payload.manifest.added {
-            if blobs.contains_key(&file.integrity) {
-                continue;
-            }
-            let bytes = self.store
-                .download_artifact_blob(&ArtifactBlobRequest {
-                    owner: self.owner.clone(),
-                    integrity: file.integrity.clone(),
-                })
-                .await
-                .map_err(|error| error.to_string())?;
-            blobs.insert(file.integrity.clone(), bytes);
-        }
+        let integrities: HashSet<String> = payload.manifest.added
+            .iter()
+            .map(|file| file.integrity.clone())
+            .collect();
+        let downloads: Vec<Result<(String, Vec<u8>), String>> = stream::iter(integrities)
+            .map(|integrity| async move {
+                let request = ArtifactBlobRequest { owner: self.owner.clone(), integrity };
+                let bytes = self.store
+                    .download_artifact_blob(&request)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                Ok((request.integrity, bytes))
+            })
+            .buffer_unordered(DOWNLOAD_CONCURRENCY)
+            .collect()
+            .await;
+        let blobs = downloads.into_iter().collect::<Result<HashMap<_, _>, _>>()?;
         Ok(Some(DownloadedEntry { files: payload.manifest.added, blobs }))
     }
 
     /// Start publishing `stored` under `key` when this machine publishes.
-    /// The upload runs in the background; [`Self::finish_uploads`] waits for
-    /// it. Blocks while every upload slot is taken, so it must run off the
-    /// async runtime's worker threads.
-    pub(super) fn upload(
-        &self,
-        key: &str,
-        task: &TaskIdentity<'_>,
-        stored: &StoredTask,
-    ) -> Result<(), String> {
-        let Some(publisher) = &self.publisher else {
-            return Ok(());
+    /// The upload runs in the background, so a task waits for no upload;
+    /// [`Self::finish_uploads`] waits for it.
+    pub(super) fn upload(&self, key: &str, task: &TaskIdentity<'_>, stored: StoredTask) {
+        let Some(publisher) = self.publisher.as_ref().map(Arc::clone) else {
+            return;
         };
-        let slot = self.runtime
-            .block_on(Arc::clone(&self.upload_slots).acquire_owned())
-            .map_err(|error| error.to_string())?;
-        let request = publisher
-            .sign(self.candidate(key, task), stored)
-            .map_err(|error| format!("signing the artifact: {error}"))?;
+        let candidate = self.candidate(key, task);
         let store = Arc::clone(&self.store);
+        let upload_slots = Arc::clone(&self.upload_slots);
         let upload = self.runtime.spawn(async move {
-            let _slot = slot;
+            let _slot = upload_slots.acquire_owned().await.map_err(|error| error.to_string())?;
+            let request = tokio::task::spawn_blocking(move || publisher.sign(candidate, &stored))
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| format!("signing the artifact: {error}"))?;
             store.publish_artifact(&request).await.map_err(|error| error.to_string())
         });
         self.uploads
             .lock()
             .expect("upload list lock is not poisoned")
             .push(upload);
-        Ok(())
     }
 
     /// Wait for every upload [`Self::upload`] started, returning why each

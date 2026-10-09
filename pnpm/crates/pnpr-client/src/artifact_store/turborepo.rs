@@ -33,7 +33,8 @@ const UNIVERSAL_SCOPE: &str = "universal";
 /// An envelope's payload and signature, plus room for the JSON around them.
 const MAX_ENVELOPE_BODY: usize =
     MAX_ENCODED_SIGNED_PAYLOAD_SIZE + MAX_ENCODED_SIGNATURE_SIZE + 64 * 1024;
-const LOOKUP_CONCURRENCY: usize = 16;
+/// Requests one lookup or publication has in flight at once.
+const REQUEST_CONCURRENCY: usize = 16;
 
 pub struct TurborepoArtifactStore {
     http: Client,
@@ -96,7 +97,7 @@ impl TurborepoArtifactStore {
                 let envelope = self.fetch_envelope(&candidate, &scope).await?;
                 Ok(envelope.map(|envelope| (candidate.key, envelope)))
             })
-            .buffer_unordered(LOOKUP_CONCURRENCY)
+            .buffer_unordered(REQUEST_CONCURRENCY)
             .collect()
             .await;
         let mut variants: BTreeMap<String, Vec<ArtifactVariant>> = BTreeMap::new();
@@ -157,16 +158,32 @@ impl TurborepoArtifactStore {
         let publication =
             request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         let owner = &publication.payload.owner;
-        for (integrity, bytes) in publication.blobs {
-            self.put(&self.artifact_url(&blob_hash(owner, &integrity)), bytes).await?;
-        }
+        let blobs = publication.blobs
+            .into_iter()
+            .map(|(integrity, bytes)| (self.artifact_url(&blob_hash(owner, &integrity)), bytes));
+        self.put_all(blobs).await?;
         let envelope = serde_json::to_vec(&request.envelope)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        for scope in publication_scopes(&publication.payload.compatibility) {
-            let url = self.artifact_url(&envelope_hash(owner, &request.key, &scope));
-            self.put(&url, envelope.clone()).await?;
-        }
-        Ok(())
+        let envelopes = publication_scopes(&publication.payload.compatibility)
+            .into_iter()
+            .map(|scope| {
+                (self.artifact_url(&envelope_hash(owner, &request.key, &scope)), envelope.clone())
+            });
+        self.put_all(envelopes).await
+    }
+
+    /// Store every `(url, body)`, several at a time.
+    async fn put_all(
+        &self,
+        objects: impl Iterator<Item = (String, Vec<u8>)>,
+    ) -> Result<(), PnprClientError> {
+        let objects: Vec<_> = objects.collect();
+        let results: Vec<_> = stream::iter(objects)
+            .map(|(url, body)| async move { self.put(&url, body).await })
+            .buffer_unordered(REQUEST_CONCURRENCY)
+            .collect()
+            .await;
+        results.into_iter().collect()
     }
 
     /// The body stored at `url`, or `None` when nothing is.
