@@ -42,7 +42,8 @@ pub(super) struct RemoteTaskCache {
     upload_slots: Arc<Semaphore>,
 }
 
-/// Uploads in flight at once. Each holds a task's outputs in memory.
+/// Uploads in flight at once. A slot is taken before a task's outputs are
+/// read, so this also bounds how many are held in memory.
 const MAX_CONCURRENT_UPLOADS: usize = 4;
 
 /// Signs local entries as `workspace-task` artifacts.
@@ -154,7 +155,8 @@ impl RemoteTaskCache {
 
     /// Start publishing `stored` under `key` when this machine publishes.
     /// The upload runs in the background; [`Self::finish_uploads`] waits for
-    /// it.
+    /// it. Blocks while every upload slot is taken, so it must run off the
+    /// async runtime's worker threads.
     pub(super) fn upload(
         &self,
         key: &str,
@@ -164,13 +166,15 @@ impl RemoteTaskCache {
         let Some(publisher) = &self.publisher else {
             return Ok(());
         };
+        let slot = self.runtime
+            .block_on(Arc::clone(&self.upload_slots).acquire_owned())
+            .map_err(|error| error.to_string())?;
         let request = publisher
             .sign(self.candidate(key, task), stored)
             .map_err(|error| format!("signing the artifact: {error}"))?;
         let store = Arc::clone(&self.store);
-        let upload_slots = Arc::clone(&self.upload_slots);
         let upload = self.runtime.spawn(async move {
-            let _slot = upload_slots.acquire_owned().await.map_err(|error| error.to_string())?;
+            let _slot = slot;
             store.publish_artifact(&request).await.map_err(|error| error.to_string())
         });
         self.uploads

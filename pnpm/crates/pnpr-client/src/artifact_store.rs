@@ -81,15 +81,14 @@ impl ArtifactStore {
                 if !retain_permitted_candidates(&mut opts)? {
                     return Ok(BTreeMap::new());
                 }
-                let (response, publications) = store.fetch_artifacts(&opts).await?;
-                let selected = select_verified_artifacts(&opts, response)?;
-                Ok(store.hold_blobs(selected, &publications))
+                let response = store.fetch_artifacts(&opts).await?;
+                select_verified_artifacts(&opts, response)
             }
         }
     }
 
     /// One blob of an artifact [`Self::resolve_artifacts`] selected, checked
-    /// against its integrity. Ask once for each distinct blob of an artifact.
+    /// against its integrity.
     pub async fn download_artifact_blob(
         &self,
         request: &ArtifactBlobRequest,
@@ -98,7 +97,7 @@ impl ArtifactStore {
             Self::Pnpr { client, authorization } => {
                 client.download_artifact_blob(request, authorization.as_deref()).await
             }
-            Self::Turborepo(store) => store.fetched_blob(request),
+            Self::Turborepo(store) => store.download_blob(request).await,
         }
     }
 

@@ -113,7 +113,7 @@ fn a_task_published_from_one_machine_is_restored_on_another() {
     let output = combined_output(built.get_output());
     assert!(!output.contains("restored from cache"), "{output}");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
-    assert_eq!(cache.artifacts().len(), 1, "{output}");
+    assert!(!cache.artifacts().is_empty(), "{output}");
     let requests = cache.requests();
     dbg!(&requests);
     assert!(

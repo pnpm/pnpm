@@ -127,17 +127,14 @@ async fn an_untrusted_or_altered_artifact_is_a_miss() {
         .expect("resolve");
     assert!(untrusted.is_empty());
 
-    let (hash, body) = cache
-        .artifacts()
-        .into_iter()
-        .next()
-        .expect("one stored artifact");
-    let mut altered: PublishArtifactRequest = serde_json::from_slice(&body).unwrap();
+    let envelope_hash = last_put(&cache);
+    let mut altered: pnpm_pnpr_client::SignedArtifactEnvelope =
+        serde_json::from_slice(&cache.artifacts()[&envelope_hash]).unwrap();
     let mut payload: serde_json::Value =
-        serde_json::from_slice(&super::BASE64.decode(&altered.envelope.payload).unwrap()).unwrap();
+        serde_json::from_slice(&super::BASE64.decode(&altered.payload).unwrap()).unwrap();
     payload["builderId"] = "attacker".into();
-    altered.envelope.payload = super::BASE64.encode(serde_json::to_vec(&payload).unwrap());
-    cache.store(&hash, serde_json::to_vec(&altered).unwrap());
+    altered.payload = super::BASE64.encode(serde_json::to_vec(&payload).unwrap());
+    cache.store(&envelope_hash, serde_json::to_vec(&altered).unwrap());
     let tampered = store
         .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
         .await
@@ -339,18 +336,10 @@ async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
     let store = store(&cache);
     let (dependency, public_key, _) = signed_artifact_fixture();
     store.publish_artifact(&dependency).await.expect("publish the dependency build");
-    let dependency_hash = cache
-        .artifacts()
-        .into_keys()
-        .next()
-        .expect("one artifact");
+    let dependency_hash = last_put(&cache);
     let (task, task_public_key, _) = workspace_task_fixture();
     store.publish_artifact(&task).await.expect("publish the task result");
-    let task_hash = cache
-        .artifacts()
-        .into_keys()
-        .find(|hash| *hash != dependency_hash)
-        .expect("a second artifact");
+    let task_hash = last_put(&cache);
     let both = || {
         let mut options = lookup(&public_key, NEWER_GLIBC);
         options.trusted_keys.insert("acme-2026".to_string(), task_public_key.clone());
@@ -386,12 +375,7 @@ async fn a_lookup_the_server_answers_no_part_of_fails() {
     let store = store(&cache);
     let (task, public_key, _) = workspace_task_fixture();
     store.publish_artifact(&task).await.expect("publish");
-    let hash = cache
-        .artifacts()
-        .into_keys()
-        .next()
-        .expect("one artifact");
-    cache.fail(&hash, 503);
+    cache.fail(&last_put(&cache), 503);
 
     let result = store.resolve_artifacts(ResolveArtifactsOptions {
         candidates: vec![ArtifactCandidate {
@@ -406,14 +390,15 @@ async fn a_lookup_the_server_answers_no_part_of_fails() {
     assert!(result.is_err());
 }
 
-/// A selected artifact's blobs are handed out once, so a run that restores
-/// many artifacts does not keep them all in memory.
+/// A blob is checked against its integrity, so one the server altered is
+/// refused rather than restored.
 #[tokio::test]
-async fn a_blob_is_handed_out_once() {
+async fn an_altered_blob_is_refused() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
     let (request, public_key, blob) = signed_artifact_fixture();
     store.publish_artifact(&request).await.expect("publish");
+    let blob_hash = first_put(&cache);
     let resolved = store
         .resolve_artifacts(lookup(&public_key, NEWER_GLIBC))
         .await
@@ -424,5 +409,29 @@ async fn a_blob_is_handed_out_once() {
         integrity: artifact.payload.manifest.added[0].integrity.clone(),
     };
     assert_eq!(store.download_artifact_blob(&blob_request).await.expect("download"), blob);
+
+    cache.store(&blob_hash, b"altered".to_vec());
     assert!(store.download_artifact_blob(&blob_request).await.is_err());
+}
+
+/// The object a publication stored first: its first blob.
+fn first_put(cache: &TurborepoCache) -> String {
+    puts(cache)
+        .into_iter()
+        .next()
+        .expect("a publication")
+}
+
+/// The object a publication stored last: its envelope in its last scope.
+fn last_put(cache: &TurborepoCache) -> String {
+    puts(cache).pop().expect("a publication")
+}
+
+fn puts(cache: &TurborepoCache) -> Vec<String> {
+    cache
+        .requests()
+        .into_iter()
+        .filter(|request| request.method == "PUT")
+        .map(|request| request.hash)
+        .collect()
 }
