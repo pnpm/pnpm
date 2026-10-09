@@ -273,6 +273,40 @@ fn url_scoped_env_pnpm_prefix_wins_over_npm() {
 }
 
 #[test]
+fn url_scoped_env_canonical_registry_wins_over_alias_fallback() {
+    static_env_with_vars!(
+        Env,
+        &[
+            ("npm_config_//registry.npmjs.org/:_authToken", "canonical-token"),
+            ("npm_config_//registry.npmjs.com/:_authToken", "npm-alias-token"),
+            ("pnpm_config_//registry.npmjs.com/:_authToken", "pnpm-alias-token"),
+            ("pnpm_config_//registry.npmjs.org/:@org:_authToken", "canonical-scoped-token"),
+            ("pnpm_config_//registry.npmjs.com/:@org:_authToken", "alias-scoped-token"),
+        ]
+    );
+    for _ in 0..64 {
+        let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+        let mut config = Config::new();
+        auth.apply_to::<NoEnv>(&mut config);
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.org/"),
+            Some("Bearer canonical-token".to_owned()),
+        );
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.com/custom/pkg.tgz"),
+            Some("Bearer pnpm-alias-token".to_owned()),
+        );
+        assert_eq!(
+            config.auth_headers.for_url_with_package(
+                "https://registry.npmjs.org/",
+                Some("@org/pkg"),
+            ),
+            Some("Bearer canonical-scoped-token".to_owned()),
+        );
+    }
+}
+
+#[test]
 fn url_scoped_env_ignores_non_url_and_empty_values() {
     static_env_with_vars!(
         Env,

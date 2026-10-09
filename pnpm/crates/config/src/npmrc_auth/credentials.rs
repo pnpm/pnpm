@@ -3,7 +3,7 @@ use super::{
     LoadWorkspaceYamlError, NpmrcAuth, base64_encode_bytes, parse_token_helper_field,
     split_scope_from_uri,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 /// Raw (unparsed) credential fields for a given registry URI.
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
@@ -459,12 +459,18 @@ impl NpmrcAuth {
             .collect()
     }
 
-    pub(super) fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
+    pub(super) fn apply_uri_creds_field(&mut self, uri: &str, field: &str, value: &str) {
         let (registry_uri, scope) = split_scope_from_uri(uri);
-        self.creds_by_scope_by_uri
-            .entry(registry_uri)
-            .or_default()
-            .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
-            .or_default()
+        let canonical_uri = canonicalize_npm_registry_url(&registry_uri);
+        let scope = scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned());
+        let alias = (canonical_uri != registry_uri).then_some(canonical_uri.as_ref());
+        for registry_uri in std::iter::once(registry_uri.as_str()).chain(alias) {
+            let entry = self.creds_by_scope_by_uri
+                .entry(registry_uri.to_owned())
+                .or_default()
+                .entry(scope.clone())
+                .or_default();
+            apply_creds_field(entry, field, value.to_owned());
+        }
     }
 }

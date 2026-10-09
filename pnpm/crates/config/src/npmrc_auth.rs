@@ -162,8 +162,9 @@ impl NpmrcAuth {
     pub fn from_url_scoped_env<Sys: EnvVar>() -> Self {
         // Merge into one map keyed by the URL-scoped key so each key is applied
         // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
-        let mut npm_scoped: HashMap<String, String> = HashMap::new();
-        let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
+        // Apply npmjs.com fallback keys before explicit npmjs.org keys.
+        let mut npm_scoped: BTreeMap<String, String> = BTreeMap::new();
+        let mut pnpm_scoped: BTreeMap<String, String> = BTreeMap::new();
         for (name, value) in Sys::vars()
             .into_iter()
             .filter(|(_, value)| !value.is_empty())
@@ -179,8 +180,7 @@ impl NpmrcAuth {
         let mut auth = NpmrcAuth::default();
         for (key, value) in npm_scoped {
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_entry_mut(uri);
-                apply_creds_field(entry, suffix, value);
+                auth.apply_uri_creds_field(uri, suffix, &value);
             }
         }
         auth

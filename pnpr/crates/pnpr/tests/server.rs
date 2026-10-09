@@ -37,6 +37,9 @@ mod resolver_access;
 #[path = "server/web_ui.rs"]
 mod web_ui;
 
+#[path = "server/sign_in.rs"]
+mod sign_in;
+
 use crate::registry_groups;
 
 use axum::{

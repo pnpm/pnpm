@@ -13,7 +13,18 @@ const LINK: &str = ".claude/skills/pnpm-@pnpm.e2e+with-agent-skills-guide";
 /// `pnpm` rooted at `workspace`, with no agent identifying itself.
 fn pnpm(workspace: &Path) -> Command {
     let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    for var in ["CLAUDECODE", "CURSOR_AGENT", "GEMINI_CLI"] {
+    for var in [
+        "CLAUDECODE",
+        "CLAUDE_CODE",
+        "CURSOR_AGENT",
+        "GEMINI_CLI",
+        "ANTIGRAVITY_AGENT",
+        "COPILOT_AGENT",
+        "COPILOT_CLI",
+        "CODEX_THREAD_ID",
+        "CODEX_SANDBOX",
+        "AI_AGENT",
+    ] {
         command.env_remove(var);
     }
     command.with_current_dir(workspace)
@@ -157,24 +168,32 @@ fn install_links_approved_skills_and_prunes_revoked_ones() {
 }
 
 #[test]
-fn an_agent_named_by_the_environment_gets_its_directory() {
-    let (harness, workspace) =
-        project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
-    fs::remove_dir_all(workspace.join(".claude")).expect("remove .claude");
+fn agents_named_by_the_environment_get_their_directories() {
+    for (env_var, dir) in [
+        ("CLAUDECODE", ".claude/skills"),
+        ("ANTIGRAVITY_AGENT", ".agents/skills"),
+        ("COPILOT_AGENT", ".github/skills"),
+    ] {
+        let (harness, workspace) =
+            project("permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n");
+        fs::remove_dir_all(workspace.join(".claude")).expect("remove .claude");
 
-    pnpm(&workspace)
-        .with_env("CLAUDECODE", "1")
-        .with_arg("install")
-        .assert()
-        .success();
+        pnpm(&workspace)
+            .with_env(env_var, "1")
+            .with_arg("install")
+            .assert()
+            .success();
 
-    assert!(
-        workspace
-            .join(LINK)
-            .join("SKILL.md")
-            .is_file(),
-    );
-    drop(harness);
+        assert!(
+            workspace
+                .join(dir)
+                .join("pnpm-@pnpm.e2e+with-agent-skills-guide")
+                .join("SKILL.md")
+                .is_file(),
+            "skill linked for {env_var} in {dir}",
+        );
+        drop(harness);
+    }
 }
 
 #[test]

@@ -1,8 +1,8 @@
 use super::{
-    BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, apply_creds_field,
-    env_replace_lossy, is_package_scope, nerf_dart, split_creds_key,
+    BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, env_replace_lossy,
+    is_package_scope, nerf_dart, split_creds_key,
 };
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 /// What the config files — the `.npmrc` files as much as the yamls —
 /// declared about registry routing, as opposed to what the cascade merely
@@ -111,7 +111,11 @@ impl TryFrom<String> for JsonAuthRegistry {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let normalized = validate_json_auth_registry(&value)?;
-        let nerfed = nerf_dart(&normalized);
+        let nerfed = if canonicalize_npm_registry_url(&value) == value {
+            nerf_dart(&normalized)
+        } else {
+            nerf_dart(&value)
+        };
         Ok(JsonAuthRegistry { normalized, nerfed })
     }
 }
@@ -212,7 +216,7 @@ impl NpmrcAuth {
     fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
-                self.apply_json_entry(&registry, scope, creds.auth_token, origin);
+                self.apply_json_entry(&registry, scope, &creds.auth_token, origin);
             }
         }
     }
@@ -222,7 +226,7 @@ impl NpmrcAuth {
         &mut self,
         registry: &JsonAuthRegistry,
         scope: JsonAuthScope,
-        auth_token: String,
+        auth_token: &str,
         origin: JsonAuthOrigin,
     ) {
         let is_default = matches!(scope, JsonAuthScope::Default);
@@ -231,8 +235,7 @@ impl NpmrcAuth {
             JsonAuthScope::Package(scope) => format!("{}:{scope}:_authToken", registry.nerfed),
         };
         if let Some((uri, suffix)) = split_creds_key(&key) {
-            let entry = self.creds_entry_mut(uri);
-            apply_creds_field(entry, suffix, auth_token);
+            self.apply_uri_creds_field(uri, suffix, auth_token);
         }
         let route_key = match scope {
             JsonAuthScope::Default => "default".to_string(),

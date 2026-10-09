@@ -42,7 +42,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         pnpm_hooks::untracked_read_package_hook(resolved.hooks.after_all_resolved_hook.as_ref())
             .await
             .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
-    if install.execution.lockfile_only {
+    if install.execution.lockfile_only() {
         await_lockfile_gate(lockfile_verification_gate).await?;
     }
     let phase_start = std::time::Instant::now();

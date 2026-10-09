@@ -1,5 +1,5 @@
 use super::{
-    MetadataFreshness, OidcState, SessionUser,
+    LoginReturn, MetadataFreshness, OidcState, SessionUser,
     groups::granted_teams,
     token_payload, verify_workload,
     workload::{binding_matches, validate_times},
@@ -252,7 +252,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         groups: Some(groups(&[("platform-eng", "platform"), ("finance", "finance")])),
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let url = Url::parse(&start.url).unwrap();
     let query: HashMap<_, _> = url.query_pairs().into_owned().collect();
     assert_eq!(query["response_type"], "code");
@@ -273,10 +273,11 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         .collect();
     assert_eq!(teams, ["platform"]);
     assert!(session.expires <= Utc::now().timestamp() + 300);
+    assert_eq!(session.returns_to, LoginReturn::Token);
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     assert!(state.revoke_session(&session.token));
     assert!(state.session(&session.token).is_err());
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Ui).await.unwrap();
     assert!(state.finish("example", &start.state, "other-browser", "code").await.is_err());
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()
@@ -285,7 +286,9 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
-    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    let session =
+        state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    assert_eq!(session.returns_to, LoginReturn::Ui);
     task.abort();
 }
 
@@ -295,13 +298,13 @@ fn revoking_a_user_drops_only_that_users_sessions() {
     let user = |name: &str| SessionUser { username: name.to_string(), teams: Vec::new() };
     let expires = Utc::now().timestamp() + 60;
     let alice = state
-        .issue_session(user("alice"), expires)
+        .issue_session(user("alice"), expires, LoginReturn::Token)
         .unwrap();
     let alice_again = state
-        .issue_session(user("alice"), expires)
+        .issue_session(user("alice"), expires, LoginReturn::Token)
         .unwrap();
     let bob = state
-        .issue_session(user("bob"), expires)
+        .issue_session(user("bob"), expires, LoginReturn::Token)
         .unwrap();
 
     assert_eq!(state.revoke_user_sessions("alice"), 2);
@@ -321,11 +324,15 @@ fn revoking_a_user_drops_only_that_users_sessions() {
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
     let alice = || SessionUser { username: "alice".to_string(), teams: Vec::new() };
-    assert!(state.issue_session(alice(), 0).is_err());
+    assert!(
+        state
+            .issue_session(alice(), 0, LoginReturn::Token)
+            .is_err(),
+    );
     let session = state
-        .issue_session(alice(), Utc::now().timestamp() + 60)
+        .issue_session(alice(), Utc::now().timestamp() + 60, LoginReturn::Token)
         .unwrap();
-    state.sessions
+    state.browser.sessions
         .lock()
         .unwrap()
         .values_mut()
@@ -391,7 +398,7 @@ async fn rejects_expired_state_and_wrong_nonce() {
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()
         .query_pairs()
@@ -401,12 +408,12 @@ async fn rejects_expired_state_and_wrong_nonce() {
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     assert!(
-        state.sessions
+        state.browser.sessions
             .lock()
             .unwrap()
             .is_empty(),
     );
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let mut login = state.open_login(&start.browser_secret).unwrap();
     login.expires = Utc::now().timestamp() - 1;
     let expired_cookie = state.seal_login(&login).unwrap();
@@ -425,7 +432,7 @@ async fn selects_client_secret_post_from_discovery() {
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     *provider.auth_method.lock().unwrap() = "client_secret_post".to_string();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()
         .query_pairs()
@@ -447,7 +454,7 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()
         .query_pairs()
@@ -456,7 +463,7 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     for _ in 0..super::MAX_ENTRIES + 32 {
-        state.start("example").await.unwrap();
+        state.start("example", LoginReturn::Token).await.unwrap();
     }
     assert!(
         state.consumed
@@ -505,7 +512,7 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     let first = state.finish("example", &start.state, &start.browser_secret, "invalid");
     let concurrent = state.finish("example", &start.state, &start.browser_secret, "invalid");
     let (first, concurrent) = tokio::join!(first, concurrent);
@@ -514,7 +521,7 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     assert!(
-        state.sessions
+        state.browser.sessions
             .lock()
             .unwrap()
             .is_empty(),
@@ -532,7 +539,7 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    let start = state.start("example").await.unwrap();
+    let start = state.start("example", LoginReturn::Token).await.unwrap();
     for index in 0..super::MAX_ENTRIES + 32 {
         state
             .record_attempt(&index.to_string())
@@ -598,4 +605,21 @@ fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
     assert!(teams(json!({})).is_empty());
     let no_groups = OidcLogin { groups: None, ..login.clone() };
     assert!(granted_teams(&no_groups, &json!({"groups": ["eng"]})).is_empty());
+}
+
+#[test]
+fn a_handoff_code_redeems_its_session_once() {
+    let state = OidcState::new(&[], "https://registry.example").unwrap();
+    let alice = SessionUser { username: "alice".to_string(), teams: Vec::new() };
+    let session = state
+        .issue_session(alice, Utc::now().timestamp() + 60, LoginReturn::Ui)
+        .unwrap();
+    let token = session.token.clone();
+    let code = state.hand_off(session).unwrap();
+
+    assert!(state.redeem_handoff("unknown").is_err());
+    let redeemed = state.redeem_handoff(&code).unwrap();
+    assert_eq!(redeemed.token, token);
+    assert_eq!(redeemed.returns_to, LoginReturn::Ui);
+    assert!(state.redeem_handoff(&code).is_err());
 }

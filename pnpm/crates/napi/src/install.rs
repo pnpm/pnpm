@@ -354,16 +354,13 @@ fn updates_everything(
 }
 
 /// `enableModulesDir: false` ("do not create a `node_modules` directory") is
-/// honored via pacquet's lockfile-only path: the graph resolves and the
-/// lockfile is written, but nothing is materialized under `node_modules`.
-/// Confined to the install path — a rebuild runs against an
-/// already-materialized `node_modules`, so it must never take the
-/// lockfile-only short-circuit (which would make it silently do nothing) even
-/// when the caller reuses install options that disable the modules dir.
-/// `ignorePackageManifest` overrides both: it materializes the virtual
-/// store from the lockfile, which the lockfile-only short-circuit would
-/// skip entirely (the TS fetch handler forces `enableModulesDir: true` for
-/// the same reason).
+/// not a lockfile-only install: the engine reads it from the config, skips
+/// `node_modules` yet fetches the registry packages the host can install into
+/// the store, and leaves a
+/// rebuild alone. `ignorePackageManifest` overrides `lockfileOnly`: it
+/// materializes the virtual store from the lockfile, which the lockfile-only
+/// short-circuit would skip entirely (the TS fetch handler forces
+/// `enableModulesDir: true` for the same reason).
 fn is_lockfile_only(
     options: &InstallOptions,
     mode: &EngineMode,
@@ -371,7 +368,7 @@ fn is_lockfile_only(
 ) -> bool {
     matches!(mode, EngineMode::Install(_))
         && !ignore_package_manifest
-        && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false))
+        && options.lockfile_only.unwrap_or(false)
 }
 
 /// A rebuild takes the frozen path against the already-materialized

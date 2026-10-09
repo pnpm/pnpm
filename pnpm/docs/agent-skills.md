@@ -51,9 +51,13 @@ By default, pnpm links into the agent skill directories that already exist in th
 
 | Variable | Directory |
 |---|---|
-| `CLAUDECODE` | `.claude/skills` |
+| `CLAUDECODE`, `CLAUDE_CODE` | `.claude/skills` |
 | `CURSOR_AGENT` | `.cursor/skills` |
 | `GEMINI_CLI` | `.gemini/skills` |
+| `ANTIGRAVITY_AGENT` | `.agents/skills` |
+| `COPILOT_AGENT`, `COPILOT_CLI` | `.github/skills` |
+| `CODEX_THREAD_ID`, `CODEX_SANDBOX` | `.agents/skills` |
+| `AI_AGENT` | `.agents/skills` |
 
 To choose the directories yourself, set [`skills.dirs`](./settings/build.md#skillsdirs). An empty list turns agent skills off.
 
