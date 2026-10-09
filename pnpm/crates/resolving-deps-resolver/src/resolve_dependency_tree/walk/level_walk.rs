@@ -221,14 +221,14 @@ pub(super) fn record_walked_children(
         });
         realized.insert(dep.alias, dep.node_id);
     }
-    record_children(
+    let recording = record_children(
         ctx,
         &pending.identity.id,
         &claim.owner,
         by_id,
         children_context(ctx, pending, claim),
-    )
-    .into_children(realized)
+    );
+    (recording.children(realized), recording)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
