@@ -1,6 +1,6 @@
 use super::{
-    Body, Config, Ipv4Addr, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode, TempDir,
-    body_bytes, header, router,
+    Body, Config, GzDecoder, Ipv4Addr, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode,
+    TempDir, body_bytes, header, router,
 };
 
 const INDEX: &str = "<!doctype html><head><title>pnpr</title></head>";
@@ -162,4 +162,29 @@ async fn never_follows_a_symlink_out_of_the_ui_directory() {
     assert_eq!(body_bytes(page.into_body()).await, page_with_base("./"));
     let asset = get(&app, "/-/ui/assets/leak.js").await;
     assert_eq!(asset.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn serves_a_large_asset_compressed() {
+    let storage = TempDir::new().unwrap();
+    let ui = built_ui();
+    let script = "console.log('pnpr');\n".repeat(4096);
+    std::fs::write(ui.path().join("assets/index-big.js"), &script).unwrap();
+    let app = router(config_with_ui(&storage, ui_at(&ui)));
+
+    let response = app
+        .oneshot(
+            Request::get("/-/ui/assets/index-big.js")
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_ENCODING], "gzip");
+    let gzipped = body_bytes(response.into_body()).await;
+    let mut decoded = String::new();
+    std::io::Read::read_to_string(&mut GzDecoder::new(&gzipped[..]), &mut decoded).unwrap();
+    assert_eq!(decoded, script);
 }

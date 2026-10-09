@@ -1,6 +1,8 @@
 //! `pnpm run` and `pnpm exec` finding the Rust toolchain pnpm linked beside
-//! a rustup toolchain file.
+//! a rustup toolchain file, and `pnpm dlx` running a Rust release.
 
+#[cfg(unix)]
+use crate::_utils::write_executable;
 use crate::_utils::{pacquet_in, write_fake_bin};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
@@ -70,6 +72,49 @@ fn scripts_and_commands_run_the_linked_toolchain() {
         assert!(output.status.success());
         assert!(stdout.contains(MARKER));
     }
+    drop(root);
+}
+
+/// `pnpm dlx --package=rust@<channel>` runs the tool from that release,
+/// installed with the standard library of the target it builds for.
+#[cfg(unix)]
+#[test]
+fn dlx_runs_a_tool_of_the_release_it_names() {
+    let CommandTempCwd { workspace, root, .. } = workspace_with_linked_toolchain(true);
+    let mut config = pnpm_config::Config::new();
+    config.store_dir = pnpm_store_dir::StoreDir::from(root.path().join("store"));
+    let nightly = pnpm_rust_toolchain::Channel::parse("nightly-2026-08-27").unwrap();
+    let request = pnpm_rust_toolchain::ToolchainRequest::for_channel(nightly.clone())
+        .with_targets(["wasm32-wasip1-threads"]);
+    let toolchain = pnpm_rust_toolchain::installation_dir(&config, &nightly, &request).unwrap();
+    fs::create_dir_all(toolchain.join("bin")).unwrap();
+    write_executable(
+        &toolchain.join("bin/cargo"),
+        "#!/bin/sh\necho nightly-cargo \"$@\"\necho \"$RUSTUP_TOOLCHAIN\"\n",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "dlx",
+            "--package=rust@nightly-2026-08-27",
+            "cargo",
+            "build",
+            "--target=wasm32-wasip1-threads",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("{stdout}\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    let mut lines = stdout.lines();
+    assert_eq!(lines.next(), Some("nightly-cargo build --target=wasm32-wasip1-threads"));
+    assert_eq!(
+        lines
+            .next()
+            .map(|dir| fs::canonicalize(dir).unwrap()),
+        Some(fs::canonicalize(&toolchain).unwrap()),
+    );
     drop(root);
 }
 

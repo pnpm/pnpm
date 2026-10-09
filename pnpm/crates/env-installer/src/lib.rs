@@ -19,6 +19,7 @@ pub use resolve_and_install_config_deps::resolve_and_install_config_deps;
 pub use resolve_optional_subdeps::resolve_optional_subdeps;
 pub use resolve_package_manager_integrities::{
     is_package_manager_resolved, pnpm_engine_packages, resolve_package_manager_integrities,
+    running_version_unpublished,
 };
 pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
 

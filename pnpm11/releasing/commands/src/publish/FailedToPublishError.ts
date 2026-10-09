@@ -4,6 +4,7 @@ import type { PackResult } from './pack.js'
 
 interface PublishErrorProperties<Pack> {
   readonly pack: Pack
+  readonly stage?: boolean
   readonly status: number
   readonly statusText: string
   readonly text: string
@@ -11,18 +12,19 @@ interface PublishErrorProperties<Pack> {
 
 export class FailedToPublishError<Pack extends Pick<PackResult, 'publishedManifest'>> extends PnpmError implements PublishErrorProperties<Pack> {
   readonly pack: Pack
+  readonly stage: boolean
   readonly status: number
   readonly statusText: string
   readonly text: string
 
   constructor (opts: PublishErrorProperties<Pack>) {
-    const { pack, status, statusText, text } = opts
+    const { pack, stage = false, status, statusText, text } = opts
     const { name, version } = pack.publishedManifest
 
     const statusDisplay = statusText ? `${status} ${statusText}` : status
 
     const trimmedText = text.trim()
-    let message = `Failed to publish package ${name}@${version} (status ${statusDisplay})`
+    let message = `Failed to ${stage ? 'stage' : 'publish'} package ${name}@${version} (status ${statusDisplay})`
     if (trimmedText.includes('\n')) {
       message += '\nDetails:\n'
       for (const line of text.trimEnd().split('\n')) {
@@ -35,6 +37,7 @@ export class FailedToPublishError<Pack extends Pick<PackResult, 'publishedManife
     super('FAILED_TO_PUBLISH', message)
 
     this.pack = pack
+    this.stage = stage
     this.status = status
     this.statusText = statusText
     this.text = text
@@ -43,7 +46,8 @@ export class FailedToPublishError<Pack extends Pick<PackResult, 'publishedManife
 
 export async function createFailedToPublishError<Pack extends Pick<PackResult, 'publishedManifest'>> (
   pack: Pack,
-  fetchResponse: FetchResponse
+  fetchResponse: FetchResponse,
+  stage = false
 ): Promise<FailedToPublishError<Pack>> {
   const { status, statusText } = fetchResponse
 
@@ -54,7 +58,7 @@ export async function createFailedToPublishError<Pack extends Pick<PackResult, '
     text = ''
   }
 
-  return new FailedToPublishError({ pack, status, statusText, text })
+  return new FailedToPublishError({ pack, stage, status, statusText, text })
 }
 
 interface FetchResponse {

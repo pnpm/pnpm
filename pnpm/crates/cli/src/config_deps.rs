@@ -15,7 +15,9 @@ pub use hooks::{
 mod network;
 mod store_index;
 
-use crate::config_overrides::apply_store_dir_override;
+use crate::{
+    cli_args::config_warnings::emit_config_warning, config_overrides::apply_store_dir_override,
+};
 use engine_policy::engine_resolve_options;
 use network::EnvironmentNetwork;
 
@@ -28,6 +30,7 @@ use pnpm_config::{
 use pnpm_env_installer::{
     ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
     resolve_and_install_config_deps, resolve_package_manager_integrities,
+    running_version_unpublished,
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
@@ -81,6 +84,46 @@ pub async fn prepare<Reporter: self::Reporter>(
     install_config_deps::<Reporter>(config, root_dir, frozen_lockfile).await?;
     run_update_config_hooks::<Reporter>(config, root_dir).await?;
     Ok(())
+}
+
+/// Record the pin of the pnpm already running, warning instead of failing
+/// when [`running_version_unpublished`] holds. The pin stays in the
+/// manifest, and a later run records it.
+///
+/// A caller that reads back what it recorded, to install or verify it, wants
+/// [`sync_package_manager_dependencies`] instead.
+pub async fn record_running_package_manager_pin(
+    config: &Config,
+    root_dir: &Path,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+    frozen_lockfile: bool,
+    force_resync: bool,
+) -> Result<()> {
+    let context = EnvInstallerContext::for_package_manager(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
+    let resolved = resolve_package_manager_integrities(
+        pnpm_engine_packages(pnpm_version),
+        wanted_specifier,
+        pnpm_version,
+        &context.resolver,
+        &options,
+        force_resync,
+    )
+    .await;
+    match resolved {
+        Ok(_) => Ok(()),
+        Err(error) if running_version_unpublished(&error, pnpm_version) => {
+            emit_config_warning(&format!(
+                "The registry publishes no pnpm {pnpm_version}, so the packageManager pin was \
+                 not recorded in pnpm-lock.yaml. Continuing with the running pnpm.",
+            ));
+            Ok(())
+        }
+        Err(error) => {
+            Err(miette::Report::new(error)).wrap_err("resolve package manager dependencies")
+        }
+    }
 }
 
 /// Resolve pnpm's own engine dependencies into the env lockfile's

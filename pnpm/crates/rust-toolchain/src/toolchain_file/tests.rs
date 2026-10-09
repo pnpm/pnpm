@@ -158,3 +158,22 @@ fn sets_the_channel_of_a_toolchain_table_before_another_table() {
         "[toolchain]\nchannel = \"1.96.0\"\nprofile = \"minimal\"\n\n[other]\nchannel = \"x\"\n",
     );
 }
+
+#[test]
+fn adds_targets_but_not_target_specification_files() {
+    let request = ToolchainRequest::for_channel(Channel::parse("nightly").unwrap())
+        .with_targets([
+            "wasm32-wasip1-threads",
+            "./custom.json",
+            "custom.json",
+            "host-tuple",
+            "thumbv8m.main-none-eabi",
+            "aarch64-apple-darwin",
+        ])
+        .with_targets(["wasm32-wasip1-threads"]);
+    assert_eq!(request.profile, Profile::Default);
+    assert_eq!(
+        request.targets,
+        ["aarch64-apple-darwin", "thumbv8m.main-none-eabi", "wasm32-wasip1-threads"],
+    );
+}

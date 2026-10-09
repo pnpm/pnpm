@@ -14,8 +14,8 @@ use pnpm_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolutionPolicyOptions, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestInfo, LatestQuery, NoMatchingVersionError, PkgResolutionId, ResolutionPolicyOptions,
+    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::registry::TestRegistry;
@@ -196,6 +196,10 @@ fn clean_spec(version: &str) -> ConfigDependency {
 #[derive(Default)]
 struct FixtureResolver {
     packages: HashMap<(String, String), serde_json::Value>,
+    /// Packages the registry serves without the wanted version, so the
+    /// resolver answers `ERR_PNPM_NO_MATCHING_VERSION` as the npm resolver
+    /// does for a release the registry does not publish.
+    unpublished: std::collections::HashSet<String>,
     /// Resolve to tarball resolutions whose URL is not derivable from the
     /// registry — the shape a load-balanced proxy or Artifactory-style
     /// mirror produces.
@@ -217,6 +221,11 @@ impl FixtureResolver {
             .expect("fixture package version")
             .to_string();
         self.packages.insert((name, version), manifest);
+        self
+    }
+
+    fn unpublished(mut self, name: &str) -> Self {
+        self.unpublished.insert(name.to_string());
         self
     }
 
@@ -243,6 +252,16 @@ impl Resolver for FixtureResolver {
                 .get(&(alias.to_string(), specifier.to_string()))
                 .cloned()
             else {
+                if self.unpublished.contains(alias) {
+                    // Boxed outermost, as a resolver must box it, so the
+                    // caller's downcast finds it.
+                    return Err(NoMatchingVersionError {
+                        dep: format!("{alias}@{specifier}"),
+                        registry: "https://registry.example/".to_string(),
+                        published_versions: String::new(),
+                    }
+                    .into());
+                }
                 return Ok(None);
             };
             let name = manifest["name"]

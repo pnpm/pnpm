@@ -266,6 +266,19 @@ pub fn linked_bin_dir(config: &Config, dir: &Path, boundary: &Path) -> Option<Pa
     (installed && bin_dir.is_dir()).then_some(bin_dir)
 }
 
+/// The release channel a rustup toolchain name selects on this machine:
+/// a channel such as `nightly-2026-01-01` or `1.95.0`, optionally followed
+/// by this machine's host triple. `None` for a name rustup resolves without
+/// the distribution server, or one for another host.
+#[must_use]
+pub fn parse_toolchain_name(name: &str) -> Option<Channel> {
+    Channel::parse(name)
+        .or_else(|| {
+            let host = host::host_triple()?;
+            Channel::parse(name.strip_suffix(host.as_str())?.strip_suffix('-')?)
+        })
+}
+
 /// Where the release `pinned` is installed for `request` on this machine.
 /// `None` where Rust publishes no toolchain for it.
 #[must_use]
