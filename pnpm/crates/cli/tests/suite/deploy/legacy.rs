@@ -280,6 +280,70 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
 }
 
 #[test]
+fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "peer": "workspace:^" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "peer",
+        &serde_json::json!({
+            "name": "peer",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+    fs::write(workspace.join("packages/peer/index.js"), "module.exports = 'workspace peer'")
+        .unwrap();
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = require('peer')").unwrap();
+    fs::write(workspace.join("packages/app/index.js"), "console.log(require('lib'))").unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    eprintln!("virtual store entries: {virtual_store_entries:?}");
+    assert!(
+        virtual_store_entries
+            .iter()
+            .any(|entry| entry.starts_with("peer@file+")),
+        "the workspace peer should be injected into the deploy virtual store",
+    );
+    fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
+    Command::new("node")
+        .current_dir(&deploy_dir)
+        .arg("index.js")
+        .assert()
+        .success()
+        .stdout("workspace peer\n");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn legacy_deploy_prefers_workspace_lockfile_versions() {
     let CommandTempCwd {
         pacquet,

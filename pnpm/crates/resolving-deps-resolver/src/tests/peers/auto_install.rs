@@ -45,3 +45,45 @@ async fn missing_peer_is_reported() {
         Some(&DepPath::from("react-dom@18.0.0".to_string())),
     );
 }
+
+// The hoist installs a missing peer from `raw_range`. A bare `workspace:^`
+// carries no version, so stripping its protocol leaves an unresolvable `^`.
+#[tokio::test]
+async fn missing_workspace_peer_keeps_its_protocol() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("lib".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "lib",
+            "1.0.0",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "peer": "workspace:^" }
+            }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "lib": "1.0.0" }));
+    let mut tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let missing = &result.peer_dependency_issues.missing["peer"];
+    assert_eq!(missing[0].raw_range, "workspace:^");
+    assert_eq!(missing[0].wanted_range, "*");
+}

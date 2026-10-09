@@ -59,10 +59,6 @@ impl Walker<'_> {
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
         let raw_range = peer_dep.version.as_str();
-        // The stored range keeps the original scheme (only `workspace:` is
-        // stripped) so it still selects the package to auto-install for a
-        // missing peer, e.g. `work:5.x.x` fetches from the `work` registry.
-        let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
         // The satisfaction check needs a comparable semver range, so
         // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
         let comparable_range = self.comparable_peer_range(raw_range);
@@ -72,7 +68,7 @@ impl Walker<'_> {
             None => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional },
+                    MissingPeerInfo { range: raw_range.to_string(), optional },
                 );
                 self.record_missing_peer_if_needed(
                     peer_name,
@@ -113,15 +109,13 @@ impl Walker<'_> {
         ancestor_pkg_ids: &SharedChain<Arc<str>>,
         comparable_range: &ComparablePeerRange,
     ) {
-        let raw_range = peer_dep.version.as_str();
-        let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
         let optional = peer_dep.optional;
         if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
             self.record_missing_issue(
                 peer_name,
                 MissingPeer {
                     wanted_range: comparable_range.text.clone(),
-                    raw_range: range_for_match.to_string(),
+                    raw_range: peer_dep.version.clone(),
                     optional,
                     parents: self.issue_parents(chain),
                 },

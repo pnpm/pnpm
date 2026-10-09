@@ -248,6 +248,12 @@ impl DeployArgs {
         // project's own pnpmfile.
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
         deploy_config.disable_agent_skills();
+        // The deploy hook injects only the workspace packages a manifest
+        // declares. A `workspace:` peer that the install auto-installs has
+        // no declaring manifest, and must still be copied into the deploy.
+        if matches!(mode, DeployInstallMode::Legacy) {
+            deploy_config.inject_workspace_packages = true;
+        }
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
     }
