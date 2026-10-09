@@ -83,7 +83,6 @@ pipelines:
   rust-doc: [ci:rust-doc]
   rust-deny: [ci:rust-deny]
   rust-format: [ci:rust-fmt, ci:toml-fmt]
-  rust-dylint: [ci:rust-dylint]
   build-pnpr: [ci:build-pnpr]
 
 # Every entry names a script the root manifest alone defines. A name a
@@ -142,8 +141,6 @@ tasks:
   ci:rust-clippy:
     concurrencyGroup: cargo
   ci:rust-doc:
-    concurrencyGroup: cargo
-  ci:rust-dylint:
     concurrencyGroup: cargo
   ci:rust-test:
     concurrencyGroup: cargo
@@ -453,7 +450,7 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
-  playwright-core: ^1.63.0
+  playwright-core: ^1.64.0
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
   pretty-ms: ^9.3.1

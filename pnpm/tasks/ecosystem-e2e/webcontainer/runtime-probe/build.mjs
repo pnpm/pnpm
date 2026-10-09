@@ -62,8 +62,8 @@ const flags = [
   '-C', 'link-arg=--export=__wasm_init_tls',
 ]
 const inherited = process.env.CARGO_ENCODED_RUSTFLAGS?.split('\x1f') ?? process.env.RUSTFLAGS?.split(/\s+/).filter(Boolean) ?? []
-const result = spawnSync('cargo', [
-  '+nightly-2026-08-27', 'build', '--offline', '--manifest-path', join(generated, 'Cargo.toml'),
+const result = spawnSync('pnx', [
+  '--package=rust@nightly-2026-08-27', 'cargo', 'build', '--offline', '--manifest-path', join(generated, 'Cargo.toml'),
   '--target', 'wasm32-wasip1-threads', '--target-dir', generated,
 ], {
   cwd: root,
