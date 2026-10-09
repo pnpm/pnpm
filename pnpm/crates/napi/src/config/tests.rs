@@ -52,7 +52,12 @@ fn embedded_registry_alias_keeps_routes_and_credentials_together() {
             config.auth_headers.for_url(&config.registry),
             Some("Bearer host-secret".to_string()),
         );
-        assert_eq!(config.auth_headers.for_url("https://registry.npmjs.com/"), None);
+        let original_header =
+            (credential_key == "//registry.npmjs.com/").then(|| "Bearer host-secret".to_string());
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.com/custom/pkg.tgz"),
+            original_header,
+        );
     }
 }
 

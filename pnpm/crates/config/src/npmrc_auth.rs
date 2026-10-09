@@ -179,8 +179,7 @@ impl NpmrcAuth {
         let mut auth = NpmrcAuth::default();
         for (key, value) in npm_scoped {
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_entry_mut(uri);
-                apply_creds_field(entry, suffix, value);
+                auth.apply_uri_creds_field(uri, suffix, &value);
             }
         }
         auth

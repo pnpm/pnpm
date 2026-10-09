@@ -146,10 +146,7 @@ fn split_creds_key_in<'a>(
 
 pub(super) fn split_scope_from_uri(uri: &str) -> (String, Option<String>) {
     if let Some((registry_uri, scope)) = split_scope_from_uri_by_colon(uri) {
-        return (
-            pnpm_network::normalize_registry_url(registry_uri).into_owned(),
-            Some(scope.to_owned()),
-        );
+        return (pnpm_network::normalize_auth_key(registry_uri.to_owned()), Some(scope.to_owned()));
     }
     split_scope_from_uri_by_path(uri)
 }

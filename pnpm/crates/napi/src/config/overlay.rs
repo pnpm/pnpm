@@ -260,8 +260,11 @@ pub(super) fn pin_unkeyed_header(
             // Normalized on the way in, so a host key spelled without the
             // trailing slash still counts as "already keyed at that URI"
             // below instead of colliding with the pinned entry later.
-            let uri = canonicalize_npm_registry_url(uri).into_owned();
-            by_uri.insert(normalize_auth_key(uri), header.clone());
+            let canonical_uri = canonicalize_npm_registry_url(uri);
+            if canonical_uri != *uri {
+                by_uri.insert(normalize_auth_key(canonical_uri.into_owned()), header.clone());
+            }
+            by_uri.insert(normalize_auth_key(uri.clone()), header.clone());
         }
     }
     let default_uri = nerf_dart(&normalize_registry_url(default_registry));

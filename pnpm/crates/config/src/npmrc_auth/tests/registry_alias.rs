@@ -15,6 +15,12 @@ fn npm_alias_normalizes_routes_and_credentials() {
             Some("Bearer test-token".to_owned()),
         );
         assert_eq!(config.auth_headers.for_url("https://registry.npmjs.com.evil.example/"), None);
+        let original_header =
+            (credential_host == "registry.npmjs.com").then(|| "Bearer test-token".to_owned());
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.com/custom/pkg.tgz"),
+            original_header,
+        );
     }
 }
 
@@ -27,5 +33,5 @@ fn npm_alias_normalizes_registry_tls_settings() {
     let tls = &auth.tls.by_uri["//registry.npmjs.org/"];
     assert_eq!(tls.cert.as_deref(), Some("client-certificate"));
     assert_eq!(tls.key.as_deref(), Some("client-key"));
-    assert!(!auth.tls.by_uri.contains_key("//registry.npmjs.com/"));
+    assert_eq!(auth.tls.by_uri["//registry.npmjs.com/"], *tls);
 }

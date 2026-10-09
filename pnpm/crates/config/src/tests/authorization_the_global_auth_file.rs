@@ -22,6 +22,15 @@ fn npm_alias_normalizes_workspace_routes_and_json_credentials() {
             ),
             Some("Bearer stored-token".to_owned()),
         );
+        let original_header =
+            (credential_host == "registry.npmjs.com").then(|| "Bearer stored-token".to_owned());
+        assert_eq!(
+            config.auth_headers.for_url_with_package(
+                "https://registry.npmjs.com/custom/pkg.tgz",
+                Some("@org/pkg"),
+            ),
+            original_header,
+        );
     }
 }
 

@@ -35,7 +35,7 @@ async function installWithMatchingPin (entry) {
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
-    const child = spawn('node', [entry, 'install'], {
+    const child = spawn(process.execPath, [entry, 'install'], {
       stdio: 'inherit',
       env: { ...process.env, PNPM_CONFIG_REGISTRY: `http://127.0.0.1:${server.address().port}/` },
     })
