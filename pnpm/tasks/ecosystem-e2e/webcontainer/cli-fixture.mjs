@@ -1,8 +1,55 @@
+import { spawn } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 
-if (process.argv[2] === '--approval') createApprovalFixture()
+if (process.argv[2] === '--matching-pin') await installWithMatchingPin(process.argv[3])
+else if (process.argv[2] === '--approval') createApprovalFixture()
 else if (process.argv[2] === '--frontend') createFrontendFixture()
 else createWorkspaceFixture()
+
+async function installWithMatchingPin (entry) {
+  const { packageManager } = JSON.parse(readFileSync('package.json', 'utf8'))
+  const version = packageManager.slice('pnpm@'.length)
+  // A matching pin records integrity even when the running build is unpublished.
+  const server = createServer(async (request, response) => {
+    if (request.url === '/pnpm') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({
+        name: 'pnpm',
+        'dist-tags': { latest: version },
+        time: { [version]: '2020-01-01T00:00:00.000Z' },
+        versions: {
+          [version]: {
+            name: 'pnpm', version,
+            dist: { tarball: `https://registry.npmjs.org/pnpm/-/pnpm-${version}.tgz`, integrity: `sha512-${Buffer.alloc(64).toString('base64')}` },
+          },
+        },
+      }))
+      return
+    }
+    try {
+      const upstream = await fetch(`https://registry.npmjs.org${request.url}`)
+      response.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') })
+      response.end(Buffer.from(await upstream.arrayBuffer()))
+    } catch (error) {
+      response.writeHead(502)
+      response.end(String(error))
+    }
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const child = spawn('node', [entry, 'install'], {
+      stdio: 'inherit',
+      env: { ...process.env, PNPM_CONFIG_REGISTRY: `http://127.0.0.1:${server.address().port}/` },
+    })
+    process.exitCode = await new Promise((resolve, reject) => {
+      child.once('error', reject)
+      child.once('exit', code => resolve(code ?? 1))
+    })
+  } finally {
+    await new Promise(resolve => server.close(resolve))
+  }
+}
 
 function createFrontendFixture () {
   const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
