@@ -195,3 +195,13 @@ pub(crate) struct RecordedWorkspace<'a> {
     pub(crate) moved: bool,
     pub(crate) projects: &'a [(PathBuf, &'a PackageManifest)],
 }
+
+/// Why a run materializes no `node_modules`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResolveOnly {
+    /// `--lockfile-only` or `--dry-run`: nothing is fetched either.
+    LockfileOnly,
+    /// `enableModulesDir: false`: every package is fetched into the store.
+    /// See `RunMode::fetches_into_store` in the run module.
+    FetchIntoStore,
+}

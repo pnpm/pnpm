@@ -6,8 +6,9 @@ use super::{
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RepeatInstallVerdict,
-    RunExecution, Settled, Verification, dispatch, load_lockfiles, report_already_up_to_date,
+    RunExecution, Verification, dispatch, load_lockfiles, report_already_up_to_date,
     settle_wanted_lockfile,
+    settled::Settled,
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };

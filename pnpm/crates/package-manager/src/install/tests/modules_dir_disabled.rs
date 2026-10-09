@@ -153,7 +153,7 @@ async fn fresh_install_without_modules_dir_fetches_the_packages_into_the_store()
     assert_eq!(keys_in_store(project.config, &installable), installable);
     assert!(
         keys_in_store(project.config, &[incompatible]).is_empty(),
-        "another platform's package is not fetched"
+        "another platform's package is not fetched",
     );
 }
 
@@ -169,7 +169,7 @@ async fn frozen_install_without_modules_dir_fetches_the_packages_into_the_store(
     installable.sort();
     assert!(
         keys_in_store(project.config, &installable).is_empty(),
-        "a lockfile-only run fetches nothing"
+        "a lockfile-only run fetches nothing",
     );
 
     install(&project, Flags { frozen: true, ..Flags::default() }).await;
@@ -178,6 +178,6 @@ async fn frozen_install_without_modules_dir_fetches_the_packages_into_the_store(
     assert_eq!(keys_in_store(project.config, &installable), installable);
     assert!(
         keys_in_store(project.config, &[incompatible]).is_empty(),
-        "another platform's package is not fetched"
+        "another platform's package is not fetched",
     );
 }

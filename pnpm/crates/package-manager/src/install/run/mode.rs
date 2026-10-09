@@ -2,6 +2,7 @@ use super::{
     super::{effective_node_version, included_dependencies},
     InstallError, InstallExecution, InstallOwned, InstallRunOptions, InstallView,
 };
+use crate::install::state_options::ResolveOnly;
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -97,16 +98,6 @@ fn fetches_into_store(lockfile_only: bool, execution: InstallExecution) -> bool 
     lockfile_only && !execution.lockfile_only && !execution.dry_run
 }
 
-/// Why a run materializes no `node_modules`.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ResolveOnly {
-    /// `--lockfile-only` or `--dry-run`: nothing is fetched either.
-    LockfileOnly,
-    /// `enableModulesDir: false`: every package is fetched into the store.
-    /// See [`RunMode::fetches_into_store`].
-    FetchIntoStore,
-}
-
 /// A prompt only reaches a person on an interactive terminal outside CI.
 fn prompts_are_answerable() -> bool {
     !pnpm_config::is_ci() && std::io::stdin().is_terminal()
@@ -197,28 +188,4 @@ impl Drop for WorkspaceManifestRollbackGuard {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{InstallExecution, fetches_into_store};
-
-    fn execution(lockfile_only: bool, dry_run: bool) -> InstallExecution {
-        InstallExecution {
-            skip_runtimes: false,
-            mutation: crate::ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            node_linker: pnpm_config::NodeLinker::default(),
-            lockfile_only,
-            dry_run,
-        }
-    }
-
-    #[test]
-    fn only_a_disabled_modules_dir_fetches_into_the_store() {
-        // The effective lockfile-only came from the config alone.
-        assert!(fetches_into_store(true, execution(false, false)));
-        // `--lockfile-only` and `--dry-run` fetch nothing, modules dir or not.
-        assert!(!fetches_into_store(true, execution(true, false)));
-        assert!(!fetches_into_store(true, execution(false, true)));
-        // A run that materializes `node_modules` fetches as part of that.
-        assert!(!fetches_into_store(false, execution(false, false)));
-    }
-}
+mod tests;

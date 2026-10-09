@@ -6,7 +6,7 @@ use fast_path::{
 };
 
 mod dispatch;
-use dispatch::{Dispatched, Settled, dispatch};
+use dispatch::{Dispatched, dispatch};
 
 mod manifests;
 use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
@@ -26,9 +26,9 @@ mod execution;
 mod manifest_validation;
 mod mode;
 mod store_fetch;
-pub(super) use mode::ResolveOnly;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
+mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;

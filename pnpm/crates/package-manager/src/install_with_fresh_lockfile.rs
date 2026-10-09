@@ -17,6 +17,7 @@ use lockfile_build::{
 };
 
 mod on_disk;
+use crate::install::state_options::ResolveOnly;
 use on_disk::{OnDiskInputs, OnDiskOutput, finish_early_materialization, run_on_disk_phases};
 
 mod plan;
@@ -165,17 +166,13 @@ pub(crate) struct FreshInstallExecution {
     /// [`crate::link_hoisted_modules()`] instead of the isolated
     /// symlink layout.
     pub(crate) node_linker: NodeLinker,
-    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
-    /// return — skipping the tarball prefetch, virtual-store
-    /// materialization, symlinks, hoisting, and bin linking. The store
-    /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
-    /// See [`crate::InstallExecution::lockfile_only`].
-    pub(crate) lockfile_only: bool,
-    /// With [`Self::lockfile_only`]: the resolver still prefetches every
-    /// tarball into the store, and the run waits for those downloads
-    /// before it returns. `enableModulesDir: false` without
-    /// `--lockfile-only`; see `RunMode::fetches_into_store`.
-    pub(crate) fetches_into_store: bool,
+    /// `Some`: resolve the graph and write `pnpm-lock.yaml`, then return,
+    /// skipping virtual-store materialization, symlinks, hoisting, and bin
+    /// linking. [`ResolveOnly::LockfileOnly`] fetches nothing either (a
+    /// dry-run resolve pass; see [`crate::InstallExecution::lockfile_only`]);
+    /// [`ResolveOnly::FetchIntoStore`] keeps the tarball prefetch on and the
+    /// run waits for those downloads before it returns.
+    pub(crate) resolve_only: Option<ResolveOnly>,
     /// `config.skip_runtimes || --no-runtime`; see
     /// [`crate::add_direct_runtime_skips`].
     pub(crate) skip_runtimes: bool,
@@ -197,6 +194,16 @@ pub(crate) struct FreshInstallExecution {
     /// drives `<install_state_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
+}
+
+impl FreshInstallExecution {
+    pub(crate) fn lockfile_only(self) -> bool {
+        self.resolve_only.is_some()
+    }
+
+    pub(crate) fn fetches_into_store(self) -> bool {
+        self.resolve_only == Some(ResolveOnly::FetchIntoStore)
+    }
 }
 
 #[derive(Clone, Copy)]
