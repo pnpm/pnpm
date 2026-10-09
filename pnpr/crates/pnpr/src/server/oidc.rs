@@ -17,8 +17,9 @@ const UI_HANDOFF_PAGE: &str = "../../ui/sign-in/oidc";
 
 /// Carries a handoff code from the callback to the web UI's redemption
 /// request. Only the browser that signed in holds it, so a link cannot sign
-/// another browser in.
-const HANDOFF_COOKIE: &str = "__Host-pnpr-oidc-handoff";
+/// another browser in. The name ends with the sign-in's OIDC state, its
+/// `flow`, so parallel sign-ins in one browser keep their own codes.
+const HANDOFF_COOKIE_PREFIX: &str = "__Host-pnpr-oidc-handoff-";
 
 /// The browser sign-in routes. A sign-in can end in the web UI only when
 /// `ui_served`.
@@ -78,15 +79,8 @@ async fn callback(
     Query(query): Query<Callback>,
     headers: HeaderMap,
 ) -> Response {
-    if query.state.len() > 128
-        || query.state.is_empty()
-        || !query.state
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    {
-        return protect(
-            RegistryError::BadRequest { reason: "invalid OIDC state".to_string() }.into_response(),
-        );
+    if !is_valid_state(&query.state) {
+        return bad_request("invalid OIDC state");
     }
     let cookie_name = format!("__Host-pnpr-oidc-{}", query.state);
     let response = if let Some(secret) = browser_secret(&headers, &cookie_name) {
@@ -98,7 +92,7 @@ async fn callback(
         )
         .await
         {
-            Ok(session) => signed_in(&state.inner.identity.oidc, session),
+            Ok(session) => signed_in(&state.inner.identity.oidc, &query.state, session),
             Err(err) => err.into_response(),
         }
     } else {
@@ -108,15 +102,16 @@ async fn callback(
     with_cookie(protect(response), &expired_cookie(&cookie_name))
 }
 
-/// Where the browser lands after `session` signed in: the web UI, holding a
-/// handoff code in [`HANDOFF_COOKIE`], or a page that shows the token.
-fn signed_in(oidc: &OidcState, session: LoginSession) -> Response {
+/// Where the browser lands after `session`, the sign-in `flow`, signed in:
+/// the web UI, holding a handoff code in a [`HANDOFF_COOKIE_PREFIX`] cookie,
+/// or a page that shows the token.
+fn signed_in(oidc: &OidcState, flow: &str, session: LoginSession) -> Response {
     if session.returns_to == LoginReturn::Ui {
         return match oidc.hand_off(session) {
             Ok(code) => with_cookie(
-                Redirect::to(UI_HANDOFF_PAGE).into_response(),
+                Redirect::to(&format!("{UI_HANDOFF_PAGE}?flow={flow}")).into_response(),
                 &format!(
-                    "{HANDOFF_COOKIE}={code}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={}",
+                    "{HANDOFF_COOKIE_PREFIX}{flow}={code}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={}",
                     HANDOFF_TTL.as_secs(),
                 ),
             ),
@@ -131,15 +126,29 @@ fn signed_in(oidc: &OidcState, session: LoginSession) -> Response {
     (StatusCode::OK, message).into_response()
 }
 
-/// `POST /-/oidc/handoff`: trades the handoff code that a sign-in started
-/// with `return=ui` left in [`HANDOFF_COOKIE`] for the session token.
-async fn redeem_handoff(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    redeem(&state.inner.identity.oidc, &headers)
+#[derive(Deserialize)]
+struct HandoffQuery {
+    flow: String,
 }
 
-fn redeem(oidc: &OidcState, headers: &HeaderMap) -> Response {
+/// `POST /-/oidc/handoff?flow=<flow>`: trades the handoff code that the
+/// sign-in `flow`, started with `return=ui`, left in a
+/// [`HANDOFF_COOKIE_PREFIX`] cookie for the session token.
+async fn redeem_handoff(
+    State(state): State<AppState>,
+    Query(query): Query<HandoffQuery>,
+    headers: HeaderMap,
+) -> Response {
+    if !is_valid_state(&query.flow) {
+        return bad_request("invalid sign-in flow");
+    }
+    redeem(&state.inner.identity.oidc, &query.flow, &headers)
+}
+
+fn redeem(oidc: &OidcState, flow: &str, headers: &HeaderMap) -> Response {
+    let cookie_name = format!("{HANDOFF_COOKIE_PREFIX}{flow}");
     let response =
-        match browser_secret(headers, HANDOFF_COOKIE).map(|code| oidc.redeem_handoff(code)) {
+        match browser_secret(headers, &cookie_name).map(|code| oidc.redeem_handoff(code)) {
             Some(Ok(session)) => {
                 Json(json!({ "token": session.token, "expires": session.expires })).into_response()
             }
@@ -147,7 +156,16 @@ fn redeem(oidc: &OidcState, headers: &HeaderMap) -> Response {
             None => RegistryError::Unauthenticated { resource: "OIDC handoff".to_string() }
                 .into_response(),
         };
-    with_cookie(protect(response), &expired_cookie(HANDOFF_COOKIE))
+    with_cookie(protect(response), &expired_cookie(&cookie_name))
+}
+
+/// An OIDC state as pnpr issues it, safe to put in a cookie name.
+fn is_valid_state(state: &str) -> bool {
+    !state.is_empty()
+        && state.len() <= 128
+        && state
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 /// `GET /-/pnpr/v0/sign-in`: the OIDC providers that offer browser sign-in.

@@ -1,5 +1,5 @@
 use super::{
-    HANDOFF_COOKIE, LoginReturn, LoginSession, OidcState, check_workload_request, redeem,
+    HANDOFF_COOKIE_PREFIX, LoginReturn, LoginSession, OidcState, check_workload_request, redeem,
     signed_in, validate_workloads,
 };
 use axum::{
@@ -131,39 +131,57 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
 }
 
 #[tokio::test]
-async fn a_ui_sign_in_hands_the_token_only_to_the_browser_that_signed_in() {
+async fn a_ui_sign_in_hands_the_token_only_to_the_browser_and_flow_that_signed_in() {
     let oidc = OidcState::new(&[], "https://registry.example").unwrap();
-    let session = LoginSession {
-        token: "pnpr_oidc_session".to_string(),
-        expires: chrono::Utc::now().timestamp() + 60,
-        returns_to: LoginReturn::Ui,
+    let sign_in = |flow: &str, token: &str| {
+        let session = LoginSession {
+            token: token.to_string(),
+            expires: chrono::Utc::now().timestamp() + 60,
+            returns_to: LoginReturn::Ui,
+        };
+        let landed = signed_in(&oidc, flow, session);
+        assert!(landed.status().is_redirection());
+        assert_eq!(
+            landed.headers()[header::LOCATION],
+            format!("../../ui/sign-in/oidc?flow={flow}"),
+        );
+        let cookie = landed.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(cookie.starts_with(&format!("{HANDOFF_COOKIE_PREFIX}{flow}=")), "{cookie}");
+        assert!(cookie.contains("; HttpOnly;"), "{cookie}");
+        cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string()
     };
-    let landed = signed_in(&oidc, session);
-    assert!(landed.status().is_redirection());
-    assert_eq!(landed.headers()[header::LOCATION], "../../ui/sign-in/oidc");
-    let cookie = landed.headers()[header::SET_COOKIE].to_str().unwrap();
-    assert!(cookie.contains("; HttpOnly;"), "{cookie}");
-    let pair = cookie.split(';').next().unwrap();
-    assert!(pair.starts_with(&format!("{HANDOFF_COOKIE}=")), "{cookie}");
-    let with_cookie = |pair: &str| {
+    let first = sign_in("flow-a", "pnpr_oidc_first");
+    let second = sign_in("flow-b", "pnpr_oidc_second");
+    let with_cookies = |pairs: &[&str]| {
         let mut headers = HeaderMap::new();
-        headers.insert(header::COOKIE, HeaderValue::from_str(pair).unwrap());
+        headers.insert(header::COOKIE, HeaderValue::from_str(&pairs.join("; ")).unwrap());
         headers
     };
+    let token = |response: axum::response::Response| async move {
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap()["token"].clone()
+    };
 
-    for refused in [HeaderMap::new(), with_cookie(&format!("{HANDOFF_COOKIE}=other-code"))] {
-        assert_eq!(redeem(&oidc, &refused).status(), StatusCode::UNAUTHORIZED);
-    }
-    let redeemed = redeem(&oidc, &with_cookie(pair));
-    assert_eq!(redeemed.status(), StatusCode::OK);
+    assert_eq!(redeem(&oidc, "flow-a", &HeaderMap::new()).status(), StatusCode::UNAUTHORIZED);
+    let planted = with_cookies(&[&format!("{HANDOFF_COOKIE_PREFIX}flow-a=other-code")]);
+    assert_eq!(redeem(&oidc, "flow-a", &planted).status(), StatusCode::UNAUTHORIZED);
+    let both = with_cookies(&[&first, &second]);
+    let redeemed = redeem(&oidc, "flow-a", &both);
     assert!(
         redeemed.headers()[header::SET_COOKIE]
             .to_str()
             .unwrap()
-            .ends_with("Max-Age=0"),
+            .starts_with(&format!("{HANDOFF_COOKIE_PREFIX}flow-a=;")),
     );
-    let body = axum::body::to_bytes(redeemed.into_body(), usize::MAX).await.unwrap();
-    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(body["token"], "pnpr_oidc_session");
-    assert_eq!(redeem(&oidc, &with_cookie(pair)).status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(token(redeemed).await, "pnpr_oidc_first");
+    assert_eq!(redeem(&oidc, "flow-a", &both).status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(token(redeem(&oidc, "flow-b", &both)).await, "pnpr_oidc_second");
 }

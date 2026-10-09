@@ -53,8 +53,8 @@ async fn an_unknown_handoff_code_is_refused() {
 
     let response = app
         .oneshot(
-            Request::post("/-/oidc/handoff")
-                .header(header::COOKIE, "__Host-pnpr-oidc-handoff=unknown")
+            Request::post("/-/oidc/handoff?flow=f")
+                .header(header::COOKIE, "__Host-pnpr-oidc-handoff-f=unknown")
                 .body(Body::empty())
                 .unwrap(),
         )
