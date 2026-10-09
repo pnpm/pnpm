@@ -265,3 +265,47 @@ fn workspace_task_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
         blob,
     )
 }
+
+/// The organizations a pnpr server declares decide who reads and who
+/// publishes, whatever the accounts are called.
+#[tokio::test]
+async fn a_pnpr_organization_separates_readers_from_publishers() {
+    let (pnpr_url, publisher, _storage) = super::start_pnpr_artifacts().await;
+    let reader = format!("Bearer {}", super::register_token(&pnpr_url, "reader").await);
+    let stranger = format!("Bearer {}", super::register_token(&pnpr_url, "stranger").await);
+    let store = |authorization: &str| ArtifactStore::Pnpr {
+        client: pnpm_pnpr_client::PnprClient::new(&pnpr_url),
+        authorization: Some(authorization.to_string()),
+    };
+    let (request, public_key, _) = workspace_task_fixture();
+    store(&publisher).publish_artifact(&request).await.expect("the publisher publishes");
+    assert!(store(&reader).publish_artifact(&request).await.is_err(), "a reader must not publish");
+
+    let lookup = || ResolveArtifactsOptions {
+        candidates: vec![ArtifactCandidate {
+            key: request.key.clone(),
+            subject: ArtifactSubject::workspace_task("packages/app", "build"),
+            owner: OwnerScope::organization("pnpr-client"),
+        }],
+        supported_tags: Vec::new(),
+        trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
+        quarantined_envelope_digests: BTreeMap::new(),
+        on_rejected_artifact: None,
+        authorization: None,
+        build_policy: ArtifactBuildPolicy {
+            eligible_packages: HashSet::new(),
+            allowed_builds: HashSet::new(),
+            ignore_scripts: false,
+        },
+    };
+    let read = store(&reader)
+        .resolve_artifacts(lookup())
+        .await
+        .expect("resolve");
+    assert!(read.contains_key(&request.key), "a reader restores the organization's artifact");
+    let hidden = store(&stranger)
+        .resolve_artifacts(lookup())
+        .await
+        .expect("resolve");
+    assert!(hidden.is_empty(), "an account outside the organization sees nothing");
+}

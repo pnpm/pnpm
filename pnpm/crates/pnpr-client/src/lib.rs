@@ -378,6 +378,8 @@ struct HandshakeResponse {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishPipelineRunRequest {
+    /// The organization the run is recorded under.
+    pub org: String,
     pub workspace: String,
     pub run_id: String,
     pub summary: serde_json::Value,

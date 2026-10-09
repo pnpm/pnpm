@@ -1,12 +1,15 @@
 use super::{PipelineRunStore, PublishPipelineRun};
 use pnpr_config::HostedStoreConfig;
-use pnpr_storage::Storage;
+use pnpr_storage::{PipelineRunKey, Storage};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;
 
+const ORG: &str = "acme";
+
 fn run(workspace: &str, run_id: &str) -> PublishPipelineRun {
     PublishPipelineRun {
+        org: ORG.to_string(),
         workspace: workspace.to_string(),
         run_id: run_id.to_string(),
         summary: json!({ "pipeline": "default", "runId": run_id }),
@@ -33,7 +36,7 @@ async fn publish_then_get_roundtrips_the_record() {
         .expect("publish");
 
     let stored = store
-        .get("demo-1234", "100-default")
+        .get(ORG, "demo-1234", "100-default")
         .await
         .expect("get")
         .expect("run exists");
@@ -41,7 +44,7 @@ async fn publish_then_get_roundtrips_the_record() {
     assert_eq!(stored.events.len(), 1);
     assert!(
         store
-            .get("demo-1234", "999-missing")
+            .get(ORG, "demo-1234", "999-missing")
             .await
             .expect("get")
             .is_none(),
@@ -66,7 +69,7 @@ async fn list_returns_newest_first_and_honors_the_workspace_filter() {
         .expect("publish");
 
     let all = store
-        .list(&["ws-a", "ws-b"], 10)
+        .list(&[ORG], None, 10)
         .await
         .expect("list");
     let ids: Vec<&str> = all
@@ -76,7 +79,7 @@ async fn list_returns_newest_first_and_honors_the_workspace_filter() {
     assert_eq!(ids, ["200-default", "150-default", "100-default"]);
 
     let only_a = store
-        .list(&["ws-a"], 10)
+        .list(&[ORG], Some("ws-a"), 10)
         .await
         .expect("list");
     assert_eq!(only_a.len(), 2);
@@ -87,7 +90,7 @@ async fn list_returns_newest_first_and_honors_the_workspace_filter() {
     );
 
     let limited = store
-        .list(&["ws-a", "ws-b"], 1)
+        .list(&[ORG], None, 1)
         .await
         .expect("list");
     assert_eq!(limited.len(), 1);
@@ -117,6 +120,7 @@ async fn path_shaped_identifiers_are_refused() {
     let store = local_store(&root);
     for (workspace, run_id) in [
         ("../escape", "100-default"),
+        ("demo", "100/default"),
         ("demo/nested", "100-default"),
         ("demo", "../escape"),
         ("demo", ""),
@@ -132,7 +136,7 @@ async fn path_shaped_identifiers_are_refused() {
             "unexpected error for {workspace}/{run_id}: {rendered}",
         );
         assert!(
-            store.get(workspace, run_id).await.is_err(),
+            store.get(ORG, workspace, run_id).await.is_err(),
             "get must refuse {workspace}/{run_id}",
         );
     }
@@ -152,7 +156,7 @@ async fn concurrent_publications_cannot_replace_the_winner() {
     assert_ne!(first_result.is_ok(), second_result.is_ok(), "exactly one writer must succeed");
     let expected = if first_result.is_ok() { first.summary } else { second.summary };
     let winner = first_store
-        .get("demo", "100-default")
+        .get(ORG, "demo", "100-default")
         .await
         .unwrap()
         .unwrap();
@@ -165,7 +169,7 @@ async fn concurrent_publications_cannot_replace_the_winner() {
         "later publication must be refused",
     );
     let seen_by_second = second_store
-        .get("demo", "100-default")
+        .get(ORG, "demo", "100-default")
         .await
         .unwrap()
         .unwrap();
@@ -181,14 +185,27 @@ async fn listing_does_not_parse_records_outside_the_requested_page() {
         .publish(&run("demo", "200-default"))
         .await
         .unwrap();
-    storage.create_pipeline_run("demo", "100-default.json", b"invalid JSON").await.unwrap();
-    assert_eq!(store.list(&["demo"], 1).await.unwrap()[0].run_id, "200-default");
+    storage
+        .create_pipeline_run(
+            &PipelineRunKey { org: ORG, workspace: "demo", run_id: "100-default.json" },
+            b"invalid JSON",
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .list(&[ORG], None, 1)
+            .await
+            .unwrap()[0]
+            .run_id,
+        "200-default",
+    );
 }
 
-/// A listing costs what the workspaces asked about hold, not what the
+/// A listing costs what the organizations asked about hold, not what the
 /// deployment holds.
 #[tokio::test]
-async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
+async fn a_listing_is_scoped_to_the_organizations_it_was_given() {
     let root = TempDir::new().unwrap();
     let storage = storage_in(&HostedStoreConfig::Fs, &root);
     let store = PipelineRunStore::new(storage.clone());
@@ -196,32 +213,38 @@ async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
         .publish(&run("wanted", "100-default"))
         .await
         .unwrap();
-    storage.create_pipeline_run("ignored", "999-default.json", b"invalid JSON").await.unwrap();
+    storage
+        .create_pipeline_run(
+            &PipelineRunKey { org: "other", workspace: "ignored", run_id: "999-default.json" },
+            b"invalid JSON",
+        )
+        .await
+        .unwrap();
 
     let listed = store
-        .list(&["wanted"], 10)
+        .list(&[ORG], None, 10)
         .await
         .unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].run_id, "100-default");
 }
 
-/// The state every deployment starts in: a configured workspace nothing has
+/// The state every deployment starts in: an organization nothing has
 /// reported a run for yet.
 #[tokio::test]
-async fn a_workspace_with_no_runs_lists_empty() {
+async fn an_organization_with_no_runs_lists_empty() {
     let root = TempDir::new().unwrap();
     let store = local_store(&root);
     assert!(
         store
-            .list(&["never-run"], 10)
+            .list(&["never-run"], None, 10)
             .await
             .expect("list")
             .is_empty(),
     );
     assert!(
         store
-            .get("never-run", "100-default")
+            .get("never-run", "demo", "100-default")
             .await
             .expect("get")
             .is_none(),
@@ -234,14 +257,20 @@ async fn a_corrupt_record_on_the_page_is_named() {
     let root = TempDir::new().unwrap();
     let storage = storage_in(&HostedStoreConfig::Fs, &root);
     let store = PipelineRunStore::new(storage.clone());
-    storage.create_pipeline_run("demo", "100-default.json", b"invalid JSON").await.unwrap();
+    storage
+        .create_pipeline_run(
+            &PipelineRunKey { org: ORG, workspace: "demo", run_id: "100-default.json" },
+            b"invalid JSON",
+        )
+        .await
+        .unwrap();
 
     let error = store
-        .list(&["demo"], 10)
+        .list(&[ORG], None, 10)
         .await
         .expect_err("the listing fails");
     let rendered = error.to_string();
-    assert!(rendered.contains("demo/100-default"), "unexpected error: {rendered}");
+    assert!(rendered.contains("acme/demo/100-default"), "unexpected error: {rendered}");
 }
 
 #[tokio::test]
@@ -253,16 +282,18 @@ async fn a_key_the_store_did_not_write_is_passed_over() {
         .publish(&run("demo", "100-default"))
         .await
         .unwrap();
-    std::fs::create_dir_all(root.path().join("storage/.pipeline-runs/v0/demo/nested")).unwrap();
+    std::fs::create_dir_all(root.path().join("storage/.pipeline-runs/v1/acme/demo/nested"))
+        .unwrap();
     std::fs::write(
-        root.path().join("storage/.pipeline-runs/v0/demo/nested/deeper.json"),
+        root.path().join("storage/.pipeline-runs/v1/acme/demo/nested/deeper.json"),
         b"invalid JSON",
     )
     .unwrap();
-    std::fs::write(root.path().join("storage/.pipeline-runs/v0/demo/notes.txt"), b"notes").unwrap();
+    std::fs::write(root.path().join("storage/.pipeline-runs/v1/acme/demo/notes.txt"), b"notes")
+        .unwrap();
 
     let listed = store
-        .list(&["demo"], 10)
+        .list(&[ORG], None, 10)
         .await
         .expect("list");
     assert_eq!(listed.len(), 1);
@@ -287,13 +318,13 @@ async fn a_run_recorded_on_one_replica_is_served_by_another() {
         .expect("publish");
 
     let stored = serving
-        .get("demo", "100-default")
+        .get(ORG, "demo", "100-default")
         .await
         .expect("get")
         .expect("run exists");
     assert_eq!(stored.summary["runId"], "100-default");
     let listed = serving
-        .list(&["demo"], 10)
+        .list(&[ORG], None, 10)
         .await
         .expect("list");
     assert_eq!(listed.len(), 1);
@@ -304,5 +335,21 @@ async fn a_run_recorded_on_one_replica_is_served_by_another() {
             .await
             .is_err(),
         "a run recorded on one replica is append-only on every replica",
+    );
+}
+
+#[tokio::test]
+async fn a_path_shaped_organization_is_refused() {
+    let root = TempDir::new().expect("create storage root");
+    let store = local_store(&root);
+    let mut escaping = run("demo", "100-default");
+    escaping.org = "../escape".to_string();
+    assert!(store.publish(&escaping).await.is_err());
+    assert!(store.get("../escape", "demo", "100-default").await.is_err());
+    assert!(
+        store
+            .list(&["../escape"], None, 10)
+            .await
+            .is_err(),
     );
 }

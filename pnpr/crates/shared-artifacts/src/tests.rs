@@ -470,3 +470,19 @@ impl ObjectStore for FailArtifactWrites {
         self.inner.rename_opts(from, to, options).await
     }
 }
+
+/// The rule the store's own tests are written against: a caller reads and
+/// publishes the organization named after it, and nothing else.
+impl super::OrgAccess for str {
+    fn username(&self) -> &str {
+        self
+    }
+
+    fn may_read(&self, org: &str) -> bool {
+        org == self
+    }
+
+    fn may_publish(&self, org: &str) -> bool {
+        org == self
+    }
+}

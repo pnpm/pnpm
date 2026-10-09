@@ -1,3 +1,4 @@
+pub use artifact_identity::OrgAccess;
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
 
 mod publication_quota;
@@ -9,8 +10,8 @@ use publication_quota::{
 mod artifact_identity;
 use artifact_identity::{
     artifact_matches_candidate, artifact_operation_id, compatibility_slot, digest_segment,
-    entry_digest, entry_owner, is_blob_path, is_variant_file, object_name, owner_key,
-    scope_marker_path, scope_name, scopes_prefix,
+    entry_digest, entry_owner, is_blob_path, is_variant_file, object_name, org_key, owner_key,
+    publisher_owner_key, scope_marker_path, scope_name, scopes_prefix,
 };
 
 mod object_storage;
@@ -216,7 +217,11 @@ impl SharedArtifactStore {
         }
     }
 
-    pub async fn resolve(&self, username: &str, body: &[u8]) -> Result<ResolveArtifactsResponse> {
+    pub async fn resolve(
+        &self,
+        caller: &(impl OrgAccess + ?Sized),
+        body: &[u8],
+    ) -> Result<ResolveArtifactsResponse> {
         let request: ResolveArtifactsRequest = serde_json::from_slice(body)
             .map_err(|err| bad_request(format!("invalid shared artifact lookup: {err}")))?;
         if request.candidates.len() > MAX_CANDIDATES {
@@ -236,7 +241,7 @@ impl SharedArtifactStore {
             if !seen.insert(candidate.key.clone()) {
                 return Err(bad_request("lookup contains a duplicate candidate".to_string()));
             }
-            let Some(resolved) = self.resolve_candidate(username, &candidate, &mut budget).await?
+            let Some(resolved) = self.resolve_candidate(caller, &candidate, &mut budget).await?
             else {
                 continue;
             };
@@ -246,11 +251,15 @@ impl SharedArtifactStore {
         Ok(ResolveArtifactsResponse { artifacts })
     }
 
-    pub async fn read_blob(&self, username: &str, body: &[u8]) -> Result<Option<ArtifactBlob>> {
+    pub async fn read_blob(
+        &self,
+        caller: &(impl OrgAccess + ?Sized),
+        body: &[u8],
+    ) -> Result<Option<ArtifactBlob>> {
         let request: ArtifactBlobRequest = serde_json::from_slice(body)
             .map_err(|err| bad_request(format!("invalid artifact blob request: {err}")))?;
         request.validate().map_err(|err| protocol_error(&err))?;
-        let owner = match owner_key(username, &request.owner) {
+        let owner = match owner_key(caller, &request.owner) {
             Ok(owner) => owner,
             Err(RegistryError::Forbidden { .. }) => return Ok(None),
             Err(err) => return Err(err),
@@ -270,11 +279,11 @@ impl SharedArtifactStore {
 
     async fn resolve_candidate(
         &self,
-        username: &str,
+        caller: &(impl OrgAccess + ?Sized),
         candidate: &ArtifactCandidate,
         budget: &mut ResolveBudget,
     ) -> Result<Option<ResolvedArtifact>> {
-        let owner = match owner_key(username, &candidate.owner) {
+        let owner = match owner_key(caller, &candidate.owner) {
             Ok(owner) => owner,
             Err(RegistryError::Forbidden { .. }) => return Ok(None),
             Err(err) => return Err(err),
@@ -326,12 +335,12 @@ pub fn parse_publish(body: &[u8]) -> Result<PublishArtifactRequest> {
 }
 
 fn prepare_publication(
-    username: &str,
+    caller: &(impl OrgAccess + ?Sized),
     request: &PublishArtifactRequest,
 ) -> Result<PreparedPublication> {
     let validated = request.validate().map_err(|err| protocol_error(&err))?;
     let payload = validated.payload;
-    let owner = owner_key(username, &payload.owner)?;
+    let owner = publisher_owner_key(caller, &payload.owner)?;
     let entry = entry_digest(&request.key, &payload.subject);
     let envelope_bytes = serde_json::to_vec(&request.envelope)?;
     // Named for what the artifact is *for* rather than what it is, so that one

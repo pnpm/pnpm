@@ -321,8 +321,10 @@ impl Default for ResolverFeature {
 pub struct ArtifactsFeature {
     /// Master switch for artifact and compiler-cache endpoints.
     pub enabled: bool,
-    /// Named compiler caches with independent read and publication policies.
-    pub compiler_caches: IndexMap<String, StorageAccess>,
+    /// Who may read and who may publish what each organization owns: its
+    /// signed artifacts, its compiler cache, and its pipeline run records. An
+    /// undeclared organization is unavailable.
+    pub orgs: IndexMap<String, StorageAccess>,
 }
 
 #[derive(Debug, Clone)]
@@ -332,12 +334,12 @@ pub struct StorageAccess {
 }
 
 /// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
-/// Off by default while the surface is a proof of concept.
+/// Off by default while the surface is a proof of concept. Who may read and
+/// publish runs is [`ArtifactsFeature::orgs`].
 #[derive(Debug, Default, Clone)]
 pub struct PipelineFeature {
     /// Master switch for the run submission, listing, and viewer endpoints.
     pub enabled: bool,
-    pub workspaces: IndexMap<String, StorageAccess>,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -459,12 +461,9 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
+            orgs: parse_storage_access(artifacts_file.orgs)?,
         },
-        pipeline: PipelineFeature {
-            enabled: pipeline_file.enabled,
-            workspaces: parse_storage_access(pipeline_file.workspaces)?,
-        },
+        pipeline: PipelineFeature { enabled: pipeline_file.enabled },
     })
 }
 
@@ -606,7 +605,7 @@ fn parse_storage_access(
             let parse = |spec: &AccessSpec| {
                 spec.to_access_list(&TeamDirectory::default())
                     .map_err(|reason| RegistryError::InvalidConfig {
-                        reason: format!("storage namespace {name:?}: {reason}"),
+                        reason: format!("organization {name:?}: {reason}"),
                     })
             };
             let access =

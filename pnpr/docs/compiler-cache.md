@@ -11,19 +11,21 @@ developer machines. No pnpm workspace or `package.json` is involved.
 
 ## Declaring a cache
 
+A compiler cache belongs to an organization the server declares under
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces),
+and is named after it:
+
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  compilerCaches:
+  orgs:
     acme:
       access: [ci-builder, alice, bob]
       publish: ci-builder
 ```
 
-These are pnpr account names, and each caller supplies its own pnpr token.
-`access` is required for reads and writes alike; `publish` additionally gates
-writes. An empty list denies access, and the `$authenticated` token works here
-too. An undeclared cache is unavailable.
+Each caller supplies its own pnpr token. `access` is required for reads and
+writes alike; `publish` additionally gates writes.
 
 This is what lets CI publish while developers only read, even where their tokens
 otherwise permit registry writes. Read-only token restrictions are enforced as

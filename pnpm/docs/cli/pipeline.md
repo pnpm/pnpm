@@ -134,7 +134,7 @@ A remote result that is missing, untrusted, or fails verification is a miss, and
 
 ## Reporting a run
 
-Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration); `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
+Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration), under the organization [`remoteCache.org`](../settings/build.md#remotecache) names; `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
 
 ## Watching a repository
 

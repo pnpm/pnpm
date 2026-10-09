@@ -60,9 +60,9 @@ storage: ./storage
 #  # public URL. List the non-public networks it may also reach, such as an
 #  # internal upstream registry's.
 #  allowedPrivateNetworks: [10.0.0.0/8]
-#artifacts:          # experimental shared artifacts and compiler caches
+#artifacts:          # experimental shared artifacts, compiler caches, pipeline runs
 #  enabled: false
-#  compilerCaches:  # sccache WebDAV caches, with pnpr account access rules
+#  orgs:            # who may read and publish what each organization owns
 #    acme:
 #      access: [ci-builder, alice]
 #      publish: ci-builder

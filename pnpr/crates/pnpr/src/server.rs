@@ -78,6 +78,8 @@ mod authentication;
 mod batch;
 mod cargo;
 mod compiler_cache;
+mod org_access;
+use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
 mod managed_state;

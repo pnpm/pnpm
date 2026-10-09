@@ -74,10 +74,21 @@ has an [`s3:` block](storage.md), they live under the reserved
 conditional quota updates let several stateless pnpr replicas share one
 artifact tier.
 
-Artifacts are stored per owner. In this proof of concept an `organization`
-owner's name must equal the authenticated pnpr username, so the login name a
-client uses is the organization it may read and write. Publisher-owned artifacts
-are rejected until publisher discovery is defined.
+Artifacts are stored per owner, an organization the server declares under
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
+Its `access` list decides who may restore its artifacts and its `publish` list
+who may publish them:
+
+```yaml title="config.yaml"
+artifacts:
+  enabled: true
+  orgs:
+    acme:
+      access: [ci-builder, alice, bob]
+      publish: ci-builder
+```
+
+Publisher-owned artifacts are rejected until publisher discovery is defined.
 
 pnpr enforces its own storage bounds: at most eight variants per input key,
 1 GiB per owner, and 10 GiB across the server's artifact cache. Local storage

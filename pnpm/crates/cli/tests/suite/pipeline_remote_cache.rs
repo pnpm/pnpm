@@ -173,3 +173,29 @@ fn a_remote_cache_without_trusted_keys_is_off() {
     assert!(output.contains("remoteCache.trustedKeys is not set"), "{output}");
     assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
 }
+
+#[test]
+fn a_run_report_needs_the_organization_to_record_it_under() {
+    let root = tempfile::tempdir().unwrap();
+    let project = workspace(root.path());
+    fs::write(
+        project.join("pnpm-workspace.yaml"),
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n",
+    )
+    .unwrap();
+    let runs = root.path().join("runs");
+    fs::write(&runs, "").unwrap();
+    let machine = root.path().join("machine");
+    pnpm_on_machine(&project, &machine, &runs)
+        .arg("install")
+        .assert()
+        .success();
+
+    let result = pnpm_on_machine(&project, &machine, &runs)
+        .args(["pipeline", "--full", "--report-to", "http://127.0.0.1:9"])
+        .assert()
+        .success();
+
+    let output = combined_output(result.get_output());
+    assert!(output.contains("remoteCache.org does not name the organization"), "{output}");
+}

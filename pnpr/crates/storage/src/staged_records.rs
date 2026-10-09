@@ -1,6 +1,6 @@
 use super::{
-    DocumentWrite, PIPELINE_RUNS_DIR, RegistryError, Result, STAGED_DIR, Storage, pipeline_run_key,
-    staged_body_object, staged_id_of_meta_object, staged_meta_object, validated_record_name,
+    DocumentWrite, RegistryError, Result, STAGED_DIR, Storage, staged_body_object,
+    staged_id_of_meta_object, staged_meta_object, validated_record_name,
 };
 
 impl Storage {
@@ -78,31 +78,50 @@ impl Storage {
             .collect())
     }
 
-    pub async fn read_pipeline_run(
-        &self,
-        workspace: &str,
-        run_id: &str,
-    ) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(PIPELINE_RUNS_DIR, &pipeline_run_key(workspace, run_id)?).await
+    pub async fn read_pipeline_run(&self, key: &PipelineRunKey<'_>) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_record(PIPELINE_RUNS_DIR, &key.path()?).await
     }
 
     /// Record a run, reporting `false` when that workspace already has one
     /// under this id — a run record is written once and never rewritten.
     pub async fn create_pipeline_run(
         &self,
-        workspace: &str,
-        run_id: &str,
+        key: &PipelineRunKey<'_>,
         bytes: &[u8],
     ) -> Result<bool> {
-        let key = pipeline_run_key(workspace, run_id)?;
-        self.hosted.create_record(PIPELINE_RUNS_DIR, &key, bytes).await
+        self.hosted.create_record(PIPELINE_RUNS_DIR, &key.path()?, bytes).await
     }
 
-    /// One workspace's recorded run keys, in unspecified order. Scoped to the
-    /// workspace so a listing costs what that workspace holds rather than what
-    /// the deployment holds.
-    pub async fn list_pipeline_runs(&self, workspace: &str) -> Result<Vec<String>> {
-        let namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(workspace)?);
+    /// One organization's recorded run keys, `<workspace>/<run id>`, in
+    /// unspecified order. Scoped to the organization so a listing costs what
+    /// that organization holds rather than what the deployment holds.
+    pub async fn list_pipeline_runs(&self, org: &str) -> Result<Vec<String>> {
+        let namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(org)?);
         self.hosted.list_record_keys(&namespace).await
+    }
+}
+
+/// Reserved namespace holding pipeline run records, versioned so a later
+/// record shape can live beside this one.
+const PIPELINE_RUNS_DIR: &str = ".pipeline-runs/v1";
+
+/// The identity of one pipeline run record.
+pub struct PipelineRunKey<'a> {
+    pub org: &'a str,
+    pub workspace: &'a str,
+    /// The record's file name: the run id and its suffix.
+    pub run_id: &'a str,
+}
+
+impl PipelineRunKey<'_> {
+    /// The key within the namespace. The identifiers are the client's, so
+    /// they are checked here as well as by the endpoint that accepts them.
+    fn path(&self) -> Result<String> {
+        Ok(format!(
+            "{}/{}/{}",
+            validated_record_name(self.org)?,
+            validated_record_name(self.workspace)?,
+            validated_record_name(self.run_id)?,
+        ))
     }
 }

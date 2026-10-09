@@ -490,6 +490,7 @@ fn an_untyped_frame_is_a_protocol_error() {
 async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
     let client = PnprClient::new("http://example.invalid");
     let request = super::PublishPipelineRunRequest {
+        org: "acme".to_string(),
         workspace: "demo".to_string(),
         run_id: "100-run".to_string(),
         summary: json!({}),
@@ -521,6 +522,7 @@ async fn pipeline_report_redirects_are_not_followed() {
         .await;
     let client = PnprClient::new(server.url());
     let request = super::PublishPipelineRunRequest {
+        org: "acme".to_string(),
         workspace: "demo".to_string(),
         run_id: "100-run".to_string(),
         summary: json!({}),

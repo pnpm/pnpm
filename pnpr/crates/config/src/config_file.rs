@@ -401,8 +401,8 @@ impl Default for FeatureFile {
 pub(super) struct ArtifactsFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
-    #[serde(default, rename = "compilerCaches")]
-    pub(super) compiler_caches: IndexMap<String, StorageAccessFile>,
+    #[serde(default)]
+    pub(super) orgs: IndexMap<String, StorageAccessFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -417,8 +417,6 @@ pub(super) struct StorageAccessFile {
 pub(super) struct PipelineFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
-    #[serde(default)]
-    pub(super) workspaces: IndexMap<String, StorageAccessFile>,
 }
 
 pub(super) fn default_true() -> bool {

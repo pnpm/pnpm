@@ -423,7 +423,7 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
                 )),
         )
         .route(
-            "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
+            "/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}",
             get(serve_get_pipeline_run)
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),

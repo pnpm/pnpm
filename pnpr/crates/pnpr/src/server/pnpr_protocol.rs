@@ -1,6 +1,6 @@
 use super::{
-    AppState, AuthedCaller, Body, Ecosystem, Response, State, StatusCode, header, private_no_cache,
-    require_caller,
+    AppState, AuthedCaller, Body, CallerOrgs, Ecosystem, Response, State, StatusCode, header,
+    private_no_cache,
 };
 use axum::response::IntoResponse;
 
@@ -96,8 +96,8 @@ pub(super) async fn serve_publish_artifact(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let username = match require_caller(&identity, "shared artifact publication") {
-        Ok(username) => username,
+    let caller = match CallerOrgs::new(&state, &identity, "shared artifact publication") {
+        Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     let request = match pnpr_shared_artifacts::parse_publish(&body) {
@@ -108,7 +108,7 @@ pub(super) async fn serve_publish_artifact(
         match state.inner.builds.artifacts
             .as_ref()
             .expect("artifact routes require an artifact store")
-            .publish(&username, request)
+            .publish(&caller, request)
             .await
         {
             Ok(true) => StatusCode::CREATED.into_response(),
@@ -123,15 +123,15 @@ pub(super) async fn serve_resolve_artifacts(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let username = match require_caller(&identity, "shared artifact lookup") {
-        Ok(username) => username,
+    let caller = match CallerOrgs::new(&state, &identity, "shared artifact lookup") {
+        Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
         match state.inner.builds.artifacts
             .as_ref()
             .expect("artifact routes require an artifact store")
-            .resolve(&username, &body)
+            .resolve(&caller, &body)
             .await
         {
             Ok(response) => (StatusCode::OK, axum::Json(response)).into_response(),
@@ -145,14 +145,14 @@ pub(super) async fn serve_artifact_blob(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    let username = match require_caller(&identity, "shared artifact blob") {
-        Ok(username) => username,
+    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+        Ok(caller) => caller,
         Err(err) => return private_no_cache(err.into_response()),
     };
     match state.inner.builds.artifacts
         .as_ref()
         .expect("artifact routes require an artifact store")
-        .read_blob(&username, &body)
+        .read_blob(&caller, &body)
         .await
     {
         Ok(Some(blob)) => Response::builder()

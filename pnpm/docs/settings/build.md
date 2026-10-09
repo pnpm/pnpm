@@ -191,7 +191,7 @@ remoteCache:
 | --- | --- | --- |
 | `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. It must use HTTPS unless it points at a loopback address. |
 | `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
-| `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, the pnpr account name. |
+| `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the organizations it declares under [`artifacts.orgs`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |
 | `token` | Global config or environment | The bearer token for `url`. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
 | `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
 | `publish` | Global config or environment | `true` publishes what this machine builds. Defaults to `false`. |

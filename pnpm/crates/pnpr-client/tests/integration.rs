@@ -86,6 +86,13 @@ async fn start_pnpr_inner(
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.features.artifacts.enabled = artifacts_enabled;
+    config.features.artifacts.orgs.insert(
+        "pnpr-client".to_string(),
+        pnpr::StorageAccess {
+            access: pnpr::AccessList::from_tokens(["pnpr-client", "reader"]),
+            publish: pnpr::AccessList::from_tokens(["pnpr-client"]),
+        },
+    );
     config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
     config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
