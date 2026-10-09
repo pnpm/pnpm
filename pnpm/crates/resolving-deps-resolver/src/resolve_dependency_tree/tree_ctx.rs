@@ -19,7 +19,9 @@ use std::{
 
 use crate::resolved_tree::{DirectDep, ResolvedTree};
 
-use super::{ManifestHook, UpdateReuseScope, reuse::UpdateScope, workspace_ctx::WorkspaceTreeCtx};
+use super::{
+    ManifestHook, UpdateReuseScope, update_scope::UpdateScope, workspace_ctx::WorkspaceTreeCtx,
+};
 
 /// Whether a wanted dep's resolution is computed relative to the
 /// consuming importer's directory rather than being

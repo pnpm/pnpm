@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@pnpm/pnpr.apps.pnpr-web':
-        specifier: 0.2.5
-        version: 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vite@7.3.7(sass@1.105.1))(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+        specifier: 0.2.7
+        version: 0.2.7(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vite@7.3.7(sass@1.105.1))(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       react:
         specifier: 19.0.0
         version: 19.0.0
@@ -374,63 +374,63 @@ packages:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@pnpm/pnpr.api.account@0.2.3':
-    resolution: {integrity: sha512-DoRlzo5yjzh4pW46pXIEI9QF3GKC/ZQN4PWItcTYt5TiuiylXmUK9ihoxHlBUd6o6sqHcpLYBttfQ4y+sTG6yQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.account/-/pnpr.api.account-0.2.3.tgz}
+  '@pnpm/pnpr.api.account@0.2.5':
+    resolution: {integrity: sha512-pO3xn/NjeynuEHDT8zoWQ6iRXmEhqc4kqaXzlPCpaCzvThmJjd7hhSvrNi/1r9gqCu4ZmPcMmA1yOD73vsUf1w==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.account/-/pnpr.api.account-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.cargo-registry@0.2.3':
-    resolution: {integrity: sha512-S/ozGGhrOk6okXRo6tvNy2kTji5F12RP5XNoJScW69p4w4O5vlLx4NVfbZaXEbjIcI5ure/ASiLPnnInqFnzLQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.cargo-registry/-/pnpr.api.cargo-registry-0.2.3.tgz}
+  '@pnpm/pnpr.api.cargo-registry@0.2.5':
+    resolution: {integrity: sha512-1Sg1H6Mz11cwli0XWpo4PCh5JpB188a+yoRu4rXQU66Z+MKL643tQyv7i6ye3iaiYWD99XqDRENm0U0Y5f6aDA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.cargo-registry/-/pnpr.api.cargo-registry-0.2.5.tgz}
     peerDependencies:
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.npm-registry@0.2.3':
-    resolution: {integrity: sha512-mhV2Gyz7Y+6CrWbZe7YMca48dHjS+5ocbQ2lhhO2+WOafoAzXuGVyUWmUCSuJzUhsuIMhdeoewZdRluDqm/PBg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.npm-registry/-/pnpr.api.npm-registry-0.2.3.tgz}
-    peerDependencies:
-      '@testing-library/react': ^16.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-      vitest: ^3.1.1
-
-  '@pnpm/pnpr.api.oci-registry@0.2.3':
-    resolution: {integrity: sha512-mZECZmedKFh8C5fFRZdk10ose34MiwqpmMVyGToXhoa7++jQSwLXXm+S5vn4wciw8qTbYeylUqt6vNrSKBY7DA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.oci-registry/-/pnpr.api.oci-registry-0.2.3.tgz}
+  '@pnpm/pnpr.api.npm-registry@0.2.5':
+    resolution: {integrity: sha512-zQasKLM193fye4E7QLCM9DqMxiUJ/bsk9VrpDnbAZ5NVlx3e+Edxom9yf3lZEQHdFHYivJNm/r1m2mbbiN6A9w==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.npm-registry/-/pnpr.api.npm-registry-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.pnpr-client@0.2.3':
-    resolution: {integrity: sha512-BZU9+lhOOwvyhu9JbriP/DGgpDisHcwjlf1G4JitHRHqDmFbRQgxWPBfLYuMC2fALvzBwG8ByTfzDrirlFY/Cw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.pnpr-client/-/pnpr.api.pnpr-client-0.2.3.tgz}
+  '@pnpm/pnpr.api.oci-registry@0.2.5':
+    resolution: {integrity: sha512-I/8qH38TnQeQH0lTPQ32I51WfgF7/5WNTAPW3LCrOBN6nCoXlcozMe5in4phNaumQIQZs3pTUJntCYorPWtzgQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.oci-registry/-/pnpr.api.oci-registry-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.pypi-registry@0.2.3':
-    resolution: {integrity: sha512-xDqcQyq7efb7ezh1IQShkqNYDhmjbErwsctceMUbox/SXgq5G3WvbSs5wpi2f7983FoD8fdU0asnGfeYTG19ug==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.pypi-registry/-/pnpr.api.pypi-registry-0.2.3.tgz}
+  '@pnpm/pnpr.api.pnpr-client@0.2.5':
+    resolution: {integrity: sha512-M3EjXcaHHxgwytAtKjAZmRrrmWTm9klbETFwdBSywNNtbUxO1+0dJEGglow4qmc1rYRQzTFXXk1xi7S2hsSePw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.pnpr-client/-/pnpr.api.pnpr-client-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.registry-rules@0.0.3':
-    resolution: {integrity: sha512-pwdOwsRzcA8w14hcn5bufuCYQmm0TsYwpH5W+lOUQ6TACSmkxM3Ub8/ug1bBK78jOTc/LjsuZbtUZm6n+VGpWg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.registry-rules/-/pnpr.api.registry-rules-0.0.3.tgz}
+  '@pnpm/pnpr.api.pypi-registry@0.2.5':
+    resolution: {integrity: sha512-hqlQy4k2EQ0qdiCoKAWiurrmLhxmE1T73XYhsX8RVS66wY2ogzeJxrl8usPYJzmplEWX93N44mjlVxkLGTCpIw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.pypi-registry/-/pnpr.api.pypi-registry-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.api.use-capabilities@0.2.3':
-    resolution: {integrity: sha512-rPqK6DrNSzp9tT6LbtR0nJrGldOXYWXV3ttiL42YRELwWTsegNHl+WkHmJf9+ivve+jqkK+CMGYmzcIwY4dqmQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.use-capabilities/-/pnpr.api.use-capabilities-0.2.3.tgz}
+  '@pnpm/pnpr.api.registry-rules@0.0.5':
+    resolution: {integrity: sha512-oaSjeFzrt6qrJYf8JkhuP6GRDAlhhuiE37w7ipd0QOF+seLhJJfPDPJQ03mcHQcmFPCKPu4Bv5qcgal2gAJUXw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.registry-rules/-/pnpr.api.registry-rules-0.0.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.apps.pnpr-web@0.2.5':
-    resolution: {integrity: sha512-YonzoYMHUy0TXaqg1lIMqmvCoDgyMvjX3gm64B6oZg9tu2okm6KBxi7UrSgi6250k3pHjtz1flCVbF0mIdZB8A==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.apps.pnpr-web/-/pnpr.apps.pnpr-web-0.2.5.tgz}
+  '@pnpm/pnpr.api.use-capabilities@0.2.5':
+    resolution: {integrity: sha512-PnBzcfIgim0qXiiMGy3+trMJGQrqt230ZBb21YzDrfjlkKhfTBX3JrebaOyR6EP+OeMtTUrZ7pi3aW1Jpp91kg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.api.use-capabilities/-/pnpr.api.use-capabilities-0.2.5.tgz}
+    peerDependencies:
+      '@testing-library/react': ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      vitest: ^3.1.1
+
+  '@pnpm/pnpr.apps.pnpr-web@0.2.7':
+    resolution: {integrity: sha512-DYzDGo3E7/GVZp3nARsx+OwL4MpngIe0xhEmefbZLcnM0viBl023J0ycdAFglWH/62NcOjh7TXif2vvs081E8g==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.apps.pnpr-web/-/pnpr.apps.pnpr-web-0.2.7.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -470,87 +470,87 @@ packages:
     peerDependencies:
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.pages.account@0.2.3':
-    resolution: {integrity: sha512-o/Uoo9TjjTxKBNGXxf9sI3B9jhzxXttS2RhgpbImhk/D1Zn9NVNAsn/MdLFiNzA0TavI/xPg9evbb6tNut665A==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.account/-/pnpr.pages.account-0.2.3.tgz}
+  '@pnpm/pnpr.pages.account@0.2.5':
+    resolution: {integrity: sha512-51R9jU4ak8PK6spu39ESE9qyr3Na6KznYhnYd6MXnnttiGKUU9wRcigly4zpy+YNjloATKF6q+sj4jvq3gw4Xg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.account/-/pnpr.pages.account-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@pnpm/pnpr.pages.browse@0.2.4':
-    resolution: {integrity: sha512-AgT4yfd5ePK0fvhPOPpzMlcTVYsibavS5V863n94wBAs7JutlmrKwWEdRFwtWVxBBtHZmw8+/TS7CW36nbcwSw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.browse/-/pnpr.pages.browse-0.2.4.tgz}
+  '@pnpm/pnpr.pages.browse@0.2.6':
+    resolution: {integrity: sha512-IVhAy9YOviI/NJMOBNjRvImNmUnAMMx9bkFxq9QALCjeevbOZ9cvpGiUirzbEDGKSmue/YCH0SzXv/2K+8ZOiA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.browse/-/pnpr.pages.browse-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       react-router-dom: ^6.30.6
 
-  '@pnpm/pnpr.pages.cargo-crate@0.2.4':
-    resolution: {integrity: sha512-r5VXyfJPJBrtXxZg+iC8KJHjsSInOYoTwFWKRXD1SXhCpbgfaJIkcEYv1Tjvfwi1hcL+GJ3SrUZZigV54hbl5w==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.cargo-crate/-/pnpr.pages.cargo-crate-0.2.4.tgz}
+  '@pnpm/pnpr.pages.cargo-crate@0.2.6':
+    resolution: {integrity: sha512-3azmkaaoiOkHlw9hMbOUMQP8RRew2iKC8twW+iAb/ghkwEZeeQhXFixSz8SCYa9Jn317IuE6YA9gX1/iyEuRCw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.cargo-crate/-/pnpr.pages.cargo-crate-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@pnpm/pnpr.pages.connect@0.2.4':
-    resolution: {integrity: sha512-mcyN5WbNpAusaCHTgxu6wYRKUaSKIn6pi1UhkxPeVIPhjXt2wcRdcYo1rbmaKfJ6UuebPlI1xzSJjNFLdToJLA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.connect/-/pnpr.pages.connect-0.2.4.tgz}
-    peerDependencies:
-      '@testing-library/react': ^16.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-      vitest: ^3.1.1
-
-  '@pnpm/pnpr.pages.npm-package@0.2.4':
-    resolution: {integrity: sha512-ByIsPBlDkBsvTrHQNadrd2ZEldZ6aUMcsuxDReYnjgYDx3V3uGVh/s9fH/GYZoTCkeHT5y6/DmtQOk2mB8aALw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.npm-package/-/pnpr.pages.npm-package-0.2.4.tgz}
-    peerDependencies:
-      '@testing-library/react': ^16.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@pnpm/pnpr.pages.npm-scope@0.2.4':
-    resolution: {integrity: sha512-v9w6EBXY3i52gyhadVTfDA74pZOQLIxmTLS8BNBDFIHm37pind4DTOkM0DlMotAzVu9NllUUwyTWiRgkpFXrsA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.npm-scope/-/pnpr.pages.npm-scope-0.2.4.tgz}
-    peerDependencies:
-      '@testing-library/react': ^16.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@pnpm/pnpr.pages.oci-repository@0.2.4':
-    resolution: {integrity: sha512-T9kK93Obz9bSmfscXhahv9VkWs4k9AAQuLG5OaN746K5TobUw9+zF/jneqzEARz8Tcwu9KeZY/5rNTT49t6/BQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.oci-repository/-/pnpr.pages.oci-repository-0.2.4.tgz}
-    peerDependencies:
-      '@testing-library/react': ^16.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@pnpm/pnpr.pages.overview@0.2.4':
-    resolution: {integrity: sha512-Bq8w31sU4p81JatCs55Zt1tzdI0RuUOoFRubMt+e61KMwLviTawWpcCtqdBCuku+Ch4Pss9heN2zbK6oj+S2xw==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.overview/-/pnpr.pages.overview-0.2.4.tgz}
+  '@pnpm/pnpr.pages.connect@0.2.6':
+    resolution: {integrity: sha512-Qr2tpwZckNQS5C/nHAcxCrhxA1Rqh1CszI+IV1cLsSzzFjiLFioLSdfY8zxrYwWO9qrHpPGYXEIUyweVpjGqJQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.connect/-/pnpr.pages.connect-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.pages.pypi-project@0.2.3':
-    resolution: {integrity: sha512-J71YFKUj3emheOCn194DSBdltLnTaaHoELmeU0DEEGXXeNBukSxQEwH2K7pcSGLpqqxMqLxLu72MIAobbIoUqQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.pypi-project/-/pnpr.pages.pypi-project-0.2.3.tgz}
+  '@pnpm/pnpr.pages.npm-package@0.2.6':
+    resolution: {integrity: sha512-irAou6OjKoEcBux6QFCsjv1veHYL/yBXJA6CARKjgXU6jrrLVPRPnRgf7aFV8ZF5+V819tjf/2sO7KJyCMoiow==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.npm-package/-/pnpr.pages.npm-package-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@pnpm/pnpr.pages.registries@0.2.3':
-    resolution: {integrity: sha512-hqvyUgwInqnLZHpG2q1SeL+VdaXXcfOk24LVFefk6psT1jSDy97zz36uCoR2tn9pBDO9a/DCoyDf2fFE6XB4Vg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.registries/-/pnpr.pages.registries-0.2.3.tgz}
+  '@pnpm/pnpr.pages.npm-scope@0.2.6':
+    resolution: {integrity: sha512-/rR20dcLt4hWK54WyUca81/cJa3genZ9rlXbDQB+c/fYL7WsIGBHthR0XOdH9K378Ah8X8M3Zo6cXwhAOL7usA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.npm-scope/-/pnpr.pages.npm-scope-0.2.6.tgz}
+    peerDependencies:
+      '@testing-library/react': ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@pnpm/pnpr.pages.oci-repository@0.2.6':
+    resolution: {integrity: sha512-y1wKtB4tivkDJJcEFbFbmtWsnpQ0vVYCEF2Gad/D29/aPFqsAWzjzxwmsqHnit5qerVbxNiha+qV8zgb6FnhBg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.oci-repository/-/pnpr.pages.oci-repository-0.2.6.tgz}
+    peerDependencies:
+      '@testing-library/react': ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@pnpm/pnpr.pages.overview@0.2.6':
+    resolution: {integrity: sha512-tLvoluTvDeAzm/yG9dXbrdAp5znq+ynF/sBkHAenTKb03CUghYd7cfLVMRI7lnkvI7DZrQ/cmjQB2j9N8sz1Ag==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.overview/-/pnpr.pages.overview-0.2.6.tgz}
+    peerDependencies:
+      '@testing-library/react': ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      vitest: ^3.1.1
+
+  '@pnpm/pnpr.pages.pypi-project@0.2.5':
+    resolution: {integrity: sha512-vkRm1W0PK+yqD4mA4p1SZs+j+JLLpaTh1NZcZJu9A4LQAqlcyslta807iWYBryY2qg4VMYoCWzBceM2CqA3a5w==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.pypi-project/-/pnpr.pages.pypi-project-0.2.5.tgz}
+    peerDependencies:
+      '@testing-library/react': ^16.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@pnpm/pnpr.pages.registries@0.2.5':
+    resolution: {integrity: sha512-D3uVqTYN7BmqKU2enIkHff9lHtU7rEkMOZOcoeLvb4JSGaSPg4XYxxZav4EFii+zTwVvYGwMx7kZRSnlT3D3rg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.registries/-/pnpr.pages.registries-0.2.5.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: 19.0.0
       react-dom: 19.0.0
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.pages.sign-in@0.0.1':
-    resolution: {integrity: sha512-7mdiEwYRt/RFjyGHBdjab+nP6pLUzK2fpQBwSvqxpy4LyxUqFoaW6vU2civ2NoWovkKHaO1yYqIACH3/rC6pgQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.sign-in/-/pnpr.pages.sign-in-0.0.1.tgz}
+  '@pnpm/pnpr.pages.sign-in@0.0.3':
+    resolution: {integrity: sha512-fY3X0bnmQ2hMXhjAJ2vxBFf4ypWvSbW48nbzaIwkdT+MYJiqiUt8sP+USLBRkBWwDyqCuL2CoE4gMdz+brkP/w==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.sign-in/-/pnpr.pages.sign-in-0.0.3.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
       react-router-dom: ^6.30.6
       vitest: ^3.1.1
 
-  '@pnpm/pnpr.pages.staged-publishes@0.2.4':
-    resolution: {integrity: sha512-KRFGS0PwlFbI44JeO3NC3GhvW8bj8V72rOb3lVkC/OJAQ0NondYi7x6dIWk1Zs2sV9ifV1LRp1lQfZJSIrwzjQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.staged-publishes/-/pnpr.pages.staged-publishes-0.2.4.tgz}
+  '@pnpm/pnpr.pages.staged-publishes@0.2.6':
+    resolution: {integrity: sha512-6scPqdNTT3yfL6S5v6/lU7eYG2E8Msq773riwKTkO0Xw0qmbSy5KkJPVn49uVplw4GTXDsVIiPv554G61+2zPg==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.staged-publishes/-/pnpr.pages.staged-publishes-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@pnpm/pnpr.pages.users@0.2.4':
-    resolution: {integrity: sha512-TMxosFimqXUScD8e7YRHM92XJEDXPJWf0BqefTALcZ6IomfeYM981Q7pcY05MqMkUpNWvwq6nX9zhrEaMPwwDA==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.users/-/pnpr.pages.users-0.2.4.tgz}
+  '@pnpm/pnpr.pages.users@0.2.6':
+    resolution: {integrity: sha512-IPpDJubHrGBbtybxEc5Z08IEiqg2fe/b/BWpJjo/2USzbkmARedmVtIY0RZfUVSSTLSEv9/DKEMw7yAs7ZgQlQ==, tarball: https://node-registry.bit.cloud/@pnpm/pnpr.pages.users/-/pnpr.pages.users-0.2.6.tgz}
     peerDependencies:
       '@testing-library/react': ^16.0.0
       react: ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -2049,17 +2049,17 @@ snapshots:
       classnames: 2.5.1
       react: 19.0.0
 
-  '@pnpm/pnpr.api.account@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.account@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.account': 0.1.0
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.cargo-registry@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.cargo-registry@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.cargo-crate': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       react: 19.0.0
@@ -2067,77 +2067,77 @@ snapshots:
     transitivePeerDependencies:
       - '@testing-library/react'
 
-  '@pnpm/pnpr.api.npm-registry@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.npm-registry@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.npm-package': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.oci-registry@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.oci-registry@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.oci-image': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.pnpr-client@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.pnpr-client@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.pypi-registry@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.pypi-registry@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.pypi-project': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.registry-rules@0.0.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.registry-rules@0.0.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.api.use-capabilities@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.api.use-capabilities@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.apps.pnpr-web@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vite@7.3.7(sass@1.105.1))(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.apps.pnpr-web@0.2.7(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vite@7.3.7(sass@1.105.1))(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@bitdev/react.app-types.vite-react': 3.0.15(vite@7.3.7(sass@1.105.1))
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.pnpm-theme': 1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.use-capabilities': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.use-capabilities': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.browse-query': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.account': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.browse': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.cargo-crate': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.connect': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.npm-package': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.npm-scope': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.oci-repository': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.overview': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.pypi-project': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.registries': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.sign-in': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.staged-publishes': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.pages.users': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.account': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.browse': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.cargo-crate': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.connect': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.npm-package': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.npm-scope': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.oci-repository': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.overview': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.pypi-project': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.registries': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.sign-in': 0.0.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.staged-publishes': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.pages.users': 0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.app-shell': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
@@ -2176,14 +2176,14 @@ snapshots:
     dependencies:
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.pages.account@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.account@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.account': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.account': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.account': 0.1.0
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2199,15 +2199,15 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.browse@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.browse@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.cargo-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.npm-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.oci-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pypi-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.cargo-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.npm-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.oci-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pypi-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.browse-query': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.facet-rail': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
@@ -2222,13 +2222,13 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.cargo-crate@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.cargo-crate@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.navigation.link': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.cargo-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.cargo-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.cargo-crate': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2245,11 +2245,11 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.connect@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.connect@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.use-capabilities': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.use-capabilities': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.connect-form': 0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.ecosystem-badge': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
@@ -2263,11 +2263,11 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@pnpm/pnpr.pages.npm-package@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.npm-package@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.navigation.link': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.npm-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.npm-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.npm-package': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.dist-tag-list': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2288,15 +2288,15 @@ snapshots:
       - supports-color
       - vitest
 
-  '@pnpm/pnpr.pages.npm-scope@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.npm-scope@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.navigation.link': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.npm-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.npm-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.npm-package': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2312,13 +2312,13 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.oci-repository@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.oci-repository@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.oci-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.oci-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.oci-image': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2336,14 +2336,14 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.overview@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.overview@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.content.card': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.navigation.link': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.use-capabilities': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.use-capabilities': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.ecosystem-badge': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.key-value-panel': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.skeleton': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2356,12 +2356,12 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@pnpm/pnpr.pages.pypi-project@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.pypi-project@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pypi-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pypi-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.pypi-project': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.ecosystem-badge': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
@@ -2377,11 +2377,11 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.registries@0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.registries@0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
-      '@pnpm/pnpr.api.oci-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.registry-rules': 0.0.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.oci-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.registry-rules': 0.0.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.ecosystem-badge': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.mono-value': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2391,13 +2391,13 @@ snapshots:
       react-dom: 19.0.0(react@19.0.0)
       vitest: 3.2.7(@types/debug@4.1.13)(sass@1.105.1)
 
-  '@pnpm/pnpr.pages.sign-in@0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.sign-in@0.0.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.navigation.link': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.state-message': 0.2.2(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@testing-library/react': 16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       classnames: 2.5.1
@@ -2407,14 +2407,14 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@pnpm/pnpr.pages.staged-publishes@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.staged-publishes@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.content.badge': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.npm-registry': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.npm-registry': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.npm-package': 0.0.1(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.copyable-command': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
@@ -2430,13 +2430,13 @@ snapshots:
       - react-dom
       - vitest
 
-  '@pnpm/pnpr.pages.users@0.2.4(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
+  '@pnpm/pnpr.pages.users@0.2.6(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))':
     dependencies:
       '@pnpm/design.actions.button': 1.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-router-dom@6.30.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.heading': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@pnpm/design.typography.paragraph': 1.0.0(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
-      '@pnpm/pnpr.api.account': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
-      '@pnpm/pnpr.api.pnpr-client': 0.2.3(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.account': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
+      '@pnpm/pnpr.api.pnpr-client': 0.2.5(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.entities.account': 0.1.0
       '@pnpm/pnpr.entities.registry-target': 0.2.2(vitest@3.2.7(@types/debug@4.1.13)(sass@1.105.1))
       '@pnpm/pnpr.ui.data-table': 0.0.1(@testing-library/react@16.3.3(@testing-library/dom@10.4.2)(@types/react@19.3.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)

@@ -532,8 +532,6 @@ jobs:
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
-    env:
-      RUSTUP_TOOLCHAIN: nightly-2026-08-27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -564,7 +562,7 @@ jobs:
         run: tar czf wasm-payload.tar.gz -C pnpm/npm wasm
 
       - name: Upload payload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: wasm-payload
@@ -608,7 +606,7 @@ jobs:
         run: tar czf node-gyp-payload.tar.gz -C pnpm/npm/pnpm dist
 
       - name: Upload payload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: node-gyp-payload
@@ -750,7 +748,7 @@ jobs:
           test "$actual" = "$VERSION"
 
       - name: Download node-gyp payload
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           # Kept out of the workspace root so it can't be swept up by the
@@ -792,7 +790,7 @@ jobs:
           subject-path: pnpm-${{ matrix.code-target }}.*
 
       - name: Upload Binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: binaries-rust-${{ matrix.code-target }}
@@ -925,7 +923,7 @@ jobs:
           subject-path: pnpm-napi.${{ matrix.code-target }}.node
 
       - name: Upload NAPI addon
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           # Downloaded by the same `binaries-rust-*` pattern the CLI archives
@@ -958,7 +956,7 @@ jobs:
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -999,7 +997,7 @@ jobs:
         # than rebuilt, so the npm packages and the GitHub release archives
         # carry the same bytes. Must land before the packages are generated:
         # the `@pnpm/exe` wrapper copies dist/ too.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           path: node-gyp-payload
@@ -1008,7 +1006,7 @@ jobs:
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Restore @pnpm/wasm package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wasm-payload
           path: wasm-payload
@@ -1130,7 +1128,7 @@ jobs:
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -1149,7 +1147,7 @@ jobs:
           done
 
       - name: Restore node-gyp payload
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           path: node-gyp-payload
@@ -1158,7 +1156,7 @@ jobs:
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Restore @pnpm/wasm package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wasm-payload
           path: wasm-payload
@@ -1234,7 +1232,7 @@ jobs:
           fi
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -1438,7 +1436,7 @@ jobs:
             pnpr-${{ matrix.code-target }}*
 
       - name: Upload Binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: binaries-pnpr-${{ matrix.code-target }}
@@ -1474,7 +1472,7 @@ jobs:
           pnpm --dir pnpr/ui build
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pnpr-ui
           path: pnpr/npm/pnpr-ui/dist
@@ -1501,13 +1499,13 @@ jobs:
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true
 
       - name: Download the web UI
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: pnpr-ui
           path: pnpr/npm/pnpr-ui/dist
@@ -1639,13 +1637,13 @@ jobs:
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true
 
       - name: Download the web UI
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: pnpr-ui
           path: pnpr/npm/pnpr-ui/dist
@@ -1729,7 +1727,7 @@ jobs:
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Download Linux musl binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-linux-*-musl
           merge-multiple: true
@@ -1817,7 +1815,7 @@ jobs:
           fi
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true

@@ -27,7 +27,7 @@ The repository holds two implementations of the same package manager: the TypeSc
 ### JavaScript and TypeScript CLI
 
 1. Install pnpm using one of the [official installation methods](https://pnpm.io/installation). **Do not use Corepack.** The scripts in this repository invoke pnpm through the `pn` and `pnx` aliases, which the official installation methods create. Corepack only provides the `pnpm` and `pnpx` commands, so with a Corepack-managed pnpm the build fails with errors like `pn: Permission denied` ([pnpm/pnpm#12448](https://github.com/pnpm/pnpm/issues/12448)).
-1. Set up the Rust toolchain first, as described under [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks). `pnpm install` also installs the Rust dependencies and runs `cargo`, so it fails when `cargo` is not on `PATH`.
+1. Set up the Rust tools first, as described under [Rust toolchain and git hooks](#rust-toolchain-and-git-hooks).
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `pnpm add ./pnpm11/pnpm/dev -g` to make pnpm from the repository available in the command line via the `pd` command.
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
@@ -45,7 +45,7 @@ sudo dnf install make automake gcc gcc-c++ kernel-devel
 
 Rust is now the primary language in this repository, so most contributions need a working Rust toolchain and the Rust developer tools. The Rust workspace (`Cargo.toml`, `rust-toolchain.toml`, `justfile`) lives at the repository root; run `cargo` and `just` from there.
 
-1. Install [`rustup`](https://rustup.rs). You do not need to select a toolchain by hand. `rust-toolchain.toml` pins the version the project builds with, and `rustup` installs it, together with `clippy` from the pinned `default` profile, the first time you run `cargo` inside the repository.
+1. Install [`rustup`](https://rustup.rs). `pnpm install` installs the toolchain `rust-toolchain.toml` pins, and the root `package.json` scripts run it. rustup provides the `cargo` you run outside those scripts, such as through `just`, and the dated nightlies that the [pinned formatter](#rust-formatting) and the dylint check build with.
 
 2. Install [`just`](https://just.systems) (the task runner) and [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall), then install the task tools from the repository root:
 

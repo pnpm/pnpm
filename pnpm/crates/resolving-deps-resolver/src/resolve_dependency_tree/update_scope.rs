@@ -1,4 +1,5 @@
-use super::{BTreeMap, BTreeSet};
+use super::{BTreeMap, BTreeSet, reuse::real_package_name_of};
+use pnpm_resolving_resolver_base::WantedDependency;
 
 /// Which dependencies `pacquet update` excludes from lockfile-resolution
 /// reuse. An excluded package re-resolves to highest-in-range, and its
@@ -185,11 +186,89 @@ impl UpdateDepth {
     }
 }
 
-impl super::reuse::UpdateScope<'_> {
+/// The `pacquet update` scope a node is judged against: which names the
+/// update targets, and how deep it reaches.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct UpdateScope<'a> {
+    pub(super) reuse: &'a UpdateReuseScope,
+    pub(super) max_depth: UpdateDepth,
+}
+
+impl UpdateScope<'_> {
     /// Whether the update reopens every edge at every depth, so no locked
     /// version survives it.
     pub(super) fn unpins_every_edge(self) -> bool {
         matches!(self.reuse, UpdateReuseScope::None) && self.max_depth == UpdateDepth::UNLIMITED
+    }
+}
+
+/// `true` when a node named `name`, locked at `version`, is a `pacquet
+/// update` target at `depth`, and so excluded from reuse. A `None` version
+/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
+/// `--depth` ceiling the update no longer reaches, so every node keeps its
+/// locked resolution.
+pub(super) fn update_excludes(
+    scope: UpdateScope<'_>,
+    name: &str,
+    version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All => false,
+        // `None` is handled earlier in `try_reuse_node`; treat it the
+        // same here for completeness.
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(targets) => targets.covers(name, version),
+    }
+}
+
+/// Whether the running `pacquet update` reaches this edge, so its
+/// locked-version pin must not survive — the update exists to move it.
+/// Unlike [`fn@is_update_target`], an update-everything scope
+/// ([`UpdateReuseScope::None`]) unpins every edge the depth ceiling
+/// reaches.
+pub(super) fn update_unpins_edge(
+    scope: UpdateScope<'_>,
+    wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All => false,
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
+        }
+    }
+}
+
+/// Whether `wanted` is one of the packages the user asked to update,
+/// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
+/// `ResolveOptions::update_requested` flag, which gates the npm
+/// picker's held-back-update warning.
+#[inline]
+pub(super) fn is_update_target(
+    scope: UpdateScope<'_>,
+    wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All | UpdateReuseScope::None => false,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
+        }
     }
 }
 

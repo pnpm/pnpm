@@ -1297,14 +1297,14 @@ pub struct Config {
 
     /// `--filter` selectors, one raw selector string per entry
     /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
-    /// `pnpm-workspace-projects-filter`. A CLI-only array: not a
-    /// `.npmrc` / `pnpm-workspace.yaml` key, so only the CLI layer
-    /// populates it.
+    /// `pnpm-workspace-projects-filter`. Not a `.npmrc` /
+    /// `pnpm-workspace.yaml` key: only the CLI layer and the
+    /// `updateConfig` hooks populate it.
     pub filter: Vec<String>,
 
     /// `--filter-prod` selectors. Same shape as [`Self::filter`], but
     /// each selector follows production dependencies only when its
-    /// dependency walk runs. A CLI-only array.
+    /// dependency walk runs. Populated the same way.
     pub filter_prod: Vec<String>,
 
     /// `--workspace-root` / `-w`: run the command on the root workspace

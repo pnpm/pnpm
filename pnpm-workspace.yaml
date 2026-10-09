@@ -453,7 +453,7 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
-  playwright-core: ^1.63.0
+  playwright-core: ^1.64.0
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
   pretty-ms: ^9.3.1
@@ -592,12 +592,8 @@ minimumReleaseAgeExclude:
   - write-yaml-file
   - http-proxy-middleware@3.0.7
 
-# lockfile.includeResolutionSettings is off until devEngines pins a pnpm
-# release with pnpm/pnpm#16674: with it on, `pnpm deploy` in
-# pnpm/wasm/stage.mjs fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-# Restore it as:
-#   lockfile:
-#     includeResolutionSettings: true
+lockfile:
+  includeResolutionSettings: true
 
 minimumReleaseAgeExcludePrune: true
 

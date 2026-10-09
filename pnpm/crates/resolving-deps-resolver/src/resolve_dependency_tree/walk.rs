@@ -83,14 +83,15 @@ use super::{
         extract_peer_dependencies, is_exotic_resolved_via, pkg_is_leaf,
     },
     reuse::{
-        ReuseSource, higher_direct_dep_version, is_update_target,
-        node_depends_on_changed_direct_dep, real_package_name_of, resolve_reused_node,
-        try_reuse_node, update_unpins_edge, wanted_lockfile_contains_satisfying_entry,
+        ReuseSource, higher_direct_dep_version, node_depends_on_changed_direct_dep,
+        real_package_name_of, resolve_reused_node, try_reuse_node,
+        wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
         TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,
         project_relative_cache_scope,
     },
+    update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{
         ChildrenOwnerClaim, ChildrenRecording, PackageRegistration, RecordedChildrenContext,
         SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
