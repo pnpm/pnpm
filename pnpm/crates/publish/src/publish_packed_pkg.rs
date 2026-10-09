@@ -254,6 +254,7 @@ fn finish_publish<Reporter: self::Reporter>(
         return Err(PublishPackedPkgError::FailedToPublish(FailedToPublishError::new(
             name,
             version,
+            is_stage,
             response.status,
             response.status_text,
             response.body,
