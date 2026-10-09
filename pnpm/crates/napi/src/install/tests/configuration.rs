@@ -52,6 +52,20 @@ fn resolved_config_applies_allow_unused_patches() {
 /// overlay: post-import linking off, and the modules dir forced back on so
 /// an ambient `enableModulesDir: false` cannot leave the virtual store with
 /// nowhere to go.
+/// Outside a fetch-shaped install the option reaches the config as given;
+/// the engine turns it into a run that writes no `node_modules` but fetches
+/// every package into the store.
+#[test]
+fn enable_modules_dir_false_reaches_the_config() {
+    let mut options = install_options();
+    options.enable_modules_dir = Some(false);
+
+    let overlay = build_overlay(&options, false).expect("overlay");
+
+    assert_eq!(overlay.enable_modules_dir, Some(false));
+    assert_eq!(overlay.virtual_store_only, None);
+}
+
 #[test]
 fn ignore_package_manifest_pins_the_fetch_shaped_config() {
     let mut options = install_options();

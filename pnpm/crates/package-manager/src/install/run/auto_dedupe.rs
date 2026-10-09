@@ -4,7 +4,7 @@ use super::{
         auto_dedupe_baseline::{AutoDedupeBaseline, BaselineInputs},
     },
     InstallScope, RunExecution,
-    dispatch::Settled,
+    settled::Settled,
 };
 use crate::{ProjectMutation, optimistic_repeat_install::current_settings_with_catalogs};
 

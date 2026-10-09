@@ -6,8 +6,9 @@ use super::{
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RepeatInstallVerdict,
-    RunExecution, Settled, Verification, dispatch, load_lockfiles, report_already_up_to_date,
+    RunExecution, Verification, dispatch, load_lockfiles, report_already_up_to_date,
     settle_wanted_lockfile,
+    settled::Settled,
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
@@ -79,24 +80,14 @@ impl<'a> RunExecution<'a> {
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }
-        let Some(mut dispatched) = dispatch::<Reporter>(
-            Settled {
-                install: self.install,
-                owned: &self.owned,
-                mode: &self.mode,
-                loaded,
-                lockfiles,
-                verification: &verification,
-                projects: crate::install::run::dispatch::SettledProjects {
-                    workspace: &self.workspace,
-                    scope,
-                    project_manifests,
-                },
-            },
-            &mut self.options,
-        )
-        .await?
-        else {
+        let settled = Settled::new(
+            (self.install, &self.owned, &self.mode, &self.workspace),
+            (loaded, lockfiles, &verification),
+            (scope, project_manifests),
+        );
+        let Some(mut dispatched) = dispatch::<Reporter>(settled, &mut self.options).await? else {
+            super::store_fetch::fetch_wanted_lockfile::<Reporter>(self.store_fetch(), lockfiles)
+                .await?;
             return Ok(self.take_settled_outcome());
         };
         let materialized = materialize::<Reporter>(self.materialization_inputs(
@@ -107,6 +98,7 @@ impl<'a> RunExecution<'a> {
             (verification, &AtomicU8::new(0)),
         ))
         .await?;
+        super::store_fetch::wait_for_prefetched_tarballs(self.store_fetch()).await?;
         self.finish_materialization::<Reporter>(
             (scope, project_manifests),
             loaded,
@@ -115,6 +107,16 @@ impl<'a> RunExecution<'a> {
             materialized,
         )
         .await
+    }
+
+    fn store_fetch(&self) -> super::store_fetch::StoreFetchRun<'_> {
+        super::store_fetch::StoreFetchRun {
+            mode: &self.mode,
+            install: self.install,
+            owned: &self.owned,
+            requester: &self.workspace.prefix,
+            prefetch_downloads: self.prefetch_downloads.as_ref(),
+        }
     }
 
     async fn finish_materialization<Reporter: self::Reporter + 'static>(
@@ -188,13 +190,16 @@ impl<'a> RunExecution<'a> {
                 logged_methods,
             ),
             execution: self.mode.materialization_execution(
-                &self.owned,
+                (&self.owned, self.install.execution),
                 &self.options,
                 dispatched.take_frozen_path,
                 early_host_detection,
                 &self.workspace.prefix,
             ),
-            downloads: (&self.owned).into(),
+            downloads: crate::install::materialize::MaterializationDownloads {
+                prefetch_downloads: self.prefetch_downloads.clone(),
+                ..(&self.owned).into()
+            },
         }
     }
 
@@ -363,7 +368,7 @@ impl Dispatched<'_> {
 impl super::RunMode {
     fn materialization_execution<'r>(
         &mut self,
-        owned: &'r super::InstallOwned,
+        (owned, execution): (&'r super::InstallOwned, super::InstallExecution),
         options: &super::InstallRunOptions<'_, '_>,
         take_frozen_path: bool,
         early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
@@ -374,7 +379,7 @@ impl super::RunMode {
             take_frozen_path,
             supported_architectures: owned.projects.supported_architectures.as_ref(),
             early_host_detection,
-            resolve_only: self.resolve_only,
+            resolve_only: self.resolve_only(execution),
             can_prompt: self.can_prompt,
             save_lockfile: options.save.lockfile,
             prefix,
@@ -386,6 +391,7 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
     fn from(owned: &super::InstallOwned) -> Self {
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
+            prefetch_downloads: None,
             http_client_arc: Arc::clone(&owned.http_client_arc),
             fetch_caches: owned.shared_caches().map(|caches| caches.fetch.clone()),
         }
