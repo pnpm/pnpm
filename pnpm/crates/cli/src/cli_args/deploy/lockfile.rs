@@ -197,7 +197,11 @@ fn converted_deploy_lockfile(
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
     deploy_lockfile.snapshots = (!converted.snapshots.is_empty()).then_some(converted.snapshots);
     prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups, peer_edges);
-    bind_singleton_peers(&mut deploy_lockfile, &converted.linked_workspace_projects)?;
+    bind_singleton_peers(
+        &mut deploy_lockfile,
+        &converted.linked_workspace_projects,
+        &converted.workspace_projects,
+    )?;
     Ok(deploy_lockfile)
 }
 
@@ -252,6 +256,8 @@ fn convert_deploy_packages(
 struct DeploySnapshots {
     snapshots: HashMap<PkgNameVerPeer, SnapshotEntry>,
     linked_workspace_projects: HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
+    /// The snapshot keys of every workspace project the deploy links.
+    workspace_projects: HashSet<PkgNameVerPeer>,
 }
 
 fn convert_deploy_snapshots(
@@ -267,6 +273,7 @@ fn convert_deploy_snapshots(
         snapshots.insert(output_key, convert_snapshot(snapshot, ctx, lockfile_dir)?);
     }
     let mut linked_workspace_projects = HashMap::new();
+    let mut workspace_projects = HashSet::new();
     for (importer_path, project_snapshot) in &lockfile.importers {
         if importer_path == project_id {
             continue;
@@ -289,12 +296,13 @@ fn convert_deploy_snapshots(
                 ),
             );
         }
+        workspace_projects.insert(package_key.clone());
         snapshots.insert(
             package_key,
             project_snapshot_to_snapshot_entry(project_snapshot, ctx, &bases)?,
         );
     }
-    Ok(DeploySnapshots { snapshots, linked_workspace_projects })
+    Ok(DeploySnapshots { snapshots, linked_workspace_projects, workspace_projects })
 }
 
 /// A lockfile importer records a dependency group only when it has entries.

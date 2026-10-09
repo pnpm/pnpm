@@ -1,8 +1,8 @@
 use super::{
     Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
-    PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, ResolveBases,
-    SnapshotDepRef, SnapshotEntry, Value, VecDeque, convert_importer_version_to_snapshot_ref,
-    convert_package_key,
+    PackageManifest, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot,
+    ResolveBases, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
+    convert_importer_version_to_snapshot_ref, convert_package_key,
 };
 
 /// A workspace package the deployed graph links rather than injects.
@@ -70,13 +70,17 @@ impl LinkedWorkspaceProject {
 pub(super) fn bind_singleton_peers(
     lockfile: &mut Lockfile,
     linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
+    workspace_projects: &HashSet<PkgNameVerPeer>,
 ) -> miette::Result<()> {
     if linked_workspace_projects.is_empty() {
         return Ok(());
     }
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return Ok(()) };
 
-    let candidates = resolution_candidates(lockfile, snapshots);
+    let candidates = ResolutionCandidates {
+        by_name: resolution_candidates(lockfile, snapshots),
+        workspace_projects,
+    };
     let bindings = collect_peer_bindings(snapshots, &candidates, linked_workspace_projects)?;
 
     let Some(snapshots) = lockfile.snapshots.as_mut() else { return Ok(()) };
@@ -92,7 +96,7 @@ pub(super) fn bind_singleton_peers(
 /// unambiguously.
 fn collect_peer_bindings(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
-    candidates: &HashMap<PkgName, HashSet<PkgNameVerPeer>>,
+    candidates: &ResolutionCandidates<'_>,
     linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
 ) -> miette::Result<Vec<(PkgNameVerPeer, PkgName, SnapshotDepRef)>> {
     let mut bindings = Vec::new();
@@ -151,11 +155,36 @@ fn resolution_candidates(
     candidates
 }
 
+/// Every resolution the deployed graph offers, by package name.
+struct ResolutionCandidates<'a> {
+    by_name: HashMap<PkgName, HashSet<PkgNameVerPeer>>,
+    /// The snapshot keys of the workspace projects, without peer suffixes.
+    workspace_projects: &'a HashSet<PkgNameVerPeer>,
+}
+
+impl ResolutionCandidates<'_> {
+    /// The resolutions of `peer` that `project`'s declared range admits. A
+    /// `workspace:` range admits only the workspace project, so the registry
+    /// copies other packages depend on are no candidates for it, unless the
+    /// deployed graph does not hold the workspace project at all.
+    fn admitted_by(&self, project: &ProjectInfo, peer: &PkgName) -> Option<Vec<&PkgNameVerPeer>> {
+        let resolutions = self.by_name.get(peer)?;
+        let workspace_resolutions = resolutions
+            .iter()
+            .filter(|key| self.workspace_projects.contains(&key.without_peer()))
+            .collect::<Vec<_>>();
+        if project.workspace_protocol_peers.contains(peer) && !workspace_resolutions.is_empty() {
+            return Some(workspace_resolutions);
+        }
+        Some(resolutions.iter().collect())
+    }
+}
+
 /// The reference one still-unresolved peer binds to, if the deployed
 /// graph resolves it unambiguously.
 fn singleton_peer_binding(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
-    candidates: &HashMap<PkgName, HashSet<PkgNameVerPeer>>,
+    candidates: &ResolutionCandidates<'_>,
     package_key: &PkgNameVerPeer,
     linked: &LinkedWorkspaceProject,
     peer: &PkgName,
@@ -187,7 +216,7 @@ fn singleton_peer_binding(
     }
     // A peer the deployed graph does not provide at all stays unresolved,
     // exactly as it is in the workspace this deploy was taken from.
-    let Some(resolutions) = candidates.get(peer) else { return Ok(None) };
+    let Some(resolutions) = candidates.admitted_by(project, peer) else { return Ok(None) };
     if resolutions.len() > 1 {
         let mut versions = resolutions
             .iter()
@@ -201,10 +230,23 @@ fn singleton_peer_binding(
         }
         .into());
     }
-    Ok(resolutions
-        .iter()
-        .next()
-        .map(|resolution| SnapshotDepRef::Plain(resolution.suffix.clone())))
+    Ok(resolutions.first().map(|resolution| SnapshotDepRef::Plain(resolution.suffix.clone())))
+}
+
+pub(super) fn workspace_protocol_peers(manifest: &PackageManifest) -> HashSet<PkgName> {
+    manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter(|(_, range)| {
+            range
+                .as_str()
+                .is_some_and(|range| range.starts_with("workspace:"))
+        })
+        .filter_map(|(name, _)| name.parse().ok())
+        .collect()
 }
 
 /// The source lockfile's peer-satisfaction edges, under the keys the deployed
