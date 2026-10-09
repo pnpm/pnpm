@@ -58,7 +58,7 @@ pnx --package npm@11 npx create-something
 
 ### Running a Rust release
 
-Added in: v12.12.0
+Added in: v12.11.1
 
 `--package=rust@<channel>` runs a tool of that [Rust toolchain](../cargo.md#rust-toolchain) release, such as `cargo` or `rustc`. pnpm installs the release into the store first. The channel is written the way `rust-toolchain.toml` writes it, and a bare `rust` means `stable`.
 
