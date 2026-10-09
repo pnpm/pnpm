@@ -1,6 +1,6 @@
 use super::{
-    Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, DirectDep, FrontierNode, HashMap, HashSet,
-    NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
+    Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, ChildrenRecording, DirectDep, FrontierNode,
+    HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
     claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
@@ -156,10 +156,10 @@ pub(super) fn settle_level(
             grandchild_overlay,
             grandchild_pkg_aliases,
         } = node;
-        let (children, others_stale) =
+        let (children, recording) =
             record_walked_children(ctx, &pending, &claim, &child_specs, &seeds);
         insert_walked_node(ctx, &pending, children);
-        if (others_stale || !claim.children_context_unchanged)
+        if (recording == ChildrenRecording::PublishedOverStale || !claim.children_context_unchanged)
             && is_current_children_owner(ctx, &pending.identity.id, &claim.owner)
         {
             make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
@@ -188,9 +188,9 @@ pub(super) fn record_walked_children(
     claim: &ChildrenOwnerClaim,
     child_specs: &[ChildSpec],
     seeds: &[NodeSeed],
-) -> (TreeChildren, bool) {
+) -> (TreeChildren, ChildrenRecording) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
-        return (TreeChildren::Lazy, false);
+        return (TreeChildren::Lazy, ChildrenRecording::Declined);
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
@@ -210,14 +210,14 @@ pub(super) fn record_walked_children(
         });
         realized.insert(dep.alias, dep.node_id);
     }
-    record_children(
+    let recording = record_children(
         ctx,
         &pending.identity.id,
         &claim.owner,
         by_id,
         children_context(ctx, pending, claim),
-    )
-    .into_children(realized)
+    );
+    (recording.children(realized), recording)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for

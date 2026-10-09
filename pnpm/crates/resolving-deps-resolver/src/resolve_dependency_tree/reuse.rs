@@ -45,8 +45,9 @@ use super::{
     update_scope::update_excludes,
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
-        ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
-        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
+        claim_children_owner, insert_tree_node, is_current_children_owner,
+        make_non_owner_nodes_lazy, record_children,
     },
 };
 
@@ -461,10 +462,11 @@ where
     let reused_id = reused.id;
     let children_owner =
         claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
-    let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
+    let (children, recording) = reused_children(ctx, resolver, &children_owner, reused).await?;
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
-        && (others_stale || !children_owner.children_context_unchanged)
+        && (recording == ChildrenRecording::PublishedOverStale
+            || !children_owner.children_context_unchanged)
         && is_current_children_owner(ctx, reused_id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, reused_id, node_id);
