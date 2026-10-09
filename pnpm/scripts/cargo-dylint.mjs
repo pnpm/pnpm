@@ -16,7 +16,7 @@ const proxies = searchPath
   .split(path.delimiter)
   .find((dir) => path.isAbsolute(dir) && ['rustup', 'cargo'].every((name) => fs.existsSync(path.join(dir, name + exe))))
 if (proxies == null) {
-  console.error('cargo-dylint needs rustup, and no directory on PATH holds both rustup and cargo.')
+  process.stderr.write('cargo-dylint needs rustup, and no directory on PATH holds both rustup and cargo.\n')
   process.exit(1)
 }
 
