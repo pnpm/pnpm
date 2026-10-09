@@ -401,6 +401,14 @@ fn workspace_concurrency_parses_as_global_option() {
     let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
         .expect("parses --workspace-concurrency=-1 after subcommand");
     assert_eq!(negative.workspace.ordering.concurrency, Some(-1));
+
+    let infinite =
+        CliArgs::try_parse_from(["pacquet", "--workspace-concurrency=Infinity", "install"])
+            .expect("parses --workspace-concurrency=Infinity");
+    assert_eq!(infinite.workspace.ordering.concurrency, Some(i32::MAX));
+
+    CliArgs::try_parse_from(["pacquet", "--workspace-concurrency=many", "install"])
+        .expect_err("rejects a non-numeric --workspace-concurrency");
 }
 
 #[test]
