@@ -119,19 +119,20 @@ fn merge_with_workspace_shorthand(
 /// A `workspace:` range with a semver body hoists as that body, so it
 /// intersects with a plain range for the same peer, matches a
 /// version-scoped override, and a registry package that publishes it
-/// still installs from the registry. The shorthand (`workspace:*`,
-/// `workspace:^`, `workspace:~`) names no version, so it keeps the
-/// protocol to resolve to the workspace project; stripped, `^` and `~`
-/// are unresolvable and `*` would install from the registry.
+/// still installs from the registry. The shorthand (`workspace:`,
+/// `workspace:*`, `workspace:^`, `workspace:~`) names no version, so it
+/// keeps the protocol to resolve to the workspace project; stripped, `^`
+/// and `~` are unresolvable and `*` or an empty range would install from
+/// the registry.
 fn hoistable_peer_range(raw_range: &str) -> &str {
     match raw_range.strip_prefix("workspace:") {
-        Some(body) if !matches!(body, "*" | "^" | "~") && Range::parse(body).is_ok() => body,
+        Some(body) if !is_workspace_shorthand(raw_range) && Range::parse(body).is_ok() => body,
         _ => raw_range,
     }
 }
 
 fn is_workspace_shorthand(range: &str) -> bool {
-    matches!(range, "workspace:*" | "workspace:^" | "workspace:~")
+    matches!(range, "workspace:" | "workspace:*" | "workspace:^" | "workspace:~")
 }
 
 /// The distinct wanted ranges the entries name, in first-seen order.
