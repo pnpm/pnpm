@@ -8,6 +8,7 @@ import nock from 'nock'
 import { verifyPnpmEngineIdentity, type RegistryKey } from '@pnpm/tools.plugin-commands-self-updater'
 
 const REGISTRY = 'https://registry.example.test/'
+const CANONICAL_REGISTRY = 'https://registry.npmjs.org/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
 const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
@@ -24,7 +25,7 @@ afterEach(() => {
 
 test('resolves when pnpm carries a valid registry signature over the installed bytes', async () => {
   const key = createSigningKey()
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
   const stage = stageWithPnpmLockfile()
 
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
@@ -33,7 +34,7 @@ test('resolves when pnpm carries a valid registry signature over the installed b
 test('throws when the installed bytes do not match what the registry signed (tamper)', async () => {
   const key = createSigningKey()
   // The registry signed the genuine integrity, but the staged lockfile pins a different one.
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }])
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }] })
   const stage = stageWithPnpmLockfile()
 
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
@@ -41,7 +42,7 @@ test('throws when the installed bytes do not match what the registry signed (tam
 
 test('throws when the engine is signed by a key pnpm does not trust', async () => {
   const signingKey = createSigningKey()
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: signingKey.keyid, sig: signingKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: signingKey.keyid, sig: signingKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
   const stage = stageWithPnpmLockfile()
 
   // Trust a different key than the one that signed.
@@ -89,7 +90,7 @@ test('skips (no throw) when no trusted keys are provided', async () => {
 
 test('throws when the engine component in the staged lockfile has no integrity metadata', async () => {
   const key = createSigningKey()
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
   const stage = tempDir(false)
   writeStageLockfile(stage, [
     'lockfileVersion: \'9.0\'',
@@ -111,8 +112,8 @@ test('throws when the engine component in the staged lockfile has no integrity m
 
 test('verifies the platform binary materialized for an @pnpm/exe install', async () => {
   const key = createSigningKey()
-  mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
-  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, PLATFORM_INTEGRITY) }])
+  mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }] })
+  mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, PLATFORM_INTEGRITY) }] })
   const stage = stageWithExeLockfile(PLATFORM_INTEGRITY)
 
   await expect(verifyPnpmEngineIdentity(stage, '@pnpm/exe', '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
@@ -120,9 +121,9 @@ test('verifies the platform binary materialized for an @pnpm/exe install', async
 
 test('throws when the platform binary signature does not validate over the installed bytes', async () => {
   const key = createSigningKey()
-  mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
+  mockPackument({ name: '@pnpm/exe', integrity: EXE_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }] })
   // The registry signed a different (genuine) platform binary than the one staged.
-  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, 'sha512-genuine-platform') }])
+  mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, 'sha512-genuine-platform') }] })
   const stage = stageWithExeLockfile(PLATFORM_INTEGRITY)
 
   await expect(verifyPnpmEngineIdentity(stage, '@pnpm/exe', '9.1.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
@@ -130,8 +131,8 @@ test('throws when the platform binary signature does not validate over the insta
 
 test('verifies the platform binary materialized for a pnpm v12 install (the pnpm package is itself native)', async () => {
   const key = createSigningKey()
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], '12.0.0')
-  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, PLATFORM_INTEGRITY) }], '12.0.0')
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], version: '12.0.0' })
+  mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, PLATFORM_INTEGRITY) }], version: '12.0.0' })
   const stage = stageWithPnpmV12Lockfile(PLATFORM_INTEGRITY)
 
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '12.0.0', optsTrusting(key))).resolves.toBeUndefined()
@@ -139,12 +140,70 @@ test('verifies the platform binary materialized for a pnpm v12 install (the pnpm
 
 test('throws when the pnpm v12 platform binary signature does not validate over the installed bytes', async () => {
   const key = createSigningKey()
-  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], '12.0.0')
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], version: '12.0.0' })
   // The registry signed a different (genuine) platform binary than the one staged.
-  mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, 'sha512-genuine-platform') }], '12.0.0')
+  mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@12.0.0`, 'sha512-genuine-platform') }], version: '12.0.0' })
   const stage = stageWithPnpmV12Lockfile(PLATFORM_INTEGRITY)
 
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '12.0.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+})
+
+test('falls back to the canonical npm registry when the configured registry serves no signature', async () => {
+  const key = createSigningKey()
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [] })
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], registry: CANONICAL_REGISTRY })
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
+})
+
+test('falls back to the canonical npm registry when the configured registry re-signs with its own key', async () => {
+  const npmKey = createSigningKey()
+  const mirrorKey = createSigningKey()
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: mirrorKey.keyid, sig: mirrorKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: npmKey.keyid, sig: npmKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], registry: CANONICAL_REGISTRY })
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(npmKey))).resolves.toBeUndefined()
+})
+
+test('throws when the canonical npm registry signature does not validate over the installed bytes', async () => {
+  const npmKey = createSigningKey()
+  const mirrorKey = createSigningKey()
+  mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: mirrorKey.keyid, sig: mirrorKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
+  mockPackument({ name: 'pnpm', integrity: 'sha512-genuine-pnpm', signatures: [{ keyid: npmKey.keyid, sig: npmKey.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }], registry: CANONICAL_REGISTRY })
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(npmKey))).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH',
+  })
+})
+
+test('throws when neither the configured nor the canonical npm registry is reachable', async () => {
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(createSigningKey()))).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+    message: expect.stringContaining('the canonical npm registry'),
+  })
+})
+
+test('does not send the configured registry credentials to the canonical npm registry', async () => {
+  const key = createSigningKey()
+  nock(REGISTRY, { reqheaders: { authorization: 'Bearer mirror-token' } })
+    .get('/pnpm')
+    .reply(200, packumentBody({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [] }))
+  nock(CANONICAL_REGISTRY, { badheaders: ['authorization'] })
+    .get('/pnpm')
+    .reply(200, packumentBody({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], registry: CANONICAL_REGISTRY }))
+  const stage = stageWithPnpmLockfile()
+  const opts = {
+    ...optsTrusting(key),
+    rawConfig: { '//registry.example.test/:_authToken': 'mirror-token' },
+  }
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).resolves.toBeUndefined()
+  expect(nock.isDone()).toBe(true)
 })
 
 function baseOpts () {
@@ -243,18 +302,33 @@ function writeStageLockfile (stage: string, lines: string[]): void {
   fs.writeFileSync(path.join(stage, 'pnpm-lock.yaml'), `${lines.join('\n')}\n`, 'utf8')
 }
 
-function mockPackument (name: string, integrity: string, signatures: unknown, version = '9.1.0'): void {
-  const encodedPath = name[0] === '@' ? `/@${encodeURIComponent(name.slice(1))}` : `/${name}`
-  nock(REGISTRY)
-    .get(encodedPath)
-    .reply(200, {
-      name,
-      time: { [version]: '2024-01-01T00:00:00.000Z' },
-      versions: {
-        [version]: { name, version, dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-${version}.tgz` } },
-      },
-    })
+function mockPackument (fixture: PackumentFixture): void {
+  nock(fixture.registry ?? REGISTRY)
+    .get(packumentPath(fixture.name))
+    .reply(200, packumentBody(fixture))
     .persist()
+}
+
+function packumentPath (name: string): string {
+  return name[0] === '@' ? `/@${encodeURIComponent(name.slice(1))}` : `/${name}`
+}
+
+interface PackumentFixture {
+  name: string
+  integrity: string
+  signatures: unknown
+  version?: string
+  registry?: string
+}
+
+function packumentBody ({ name, integrity, signatures, version = '9.1.0', registry = REGISTRY }: PackumentFixture) {
+  return {
+    name,
+    time: { [version]: '2024-01-01T00:00:00.000Z' },
+    versions: {
+      [version]: { name, version, dist: { integrity, signatures, tarball: `${registry}${name}/-/x-${version}.tgz` } },
+    },
+  }
 }
 
 function createSigningKey (): { keyid: string, publicKey: string, sign: (id: string, integrity: string) => string } {
