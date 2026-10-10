@@ -100,6 +100,10 @@ pub struct ProfileArgs {
 
 impl ProfileArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<Option<String>> {
+        let mut args = self.params.iter().map(String::as_str);
+        let Some(subcommand) = args.next() else {
+            return Err(ProfileError::SubcommandRequired.into());
+        };
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
         let normalized = normalize_registry_url(registry_url);
         let auth_header =
@@ -109,10 +113,6 @@ impl ProfileArgs {
             self.otp.as_deref(),
             [normalized.as_ref()],
         )?;
-        let mut args = self.params.iter().map(String::as_str);
-        let Some(subcommand) = args.next() else {
-            return Err(ProfileError::SubcommandRequired.into());
-        };
         self.dispatch_subcommand(
             &normalized,
             &http_client,
