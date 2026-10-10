@@ -3106,6 +3106,12 @@
   dir: pnpm/npm/napi
   intents:
     - enable-modules-dir-fetches-reused-packages
+"@pnpm/napi@12.12.0":
+  dir: pnpm/npm/napi
+  intents:
+    - deny-builds-over-allow-all
+    - injected-dependency-manifest-freshness
+    - napi-add-missing-peer-types
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -5990,6 +5996,22 @@ pacquet@12.11.2:
     - enable-modules-dir-fetches-reused-packages
     - update-config-hook-filter
     - workspace-concurrency-infinity
+pacquet@12.12.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-config-saves-a-range
+    - add-missing-peer-types
+    - auth-unknown-fields
+    - deny-builds-over-allow-all
+    - deploy-workspace-protocol-peer
+    - depth-infinity-in-update-and-why
+    - injected-dependency-manifest-freshness
+    - legacy-deploy-workspace-peer
+    - prune-excluded-workspace-subtrees
+    - remote-cache
+    - reuse-injected-hardlinks
+    - switch-past-unreadable-config
+    - update-config-dependencies
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
