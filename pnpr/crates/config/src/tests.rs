@@ -13,10 +13,10 @@ mod upstream;
 mod server_options;
 
 use super::{
-    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Interval, LogFormat, LogLevel, S3Settings, TeamDirectory, UpstreamAuthFile, UpstreamConfig,
-    UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval, resolve_relative,
-    resolve_upstream_config,
+    ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides,
+    HostedStoreConfig, Interval, LogFormat, LogLevel, S3Settings, TeamDirectory, UpstreamAuthFile,
+    UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval,
+    resolve_relative, resolve_upstream_config,
     upstream::{TokenEnv, UpstreamAuthType},
 };
 use indexmap::IndexMap;

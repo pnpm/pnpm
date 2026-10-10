@@ -11,7 +11,8 @@ mod artifact_identity;
 use artifact_identity::{
     artifact_matches_candidate, artifact_operation_id, compatibility_slot, digest_segment,
     entry_digest, entry_owner, is_blob_path, is_variant_file, object_name, org_key, owner_key,
-    publisher_owner_key, scope_marker_path, scope_name, scopes_prefix,
+    publisher_owner_key, scope_marker_path, scope_name, scopes_prefix, staged_blob_path,
+    staged_record_path,
 };
 
 mod object_storage;
@@ -25,6 +26,8 @@ mod scopes;
 mod publication;
 
 mod compiler_cache;
+
+mod blob_upload;
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -42,12 +45,12 @@ use object_store::{
 };
 use pnpm_shared_artifact_protocol::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactProtocolError,
-    ArtifactSubject, ArtifactVariant, CompatibilityConstraints, CompatibilityScopes,
-    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
-    ResolvedArtifact, SignedArtifactEnvelope, blob_id, compatibility_scopes, verify_blob,
+    ArtifactSubject, ArtifactVariant, CompatibilityConstraints, CompatibilityScopes, MAX_BLOB_SIZE,
+    MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
+    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
+    SignedArtifactEnvelope, blob_id, compatibility_scopes, verify_blob,
 };
-use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
+use pnpr_config::{ArtifactQuota, HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use sha2::Sha256;
 use tokio::time::{interval, sleep};
@@ -57,8 +60,6 @@ const ARTIFACT_OBJECT_PREFIX: &str = ".pnpr-artifacts/v0";
 const ARTIFACT_LOCK_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const ARTIFACT_USAGE_FILE: &str = ".locks/usage.json";
 const ARTIFACT_QUOTA_OBJECT: &str = "quota.json";
-const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
-const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
 const PUBLICATION_FINISH_RETRIES: usize = 8;
 /// How long a publication may hold its registration before reclamation treats
@@ -126,18 +127,35 @@ const UNIVERSAL_SCOPE: &str = "universal";
 /// tag yields it, for the same reason no tag yields [`UNIVERSAL_SCOPE`].
 const BACKFILLED_SCOPE: &str = "backfilled";
 
+/// How long a blob uploaded on its own is kept with nothing referencing it:
+/// as long as the publication that references it may take to arrive.
+const STAGED_BLOB_GRACE: Duration = ACTIVE_PUBLICATION_EXPIRY;
+
 /// What one pass over a store found: the blobs its artifacts reference, the
-/// artifacts themselves, and whether every variant could be read.
+/// blobs uploaded too recently to be reclaimed, the artifacts themselves,
+/// and whether every variant could be read.
 struct StoredArtifacts {
     referenced_blobs: HashSet<String>,
+    staged_blobs: HashSet<String>,
     digests: HashSet<String>,
     every_variant_read: bool,
 }
 
 impl Default for StoredArtifacts {
     fn default() -> Self {
-        Self { referenced_blobs: HashSet::new(), digests: HashSet::new(), every_variant_read: true }
+        Self {
+            referenced_blobs: HashSet::new(),
+            staged_blobs: HashSet::new(),
+            digests: HashSet::new(),
+            every_variant_read: true,
+        }
     }
+}
+
+/// Whether `entry` was written within [`STAGED_BLOB_GRACE`].
+fn staged_recently(entry: &ObjectMeta) -> bool {
+    let age = registered_now().cast_signed().saturating_sub(entry.last_modified.timestamp());
+    age < STAGED_BLOB_GRACE.as_secs().cast_signed()
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -186,8 +204,7 @@ pub struct SharedArtifactStore {
     store: Arc<dyn ObjectStore>,
     prefix: String,
     quota: QuotaCoordination,
-    owner_limit: u64,
-    global_limit: u64,
+    limits: ArtifactQuota,
 }
 
 impl SharedArtifactStore {
@@ -204,8 +221,7 @@ impl SharedArtifactStore {
                     quota: QuotaCoordination::Local {
                         lock_path: root.join(".locks").join("usage.lock"),
                     },
-                    owner_limit: MAX_OWNER_ARTIFACT_BYTES,
-                    global_limit: MAX_GLOBAL_ARTIFACT_BYTES,
+                    limits: ArtifactQuota::default(),
                 })
             }
             HostedStoreConfig::S3(settings) => {
@@ -271,8 +287,8 @@ impl SharedArtifactStore {
             Err(object_store::Error::NotFound { .. }) => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        if result.meta.size > MAX_FILE_SIZE {
-            return Err(stored_object_too_large(result.meta.size, MAX_FILE_SIZE));
+        if result.meta.size > MAX_BLOB_SIZE {
+            return Err(stored_object_too_large(result.meta.size, MAX_BLOB_SIZE));
         }
         Ok(Some(ArtifactBlob { size: result.meta.size, stream: result.into_stream() }))
     }
@@ -321,10 +337,9 @@ impl SharedArtifactStore {
         }))
     }
 
-    #[cfg(test)]
-    fn with_limits(mut self, owner_limit: u64, global_limit: u64) -> Self {
-        self.owner_limit = owner_limit;
-        self.global_limit = global_limit;
+    #[must_use]
+    pub fn with_quota(mut self, limits: ArtifactQuota) -> Self {
+        self.limits = limits;
         self
     }
 }
@@ -375,19 +390,17 @@ fn verify_upload(id: &str, integrity: &str, size: u64, upload: Option<&[u8]>) ->
     verify_blob(integrity, bytes).map_err(|err| protocol_error(&err))
 }
 
-fn verify_stored_blob(id: &str, integrity: &str, size: u64, bytes: &[u8]) -> Result<()> {
-    if bytes.len() as u64 != size {
+/// A stored blob was verified when it was written, so its size is all that
+/// is checked again.
+fn check_stored_blob_size(id: &str, stored: u64, size: u64) -> Result<()> {
+    if stored != size {
         return Err(RegistryError::Internal {
             reason: format!(
-                "stored shared artifact blob {id} has {} bytes instead of {size}",
-                bytes.len(),
+                "stored shared artifact blob {id} has {stored} bytes instead of {size}",
             ),
         });
     }
-    verify_blob(integrity, bytes)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("stored shared artifact blob failed verification: {err}"),
-        })
+    Ok(())
 }
 
 fn stored_object_too_large(size: u64, max_size: u64) -> RegistryError {
@@ -465,9 +478,7 @@ fn resolve_limit_error() -> RegistryError {
 }
 
 fn storage_quota_error() -> RegistryError {
-    bad_request(format!(
-        "shared artifact storage quota exceeded ({MAX_OWNER_ARTIFACT_BYTES} bytes per owner, {MAX_GLOBAL_ARTIFACT_BYTES} bytes globally)",
-    ))
+    bad_request("shared artifact storage quota exceeded".to_string())
 }
 
 fn quota_counter_underflow() -> RegistryError {

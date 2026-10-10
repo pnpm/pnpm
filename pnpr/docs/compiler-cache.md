@@ -91,8 +91,9 @@ compiler-cache namespace. A cache key is immutable: the first successful `PUT`
 wins. `SCCACHE_WEBDAV_KEY_PREFIX` can select a fresh namespace, though that does
 not reclaim old entries.
 
-The experimental limits are 256 MiB per compiler entry, 1 GiB per owner or cache
-name, and 10 GiB globally across artifacts. A compiler cache sharing a name with
+The experimental limit is 256 MiB per compiler entry. Entries count toward the
+[`artifacts.quota`](configuration.md#registry-resolver-and-artifact-surfaces)
+of their cache name and of the whole artifact store. A compiler cache sharing a name with
 a side-effects owner shares its quota. Live compiler entries are not evicted
 automatically yet.
 

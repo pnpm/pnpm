@@ -20,13 +20,12 @@ use crate::{
     AllowBuildPolicy, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
     SideEffectsBySnapshot, SideEffectsMapsBySnapshot, StoreIndexKeysBySnapshot,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_pnpr_client::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSigner, ArtifactStore, ArtifactSubject, CompatibilityConstraints,
-    OwnerScope, PackageIdentity, PublishArtifactRequest,
+    ARTIFACT_KIND, ArtifactBlobSource, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, ArtifactPublication, ArtifactSigner, ArtifactStore, ArtifactSubject,
+    CompatibilityConstraints, OwnerScope, PackageIdentity,
 };
 use pnpm_store_dir::{CafsFileInfo, StoreIndexWriter};
 use std::{
@@ -173,10 +172,10 @@ impl SharedSideEffectsPublisher {
         &self,
         input_key: String,
         payload: &ArtifactPayload,
-        blobs: Vec<ArtifactBlobUpload>,
+        blobs: Vec<ArtifactBlobSource>,
     ) -> Result<(), String> {
         self.runtime
-            .block_on(self.store.publish_artifact(&PublishArtifactRequest {
+            .block_on(self.store.publish_artifact(&ArtifactPublication {
                 key: input_key,
                 envelope: self.signer.sign(payload).map_err(|error| error.to_string())?,
                 blobs,
@@ -207,11 +206,11 @@ impl SharedSideEffectsPublisher {
     }
 }
 
-/// The built files as the artifact lists them, each one's bytes read
-/// from the CAFS for upload.
+/// The built files as the artifact lists them, and the CAFS file each
+/// one's blob is uploaded from.
 struct ArtifactUpload {
     files: Vec<ArtifactFile>,
-    blobs: BTreeMap<String, ArtifactBlobUpload>,
+    blobs: BTreeMap<String, ArtifactBlobSource>,
 }
 
 fn artifact_upload(
@@ -225,8 +224,6 @@ fn artifact_upload(
         let stored_path = store
             .cas_file_path_by_mode(&info.digest, info.mode)
             .ok_or_else(|| format!("invalid CAFS digest for built file {path:?}"))?;
-        let bytes = std::fs::read(&stored_path)
-            .map_err(|error| format!("failed to read {}: {error}", stored_path.display()))?;
         files.push(ArtifactFile {
             path,
             integrity: integrity.clone(),
@@ -235,7 +232,11 @@ fn artifact_upload(
         });
         blobs
             .entry(integrity.clone())
-            .or_insert_with(|| ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) });
+            .or_insert_with(|| ArtifactBlobSource {
+                integrity,
+                size: info.size,
+                path: stored_path,
+            });
     }
     files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     Ok(ArtifactUpload { files, blobs })

@@ -2,7 +2,12 @@ use super::{
     AppState, AuthedCaller, Body, CallerOrgs, Ecosystem, Response, State, StatusCode, header,
     private_no_cache,
 };
-use axum::response::IntoResponse;
+use axum::{
+    http::{HeaderMap, Uri},
+    response::IntoResponse,
+};
+use pnpm_shared_artifact_protocol::OwnerScope;
+use pnpr_error::RegistryError;
 
 /// `GET /-/pnpr` — capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
@@ -166,4 +171,98 @@ pub(super) async fn serve_artifact_blob(
         Ok(None) => private_no_cache(StatusCode::NOT_FOUND.into_response()),
         Err(err) => private_no_cache(err.into_response()),
     }
+}
+
+/// `PUT /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — store one
+/// blob ahead of the publication that names it, streamed from the body. The
+/// owner is `organization=<name>` or `publisher=<package>`, and
+/// `Content-Length` is required.
+pub(super) async fn serve_upload_artifact_blob(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob upload") {
+        Ok(caller) => caller,
+        Err(err) => return private_no_cache(err.into_response()),
+    };
+    let result = async {
+        let (owner, integrity) = blob_target(&uri)?;
+        let size = headers
+            .get(header::CONTENT_LENGTH)
+            .and_then(|length| {
+                length
+                    .to_str()
+                    .ok()?
+                    .parse::<u64>()
+                    .ok()
+            })
+            .ok_or_else(|| RegistryError::BadRequest {
+                reason: "a blob upload needs a Content-Length".to_string(),
+            })?;
+        state.inner.builds.artifacts
+            .as_ref()
+            .expect("artifact routes require an artifact store")
+            .store_blob(&caller, &owner, &integrity, size, body.into_data_stream())
+            .await
+    }
+    .await;
+    private_no_cache(match result {
+        Ok(true) => StatusCode::CREATED.into_response(),
+        Ok(false) => StatusCode::OK.into_response(),
+        Err(err) => err.into_response(),
+    })
+}
+
+/// `HEAD /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — whether
+/// the blob is stored, so a publisher uploads only what is missing.
+pub(super) async fn serve_artifact_blob_size(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    uri: Uri,
+) -> Response {
+    let caller = match CallerOrgs::new(&state, &identity, "shared artifact blob") {
+        Ok(caller) => caller,
+        Err(err) => return private_no_cache(err.into_response()),
+    };
+    let result = async {
+        let (owner, integrity) = blob_target(&uri)?;
+        state.inner.builds.artifacts
+            .as_ref()
+            .expect("artifact routes require an artifact store")
+            .blob_size(&caller, &owner, &integrity)
+            .await
+    }
+    .await;
+    private_no_cache(match result {
+        Ok(Some(size)) => ([(header::CONTENT_LENGTH, size.to_string())], ()).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(err) => err.into_response(),
+    })
+}
+
+/// The owner and integrity a blob request's query string names.
+fn blob_target(uri: &Uri) -> Result<(OwnerScope, String), RegistryError> {
+    let mut owners = Vec::new();
+    let mut integrity = None;
+    for (key, value) in url::form_urlencoded::parse(
+        uri.query()
+            .unwrap_or_default()
+            .as_bytes(),
+    ) {
+        match key.as_ref() {
+            "organization" => owners.push(OwnerScope::organization(value)),
+            "publisher" => owners.push(OwnerScope::Publisher { package: value.into_owned() }),
+            "integrity" => integrity = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+    let invalid = || RegistryError::BadRequest {
+        reason: "a blob request names one owner (organization or publisher) and an integrity"
+            .to_string(),
+    };
+    let [owner] = <[OwnerScope; 1]>::try_from(owners).map_err(|_| invalid())?;
+    Ok((owner, integrity.ok_or_else(invalid)?))
 }

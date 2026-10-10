@@ -16,6 +16,7 @@ pub use access::{
 pub use hosted::{HostedConfig, Management};
 pub use pnpr_policy::{TeamDirectory, Teams};
 
+pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
 pub use web_ui::UiConfig;
@@ -38,11 +39,14 @@ mod validation;
 
 mod presets;
 
+mod artifacts;
+use artifacts::{parse_artifact_quota, parse_storage_access};
+
 mod config_file;
 use config_file::{
-    ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
+    DefaultRegistryFile, FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile,
+    RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
     parse_config_file, reject_removed_blocks,
 };
 
@@ -315,24 +319,6 @@ impl Default for ResolverFeature {
     }
 }
 
-/// Toggle for the shared-artifact surface. Off by default while the
-/// protocol is a proof of concept.
-#[derive(Debug, Default, Clone)]
-pub struct ArtifactsFeature {
-    /// Master switch for artifact and compiler-cache endpoints.
-    pub enabled: bool,
-    /// Who may read and who may publish what each organization owns: its
-    /// signed artifacts, its compiler cache, and its pipeline run records. An
-    /// undeclared organization is unavailable.
-    pub orgs: IndexMap<String, StorageAccess>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StorageAccess {
-    pub access: AccessList,
-    pub publish: AccessList,
-}
-
 /// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
 /// Off by default while the surface is a proof of concept. Who may read and
 /// publish runs is [`ArtifactsFeature::orgs`].
@@ -462,6 +448,7 @@ fn build_features(
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
             orgs: parse_storage_access(artifacts_file.orgs)?,
+            quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
         pipeline: PipelineFeature { enabled: pipeline_file.enabled },
     })
@@ -594,26 +581,6 @@ pub fn default_cache_dir(storage: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
-
-fn parse_storage_access(
-    policies: IndexMap<String, StorageAccessFile>,
-) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
-    policies
-        .into_iter()
-        .map(|(name, policy)| {
-            validate_registry_name(&name)?;
-            let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&TeamDirectory::default())
-                    .map_err(|reason| RegistryError::InvalidConfig {
-                        reason: format!("organization {name:?}: {reason}"),
-                    })
-            };
-            let access =
-                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
-            Ok((name, access))
-        })
-        .collect()
-}
 
 fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBuf) {
     let storage = resolve_relative(&file.storage, base_dir);

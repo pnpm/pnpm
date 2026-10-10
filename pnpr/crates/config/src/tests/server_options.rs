@@ -1,5 +1,6 @@
 use super::{
-    Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen, parse_log_yaml,
+    ArtifactQuota, Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen,
+    parse_log_yaml,
 };
 
 #[test]
@@ -31,6 +32,26 @@ fn org_policies_reject_ambiguous_or_incomplete_declarations() {
         let yaml = format!("artifacts:\n  enabled: true\n  orgs:\n{declaration}\n");
         let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
         assert!(result.is_err(), "accepted {declaration:?}");
+    }
+}
+
+#[test]
+fn artifact_quota_is_configured_in_gib() {
+    let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.features.artifacts.quota, ArtifactQuota::default());
+
+    let yaml = "artifacts:\n  quota:\n    ownerGiB: 50\n    totalGiB: 500\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).unwrap();
+    let gib = 1024 * 1024 * 1024;
+    assert_eq!(
+        config.features.artifacts.quota,
+        ArtifactQuota { owner: 50 * gib, total: 500 * gib },
+    );
+
+    for quota in ["ownerGiB: 0", "ownerGiB: 20\n    totalGiB: 10", "perOwner: 1"] {
+        let yaml = format!("artifacts:\n  quota:\n    {quota}\n");
+        let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
+        assert!(result.is_err(), "accepted {quota:?}");
     }
 }
 

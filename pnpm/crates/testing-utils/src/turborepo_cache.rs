@@ -4,7 +4,7 @@
 use axum::{
     Router,
     body::Bytes,
-    extract::{Path, RawQuery, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{HeaderMap, Method, StatusCode},
     routing::get,
 };
@@ -47,6 +47,7 @@ impl TurborepoCache {
         let shared = Arc::<Shared>::default();
         let router = Router::new()
             .route("/v8/artifacts/{hash}", get(get_artifact).put(put_artifact))
+            .layer(DefaultBodyLimit::disable())
             .with_state(Arc::clone(&shared));
         thread::Builder::new()
             .name("pacquet-test-turborepo-cache".to_string())

@@ -1,8 +1,8 @@
 use super::{
-    Arc, ArtifactUsage, AtomicBool, AtomicUsize, CompilerCacheKey, FailArtifactWrites,
-    HostedStoreConfig, InMemory, ObjectPath, ObjectStore, ObjectStoreExt, Ordering,
-    SharedArtifactStore, TempDir, artifact_operation_id, for_platform, is_write_conflict, lookup,
-    normalize_key_prefix, publication, publication_for_platform, publication_tagged,
+    Arc, ArtifactQuota, ArtifactUsage, AtomicBool, AtomicUsize, CompilerCacheKey,
+    FailArtifactWrites, HostedStoreConfig, InMemory, ObjectPath, ObjectStore, ObjectStoreExt,
+    Ordering, SharedArtifactStore, TempDir, artifact_operation_id, for_platform, is_write_conflict,
+    lookup, normalize_key_prefix, publication, publication_for_platform, publication_tagged,
     publication_with_blob,
 };
 
@@ -200,8 +200,9 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
 #[tokio::test]
 async fn quota_is_reserved_before_objects_are_written() {
     let storage = TempDir::new().unwrap();
-    let store =
-        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path())
+        .unwrap()
+        .with_quota(ArtifactQuota { owner: 1, total: 1 });
 
     let error = store
         .publish("acme", publication("ci/too-large"))
@@ -383,8 +384,9 @@ async fn a_retry_of_a_stored_artifact_needs_no_quota() {
             .unwrap(),
     );
 
-    let full =
-        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+    let full = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path())
+        .unwrap()
+        .with_quota(ArtifactQuota { owner: 1, total: 1 });
 
     assert!(
         !full

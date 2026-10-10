@@ -84,6 +84,23 @@ pub(super) fn is_variant_file(name: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
 }
 
+/// The record that a blob was uploaded on its own, ahead of the publication
+/// that references it. Empty: only its age matters.
+pub(super) fn staged_record_path(owner: &str, id: &str) -> String {
+    format!("{owner}/staged/{id}")
+}
+
+/// The blob a staged record stands for, when `relative` is one.
+pub(super) fn staged_blob_path(relative: &str) -> Option<String> {
+    let mut segments = relative.split('/');
+    let (Some(owner), Some("staged"), Some(blob), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next())
+    else {
+        return None;
+    };
+    (is_digest_segment(owner) && !blob.is_empty()).then(|| format!("{owner}/blobs/{blob}"))
+}
+
 pub(super) fn is_blob_path(relative: &str) -> bool {
     let mut segments = relative.split('/');
     let (Some(owner), Some("blobs"), Some(blob), None) =

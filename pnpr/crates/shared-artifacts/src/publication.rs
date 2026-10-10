@@ -5,9 +5,9 @@ use super::{
     CompatibilityScopes, Duration, MAX_RESOLVE_RESPONSE_SIZE, ObjectStoreExt, OrgAccess,
     PUBLICATION_RENEWAL_INTERVAL, PreparedPublication, PublicationQuota, PublishArtifactRequest,
     RegistryError, Result, ScopeMarker, SharedArtifactStore, SlotClaim, UNIVERSAL_SCOPE,
-    artifact_operation_id, bad_request, blob_id, compatibility_scopes, interval,
-    prepare_publication, protocol_error, publication_charge, registered_now, scope_marker_path,
-    scope_name, scopes_prefix, verify_stored_blob, verify_upload,
+    artifact_operation_id, bad_request, blob_id, check_stored_blob_size, compatibility_scopes,
+    interval, prepare_publication, protocol_error, publication_charge, registered_now,
+    scope_marker_path, scope_name, scopes_prefix, verify_upload,
 };
 
 impl SharedArtifactStore {
@@ -265,7 +265,7 @@ impl SharedArtifactStore {
             let path = format!("{owner}/blobs/{id}");
             let upload = prepared.uploads.remove(integrity);
             verify_upload(&id, integrity, size, upload.as_deref())?;
-            let Some(stored) = self.read_object_bounded(&path, size).await? else {
+            let Some(stored) = self.stored_size(&path).await? else {
                 let Some(bytes) = upload else {
                     return Err(bad_request(format!(
                         "signed manifest references blob {id} without uploading it",
@@ -274,7 +274,7 @@ impl SharedArtifactStore {
                 new_blobs.push((path, bytes));
                 continue;
             };
-            verify_stored_blob(&id, integrity, size, &stored)?;
+            check_stored_blob_size(&id, stored, size)?;
         }
         Ok(new_blobs)
     }

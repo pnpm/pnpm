@@ -559,6 +559,18 @@ artifacts:
   `orgs` is read even when `enabled` is false, for a server that only stores
   pipeline runs.
 
+  `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
+  owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
+  all of them together, defaulting to 10. A `pnpm pipeline` task result can hold
+  release binaries, so a server that stores them usually needs more:
+
+```yaml title="pnpr.yaml"
+artifacts:
+  quota:
+    ownerGiB: 50
+    totalGiB: 200
+```
+
 - The **pipeline run surface** — the endpoints that store and serve
   [`pnpm pipeline` run records](pipeline-runs.md), a peer of the artifact store.
   It is off by default:

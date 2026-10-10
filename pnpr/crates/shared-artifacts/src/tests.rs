@@ -8,6 +8,8 @@ mod publication;
 
 mod quota;
 
+mod blob_upload;
+
 use std::{
     collections::BTreeMap,
     fmt,
@@ -33,7 +35,7 @@ use pnpm_shared_artifact_protocol::{
     PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
     ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
 };
-use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
+use pnpr_config::{ArtifactQuota, HostedStoreConfig, normalize_key_prefix};
 use pnpr_error::RegistryError;
 use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;

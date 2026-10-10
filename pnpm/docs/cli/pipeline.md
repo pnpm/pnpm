@@ -130,7 +130,7 @@ pnpm pipeline
 
 See [Shared side-effects cache](/pnpr/shared-side-effects-cache#publishing-from-a-builder) for how to generate a key pair.
 
-A remote result that is missing, untrusted, or fails verification is a miss, and the task runs. A server that cannot be reached never fails the run. A task's outputs must stay within 64 MiB and 10,000 files to be published. [Cargo build state](#reusing-cargo-build-state) stays on the local machine.
+A remote result that is missing, untrusted, or fails verification is a miss, and the task runs. A server that cannot be reached never fails the run. A task's outputs are published when they are at most 10,000 files, each at most 4 GiB and all together at most 16 GiB. [Cargo build state](#reusing-cargo-build-state) stays on the local machine.
 
 ## Reporting a run
 

@@ -48,10 +48,11 @@ use super::{
     get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
     pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi, remove_dist_tag,
     require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
-    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
-    serve_packument, serve_ping, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
-    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
-    serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    serve_artifact_blob_size, serve_batch_publish, serve_get_pipeline_run,
+    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
+    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
+    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
     staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
@@ -399,9 +400,13 @@ fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Router<AppSta
                     require_artifact_caller,
                 )),
         )
+        // The limit bounds the lookup a `POST` sends. A `PUT` streams its
+        // body past it, and the store holds that to the declared size.
         .route(
             "/-/pnpr/v0/artifacts/blob",
             post(serve_artifact_blob)
+                .put(serve_upload_artifact_blob)
+                .head(serve_artifact_blob_size)
                 .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),

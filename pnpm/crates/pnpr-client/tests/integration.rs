@@ -27,11 +27,11 @@ use p256::{
 };
 use pnpm_config::RegistryDeclaration;
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
-    PackageIdentity, PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions,
-    ResolveOptions, ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope,
-    VerifyLockfileOptions,
+    ArtifactBlobRequest, ArtifactBlobSource, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSubject, BuilderProfile,
+    CompatibilityConstraints, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
+    PublishArtifactRequest, ResolveArtifactsOptions, ResolveOptions, ResolveProject,
+    ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
 use sha2::{Digest as _, Sha512};
@@ -274,22 +274,43 @@ fn options(
     }
 }
 
-fn signed_artifact_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+/// A signed publication, the public key that verifies it, its one blob, and
+/// the directory its blob's file is in, which must outlive the publication.
+type SignedFixture = (ArtifactPublication, Vec<u8>, Vec<u8>, TempDir);
+
+/// `request` with each inline blob written to a file under the returned
+/// directory.
+fn with_blob_files(request: PublishArtifactRequest) -> (ArtifactPublication, TempDir) {
+    let directory = TempDir::new().expect("create a blob directory");
+    let blobs = request.blobs
+        .iter()
+        .enumerate()
+        .map(|(index, upload)| {
+            let bytes = BASE64.decode(&upload.data).expect("decode an inline blob");
+            let path = directory.path().join(index.to_string());
+            std::fs::write(&path, &bytes).expect("write a blob file");
+            ArtifactBlobSource {
+                integrity: upload.integrity.clone(),
+                size: bytes.len() as u64,
+                path,
+            }
+        })
+        .collect();
+    (ArtifactPublication { key: request.key, envelope: request.envelope, blobs }, directory)
+}
+
+fn signed_artifact_fixture() -> SignedFixture {
     signed_artifact_fixture_with_builder_id("ci/main/42")
 }
 
-fn signed_artifact_fixture_with_builder_id(
-    builder_id: &str,
-) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+fn signed_artifact_fixture_with_builder_id(builder_id: &str) -> SignedFixture {
     signed_artifact_fixture_for(builder_id, "pnpm:v1:linux-x64-node22-glibc2.17")
 }
 
 /// One input key admits one artifact per set of compatibility constraints, so a
 /// test wanting several of them for one dependency varies the platform — which
 /// is the only reason a second artifact for one input is legitimate.
-fn signed_artifact_fixture_for_platform(
-    index: usize,
-) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+fn signed_artifact_fixture_for_platform(index: usize) -> SignedFixture {
     // Node major, not the glibc floor: two floors for one architecture and Node
     // major both apply to a consumer meeting the higher one, so the registry
     // refuses the second as an overlapping publish.
@@ -299,10 +320,7 @@ fn signed_artifact_fixture_for_platform(
     )
 }
 
-fn signed_artifact_fixture_for(
-    builder_id: &str,
-    tag: &str,
-) -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+fn signed_artifact_fixture_for(builder_id: &str, tag: &str) -> SignedFixture {
     let blob = b"native-addon".to_vec();
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(&blob)));
     let payload = ArtifactPayload {
@@ -344,15 +362,12 @@ fn signed_artifact_fixture_for(
         payload: BASE64.encode(payload_bytes),
         signature: BASE64.encode(signature.to_der().as_bytes()),
     };
-    (
-        PublishArtifactRequest {
-            key: payload.input_key,
-            envelope,
-            blobs: vec![ArtifactBlobUpload { integrity, data: BASE64.encode(&blob) }],
-        },
-        public_key,
-        blob,
-    )
+    let (publication, blobs) = with_blob_files(PublishArtifactRequest {
+        key: payload.input_key,
+        envelope,
+        blobs: vec![ArtifactBlobUpload { integrity, data: BASE64.encode(&blob) }],
+    });
+    (publication, public_key, blob, blobs)
 }
 
 #[path = "integration/authorization.rs"]

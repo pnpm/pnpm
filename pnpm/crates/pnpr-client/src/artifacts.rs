@@ -1,11 +1,18 @@
 use super::{
-    ArtifactBlobRequest, ArtifactCandidate, ArtifactPayload, ArtifactSubject, ArtifactVariant,
-    BTreeMap, Duration, HashSet, MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
-    MAX_VARIANTS_PER_CANDIDATE, PROTOCOL_VERSION, PnprClient, PnprClientError,
-    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
-    SignedArtifactEnvelope, compatibility_rank_prevalidated, response_body_bounded,
-    validate_supported_tags, verify_blob,
+    ArtifactBlobRequest, ArtifactBlobSource, ArtifactCandidate, ArtifactPayload,
+    ArtifactPublication, ArtifactSubject, ArtifactVariant, BTreeMap, Duration, HashSet,
+    MAX_CANDIDATES, MAX_ERROR_BODY_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope, PROTOCOL_VERSION, PnprClient, PnprClientError, PublishArtifactRequest,
+    ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
+    blob_transfer::{blob_body, blob_timeout, read_blob, write_blob},
+    compatibility_rank_prevalidated, response_body_bounded, validate_supported_tags,
 };
+use futures_util::{StreamExt as _, TryStreamExt as _, stream};
+use reqwest::StatusCode;
+use std::path::Path;
+
+/// Blob uploads one publication has in flight at once.
+const UPLOAD_CONCURRENCY: usize = 8;
 
 /// Inputs to the signed shared-artifact lookup `PoC`.
 pub struct ResolveArtifactsOptions {
@@ -250,31 +257,84 @@ impl PnprClient {
         Ok(())
     }
 
-    /// Upload one already-signed organization artifact and all blobs that are
-    /// not yet present in the owner's namespace.
+    /// Upload the blobs of one signed artifact that its owner's namespace
+    /// lacks, each streamed from its file, then the envelope that names them.
     pub async fn publish_artifact(
         &self,
-        request: &PublishArtifactRequest,
+        publication: &ArtifactPublication,
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
-        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let payload = publication.validate()?;
+        // Owned, so the futures borrow nothing they outlive and stay `Send`
+        // for every caller.
+        let uploads: Vec<_> = publication.blobs
+            .iter()
+            .map(|blob| (payload.owner.clone(), blob.clone(), authorization.map(str::to_string)))
+            .collect();
+        stream::iter(uploads)
+            .map(|(owner, blob, authorization)| async move {
+                self.upload_artifact_blob(&owner, &blob, authorization.as_deref()).await
+            })
+            .buffer_unordered(UPLOAD_CONCURRENCY)
+            .try_collect::<()>()
+            .await?;
+        let request = PublishArtifactRequest {
+            key: publication.key.clone(),
+            envelope: publication.envelope.clone(),
+            blobs: Vec::new(),
+        };
         let mut put = self.http
             .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
             .timeout(self.artifact_request_timeout)
-            .json(request);
+            .json(&request);
         if let Some(authorization) = authorization {
             put = put.header("authorization", authorization);
         }
-        let response = put.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/artifacts returned {status}: {}",
-                String::from_utf8_lossy(&body),
-            )));
-        }
+        check_status(put.send().await?, "/-/pnpr/v0/artifacts").await?;
         Ok(())
+    }
+
+    /// Store one blob in `owner`'s namespace unless it is stored already.
+    async fn upload_artifact_blob(
+        &self,
+        owner: &OwnerScope,
+        blob: &ArtifactBlobSource,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        let url = self.blob_url(owner, &blob.integrity);
+        let mut head = self.http.head(&url).timeout(self.artifact_request_timeout);
+        if let Some(authorization) = authorization {
+            head = head.header("authorization", authorization);
+        }
+        let response = head.send().await?;
+        if response.status().is_success() {
+            return Ok(());
+        }
+        if response.status() != StatusCode::NOT_FOUND {
+            check_status(response, "HEAD /-/pnpr/v0/artifacts/blob").await?;
+        }
+        let mut put = self.http
+            .put(&url)
+            .timeout(blob_timeout(self.artifact_request_timeout, blob.size))
+            .header("content-type", "application/octet-stream")
+            .header("content-length", blob.size)
+            .body(blob_body(blob).await?);
+        if let Some(authorization) = authorization {
+            put = put.header("authorization", authorization);
+        }
+        check_status(put.send().await?, "PUT /-/pnpr/v0/artifacts/blob").await?;
+        Ok(())
+    }
+
+    /// Where one blob of `owner` is uploaded and looked up.
+    fn blob_url(&self, owner: &OwnerScope, integrity: &str) -> String {
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        match owner {
+            OwnerScope::Organization { name } => query.append_pair("organization", name),
+            OwnerScope::Publisher { package } => query.append_pair("publisher", package),
+        };
+        query.append_pair("integrity", integrity);
+        format!("{}-/pnpr/v0/artifacts/blob?{}", self.base_url, query.finish())
     }
 
     /// Resolve a batch and keep only variants signed by a configured key and
@@ -318,33 +378,61 @@ impl PnprClient {
         serde_json::from_slice(&body).map_err(|err| PnprClientError::Protocol(err.to_string()))
     }
 
-    /// Download and recompute a selected manifest blob's SHA-512 before
-    /// returning any bytes to the caller.
+    /// One blob of a selected manifest, held to the `size` the manifest
+    /// declares and checked against its integrity before any of it is
+    /// returned.
     pub async fn download_artifact_blob(
         &self,
         request: &ArtifactBlobRequest,
+        size: u64,
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
+        let response = self.blob_response(request, size, authorization).await?;
+        read_blob(response, &request.integrity, size).await
+    }
+
+    /// [`Self::download_artifact_blob`] into a new file at `destination`.
+    pub async fn download_artifact_blob_to(
+        &self,
+        request: &ArtifactBlobRequest,
+        size: u64,
+        destination: &Path,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        let response = self.blob_response(request, size, authorization).await?;
+        write_blob(response, &request.integrity, size, destination).await
+    }
+
+    async fn blob_response(
+        &self,
+        request: &ArtifactBlobRequest,
+        size: u64,
+        authorization: Option<&str>,
+    ) -> Result<reqwest::Response, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
-            .timeout(self.artifact_request_timeout)
+            .timeout(blob_timeout(self.artifact_request_timeout, size))
             .json(request);
         if let Some(authorization) = authorization {
             post = post.header("authorization", authorization);
         }
-        let response = post.send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/artifacts/blob returned {status}: {}",
-                String::from_utf8_lossy(&body),
-            )));
-        }
-        let bytes = response_body_bounded(response, MAX_FILE_SIZE as usize).await?;
-        verify_blob(&request.integrity, &bytes)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        Ok(bytes)
+        check_status(post.send().await?, "/-/pnpr/v0/artifacts/blob").await
     }
+}
+
+/// `response` when it succeeded, or the server's error quoting its body.
+async fn check_status(
+    response: reqwest::Response,
+    request: &str,
+) -> Result<reqwest::Response, PnprClientError> {
+    if response.status().is_success() {
+        return Ok(response);
+    }
+    let status = response.status();
+    let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
+    Err(PnprClientError::Server(format!(
+        "{request} returned {status}: {}",
+        String::from_utf8_lossy(&body),
+    )))
 }

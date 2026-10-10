@@ -8,11 +8,12 @@
 pub use turborepo::TurborepoArtifactStore;
 
 use super::{
-    ArtifactBlobRequest, BTreeMap, PnprClient, PnprClientError, PublishArtifactRequest,
+    ArtifactBlobRequest, ArtifactPublication, BTreeMap, PnprClient, PnprClientError,
     ResolveArtifactsOptions, VerifiedArtifact,
     artifacts::{retain_permitted_candidates, select_verified_artifacts},
 };
 use pnpm_config::{Config, RemoteCacheSettings};
+use std::path::Path;
 
 pub enum ArtifactStore {
     Pnpr { client: PnprClient, authorization: Option<String> },
@@ -88,31 +89,59 @@ impl ArtifactStore {
         }
     }
 
-    /// One blob of an artifact [`Self::resolve_artifacts`] selected, checked
-    /// against its integrity.
+    /// One blob of an artifact [`Self::resolve_artifacts`] selected, held
+    /// to the `size` its manifest declares and checked against its
+    /// integrity.
     pub async fn download_artifact_blob(
         &self,
         request: &ArtifactBlobRequest,
+        size: u64,
     ) -> Result<Vec<u8>, PnprClientError> {
         match self {
             Self::Pnpr { client, authorization } => {
-                client.download_artifact_blob(request, authorization.as_deref()).await
+                client.download_artifact_blob(request, size, authorization.as_deref()).await
             }
             Self::Turborepo(store) => {
-                store.download_blob(request).await.map_err(remote_cache_error)
+                store.download_blob(request, size).await.map_err(remote_cache_error)
             }
         }
     }
 
-    pub async fn publish_artifact(
+    /// [`Self::download_artifact_blob`] into a new file at `destination`,
+    /// for a blob too large to hold in memory.
+    pub async fn download_artifact_blob_to(
         &self,
-        request: &PublishArtifactRequest,
+        request: &ArtifactBlobRequest,
+        size: u64,
+        destination: &Path,
     ) -> Result<(), PnprClientError> {
         match self {
             Self::Pnpr { client, authorization } => {
-                client.publish_artifact(request, authorization.as_deref()).await
+                client.download_artifact_blob_to(
+                    request,
+                    size,
+                    destination,
+                    authorization.as_deref(),
+                )
+                .await
             }
-            Self::Turborepo(store) => store.publish(request).await.map_err(remote_cache_error),
+            Self::Turborepo(store) => {
+                store.download_blob_to(request, size, destination).await.map_err(remote_cache_error)
+            }
+        }
+    }
+
+    /// Store a signed artifact's blobs, each read from its file, then its
+    /// envelope.
+    pub async fn publish_artifact(
+        &self,
+        publication: &ArtifactPublication,
+    ) -> Result<(), PnprClientError> {
+        match self {
+            Self::Pnpr { client, authorization } => {
+                client.publish_artifact(publication, authorization.as_deref()).await
+            }
+            Self::Turborepo(store) => store.publish(publication).await.map_err(remote_cache_error),
         }
     }
 }

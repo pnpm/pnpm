@@ -206,9 +206,9 @@ mod restore {
         SnapshotEntry,
     };
     use pnpm_pnpr_client::{
-        ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-        ArtifactPayload, ArtifactStore, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
-        OwnerScope, PublishArtifactRequest, ResolveArtifactsRequest, SignedArtifactEnvelope,
+        ARTIFACT_KIND, ArtifactBlobSource, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+        ArtifactPayload, ArtifactPublication, ArtifactStore, ArtifactSubject, BuilderProfile,
+        CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest, SignedArtifactEnvelope,
         TurborepoArtifactStore,
     };
     use pnpm_shared_artifact_protocol::{
@@ -736,13 +736,17 @@ mod restore {
         let candidate = requested_candidate(&store_dir).await;
         let cache = TurborepoCache::start();
         let envelope = signed_envelope(&candidate, &fixture_platform_tag(), built_manifest());
+        let build = tempfile::tempdir().expect("tempdir");
+        let built = build.path().join("addon.node");
+        std::fs::write(&built, built_bytes()).expect("write the built file");
         ArtifactStore::Turborepo(TurborepoArtifactStore::new(cache.url(), None, None).unwrap())
-            .publish_artifact(&PublishArtifactRequest {
+            .publish_artifact(&ArtifactPublication {
                 key: candidate.key.clone(),
                 envelope,
-                blobs: vec![ArtifactBlobUpload {
+                blobs: vec![ArtifactBlobSource {
                     integrity: integrity_of(built_bytes()),
-                    data: BASE64.encode(built_bytes()),
+                    size: built_bytes().len() as u64,
+                    path: built,
                 }],
             })
             .await
@@ -854,6 +858,23 @@ mod restore {
         config
     }
 
+    /// Answer every blob a publication checks for as missing, and accept its
+    /// upload. Returns the upload mock.
+    async fn accept_blob_uploads(server: &mut mockito::ServerGuard) -> mockito::Mock {
+        server
+            .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+            .match_query(mockito::Matcher::Any)
+            .with_status(404)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", "/-/pnpr/v0/artifacts/blob")
+            .match_query(mockito::Matcher::Any)
+            .with_status(201)
+            .create_async()
+            .await
+    }
+
     /// Publish `diff` for the fixture snapshot from a blocking thread, the
     /// way the build phase does.
     async fn publish(config: Config, store_dir: StoreDir, diff: SideEffectsDiff) {
@@ -905,6 +926,7 @@ mod restore {
         let store_dir = StoreDir::new(store.path());
         let mut server = mockito::Server::new_async().await;
         let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
 
         let untouched = server
             .mock("PUT", "/-/pnpr/v0/artifacts")
@@ -939,6 +961,7 @@ mod restore {
         };
         publish(config, store_dir, built).await;
         published.assert_async().await;
+        uploads.assert_async().await;
     }
 
     /// A build that created a symlink is shared like any other.
@@ -960,6 +983,7 @@ mod restore {
         let store_dir = StoreDir::new(store.path());
         let mut server = mockito::Server::new_async().await;
         let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
         let published = server
             .mock("PUT", "/-/pnpr/v0/artifacts")
             .expect(1)
@@ -983,5 +1007,6 @@ mod restore {
         publish(config, store_dir, linked).await;
 
         published.assert_async().await;
+        uploads.assert_async().await;
     }
 }

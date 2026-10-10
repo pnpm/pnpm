@@ -90,8 +90,9 @@ artifacts:
 
 Publisher-owned artifacts are rejected until publisher discovery is defined.
 
-pnpr enforces its own storage bounds: at most eight variants per input key,
-1 GiB per owner, and 10 GiB across the server's artifact cache. Local storage
+pnpr enforces its own storage bounds: at most eight variants per input key, and
+the [`artifacts.quota`](configuration.md#registry-resolver-and-artifact-surfaces)
+per owner and across the server's artifact cache. Local storage
 serializes updates with an advisory lock; S3 replicas coordinate the quota
 counter with conditional object writes. A lookup's scanned envelope bytes plus
 its serialized response share one 16 MiB budget.
@@ -176,7 +177,8 @@ export PNPM_SIDE_EFFECTS_CACHE_REMOTE_BUILDER_ID='ci/main/42'
 ```
 
 `pnpm install` then runs the lifecycle scripts as usual, captures the actual
-post-build diff, signs it, and stores it with
+post-build diff, and signs it. It uploads each blob the server lacks with
+`PUT /-/pnpr/v0/artifacts/blob`, then stores the signed envelope with
 `PUT /-/pnpr/v0/artifacts`. `imageDigest`, `architectureBaseline` and `buildEnv`
 are optional provenance recorded in the signed payload. Never commit the private
 key.

@@ -403,6 +403,17 @@ pub(super) struct ArtifactsFeatureFile {
     pub(super) enabled: bool,
     #[serde(default)]
     pub(super) orgs: IndexMap<String, StorageAccessFile>,
+    #[serde(default)]
+    pub(super) quota: ArtifactQuotaFile,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ArtifactQuotaFile {
+    #[serde(rename = "ownerGiB")]
+    pub(super) owner_gib: Option<u64>,
+    #[serde(rename = "totalGiB")]
+    pub(super) total_gib: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]

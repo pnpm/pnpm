@@ -377,20 +377,19 @@ pub(super) async fn download_artifact_file(
     artifact: &pnpm_pnpr_client::VerifiedArtifact,
     file: &ArtifactFile,
 ) -> Result<Vec<u8>, (String, bool)> {
-    let bytes = context.store
-        .download_artifact_blob(&ArtifactBlobRequest {
-            owner: artifact.payload.owner.clone(),
-            integrity: file.integrity.clone(),
-        })
+    context.store
+        .download_artifact_blob(
+            &ArtifactBlobRequest {
+                owner: artifact.payload.owner.clone(),
+                integrity: file.integrity.clone(),
+            },
+            file.size,
+        )
         .await
         .map_err(|error| {
             let quarantine = matches!(error, PnprClientError::Protocol(_));
             (error.to_string(), quarantine)
-        })?;
-    if bytes.len() as u64 != file.size {
-        return Err(("shared artifact blob does not match its declared size".to_string(), true));
-    }
-    Ok(bytes)
+        })
 }
 /// The store's own copy of a blob, when it holds one.
 ///

@@ -1,11 +1,11 @@
 use super::{
     ArtifactBlobRequest, ArtifactCandidate, ArtifactSubject, BTreeMap, HashSet, OwnerScope,
-    PackageIdentity, ResolveArtifactsOptions, signed_artifact_fixture,
+    PackageIdentity, ResolveArtifactsOptions, SignedFixture, signed_artifact_fixture,
 };
 use base64::Engine as _;
 use p256::pkcs8::EncodePublicKey as _;
 use pnpm_pnpr_client::{
-    ArtifactBuildPolicy, ArtifactStore, PnprClientError, PublishArtifactRequest,
+    ArtifactBlobSource, ArtifactBuildPolicy, ArtifactPublication, ArtifactStore, PnprClientError,
     TurborepoArtifactStore,
 };
 use pnpm_testing_utils::turborepo_cache::TurborepoCache;
@@ -59,7 +59,7 @@ fn lookup(public_key: &[u8], supported_tags: &[&str]) -> ResolveArtifactsOptions
 async fn a_published_artifact_resolves_on_a_compatible_machine() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (request, public_key, blob) = signed_artifact_fixture();
+    let (request, public_key, blob, _blobs) = signed_artifact_fixture();
 
     store.publish_artifact(&request).await.expect("publish");
 
@@ -70,10 +70,13 @@ async fn a_published_artifact_resolves_on_a_compatible_machine() {
     let artifact =
         resolved.get("dependency-side-effects:v1:deps=abc").expect("the artifact resolves");
     let downloaded = store
-        .download_artifact_blob(&ArtifactBlobRequest {
-            owner: artifact.payload.owner.clone(),
-            integrity: artifact.payload.manifest.added[0].integrity.clone(),
-        })
+        .download_artifact_blob(
+            &ArtifactBlobRequest {
+                owner: artifact.payload.owner.clone(),
+                integrity: artifact.payload.manifest.added[0].integrity.clone(),
+            },
+            artifact.payload.manifest.added[0].size,
+        )
         .await
         .expect("download");
     assert_eq!(downloaded, blob);
@@ -94,7 +97,7 @@ async fn a_published_artifact_resolves_on_a_compatible_machine() {
 async fn an_artifact_for_another_platform_is_a_miss() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (request, public_key, _) = signed_artifact_fixture();
+    let (request, public_key, _, _blobs) = signed_artifact_fixture();
     store.publish_artifact(&request).await.expect("publish");
 
     let resolved = store
@@ -113,7 +116,7 @@ async fn an_artifact_for_another_platform_is_a_miss() {
 async fn an_untrusted_or_altered_artifact_is_a_miss() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (request, public_key, _) = signed_artifact_fixture();
+    let (request, public_key, _, _blobs) = signed_artifact_fixture();
     store.publish_artifact(&request).await.expect("publish");
 
     let other_key = super::SigningKey::from_slice(&[9; 32]).expect("another key");
@@ -164,7 +167,7 @@ async fn a_workspace_task_artifact_round_trips_through_pnpr() {
         client: pnpm_pnpr_client::PnprClient::new(pnpr_url),
         authorization: Some(authorization),
     };
-    let (request, public_key, blob) = workspace_task_fixture();
+    let (request, public_key, blob, _blobs) = workspace_task_fixture();
     store.handshake().await.expect("handshake");
     store.publish_artifact(&request).await.expect("publish");
 
@@ -190,18 +193,25 @@ async fn a_workspace_task_artifact_round_trips_through_pnpr() {
         .expect("resolve");
     let artifact = resolved.get(&request.key).expect("the task artifact resolves");
     let downloaded = store
-        .download_artifact_blob(&ArtifactBlobRequest {
-            owner: artifact.payload.owner.clone(),
-            integrity: artifact.payload.manifest.added[0].integrity.clone(),
-        })
+        .download_artifact_blob(
+            &ArtifactBlobRequest {
+                owner: artifact.payload.owner.clone(),
+                integrity: artifact.payload.manifest.added[0].integrity.clone(),
+            },
+            artifact.payload.manifest.added[0].size,
+        )
         .await
         .expect("download");
     assert_eq!(downloaded, blob);
 }
 
-fn workspace_task_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
+fn workspace_task_fixture() -> SignedFixture {
+    workspace_task_fixture_with(b"dist output".to_vec())
+}
+
+/// A signed task result whose one output file holds `blob`.
+fn workspace_task_fixture_with(blob: Vec<u8>) -> SignedFixture {
     use p256::pkcs8::EncodePrivateKey as _;
-    let blob = b"dist output".to_vec();
     let integrity =
         format!("sha512-{}", super::BASE64.encode(<super::Sha512 as sha2::Digest>::digest(&blob)));
     let payload = pnpm_pnpr_client::ArtifactPayload {
@@ -242,18 +252,91 @@ fn workspace_task_fixture() -> (PublishArtifactRequest, Vec<u8>, Vec<u8>) {
         .expect("encode public key")
         .as_bytes()
         .to_vec();
-    (
-        PublishArtifactRequest {
-            key: payload.input_key,
-            envelope,
-            blobs: vec![pnpm_pnpr_client::ArtifactBlobUpload {
-                integrity,
-                data: super::BASE64.encode(&blob),
-            }],
+    let blobs = tempfile::TempDir::new().expect("create a blob directory");
+    let path = blobs.path().join("index.js");
+    std::fs::write(&path, &blob).expect("write the blob file");
+    let publication = ArtifactPublication {
+        key: payload.input_key,
+        envelope,
+        blobs: vec![ArtifactBlobSource { integrity, size: blob.len() as u64, path }],
+    };
+    (publication, public_key, blob, blobs)
+}
+
+/// What a consumer that trusts `public_key` asks for the task result `key`.
+fn task_lookup(key: &str, public_key: Vec<u8>) -> ResolveArtifactsOptions {
+    ResolveArtifactsOptions {
+        candidates: vec![ArtifactCandidate {
+            key: key.to_string(),
+            subject: ArtifactSubject::workspace_task("packages/app", "build"),
+            owner: OwnerScope::organization("pnpr-client"),
+        }],
+        supported_tags: Vec::new(),
+        trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
+        quarantined_envelope_digests: BTreeMap::new(),
+        on_rejected_artifact: None,
+        authorization: None,
+        build_policy: ArtifactBuildPolicy {
+            eligible_packages: HashSet::new(),
+            allowed_builds: HashSet::new(),
+            ignore_scripts: false,
         },
-        public_key,
-        blob,
-    )
+    }
+}
+
+/// A task result's blobs are uploaded from their files and downloaded into
+/// files, through either transport. The blob is large enough that a pnpr
+/// server writes it in parts.
+#[tokio::test]
+async fn a_large_task_result_streams_through_either_transport() {
+    let large: Vec<u8> = (0..9 * 1024 * 1024_u32)
+        .map(|index| (index % 251) as u8)
+        .collect();
+    let cache = TurborepoCache::start();
+    let (pnpr_url, authorization, _storage) = super::start_pnpr_artifacts().await;
+    let stores = [
+        store(&cache),
+        ArtifactStore::Pnpr {
+            client: pnpm_pnpr_client::PnprClient::new(pnpr_url),
+            authorization: Some(authorization),
+        },
+    ];
+    for store in &stores {
+        let (publication, public_key, blob, _blobs) = workspace_task_fixture_with(large.clone());
+        store.publish_artifact(&publication).await.expect("publish");
+        let resolved = store
+            .resolve_artifacts(task_lookup(&publication.key, public_key))
+            .await
+            .expect("resolve");
+        let file = &resolved[&publication.key].payload.manifest.added[0];
+        let destination = tempfile::TempDir::new().unwrap();
+        let path = destination.path().join("index.js");
+        let request = ArtifactBlobRequest {
+            owner: OwnerScope::organization("pnpr-client"),
+            integrity: file.integrity.clone(),
+        };
+        store.download_artifact_blob_to(&request, file.size, &path).await.expect("download");
+        assert!(std::fs::read(&path).unwrap() == blob, "the downloaded file holds the blob");
+    }
+}
+
+/// A publication whose blob files do not match its signed manifest is refused
+/// before anything is sent.
+#[tokio::test]
+async fn a_publication_that_does_not_match_its_manifest_is_refused() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (publication, _, _, _blobs) = workspace_task_fixture();
+    let mut missing = publication.clone();
+    missing.blobs.clear();
+    let mut resized = publication.clone();
+    resized.blobs[0].size += 1;
+    let mut doubled = publication.clone();
+    doubled.blobs.push(publication.blobs[0].clone());
+    for invalid in [missing, resized, doubled] {
+        store.publish_artifact(&invalid).await.expect_err("refused");
+    }
+    assert!(cache.requests().is_empty(), "nothing reached the server");
 }
 
 /// The organizations a pnpr server declares decide who reads and who
@@ -267,7 +350,7 @@ async fn a_pnpr_organization_separates_readers_from_publishers() {
         client: pnpm_pnpr_client::PnprClient::new(&pnpr_url),
         authorization: Some(authorization.to_string()),
     };
-    let (request, public_key, _) = workspace_task_fixture();
+    let (request, public_key, _, _blobs) = workspace_task_fixture();
     store(&publisher).publish_artifact(&request).await.expect("the publisher publishes");
     assert!(store(&reader).publish_artifact(&request).await.is_err(), "a reader must not publish");
 
@@ -306,7 +389,7 @@ async fn a_pnpr_organization_separates_readers_from_publishers() {
 async fn a_publication_replaces_an_unverifiable_object() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (request, public_key, _) = signed_artifact_fixture();
+    let (request, public_key, _, _blobs) = signed_artifact_fixture();
     store.publish_artifact(&request).await.expect("publish");
     let hashes: Vec<String> = cache.artifacts().into_keys().collect();
     for hash in &hashes {
@@ -335,10 +418,10 @@ async fn a_publication_replaces_an_unverifiable_object() {
 async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (dependency, public_key, _) = signed_artifact_fixture();
+    let (dependency, public_key, _, _blobs) = signed_artifact_fixture();
     store.publish_artifact(&dependency).await.expect("publish the dependency build");
     let dependency_hash = last_put(&cache);
-    let (task, task_public_key, _) = workspace_task_fixture();
+    let (task, task_public_key, _, _blobs) = workspace_task_fixture();
     store.publish_artifact(&task).await.expect("publish the task result");
     let task_hash = last_put(&cache);
     let both = || {
@@ -372,7 +455,7 @@ async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
 async fn a_lookup_the_server_answers_no_part_of_fails() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (task, public_key, _) = workspace_task_fixture();
+    let (task, public_key, _, _blobs) = workspace_task_fixture();
     store.publish_artifact(&task).await.expect("publish");
     cache.fail(&last_put(&cache), 503);
 
@@ -395,7 +478,7 @@ async fn a_lookup_the_server_answers_no_part_of_fails() {
 async fn an_altered_blob_is_refused() {
     let cache = TurborepoCache::start();
     let store = store(&cache);
-    let (request, public_key, blob) = signed_artifact_fixture();
+    let (request, public_key, blob, _blobs) = signed_artifact_fixture();
     store.publish_artifact(&request).await.expect("publish");
     let blob_hash = first_put(&cache);
     let resolved = store
@@ -407,12 +490,17 @@ async fn an_altered_blob_is_refused() {
         owner: artifact.payload.owner.clone(),
         integrity: artifact.payload.manifest.added[0].integrity.clone(),
     };
-    assert_eq!(store.download_artifact_blob(&blob_request).await.expect("download"), blob);
+    let size = blob.len() as u64;
+    assert_eq!(store.download_artifact_blob(&blob_request, size).await.expect("download"), blob);
 
     cache.store(&blob_hash, b"altered".to_vec());
-    let error = store.download_artifact_blob(&blob_request).await.expect_err("altered blob");
+    let error = store.download_artifact_blob(&blob_request, size).await.expect_err("altered blob");
     eprintln!("{error}");
     assert!(matches!(error, PnprClientError::Protocol(_)), "a content fault is quarantinable");
+    let destination = tempfile::TempDir::new().unwrap();
+    let path = destination.path().join("addon.node");
+    store.download_artifact_blob_to(&blob_request, size, &path).await.expect_err("altered blob");
+    assert!(!path.exists(), "a refused blob leaves no file behind");
 }
 
 /// The object a publication stored first: its first blob.

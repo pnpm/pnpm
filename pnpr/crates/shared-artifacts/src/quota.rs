@@ -2,9 +2,9 @@ use super::{
     ARTIFACT_LOCK_POLL_INTERVAL, ArtifactUsage, ObjectStore, ObjectStoreExt,
     PUBLICATION_FINISH_RETRIES, PathBuf, PutMode, PutOptions, PutPayload, QUOTA_WRITE_RETRIES,
     QuotaChange, QuotaCoordination, RECLAMATION_WAIT_RETRIES, RegistryError, Result,
-    SharedArtifactStore, UpdateVersion, acquire_artifact_lock, expire_stranded_publications,
-    finish_outcome, is_write_conflict, quota_counter_underflow, quota_write_retry_delay,
-    register_publication, sleep, storage_quota_error,
+    SharedArtifactStore, UpdateVersion, acquire_artifact_lock, bad_request,
+    expire_stranded_publications, finish_outcome, is_write_conflict, quota_counter_underflow,
+    quota_write_retry_delay, register_publication, sleep, storage_quota_error,
 };
 use futures_util::StreamExt as _;
 
@@ -215,8 +215,11 @@ impl SharedArtifactStore {
             .unwrap_or(0);
         let next_owner = owner_bytes.checked_add(bytes).ok_or_else(storage_quota_error)?;
         let next_global = usage.global_bytes.checked_add(bytes).ok_or_else(storage_quota_error)?;
-        if next_owner > self.owner_limit || next_global > self.global_limit {
-            return Err(storage_quota_error());
+        if next_owner > self.limits.owner || next_global > self.limits.total {
+            return Err(bad_request(format!(
+                "shared artifact storage quota exceeded ({} bytes per owner, {} bytes in total)",
+                self.limits.owner, self.limits.total,
+            )));
         }
         usage.global_bytes = next_global;
         usage.owner_bytes.insert(owner.to_string(), next_owner);

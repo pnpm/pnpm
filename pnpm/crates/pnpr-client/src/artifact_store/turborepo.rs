@@ -17,9 +17,11 @@
 //! a replacement serves the machines its own build serves.
 
 use super::super::{
-    ARTIFACT_REQUEST_TIMEOUT, ArtifactBlobRequest, ArtifactCandidate, BTreeMap, MAX_FILE_SIZE,
-    PnprClientError, PublishArtifactRequest, ResolveArtifactsOptions, ResolveArtifactsResponse,
-    SignedArtifactEnvelope, response_body_bounded, verify_blob,
+    ARTIFACT_REQUEST_TIMEOUT, ArtifactBlobRequest, ArtifactCandidate, ArtifactPublication,
+    BTreeMap, PnprClientError, ResolveArtifactsOptions, ResolveArtifactsResponse,
+    SignedArtifactEnvelope,
+    blob_transfer::{BlobBody, blob_body, blob_timeout, read_blob, write_blob},
+    response_body_bounded,
 };
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_shared_artifact_protocol::{
@@ -27,6 +29,7 @@ use pnpm_shared_artifact_protocol::{
     MAX_ENCODED_SIGNED_PAYLOAD_SIZE, OwnerScope, ResolvedArtifact, compatibility_scopes,
 };
 use reqwest::{Client, StatusCode, redirect::Policy};
+use std::path::Path;
 
 /// The scope of an artifact that applies to every machine.
 const UNIVERSAL_SCOPE: &str = "universal";
@@ -127,60 +130,86 @@ impl TurborepoArtifactStore {
         Ok(serde_json::from_slice(&body).ok())
     }
 
-    /// One blob of an artifact, checked against its integrity.
+    /// One blob of an artifact, held to `size` and checked against its
+    /// integrity.
     pub(super) async fn download_blob(
         &self,
         request: &ArtifactBlobRequest,
+        size: u64,
     ) -> Result<Vec<u8>, PnprClientError> {
+        read_blob(self.blob_response(request, size).await?, &request.integrity, size).await
+    }
+
+    /// [`Self::download_blob`] into a new file at `destination`.
+    pub(super) async fn download_blob_to(
+        &self,
+        request: &ArtifactBlobRequest,
+        size: u64,
+        destination: &Path,
+    ) -> Result<(), PnprClientError> {
+        let response = self.blob_response(request, size).await?;
+        write_blob(response, &request.integrity, size, destination).await
+    }
+
+    async fn blob_response(
+        &self,
+        request: &ArtifactBlobRequest,
+        size: u64,
+    ) -> Result<reqwest::Response, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         let url = self.artifact_url(&blob_hash(&request.owner, &request.integrity));
-        let bytes = self
-            .get(&url, MAX_FILE_SIZE as usize)
-            .await
-            .map_err(|failure| failure.error)?
-            .ok_or_else(|| {
-                PnprClientError::Protocol(format!(
-                    "the remote cache holds no blob {:?}",
-                    request.integrity,
-                ))
-            })?;
-        verify_blob(&request.integrity, &bytes)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        Ok(bytes)
+        let response = self
+            .authorize(self.http.get(url))
+            .timeout(blob_timeout(ARTIFACT_REQUEST_TIMEOUT, size))
+            .send()
+            .await?;
+        match response.status() {
+            StatusCode::NOT_FOUND => Err(PnprClientError::Protocol(format!(
+                "the remote cache holds no blob {:?}",
+                request.integrity,
+            ))),
+            status if status.is_success() => Ok(response),
+            status => {
+                Err(PnprClientError::Server(format!("GET {} returned {status}", self.base_url)))
+            }
+        }
     }
 
     /// Store the artifact's blobs, then its envelope in every scope it
     /// reaches, so an envelope is never stored ahead of its blobs.
+    ///
+    /// Every blob is uploaded, including one already stored: an object can be
+    /// replaced, so one that fails verification is mended by the next
+    /// publication that carries it.
     pub(super) async fn publish(
         &self,
-        request: &PublishArtifactRequest,
+        publication: &ArtifactPublication,
     ) -> Result<(), PnprClientError> {
-        let publication =
-            request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let owner = &publication.payload.owner;
-        let blobs = publication.blobs
-            .into_iter()
-            .map(|(integrity, bytes)| (self.artifact_url(&blob_hash(owner, &integrity)), bytes));
-        self.put_all(blobs).await?;
-        let envelope = serde_json::to_vec(&request.envelope)
+        let payload = publication.validate()?;
+        let owner = &payload.owner;
+        // Owned, so the futures borrow nothing but `self` and stay `Send`
+        // for every caller.
+        let blobs: Vec<_> = publication.blobs
+            .iter()
+            .map(|blob| (self.artifact_url(&blob_hash(owner, &blob.integrity)), blob.clone()))
+            .collect();
+        stream::iter(blobs)
+            .map(|(url, blob)| async move { self.put(&url, blob_body(&blob).await?, blob.size).await })
+            .buffer_unordered(REQUEST_CONCURRENCY)
+            .try_collect::<()>()
+            .await?;
+        let envelope = serde_json::to_vec(&publication.envelope)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let envelopes = publication_scopes(&publication.payload.compatibility)
-            .into_iter()
-            .map(|scope| {
-                (self.artifact_url(&envelope_hash(owner, &request.key, &scope)), envelope.clone())
-            });
-        self.put_all(envelopes).await
-    }
-
-    /// Store every `(url, body)`, several at a time. The first failure stops
-    /// the rest.
-    async fn put_all(
-        &self,
-        objects: impl Iterator<Item = (String, Vec<u8>)>,
-    ) -> Result<(), PnprClientError> {
-        let objects: Vec<_> = objects.collect();
-        stream::iter(objects)
-            .map(|(url, body)| async move { self.put(&url, body).await })
+        let envelopes: Vec<_> = publication_scopes(&payload.compatibility)
+            .iter()
+            .map(|scope| self.artifact_url(&envelope_hash(owner, &publication.key, scope)))
+            .collect();
+        stream::iter(envelopes)
+            .map(|url| {
+                let envelope = envelope.clone();
+                let size = envelope.len() as u64;
+                async move { self.put(&url, envelope.into(), size).await }
+            })
             .buffer_unordered(REQUEST_CONCURRENCY)
             .try_collect()
             .await
@@ -207,10 +236,12 @@ impl TurborepoArtifactStore {
         response_body_bounded(response, limit).await.map(Some).map_err(LookupFailure::failed)
     }
 
-    async fn put(&self, url: &str, body: Vec<u8>) -> Result<(), PnprClientError> {
+    async fn put(&self, url: &str, body: BlobBody, size: u64) -> Result<(), PnprClientError> {
         let response = self
             .authorize(self.http.put(url))
+            .timeout(blob_timeout(ARTIFACT_REQUEST_TIMEOUT, size))
             .header("content-type", "application/octet-stream")
+            .header("content-length", size)
             .body(body)
             .send()
             .await?;

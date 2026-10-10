@@ -8,19 +8,19 @@
 //! restored from there through the same checks as a local entry.
 
 use super::cache::{StoredTask, TaskCache};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use pnpm_config::Config;
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactBlobUpload, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSigner, ArtifactStore, ArtifactSubject,
-    CompatibilityConstraints, OwnerScope, PublishArtifactRequest, ResolveArtifactsOptions,
+    ArtifactBlobRequest, ArtifactBlobSource, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSigner, ArtifactStore,
+    ArtifactSubject, CompatibilityConstraints, OwnerScope, ResolveArtifactsOptions,
     VerifiedArtifact, WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX,
     decode_trusted_keys,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs, io,
+    fs,
+    io::{self, Read as _},
     path::{Component, Path},
     sync::{Arc, Mutex},
 };
@@ -46,8 +46,8 @@ pub(super) struct RemoteTaskCache {
 /// Blob downloads one restore has in flight at once.
 const DOWNLOAD_CONCURRENCY: usize = 8;
 
-/// Uploads in flight at once. An upload reads and encodes the task's outputs
-/// only once it holds a slot, so this also bounds how many are in memory.
+/// Uploads in flight at once. An upload hashes the task's outputs only once
+/// it holds a slot.
 const MAX_CONCURRENT_UPLOADS: usize = 4;
 
 /// Signs local entries as `workspace-task` artifacts.
@@ -110,20 +110,25 @@ impl RemoteTaskCache {
         task: &TaskIdentity<'_>,
         cache: &TaskCache,
     ) -> Result<bool, String> {
-        let Some(files) = self.runtime.block_on(self.download(key, task))? else {
+        let Some(files) = self.runtime.block_on(self.resolve(key, task))? else {
             return Ok(false);
         };
         cache
-            .import(key, |staging| write_entry(&files, staging))
-            .map_err(|error| format!("writing the artifact: {error}"))?;
+            .import(key, |staging| {
+                self.runtime
+                    .block_on(self.download_entry(&files, staging))
+                    .map_err(io::Error::other)
+            })
+            .map_err(|error| format!("restoring the artifact: {error}"))?;
         Ok(true)
     }
 
-    async fn download(
+    /// The files of the artifact stored for `key` that this machine trusts.
+    async fn resolve(
         &self,
         key: &str,
         task: &TaskIdentity<'_>,
-    ) -> Result<Option<DownloadedEntry>, String> {
+    ) -> Result<Option<Vec<ArtifactFile>>, String> {
         let resolved = self.store
             .resolve_artifacts(ResolveArtifactsOptions {
                 candidates: vec![self.candidate(key, task)],
@@ -143,23 +148,30 @@ impl RemoteTaskCache {
         let Some(VerifiedArtifact { payload, .. }) = resolved.into_values().next() else {
             return Ok(None);
         };
-        let integrities: HashSet<String> = payload.manifest.added
-            .iter()
-            .map(|file| file.integrity.clone())
-            .collect();
-        let blobs: HashMap<String, Vec<u8>> = stream::iter(integrities)
-            .map(|integrity| async move {
-                let request = ArtifactBlobRequest { owner: self.owner.clone(), integrity };
-                let bytes = self.store
-                    .download_artifact_blob(&request)
+        Ok(Some(payload.manifest.added))
+    }
+
+    /// Download each blob of `files` once, straight into its file under the
+    /// empty `staging` directory, and copy it to every other file it backs.
+    /// Only `meta.json` and regular files under `outputs/` are accepted, so
+    /// nothing an artifact carries can write outside `staging`.
+    async fn download_entry(&self, files: &[ArtifactFile], staging: &Path) -> Result<(), String> {
+        let first_by_integrity = prepare_staging(files, staging)?;
+        stream::iter(first_by_integrity.values())
+            .map(|file| async move {
+                let request = ArtifactBlobRequest {
+                    owner: self.owner.clone(),
+                    integrity: file.integrity.clone(),
+                };
+                self.store
+                    .download_artifact_blob_to(&request, file.size, &staging.join(&file.path))
                     .await
-                    .map_err(|error| error.to_string())?;
-                Ok::<_, String>((request.integrity, bytes))
+                    .map_err(|error| error.to_string())
             })
             .buffer_unordered(DOWNLOAD_CONCURRENCY)
-            .try_collect()
+            .try_collect::<()>()
             .await?;
-        Ok(Some(DownloadedEntry { files: payload.manifest.added, blobs }))
+        complete_staging(files, &first_by_integrity, staging).map_err(|error| error.to_string())
     }
 
     /// Start publishing `stored` under `key` when this machine publishes.
@@ -232,7 +244,7 @@ impl TaskPublisher {
         &self,
         candidate: ArtifactCandidate,
         stored: &StoredTask,
-    ) -> io::Result<PublishArtifactRequest> {
+    ) -> io::Result<ArtifactPublication> {
         let mut added = Vec::with_capacity(stored.files.len() + 1);
         let mut blobs = BTreeMap::new();
         let entry_files = std::iter::once("meta.json".to_string())
@@ -242,13 +254,8 @@ impl TaskPublisher {
                     .map(|file| format!("outputs/{file}")),
             );
         for path in entry_files {
-            let (file, bytes) = artifact_file(&stored.entry_dir, path)?;
-            blobs
-                .entry(file.integrity.clone())
-                .or_insert_with(|| ArtifactBlobUpload {
-                    integrity: file.integrity.clone(),
-                    data: BASE64.encode(bytes),
-                });
+            let (file, source) = artifact_file(&stored.entry_dir, path)?;
+            blobs.entry(file.integrity.clone()).or_insert(source);
             added.push(file);
         }
         let payload = ArtifactPayload {
@@ -262,7 +269,7 @@ impl TaskPublisher {
             manifest: ArtifactManifest { added, deleted: Vec::new() },
         };
         let envelope = self.0.sign(&payload).map_err(io::Error::other)?;
-        Ok(PublishArtifactRequest {
+        Ok(ArtifactPublication {
             key: candidate.key,
             envelope,
             blobs: blobs.into_values().collect(),
@@ -270,22 +277,26 @@ impl TaskPublisher {
     }
 }
 
-/// One file of a local entry as the manifest lists it, with its bytes.
-fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, Vec<u8>)> {
+/// One file of a local entry as the manifest lists it, and the file its
+/// blob is uploaded from. The file is hashed as it is read, never held whole.
+fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, ArtifactBlobSource)> {
     let source = entry_dir.join(&path);
-    let bytes = fs::read(&source)?;
     let mode = if is_executable(&source)? { 0o755 } else { 0o644 };
-    let file = ArtifactFile {
-        integrity: ssri::IntegrityOpts::new()
-            .algorithm(ssri::Algorithm::Sha512)
-            .chain(&bytes)
-            .result()
-            .to_string(),
-        mode,
-        size: bytes.len() as u64,
-        path,
-    };
-    Ok((file, bytes))
+    let mut reader = fs::File::open(&source)?;
+    let mut hasher = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    let mut buffer = vec![0; 256 * 1024];
+    let mut size = 0_u64;
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.input(&buffer[..read]);
+        size += read as u64;
+    }
+    let integrity = hasher.result().to_string();
+    let file = ArtifactFile { integrity: integrity.clone(), mode, size, path };
+    Ok((file, ArtifactBlobSource { integrity, size, path: source }))
 }
 
 fn is_executable(path: &Path) -> io::Result<bool> {
@@ -301,29 +312,40 @@ fn is_executable(path: &Path) -> io::Result<bool> {
     }
 }
 
-/// Write a verified artifact's files into an empty `staging` directory. Only
-/// `meta.json` and regular files under `outputs/` are accepted, so nothing
-/// an artifact carries can write outside `staging`.
-/// A verified artifact's manifest files and their blobs, by integrity.
-struct DownloadedEntry {
-    files: Vec<ArtifactFile>,
-    blobs: HashMap<String, Vec<u8>>,
+/// Check every file of an artifact and create the directories it goes in,
+/// returning the first file each blob backs, which is the one downloaded.
+fn prepare_staging<'files>(
+    files: &'files [ArtifactFile],
+    staging: &Path,
+) -> Result<HashMap<&'files str, &'files ArtifactFile>, String> {
+    let mut first_by_integrity = HashMap::new();
+    for file in files {
+        if !is_entry_path(Path::new(&file.path)) || !matches!(file.mode, 0o644 | 0o755) {
+            return Err(format!("unexpected entry {}", file.path));
+        }
+        if let Some(parent) = staging.join(&file.path).parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        first_by_integrity.entry(file.integrity.as_str()).or_insert(file);
+    }
+    Ok(first_by_integrity)
 }
 
-fn write_entry(entry: &DownloadedEntry, staging: &Path) -> io::Result<()> {
-    for file in &entry.files {
-        let bytes = &entry.blobs[&file.integrity];
-        if !is_entry_path(Path::new(&file.path)) || !matches!(file.mode, 0o644 | 0o755) {
-            return Err(io::Error::other(format!("unexpected entry {}", file.path)));
-        }
+/// Copy each downloaded blob to the other files it backs, and mark the
+/// executable ones.
+fn complete_staging(
+    files: &[ArtifactFile],
+    first_by_integrity: &HashMap<&str, &ArtifactFile>,
+    staging: &Path,
+) -> io::Result<()> {
+    for file in files {
         let target = staging.join(&file.path);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)?;
+        let first = first_by_integrity[file.integrity.as_str()];
+        if !std::ptr::eq(first, file) {
+            fs::copy(staging.join(&first.path), &target)?;
         }
-        let mut output = fs::File::create_new(&target)?;
-        io::Write::write_all(&mut output, bytes)?;
         if file.mode == 0o755 {
-            pnpm_fs::file_mode::make_file_executable(&output)?;
+            pnpm_fs::file_mode::make_file_executable(&fs::File::open(&target)?)?;
         }
     }
     Ok(())

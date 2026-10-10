@@ -1,9 +1,9 @@
 use super::{
-    Arc, ArtifactBlobRequest, ArtifactCandidate, ArtifactSubject, ArtifactUsage, AtomicUsize,
-    FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory, MAX_VARIANTS_PER_CANDIDATE,
-    ObjectPath, ObjectStore, ObjectStoreExt, Ordering, OwnerScope, RegistryError,
-    ResolveArtifactsRequest, SharedArtifactStore, TempDir, is_variant_file, lookup, publication,
-    publication_for_platform, publication_tagged, publication_with_blob,
+    Arc, ArtifactBlobRequest, ArtifactCandidate, ArtifactQuota, ArtifactSubject, ArtifactUsage,
+    AtomicUsize, FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory,
+    MAX_VARIANTS_PER_CANDIDATE, ObjectPath, ObjectStore, ObjectStoreExt, Ordering, OwnerScope,
+    RegistryError, ResolveArtifactsRequest, SharedArtifactStore, TempDir, is_variant_file, lookup,
+    publication, publication_for_platform, publication_tagged, publication_with_blob,
     workspace_task_publication,
 };
 use futures_util::StreamExt as _;
@@ -583,8 +583,9 @@ async fn an_owner_with_no_room_cannot_have_markers_written_for_them() {
         .await
         .unwrap();
 
-    let full =
-        SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
+    let full = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path())
+        .unwrap()
+        .with_quota(ArtifactQuota { owner: 1, total: 1 });
     let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
     let prepared = super::super::prepare_publication("acme", &ours).unwrap();
 
