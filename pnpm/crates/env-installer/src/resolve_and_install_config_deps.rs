@@ -132,7 +132,9 @@ async fn resolve_config_deps(
             name,
             specifier,
             pinned_integrity: pinned_integrity.as_ref(),
-            updates: updates.prev_specifiers.contains_key(name).then_some(updates),
+            // A `version+integrity` pin is recorded as declared.
+            updates: (pinned_integrity.is_none() && updates.prev_specifiers.contains_key(name))
+                .then_some(updates),
         };
         let saved = resolve_one(env_lockfile, resolver, opts, &request).await?;
         if request.updates.is_some() {

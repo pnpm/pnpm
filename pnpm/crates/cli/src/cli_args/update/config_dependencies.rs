@@ -18,6 +18,11 @@ impl UpdateArgs {
         config: &mut Config,
         config_root: &Path,
     ) -> miette::Result<()> {
+        // The options the update itself rejects later must not have
+        // written anything by then.
+        self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
+        self.check_workspace_option(config.workspace_dir.as_deref())?;
         let updates = self.config_dependency_updates(config);
         config_deps::update_config_dependencies::<Reporter>(config, config_root, &updates).await
     }

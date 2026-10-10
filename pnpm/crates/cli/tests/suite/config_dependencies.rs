@@ -512,6 +512,61 @@ fn add_config_resolves_a_locked_specifier_again() {
 }
 
 #[test]
+fn add_config_keeps_an_integrity_pin() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    let integrity = lockfile
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("resolution: {integrity: "))
+        .and_then(|rest| rest.strip_suffix('}'))
+        .expect("the lockfile records an integrity");
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let undeclared = yaml
+        .lines()
+        .take_while(|line| !line.starts_with("configDependencies:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&yaml_path, undeclared).expect("write pnpm-workspace.yaml");
+    let pinned = format!("100.0.0+{integrity}");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", &format!("@pnpm.e2e/foo@{pinned}")])
+        .assert()
+        .success();
+
+    // The env lockfile records a pinned dependency under its bare version.
+    assert_config_dependency_declared(&workspace, "@pnpm.e2e/foo", &pinned);
+    drop((root, mock_instance));
+}
+
+/// An option `update` rejects leaves the config dependencies as they were.
+#[test]
+fn rejected_update_leaves_config_dependencies_alone() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@1.0.0", "^1.0.0");
+
+    pacquet_at(&workspace)
+        .with_args(["update", "--latest", "--workspace"])
+        .assert()
+        .failure();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^1.0.0", "1.0.0");
+    drop((root, mock_instance));
+}
+
+#[test]
 fn update_resolves_config_dependencies_within_their_range() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -601,14 +656,7 @@ fn add_config_dependency_declared_as(workspace: &Path, selector: &str, specifier
 }
 
 fn assert_config_dependency(workspace: &Path, name: &str, specifier: &str, version: &str) {
-    let (_, settings) = WorkspaceSettings::find_and_load(workspace)
-        .expect("read pnpm-workspace.yaml")
-        .expect("workspace manifest exists");
-    let declared = settings.config_dependencies.expect("configDependencies map");
-    assert_eq!(
-        declared.get(name),
-        Some(&ConfigDependency::VersionWithIntegrity(specifier.to_string())),
-    );
+    assert_config_dependency_declared(workspace, name, specifier);
     let env_lockfile =
         EnvLockfile::read(workspace).expect("read env lockfile").expect("env lockfile exists");
     let locked = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies[name];
@@ -976,3 +1024,14 @@ fn update_config_hook_switches_loaded_linker_back_to_isolated_layout() {
 }
 
 mod release_age;
+
+fn assert_config_dependency_declared(workspace: &Path, name: &str, specifier: &str) {
+    let (_, settings) = WorkspaceSettings::find_and_load(workspace)
+        .expect("read pnpm-workspace.yaml")
+        .expect("workspace manifest exists");
+    let declared = settings.config_dependencies.expect("configDependencies map");
+    assert_eq!(
+        declared.get(name),
+        Some(&ConfigDependency::VersionWithIntegrity(specifier.to_string())),
+    );
+}

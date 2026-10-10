@@ -72,8 +72,10 @@ pub async fn update_config_dependencies<Reporter: self::Reporter>(
     let saved =
         resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, updates)
             .await?;
+    // `root_dir` follows `lockfile-dir`; the declarations live beside the
+    // workspace manifest.
     record_config_dependencies(
-        root_dir,
+        config.workspace_dir.as_deref().unwrap_or(root_dir),
         saved
             .iter()
             .map(|(name, specifier)| (name.as_str(), specifier.as_str())),
