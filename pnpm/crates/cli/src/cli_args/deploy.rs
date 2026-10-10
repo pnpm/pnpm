@@ -16,7 +16,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use path_compare::{ProjectPathKey, is_ancestor_path, is_child_path, same_path};
 use peers::{
     LinkedWorkspaceProject, bind_singleton_peers, deploy_peer_edges,
-    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
+    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph, workspace_protocol_peers,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_directory_fetcher::DirectoryFetcher;
@@ -132,6 +132,9 @@ struct ProjectInfo {
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
+    /// The peers declared with a `workspace:` range, which only a workspace
+    /// project satisfies.
+    workspace_protocol_peers: HashSet<PkgName>,
     /// Names the project declares as prod or optional dependencies. A peer it
     /// depends on itself is already bound by that edge, whether or not the
     /// deploy's group filter kept the edge in the deployed snapshot.
@@ -365,6 +368,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                     &project.manifest,
                     &["peerDependencies"],
                 ),
+                workspace_protocol_peers: workspace_protocol_peers(&project.manifest),
                 declared_dependencies: manifest_dependency_names(
                     &project.manifest,
                     &["dependencies", "optionalDependencies"],

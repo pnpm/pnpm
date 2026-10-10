@@ -6,6 +6,7 @@ import type {
   LockfileObject,
   PackageSnapshots,
   ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import type {
   DependenciesField,
@@ -139,7 +140,10 @@ function convertWorkspaceImporters (
 ): Map<DepPath, LinkedWorkspaceProject> {
   const peerBearingProjects = indexPeerBearingProjects(opts.allProjects)
   const linkedWorkspaceProjects = new Map<DepPath, LinkedWorkspaceProject>()
-  const injectedWorkspace = opts.lockfile.settings?.injectWorkspacePackages === true
+  const peerContext: RecordedPeerContext = {
+    injectedWorkspace: opts.lockfile.settings?.injectWorkspacePackages === true,
+    workspaceProjectDirs: indexWorkspaceProjectDirs(opts.allProjects),
+  }
   for (const importerPath in opts.lockfile.importers) {
     if (importerPath === opts.projectId) continue
     const projectSnapshot = opts.lockfile.importers[importerPath as ProjectId]
@@ -158,15 +162,52 @@ function convertWorkspaceImporters (
     if (manifest == null) continue
     linkedWorkspaceProjects.set(depPath, {
       manifest,
-      dedupedPeerResolutions: injectedWorkspace
-        ? convertResolvedDependencies(
-          pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
-          convertOptions
-        )
-        : undefined,
+      dedupedPeerResolutions: recordedPeerResolutions(manifest, projectSnapshot, { ...peerContext, convertOptions }),
     })
   }
   return linkedWorkspaceProjects
+}
+
+interface RecordedPeerContext {
+  injectedWorkspace: boolean
+  /** Both spellings of every workspace project directory. */
+  workspaceProjectDirs: Set<string>
+}
+
+function recordedPeerResolutions (
+  manifest: ProjectManifest,
+  projectSnapshot: ProjectSnapshot,
+  ctx: RecordedPeerContext & { convertOptions: ConvertOptions }
+): ResolvedDependencies | undefined {
+  const devDependencies = projectSnapshot.devDependencies ?? {}
+  const recordedPeers = Object.entries(manifest.peerDependencies ?? {})
+    .filter(([peerName, peerRange]) =>
+      Object.hasOwn(devDependencies, peerName) &&
+      (ctx.injectedWorkspace || isRecordedWorkspaceProtocolPeerLink(peerRange, devDependencies[peerName], ctx))
+    )
+    .map(([peerName]) => peerName)
+  return convertResolvedDependencies(pick(recordedPeers, devDependencies), ctx.convertOptions)
+}
+
+/**
+ * Without injection, a linked package's dev dependencies say nothing about what
+ * injecting it would bind. The one exception to approximating that choice is a
+ * peer declared with a `workspace:` range whose dev dependency links a
+ * workspace project: the range admits only that project, and the workspace
+ * links it there.
+ */
+function isRecordedWorkspaceProtocolPeerLink (
+  peerRange: string,
+  devReference: string,
+  ctx: Pick<RecordedPeerContext, 'workspaceProjectDirs'> & { convertOptions: ConvertOptions }
+): boolean {
+  if (!peerRange.startsWith('workspace:') || !devReference.startsWith('link:')) return false
+  const target = resolveLinkOrFile(devReference, ctx.convertOptions)
+  return target != null && ctx.workspaceProjectDirs.has(target.resolvedPath)
+}
+
+function indexWorkspaceProjectDirs (allProjects: DeployAllProjects): Set<string> {
+  return new Set(allProjects.flatMap(project => [project.rootDir, project.rootDirRealPath]))
 }
 
 /**

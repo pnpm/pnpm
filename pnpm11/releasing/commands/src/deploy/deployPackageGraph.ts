@@ -85,11 +85,14 @@ function listRetainedEdgeTargets (
 export interface LinkedWorkspaceProject {
   manifest: ProjectManifest
   /**
-   * The project's dev dependencies that are also its peers, recorded only in
-   * an injected workspace.
-   * There a workspace package is linked rather than injected only when its
-   * injected resolution matched its own importer, dev dependencies included,
-   * so a peer it also lists as a dev dependency was bound to exactly that.
+   * The project's dev dependencies that are also its peers and that the deploy
+   * keeps as the peer's binding when the deployed graph holds them.
+   * In an injected workspace that is every such dev dependency: there a
+   * workspace package is linked rather than injected only when its injected
+   * resolution matched its own importer, dev dependencies included, so a peer
+   * it also lists as a dev dependency was bound to exactly that.
+   * Without injection it is only a `workspace:` peer whose dev dependency links
+   * a workspace project.
    */
   dedupedPeerResolutions: ResolvedDependencies | undefined
 }

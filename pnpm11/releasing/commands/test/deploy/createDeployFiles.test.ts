@@ -278,12 +278,17 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
 // A package may legitimately be named after an Object.prototype member, and a
 // plain property read would find that member and report a binding that does not
 // exist.
-test('createDeployFiles binds a peer whose name collides with an Object prototype member', () => {
+test.each([
+  { peerRange: '*', injectWorkspacePackages: false },
+  { peerRange: 'workspace:*', injectWorkspacePackages: false },
+  { peerRange: '*', injectWorkspacePackages: true },
+])('createDeployFiles binds a peer whose name collides with an Object prototype member (range $peerRange, injectWorkspacePackages $injectWorkspacePackages)', ({ peerRange, injectWorkspacePackages }) => {
   const lockfileDir = path.resolve('workspace')
   const libDir = path.join(lockfileDir, 'lib')
   const projectId = '.' as ProjectId
   const lockfile: LockfileObject = {
     lockfileVersion: '9.0',
+    settings: { injectWorkspacePackages },
     importers: {
       [projectId]: {
         specifiers: { lib: 'workspace:*', constructor: '1.0.0' },
@@ -312,7 +317,7 @@ test('createDeployFiles binds a peer whose name collides with an Object prototyp
       {
         rootDir: libDir as ProjectRootDir,
         rootDirRealPath: libDir as ProjectRootDirRealPath,
-        manifest: { name: 'lib', version: '1.0.0', peerDependencies: { constructor: '*' } },
+        manifest: { name: 'lib', version: '1.0.0', peerDependencies: { constructor: peerRange } },
       },
     ],
     deployDir: path.join(lockfileDir, 'out'),

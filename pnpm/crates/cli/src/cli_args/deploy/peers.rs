@@ -1,19 +1,28 @@
 use super::{
-    Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
-    PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, ResolveBases,
-    SnapshotDepRef, SnapshotEntry, Value, VecDeque, convert_importer_version_to_snapshot_ref,
-    convert_package_key,
+    Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, ImporterDepVersion,
+    Lockfile, PackageKey, PackageManifest, PeerSatisfactionEdges, PkgName, PkgNameVerPeer,
+    ProjectInfo, ProjectPathKey, ProjectSnapshot, ResolveBases, SnapshotDepRef, SnapshotEntry,
+    Value, VecDeque, convert_importer_version_to_snapshot_ref, convert_package_key,
+    resolution::split_local_payload,
 };
 
 /// A workspace package the deployed graph links rather than injects.
 pub(super) struct LinkedWorkspaceProject {
     project: ProjectInfo,
-    /// The project's dev dependencies that are also its peers, recorded only
-    /// in an injected workspace. There a workspace package is linked rather
-    /// than injected only when its injected resolution matched its own
-    /// importer, dev dependencies included, so a peer it also lists as a dev
-    /// dependency was bound to exactly that.
-    deduped_peer_resolutions: Option<HashMap<PkgName, SnapshotDepRef>>,
+    /// The project's dev dependencies that are also its peers and that the
+    /// deploy keeps as the peer's binding.
+    ///
+    /// In an injected workspace that is every such dev dependency. There a
+    /// workspace package is linked rather than injected only when its injected
+    /// resolution matched its own importer, dev dependencies included, so a
+    /// peer it also lists as a dev dependency was bound to exactly that.
+    ///
+    /// Without injection, a linked package's dev dependencies say nothing
+    /// about what injecting it would bind, so they are not recorded, with one
+    /// narrow exception to approximating that choice: a peer declared with a
+    /// `workspace:` range whose dev dependency links a workspace project. The
+    /// range admits only that project, and the workspace links it there.
+    deduped_peer_resolutions: HashMap<PkgName, SnapshotDepRef>,
 }
 
 impl LinkedWorkspaceProject {
@@ -26,9 +35,13 @@ impl LinkedWorkspaceProject {
     ) -> Self {
         let injected_workspace =
             lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
-        if !injected_workspace {
-            return LinkedWorkspaceProject { project, deduped_peer_resolutions: None };
-        }
+        let links_workspace_project = |version: &ImporterDepVersion| match version {
+            ImporterDepVersion::Link(target) => {
+                let (path, _) = split_local_payload(target);
+                ctx.projects_by_path.contains_key(&ProjectPathKey::new(&bases.link_base.join(path)))
+            }
+            _ => false,
+        };
         // A reference the conversion rejects, such as a link outside the
         // workspace, cannot name a deployed snapshot, since every snapshot key
         // passed the same conversion. It is skipped rather than failing a
@@ -37,13 +50,18 @@ impl LinkedWorkspaceProject {
             .iter()
             .flatten()
             .filter(|(name, _)| project.peer_dependencies.contains(name))
+            .filter(|(name, spec)| {
+                injected_workspace
+                    || (project.workspace_protocol_peers.contains(name)
+                        && links_workspace_project(&spec.version))
+            })
             .filter_map(|(name, spec)| {
                 convert_importer_version_to_snapshot_ref(name, &spec.version, ctx, bases)
                     .ok()
                     .map(|reference| (name.clone(), reference))
             })
             .collect::<HashMap<_, _>>();
-        LinkedWorkspaceProject { project, deduped_peer_resolutions: Some(deduped_peer_resolutions) }
+        LinkedWorkspaceProject { project, deduped_peer_resolutions }
     }
 
     /// The reference `peer` binds to through the deduped resolutions, if the
@@ -53,7 +71,7 @@ impl LinkedWorkspaceProject {
         snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
         peer: &PkgName,
     ) -> Option<SnapshotDepRef> {
-        let reference = self.deduped_peer_resolutions.as_ref()?.get(peer)?;
+        let reference = self.deduped_peer_resolutions.get(peer)?;
         reference
             .resolve(peer)
             .is_some_and(|key| snapshots.contains_key(&key))
@@ -66,7 +84,9 @@ impl LinkedWorkspaceProject {
 /// bindings. Bind each still-unresolved peer to the deployed graph's own
 /// resolution while that resolution is unambiguous, and refuse when it is not:
 /// picking between candidates is precisely the decision that injecting the
-/// package would have made, and it cannot be recovered afterwards.
+/// package would have made, and it cannot be recovered afterwards. A peer
+/// whose source binding is still known, see
+/// [`LinkedWorkspaceProject::deduped_peer_resolutions`], binds to that instead.
 pub(super) fn bind_singleton_peers(
     lockfile: &mut Lockfile,
     linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
@@ -205,6 +225,23 @@ fn singleton_peer_binding(
         .iter()
         .next()
         .map(|resolution| SnapshotDepRef::Plain(resolution.suffix.clone())))
+}
+
+/// The peers `manifest` declares with a `workspace:` range.
+pub(super) fn workspace_protocol_peers(manifest: &PackageManifest) -> HashSet<PkgName> {
+    manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter(|(_, range)| {
+            range
+                .as_str()
+                .is_some_and(|range| range.starts_with("workspace:"))
+        })
+        .filter_map(|(name, _)| name.parse().ok())
+        .collect()
 }
 
 /// The source lockfile's peer-satisfaction edges, under the keys the deployed
