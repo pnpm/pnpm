@@ -53,6 +53,8 @@ async fn queries_a_remote_database_over_https() {
 
 #[tokio::test]
 async fn rejects_a_server_the_platform_does_not_trust() {
+    // Keeps the empty trust store of the test below out of this one.
+    let _env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR"]);
     let server = TrustedTlsServer::start(EXECUTE_RESPONSE);
     let error = LibsqlAuth::connect(&settings(server.url.clone()), MaxUsers::Unlimited)
         .await
