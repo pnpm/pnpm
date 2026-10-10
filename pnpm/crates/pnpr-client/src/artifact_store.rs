@@ -154,7 +154,20 @@ mod turborepo;
 fn remote_cache_error(error: PnprClientError) -> PnprClientError {
     match error {
         PnprClientError::Server(message) => PnprClientError::RemoteCache(message),
-        PnprClientError::Http(error) => PnprClientError::RemoteCache(error.to_string()),
+        PnprClientError::Http(error) => PnprClientError::RemoteCache(with_causes(&error)),
         other => other,
     }
+}
+
+/// `error` followed by each error that caused it, so a failure inside a
+/// request body, such as a file that changed, is not reported as a bare
+/// send failure.
+fn with_causes(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut message = error.to_string();
+    let mut cause = error.source();
+    while let Some(error) = cause {
+        message = format!("{message}: {error}");
+        cause = error.source();
+    }
+    message
 }

@@ -78,8 +78,10 @@ pub(crate) type BlobBody = reqwest::Body;
 #[cfg(target_family = "wasm")]
 pub(crate) type BlobBody = Vec<u8>;
 
-/// The upload body of `source`, whose file must still hold `source.size`
-/// bytes.
+/// The upload body of `source`. The file is read once, as it is sent, so
+/// the body is checked as it goes: a file that no longer holds the bytes its
+/// artifact signed fails the request rather than storing a blob nobody can
+/// restore.
 pub(crate) async fn blob_body(source: &ArtifactBlobSource) -> Result<BlobBody, PnprClientError> {
     let file = tokio::fs::File::open(&source.path).await?;
     let size = file.metadata().await?.len();
@@ -90,36 +92,104 @@ pub(crate) async fn blob_body(source: &ArtifactBlobSource) -> Result<BlobBody, P
             source.size,
         )));
     }
-    file_body(file).await
+    file_body(file, source.clone()).await
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn file_body(file: tokio::fs::File) -> Result<BlobBody, PnprClientError> {
-    Ok(reqwest::Body::wrap_stream(file_chunks(file)))
+async fn file_body(
+    file: tokio::fs::File,
+    source: ArtifactBlobSource,
+) -> Result<BlobBody, PnprClientError> {
+    Ok(reqwest::Body::wrap_stream(checked_chunks(file, source)))
 }
 
 #[cfg(target_family = "wasm")]
-async fn file_body(mut file: tokio::fs::File) -> Result<BlobBody, PnprClientError> {
+async fn file_body(
+    mut file: tokio::fs::File,
+    source: ArtifactBlobSource,
+) -> Result<BlobBody, PnprClientError> {
     let mut bytes = Vec::new();
     tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).await?;
+    let mut read = SourceRead::new(source);
+    read.accept(&bytes)?;
+    read.finish()?;
     Ok(bytes)
 }
 
-/// The file's bytes as a stream of chunks.
+/// The file's bytes as a stream of chunks, ending in an error when they are
+/// not the blob `source` names.
 #[cfg(not(target_family = "wasm"))]
-fn file_chunks(
+fn checked_chunks(
     file: tokio::fs::File,
+    source: ArtifactBlobSource,
 ) -> impl futures_util::Stream<Item = std::io::Result<Vec<u8>>> + Send + Sync + 'static {
     const CHUNK: usize = 256 * 1024;
-    futures_util::stream::try_unfold(file, |mut file| async move {
+    let state = (file, SourceRead::new(source));
+    futures_util::stream::try_unfold(state, |(mut file, mut read)| async move {
         let mut chunk = vec![0; CHUNK];
-        let read = tokio::io::AsyncReadExt::read(&mut file, &mut chunk).await?;
-        if read == 0 {
+        let length = tokio::io::AsyncReadExt::read(&mut file, &mut chunk).await?;
+        if length == 0 {
+            read.finish()?;
             return Ok(None);
         }
-        chunk.truncate(read);
-        Ok(Some((chunk, file)))
+        chunk.truncate(length);
+        read.accept(&chunk)?;
+        Ok(Some((chunk, (file, read))))
     })
+}
+
+/// What has been read of a blob's source file, against what its artifact
+/// signed.
+///
+/// The digest is checked as the last declared byte is read, before that
+/// chunk is sent: a request with a `Content-Length` stops reading its body at
+/// that length, so a check at the end of the file would never be reached.
+struct SourceRead {
+    source: ArtifactBlobSource,
+    read: u64,
+    hasher: Sha512,
+}
+
+impl SourceRead {
+    fn new(source: ArtifactBlobSource) -> Self {
+        SourceRead { source, read: 0, hasher: Sha512::new() }
+    }
+
+    fn accept(&mut self, chunk: &[u8]) -> std::io::Result<()> {
+        self.read = self.read.saturating_add(chunk.len() as u64);
+        if self.read > self.source.size {
+            return Err(self.changed());
+        }
+        self.hasher.update(chunk);
+        if self.read == self.source.size {
+            return self.verify_digest();
+        }
+        Ok(())
+    }
+
+    /// The end of the file: every declared byte was read, and an empty blob
+    /// is checked too.
+    fn finish(&mut self) -> std::io::Result<()> {
+        if self.read != self.source.size {
+            return Err(self.changed());
+        }
+        if self.source.size == 0 {
+            return self.verify_digest();
+        }
+        Ok(())
+    }
+
+    fn verify_digest(&mut self) -> std::io::Result<()> {
+        let digest = std::mem::take(&mut self.hasher).finalize();
+        verify_blob_digest(&self.source.integrity, &digest).map_err(|_| self.changed())
+    }
+
+    fn changed(&self) -> std::io::Error {
+        std::io::Error::other(format!(
+            "{} changed after its artifact was signed",
+            self.source.path.display(),
+        ))
+    }
 }
 
 /// A blob's bytes, held to its declared size and checked against its

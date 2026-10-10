@@ -217,7 +217,12 @@ fn workspace_task_fixture_with(blob: Vec<u8>) -> SignedFixture {
     let payload = pnpm_pnpr_client::ArtifactPayload {
         kind: pnpm_pnpr_client::WORKSPACE_TASK_ARTIFACT_KIND.to_string(),
         subject: ArtifactSubject::workspace_task("packages/app", "build"),
-        input_key: format!("{}abc", pnpm_pnpr_client::WORKSPACE_TASK_INPUT_KEY_PREFIX),
+        // Named by its contents, since a pnpr server keeps one artifact per key.
+        input_key: format!(
+            "{}{}",
+            pnpm_pnpr_client::WORKSPACE_TASK_INPUT_KEY_PREFIX,
+            pnpm_pnpr_client::blob_id(&integrity).unwrap(),
+        ),
         owner: OwnerScope::organization("pnpr-client"),
         builder_id: "ci/main/1".to_string(),
         builder_profile: pnpm_pnpr_client::BuilderProfile {
@@ -285,8 +290,8 @@ fn task_lookup(key: &str, public_key: Vec<u8>) -> ResolveArtifactsOptions {
 }
 
 /// A task result's blobs are uploaded from their files and downloaded into
-/// files, through either transport. The blob is large enough that a pnpr
-/// server writes it in parts.
+/// files, through either transport: one large enough that a pnpr server
+/// writes it in parts, and an empty one.
 #[tokio::test]
 async fn a_large_task_result_streams_through_either_transport() {
     let large: Vec<u8> = (0..9 * 1024 * 1024_u32)
@@ -301,8 +306,12 @@ async fn a_large_task_result_streams_through_either_transport() {
             authorization: Some(authorization),
         },
     ];
-    for store in &stores {
-        let (publication, public_key, blob, _blobs) = workspace_task_fixture_with(large.clone());
+    let empty = Vec::new();
+    for (store, contents) in stores
+        .iter()
+        .flat_map(|store| [(store, &large), (store, &empty)])
+    {
+        let (publication, public_key, blob, _blobs) = workspace_task_fixture_with(contents.clone());
         store.publish_artifact(&publication).await.expect("publish");
         let resolved = store
             .resolve_artifacts(task_lookup(&publication.key, public_key))
@@ -318,6 +327,22 @@ async fn a_large_task_result_streams_through_either_transport() {
         store.download_artifact_blob_to(&request, file.size, &path).await.expect("download");
         assert!(std::fs::read(&path).unwrap() == blob, "the downloaded file holds the blob");
     }
+}
+
+/// A file that changed after its artifact was signed fails the upload, so a
+/// server that stores whatever it is sent never holds a blob that cannot be
+/// restored.
+#[tokio::test]
+async fn a_file_changed_after_signing_is_not_stored() {
+    let cache = TurborepoCache::start();
+    let store = store(&cache);
+    let (publication, _, blob, _blobs) = workspace_task_fixture();
+    let altered = vec![b'x'; blob.len()];
+    std::fs::write(&publication.blobs[0].path, altered).unwrap();
+    let error = store.publish_artifact(&publication).await.expect_err("refused");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("changed after its artifact was signed"));
+    assert!(cache.artifacts().is_empty(), "nothing was stored");
 }
 
 /// A publication whose blob files do not match its signed manifest is refused

@@ -126,13 +126,6 @@ impl SharedArtifactStore {
             *reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
         }
-        // Written first, and overwriting any older record, so the blob is
-        // never stored without one that keeps reclamation off it.
-        let record = self.object_path(&staged_record_path(owner, &blob.id));
-        if let Err(error) = self.store.put(&record, PutPayload::new()).await {
-            self.release_uncommitted(owner, size, 0).await?;
-            return Err(error.into());
-        }
         let created = match self.write_blob(&blob.path(), blob.integrity, size, body).await {
             Ok(created) => created,
             Err(WriteFailure::Rejected(error)) => {
@@ -147,6 +140,11 @@ impl SharedArtifactStore {
             }
         };
         self.release_uncommitted(owner, size, if created { size } else { 0 }).await?;
+        // Until now this registered upload keeps reclamation from running.
+        // From now on the record keeps it off the blob, for as long as a
+        // publication may take to arrive, so its age has to start here.
+        let record = self.object_path(&staged_record_path(owner, &blob.id));
+        self.store.put(&record, PutPayload::new()).await?;
         *reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
         if *reclamation_needed {
             self.begin_publication(publication).await?;
@@ -158,8 +156,10 @@ impl SharedArtifactStore {
     /// `integrity`, reporting whether this write created the object.
     ///
     /// A large blob is written in parts, and the parts are committed only
-    /// after the last byte is checked. Two uploads of one large blob can both
-    /// commit identical bytes, so both are charged until reclamation recounts.
+    /// after the last byte is checked and only when no other upload stored
+    /// the blob meanwhile. Two uploads that commit at the same moment both
+    /// store identical bytes, and both are charged until reclamation
+    /// recounts.
     async fn write_blob<StreamError: Display>(
         &self,
         path: &str,
@@ -196,6 +196,12 @@ impl SharedArtifactStore {
                 tracing::warn!(%abort_error, "an abandoned artifact blob upload was not cleaned up");
             }
             return Err(WriteFailure::Rejected(error));
+        }
+        if self.stored_size(path).await.is_ok_and(|stored| stored.is_some()) {
+            if let Err(abort_error) = writer.abort().await {
+                tracing::warn!(%abort_error, "a duplicate artifact blob upload was not cleaned up");
+            }
+            return Ok(false);
         }
         writer.finish().await.map_err(|error| WriteFailure::Store(error.into()))?;
         Ok(true)
