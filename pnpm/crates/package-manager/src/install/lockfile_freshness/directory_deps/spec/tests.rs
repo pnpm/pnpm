@@ -175,6 +175,7 @@ fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
     let fixture = tempfile::tempdir().unwrap();
     let workspace_root = fixture.path().to_path_buf();
     let target_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&target_dir).unwrap();
     let manifest = pnpm_package_manifest::PackageManifest::from_value(
         target_dir.join("package.json"),
         serde_json::json!({ "name": "pkg", "version": "1.2.3" }),
@@ -202,6 +203,36 @@ fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
         &local_dep_dir,
         "pkg",
         "workspace:^2.0.0",
+        &file_dep
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_loaded_project_linking_outside_the_workspace_is_not_trusted() {
+    let fixture = tempfile::tempdir().unwrap();
+    let workspace_root = fixture.path().join("workspace");
+    let outside = fixture.path().join("outside");
+    std::fs::create_dir_all(workspace_root.join("packages")).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    let target_dir = workspace_root.join("packages/pkg");
+    std::os::unix::fs::symlink(&outside, &target_dir).unwrap();
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "pkg", "version": "1.2.3" }),
+    );
+    let manifests_by_dir = ProjectManifestsByDir::from([(target_dir, &manifest)]);
+    let dirs = SpecDirs {
+        workspace_root: &workspace_root,
+        lockfile_dir: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    };
+    let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &dirs,
+        &workspace_root.join("packages/consumer"),
+        "pkg",
+        "workspace:*",
         &file_dep
     ));
 }

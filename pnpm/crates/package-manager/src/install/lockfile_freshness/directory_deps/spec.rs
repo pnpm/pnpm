@@ -225,19 +225,22 @@ fn target_manifest<'a>(
     dirs: &SpecDirs<'a>,
     target_dir: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {
+    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
     if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
         return Some(Cow::Borrowed(manifest.value()));
     }
-    let canonical_manifest =
-        target_manifest_within_workspace(dirs.workspace_root, target_dir).ok()?;
+    let canonical_manifest = std::fs::canonicalize(target_dir.join("package.json")).ok()?;
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
+        return None;
+    }
     let content = std::fs::read_to_string(&canonical_manifest).ok()?;
     pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
 }
 
-fn target_manifest_within_workspace(
-    workspace_root: &Path,
-    target_dir: &Path,
-) -> Result<PathBuf, ()> {
+/// The canonical workspace root, when `target_dir` lies inside it both as
+/// written and with symlinks resolved. A loaded project is held to this too,
+/// so a project directory that links outside the workspace is not trusted.
+fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Result<PathBuf, ()> {
     if !pnpm_fs::is_subdir(workspace_root, target_dir) {
         return Err(());
     }
@@ -246,12 +249,7 @@ fn target_manifest_within_workspace(
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
         return Err(());
     }
-    let canonical_manifest =
-        std::fs::canonicalize(target_dir.join("package.json")).map_err(|_| ())?;
-    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
-        return Err(());
-    }
-    Ok(canonical_manifest)
+    Ok(canonical_root)
 }
 
 fn npm_or_registry_spec_satisfies(
