@@ -197,6 +197,11 @@ interface ConfigSources {
   globalYamlConfig: WorkspaceManifest | undefined
 }
 
+async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions): Promise<WorkspaceManifest | undefined> {
+  if (opts.defaultsOnly) return undefined
+  return readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+}
+
 /**
  * Reads the built-in defaults, the `.npmrc` files, and the command line into
  * one config. The global config.yaml is read too, but only applied later.
@@ -205,9 +210,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
   const env = opts.env ?? process.env
   const defaultOptions = createDefaultOptions(opts.workspaceDir)
   const configDir = getConfigDir(process)
-  const globalYamlConfig = opts.defaultsOnly
-    ? undefined
-    : await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const globalYamlConfig = await readGlobalYamlConfig(configDir, opts)
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
     defaultOptions: defaultOptions as Record<string, unknown>,
