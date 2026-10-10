@@ -353,6 +353,11 @@ pub enum PnprClientError {
     #[from(ignore)]
     Protocol(#[error(not(source))] String),
 
+    /// Any failure talking to a Turborepo Remote Cache server. Callers
+    /// already name the remote cache, so the message stands alone.
+    #[from(ignore)]
+    RemoteCache(#[error(not(source))] String),
+
     /// The server rejected the input lockfile under the client's
     /// verification policy. Carries the reconstructed [`VerifyError`]
     /// so the CLI aborts with the same diagnostic code (and breakdown)
@@ -547,9 +552,7 @@ async fn response_body_bounded(
         .content_length()
         .is_some_and(|length| length > limit as u64)
     {
-        return Err(PnprClientError::Protocol(format!(
-            "pnpr response exceeds the {limit}-byte limit",
-        )));
+        return Err(PnprClientError::Protocol(format!("response exceeds the {limit}-byte limit")));
     }
     let mut body = Vec::new();
     let mut stream = response.bytes_stream();
@@ -557,7 +560,7 @@ async fn response_body_bounded(
         let chunk = chunk?;
         if body.len().saturating_add(chunk.len()) > limit {
             return Err(PnprClientError::Protocol(format!(
-                "pnpr response exceeds the {limit}-byte limit",
+                "response exceeds the {limit}-byte limit",
             )));
         }
         body.extend_from_slice(&chunk);

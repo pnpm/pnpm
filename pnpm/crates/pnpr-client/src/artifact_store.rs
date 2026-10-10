@@ -33,7 +33,8 @@ impl ArtifactStore {
                 .map(|token| format!("Bearer {token}"))
                 .or_else(|| config.auth_headers.for_secure_url(url));
             return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
-                .map(|store| Some(ArtifactStore::Turborepo(store)));
+                .map(|store| Some(ArtifactStore::Turborepo(store)))
+                .map_err(remote_cache_error);
         }
         let Some(server) = config.pnpr_server.as_deref() else {
             return Ok(None);
@@ -81,7 +82,7 @@ impl ArtifactStore {
                 if !retain_permitted_candidates(&mut opts)? {
                     return Ok(BTreeMap::new());
                 }
-                let response = store.fetch_artifacts(&opts).await?;
+                let response = store.fetch_artifacts(&opts).await.map_err(remote_cache_error)?;
                 select_verified_artifacts(&opts, response)
             }
         }
@@ -97,7 +98,9 @@ impl ArtifactStore {
             Self::Pnpr { client, authorization } => {
                 client.download_artifact_blob(request, authorization.as_deref()).await
             }
-            Self::Turborepo(store) => store.download_blob(request).await,
+            Self::Turborepo(store) => {
+                store.download_blob(request).await.map_err(remote_cache_error)
+            }
         }
     }
 
@@ -109,9 +112,21 @@ impl ArtifactStore {
             Self::Pnpr { client, authorization } => {
                 client.publish_artifact(request, authorization.as_deref()).await
             }
-            Self::Turborepo(store) => store.publish(request).await,
+            Self::Turborepo(store) => store.publish(request).await.map_err(remote_cache_error),
         }
     }
 }
 
 mod turborepo;
+
+/// Reword an error of the Turborepo transport, which shares the pnpr error
+/// type, so it does not name pnpr.
+fn remote_cache_error(error: PnprClientError) -> PnprClientError {
+    match error {
+        PnprClientError::Server(message) | PnprClientError::Protocol(message) => {
+            PnprClientError::RemoteCache(message)
+        }
+        PnprClientError::Http(error) => PnprClientError::RemoteCache(error.to_string()),
+        other => other,
+    }
+}

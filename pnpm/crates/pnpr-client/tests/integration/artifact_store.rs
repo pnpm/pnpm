@@ -5,7 +5,8 @@ use super::{
 use base64::Engine as _;
 use p256::pkcs8::EncodePublicKey as _;
 use pnpm_pnpr_client::{
-    ArtifactBuildPolicy, ArtifactStore, PublishArtifactRequest, TurborepoArtifactStore,
+    ArtifactBuildPolicy, ArtifactStore, PnprClientError, PublishArtifactRequest,
+    TurborepoArtifactStore,
 };
 use pnpm_testing_utils::turborepo_cache::TurborepoCache;
 
@@ -360,13 +361,11 @@ async fn a_failed_lookup_is_a_miss_for_that_candidate_alone() {
     assert!(!resolved.contains_key(&dependency.key));
 
     cache.fail(&task_hash, 401);
-    assert!(
-        store
-            .resolve_artifacts(both())
-            .await
-            .is_err(),
-        "refused credentials fail the lookup",
-    );
+    let Err(error) = store.resolve_artifacts(both()).await else {
+        panic!("refused credentials fail the lookup");
+    };
+    eprintln!("{error}");
+    assert!(matches!(&error, PnprClientError::RemoteCache(message) if message.starts_with("GET ")));
 }
 
 #[tokio::test]
