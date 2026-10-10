@@ -6,7 +6,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'edit',
   'profile',
   'token',
-  'xmas',
 ]
 
 export const NOT_IMPLEMENTED_COMMAND_SET = new Set(NOT_IMPLEMENTED_COMMANDS)
