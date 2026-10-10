@@ -87,7 +87,14 @@ const ROOT_KEYS: [&str; 10] = [
 /// matching pnpm's lockfile formatting.
 pub(crate) fn to_string(value: Value) -> String {
     let value = sort_lockfile_keys(value);
-    let mut dump = render(&value, 0, true, true, None, false);
+    let mut dump = render(
+        &value,
+        0,
+        CollectionStyle::Block,
+        FirstEntry::OnKeyLine,
+        None,
+        ScalarLines::Multiline,
+    );
     dump.push('\n');
     pnpm_fs::background_drop(value);
     dump
@@ -219,33 +226,28 @@ fn sort_value(value: Value, compare: &dyn Fn(&str, &str) -> Ordering) -> Value {
 
 /// Render one node. Mirrors the fork's `writeNode`.
 ///
-/// - `level` — current indentation depth.
-/// - `block` — whether block style is permitted here (`false` inside flow).
-/// - `compact` — whether the first child of a block collection omits its
-///   leading newline (the collection sits on the same line as its key).
-/// - `object_key` — the map key this value is bound to, driving the
-///   single-line and blank-line decisions.
-/// - `force_single_line` — propagated `singleLineOnly`: forces single-line
-///   scalar styling for keys and for values nested in a single-line map.
+/// `object_key` is the map key this value is bound to, which drives the
+/// single-line and blank-line decisions.
 fn render(
     value: &Value,
     level: usize,
-    block: bool,
-    compact: bool,
+    style: CollectionStyle,
+    first_entry: FirstEntry,
     object_key: Option<&str>,
-    force_single_line: bool,
+    lines: ScalarLines,
 ) -> String {
     match value {
-        Value::Object(map) => render_map(map, level, block, compact, object_key),
+        Value::Object(map) => render_map(map, level, style, first_entry, object_key),
         Value::Array(seq) => {
             let single_line = object_key.is_some_and(is_single_line_key);
-            if block && !seq.is_empty() && !single_line {
-                write_block_sequence(seq, level, compact)
-            } else {
-                write_flow_sequence(seq, level)
+            match style {
+                CollectionStyle::Block if !seq.is_empty() && !single_line => {
+                    write_block_sequence(seq, level, first_entry)
+                }
+                CollectionStyle::Block | CollectionStyle::Flow => write_flow_sequence(seq, level),
             }
         }
-        Value::String(string) => write_scalar(string, level, force_single_line, block),
+        Value::String(string) => write_scalar(string, level, lines, style),
         Value::Bool(boolean) => if *boolean { "true" } else { "false" }.to_string(),
         Value::Number(number) => number.to_string(),
         Value::Null => "null".to_string(),
@@ -257,17 +259,26 @@ fn render(
 fn render_map(
     map: &serde_json::Map<String, Value>,
     level: usize,
-    block: bool,
-    compact: bool,
+    style: CollectionStyle,
+    first_entry: FirstEntry,
     object_key: Option<&str>,
 ) -> String {
     let single_line = is_single_line_map(object_key, map);
-    if !block || map.is_empty() || single_line {
-        return write_flow_mapping(map, level, single_line);
+    let renders_as_block = match style {
+        CollectionStyle::Block => !map.is_empty() && !single_line,
+        CollectionStyle::Flow => false,
+    };
+    if !renders_as_block {
+        let lines = if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline };
+        return write_flow_mapping(map, level, lines);
     }
-    let double_line =
-        level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots"));
-    write_block_mapping(map, level, compact, double_line)
+    let spacing =
+        if level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots")) {
+            EntrySpacing::BlankLine
+        } else {
+            EntrySpacing::Tight
+        };
+    write_block_mapping(map, level, first_entry, spacing)
 }
 
 fn is_single_line_key(key: &str) -> bool {
@@ -287,12 +298,13 @@ fn is_single_line_map(object_key: Option<&str>, map: &serde_json::Map<String, Va
     }
 }
 
-/// `generateNextLine`: a newline (doubled when `double_line`) plus this level's
-/// indent.
-fn next_line(level: usize, double_line: bool) -> String {
+/// `generateNextLine`: a newline (doubled for [`EntrySpacing::BlankLine`])
+/// plus this level's indent.
+fn next_line(level: usize, spacing: EntrySpacing) -> String {
     let mut line = String::from("\n");
-    if double_line {
-        line.push('\n');
+    match spacing {
+        EntrySpacing::BlankLine => line.push('\n'),
+        EntrySpacing::Tight => {}
     }
     line.extend(std::iter::repeat_n(' ', INDENT * level));
     line
@@ -307,11 +319,11 @@ const EXPLICIT_KEY_THRESHOLD: usize = 1024;
 fn write_block_mapping(
     map: &serde_json::Map<String, Value>,
     level: usize,
-    compact: bool,
-    double_line: bool,
+    first_entry: FirstEntry,
+    spacing: EntrySpacing,
 ) -> String {
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        return write_block_mapping_serial(map, level, compact, double_line);
+        return write_block_mapping_serial(map, level, first_entry, spacing);
     }
     // Each entry's rendering depends only on its own key and value, so a
     // large map fans its entries out across the rayon pool, and the serial
@@ -329,8 +341,8 @@ fn write_block_mapping(
         .collect();
     let mut result = String::new();
     for (index, entry) in entries.iter().enumerate() {
-        if !compact || index > 0 {
-            result.push_str(&next_line(level, double_line));
+        if index > 0 || !omits_leading_newline(first_entry) {
+            result.push_str(&next_line(level, spacing));
         }
         result.push_str(entry);
     }
@@ -342,30 +354,49 @@ fn write_block_mapping(
 fn write_block_mapping_serial(
     map: &serde_json::Map<String, Value>,
     level: usize,
-    compact: bool,
-    double_line: bool,
+    first_entry: FirstEntry,
+    spacing: EntrySpacing,
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
-        if !compact || !result.is_empty() {
-            result.push_str(&next_line(level, double_line));
+        if !result.is_empty() || !omits_leading_newline(first_entry) {
+            result.push_str(&next_line(level, spacing));
         }
         render_entry_into(&mut result, key, value, level);
     }
     if result.is_empty() { "{}".to_string() } else { result }
 }
 
+/// Whether the first entry of a block collection starts on the line its key
+/// already opened, so no newline precedes it.
+fn omits_leading_newline(first_entry: FirstEntry) -> bool {
+    match first_entry {
+        FirstEntry::OnKeyLine => true,
+        FirstEntry::OnOwnLine => false,
+    }
+}
+
 fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize) {
-    let rendered_key = write_scalar(key, level + 1, true, true);
+    let rendered_key = write_scalar(key, level + 1, ScalarLines::OneLine, CollectionStyle::Block);
     let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
+    // An explicit `? key` pair puts the value right after its own `:`, so the
+    // value's first entry stays on that line.
+    let first_entry = if explicit_pair { FirstEntry::OnKeyLine } else { FirstEntry::OnOwnLine };
     if explicit_pair {
         result.push_str("? ");
         result.push_str(&rendered_key);
-        result.push_str(&next_line(level, false));
+        result.push_str(&next_line(level, EntrySpacing::Tight));
     } else {
         result.push_str(&rendered_key);
     }
-    let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
+    let rendered = render(
+        value,
+        level + 1,
+        CollectionStyle::Block,
+        first_entry,
+        Some(key),
+        ScalarLines::Multiline,
+    );
     result.push(':');
     if !rendered.starts_with('\n') {
         result.push(' ');
@@ -373,12 +404,19 @@ fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize
     result.push_str(&rendered);
 }
 
-fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
+fn write_block_sequence(seq: &[Value], level: usize, first_entry: FirstEntry) -> String {
     let mut result = String::new();
     for value in seq {
-        let rendered = render(value, level + 1, true, true, None, false);
-        if !compact || !result.is_empty() {
-            result.push_str(&next_line(level, false));
+        let rendered = render(
+            value,
+            level + 1,
+            CollectionStyle::Block,
+            FirstEntry::OnKeyLine,
+            None,
+            ScalarLines::Multiline,
+        );
+        if !result.is_empty() || !omits_leading_newline(first_entry) {
+            result.push_str(&next_line(level, EntrySpacing::Tight));
         }
         result.push('-');
         if !rendered.starts_with('\n') {
@@ -392,16 +430,23 @@ fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
 fn write_flow_mapping(
     map: &serde_json::Map<String, Value>,
     level: usize,
-    single_line: bool,
+    lines: ScalarLines,
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
         if !result.is_empty() {
             result.push_str(", ");
         }
-        result.push_str(&write_scalar(key, level, single_line, false));
+        result.push_str(&write_scalar(key, level, lines, CollectionStyle::Flow));
         result.push_str(": ");
-        result.push_str(&render(value, level, false, false, None, single_line));
+        result.push_str(&render(
+            value,
+            level,
+            CollectionStyle::Flow,
+            FirstEntry::OnOwnLine,
+            None,
+            lines,
+        ));
     }
     format!("{{{result}}}")
 }
@@ -412,13 +457,23 @@ fn write_flow_sequence(seq: &[Value], level: usize) -> String {
         if !result.is_empty() {
             result.push_str(", ");
         }
-        result.push_str(&render(value, level, false, false, None, false));
+        result.push_str(&render(
+            value,
+            level,
+            CollectionStyle::Flow,
+            FirstEntry::OnOwnLine,
+            None,
+            ScalarLines::Multiline,
+        ));
     }
     format!("[{result}]")
 }
 
 #[cfg(test)]
 mod tests;
+
+mod style;
+use style::{CollectionStyle, EntrySpacing, FirstEntry, ScalarLines};
 
 mod implicit;
 use implicit::resolves_implicitly;

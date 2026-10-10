@@ -210,17 +210,9 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let registry_version = metadata_key.suffix.version_semver().cloned();
-    let git_resolution = reusable_resolution_is_git(&metadata.resolution)?;
-    let (id, name_ver, resolved_via) = if git_resolution {
-        (metadata_key.to_string(), None, "git-repository")
-    } else if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
-        // A reused registry-qualified entry keeps its qualified id so the
-        // rebuilt graph re-emits the same lockfile key.
-        let name_ver = PkgNameVer::new(metadata_key.name.clone(), version.clone());
-        (metadata_key.to_string(), Some(name_ver), "named-registry")
-    } else {
-        let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
-        (name_ver.to_string(), Some(name_ver), "npm-registry")
+    let (id, name_ver, resolved_via) = match reusable_resolution(&metadata.resolution)? {
+        ReusableResolution::Git => (metadata_key.to_string(), None, "git-repository"),
+        ReusableResolution::Registry => reused_registry_identity(&metadata_key, registry_version)?,
     };
     let manifest_version = metadata.version
         .clone()
@@ -422,18 +414,43 @@ fn current_resolution(
     Some(resolution)
 }
 
+/// The id, name and version, and `resolved_via` of a reused registry
+/// entry. A registry-qualified entry keeps its qualified id so the rebuilt
+/// graph re-emits the same lockfile key.
+fn reused_registry_identity(
+    metadata_key: &PkgNameVerPeer,
+    registry_version: Option<node_semver::Version>,
+) -> Option<(String, Option<PkgNameVer>, &'static str)> {
+    if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
+        let name_ver = PkgNameVer::new(metadata_key.name.clone(), version.clone());
+        return Some((metadata_key.to_string(), Some(name_ver), "named-registry"));
+    }
+    let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
+    Some((name_ver.to_string(), Some(name_ver), "npm-registry"))
+}
+
+/// The lockfile resolutions the walk reuses without the resolver that
+/// produced them.
+#[derive(Debug, Clone, Copy)]
+enum ReusableResolution {
+    Registry,
+    Git,
+}
+
 /// Reuse only resolutions whose normal resolver can be skipped. Custom and
 /// incomplete resolutions must pass through their owning resolver.
-fn reusable_resolution_is_git(resolution: &LockfileResolution) -> Option<bool> {
-    let git_resolution = match resolution {
-        LockfileResolution::Registry(_) => false,
+fn reusable_resolution(resolution: &LockfileResolution) -> Option<ReusableResolution> {
+    let reusable = match resolution {
+        LockfileResolution::Registry(_) => ReusableResolution::Registry,
         LockfileResolution::Tarball(tarball)
             if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
         {
-            false
+            ReusableResolution::Registry
         }
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => true,
-        LockfileResolution::Git(_) => true,
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
+            ReusableResolution::Git
+        }
+        LockfileResolution::Git(_) => ReusableResolution::Git,
         // Custom resolutions fall through with the rest: reuse would
         // bypass the pnpmfile custom resolver that owns them.
         LockfileResolution::Tarball(_)
@@ -442,7 +459,7 @@ fn reusable_resolution_is_git(resolution: &LockfileResolution) -> Option<bool> {
         | LockfileResolution::Variations(_)
         | LockfileResolution::Custom(_) => return None,
     };
-    Some(git_resolution)
+    Some(reusable)
 }
 
 fn current_registry_version(

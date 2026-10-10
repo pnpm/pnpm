@@ -1,7 +1,7 @@
 use super::{
-    Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, ChildrenRecording, DirectDep, FrontierNode,
-    HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
-    RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
+    Arc, BTreeMap, ChildrenOwnerClaim, ChildrenRecording, DependencySpec, DirectDep, FrontierNode,
+    HashMap, HashSet, NodeId, NodeKind, NodeSeed, ParentPkgAliases, PendingNode,
+    PreferredVersionsOverlay, RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
     claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
     lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
@@ -24,8 +24,11 @@ pub(super) fn assign_level_owners<'seed>(
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
         .filter_map(|seed| match seed {
-            NodeSeed::Pending(pending) if !pending.is_link => Some(pending),
-            _ => None,
+            NodeSeed::Pending(pending) => match pending.kind {
+                NodeKind::Link => None,
+                NodeKind::Leaf | NodeKind::Branch => Some(pending),
+            },
+            NodeSeed::Done(_) => None,
         })
         .collect();
     let winners: Vec<usize> = {
@@ -72,8 +75,10 @@ pub(super) fn install_owner_peer_dependencies(
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if pending.is_link || !claim.owns_children {
-        return Ok(());
+    match (pending.kind, claim.owns_children) {
+        (NodeKind::Link, _) => return Ok(()),
+        (NodeKind::Leaf | NodeKind::Branch, false) => return Ok(()),
+        (NodeKind::Leaf | NodeKind::Branch, true) => {}
     }
     let peer_dependencies = extract_peer_dependencies(
         &pending.result,
@@ -108,13 +113,19 @@ pub(super) fn settle_seeds(
     for seed in seeds {
         let NodeSeed::Pending(mut pending) = seed else { continue };
         let claim = pending.claim.take();
-        // Linked nodes don't walk their manifest's deps — see the
-        // `is_link` comment block in [`fn@resolve_node_seed`]. They get
-        // an empty `Realized` map: a linked node has no children of its
-        // own here.
-        if pending.is_link {
-            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
-            continue;
+        // Linked nodes don't walk their manifest's deps — see
+        // [`NodeKind::Link`]. They get an empty `Realized` map: a linked
+        // node has no children of its own here.
+        match pending.kind {
+            NodeKind::Link => {
+                insert_walked_node(
+                    ctx,
+                    &pending,
+                    TreeChildren::Realized(Arc::new(BTreeMap::new())),
+                );
+                continue;
+            }
+            NodeKind::Leaf | NodeKind::Branch => {}
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
             insert_walked_node(ctx, &pending, TreeChildren::Lazy);
@@ -159,7 +170,7 @@ pub(super) fn settle_level(
         let (children, recording) =
             record_walked_children(ctx, &pending, &claim, &child_specs, &seeds);
         insert_walked_node(ctx, &pending, children);
-        if (recording == ChildrenRecording::PublishedOverStale || !claim.children_context_unchanged)
+        if recording.stales_other_occurrences(&claim)
             && is_current_children_owner(ctx, &pending.identity.id, &claim.owner)
         {
             make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
@@ -186,7 +197,7 @@ pub(super) fn record_walked_children(
     ctx: &TreeCtx,
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
-    child_specs: &[ChildSpec],
+    child_specs: &[DependencySpec],
     seeds: &[NodeSeed],
 ) -> (TreeChildren, ChildrenRecording) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
@@ -194,7 +205,7 @@ pub(super) fn record_walked_children(
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
-        .map(|(name, _, optional, _)| (name.as_str(), *optional))
+        .map(|spec| (spec.alias.as_str(), spec.optional))
         .collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
@@ -259,7 +270,10 @@ pub(super) fn children_context(
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
 pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
-    let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
+    let depth = match pending.kind {
+        NodeKind::Link => -1,
+        NodeKind::Leaf | NodeKind::Branch => pending.ancestry.depth,
+    };
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 

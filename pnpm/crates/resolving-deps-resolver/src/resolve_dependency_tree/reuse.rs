@@ -37,7 +37,7 @@ use crate::{
 };
 
 use super::{
-    ResolveDependencyTreeError, UpdateReuseScope, WantedSpec, lock_recoverable,
+    DependencySpec, ResolveDependencyTreeError, UpdateReuseScope, lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
@@ -45,9 +45,9 @@ use super::{
     update_scope::update_excludes,
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
-        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
-        claim_children_owner, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, record_children,
+        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, PackageRegistration,
+        RecordedChildrenContext, claim_children_owner, insert_tree_node, is_current_children_owner,
+        make_non_owner_nodes_lazy, record_children, register_peer_dep_names,
     },
 };
 
@@ -378,7 +378,7 @@ where
     let alias = node_alias(&wanted, &result, &id);
     let identity = reused_identity(ctx, &id, &result, &reused.key)?;
 
-    let (id, created) = register_reused_package(
+    let registration = register_reused_package(
         ctx,
         id,
         &result,
@@ -386,9 +386,13 @@ where
         current_is_optional,
         identity.is_leaf,
     );
-    if created {
-        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
-    }
+    let id = match registration {
+        PackageRegistration::Created(id) => {
+            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            id
+        }
+        PackageRegistration::Existing(id) => id,
+    };
 
     attach_reused_children(
         ctx,
@@ -465,8 +469,7 @@ where
     let (children, recording) = reused_children(ctx, resolver, &children_owner, reused).await?;
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
-        && (recording == ChildrenRecording::PublishedOverStale
-            || !children_owner.children_context_unchanged)
+        && recording.stales_other_occurrences(&children_owner)
         && is_current_children_owner(ctx, reused_id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, reused_id, node_id);
@@ -475,8 +478,7 @@ where
 }
 
 /// Insert a reused package into the workspace's package table, answering
-/// with the table's `Arc` of the id and whether this occurrence is the one
-/// that created the entry.
+/// with the table's `Arc` of the id as a created or an existing entry.
 fn register_reused_package(
     ctx: &TreeCtx,
     id: String,
@@ -484,13 +486,13 @@ fn register_reused_package(
     peer_dependencies: BTreeMap<String, PeerDep>,
     current_is_optional: bool,
     is_leaf: bool,
-) -> (Arc<str>, bool) {
+) -> PackageRegistration {
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     if let Some(existing) = packages.get_mut(id.as_str()) {
         existing.optional = existing.optional && current_is_optional;
-        return (Arc::clone(&existing.id), false);
+        return PackageRegistration::Existing(Arc::clone(&existing.id));
     }
-    record_peer_dep_names(ctx, &peer_dependencies);
+    register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -503,16 +505,7 @@ fn register_reused_package(
             is_leaf,
         }),
     );
-    (shared_id, true)
-}
-
-fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
-    let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
-    for name in peer_dependencies.keys() {
-        if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
-        }
-    }
+    PackageRegistration::Created(shared_id)
 }
 
 #[cfg(test)]

@@ -74,7 +74,7 @@ use crate::{
 };
 
 use super::{
-    CatalogAnchor, ResolveDependencyTreeError, SkippedOptionalDependency,
+    CatalogAnchor, DependencySpec, ResolveDependencyTreeError, SkippedOptionalDependency,
     SkippedOptionalDependencyParent,
     catalogs::{catalog_anchor, resolve_catalog_specifier},
     lock_recoverable,
@@ -93,7 +93,7 @@ use super::{
     },
     update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, ChildrenRecording, RecordedChildrenContext,
+        ChildrenOwnerClaim, ChildrenRecording, PackageRegistration, RecordedChildrenContext,
         SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
         claim_children_warmup, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, recorded_children_match,
@@ -165,12 +165,48 @@ pub(super) enum NodeSeed {
     Pending(Box<PendingNode>),
 }
 
+/// How the walk treats one package occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NodeKind {
+    /// A workspace link. The linked project resolves its own dependencies
+    /// as a separate importer, so the node gets no children, no peer
+    /// dependencies, and `depth = -1` for the peer-resolution
+    /// short-circuit. Its node id is collapsed to a leaf so every
+    /// reference to the same workspace path shares one [`NodeId`].
+    Link,
+    /// A package with no dependencies, optional dependencies, peers, or
+    /// `peerDependenciesMeta`.
+    Leaf,
+    /// A package whose children are walked.
+    Branch,
+}
+
+impl NodeKind {
+    pub(super) fn of(result: &pnpm_resolving_resolver_base::ResolveResult, id: &str) -> Self {
+        if id.starts_with("link:") {
+            NodeKind::Link
+        } else if pkg_is_leaf(result) {
+            NodeKind::Leaf
+        } else {
+            NodeKind::Branch
+        }
+    }
+
+    /// Links and leaves share one tree node per package: see [`fn@node_id_for`].
+    pub(super) fn is_leaf(self) -> bool {
+        match self {
+            NodeKind::Link | NodeKind::Leaf => true,
+            NodeKind::Branch => false,
+        }
+    }
+}
+
 /// A resolved-but-not-settled node: everything the level settlement
 /// needs to decide whether this occurrence walks the package's
 /// children, and [`fn@seed_node_children`] needs to seed them.
 pub(super) struct PendingNode {
     result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
-    is_link: bool,
+    kind: NodeKind,
     resolves_children_through_catalogs: bool,
     /// The dependency names this occurrence's own `peerDependencies`
     /// shadow. Ownership of the package's children is settled across
@@ -214,8 +250,7 @@ struct SeededPackage<'a> {
     peer_shadowed: &'a HashSet<String>,
     resolves_children_through_catalogs: bool,
     current_is_optional: bool,
-    is_link: bool,
-    is_leaf: bool,
+    kind: NodeKind,
 }
 
 /// The parent-side context one child edge resolves in.
@@ -247,7 +282,7 @@ struct FrontierNode {
 /// their own packages on to the next level.
 struct SeededNode {
     node: FrontierNode,
-    child_specs: Arc<Vec<ChildSpec>>,
+    child_specs: Arc<Vec<DependencySpec>>,
     seeds: Vec<NodeSeed>,
     grandchild_overlay: Option<Arc<PreferredVersionsOverlay>>,
     grandchild_pkg_aliases: Arc<ParentPkgAliases>,

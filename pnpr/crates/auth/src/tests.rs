@@ -1,7 +1,7 @@
 use super::{
-    MAX_USERNAME_CHARS, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
-    UserBackend, UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
-    token_timestamp_to_sql, validate_username,
+    MAX_USERNAME_CHARS, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore,
+    UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore, identify, parse_htpasswd,
+    sha256_hex, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
 };
 use pnpr_config::MaxUsers;
 use std::sync::Arc;
@@ -515,20 +515,20 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
 /// The admin operations every [`UserBackend`] supports, starting from an
 /// empty store.
 pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
-    assert!(users.create_user("alice", "first").await.unwrap());
-    assert!(!users.create_user("alice", "other").await.unwrap());
+    assert_eq!(users.create_user("alice", "first").await.unwrap(), UserCreation::Created);
+    assert_eq!(users.create_user("alice", "other").await.unwrap(), UserCreation::NameTaken);
     assert_eq!(users.list_users().await.unwrap(), ["alice"]);
 
-    assert!(users.set_password("alice", "second").await.unwrap());
+    assert_eq!(users.set_password("alice", "second").await.unwrap(), PasswordChange::Changed);
     assert!(users.add_or_login("alice", "first").await.is_err());
     assert!(matches!(
         users.add_or_login("alice", "second").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
-    assert!(!users.set_password("bob", "x").await.unwrap());
+    assert_eq!(users.set_password("bob", "x").await.unwrap(), PasswordChange::NoSuchUser);
 
-    assert!(users.delete_user("alice").await.unwrap());
-    assert!(!users.delete_user("alice").await.unwrap());
+    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::Removed);
+    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::NoSuchUser);
     assert!(
         users
             .list_users()
@@ -548,9 +548,9 @@ async fn admin_created_users_bypass_disabled_registration_and_persist() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("htpasswd");
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
-    assert!(store.create_user("alice", "secret").await.unwrap());
-    assert!(store.create_user("bob", "secret").await.unwrap());
-    assert!(store.delete_user("bob").await.unwrap());
+    assert_eq!(store.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("bob", "secret").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.delete_user("bob").await.unwrap(), UserRemoval::Removed);
 
     let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
@@ -597,7 +597,7 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     );
 
     std::fs::remove_dir(&path).unwrap();
-    assert!(store.create_user("alice", "x").await.unwrap());
+    assert_eq!(store.create_user("alice", "x").await.unwrap(), UserCreation::Created);
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
 }

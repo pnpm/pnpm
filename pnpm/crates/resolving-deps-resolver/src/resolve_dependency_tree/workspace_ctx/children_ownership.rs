@@ -213,6 +213,18 @@ pub(in super::super) enum ChildrenRecording {
 }
 
 impl ChildrenRecording {
+    /// Whether the other occurrence nodes of the package can no longer
+    /// trust the children they realized: this walk published over stale
+    /// edges, or `claim` found the children context changed.
+    pub(in super::super) fn stales_other_occurrences(self, claim: &ChildrenOwnerClaim) -> bool {
+        match self {
+            ChildrenRecording::PublishedOverStale => true,
+            ChildrenRecording::Declined | ChildrenRecording::Published => {
+                !claim.children_context_unchanged
+            }
+        }
+    }
+
     /// The children to hang on the recording walk's own node.
     pub(in super::super) fn children(self, realized: BTreeMap<String, NodeId>) -> TreeChildren {
         match self {

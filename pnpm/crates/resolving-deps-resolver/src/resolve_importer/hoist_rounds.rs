@@ -1,7 +1,7 @@
 use super::{
-    Arc, BTreeMap, CandidatePeerRanges, DirectDep, HashMap, HashSet, HoistMissingScope,
-    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
-    PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
+    Arc, BTreeMap, CandidatePeerRanges, DependencySpec, DirectDep, HashMap, HashSet,
+    HoistMissingScope, HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases,
+    PeerDiscoveryResult, PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver,
     WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
@@ -206,17 +206,9 @@ impl ImporterHoistState {
             self.dependencies.parent_pkg_aliases.insert(name.clone());
         }
 
-        // Hoisted required peers are installed at the importer
-        // level as non-optional direct deps — they exist precisely
-        // to satisfy a missing required peer, so flipping their
-        // own `optional` flag to `true` would defeat the
-        // auto-install. Hoisted peers don't carry
-        // `dependenciesMeta` from any manifest, so `injected`
-        // defaults to `false`: the hoist path constructs a fresh
-        // wanted dependency without threading the per-dep meta.
-        let new_wanted: Vec<WantedSpec> = hoisted
+        let new_wanted: Vec<DependencySpec> = hoisted
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(alias, bare_specifier)| hoisted_dependency(alias, bare_specifier))
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
@@ -384,21 +376,16 @@ impl ImporterHoistState {
         for name in hoisted_optional.keys() {
             self.dependencies.parent_pkg_aliases.insert(name.clone());
         }
-        // Optional peers picked up via `getHoistableOptionalPeers` are
-        // also installed at the importer level — the picker already
-        // confirmed a preferred version is in scope. Treating them as
-        // non-optional matches the required-peer arm above; `injected`
-        // also defaults to `false` for the same reason.
-        let new_wanted: Vec<WantedSpec> = hoisted_optional
+        let new_wanted: Vec<DependencySpec> = hoisted_optional
             .into_iter()
-            .map(|(name, version)| {
-                let specifier = optional_peer_specifier(
-                    &name,
+            .map(|(alias, version)| {
+                let bare_specifier = optional_peer_specifier(
+                    &alias,
                     version,
                     self.hoist_root_deps(),
                     &self.dependencies.workspace_root_dep_versions,
                 );
-                (name, specifier, false, false)
+                hoisted_dependency(alias, bare_specifier)
             })
             .collect();
         let new_direct = extend_tree(
@@ -415,4 +402,16 @@ impl ImporterHoistState {
         self.progress.discovery_converged = false;
         Ok(true)
     }
+}
+
+/// A hoisted peer as a direct dependency of the importer.
+///
+/// `optional` is false for both rounds: a hoisted required peer exists to
+/// satisfy a missing peer, so marking it optional would defeat the
+/// auto-install, and the optional-peer picker has already confirmed a
+/// preferred version is in scope. `injected` is false because a hoisted
+/// peer carries no manifest's `dependenciesMeta` — this path builds a
+/// fresh wanted dependency without threading the per-dep meta.
+fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
+    DependencySpec { alias, bare_specifier, optional: false, injected: false }
 }

@@ -8,8 +8,8 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex,
+    DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
+    UserCreation, UserRemoval, fresh_secret, hash_bcrypt, sha256_hex,
     token_store::{mint_token, unix_seconds},
     validate_username, verify_returning_user, with_auth_timeout,
 };
@@ -112,9 +112,13 @@ trait AuthSqlBackend: Send + Sync {
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
     async fn list_usernames(&self) -> Result<Vec<String>>;
-    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
+    async fn update_password_hash(
+        &self,
+        username: &str,
+        bcrypt_hash: &str,
+    ) -> Result<PasswordChange>;
     /// Remove the user and take one off the `users` counter in one transaction.
-    async fn delete_user(&self, username: &str) -> Result<bool>;
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
 }
 
 #[derive(Clone)]
@@ -174,19 +178,22 @@ where
 
     /// Inserts as an uncapped store would, so the `users` counter still
     /// counts the new user.
-    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        let inserted = self.db.insert_user(username, &hash, MaxUsers::Unlimited).await?;
-        Ok(matches!(inserted, InsertUser::Created))
+        match self.db.insert_user(username, &hash, MaxUsers::Unlimited).await? {
+            InsertUser::Created => Ok(UserCreation::Created),
+            // An uncapped insert cannot reach the cap.
+            InsertUser::Existing(_) | InsertUser::CapReached => Ok(UserCreation::NameTaken),
+        }
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.db.update_password_hash(username, &hash).await
     }
 
-    async fn delete_user(&self, username: &str) -> Result<bool> {
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         self.db.delete_user(username).await
     }
 }

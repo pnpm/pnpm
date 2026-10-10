@@ -1,6 +1,6 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, params, retry_database_conflicts,
+    UserBackend, UserCreation, UserRemoval, params, retry_database_conflicts,
     schema::{ensure_user_counter, is_transaction_conflict},
     sha256_hex, with_auth_timeout,
 };
@@ -456,11 +456,11 @@ async fn libsql_supports_the_admin_operations() {
 #[tokio::test]
 async fn admin_created_users_count_against_the_registration_cap() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
-    assert!(backend.create_user("alice", "secret").await.unwrap());
+    assert_eq!(backend.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
     let err = backend.add_or_login("bob", "secret").await.unwrap_err();
     assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
 
-    assert!(backend.delete_user("alice").await.unwrap());
+    assert_eq!(backend.delete_user("alice").await.unwrap(), UserRemoval::Removed);
     assert!(matches!(
         backend.add_or_login("bob", "secret").await.unwrap(),
         (UpsertOutcome::Created, _),

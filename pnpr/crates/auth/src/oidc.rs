@@ -11,6 +11,9 @@ use sessions::BrowserSessions;
 mod provider_config;
 use provider_config::{build_providers, secure_url};
 
+mod provider_metadata;
+use provider_metadata::{MetadataCache, MetadataFreshness};
+
 mod workload;
 use workload::{
     bound_user, match_workload_binding, token_payload, token_verifier, verify_workload,
@@ -47,8 +50,6 @@ use url::Url;
 
 const MAX_ENTRIES: usize = 1024;
 const LOGIN_TTL: Duration = Duration::from_mins(5);
-const METADATA_TTL: Duration = Duration::from_mins(5);
-const REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 const SESSION_PREFIX: &str = "pnpr_oidc_";
 
 type LoginClient = CoreClient<
@@ -75,12 +76,6 @@ struct Provider {
     config: OidcProvider,
     metadata: AsyncMutex<MetadataCache>,
     refresh: AsyncMutex<()>,
-}
-
-#[derive(Default)]
-struct MetadataCache {
-    value: Option<(Instant, CoreProviderMetadata)>,
-    attempted_at: Option<Instant>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -138,7 +133,7 @@ impl OidcState {
         if provider.config.login.is_none() {
             return Err(RegistryError::NotFound);
         }
-        let metadata = self.metadata(provider, false).await?;
+        let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
         let client = self.login_client(provider, metadata)?;
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
         let (url, state, nonce) = client
@@ -173,7 +168,7 @@ impl OidcState {
         let _exchange = self.exchanges.try_acquire().map_err(|_| unavailable())?;
         self.record_attempt(&login.state_hash)?;
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
-        let metadata = self.metadata(provider, false).await?;
+        let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
         let response = self
             .login_client(provider, metadata.clone())?
             .exchange_code(AuthorizationCode::new(code.to_string()))
@@ -245,7 +240,10 @@ impl OidcState {
     ) -> Result<i64> {
         let mut verifier = token_verifier(&provider.config, metadata)?;
         if token.claims(&verifier, nonce).is_err() {
-            verifier = token_verifier(&provider.config, &self.metadata(provider, true).await?)?;
+            verifier = token_verifier(
+                &provider.config,
+                &self.metadata(provider, MetadataFreshness::Refetched).await?,
+            )?;
         }
         let claims = token.claims(&verifier, nonce).map_err(|_| rejected())?;
         if let Some(expected) = claims.access_token_hash() {
@@ -338,33 +336,6 @@ impl OidcState {
         ))
     }
 
-    async fn metadata(&self, provider: &Provider, refresh: bool) -> Result<CoreProviderMetadata> {
-        let cached = cached_metadata(&*provider.metadata.lock().await, refresh);
-        if let Some(metadata) = cached {
-            return Ok(metadata);
-        }
-        let _refresh = provider.refresh.lock().await;
-        {
-            let mut cache = provider.metadata.lock().await;
-            if let Some(metadata) = cached_metadata(&cache, refresh) {
-                return Ok(metadata);
-            }
-            if cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL) {
-                return Err(unavailable());
-            }
-            cache.attempted_at = Some(Instant::now());
-        }
-        let issuer = IssuerUrl::new(provider.config.issuer.clone()).map_err(|_| rejected())?;
-        let metadata =
-            CoreProviderMetadata::discover_async(issuer, self).await.map_err(|_| unavailable())?;
-        secure_url(metadata.authorization_endpoint().as_str())?;
-        if let Some(endpoint) = metadata.token_endpoint() {
-            secure_url(endpoint.as_str())?;
-        }
-        provider.metadata.lock().await.value = Some((Instant::now(), metadata.clone()));
-        Ok(metadata)
-    }
-
     async fn http_request(&self, request: HttpRequest) -> Result<HttpResponse> {
         secure_url(&request.uri().to_string())?;
         network::validate_destination(&request.uri().to_string())?;
@@ -389,14 +360,6 @@ impl OidcState {
         }
         builder.body(body).map_err(|_| unavailable())
     }
-}
-
-fn cached_metadata(cache: &MetadataCache, refresh: bool) -> Option<CoreProviderMetadata> {
-    let recently_attempted = cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL);
-    cache.value
-        .as_ref()
-        .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL && (!refresh || recently_attempted))
-        .map(|(_, metadata)| metadata.clone())
 }
 
 impl<'client> openidconnect::AsyncHttpClient<'client> for OidcState {

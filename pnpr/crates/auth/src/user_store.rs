@@ -1,6 +1,7 @@
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, UserBackend, hash_bcrypt, parse_htpasswd,
-    serialize_htpasswd, validate_username, verify_returning_user, write_atomic,
+    DEFAULT_BCRYPT_COST, PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation,
+    UserRemoval, hash_bcrypt, parse_htpasswd, serialize_htpasswd, validate_username,
+    verify_returning_user, write_atomic,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -219,38 +220,38 @@ impl UserBackend for UserStore {
         Ok(self.snapshot().get(username).cloned())
     }
 
-    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         self.update(move |users| {
             if users.contains_key(&name) {
-                return Ok(Change::Keep(false));
+                return Ok(Change::Keep(UserCreation::NameTaken));
             }
             users.insert(name, hash);
-            Ok(Change::Write(true))
+            Ok(Change::Write(UserCreation::Created))
         })
         .await
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         self.update(move |users| match users.get_mut(&name) {
             Some(stored) => {
                 *stored = hash;
-                Ok(Change::Write(true))
+                Ok(Change::Write(PasswordChange::Changed))
             }
-            None => Ok(Change::Keep(false)),
+            None => Ok(Change::Keep(PasswordChange::NoSuchUser)),
         })
         .await
     }
 
-    async fn delete_user(&self, username: &str) -> Result<bool> {
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         let name = username.to_string();
         self.update(move |users| match users.remove(&name) {
-            Some(_) => Ok(Change::Write(true)),
-            None => Ok(Change::Keep(false)),
+            Some(_) => Ok(Change::Write(UserRemoval::Removed)),
+            None => Ok(Change::Keep(UserRemoval::NoSuchUser)),
         })
         .await
     }

@@ -208,7 +208,7 @@ impl HeldFile {
         let Some(file) = &self.file else {
             return Liveness::Unavailable;
         };
-        let identified = match crate::try_lock_file(file, true) {
+        let identified = match crate::try_lock_file(file, crate::LockMode::Exclusive) {
             Ok(()) => held_file_id(file),
             Err(TryLockError::WouldBlock) => return Liveness::Busy,
             Err(TryLockError::Error(error)) => Err(error),

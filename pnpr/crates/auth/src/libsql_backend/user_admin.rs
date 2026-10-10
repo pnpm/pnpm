@@ -1,6 +1,7 @@
 use super::{
-    DEFAULT_BCRYPT_COST, LibsqlAuth, Result, hash_bcrypt, is_unique_violation, params,
-    retry_database_conflicts, validate_username, with_auth_timeout,
+    DEFAULT_BCRYPT_COST, LibsqlAuth, PasswordChange, Result, UserCreation, UserRemoval,
+    hash_bcrypt, is_unique_violation, params, retry_database_conflicts, validate_username,
+    with_auth_timeout,
 };
 use pnpr_error::RegistryError;
 
@@ -28,7 +29,7 @@ impl LibsqlAuth {
         &self,
         username: &str,
         password: &str,
-    ) -> Result<bool> {
+    ) -> Result<UserCreation> {
         validate_username(username)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         retry_database_conflicts(|| async {
@@ -42,11 +43,11 @@ impl LibsqlAuth {
                 Ok(_) => {
                     tx.execute(COUNT_ONE_MORE, ()).await?;
                     tx.commit().await?;
-                    Ok(true)
+                    Ok(UserCreation::Created)
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;
-                    Ok(false)
+                    Ok(UserCreation::NameTaken)
                 }
                 Err(err) => Err(err.into()),
             }
@@ -54,7 +55,11 @@ impl LibsqlAuth {
         .await
     }
 
-    pub(super) async fn update_password(&self, username: &str, password: &str) -> Result<bool> {
+    pub(super) async fn update_password(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let updated = retry_database_conflicts(|| async {
             Ok(self.conn.execute(
@@ -64,10 +69,10 @@ impl LibsqlAuth {
             .await?)
         })
         .await?;
-        Ok(updated > 0)
+        if updated > 0 { Ok(PasswordChange::Changed) } else { Ok(PasswordChange::NoSuchUser) }
     }
 
-    pub(super) async fn remove_user(&self, username: &str) -> Result<bool> {
+    pub(super) async fn remove_user(&self, username: &str) -> Result<UserRemoval> {
         retry_database_conflicts(|| async {
             let tx = self.conn.transaction().await?;
             let removed =
@@ -76,7 +81,7 @@ impl LibsqlAuth {
                 tx.execute(COUNT_ONE_LESS, ()).await?;
             }
             tx.commit().await?;
-            Ok(removed > 0)
+            if removed > 0 { Ok(UserRemoval::Removed) } else { Ok(UserRemoval::NoSuchUser) }
         })
         .await
     }

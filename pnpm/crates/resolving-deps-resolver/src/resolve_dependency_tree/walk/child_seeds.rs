@@ -1,6 +1,6 @@
 use super::{
-    Arc, CatalogAnchor, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path,
-    PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
+    Arc, CatalogAnchor, Catalogs, ChildEdge, Cow, DependencySpec, FrontierNode, HashSet, NodeSeed,
+    Path, PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
     Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
     keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
@@ -43,14 +43,14 @@ where
 ///
 /// The manifest's specs are cached per package id. The cache value is
 /// held by `Arc` so revisits clone the refcount instead of the inner
-/// `Vec<ChildSpec>`, and it is cached unfiltered because which of the
+/// `Vec<DependencySpec>`, and it is cached unfiltered because which of the
 /// specs the package's own `peerDependencies` shadow is a property of
 /// the owner occurrence, not of the manifest.
 pub(super) fn child_specs_of(
     ctx: &TreeCtx,
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
-) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
+) -> Result<Arc<Vec<DependencySpec>>, ResolveDependencyTreeError> {
     let cached =
         lock_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
     let child_specs = if let Some(specs) = cached {
@@ -67,9 +67,9 @@ pub(super) fn child_specs_of(
     } else {
         child_specs
             .iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
+            .filter(|spec| spec.optional || !peer_shadowed.contains(&spec.alias))
             .cloned()
-            .collect::<Vec<ChildSpec>>()
+            .collect::<Vec<DependencySpec>>()
             .pipe(Arc::new)
     };
     Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
@@ -79,7 +79,7 @@ pub(super) fn child_specs_of(
             child_specs
                 .iter()
                 .cloned()
-                .collect::<Vec<ChildSpec>>()
+                .collect::<Vec<DependencySpec>>()
                 .pipe(|specs| resolve_catalog_child_specs(specs, catalogs, anchor))?
                 .pipe(Arc::new)
         }
@@ -135,7 +135,7 @@ pub(super) async fn seed_child<Chain>(
     resolver: &Chain,
     node: &FrontierNode,
     scope: &ChildSeedScope<'_>,
-    spec: &ChildSpec,
+    spec: &DependencySpec,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -170,24 +170,31 @@ where
 pub(super) fn child_wanted(
     ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
-    (name, range, optional, injected): &ChildSpec,
+    spec: &DependencySpec,
     depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
+    let DependencySpec {
+        alias,
+        bare_specifier,
+        optional,
+        injected,
+    } = spec;
     let mut wanted = WantedDependency {
-        alias: Some(name.clone()),
-        bare_specifier: Some(range.clone()),
+        alias: Some(alias.clone()),
+        bare_specifier: Some(bare_specifier.clone()),
         optional: Some(*optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()
     };
-    let mut prior =
-        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
+    let mut prior = scope.prior_children_snapshot.and_then(|snapshot| {
+        prior_child_key(snapshot, alias, bare_specifier)
+    });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
             .version_semver()
-            .zip(range.parse::<node_semver::Range>().ok())
+            .zip(bare_specifier.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
-                higher_direct_dep_version(scope.direct_versions.as_deref(), name, pinned, &parsed)
+                higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
             })
         && keeps_locked_version(ctx, &wanted, key, depth)
     {
@@ -275,15 +282,20 @@ pub(super) fn catalogs_for_children(
 /// consumer — that manifest declares these children — so a `file:` /
 /// `link:` catalog entry lands on the path it would have written.
 pub(super) fn resolve_catalog_child_specs(
-    child_specs: Vec<ChildSpec>,
+    child_specs: Vec<DependencySpec>,
     catalogs: &Catalogs,
     anchor: CatalogAnchor<'_>,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     child_specs
         .into_iter()
-        .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs, anchor)
-                .map(|(name, range)| (name, range, optional, injected))
+        .map(|spec| {
+            resolve_catalog_specifier(spec.alias, spec.bare_specifier, catalogs, anchor)
+                .map(|(alias, bare_specifier)| DependencySpec {
+                    alias,
+                    bare_specifier,
+                    optional: spec.optional,
+                    injected: spec.injected,
+                })
         })
         .collect()
 }

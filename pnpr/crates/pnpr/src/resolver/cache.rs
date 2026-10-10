@@ -88,7 +88,7 @@ pub(super) fn store_resolution(
     candidates.push(candidate);
     enforce_candidate_limit(candidates);
     while count_resolution_candidates(&cache) > MAX_RESOLUTION_CACHE_ENTRIES {
-        if !evict_lru_resolution_candidate(&mut cache, true) {
+        if !evict_lru_resolution_candidate(&mut cache) {
             break;
         }
     }
@@ -107,18 +107,18 @@ fn prune_expired_resolution_cache(
 
 fn enforce_candidate_limit(candidates: &mut Vec<CachedResolution>) {
     while candidates.len() > MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY {
-        evict_lru_candidate(candidates, true);
+        evict_lru_candidate(candidates);
     }
 }
 
-fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>, private_first: bool) {
-    if private_first
-        && let Some(index) = candidates
-            .iter()
-            .enumerate()
-            .filter(|(_, candidate)| !candidate.footprint.is_public())
-            .min_by_key(|(_, candidate)| candidate.last_used)
-            .map(|(index, _)| index)
+/// Evicts the least recently used candidate, preferring a private one.
+fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>) {
+    if let Some(index) = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| !candidate.footprint.is_public())
+        .min_by_key(|(_, candidate)| candidate.last_used)
+        .map(|(index, _)| index)
     {
         candidates.remove(index);
         return;
@@ -137,12 +137,9 @@ fn count_resolution_candidates(cache: &HashMap<String, Vec<CachedResolution>>) -
     cache.values().map(Vec::len).sum()
 }
 
-fn evict_lru_resolution_candidate(
-    cache: &mut HashMap<String, Vec<CachedResolution>>,
-    private_first: bool,
-) -> bool {
-    let target = lru_resolution_candidate(cache, private_first)
-        .or_else(|| if private_first { lru_resolution_candidate(cache, false) } else { None });
+fn evict_lru_resolution_candidate(cache: &mut HashMap<String, Vec<CachedResolution>>) -> bool {
+    let target = lru_resolution_candidate(cache, CandidateScope::PrivateOnly)
+        .or_else(|| lru_resolution_candidate(cache, CandidateScope::Any));
     let Some((key, index, _)) = target else {
         return false;
     };
@@ -157,9 +154,16 @@ fn evict_lru_resolution_candidate(
     true
 }
 
+/// Which candidates an eviction looks at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CandidateScope {
+    PrivateOnly,
+    Any,
+}
+
 fn lru_resolution_candidate(
     cache: &HashMap<String, Vec<CachedResolution>>,
-    private_only: bool,
+    scope: CandidateScope,
 ) -> Option<(String, usize, Instant)> {
     cache
         .iter()
@@ -167,7 +171,10 @@ fn lru_resolution_candidate(
             candidates
                 .iter()
                 .enumerate()
-                .filter(|(_, candidate)| !private_only || !candidate.footprint.is_public())
+                .filter(|(_, candidate)| match scope {
+                    CandidateScope::PrivateOnly => !candidate.footprint.is_public(),
+                    CandidateScope::Any => true,
+                })
                 .min_by_key(|(_, candidate)| candidate.last_used)
                 .map(|(index, candidate)| (key.clone(), index, candidate.last_used))
         })

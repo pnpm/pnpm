@@ -16,6 +16,7 @@ pub use file_lock::{lock_file, try_lock_file};
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
+pub use lock_mode::LockMode;
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{
@@ -57,6 +58,7 @@ mod file_lock;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
+mod lock_mode;
 mod pending_temp;
 mod private_named_tempfile;
 mod read_modules_dir;
