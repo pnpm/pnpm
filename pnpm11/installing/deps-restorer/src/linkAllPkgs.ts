@@ -206,7 +206,7 @@ async function importIntoSlot (
     }
     return await storeController.importPackage(depNode.dir, {
       filesResponse,
-      force: depNode.forceImportPackage ?? opts.force,
+      force: depNode.forceImportPackage || opts.force,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       requiresBuild: depNode.patch != null || depNode.requiresBuild,
       safeToSkip: opts.enableGlobalVirtualStore,

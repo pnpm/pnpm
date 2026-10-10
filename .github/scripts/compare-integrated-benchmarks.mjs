@@ -13,6 +13,7 @@ export const scenarios = [
   'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE',
   'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE',
   'ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE',
+  'ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE',
   'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR',
   'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE',
 ]
@@ -76,7 +77,7 @@ export async function renderComparison (directory) {
   let failed = false
   for (const scenario of scenarios) {
     const report = JSON.parse(await readFile(join(directory, `BENCHMARK_REPORT_${scenario}.json`), 'utf8'))
-    const engines = scenario.includes('PEER_HEAVY') || scenario.includes('LINKED_WORKSPACE') ? ['pacquet'] : ['pacquet', 'pnpr']
+    const engines = scenario.includes('PEER_HEAVY') || scenario.includes('LINKED_WORKSPACE') || scenario.includes('INJECTED_WORKSPACE') ? ['pacquet'] : ['pacquet', 'pnpr']
     for (const engine of engines) {
       const result = compareConfirmed(report, engine)
       failed ||= result.status === 'Regression'

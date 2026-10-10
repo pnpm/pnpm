@@ -29,21 +29,9 @@ fn log_method_once_emits_first_call_per_method_only() {
 
     let logged = AtomicU8::new(0);
 
-    super::super::log_method_once::<RecordingReporter>(
-        &logged,
-        super::super::LOG_FLAG_CLONE,
-        WireImportMethod::Clone,
-    );
-    super::super::log_method_once::<RecordingReporter>(
-        &logged,
-        super::super::LOG_FLAG_CLONE,
-        WireImportMethod::Clone,
-    );
-    super::super::log_method_once::<RecordingReporter>(
-        &logged,
-        super::super::LOG_FLAG_HARDLINK,
-        WireImportMethod::Hardlink,
-    );
+    super::super::log_method_once::<RecordingReporter>(&logged, WireImportMethod::Clone);
+    super::super::log_method_once::<RecordingReporter>(&logged, WireImportMethod::Clone);
+    super::super::log_method_once::<RecordingReporter>(&logged, WireImportMethod::Hardlink);
 
     let captured = EVENTS.lock().unwrap();
     let kinds: Vec<WireImportMethod> = captured

@@ -405,6 +405,7 @@ fn slot_import_opts(
     if interrupted_build || source_is_mutable || force_import {
         return ImportIndexedDirOpts {
             force: true,
+            reuse_hardlinks: source_is_mutable && !force_import && !interrupted_build,
             keep_modules_dir: true,
             safe_to_skip,
             preserve_symlinks: source_is_mutable,

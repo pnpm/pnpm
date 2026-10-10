@@ -10,6 +10,7 @@ mod fixtures;
 
 use fixtures::{create_npmrc, create_package_json, create_pnpm_workspace, save_pristine_copies};
 
+mod injected_workspace;
 mod linked_workspace;
 
 mod server_config;
@@ -283,6 +284,9 @@ impl WorkEnv {
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
+            if scenario.uses_injected_workspace_fixture() {
+                injected_workspace::create_project(&dir);
+            }
             if scenario.uses_linked_workspace_fixture() {
                 linked_workspace::create_projects(&dir);
             }
