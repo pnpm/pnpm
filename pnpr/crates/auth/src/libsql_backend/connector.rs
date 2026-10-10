@@ -37,11 +37,7 @@ impl LibsqlConnector {
     /// The connector for the database at `url`. libsql dials every URL
     /// other than `http://`, such as `libsql://`, over HTTPS.
     pub(super) fn for_url(url: &str) -> Result<Self, LibsqlError> {
-        if url.starts_with("http://") {
-            Ok(Self::with_tls(None))
-        } else {
-            Self::with_platform_roots()
-        }
+        if is_plain_http(url) { Ok(Self::with_tls(None)) } else { Self::with_platform_roots() }
     }
 
     /// A connector that verifies servers against the platform trust store.
@@ -65,6 +61,12 @@ impl LibsqlConnector {
         tcp.set_nodelay(true);
         Self { tcp, tls }
     }
+}
+
+/// Whether libsql dials `url` without TLS. The scheme is case-insensitive.
+pub(super) fn is_plain_http(url: &str) -> bool {
+    url.get(.."http://".len())
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
 }
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;

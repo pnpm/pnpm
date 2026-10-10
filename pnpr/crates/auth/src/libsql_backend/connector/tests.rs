@@ -1,5 +1,5 @@
 use super::LibsqlConnector;
-use crate::libsql_backend::LibsqlAuth;
+use crate::libsql_backend::{LibsqlAuth, RegistryError};
 use libsql::Builder;
 use pnpm_testing_utils::{env_guard::EnvGuard, trusted_tls_server::TrustedTlsServer};
 use pnpr_config::{LibsqlSettings, MaxUsers};
@@ -72,6 +72,36 @@ async fn refuses_plain_http_on_a_connector_for_https() {
         .err()
         .unwrap();
     assert!(error.to_string().contains("refusing plain HTTP"), "{error}");
+}
+
+#[test]
+fn reads_the_http_scheme_case_insensitively() {
+    assert!(LibsqlConnector::for_url("HTTP://127.0.0.1:8080").unwrap().tls.is_none());
+}
+
+#[tokio::test]
+async fn refuses_an_auth_token_over_plain_http_to_a_remote_host() {
+    let settings = LibsqlSettings {
+        auth_token: Some("secret".to_string()),
+        ..settings("http://db.example.com:8080".to_string())
+    };
+    let error = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap_err();
+    assert!(matches!(error, RegistryError::InvalidConfig { .. }), "{error:?}");
+}
+
+#[tokio::test]
+async fn sends_an_auth_token_over_plain_http_to_a_loopback_host() {
+    let port = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let settings = LibsqlSettings {
+        auth_token: Some("secret".to_string()),
+        ..settings(format!("http://127.0.0.1:{port}"))
+    };
+    let error = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap_err();
+    assert!(matches!(error, RegistryError::Libsql(_)), "{error:?}");
 }
 
 #[tokio::test]

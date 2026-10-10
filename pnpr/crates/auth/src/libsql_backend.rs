@@ -22,7 +22,7 @@ use super::token_store::{mint_token, unix_seconds};
 mod connector;
 mod schema;
 mod user_admin;
-use connector::LibsqlConnector;
+use connector::{LibsqlConnector, is_plain_http};
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -37,6 +37,7 @@ use async_trait::async_trait;
 use libsql::{
     Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
 };
+use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use std::{
@@ -98,6 +99,16 @@ impl LibsqlAuth {
     /// primary — always fresh, but a network round-trip on the auth hot
     /// path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
+        if settings.auth_token.is_some()
+            && is_plain_http(&settings.url)
+            && !is_url_secure_for_credentials(&settings.url)
+        {
+            return Err(RegistryError::InvalidConfig {
+                reason: "backend.libsql.authToken requires an https:// or libsql:// url, or \
+                         http:// on a loopback host"
+                    .to_string(),
+            });
+        }
         let connector = LibsqlConnector::for_url(&settings.url)?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
