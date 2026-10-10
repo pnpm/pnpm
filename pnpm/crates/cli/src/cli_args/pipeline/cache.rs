@@ -141,10 +141,9 @@ impl TaskCache {
             .output()
             .ok()
             .filter(|output| output.status.success())
-            .map_or_else(
-                || "no-node".to_string(),
-                |output| String::from_utf8_lossy(&output.stdout).trim().to_string(),
-            );
+            .map(|output| output.stdout)
+            .map(|stdout| String::from_utf8_lossy(&stdout).trim().to_string())
+            .unwrap_or_else(|| "no-node".to_string());
         Ok(TaskCache {
             tasks_dir,
             state_dir,

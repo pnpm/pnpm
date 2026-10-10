@@ -11,8 +11,10 @@ use pnpm_resolving_npm_resolver::mirror::{
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
+    borrow::Cow,
+    ffi::OsStr,
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 use wax::walk::Entry;
 
@@ -473,15 +475,10 @@ fn cache_registry_name(file_path: &str) -> String {
     Path::new(file_path)
         .components()
         .next()
-        .map_or_else(
-            || ".".to_string(),
-            |component| {
-                component
-                    .as_os_str()
-                    .to_string_lossy()
-                    .into_owned()
-            },
-        )
+        .map(Component::as_os_str)
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
+        .unwrap_or_else(|| ".".to_string())
 }
 
 /// The metadata file's modification time as an RFC 3339 timestamp.

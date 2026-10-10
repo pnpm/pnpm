@@ -320,6 +320,7 @@ similar_names = "allow" # names ported verbatim from pnpm
 items_after_statements = "allow"
 needless_continue = "allow"
 many_single_char_names = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+map_unwrap_or = "allow" # its map_or/map_or_else suggestion puts the fallback before the value; the map/unwrap_or_else chain reads in evaluation order
 
 # nursery-group opt-outs (the group is experimental; these lints are either
 # false positives on this code or fight conventions the project keeps on purpose)
