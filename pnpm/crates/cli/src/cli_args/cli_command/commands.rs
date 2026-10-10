@@ -7,8 +7,8 @@ use super::{
     InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs,
     NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs,
     PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs,
-    PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs,
-    RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
+    ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs,
+    RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
     SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
     TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs,
     VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
@@ -268,8 +268,7 @@ pub enum CliCommand {
     // Registered rather than left to the external-subcommand fallback so
     // it names npm instead of failing as a missing package script.
     Edit(NotImplementedArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Profile(NotImplementedArgs),
+    Profile(ProfileArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Token(NotImplementedArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.

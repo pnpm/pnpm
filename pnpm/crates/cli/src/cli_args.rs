@@ -66,6 +66,7 @@ pub(crate) mod pipelines;
 pub mod pkg;
 pub(crate) mod pre_command;
 pub mod prefix;
+pub mod profile;
 pub mod prune;
 pub mod publish;
 pub mod rebuild;
