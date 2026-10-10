@@ -29,10 +29,21 @@ use tower_0_4::Service;
 #[derive(Clone)]
 pub(super) struct LibsqlConnector {
     tcp: HttpConnector,
-    tls: TlsConnector,
+    /// `None` for an `http://` database, which then needs no trust store.
+    tls: Option<TlsConnector>,
 }
 
 impl LibsqlConnector {
+    /// The connector for the database at `url`. libsql dials every URL
+    /// other than `http://`, such as `libsql://`, over HTTPS.
+    pub(super) fn for_url(url: &str) -> Result<Self, LibsqlError> {
+        if url.starts_with("http://") {
+            Ok(Self::with_tls(None))
+        } else {
+            Self::with_platform_roots()
+        }
+    }
+
     /// A connector that verifies servers against the platform trust store.
     pub(super) fn with_platform_roots() -> Result<Self, LibsqlError> {
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
@@ -45,10 +56,14 @@ impl LibsqlConnector {
     }
 
     pub(super) fn new(config: ClientConfig) -> Self {
+        Self::with_tls(Some(TlsConnector::from(Arc::new(config))))
+    }
+
+    fn with_tls(tls: Option<TlsConnector>) -> Self {
         let mut tcp = HttpConnector::new();
         tcp.enforce_http(false);
         tcp.set_nodelay(true);
-        Self { tcp, tls: TlsConnector::from(Arc::new(config)) }
+        Self { tcp, tls }
     }
 }
 
@@ -71,6 +86,7 @@ impl Service<Uri> for LibsqlConnector {
             if uri.scheme_str() != Some("https") {
                 return Ok(MaybeTlsStream::Plain(stream));
             }
+            let tls = tls.ok_or("an http:// database URL cannot be dialed over TLS")?;
             let host = uri.host().ok_or("database URL has no host")?;
             // `Uri::host` keeps the brackets of an IPv6 literal.
             let host = host.trim_start_matches('[').trim_end_matches(']');

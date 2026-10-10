@@ -1,13 +1,17 @@
 use super::LibsqlConnector;
 use crate::libsql_backend::LibsqlAuth;
 use libsql::Builder;
-use pnpm_testing_utils::trusted_tls_server::TrustedTlsServer;
+use pnpm_testing_utils::{env_guard::EnvGuard, trusted_tls_server::TrustedTlsServer};
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use rustls::{
     ClientConfig, RootCertStore,
     pki_types::{CertificateDer, pem::PemObject},
 };
-use std::{net::TcpListener, sync::Arc};
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    net::TcpListener,
+    sync::Arc,
+};
 
 /// The Hrana pipeline response to libsql's request for one statement:
 /// a batch with an empty step result, the autocommit state, and the close.
@@ -53,7 +57,7 @@ async fn rejects_a_server_the_platform_does_not_trust() {
     let error = LibsqlAuth::connect(&settings(server.url.clone()), MaxUsers::Unlimited)
         .await
         .unwrap_err();
-    assert!(format!("{error:?}").contains("certificate"), "{error:?}");
+    assert!(format!("{error:?}").contains("invalid peer certificate"), "{error:?}");
 }
 
 #[tokio::test]
@@ -65,4 +69,60 @@ async fn reports_an_unreachable_database_as_an_error() {
         .port();
     let url = format!("http://127.0.0.1:{port}");
     assert!(LibsqlAuth::connect(&settings(url), MaxUsers::Unlimited).await.is_err());
+}
+
+// Only these platforms load the trust store from SSL_CERT_FILE and SSL_CERT_DIR.
+#[cfg(all(unix, not(target_vendor = "apple")))]
+#[tokio::test]
+async fn queries_an_http_database_without_a_trust_store() {
+    let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR"]);
+    let empty = tempfile::tempdir().unwrap();
+    let no_certs = empty.path().join("certs.pem");
+    std::fs::write(&no_certs, "").unwrap();
+    env.set("SSL_CERT_FILE", &no_certs);
+    env.set("SSL_CERT_DIR", empty.path());
+    assert!(LibsqlConnector::with_platform_roots().is_err());
+
+    let url = serve_plain_http(EXECUTE_RESPONSE);
+    let connector = LibsqlConnector::for_url(&url).unwrap();
+    let db = Builder::new_remote(url, String::new())
+        .connector(connector)
+        .build()
+        .await
+        .unwrap();
+    let affected = db
+        .connect()
+        .unwrap()
+        .execute("SELECT 1", ())
+        .await
+        .unwrap();
+    assert_eq!(affected, 0);
+}
+
+/// Answer every request on a loopback plain-HTTP server with `body`.
+fn serve_plain_http(body: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(&stream);
+            let mut content_length = 0;
+            let mut line = String::new();
+            while reader.read_line(&mut line).unwrap() > 2 {
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    content_length = value.trim().parse().unwrap();
+                }
+                line.clear();
+            }
+            reader
+                .read_exact(&mut vec![0; content_length])
+                .unwrap();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len(),
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+        }
+    });
+    url
 }

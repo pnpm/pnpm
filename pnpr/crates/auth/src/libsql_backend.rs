@@ -98,7 +98,7 @@ impl LibsqlAuth {
     /// primary — always fresh, but a network round-trip on the auth hot
     /// path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        let connector = LibsqlConnector::with_platform_roots()?;
+        let connector = LibsqlConnector::for_url(&settings.url)?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
             Some(path) => {
