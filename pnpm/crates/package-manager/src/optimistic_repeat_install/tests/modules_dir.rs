@@ -72,7 +72,7 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -141,7 +141,7 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -170,7 +170,7 @@ fn root_direct_dependency_decision(link_foo: impl FnOnce(&std::path::Path)) -> D
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -249,7 +249,7 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(matches!(
         decision,

@@ -1,12 +1,14 @@
 use super::{
     super::{
-        HashSet, InstallError, InstallRunOptions, LogEvent, LogLevel, PackageManifest, Path,
-        PathBuf, Reporter, ScopeLog, build_project_manifests_list,
+        InstallError, InstallRunOptions, LogEvent, LogLevel, PackageManifest, Path, PathBuf,
+        ProjectManifestsByDir, Reporter, ScopeLog, build_project_manifests_list,
         build_root_importer_project_manifests_list, build_selected_project_manifests_list,
         build_workspace_packages_map, configured_or_discovered_workspace_dir,
-        get_catalogs_from_workspace_manifest, load_workspace_projects, lockfile_root_dir,
+        dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, load_workspace_projects,
+        lockfile_root_dir,
     },
     InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
+    importer_selection::ImporterSelection,
     repeat_install_verdict,
 };
 use pnpm_config::Config;
@@ -79,48 +81,9 @@ pub(super) struct InstallScope<'w> {
     /// A `--frozen-lockfile` repeat install found nothing changed, so an
     /// up-to-date tree runs no project lifecycle scripts.
     pub(super) project_scripts_current: bool,
-}
-/// The importers a selection narrows the run to.
-pub(super) struct ImporterSelection {
-    pub(super) real_importer_ids: HashSet<String>,
-    pub(super) filtered_install: bool,
-    pub(super) requested_importer_ids: Option<HashSet<String>>,
-}
-impl ImporterSelection {
-    fn select(
-        selection: Option<&crate::WorkspaceInstallSelection<'_>>,
-        workspace_root: &Path,
-        project_manifests: &[(PathBuf, &PackageManifest)],
-    ) -> Self {
-        let real_importer_ids = importer_ids(
-            workspace_root,
-            project_manifests.iter().map(|(project_dir, _)| project_dir.as_path()),
-        );
-        let filtered_install = selection.is_some_and(|selection| {
-            importer_ids(workspace_root, selection.selected_dirs.iter().map(PathBuf::as_path))
-                != real_importer_ids
-        });
-        Self {
-            requested_importer_ids: filtered_install
-                .then_some(selection)
-                .flatten()
-                .map(|selection| {
-                    importer_ids(
-                        workspace_root,
-                        selection.install_dirs.iter().map(PathBuf::as_path),
-                    )
-                }),
-            real_importer_ids,
-            filtered_install,
-        }
-    }
-}
-pub(super) fn importer_ids<'d>(
-    workspace_root: &Path,
-    dirs: impl Iterator<Item = &'d Path>,
-) -> HashSet<String> {
-    dirs.map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
-        .collect()
+    /// See [`crate::install::dependency_manifests_by_dir`]. The freshness
+    /// checks compare an injected project's lockfile snapshot with these.
+    pub(super) dependency_manifests: Option<ProjectManifestsByDir<'w>>,
 }
 impl<'a> InstallWorkspace<'a> {
     /// Consumes the catalogs and workspace-projects overrides off `owned`.
@@ -260,7 +223,13 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
-        Self { project_manifests, importers, prune_stale_importers, project_scripts_current: false }
+        Self {
+            project_manifests,
+            importers,
+            prune_stale_importers,
+            project_scripts_current: false,
+            dependency_manifests: dependency_manifests_by_dir(workspace_projects),
+        }
     }
 
     pub(super) fn repeat_install_verdict(
@@ -285,7 +254,10 @@ impl<'w> InstallScope<'w> {
                         .supported_architectures
                         .as_ref(),
                 },
-                manifest_freshness: install.lockfile_policy.manifest_freshness,
+                manifests: crate::RepeatInstallManifests {
+                    freshness: install.lockfile_policy.manifest_freshness,
+                    dependency_manifests: self.dependency_manifests.as_ref(),
+                },
             },
             mutation: install.execution.mutation,
             update_seed_policy: &owned.resolution.update_seed_policy,

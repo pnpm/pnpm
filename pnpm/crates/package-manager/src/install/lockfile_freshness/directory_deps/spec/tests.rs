@@ -1,5 +1,12 @@
-use super::{is_workspace_path, spec_satisfies_snapshot_dep};
-use std::path::PathBuf;
+use super::{ProjectManifestsByDir, SpecDirs, is_workspace_path, spec_satisfies_snapshot_dep};
+use std::path::{Path, PathBuf};
+
+/// No project manifest is loaded, so every target is read from disk.
+fn dirs<'a>(workspace_root: &'a Path, lockfile_dir: &'a Path) -> SpecDirs<'a> {
+    static NO_MANIFESTS: std::sync::LazyLock<ProjectManifestsByDir<'static>> =
+        std::sync::LazyLock::new(ProjectManifestsByDir::new);
+    SpecDirs { workspace_root, lockfile_dir, manifests_by_dir: &NO_MANIFESTS }
+}
 
 #[test]
 fn home_relative_workspace_spec_satisfies_link_target() {
@@ -16,16 +23,14 @@ fn home_relative_workspace_spec_satisfies_link_target() {
     let lockfile_dep = pnpm_lockfile::SnapshotDepRef::Link(rel_to_lockfile);
 
     assert!(spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:~/pkg",
         &lockfile_dep,
     ));
     assert!(spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         r"workspace:~\pkg",
@@ -52,8 +57,7 @@ fn workspace_range_validates_file_snapshot_target() {
 
     let registry_dep: pnpm_lockfile::SnapshotDepRef = "1.0.0".parse().unwrap();
     assert!(!spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -67,8 +71,7 @@ fn workspace_range_validates_file_snapshot_target() {
 
     let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
     assert!(spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -78,8 +81,7 @@ fn workspace_range_validates_file_snapshot_target() {
     std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"other","version":"1.2.3"}"#)
         .unwrap();
     assert!(!spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -89,8 +91,7 @@ fn workspace_range_validates_file_snapshot_target() {
     std::fs::write(valid_pkg_dir.join("package.json"), r#"{"name":"pkg","version":"2.0.0"}"#)
         .unwrap();
     assert!(!spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -105,8 +106,7 @@ fn workspace_range_validates_file_snapshot_target() {
 
     let outside_dep: pnpm_lockfile::SnapshotDepRef = "file:../../outside/pkg".parse().unwrap();
     assert!(!spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -125,8 +125,7 @@ fn workspace_range_validates_file_snapshot_target() {
         .unwrap();
     let symlink_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/symlink-pkg".parse().unwrap();
     assert!(spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -140,8 +139,7 @@ fn workspace_range_validates_file_snapshot_target() {
     std::os::windows::fs::symlink_file(outside_pkg_dir.join("package.json"), &symlink_manifest)
         .unwrap();
     assert!(!spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
@@ -164,11 +162,46 @@ fn manifest_with_utf8_bom_satisfies_workspace_spec() {
     .unwrap();
     let bom_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/bom-pkg".parse().unwrap();
     assert!(spec_satisfies_snapshot_dep(
-        &workspace_root,
-        &lockfile_dir,
+        &dirs(&workspace_root, &lockfile_dir),
         &local_dep_dir,
         "pkg",
         "workspace:^1.0.0",
         &bom_dep,
+    ));
+}
+
+#[test]
+fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
+    let fixture = tempfile::tempdir().unwrap();
+    let workspace_root = fixture.path().to_path_buf();
+    let target_dir = workspace_root.join("packages/pkg");
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "pkg", "version": "1.2.3" }),
+    );
+    let manifests_by_dir = ProjectManifestsByDir::from([(target_dir, &manifest)]);
+    let dirs = SpecDirs {
+        workspace_root: &workspace_root,
+        lockfile_dir: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    };
+    let local_dep_dir = workspace_root.join("packages/consumer");
+
+    for (spec, lockfile_dep) in
+        [("workspace:*", "file:packages/pkg"), ("workspace:^1.0.0", "link:packages/pkg")]
+    {
+        let lockfile_dep: pnpm_lockfile::SnapshotDepRef = lockfile_dep.parse().unwrap();
+        assert!(
+            spec_satisfies_snapshot_dep(&dirs, &local_dep_dir, "pkg", spec, &lockfile_dep),
+            "{spec} against {lockfile_dep:?} with no package.json on disk",
+        );
+    }
+    let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
+    assert!(!spec_satisfies_snapshot_dep(
+        &dirs,
+        &local_dep_dir,
+        "pkg",
+        "workspace:^2.0.0",
+        &file_dep
     ));
 }

@@ -458,20 +458,11 @@ impl<'r> Settled<'r, '_> {
             projects: SettledProjects { workspace, scope, .. },
             ..
         } = self;
-        LockfileFreshnessInputs {
-            lockfile_dir: &workspace.dirs.workspace_root,
-            manifests: &lockfiles.manifest_freshness_inputs,
-            workspace_packages: workspace.workspace_packages.as_ref(),
-            config: install.context.config,
-            catalogs: &workspace.catalogs,
-            pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-            scope: FreshnessScope {
-                ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-                prune_stale_importers: scope.prune_stale_importers,
-                allow_missing_dependency_free_importers: true,
-                allow_unresolved_optional_dependencies: false,
-                patches_only: false,
-            },
-        }
+        super::wanted::freshness_inputs(
+            install,
+            (workspace, scope),
+            loaded,
+            &lockfiles.manifest_freshness_inputs,
+        )
     }
 }

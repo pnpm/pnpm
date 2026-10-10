@@ -208,7 +208,7 @@ pub(super) fn check_discovered_deps(
                     optional_dependencies: true,
                 },
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         workspace_state,
         selected_project_dirs,
