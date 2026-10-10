@@ -3,13 +3,14 @@ use clap::{CommandFactory as _, Parser as _};
 use pnpm_testing_utils::env_guard::EnvGuard;
 use std::{ffi::OsStr, net::SocketAddr};
 
-const ENV_VARS: [&str; 11] = [
+const ENV_VARS: [&str; 12] = [
     "PNPR_CONFIG",
     "PNPR_LISTEN",
-    "PNPR_STORAGE",
-    "PNPR_CACHE",
     "PNPR_PUBLIC_URL",
     "PNPR_PACKUMENT_TTL_SECS",
+    "PNPR_STORAGE",
+    "PNPR_CACHE",
+    "PNPR_MAX_USERS",
     "PNPR_OSV",
     "PNPR_OSV_DB",
     "PNPR_DISABLE_REGISTRY",
@@ -62,6 +63,7 @@ fn env_vars_stand_in_for_omitted_flags() {
     env.set("PNPR_CACHE", "/var/cache/pnpr");
     env.set("PNPR_PUBLIC_URL", "https://registry.example.com");
     env.set("PNPR_PACKUMENT_TTL_SECS", "90");
+    env.set("PNPR_MAX_USERS", "42");
     env.set("PNPR_OSV", "1");
     env.set("PNPR_OSV_DB", "/var/cache/osv/all.zip");
     env.set("PNPR_DISABLE_REGISTRY", "yes");
@@ -71,11 +73,12 @@ fn env_vars_stand_in_for_omitted_flags() {
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
     assert_eq!(args.config.as_deref(), Some("/etc/pnpr/config.yaml".as_ref()));
-    assert_eq!(args.listen, "0.0.0.0:4873".parse::<SocketAddr>().unwrap());
+    assert_eq!(args.http.listen, "0.0.0.0:4873".parse::<SocketAddr>().unwrap());
     assert_eq!(args.paths.storage.as_deref(), Some("/var/lib/pnpr".as_ref()));
     assert_eq!(args.paths.cache.as_deref(), Some("/var/cache/pnpr".as_ref()));
-    assert_eq!(args.public_url.as_deref(), Some("https://registry.example.com"));
-    assert_eq!(args.packument_ttl_secs, Some(90));
+    assert_eq!(args.http.public_url.as_deref(), Some("https://registry.example.com"));
+    assert_eq!(args.http.packument_ttl_secs, Some(90));
+    assert_eq!(args.max_users, Some(42));
     assert!(args.osv_options.osv);
     assert_eq!(args.osv_options.osv_db.as_deref(), Some("/var/cache/osv/all.zip".as_ref()));
     assert!(args.features.disable_registry);
@@ -89,9 +92,10 @@ fn omitted_flags_without_env_vars_keep_their_defaults() {
 
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
-    assert_eq!(args.listen, super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap());
+    assert_eq!(args.http.listen, super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap());
     assert_eq!(args.config, None);
-    assert_eq!(args.packument_ttl_secs, None);
+    assert_eq!(args.http.packument_ttl_secs, None);
+    assert_eq!(args.max_users, None);
     assert!(!args.osv_options.osv);
     assert!(!args.features.disable_registry);
     assert!(!args.features.disable_resolver);
@@ -103,6 +107,7 @@ fn flags_on_the_command_line_win_over_env_vars() {
     let env = scrubbed_env();
     env.set("PNPR_LISTEN", "0.0.0.0:4873");
     env.set("PNPR_PACKUMENT_TTL_SECS", "90");
+    env.set("PNPR_MAX_USERS", "5");
     env.set("PNPR_DISABLE_ARTIFACTS", "false");
 
     let args = Args::try_parse_from([
@@ -111,12 +116,15 @@ fn flags_on_the_command_line_win_over_env_vars() {
         "127.0.0.1:7677",
         "--packument-ttl-secs",
         "5",
+        "--max-users",
+        "100",
         "--disable-artifacts",
     ])
     .unwrap();
 
-    assert_eq!(args.listen, "127.0.0.1:7677".parse::<SocketAddr>().unwrap());
-    assert_eq!(args.packument_ttl_secs, Some(5));
+    assert_eq!(args.http.listen, "127.0.0.1:7677".parse::<SocketAddr>().unwrap());
+    assert_eq!(args.http.packument_ttl_secs, Some(5));
+    assert_eq!(args.max_users, Some(100));
     assert!(args.features.disable_artifacts);
 }
 
