@@ -74,6 +74,10 @@ auditConfig:
     # user's own command line and workspace configuration, and the worst case
     # is that pnpm exits with a RangeError.
     - GHSA-vfj7-8cjw-p6xm
+    # sprintf-js DoS through unbounded precision specifiers. No patched release
+    # exists. The sole path is js-yaml@3 > argparse, which only js-yaml's own
+    # CLI binary loads, never the library pnpm and its tools import.
+    - GHSA-hp3w-g68c-fv3c
 
 catalog:
   '@babel/core': ^7.29.6
@@ -382,6 +386,7 @@ overrides:
   brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
   browserslist@<4.28.7: ^4.28.7
   clipanion: 3.2.0-rc.6
+  compression@<1.8.2: ^1.8.2
   cookie@<0.7.0: '>=0.7.0'
   cross-spawn@<7.0.5: '>=7.0.5'
   debug@<3.1.0: '>=3.1.0'
@@ -389,8 +394,7 @@ overrides:
   fast-uri@>=3.0.0 <3.1.6: ^3.1.6
   follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
-  handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
-  handlebars@>=4.0.0 <=4.7.8: '>=4.7.9'
+  handlebars@>=4.0.0 <4.7.10: ^4.7.10
   hosted-git-info@1: 'catalog:'
   http-cache-semantics@<4.3.0: ^4.3.0
   http-proxy-middleware@<2.0.7: ^2.0.7
@@ -412,15 +416,17 @@ overrides:
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  proxy-addr@>=1.1.0 <2.0.8: ^2.0.8
   qs@<6.16.0: ^6.16.0
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
-  shell-quote@<1.9.0: '>=1.9.0'
+  shell-quote@<1.11.0: '>=1.11.0'
   # 1.8.4 patched GHSA-w7jw-789q-3m8p / CVE-2026-9277; 1.9.0 patches
-  # GHSA-395f-4hp3-45gv, the quadratic-complexity DoS in parse() in <=1.8.4.
-  shell-quote: 1.10.0
+  # GHSA-395f-4hp3-45gv, the quadratic-complexity DoS in parse() in <=1.8.4;
+  # 1.11.0 patches the quote() command injection after a { comment } token.
+  shell-quote: 1.11.0
   socks@2: ^2.8.1
   tar@<=7.5.20: '>=7.5.21'
   tmp@<0.2.7: '>=0.2.7'
