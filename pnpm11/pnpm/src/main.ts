@@ -191,7 +191,7 @@ async function loadConfigOrSwitchToPinnedPnpm (
   } catch (err: unknown) {
     if (handlesPackageManager(parsedCliArgs)) {
       await switchPastUnreadableConfig(
-        () => getConfig(cliOptions, { ...getConfigOpts, defaultsOnly: true, printWarnings: false }),
+        () => getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }),
         cliOptions
       )
     }

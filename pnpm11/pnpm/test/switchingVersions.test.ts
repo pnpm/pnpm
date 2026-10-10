@@ -60,6 +60,22 @@ test('switch to the pinned pnpm version although this pnpm cannot read any of th
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('a broken pnpm-workspace.yaml does not override the machine\'s opt-out from switching', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  // The machine opts out through the environment, where v11 reads pmOnFail.
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_pm_on_fail: 'ignore' }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: 5\n')
+
+  const { status, stdout } = execPnpmSync(['help'], { env })
+
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
 test('switch to the pinned pnpm version although an option is only known to it (pnpm/pnpm#16353)', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

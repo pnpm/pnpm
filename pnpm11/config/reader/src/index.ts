@@ -100,12 +100,14 @@ interface GetConfigOptions {
   /** Collects warnings as they are found, so they survive a failed load. */
   warnings?: string[]
   /**
-   * Read no configuration file: neither the global config.yaml, the
-   * `.npmrc` files and `auth.ini`, `_auth`, nor the settings of
-   * `pnpm-workspace.yaml`. Only for switching to the pnpm a project pins when
-   * a full load fails, since the pinned pnpm reads the configuration itself.
+   * Leave out each source this pnpm cannot read, which a newer pnpm may
+   * write in a shape this one rejects: the global config.yaml, `_auth`, and
+   * the settings of `pnpm-workspace.yaml`. The project `.npmrc` is left out
+   * too. Every other source still applies, so a repository that breaks its
+   * own files cannot drop the machine's settings. Only for switching to the
+   * pnpm a project pins when a full load fails.
    */
-  defaultsOnly?: boolean
+  skipUnreadableSettings?: boolean
 }
 
 interface GetConfigResult {
@@ -143,7 +145,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   const workspaceManifestRegistries = opts.ignoreLocalSettings
     ? undefined
-    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, defaultsOnly: opts.defaultsOnly })
+    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, skipUnreadableSettings: opts.skipUnreadableSettings })
   resolveRegistriesByScope(state, { ...initialRegistries, globalYamlRegistries, workspaceManifestRegistries })
 
   const maxSocketsFromEnv = applyEnvVarSettings(state)
@@ -197,11 +199,6 @@ interface ConfigSources {
   globalYamlConfig: WorkspaceManifest | undefined
 }
 
-async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions): Promise<WorkspaceManifest | undefined> {
-  if (opts.defaultsOnly) return undefined
-  return readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
-}
-
 /**
  * Reads the built-in defaults, the `.npmrc` files, and the command line into
  * one config. The global config.yaml is read too, but only applied later.
@@ -216,7 +213,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
-    ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
+    ignoreProjectNpmrc: opts.ignoreProjectNpmrc || opts.skipUnreadableSettings,
     npmrcAuthFile: getNpmrcAuthFile({ cliOptions, env, globalYamlConfig }),
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
@@ -225,7 +222,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
     warnings: opts.warnings,
-    ignoreConfigFiles: opts.defaultsOnly,
+    skipUnreadableAuth: opts.skipUnreadableSettings,
   })
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
@@ -251,6 +248,15 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     warnings: npmrcResult.warnings,
   }
   return { configDir, state, globalDepsBuildConfig, globalYamlConfig }
+}
+
+async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions): Promise<WorkspaceManifest | undefined> {
+  try {
+    return await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  } catch (err: unknown) {
+    if (!opts.skipUnreadableSettings) throw err
+    return undefined
+  }
 }
 
 /**

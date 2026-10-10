@@ -116,7 +116,6 @@ remoteCache:
 On the machine that publishes, usually CI, add the private key and turn publishing on. A published result includes the task's output files and its captured terminal output, so publish only from machines whose logs every reader may see:
 
 ```sh
-pnpm config set //vercel.com/api/:_authToken "$VERCEL_TOKEN"
 export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
 export PNPM_REMOTE_CACHE_TEAM=team_abc123
 export PNPM_REMOTE_CACHE_TRUSTED_KEYS="{\"ci-2026\":\"$PUBLIC_KEY\"}"
@@ -124,7 +123,7 @@ export PNPM_REMOTE_CACHE_PRIVATE_KEY="$PRIVATE_KEY"
 export PNPM_REMOTE_CACHE_KEY_ID=ci-2026
 export PNPM_REMOTE_CACHE_BUILDER_ID=ci
 export PNPM_REMOTE_CACHE_PUBLISH=true
-pnpm pipeline
+env "pnpm_config_//vercel.com/api/:_authToken=$VERCEL_TOKEN" pnpm pipeline
 ```
 
 See [Shared side-effects cache](/pnpr/shared-side-effects-cache#publishing-from-a-builder) for how to generate a key pair.

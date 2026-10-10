@@ -80,19 +80,20 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
  * Switches to the pnpm the project pins when the configuration fails to load:
  * the pinned pnpm reads the configuration itself, and may understand what
  * this one rejects. No setting may keep a project from the pnpm it pins.
- * `loadDefaults` loads the configuration without reading any configuration
- * file. Returns when there is no pin to switch to or the switch cannot
- * happen, leaving the original failure to be reported.
+ * `loadReadable` loads the configuration without what this pnpm cannot read,
+ * so the machine's own settings, such as its `pmOnFail`, registry, and
+ * credentials, still apply. Returns when there is no pin to switch to or the
+ * switch cannot happen, leaving the original failure to be reported.
  */
 export async function switchPastUnreadableConfig (
-  loadDefaults: () => Promise<{ config: Config, context: ConfigContext }>,
+  loadReadable: () => Promise<{ config: Config, context: ConfigContext }>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
 ): Promise<void> {
   if (cliOptions.global || isExecutedByCorepack()) return
   let loaded: { config: Config, context: ConfigContext }
   try {
-    loaded = await loadDefaults()
+    loaded = await loadReadable()
   } catch {
     return
   }

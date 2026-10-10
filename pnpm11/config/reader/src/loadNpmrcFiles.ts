@@ -71,8 +71,8 @@ export interface LoadNpmrcConfigOpts {
   globalConfigAuth?: unknown
   /** Receives the warnings as they are found, so they survive a throw. */
   warnings?: string[]
-  /** Read neither the `.npmrc` files, `auth.ini`, nor `_auth`. */
-  ignoreConfigFiles?: boolean
+  /** Leave out an `_auth` value this pnpm cannot read. */
+  skipUnreadableAuth?: boolean
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -143,12 +143,6 @@ interface NpmrcSources {
 }
 
 function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSourcesContext): NpmrcSources {
-  if (opts.ignoreConfigFiles) {
-    const cli = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
-    const builtin = readPnpmBuiltinConfig(opts.moduleDirname, warnings, env)
-    const jsonAuth = { auth: {}, registries: {}, fallbackRegistries: {} }
-    return { builtin, user: {}, authIni: {}, workspace: {}, envScoped: {}, jsonAuth, cli }
-  }
   const userConfigPath = normalizePath(opts.npmrcAuthFile) ?? path.resolve(os.homedir(), '.npmrc')
 
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
@@ -188,11 +182,20 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
   // making them a safe, file-free way to configure registry authentication.
   const envScoped = readUrlScopedEnvConfig(env)
 
-  const jsonAuth = readJsonAuth(opts.globalConfigAuth, env, warnings)
+  const jsonAuth = readJsonAuthUnlessUnreadable(opts, env, warnings)
 
   const builtin = readPnpmBuiltinConfig(opts.moduleDirname, warnings, env)
 
   return { builtin, user, authIni, workspace, envScoped, jsonAuth, cli }
+}
+
+function readJsonAuthUnlessUnreadable (opts: LoadNpmrcConfigOpts, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
+  try {
+    return readJsonAuth(opts.globalConfigAuth, env, warnings)
+  } catch (err: unknown) {
+    if (!opts.skipUnreadableAuth) throw err
+    return { auth: {}, registries: {}, fallbackRegistries: {} }
+  }
 }
 
 // Structured `_auth` registry auth from two trusted, non-repo sources:

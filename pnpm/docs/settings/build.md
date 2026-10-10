@@ -209,10 +209,17 @@ server could have the machine's token sent to a server of its choosing.
 `pnpm` sends the server the credential its
 [authentication settings](../npmrc.md) hold for `url`, as it does for a
 registry. Create an access token in your Vercel account settings, under
-Tokens, scoped to the team that owns the cache, and store it:
+Tokens, scoped to the team that owns the cache. On your own machine, store
+it:
 
 ```sh
 pnpm config set //vercel.com/api/:_authToken "$VERCEL_TOKEN"
+```
+
+In CI, pass it in the environment for the one command instead:
+
+```sh
+env "pnpm_config_//vercel.com/api/:_authToken=$VERCEL_TOKEN" pnpm pipeline
 ```
 
 Use this form rather than [`_auth`](../npmrc.md#_auth). An `_auth` entry also

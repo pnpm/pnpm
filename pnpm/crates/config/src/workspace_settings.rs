@@ -207,9 +207,9 @@ impl Config {
         let workspace_yaml = if self.ignore_workspace {
             None
         } else if let Some(env_dir) = env_workspace_dir {
-            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_workspace_settings)?)
+            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_settings)?)
         } else {
-            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_workspace_settings)?
+            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_settings)?
                 .map(|(path, settings)| {
                     let base_dir = path
                         .parent()

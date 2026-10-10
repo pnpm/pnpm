@@ -28,7 +28,7 @@ import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSet
  */
 export async function applyLocalSettings (
   state: ConfigBuildState,
-  { forSelfUpdate, defaultsOnly }: { forSelfUpdate?: boolean, defaultsOnly?: boolean }
+  { forSelfUpdate, skipUnreadableSettings }: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig, warnings } = state
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
@@ -42,14 +42,8 @@ export async function applyLocalSettings (
 
   await readEnginePinManifest(state)
 
-  if (defaultsOnly) {
-    if (pnpmConfig.workspaceDir != null) {
-      pnpmConfig.workspacePackagePatterns = ['.']
-    }
-    return undefined
-  }
   if (pnpmConfig.workspaceDir != null) {
-    return applyProjectWorkspaceManifest(state, { forSelfUpdate, workspaceDir: pnpmConfig.workspaceDir })
+    return applyProjectWorkspaceManifestUnlessUnreadable(state, { forSelfUpdate, skipUnreadableSettings, workspaceDir: pnpmConfig.workspaceDir })
   }
   if (cliOptions['global']) {
     return applyGlobalPackageDirWorkspaceManifest(state)
@@ -81,6 +75,19 @@ async function readEnginePinManifest ({ pnpmConfig, warnings }: ConfigBuildState
     pnpmConfig.wantedPackageManager = wantedPmResult.pm
   }
   warnings.push(...wantedPmResult.warnings)
+}
+
+async function applyProjectWorkspaceManifestUnlessUnreadable (
+  state: ConfigBuildState,
+  opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
+): Promise<Record<string, string> | undefined> {
+  try {
+    return await applyProjectWorkspaceManifest(state, opts)
+  } catch (err: unknown) {
+    if (!opts.skipUnreadableSettings) throw err
+    state.pnpmConfig.workspacePackagePatterns = ['.']
+    return undefined
+  }
 }
 
 async function applyProjectWorkspaceManifest (
