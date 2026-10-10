@@ -1,5 +1,6 @@
 pub use placement::marker_present;
 
+mod hardlinks;
 mod placement;
 
 use placement::{all_files_match, file_matches_store_entry, populate_dir};
@@ -37,6 +38,8 @@ pub struct ImportIndexedDirOpts {
     /// existing directory short-circuits this function (matches
     /// pnpm's pre-existence check in `importIndexedPackage`).
     pub force: bool,
+    /// Reuse an unchanged mutable directory when every imported file is still hardlinked.
+    pub reuse_hardlinks: bool,
     /// When `true` (only meaningful with `force`), preserve
     /// `dir_path/node_modules/` across the re-import so nested
     /// dependencies survive the rebuild. Required by the hoisted
@@ -307,6 +310,16 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             file_type,
             opts.preserve_symlinks,
         );
+    }
+    if opts.reuse_hardlinks
+        && import_method == PackageImportMethod::Hardlink
+        && hardlinks::directory_matches(dir_path, cas_paths, opts.keep_modules_dir)
+    {
+        crate::link_file::log_method_once::<Reporter>(
+            logged_methods,
+            pnpm_reporter::PackageImportMethod::Hardlink,
+        );
+        return Ok(());
     }
     if opts.safe_to_skip {
         return import_into_shared_dir::<Reporter>(

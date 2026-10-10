@@ -2,6 +2,7 @@ mod reporting;
 
 mod store;
 
+mod hardlinks;
 mod workspace;
 
 mod runtimes;
@@ -37,18 +38,21 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
 
 const FORCE_KEEP: ImportIndexedDirOpts = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: false,
     preserve_symlinks: false,
 };
 const FORCE_ONLY: ImportIndexedDirOpts = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: false,
     preserve_symlinks: false,
 };
 const FORCE_SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
     preserve_symlinks: false,
@@ -57,6 +61,7 @@ const FORCE_SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
 // short-circuited by its marker before the import runs.
 const SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
     force: false,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
     preserve_symlinks: false,
@@ -65,6 +70,7 @@ const SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
 #[cfg(unix)]
 const FORCE_SHARED_KEEP: ImportIndexedDirOpts = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: true,
     preserve_symlinks: false,

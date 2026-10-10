@@ -10,6 +10,7 @@
 //! flag flipped re-resolves.
 
 mod catalogs;
+mod hardlink_refresh;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

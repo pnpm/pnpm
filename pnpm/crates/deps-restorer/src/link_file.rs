@@ -134,11 +134,15 @@ const LOG_FLAG_CLONE: u8 = 1 << 0;
 const LOG_FLAG_HARDLINK: u8 = 1 << 1;
 const LOG_FLAG_COPY: u8 = 1 << 2;
 
-fn log_method_once<Reporter: self::Reporter>(
+pub(crate) fn log_method_once<Reporter: self::Reporter>(
     logged: &AtomicU8,
-    flag: u8,
     method: WireImportMethod,
 ) {
+    let flag = match method {
+        WireImportMethod::Clone => LOG_FLAG_CLONE,
+        WireImportMethod::Hardlink => LOG_FLAG_HARDLINK,
+        WireImportMethod::Copy => LOG_FLAG_COPY,
+    };
     if logged.fetch_or(flag, Ordering::Relaxed) & flag == 0 {
         let method_name = match method {
             WireImportMethod::Clone => "clone",
@@ -347,7 +351,7 @@ impl ImportState {
             }
             PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
                 .inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+                    log_method_once::<Reporter>(logged, WireImportMethod::Clone);
                 })
                 .map(|()| WireImportMethod::Clone),
             PackageImportMethod::CloneOrCopy => clone_or_copy_link::<Reporter, Sys>(
@@ -358,7 +362,7 @@ impl ImportState {
             ),
             PackageImportMethod::Copy => copy_file(source_file, target_link)
                 .inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    log_method_once::<Reporter>(logged, WireImportMethod::Copy);
                 })
                 .map(|()| WireImportMethod::Copy),
         }
@@ -396,13 +400,13 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     if source_has_desired_mode(source_file)? {
         match Sys::hard_link(source_file, target_link) {
             Ok(()) => {
-                log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                log_method_once::<Reporter>(logged, WireImportMethod::Hardlink);
                 Ok(WireImportMethod::Hardlink)
             }
             Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
                 copy_file(source_file, target_link)
                     .inspect(|()| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                        log_method_once::<Reporter>(logged, WireImportMethod::Copy);
                     })
                     .map(|()| WireImportMethod::Copy)
             }
@@ -411,7 +415,7 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     } else {
         copy_file(source_file, target_link)
             .inspect(|()| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                log_method_once::<Reporter>(logged, WireImportMethod::Copy);
             })
             .map(|()| WireImportMethod::Copy)
     }
@@ -514,7 +518,7 @@ fn copy_and_log<Reporter: self::Reporter>(
     target: &Path,
 ) -> io::Result<WireImportMethod> {
     copy_file(source, target)?;
-    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+    log_method_once::<Reporter>(logged, WireImportMethod::Copy);
     Ok(WireImportMethod::Copy)
 }
 
@@ -569,7 +573,7 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
     match Sys::reflink(source, target) {
         Ok(()) => {
             align_target_mode(source, target)?;
-            log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+            log_method_once::<Reporter>(logged, WireImportMethod::Clone);
             Ok(true)
         }
         Err(err) if is_call_error(&err) => Err(err),
@@ -593,7 +597,7 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
     if source_has_desired_mode(source)? {
         match Sys::hard_link(source, target) {
             Ok(()) => {
-                log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                log_method_once::<Reporter>(logged, WireImportMethod::Hardlink);
                 Ok(Some(WireImportMethod::Hardlink))
             }
             Err(err) if is_too_many_links(&err) => {
