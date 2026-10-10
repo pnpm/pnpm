@@ -5,10 +5,10 @@
 //! Lockfile keys and the specifiers pnpm generates from `engines.runtime` /
 //! `devEngines.runtime` keep `runtime:` until the next lockfile major.
 
-/// The protocol pnpm writes into a manifest for a provisioned tool.
+/// The protocol of a provisioned tool.
 pub const TOOL_PROTOCOL: &str = "tool:";
 
-/// The alias of [`TOOL_PROTOCOL`] that lockfile keys still use.
+/// The alias of [`TOOL_PROTOCOL`], which lockfile keys use.
 pub const RUNTIME_PROTOCOL: &str = "runtime:";
 
 /// Splits `specifier` into the protocol as written (`tool:` or `runtime:`)
