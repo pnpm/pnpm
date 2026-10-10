@@ -418,16 +418,11 @@ fn collect_glob_manifests(
         if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
             continue;
         }
-        let glob = Glob::new(normalized)
-            .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.source.to_string(),
-                message: err.to_string(),
-            })?;
-
         let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
             pattern: pattern.source.to_string(),
             message: err.to_string(),
         };
+        let glob = Glob::new(normalized).map_err(invalid_glob)?;
         let mut directory_ignores = managed_directory_ignores(walk_root, merge.ignored_directories);
         directory_ignores.extend(rebase_subtree_negations(
             merge.subtree_negations,

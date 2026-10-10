@@ -36,11 +36,7 @@ pub(super) fn rebase_subtree_negations(
                 })
                 .collect::<Option<Vec<_>>>()?
                 .join("/");
-            Some(if prefix.is_empty() {
-                pattern.to_string()
-            } else {
-                format!("{prefix}/{pattern}")
-            })
+            Some(if prefix.is_empty() { pattern.clone() } else { format!("{prefix}/{pattern}") })
         })
         .collect()
 }

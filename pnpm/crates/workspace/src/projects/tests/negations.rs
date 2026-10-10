@@ -13,14 +13,14 @@ fn subtree_exclusions_preserve_directory_only_exclusions_and_explicit_hidden_inc
     make_project(root.path(), "packages/keep", "keep");
     assert_eq!(
         find_project_names(root.path(), &["**", "packages/.hidden/**", "!packages/generated"]),
-        vec!["root", "hidden", "child", "keep"]
+        vec!["root", "hidden", "child", "keep"],
     );
     assert_eq!(
         find_project_names(
             root.path(),
             &["**", "packages/.hidden/**", "!packages/generated/**", "!packages/.hidden/**"]
         ),
-        vec!["root", "keep"]
+        vec!["root", "keep"],
     );
     assert_eq!(find_project_names(root.path(), &["**", "!**"]), vec!["root"]);
 }
@@ -37,7 +37,7 @@ fn subtree_exclusions_are_relative_to_workspace_even_when_walking_its_parent() {
     make_project(root.path(), "shared/keep", "shared");
     assert_eq!(
         find_project_names(&workspace, &["../**", "!generated/**", "!../shared/drop/**"]),
-        vec!["outside", "shared", "root", "keep"]
+        vec!["outside", "shared", "root", "keep"],
     );
 }
 
