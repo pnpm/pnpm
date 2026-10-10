@@ -70,6 +70,7 @@ use std::{
     slice,
 };
 use system_runtime_version::system_runtime_version;
+use unreadable_settings::switch_past_unreadable_settings;
 
 /// Run the pre-command checks and return the work they ask for, if any. The
 /// checks themselves report through `args.reporter` and fail the command by
@@ -127,33 +128,6 @@ fn pre_command_plan_from_input(
     Ok(package_manager_to_sync.map(|package_manager| {
         env_lockfile_sync_plan(input, config, pin.env_root, package_manager)
     }))
-}
-
-/// Switch to the pinned pnpm when the configuration fails to load, since
-/// the pinned one may read what this one cannot. The configuration is read
-/// again without the `pnpm-workspace.yaml` settings this pnpm cannot read,
-/// and only when that fails too, with no configuration file at all: no
-/// setting may keep a project from the pnpm it pins, while one this pnpm can
-/// read, such as a `pmOnFail` that declines the switch, still decides.
-/// `None` leaves the failure to be reported.
-fn switch_past_unreadable_settings(
-    input: &PreCommandInput,
-    config_overrides: &ConfigOverrides,
-    dir: &Path,
-    process_state: SwitchProcessState,
-) -> Option<PreCommandPlan> {
-    let readable = ConfigLoad { skip_unreadable_settings: true, ..ConfigLoad::default() };
-    let (load, config) = match load_pre_command_config(input, config_overrides, dir, readable) {
-        Ok(config) => (readable, config),
-        Err(_) => {
-            let defaults = ConfigLoad { defaults_only: true, ..ConfigLoad::default() };
-            (defaults, load_pre_command_config(input, config_overrides, dir, defaults).ok()?)
-        }
-    };
-    match resolve_pin(input, config_overrides, dir, process_state, config, load).ok()?.action {
-        PreCommandAction::Switch(plan) => Some(PreCommandPlan::Switch(plan)),
-        PreCommandAction::Continue { .. } => None,
-    }
 }
 
 /// What the project's pin asks of this invocation, and what was read to
@@ -528,3 +502,5 @@ mod execute;
 mod argv_plans;
 
 mod load_config;
+
+mod unreadable_settings;
