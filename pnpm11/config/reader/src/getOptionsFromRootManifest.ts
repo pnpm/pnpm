@@ -183,6 +183,10 @@ function misspelledTaskSettingField (field: string): string | undefined {
 function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
   assertObjectSetting(tasks, 'tasks')
   for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
+    if (task == null) {
+      (tasks as Record<string, unknown>)[taskName] = {}
+      continue
+    }
     assertValidTask(`tasks['${taskName}']`, task)
   }
 }
