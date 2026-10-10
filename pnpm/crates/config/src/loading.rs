@@ -225,8 +225,10 @@ impl Config {
         trusted_auth: NpmrcAuth,
         global_settings: Option<&WorkspaceSettings>,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        let bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth);
-        self.package_manager_bootstrap = self.skip_if_unreadable(bootstrap, Default::default)?;
+        // Not left out when unreadable: an empty bootstrap would download the
+        // pinned pnpm from the public registry, past the machine's mirror and
+        // credentials.
+        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
         if let Some(global_settings) = global_settings {
             let bootstrap = &mut self.package_manager_bootstrap;
             global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);

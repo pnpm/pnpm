@@ -132,7 +132,7 @@ fn unreadable_configuration_does_not_stop_the_switch_to_the_pinned_version() {
 
 /// A repository that breaks its own `pnpm-workspace.yaml` loses only that
 /// file: the machine's own settings still apply, so its opt-out from version
-/// switching holds and the broken file is reported.
+/// switching holds and the failure is reported.
 #[test]
 fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
     let CommandTempCwd {
@@ -148,8 +148,12 @@ fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
     write_workspace_yaml(&workspace, "packages: [\n");
     let global_config = root.path().join("xdg-config/pnpm");
     fs::create_dir_all(&global_config).expect("create the global config dir");
-    fs::write(global_config.join("config.yaml"), "pmOnFail: ignore\n")
-        .expect("write the global config");
+    // A section this pnpm rejects leaves the rest of the file in force.
+    fs::write(
+        global_config.join("config.yaml"),
+        "pmOnFail: ignore\ntasks:\n  build:\n    concurrency: 0\n",
+    )
+    .expect("write the global config");
     let mut pacquet = pacquet;
     pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
 
@@ -157,7 +161,7 @@ fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
 
     assert_failure(&output);
     assert_ne!(stdout(&output), "9.3.0\n", "the machine opted out of switching");
-    assert_contains(&stderr(&output), "pnpm-workspace.yaml");
+    assert_contains(&stderr(&output), "load configuration");
 
     drop((root, mock_instance));
 }

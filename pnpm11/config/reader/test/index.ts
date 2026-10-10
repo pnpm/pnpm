@@ -3486,6 +3486,20 @@ test('a registry declared in the project .npmrc beats the global _auth file', as
   expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
 })
 
+test('skipping unreadable settings leaves out only the _auth source that fails', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { env: { pnpm_config__auth: '{ not json' }, skipUnreadableSettings: true })
+
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
 test('a scope declared in the project .npmrc beats the global _auth file', async () => {
   prepareEmpty()
 
@@ -3655,7 +3669,7 @@ test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry
 
 async function getConfigWithGlobalYaml (
   globalConfigYaml: Record<string, unknown>,
-  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string } = {}
+  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string, skipUnreadableSettings?: boolean } = {}
 ) {
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
@@ -3668,6 +3682,7 @@ async function getConfigWithGlobalYaml (
       env: { ...env, ...opts.env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: opts.workspaceDir,
+      skipUnreadableSettings: opts.skipUnreadableSettings,
     })
     return { config, warnings }
   } finally {

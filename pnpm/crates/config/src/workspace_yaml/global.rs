@@ -39,9 +39,7 @@ impl WorkspaceSettings {
                     path: path.clone(),
                     source,
                 })?;
-        settings.validate_registries()?;
-        settings.validate_tasks()?;
-        settings.validate_pipelines()?;
+        settings.validate_sections(skip_unreadable)?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
