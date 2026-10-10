@@ -49,6 +49,97 @@ async fn should_throw_when_web_login_returns_invalid_response() {
     assert_eq!(err.to_string(), "The registry returned an invalid response for web-based login");
 }
 
+/// A `npm-notice` header on a failed probe is not printed: the notice is
+/// display-only text for a login that is about to start, and a probe the
+/// login rejects has not started one.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_web_login_probe_fails() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(500)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body("Internal Server Error")
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// The same holds when the probe answers 200 but the body lacks a usable
+/// `loginUrl` / `doneUrl`: the login is rejected and the notice is never
+/// shown.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_web_login_response_is_invalid() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body(json!({"loginUrl": "https://example.org/auth"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// A rejected login URL ends the flow before anything is printed, so the
+/// notice of a response with an unsafe URL is never shown either.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_login_url_is_unsafe() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
 #[tokio::test]
 async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
