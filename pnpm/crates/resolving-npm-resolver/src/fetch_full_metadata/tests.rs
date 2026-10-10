@@ -677,6 +677,50 @@ async fn fetch_full_metadata_encodes_scoped_name() {
     mock.assert_async().await;
 }
 
+/// `acme.json` compressed by the `zstd` CLI:
+///
+/// ```text
+/// cd crates/resolving-npm-resolver/tests/fixtures
+/// zstd --keep --force acme.json
+/// ```
+const ZSTD_PACKUMENT: &[u8] = include_bytes!("../../tests/fixtures/acme.json.zst");
+
+#[tokio::test]
+async fn fetch_full_metadata_decodes_zstd_packuments() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("accept-encoding", mockito::Matcher::Regex(r"\bzstd\b".to_owned()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("content-encoding", "zstd")
+        .with_body(ZSTD_PACKUMENT)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let pkg =
+        expect_modified(fetch_full_metadata("acme", &opts).await.expect("zstd packument decodes"));
+    assert_eq!(pkg.name, "acme");
+    assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
+    mock.assert_async().await;
+}
+
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let mut server = mockito::Server::new_async().await;

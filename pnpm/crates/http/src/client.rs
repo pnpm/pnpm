@@ -160,6 +160,9 @@ impl ClientBuilder {
     pub fn gzip(self, _enabled: bool) -> Self {
         self
     }
+    pub fn zstd(self, _enabled: bool) -> Self {
+        self
+    }
     pub fn pool_idle_timeout(self, _timeout: impl Into<Option<Duration>>) -> Self {
         self
     }
