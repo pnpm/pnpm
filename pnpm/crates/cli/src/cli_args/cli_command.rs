@@ -78,6 +78,7 @@ use super::{
     store::StoreCommand,
     tasks::TasksArgs,
     team::TeamArgs,
+    token::TokenArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
     unpublish::UnpublishArgs,

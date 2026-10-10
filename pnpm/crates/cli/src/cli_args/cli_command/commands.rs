@@ -10,8 +10,8 @@ use super::{
     PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs,
     RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
     SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
-    TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs,
-    VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
+    TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs,
+    UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -270,8 +270,7 @@ pub enum CliCommand {
     Edit(NotImplementedArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Profile(NotImplementedArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Token(NotImplementedArgs),
+    Token(TokenArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]

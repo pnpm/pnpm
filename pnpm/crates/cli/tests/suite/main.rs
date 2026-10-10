@@ -174,6 +174,7 @@ mod sync_injected_deps_after_scripts;
 mod tarball_url_dependency;
 mod team;
 mod test_command;
+mod token;
 mod umask;
 mod undeprecate;
 mod unlink;
