@@ -2,13 +2,13 @@ use super::{
     AccessArgs, AddArgs, ApproveArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs,
     CacheCommand, CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs,
     CompletionServerArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs,
-    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs,
-    ExecArgs, FetchArgs, FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs,
-    InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs,
-    NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs,
-    PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs,
-    PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs,
-    RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
+    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EditArgs,
+    EnvArgs, ExecArgs, FetchArgs, FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
+    InstallArgs, InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs,
+    LogoutArgs, NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs,
+    PatchCommitArgs, PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs,
+    PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs,
+    RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
     SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
     TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs,
     VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
@@ -26,6 +26,8 @@ pub enum CliCommand {
     Recursive,
     /// Add a package
     Add(AddArgs),
+    /// Opens an installed package's folder in the default text editor.
+    Edit(EditArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
@@ -265,15 +267,9 @@ pub enum CliCommand {
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
-    // Registered rather than left to the external-subcommand fallback so
-    // it names npm instead of failing as a missing package script.
-    Edit(NotImplementedArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
     Profile(NotImplementedArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Token(NotImplementedArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }

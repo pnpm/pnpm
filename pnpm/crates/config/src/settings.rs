@@ -85,6 +85,9 @@ pub struct Config {
     /// Include a package's README in the generated manifest when packing.
     pub embed_readme: bool,
 
+    /// Text editor invoked by `pnpm edit`.
+    pub editor: Option<String>,
+
     /// Permit `add` to modify a multi-package workspace root without `-w`.
     pub ignore_workspace_root_check: bool,
 

@@ -53,6 +53,7 @@ mod dist_tag;
 mod dlx;
 mod docs;
 mod dry_run;
+mod edit;
 mod env;
 mod exclude_links_from_lockfile;
 mod exec;
