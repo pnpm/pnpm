@@ -10,8 +10,9 @@ use super::{
     PrefixArgs, ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs,
     RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs,
     SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
-    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
+    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs,
+    UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs,
+    WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -268,8 +269,7 @@ pub enum CliCommand {
     With(WithArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Profile(ProfileArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Token(NotImplementedArgs),
+    Token(TokenArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }

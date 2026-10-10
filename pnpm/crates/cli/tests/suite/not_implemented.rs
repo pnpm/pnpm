@@ -6,7 +6,7 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 /// fallback and fail as a missing script instead.
 #[test]
 fn the_unimplemented_npm_commands_point_at_the_npm_cli() {
-    for command in ["token", "xmas"] {
+    for command in ["xmas"] {
         let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
         let output = pacquet
             .with_args([command])
@@ -28,9 +28,9 @@ fn the_unimplemented_npm_commands_point_at_the_npm_cli() {
 fn the_unimplemented_commands_swallow_their_arguments() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
     let output = pacquet
-        .with_args(["token", "create", "--read-only"])
+        .with_args(["xmas", "--some-flag"])
         .output()
-        .expect("run pacquet token create");
+        .expect("run pacquet xmas");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
     assert!(!output.status.success());

@@ -75,7 +75,7 @@ fn route_registry<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<C
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
         CliCommand::Publish(args) => dispatch_query::publish(ctx, args),
-        CliCommand::Token(_) => dispatch_query::not_implemented("token"),
+        CliCommand::Token(args) => dispatch_query::token(ctx, args),
         CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
         CliCommand::Repo(args) => dispatch_query::repo(ctx, args),
         CliCommand::Login(args) => dispatch_query::login(ctx, args),
