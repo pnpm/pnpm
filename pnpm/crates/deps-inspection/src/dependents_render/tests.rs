@@ -136,15 +136,15 @@ fn maximum_depth_renders_the_same_as_no_depth() {
 
     assert_eq!(
         render_dependents_tree(&deep_tree(), &unlimited),
-        render_dependents_tree(&deep_tree(), &none)
+        render_dependents_tree(&deep_tree(), &none),
     );
     assert_eq!(
         render_dependents_json(&deep_tree(), &unlimited),
-        render_dependents_json(&deep_tree(), &none)
+        render_dependents_json(&deep_tree(), &none),
     );
     assert_eq!(
         render_dependents_parseable(&deep_tree(), &unlimited),
-        render_dependents_parseable(&deep_tree(), &none)
+        render_dependents_parseable(&deep_tree(), &none),
     );
 }
 
