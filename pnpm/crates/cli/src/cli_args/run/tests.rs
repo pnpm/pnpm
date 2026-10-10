@@ -5,21 +5,27 @@ use serde_json::json;
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(ScriptSelector::new("build").unwrap().select(&manifest), vec!["build".to_string()]);
-    assert_eq!(ScriptSelector::new("test").unwrap().select(&manifest), vec!["test".to_string()]);
+    assert_eq!(
+        ScriptSelector::new("build").unwrap().select(&manifest, false),
+        vec!["build".to_string()],
+    );
+    assert_eq!(
+        ScriptSelector::new("test").unwrap().select(&manifest, false),
+        vec!["test".to_string()],
+    );
 }
 
 #[test]
 fn specified_scripts_start_fallback() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
     assert_eq!(
-        ScriptSelector::new("start").unwrap().select_with_start(&manifest),
+        ScriptSelector::new("start").unwrap().select_with_start(&manifest, false),
         vec!["start".to_string()],
     );
     assert!(
         ScriptSelector::new("start")
             .unwrap()
-            .select(&manifest)
+            .select(&manifest, false)
             .is_empty(),
         "the fallback belongs to `run`, not to the recursive selector",
     );
@@ -31,7 +37,7 @@ fn specified_scripts_missing_is_empty() {
     assert!(
         ScriptSelector::new("nonexistent")
             .unwrap()
-            .select(&manifest)
+            .select(&manifest, false)
             .is_empty(),
     );
 }
@@ -47,14 +53,14 @@ fn specified_scripts_selects_every_regexp_match() {
         },
     });
     assert_eq!(
-        ScriptSelector::new("/^build:(backend|frontend)$/").unwrap().select(&manifest),
+        ScriptSelector::new("/^build:(backend|frontend)$/").unwrap().select(&manifest, true),
         vec!["build:backend".to_string(), "build:frontend".to_string()],
     );
     // The pattern is not implicitly anchored to the whole script name —
     // it is searched for — so `build` matches this one too, and the
     // matches keep the manifest's declaration order.
     assert_eq!(
-        ScriptSelector::new("/^build/").unwrap().select(&manifest),
+        ScriptSelector::new("/^build/").unwrap().select(&manifest, true),
         vec!["build:backend".to_string(), "build:frontend".to_string(), "build".to_string()],
     );
 }
@@ -63,11 +69,11 @@ fn specified_scripts_selects_every_regexp_match() {
 fn specified_scripts_supports_ecmascript_lookaround() {
     let manifest = json!({ "scripts": { "hello:a": "echo a", "hello:b": "echo b" } });
     assert_eq!(
-        ScriptSelector::new(r"/^hello:(?!b).*$/").unwrap().select(&manifest),
+        ScriptSelector::new(r"/^hello:(?!b).*$/").unwrap().select(&manifest, false),
         vec!["hello:a".to_string()],
     );
     assert_eq!(
-        ScriptSelector::new(r"/(?<=:)b$/").unwrap().select(&manifest),
+        ScriptSelector::new(r"/(?<=:)b$/").unwrap().select(&manifest, false),
         vec!["hello:b".to_string()],
     );
 }
@@ -80,10 +86,13 @@ fn specified_scripts_match_utf16_code_units() {
     assert!(
         ScriptSelector::new("/^.$/")
             .unwrap()
-            .select(&manifest)
+            .select(&manifest, false)
             .is_empty(),
     );
-    assert_eq!(ScriptSelector::new("/^..$/").unwrap().select(&manifest), vec!["😀".to_string()]);
+    assert_eq!(
+        ScriptSelector::new("/^..$/").unwrap().select(&manifest, false),
+        vec!["😀".to_string()],
+    );
 }
 
 /// An exact hit wins over the regexp reading, so a script literally named
@@ -91,7 +100,10 @@ fn specified_scripts_match_utf16_code_units() {
 #[test]
 fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
     let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
-    assert_eq!(ScriptSelector::new("/^a/").unwrap().select(&manifest), vec!["/^a/".to_string()]);
+    assert_eq!(
+        ScriptSelector::new("/^a/").unwrap().select(&manifest, false),
+        vec!["/^a/".to_string()],
+    );
 }
 
 #[test]
@@ -112,7 +124,7 @@ fn specified_scripts_treats_non_literals_as_names() {
         assert!(
             ScriptSelector::new(name)
                 .unwrap()
-                .select(&manifest)
+                .select(&manifest, false)
                 .is_empty(),
             "{name} is not a regexp selector",
         );
@@ -219,4 +231,42 @@ fn run_args(argv: &[&str]) -> super::RunArgs {
         crate::cli_args::cli_command::CliCommand::Run(args) => args,
         other => panic!("{argv:?} should parse as run, got {other:?}"),
     }
+}
+
+#[test]
+fn specified_scripts_regexp_unsorted_insertion_order() {
+    let manifest = json!({ "scripts": {
+        "build:z": "echo z",
+        "build:a": "echo a",
+        "build:m": "echo m",
+    }});
+    assert_eq!(
+        ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, true),
+        vec!["build:z".to_string(), "build:a".to_string(), "build:m".to_string()],
+    );
+}
+
+#[test]
+fn specified_scripts_regexp_sorted_alphabetical() {
+    let manifest = json!({ "scripts": {
+        "build:z": "echo z",
+        "build:a": "echo a",
+        "build:m": "echo m",
+    }});
+    assert_eq!(
+        ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, false),
+        vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()],
+    );
+}
+
+#[test]
+fn specified_scripts_regexp_sorted_utf16_code_units() {
+    let manifest = json!({ "scripts": {
+        "build:\u{e000}": "echo bmp",
+        "build:\u{10000}": "echo astral",
+    }});
+    assert_eq!(
+        ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, false),
+        vec!["build:\u{10000}".to_string(), "build:\u{e000}".to_string()],
+    );
 }
