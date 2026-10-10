@@ -209,12 +209,13 @@ server could have the machine's token sent to a server of its choosing.
 #### Authenticating with Vercel Remote Cache
 
 Create an access token in your Vercel account settings, under Tokens, scoped
-to the team that owns the cache. In CI, pass it in the environment:
+to the team that owns the cache. In CI, store it as a secret and pass it in
+the environment:
 
 ```sh
-PNPM_REMOTE_CACHE_URL=https://vercel.com/api
-PNPM_REMOTE_CACHE_TEAM=team_abc123
-PNPM_REMOTE_CACHE_TOKEN=<access token>
+export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
+export PNPM_REMOTE_CACHE_TEAM=team_abc123
+export PNPM_REMOTE_CACHE_TOKEN="$VERCEL_TOKEN"
 ```
 
 On your own machine, keep it in your user `.npmrc` instead, where `pnpm` finds
