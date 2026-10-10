@@ -1,4 +1,4 @@
-use super::{ProfileArgs, ProfileError, render::format_profile_map};
+use super::{ProfileArgs, render::format_profile_map};
 use clap::Parser;
 use pnpm_config::Config;
 use serde_json::json;
