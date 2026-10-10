@@ -39,6 +39,8 @@ const result = spawnSync('pnx', [
     AR_wasm32_wasip1_threads: join(sdk, 'bin/llvm-ar'),
     CFLAGS_wasm32_wasip1_threads: '--target=wasm32-wasip1-threads -pthread',
     LIBSQLITE3_FLAGS: '-USQLITE_THREADSAFE -DSQLITE_THREADSAFE=1',
+    // The release profile's "s" was measured only on native targets.
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: '3',
     CARGO_ENCODED_RUSTFLAGS: [...inherited, ...flags].join('\x1f'),
   },
 })
