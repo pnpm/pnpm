@@ -30,7 +30,6 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
-    not_implemented::NotImplementedError,
     outdated::{OutdatedArgs, OutdatedOutcome},
     owner::OwnerArgs,
     pack::{PackArgs, PackJsonReporter},

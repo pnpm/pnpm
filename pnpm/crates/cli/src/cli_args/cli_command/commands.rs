@@ -5,14 +5,13 @@ use super::{
     DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EditArgs,
     EnvArgs, ExecArgs, FetchArgs, FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
     InstallArgs, InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs,
-    LogoutArgs, NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs,
-    PatchCommitArgs, PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs,
-    PrefixArgs, ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs,
-    RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs,
-    SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs,
-    UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs,
-    WithArgs,
+    LogoutArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs,
+    PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs,
+    ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs,
+    RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
+    SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
+    TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs,
+    UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]

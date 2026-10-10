@@ -657,7 +657,7 @@ fn env_collects_its_subcommand_and_arguments() {
 }
 
 #[test]
-fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script() {
+fn npm_commands_parse_instead_of_falling_through_to_a_script() {
     assert!(matches!(command(&["pacquet", "edit", "foo"]), CliCommand::Edit(_)));
     assert!(matches!(command(&["pacquet", "profile", "get"]), CliCommand::Profile(_)));
     assert!(matches!(
