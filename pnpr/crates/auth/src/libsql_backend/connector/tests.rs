@@ -10,7 +10,11 @@ use rustls::{
 use std::{
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::Arc,
+    sync::{
+        Arc,
+        mpsc::{self, Receiver},
+    },
+    time::Duration,
 };
 use tower_0_4::ServiceExt;
 
@@ -65,9 +69,9 @@ async fn rejects_a_server_the_platform_does_not_trust() {
 
 #[tokio::test]
 async fn refuses_plain_http_on_a_connector_for_https() {
-    let url = serve_plain_http(EXECUTE_RESPONSE);
+    let server = serve_plain_http(EXECUTE_RESPONSE);
     let error = connector_trusting_test_ca()
-        .oneshot(url.parse().unwrap())
+        .oneshot(server.url.parse().unwrap())
         .await
         .err()
         .unwrap();
@@ -76,7 +80,7 @@ async fn refuses_plain_http_on_a_connector_for_https() {
 
 #[test]
 fn reads_the_http_scheme_case_insensitively() {
-    assert!(LibsqlConnector::for_url("HTTP://127.0.0.1:8080").unwrap().tls.is_none());
+    assert!(LibsqlConnector::for_url("HTTP://127.0.0.1:8080", false).unwrap().tls.is_none());
 }
 
 #[tokio::test]
@@ -91,17 +95,27 @@ async fn refuses_an_auth_token_over_plain_http_to_a_remote_host() {
 
 #[tokio::test]
 async fn sends_an_auth_token_over_plain_http_to_a_loopback_host() {
-    let port = TcpListener::bind("127.0.0.1:0")
+    let server = serve_plain_http(EXECUTE_RESPONSE);
+    let settings =
+        LibsqlSettings { auth_token: Some("secret".to_string()), ..settings(server.url.clone()) };
+    // The canned response does not satisfy the schema setup, so only the
+    // request that reached the server matters here.
+    let _ = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await;
+    let head = server.requests
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
+    assert!(head.to_ascii_lowercase().contains("authorization: bearer secret"), "{head}");
+}
+
+#[tokio::test]
+async fn refuses_to_carry_a_token_over_plain_http_off_loopback() {
+    let error = LibsqlConnector::for_url("http://127.0.0.1:8080", true)
         .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
-    let settings = LibsqlSettings {
-        auth_token: Some("secret".to_string()),
-        ..settings(format!("http://127.0.0.1:{port}"))
-    };
-    let error = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap_err();
-    assert!(matches!(error, RegistryError::Libsql(_)), "{error:?}");
+        .oneshot("http://db.example.com:8080/v2/pipeline".parse().unwrap())
+        .await
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("non-loopback host"), "{error}");
 }
 
 #[tokio::test]
@@ -127,9 +141,9 @@ async fn queries_an_http_database_without_a_trust_store() {
     env.set("SSL_CERT_DIR", empty.path());
     assert!(LibsqlConnector::with_platform_roots().is_err());
 
-    let url = serve_plain_http(EXECUTE_RESPONSE);
-    let connector = LibsqlConnector::for_url(&url).unwrap();
-    let db = Builder::new_remote(url, String::new())
+    let server = serve_plain_http(EXECUTE_RESPONSE);
+    let connector = LibsqlConnector::for_url(&server.url, false).unwrap();
+    let db = Builder::new_remote(server.url, String::new())
         .connector(connector)
         .build()
         .await
@@ -143,21 +157,37 @@ async fn queries_an_http_database_without_a_trust_store() {
     assert_eq!(affected, 0);
 }
 
-/// Answer every request on a loopback plain-HTTP server with `body`.
-fn serve_plain_http(body: &'static str) -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
-    std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            answer(stream, body);
-        }
-    });
-    url
+struct PlainHttpServer {
+    url: String,
+    /// The head of every request the server received, in order.
+    requests: Receiver<String>,
 }
 
-fn answer(mut stream: TcpStream, body: &str) {
+/// Answer every request on a loopback plain-HTTP server with `body`.
+fn serve_plain_http(body: &'static str) -> PlainHttpServer {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let (sender, requests) = mpsc::channel();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let _ = sender.send(answer(stream, body));
+        }
+    });
+    PlainHttpServer { url, requests }
+}
+
+/// Answer one request with `body` and return the request's head.
+fn answer(mut stream: TcpStream, body: &str) -> String {
     let mut reader = BufReader::new(&stream);
-    let content_length = read_content_length(&mut reader);
+    let head = read_head(&mut reader);
+    let content_length = head
+        .lines()
+        .find_map(|line| {
+            line.to_ascii_lowercase()
+                .strip_prefix("content-length:")
+                .map(str::to_owned)
+        })
+        .map_or(0, |value| value.trim().parse().unwrap());
     reader
         .read_exact(&mut vec![0; content_length])
         .unwrap();
@@ -166,18 +196,11 @@ fn answer(mut stream: TcpStream, body: &str) {
         body.len(),
     );
     stream.write_all(response.as_bytes()).unwrap();
+    head
 }
 
-/// Read a request head and return its `content-length`.
-fn read_content_length(reader: &mut impl BufRead) -> usize {
-    let mut content_length = 0;
-    let mut line = String::new();
-    while reader.read_line(&mut line).unwrap() > 2 {
-        let header = line.to_ascii_lowercase();
-        if let Some(value) = header.strip_prefix("content-length:") {
-            content_length = value.trim().parse().unwrap();
-        }
-        line.clear();
-    }
-    content_length
+fn read_head(reader: &mut impl BufRead) -> String {
+    let mut head = String::new();
+    while reader.read_line(&mut head).unwrap() > 2 {}
+    head
 }

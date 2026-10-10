@@ -109,7 +109,7 @@ impl LibsqlAuth {
                     .to_string(),
             });
         }
-        let connector = LibsqlConnector::for_url(&settings.url)?;
+        let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
             Some(path) => {

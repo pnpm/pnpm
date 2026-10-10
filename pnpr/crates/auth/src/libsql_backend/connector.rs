@@ -9,6 +9,7 @@ use hyper_0_14::client::{
     connect::{Connected, Connection},
 };
 use libsql::Error as LibsqlError;
+use pnpm_network::is_url_secure_for_credentials;
 use rustls::{ClientConfig, pki_types::ServerName};
 use rustls_platform_verifier::BuilderVerifierExt;
 use std::{
@@ -31,13 +32,18 @@ pub(super) struct LibsqlConnector {
     tcp: HttpConnector,
     /// `None` for an `http://` database, which then needs no trust store.
     tls: Option<TlsConnector>,
+    /// Whether requests carry an auth token, which then must not cross a
+    /// cleartext link to a host other than loopback.
+    carries_token: bool,
 }
 
 impl LibsqlConnector {
     /// The connector for the database at `url`. libsql dials every URL
     /// other than `http://`, such as `libsql://`, over HTTPS.
-    pub(super) fn for_url(url: &str) -> Result<Self, LibsqlError> {
-        if is_plain_http(url) { Ok(Self::with_tls(None)) } else { Self::with_platform_roots() }
+    pub(super) fn for_url(url: &str, carries_token: bool) -> Result<Self, LibsqlError> {
+        let connector =
+            if is_plain_http(url) { Self::with_tls(None) } else { Self::with_platform_roots()? };
+        Ok(Self { carries_token, ..connector })
     }
 
     /// A connector that verifies servers against the platform trust store.
@@ -59,7 +65,23 @@ impl LibsqlConnector {
         let mut tcp = HttpConnector::new();
         tcp.enforce_http(false);
         tcp.set_nodelay(true);
-        Self { tcp, tls }
+        Self { tcp, tls, carries_token: false }
+    }
+
+    /// Why `uri` must not be dialed, if it must not.
+    fn refusal(&self, uri: &Uri) -> Option<&'static str> {
+        match (uri.scheme_str() == Some("https"), self.tls.is_some()) {
+            (true, false) => Some("an http:// database URL cannot be dialed over TLS"),
+            // A database can name a `base_url` for later requests, and libsql
+            // sends the auth token with each one.
+            (false, true) => Some("refusing plain HTTP to a database reached over HTTPS"),
+            (false, false)
+                if self.carries_token && !is_url_secure_for_credentials(&uri.to_string()) =>
+            {
+                Some("refusing to send the auth token over plain HTTP to a non-loopback host")
+            }
+            _ => None,
+        }
     }
 }
 
@@ -81,22 +103,10 @@ impl Service<Uri> for LibsqlConnector {
     }
 
     fn call(&mut self, uri: Uri) -> Self::Future {
-        let tls = match (uri.scheme_str() == Some("https"), self.tls.clone()) {
-            (true, Some(tls)) => Some(tls),
-            (false, None) => None,
-            // A database reached over HTTPS can name a plain-HTTP `base_url`
-            // for later requests, which would carry the auth token in clear.
-            (false, Some(_)) => {
-                return Box::pin(async {
-                    Err("refusing plain HTTP to a database reached over HTTPS".into())
-                });
-            }
-            (true, None) => {
-                return Box::pin(async {
-                    Err("an http:// database URL cannot be dialed over TLS".into())
-                });
-            }
-        };
+        if let Some(reason) = self.refusal(&uri) {
+            return Box::pin(async move { Err(reason.into()) });
+        }
+        let tls = self.tls.clone();
         let tcp = self.tcp.call(uri.clone());
         Box::pin(async move {
             let stream = tcp.await?;
