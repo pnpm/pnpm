@@ -170,6 +170,8 @@ Added in: v10.8.0
 
 Save the dependency to [configDependencies](config-dependencies.md).
 
+Since v12.12.0, the saved range follows the same rules as for a dependency in `package.json`.
+
 ### --ignore-workspace-root-check
 
 Adding a new dependency to the root workspace package fails, unless the

@@ -279,6 +279,7 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        self.args.update_config_dependencies::<Reporter>(self.cfg, &self.config_root).await?;
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         let plan = select_install_family_plan::<Reporter>(
@@ -309,14 +310,8 @@ impl UpdatePipeline {
         {
             anchor_active_project(self.cfg, &self.manifest_path);
         }
-        let generate_changeset = if self.args.save.changeset {
-            true
-        } else if self.args.save.no_changeset {
-            false
-        } else {
-            self.cfg.update_config.changeset.unwrap_or(false)
-        };
-        let changeset_context = generate_changeset
+        let changeset_context = self.args.save
+            .generates_changeset(self.cfg)
             .then(|| UpdateChangesetContext::capture(self.cfg, &self.manifest_path))
             .transpose()?;
         self.run_plan::<Reporter>(plan).await?;

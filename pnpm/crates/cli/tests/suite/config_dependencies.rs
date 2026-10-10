@@ -474,6 +474,195 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
     drop((root, mock_instance));
 }
 
+/// A dist-tag is saved as a range, the way `pnpm add <pkg>@latest` saves a
+/// project dependency.
+#[test]
+fn add_config_saves_a_range_for_a_dist_tag() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo"])
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^100.1.0", "100.1.0");
+    drop((root, mock_instance));
+}
+
+/// The env lockfile pins `latest` to an older version, as it does once a
+/// newer version is published after the config dependency was added.
+#[test]
+fn add_config_resolves_a_locked_specifier_again() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@100.0.0", "latest");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@latest"])
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^100.1.0", "100.1.0");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn add_config_keeps_an_integrity_pin() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    let integrity = lockfile
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("resolution: {integrity: "))
+        .and_then(|rest| rest.strip_suffix('}'))
+        .expect("the lockfile records an integrity");
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let undeclared = yaml
+        .lines()
+        .take_while(|line| !line.starts_with("configDependencies:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&yaml_path, undeclared).expect("write pnpm-workspace.yaml");
+    let pinned = format!("100.0.0+{integrity}");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", &format!("@pnpm.e2e/foo@{pinned}")])
+        .assert()
+        .success();
+
+    // The env lockfile records a pinned dependency under its bare version.
+    assert_config_dependency_declared(&workspace, "@pnpm.e2e/foo", &pinned);
+    drop((root, mock_instance));
+}
+
+/// An option `update` rejects leaves the config dependencies as they were.
+#[test]
+fn rejected_update_leaves_config_dependencies_alone() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@1.0.0", "^1.0.0");
+
+    pacquet_at(&workspace)
+        .with_args(["update", "--latest", "--workspace"])
+        .assert()
+        .failure();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^1.0.0", "1.0.0");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_resolves_config_dependencies_within_their_range() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@1.0.0", "^1.0.0");
+
+    pacquet_at(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^1.3.0", "1.3.0");
+    drop((root, mock_instance));
+}
+
+/// A dist-tag keeps tracking the tag, as it does in `package.json`.
+#[test]
+fn update_keeps_the_dist_tag_of_a_config_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@100.0.0", "latest");
+
+    pacquet_at(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "latest", "100.1.0");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_latest_keeps_the_exact_pin_of_a_config_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@1.0.0"])
+        .assert()
+        .success();
+
+    pacquet_at(&workspace)
+        .with_args(["update", "--latest", "@pnpm.e2e/foo"])
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "100.1.0", "100.1.0");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_leaves_config_dependencies_the_selectors_do_not_name() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    add_config_dependency_declared_as(&workspace, "@pnpm.e2e/foo@1.0.0", "^1.0.0");
+
+    pacquet_at(&workspace)
+        .with_args(["update", "--latest", "@pnpm.e2e/bar"])
+        .assert()
+        .success();
+
+    assert_config_dependency(&workspace, "@pnpm.e2e/foo", "^1.0.0", "1.0.0");
+    drop((root, mock_instance));
+}
+
+/// Add `selector` as a config dependency, then declare it with `specifier`
+/// in both `pnpm-workspace.yaml` and the env lockfile, keeping the version
+/// `selector` locked.
+fn add_config_dependency_declared_as(workspace: &Path, selector: &str, specifier: &str) {
+    pacquet_at(workspace)
+        .with_args(["add", "--config", selector])
+        .assert()
+        .success();
+    let (name, version) = selector.rsplit_once('@').expect("selector names a version");
+    set_config_dependencies(workspace, &format!("'{name}': '{specifier}'"));
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let declared =
+        lockfile.replace(&format!("specifier: {version}"), &format!("specifier: '{specifier}'"));
+    fs::write(&lockfile_path, declared).expect("write lockfile");
+}
+
+fn assert_config_dependency(workspace: &Path, name: &str, specifier: &str, version: &str) {
+    assert_config_dependency_declared(workspace, name, specifier);
+    let env_lockfile =
+        EnvLockfile::read(workspace).expect("read env lockfile").expect("env lockfile exists");
+    let locked = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies[name];
+    assert_eq!((locked.specifier.as_str(), locked.version.as_str()), (specifier, version));
+}
+
 #[test]
 fn add_config_validates_all_selectors_before_writing_files() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -835,3 +1024,14 @@ fn update_config_hook_switches_loaded_linker_back_to_isolated_layout() {
 }
 
 mod release_age;
+
+fn assert_config_dependency_declared(workspace: &Path, name: &str, specifier: &str) {
+    let (_, settings) = WorkspaceSettings::find_and_load(workspace)
+        .expect("read pnpm-workspace.yaml")
+        .expect("workspace manifest exists");
+    let declared = settings.config_dependencies.expect("configDependencies map");
+    assert_eq!(
+        declared.get(name),
+        Some(&ConfigDependency::VersionWithIntegrity(specifier.to_string())),
+    );
+}

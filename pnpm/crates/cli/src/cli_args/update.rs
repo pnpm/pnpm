@@ -466,4 +466,5 @@ impl UpdateArgs {
 #[cfg(test)]
 mod tests;
 
+mod config_dependencies;
 mod execution;

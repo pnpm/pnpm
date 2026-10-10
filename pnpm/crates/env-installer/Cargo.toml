@@ -17,9 +17,11 @@ pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
 pnpm-lockfile = { workspace = true }
+pnpm-lockfile-preferred-versions = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-package-manager = { workspace = true }
+pnpm-registry = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
@@ -36,7 +38,6 @@ tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-pnpm-registry = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
