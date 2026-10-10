@@ -62,7 +62,20 @@ fn approval_prints_the_version_list_once_and_persists_excludes() {
             1,
             "{version}",
         );
+        assert_eq!(
+            stdout
+                .lines()
+                .filter(|line| line.trim() == version)
+                .count(),
+            1,
+            "{version} should only appear once in total output",
+        );
     }
+    assert!(
+        stdout.contains(
+            "Added 2 entries to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt)"
+        ),
+    );
     let settings = WorkspaceSettings::load_at(&workspace)
         .expect("read workspace manifest")
         .expect("workspace manifest exists");
