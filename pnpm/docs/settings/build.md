@@ -206,6 +206,27 @@ precedence over both files. A `pnpm-workspace.yaml` that sets a field marked
 `ERR_PNPM_WORKSPACE_REMOTE_CACHE_TRUST`. A repository that could name the
 server could have the machine's token sent to a server of its choosing.
 
+#### Authenticating with Vercel Remote Cache
+
+Create an access token in your Vercel account settings, under Tokens, scoped
+to the team that owns the cache. In CI, pass it in the environment:
+
+```sh
+PNPM_REMOTE_CACHE_URL=https://vercel.com/api
+PNPM_REMOTE_CACHE_TEAM=team_abc123
+PNPM_REMOTE_CACHE_TOKEN=<access token>
+```
+
+On your own machine, keep it in your user `.npmrc` instead, where `pnpm` finds
+it for `url`:
+
+```ini title="~/.npmrc"
+//vercel.com/api/:_authToken=<access token>
+```
+
+`pnpm` does not read the token `turbo login` stores. That token expires within
+hours, and only `turbo` renews it.
+
 A Turborepo Remote Cache server holds one build per package for each
 combination of operating system, CPU architecture, and Node.js major, and a
 later publication replaces it. A machine restores a build when it meets the

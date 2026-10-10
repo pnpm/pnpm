@@ -345,6 +345,33 @@ async fn a_file_changed_after_signing_is_not_stored() {
     assert!(cache.artifacts().is_empty(), "nothing was stored");
 }
 
+/// Without `token`, the `.npmrc` credentials for `url` authenticate. A key for
+/// the URL's own path, as written for `https://vercel.com/api`, covers it.
+#[tokio::test]
+async fn npmrc_credentials_for_the_url_path_authenticate() {
+    let cache = TurborepoCache::start();
+    let url = format!("{}/api", cache.url());
+    let mut config = pnpm_config::Config::new();
+    config.auth_headers = std::sync::Arc::new(pnpm_network::AuthHeaders::from_creds_map([(
+        pnpm_network::nerf_dart(&format!("{url}/")),
+        "Bearer npmrc-token".to_string(),
+    )]));
+    let settings = pnpm_config::RemoteCacheSettings { url: Some(url), ..Default::default() };
+    let store = ArtifactStore::from_config(&config, &settings)
+        .expect("a loopback store")
+        .expect("a store for url");
+    let (publication, _, _, _blobs) = workspace_task_fixture();
+    store.publish_artifact(&publication).await.expect("publish");
+    let requests = cache.requests();
+    dbg!(&requests);
+    assert!(!requests.is_empty());
+    assert!(
+        requests
+            .iter()
+            .all(|request| request.authorization.as_deref() == Some("Bearer npmrc-token")),
+    );
+}
+
 /// A publication whose blob files do not match its signed manifest is refused
 /// before anything is sent.
 #[tokio::test]
