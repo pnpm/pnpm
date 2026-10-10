@@ -144,7 +144,12 @@ impl SharedArtifactStore {
         // From now on the record keeps it off the blob, for as long as a
         // publication may take to arrive, so its age has to start here.
         let record = self.object_path(&staged_record_path(owner, &blob.id));
-        self.store.put(&record, PutPayload::new()).await?;
+        if let Err(error) = self.store.put(&record, PutPayload::new()).await {
+            // Nothing will vouch for the stored blob, so the reclamation
+            // this asks for gives its charge back.
+            *reclamation_needed = true;
+            return Err(error.into());
+        }
         *reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
         if *reclamation_needed {
             self.begin_publication(publication).await?;
@@ -197,11 +202,12 @@ impl SharedArtifactStore {
             }
             return Err(WriteFailure::Rejected(error));
         }
-        if self.stored_size(path).await.is_ok_and(|stored| stored.is_some()) {
+        let stored_meanwhile = self.stored_size(path).await;
+        if !matches!(stored_meanwhile, Ok(None)) {
             if let Err(abort_error) = writer.abort().await {
-                tracing::warn!(%abort_error, "a duplicate artifact blob upload was not cleaned up");
+                tracing::warn!(%abort_error, "an unneeded artifact blob upload was not cleaned up");
             }
-            return Ok(false);
+            return stored_meanwhile.map(|_| false).map_err(WriteFailure::Rejected);
         }
         writer.finish().await.map_err(|error| WriteFailure::Store(error.into()))?;
         Ok(true)
