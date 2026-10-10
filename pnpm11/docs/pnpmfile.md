@@ -105,6 +105,35 @@ export const hooks = {
 }
 ```
 
+#### Registry routing
+
+Since v11.23.0, the registry routing map passed to `updateConfig` is named
+`registriesByScope` instead of `registries`. Its keys are package scopes,
+such as `@acme`, and `default` for the main registry.
+
+Returning `registriesByScope` replaces the routing map. Scopes omitted from
+the returned map use its `default` registry, except for routes given on the
+command line. For example, this hook routes all packages to one registry:
+
+```js title=".pnpmfile.mjs"
+export const hooks = {
+  updateConfig (config) {
+    return {
+      ...config,
+      registriesByScope: {
+        default: 'https://registry.example.com/',
+      },
+    }
+  },
+}
+```
+
+To preserve existing scope routes while changing one route, spread
+`...config.registriesByScope` into the returned map before the overrides.
+
+In pnpm v11, returning the old `registries` field no longer changes registry
+routing. Update existing hooks to return `registriesByScope` instead.
+
 #### Settings given on the command line
 
 Since v11.28.1, a setting given on the command line takes precedence over the
