@@ -207,32 +207,62 @@ fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
     ));
 }
 
-#[cfg(unix)]
-#[test]
-fn a_loaded_project_linking_outside_the_workspace_is_not_trusted() {
+fn loaded_link_fixture() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let fixture = tempfile::tempdir().unwrap();
     let workspace_root = fixture.path().join("workspace");
     let outside = fixture.path().join("outside");
     std::fs::create_dir_all(workspace_root.join("packages")).unwrap();
     std::fs::create_dir_all(&outside).unwrap();
-    let target_dir = workspace_root.join("packages/pkg");
-    std::os::unix::fs::symlink(&outside, &target_dir).unwrap();
+    std::fs::write(outside.join("package.json"), r#"{"name":"pkg","version":"1.2.3"}"#).unwrap();
+    (fixture, workspace_root, outside)
+}
+
+fn loaded_target_satisfies(workspace_root: &Path, target_dir: PathBuf) -> bool {
     let manifest = pnpm_package_manifest::PackageManifest::from_value(
         target_dir.join("package.json"),
         serde_json::json!({ "name": "pkg", "version": "1.2.3" }),
     );
     let manifests_by_dir = ProjectManifestsByDir::from([(target_dir, &manifest)]);
     let dirs = SpecDirs {
-        workspace_root: &workspace_root,
-        lockfile_dir: &workspace_root,
+        workspace_root,
+        lockfile_dir: workspace_root,
         manifests_by_dir: &manifests_by_dir,
     };
     let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
-    assert!(!spec_satisfies_snapshot_dep(
+    spec_satisfies_snapshot_dep(
         &dirs,
         &workspace_root.join("packages/consumer"),
         "pkg",
         "workspace:*",
-        &file_dep
-    ));
+        &file_dep,
+    )
+}
+
+#[test]
+fn a_loaded_project_linking_outside_the_workspace_is_not_trusted() {
+    let (_fixture, workspace_root, outside) = loaded_link_fixture();
+    let target_dir = workspace_root.join("packages/pkg");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, &target_dir).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(&outside, &target_dir).unwrap();
+    assert!(!loaded_target_satisfies(&workspace_root, target_dir));
+}
+
+#[test]
+fn a_loaded_project_whose_package_json_links_outside_the_workspace_is_not_trusted() {
+    let (_fixture, workspace_root, outside) = loaded_link_fixture();
+    let target_dir = workspace_root.join("packages/pkg");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    assert!(loaded_target_satisfies(&workspace_root, target_dir.clone()), "no package.json");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(outside.join("package.json"), target_dir.join("package.json"))
+        .unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(
+        outside.join("package.json"),
+        target_dir.join("package.json"),
+    )
+    .unwrap();
+    assert!(!loaded_target_satisfies(&workspace_root, target_dir));
 }

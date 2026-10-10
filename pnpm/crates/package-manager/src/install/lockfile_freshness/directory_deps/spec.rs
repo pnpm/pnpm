@@ -226,10 +226,17 @@ fn target_manifest<'a>(
     target_dir: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {
     let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
+    let manifest_path = target_dir.join("package.json");
     if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
-        return Some(Cow::Borrowed(manifest.value()));
+        // A project passed in memory may have no `package.json`. One that has
+        // a `package.json` linking outside the workspace is not trusted, as the
+        // disk read below does not trust it.
+        let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
+            && !std::fs::canonicalize(&manifest_path)
+                .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
+        return (!escapes).then_some(Cow::Borrowed(manifest.value()));
     }
-    let canonical_manifest = std::fs::canonicalize(target_dir.join("package.json")).ok()?;
+    let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
         return None;
     }
