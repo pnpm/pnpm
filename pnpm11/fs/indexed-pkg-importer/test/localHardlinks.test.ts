@@ -99,7 +99,6 @@ test('injected refresh replaces directory symlinks without modifying their targe
   expect(fs.readFileSync(path.join(source, 'lib/index.js'), 'utf8')).toBe('original')
 })
 
-
 test('injected refresh replaces a symlink at the package root', () => {
   const { source, target, install } = fixture()
   fs.rmSync(target, { recursive: true })
