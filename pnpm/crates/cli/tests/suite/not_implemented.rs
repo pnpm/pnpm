@@ -6,7 +6,7 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 /// fallback and fail as a missing script instead.
 #[test]
 fn the_unimplemented_npm_commands_point_at_the_npm_cli() {
-    for command in ["edit", "profile", "token", "xmas"] {
+    for command in ["profile", "token", "xmas"] {
         let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
         let output = pacquet
             .with_args([command])

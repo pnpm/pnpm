@@ -42,6 +42,7 @@
           "type": "category",
           "label": "Patch dependencies",
           "items": [
+            "cli/edit",
             "cli/patch",
             "cli/patch-commit",
             "cli/patch-remove"
