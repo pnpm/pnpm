@@ -279,6 +279,13 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let config_dependency_updates = self.args.config_dependency_updates(self.cfg);
+        crate::config_deps::update_config_dependencies::<Reporter>(
+            self.cfg,
+            &self.config_root,
+            &config_dependency_updates,
+        )
+        .await?;
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         let plan = select_install_family_plan::<Reporter>(

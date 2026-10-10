@@ -5153,6 +5153,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-graph-hasher",
  "pnpm-lockfile",
+ "pnpm-lockfile-preferred-versions",
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manager",

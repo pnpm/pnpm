@@ -30,6 +30,7 @@ use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
 mod seed_policy;
 
 mod selectors;
+pub use selectors::{ParsedSelector, parse_update_param};
 use selectors::{parse_selectors, reject_versions_of_indirect_update_specs};
 
 use crate::{

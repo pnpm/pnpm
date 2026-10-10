@@ -16,7 +16,7 @@ pub use options::{ConfigDependencyStore, ConfigDependencyVerification, ConfigDep
 pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
 pub use prune::prune_env_lockfile;
 pub use resolve_and_install_config_deps::{
-    resolve_and_install_config_deps, resolve_and_install_config_deps_updating,
+    ConfigDepUpdates, resolve_and_install_config_deps, resolve_and_install_config_deps_updating,
 };
 pub use resolve_optional_subdeps::resolve_optional_subdeps;
 pub use resolve_package_manager_integrities::{

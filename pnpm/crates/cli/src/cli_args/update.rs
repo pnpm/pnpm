@@ -8,18 +8,24 @@ use crate::{
         update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
         workspace_option::{WorkspaceOptionError, workspace_link_root},
     },
+    config_deps,
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
+use pnpm_env_installer::ConfigDepUpdates;
 use pnpm_github_actions as github_actions;
-use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_package_manager::{Update, build_workspace_packages_map, parse_update_param};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
-use std::{collections::HashSet, path::Path};
+use pnpm_resolving_resolver_base::UpdateBehavior;
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::Path,
+};
 
 /// The `--prod`, `--dev`, and `--no-optional` flags that select which
 /// dependency groups to update.
@@ -267,6 +273,56 @@ impl UpdateArgs {
             prompt,
         )
         .await
+    }
+
+    /// The config dependencies this update resolves again: those the
+    /// selectors name, or every one when there are none. Each keeps the
+    /// declared specifier's operator, as a project dependency does.
+    ///
+    /// None with `--interactive`, `--patches`, `--no-save`, `--filter`, or a
+    /// flag that narrows the dependency groups: each of those scopes the
+    /// update to project dependencies. A versioned selector names a
+    /// project dependency.
+    pub(crate) fn config_dependency_updates(&self, config: &Config) -> ConfigDepUpdates {
+        let behavior =
+            if self.selection.latest { UpdateBehavior::Latest } else { UpdateBehavior::Compatible };
+        let mut updates = ConfigDepUpdates {
+            prev_specifiers: BTreeMap::new(),
+            behavior,
+            range_spec_style: self.range_spec_style(config),
+        };
+        let groups = &self.dependency_options;
+        let narrowed = self.selection.interactive
+            || self.selection.patches
+            || self.save.no_save
+            || !config.filter.is_empty()
+            || !config.filter_prod.is_empty()
+            || groups.prod
+            || groups.dev
+            || groups.optional
+            || groups.no_optional;
+        let Some(declared) = config.config_dependencies.as_ref().filter(|_| !narrowed) else {
+            return updates;
+        };
+        let patterns = self.packages
+            .iter()
+            .map(|package| parse_update_param(package))
+            .filter(|selector| selector.version.is_none())
+            .map(|selector| selector.pattern)
+            .collect::<Vec<_>>();
+        if patterns.is_empty() && !self.packages.is_empty() {
+            return updates;
+        }
+        let matcher = create_matcher(&patterns);
+        updates.prev_specifiers = declared
+            .keys()
+            .filter(|name| patterns.is_empty() || matcher.matches(name))
+            .filter_map(|name| {
+                let specifier = config_deps::declared_specifier(declared, name)?;
+                Some((name.clone(), Some(specifier)))
+            })
+            .collect();
+        updates
     }
 
     /// The style a rewritten specifier falls back to: `--save-exact` layered

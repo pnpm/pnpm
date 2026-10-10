@@ -23,13 +23,16 @@ use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
     SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
+    VersionSelectorType, WantedDependency,
 };
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// Config deps keep the npm tarball layout: `registries` is a workspace
 /// setting, and config deps are resolved before workspace settings apply. The
@@ -45,19 +48,47 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
-    let update = BTreeSet::new();
-    resolve_and_install_config_deps_updating::<Reporter>(config_deps, &update, resolver, opts).await
+    let updates = ConfigDepUpdates::default();
+    resolve_and_install_config_deps_updating::<Reporter>(config_deps, &updates, resolver, opts)
+        .await?;
+    Ok(())
 }
 
-/// [`resolve_and_install_config_deps`], but the config dependencies named in
-/// `update` are resolved again even when the env lockfile already holds
-/// their specifier. Backs `add --config`.
+/// The config dependencies `add --config` and `update` resolve again, and
+/// how the specifier each is saved with is chosen. That follows the rules a
+/// project dependency's manifest specifier follows.
+#[derive(Debug, Default)]
+pub struct ConfigDepUpdates {
+    /// Each config dependency to resolve again, with the specifier
+    /// `pnpm-workspace.yaml` declared for it before the command, if any.
+    pub prev_specifiers: BTreeMap<String, Option<String>>,
+    /// [`UpdateBehavior::Off`] for `add --config`. An update reaches past
+    /// the declared range to the `latest` tag with
+    /// [`UpdateBehavior::Latest`].
+    pub behavior: UpdateBehavior,
+    /// The operator a saved specifier gets when the declared one has none.
+    pub range_spec_style: RangeSpecStyle,
+}
+
+impl ConfigDepUpdates {
+    /// Whether `specifier` is saved as declared. An update keeps a dist-tag
+    /// declaration tracking the tag, as it keeps one in `package.json`.
+    fn keeps_specifier(&self, specifier: &str) -> bool {
+        self.behavior != UpdateBehavior::Off
+            && get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
+    }
+}
+
+/// [`resolve_and_install_config_deps`], but the config dependencies in
+/// `updates` are resolved again even when the env lockfile already holds
+/// their specifier. Returns the specifier each of them is recorded with,
+/// which `pnpm-workspace.yaml` must declare from now on.
 pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     config_deps: &BTreeMap<String, ConfigDependency>,
-    update: &BTreeSet<String>,
+    updates: &ConfigDepUpdates,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
-) -> Result<(), ConfigDepError> {
+) -> Result<BTreeMap<String, String>, ConfigDepError> {
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
@@ -66,7 +97,8 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     let mut lockfile_changed = drop_removed_config_deps(&mut env_lockfile, config_deps);
 
     for (name, value) in config_deps {
-        match plan_config_dep(&mut env_lockfile, opts, name, value, update.contains(name))? {
+        let update = updates.prev_specifiers.contains_key(name);
+        match plan_config_dep(&mut env_lockfile, opts, name, value, update)? {
             ConfigDepPlan::Satisfied => {}
             ConfigDepPlan::Migrated => lockfile_changed = true,
             ConfigDepPlan::Resolve { specifier, integrity } => {
@@ -83,12 +115,22 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
 
     if to_resolve.is_empty() && !lockfile_changed {
         verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
-        return install_config_deps::<Reporter>(&env_lockfile, opts).await;
+        install_config_deps::<Reporter>(&env_lockfile, opts).await?;
+        return Ok(BTreeMap::new());
     }
 
+    let mut saved_specifiers = BTreeMap::new();
     for (name, specifier, pinned_integrity) in &to_resolve {
-        resolve_one(&mut env_lockfile, resolver, opts, name, specifier, pinned_integrity.as_ref())
-            .await?;
+        let request = ResolveRequest {
+            name,
+            specifier,
+            pinned_integrity: pinned_integrity.as_ref(),
+            updates: updates.prev_specifiers.contains_key(name).then_some(updates),
+        };
+        let saved = resolve_one(&mut env_lockfile, resolver, opts, &request).await?;
+        if request.updates.is_some() {
+            saved_specifiers.insert(name.clone(), saved);
+        }
     }
 
     // Removal, migration and resolution can each orphan packages and
@@ -96,7 +138,8 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     prune_env_lockfile(&mut env_lockfile);
     verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
     write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
-    install_config_deps::<Reporter>(&env_lockfile, opts).await
+    install_config_deps::<Reporter>(&env_lockfile, opts).await?;
+    Ok(saved_specifiers)
 }
 
 /// Drop env-lockfile entries for config deps that were removed from
@@ -197,26 +240,48 @@ fn plan_specifier(
     Ok(ConfigDepPlan::Resolve { specifier: specifier.to_string(), integrity: None })
 }
 
-/// Resolve a single config dependency and record it (plus one level of
-/// optional subdeps) into the env lockfile.
-fn wanted_config_dependency(name: &str, specifier: &str) -> WantedDependency {
-    WantedDependency {
-        alias: Some(name.to_string()),
-        bare_specifier: Some(specifier.to_string()),
-        ..WantedDependency::default()
+/// One config dependency to resolve.
+struct ResolveRequest<'a> {
+    name: &'a str,
+    specifier: &'a str,
+    pinned_integrity: Option<&'a Integrity>,
+    /// Set when `add --config` or `update` resolves it again.
+    updates: Option<&'a ConfigDepUpdates>,
+}
+
+impl ResolveRequest<'_> {
+    fn wanted_dependency(&self) -> WantedDependency {
+        WantedDependency {
+            alias: Some(self.name.to_string()),
+            bare_specifier: Some(self.specifier.to_string()),
+            prev_specifier: self.updates.and_then(|updates| {
+                updates.prev_specifiers
+                    .get(self.name)
+                    .cloned()
+                    .flatten()
+            }),
+            ..WantedDependency::default()
+        }
     }
 }
 
+/// Resolve a single config dependency and record it (plus one level of
+/// optional subdeps) into the env lockfile. Returns the specifier it is
+/// recorded with.
 async fn resolve_one(
     env_lockfile: &mut EnvLockfile,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
-    name: &str,
-    specifier: &str,
-    pinned_integrity: Option<&Integrity>,
-) -> Result<(), ConfigDepError> {
-    let wanted = wanted_config_dependency(name, specifier);
-    let resolve_opts = config_dep_resolve_options(opts, pinned_integrity.is_some());
+    request: &ResolveRequest<'_>,
+) -> Result<String, ConfigDepError> {
+    let &ResolveRequest {
+        name,
+        specifier,
+        pinned_integrity,
+        updates,
+    } = request;
+    let wanted = request.wanted_dependency();
+    let resolve_opts = config_dep_resolve_options(opts, pinned_integrity.is_some(), updates);
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
         .resolve(&wanted, &resolve_opts)
@@ -235,11 +300,18 @@ async fn resolve_one(
         .to_string();
     let registry = opts.verification.pick_registry(name);
     let key = pkg_key(name, &version)?;
+    // A resolver that does not compute a specifier leaves the declared one.
+    let saved_specifier = match (updates, &result.normalized_bare_specifier) {
+        (Some(updates), Some(normalized)) if !updates.keeps_specifier(specifier) => {
+            normalized.clone()
+        }
+        _ => specifier.to_string(),
+    };
 
     record_config_dependency(
         env_lockfile,
         &key,
-        (name, specifier),
+        (name, &saved_specifier),
         &version,
         result.resolution,
         pinned_integrity,
@@ -258,7 +330,7 @@ async fn resolve_one(
         key,
         SnapshotEntry { optional_dependencies: optional_subdeps, ..SnapshotEntry::default() },
     );
-    Ok(())
+    Ok(saved_specifier)
 }
 
 fn missing_config_integrity(name: &str, specifier: &str) -> ConfigDepError {
@@ -325,10 +397,19 @@ pub(crate) fn resolve_options(opts: &ConfigDepsInstallOptions<'_>) -> ResolveOpt
 /// A `version+integrity` pin only needs the tarball URL, and verification
 /// skips pins, so a pin resolves without
 /// [`ConfigDependencyVerification::resolution_policy`](crate::ConfigDependencyVerification::resolution_policy).
-fn config_dep_resolve_options(opts: &ConfigDepsInstallOptions<'_>, pinned: bool) -> ResolveOptions {
+fn config_dep_resolve_options(
+    opts: &ConfigDepsInstallOptions<'_>,
+    pinned: bool,
+    updates: Option<&ConfigDepUpdates>,
+) -> ResolveOptions {
     let mut resolve_opts = resolve_options(opts);
     if pinned {
         resolve_opts.policy = ResolutionPolicyOptions::default();
+    }
+    if let Some(updates) = updates {
+        resolve_opts.refresh.update = updates.behavior;
+        resolve_opts.specifier.calc_specifier = true;
+        resolve_opts.specifier.range_spec_style = Some(updates.range_spec_style);
     }
     resolve_opts
 }

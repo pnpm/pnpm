@@ -28,7 +28,7 @@ use pnpm_config::{
     known_settings::is_known_setting_key, resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
+    ConfigDepUpdates, ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
     resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
     running_version_unpublished,
 };
@@ -36,15 +36,16 @@ use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
+    ResolutionPolicyOptions, ResolveOptions, Resolver, UpdateBehavior, WantedDependency,
 };
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -64,9 +65,16 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     if config_dependencies.is_empty() {
         return Ok(());
     }
-    let update = BTreeSet::new();
-    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile, &update)
-        .await
+    let updates = ConfigDepUpdates::default();
+    resolve_and_install::<Reporter>(
+        config,
+        config_dependencies,
+        root_dir,
+        frozen_lockfile,
+        &updates,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Install the project's `configDependencies` and run their `updateConfig`
@@ -285,15 +293,25 @@ async fn resolve_engine_with(
 }
 
 /// Add config dependencies: resolve + install them (merged with any
-/// already-declared config deps), then write the clean specifiers into
-/// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
+/// already-declared config deps), then write the specifiers they are saved
+/// with into `pnpm-workspace.yaml`'s `configDependencies` block. Backs
 /// `pacquet add --config`.
 pub async fn add_config_dependencies<Reporter: self::Reporter>(
     config: &Config,
     root_dir: &Path,
     added: &BTreeMap<String, String>,
+    range_spec_style: RangeSpecStyle,
 ) -> Result<()> {
-    let mut config_dependencies = config.config_dependencies.clone().unwrap_or_default();
+    let declared = config.config_dependencies.clone().unwrap_or_default();
+    let updates = ConfigDepUpdates {
+        prev_specifiers: added
+            .keys()
+            .map(|name| (name.clone(), declared_specifier(&declared, name)))
+            .collect(),
+        behavior: UpdateBehavior::Off,
+        range_spec_style,
+    };
+    let mut config_dependencies = declared;
     for (name, specifier) in added {
         config_dependencies.insert(
             name.clone(),
@@ -301,17 +319,75 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
         );
     }
 
-    let update = added.keys().cloned().collect();
-    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, &update).await?;
+    let saved =
+        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, &updates)
+            .await?;
+    // An integrity-pinned specifier is recorded as written.
+    let specifiers = added
+        .iter()
+        .map(|(name, specifier)| {
+            (
+                name.as_str(),
+                saved
+                    .get(name)
+                    .unwrap_or(specifier)
+                    .as_str(),
+            )
+        });
+    record_config_dependencies(root_dir, specifiers)
+}
 
-    pnpm_workspace_manifest_writer::set_config_dependencies(
+/// Resolve the config dependencies in `updates` again and save the
+/// specifiers they resolve to, in `pnpm-workspace.yaml` and in `config`.
+/// Backs `pacquet update`.
+pub async fn update_config_dependencies<Reporter: self::Reporter>(
+    config: &mut Config,
+    root_dir: &Path,
+    updates: &ConfigDepUpdates,
+) -> Result<()> {
+    let Some(config_dependencies) = config.config_dependencies.clone() else {
+        return Ok(());
+    };
+    if updates.prev_specifiers.is_empty() {
+        return Ok(());
+    }
+    let saved =
+        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, updates)
+            .await?;
+    record_config_dependencies(
         root_dir,
-        added
+        saved
             .iter()
             .map(|(name, specifier)| (name.as_str(), specifier.as_str())),
-    )
-    .into_diagnostic()
-    .wrap_err("recording the config dependencies in pnpm-workspace.yaml")
+    )?;
+    let declared = config.config_dependencies.get_or_insert_default();
+    for (name, specifier) in saved {
+        declared.insert(name, ConfigDependency::VersionWithIntegrity(specifier));
+    }
+    Ok(())
+}
+
+/// The specifier `pnpm-workspace.yaml` declares for `name`, if it declares
+/// one an update can start from.
+pub(crate) fn declared_specifier(
+    declared: &BTreeMap<String, ConfigDependency>,
+    name: &str,
+) -> Option<String> {
+    match declared.get(name)? {
+        ConfigDependency::VersionWithIntegrity(specifier) if !specifier.contains('+') => {
+            Some(specifier.clone())
+        }
+        _ => None,
+    }
+}
+
+fn record_config_dependencies<'a>(
+    root_dir: &Path,
+    specifiers: impl Iterator<Item = (&'a str, &'a str)>,
+) -> Result<()> {
+    pnpm_workspace_manifest_writer::set_config_dependencies(root_dir, specifiers)
+        .into_diagnostic()
+        .wrap_err("recording the config dependencies in pnpm-workspace.yaml")
 }
 
 /// Build the resolver + install options from `config` and resolve +
@@ -321,8 +397,8 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,
     root_dir: &Path,
     frozen_lockfile: bool,
-    update: &BTreeSet<String>,
-) -> Result<()> {
+    updates: &ConfigDepUpdates,
+) -> Result<BTreeMap<String, String>> {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
         message: "Waiting for the configuration dependency store operation lock".to_string(),
@@ -353,7 +429,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     .await;
     let result = resolve_and_install_config_deps_updating::<Reporter>(
         config_dependencies,
-        update,
+        updates,
         &context.resolver,
         &options,
     )
