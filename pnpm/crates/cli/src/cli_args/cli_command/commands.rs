@@ -7,11 +7,11 @@ use super::{
     InstallArgs, InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs,
     LogoutArgs, NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs,
     PatchCommitArgs, PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs,
-    PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs,
-    RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
-    SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
-    TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs,
-    VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
+    PrefixArgs, ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs,
+    RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs,
+    SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
+    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
+    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -267,7 +267,7 @@ pub enum CliCommand {
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
-    Profile(NotImplementedArgs),
+    Profile(ProfileArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Token(NotImplementedArgs),
     #[clap(external_subcommand)]

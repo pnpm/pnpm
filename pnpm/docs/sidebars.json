@@ -104,6 +104,7 @@
             "cli/login",
             "cli/logout",
             "cli/whoami",
+            "cli/profile",
             "cli/access",
             "cli/owner",
             "cli/team",

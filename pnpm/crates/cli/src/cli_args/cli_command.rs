@@ -56,6 +56,7 @@ use super::{
     pipeline::PipelineArgs,
     pkg::PkgArgs,
     prefix::PrefixArgs,
+    profile::ProfileArgs,
     prune::PruneArgs,
     publish::PublishArgs,
     rebuild::RebuildArgs,
