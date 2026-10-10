@@ -103,6 +103,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": true,
             "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "minimumReleaseAgeExclude": ["@acme/*"],
@@ -288,6 +289,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             auto_install_peers: Some(false),
             dedupe_peers: Some(true),
             exclude_links_from_lockfile: Some(false),
+            add_missing_peer_types: Some(true),
             resolution_mode: ResolutionMode::TimeBased,
         },
         reuse: crate::LockfileReuseOptions {

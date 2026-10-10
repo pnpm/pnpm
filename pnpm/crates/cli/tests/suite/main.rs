@@ -9,6 +9,7 @@ mod _utils;
 
 mod add;
 mod add_jsr;
+mod add_missing_peer_types;
 mod add_types;
 mod agent_skills;
 mod approve_builds;

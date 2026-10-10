@@ -133,8 +133,8 @@ registries:
       # Fully unpublished from npmjs.org, so the fixture copy is the only
       # source; the rest of its (real) dependency tree still proxies to npm.
       'preact-particles': *default-rules
-      # The fixture packages in the real `@pnpm` and `@zkochan` scopes, each
-      # claimed by exact name.
+      # The fixture packages in the real `@pnpm`, `@types`, and `@zkochan`
+      # scopes, each claimed by exact name.
       '@pnpm/plugin-pnpmfile': *default-rules
       '@pnpm/postinstall-modifies-source': *default-rules
       '@pnpm/x': *default-rules
@@ -146,6 +146,7 @@ registries:
       '@pnpm/xyz-parent-parent-with-xyz': *default-rules
       '@pnpm/y': *default-rules
       '@pnpm/z': *default-rules
+      '@types/pnpm.e2e__peer-a': *default-rules
       '@zkochan/test-pnpm-issue219': *default-rules
       # Names tests publish to the mock and then read back. Exact names only —
       # an unscoped prefix wildcard would swallow real npm packages that

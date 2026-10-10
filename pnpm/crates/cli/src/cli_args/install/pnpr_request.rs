@@ -1,7 +1,7 @@
 use super::{
-    Catalogs, Context, DependencyGroup, InstallFamilySelection, IntoDiagnostic, Lockfile,
-    LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig, ResolveProject,
-    ResolveProjectsOptions, State, discover_workspace_projects,
+    Catalogs, Context, DependencyGroup, Diagnostic, Display, Error, InstallFamilySelection,
+    IntoDiagnostic, Lockfile, LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig,
+    ResolveProject, ResolveProjectsOptions, State, discover_workspace_projects,
     get_catalogs_from_workspace_manifest, prefetch_allowed,
 };
 use pnpm_network::normalize_registry_url;
@@ -96,6 +96,7 @@ pub(super) fn resolve_projects_options(
             auto_install_peers: Some(state.config.auto_install_peers),
             dedupe_peers: Some(state.config.dedupe_peers),
             exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
+            add_missing_peer_types: Some(state.config.add_missing_peer_types),
             resolution_mode: state.config.resolution_mode,
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
@@ -108,6 +109,28 @@ pub(super) fn resolve_projects_options(
         },
         verification: verification_policy(state.config),
     }
+}
+
+/// `addMissingPeerTypes` was on, but the lockfile the pnpr server returned
+/// was resolved without it. A server that predates the setting drops it from
+/// the request, and every later install would reject the lockfile.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The pnpr server resolved the lockfile without the addMissingPeerTypes setting.")]
+#[diagnostic(
+    code(ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES),
+    help("Upgrade the pnpr server, or set addMissingPeerTypes to false.")
+)]
+pub(super) struct AddMissingPeerTypesIgnoredByPnpr;
+
+/// Reject a server lockfile resolved without a setting the request sent.
+pub(super) fn check_pnpr_applied_settings(
+    config: &pnpm_config::Config,
+    returned: Option<&pnpm_lockfile::LockfileSettings>,
+) -> Result<(), AddMissingPeerTypesIgnoredByPnpr> {
+    if config.add_missing_peer_types && !pnpm_lockfile::recorded_add_missing_peer_types(returned) {
+        return Err(AddMissingPeerTypesIgnoredByPnpr);
+    }
+    Ok(())
 }
 
 /// The catalogs the pnpr server resolves `catalog:` specifiers against,

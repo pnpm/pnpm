@@ -368,7 +368,7 @@ pub struct OsvConfig {
 /// fixture-scope subset of the bundled `config.yaml` `local` registry — the
 /// YAML additionally claims the exact names the TS test suite publishes,
 /// which pacquet's in-process registry never sees. The fixture packages
-/// living in real, active npm scopes (`@pnpm`, `@zkochan`) are claimed by
+/// living in real, active npm scopes (`@pnpm`, `@types`, `@zkochan`) are claimed by
 /// exact name so the rest of those scopes keeps proxying npm (dependency
 /// trees of proxied packages pull real `@pnpm/*` packages).
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
@@ -389,6 +389,7 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@pnpm/xyz-parent-parent-with-xyz",
     "@pnpm/y",
     "@pnpm/z",
+    "@types/pnpm.e2e__peer-a",
     "@zkochan/test-pnpm-issue219",
     "ajv",
     "ajv-keywords",
