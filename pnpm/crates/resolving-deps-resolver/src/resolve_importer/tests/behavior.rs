@@ -453,3 +453,100 @@ async fn auto_installs_a_versioned_workspace_peer_with_its_protocol() {
         Some(&DepPath::from("peer@1.0.0".to_string())),
     );
 }
+
+#[tokio::test]
+async fn auto_installs_a_required_peer_from_the_workspace_when_an_optional_consumer_says_workspace()
+{
+    let mut table = HashMap::default();
+    table.insert(
+        ("wants-workspace".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-workspace",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-workspace",
+                "version": "1.0.0",
+                "peerDependencies": { "peer": "workspace:*" },
+                "peerDependenciesMeta": { "peer": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-plain".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-plain", "peer", "^1.0.0"),
+    );
+    table.insert(
+        ("peer".to_string(), "workspace:^1.0.0".to_string()),
+        fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-workspace": "1.0.0",
+        "wants-plain": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(resolved_specifiers(&resolver, "peer"), vec!["workspace:^1.0.0".to_string()]);
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("peer"),
+        Some(&DepPath::from("peer@1.0.0".to_string())),
+    );
+}
+
+#[tokio::test]
+async fn auto_installs_an_aliased_workspace_peer_with_its_alias() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("lib".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("lib", "peer", "workspace:real-peer@^1.0.0"),
+    );
+    table.insert(
+        ("peer".to_string(), "workspace:real-peer@^1.0.0".to_string()),
+        fake_result(
+            "real-peer",
+            "1.0.0",
+            serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "lib": "1.0.0" }));
+
+    resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resolved_specifiers(&resolver, "peer"),
+        vec!["workspace:real-peer@^1.0.0".to_string()],
+    );
+}
+
+#[tokio::test]
+async fn does_not_merge_a_workspace_peer_with_an_npm_alias() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("wants-workspace".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-workspace", "peer", "workspace:^1.0.0"),
+    );
+    table.insert(
+        ("wants-alias".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("wants-alias", "peer", "npm:other@^1.0.0"),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-workspace": "1.0.0",
+        "wants-alias": "1.0.0",
+    }));
+    let mut opts = default_opts();
+    opts.peers.auto_install_peers_from_highest_match = true;
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
+
+    assert_eq!(resolved_specifiers(&resolver, "peer"), Vec::<String>::new());
+    assert!(result.peers_result.peer_dependency_issues.missing.contains_key("peer"));
+}
