@@ -1,17 +1,16 @@
 use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
-    GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
-    LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
-    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
-    PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
-    PythonSettings, RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures,
-    SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
-    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
-    drop_placeholders, fs, read_readable_settings, redact_and_sanitize, resolvable_placeholders,
-    resolve_placeholders,
+    HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType, LinkWorkspacePackages,
+    LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting, NodePackageMapType,
+    PackageConfigsSetting, PackageExtension, PackageImportMethod, PackagePermissions, Path,
+    PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
+    RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings, ResolutionMode,
+    RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures, SystemEnv, TaskSettings, Tool,
+    ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings,
+    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -889,48 +888,6 @@ pub struct WorkspaceSettings {
 }
 
 impl WorkspaceSettings {
-    /// Read the global config.yaml at `<config_dir>/config.yaml`, if
-    /// present.
-    ///
-    /// This file uses the same parser as `pnpm-workspace.yaml`, but a
-    /// key-filter pass ([`Self::clear_workspace_only_fields`]) drops
-    /// workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, ...)
-    /// so they cannot be set globally.
-    ///
-    /// Returns `Ok(None)` when the file does not exist. Read or parse
-    /// failures propagate.
-    pub fn load_global(config_dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::load_global_skipping_unreadable(config_dir, false)
-    }
-
-    /// [`Self::load_global`], leaving out each top-level setting that does
-    /// not parse on its own when `skip_unreadable` is set (see
-    /// [`read_readable_settings`]).
-    pub fn load_global_skipping_unreadable(
-        config_dir: &Path,
-        skip_unreadable: bool,
-    ) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        let path = config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
-        let text = match fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
-        };
-        let read = parse_settings::<SystemEnv>;
-        let mut settings =
-            if skip_unreadable { read_readable_settings(&text, read) } else { read(&text) }
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
-                })?;
-        settings.validate_registries()?;
-        settings.validate_tasks()?;
-        settings.validate_pipelines()?;
-        settings.clear_workspace_only_fields();
-        settings.warn_about_dropped_keys(&text, &path);
-        Ok(Some(settings))
-    }
-
     /// Warn about the keys of the global `config.yaml` that never reach the
     /// settings, in the messages pnpm emits for that file.
     ///
@@ -942,7 +899,7 @@ impl WorkspaceSettings {
     /// A dropped camelCase key pnpm's `isConfigFileKey` accepts stays silent:
     /// pnpm honors it in this file, so the fix is to honor it too, and until
     /// then a warning would diverge from pnpm's output on the same file.
-    fn warn_about_dropped_keys(&self, text: &str, path: &Path) {
+    pub(super) fn warn_about_dropped_keys(&self, text: &str, path: &Path) {
         let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
         else {
             return;

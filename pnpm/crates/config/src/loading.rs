@@ -61,13 +61,44 @@ impl Config {
         self.current_inner::<Sys>(start_dir, true).map_err(|failure| failure.error)
     }
 
+    /// [`Config::apply_workspace_yaml`], leaving out the workspace file's
+    /// settings when [`Config::skip_unreadable_settings`] is set and they
+    /// fail to apply. The workspace root still applies.
+    fn apply_workspace_yaml_unless_unreadable<Sys>(
+        &mut self,
+        workspace_yaml: Option<(std::path::PathBuf, Option<WorkspaceSettings>)>,
+        explicit: &mut ExplicitPaths,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+        for_self_update: bool,
+    ) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        let workspace_dir = workspace_yaml.as_ref().map(|(dir, _)| dir.clone());
+        let applied = self.apply_workspace_yaml::<Sys>(
+            workspace_yaml,
+            explicit,
+            declared_registries,
+            for_self_update,
+        );
+        if applied.is_ok() || !self.skip_unreadable_settings {
+            return applied;
+        }
+        self.apply_workspace_yaml::<Sys>(
+            workspace_dir.map(|dir| (dir, None)),
+            explicit,
+            declared_registries,
+            for_self_update,
+        )
+    }
+
     /// `result`, or `fallback`'s value in its place when
     /// [`Config::skip_unreadable_settings`] leaves out the source that failed.
-    pub(super) fn skip_if_unreadable<T>(
+    pub(super) fn skip_if_unreadable<Value>(
         &self,
-        result: Result<T, LoadWorkspaceYamlError>,
-        fallback: impl FnOnce() -> T,
-    ) -> Result<T, LoadWorkspaceYamlError> {
+        result: Result<Value, LoadWorkspaceYamlError>,
+        fallback: impl FnOnce() -> Value,
+    ) -> Result<Value, LoadWorkspaceYamlError> {
         match result {
             Err(_) if self.skip_unreadable_settings => Ok(fallback()),
             result => result,
@@ -76,7 +107,7 @@ impl Config {
 
     /// The workspace root the directory tree places, without reading its
     /// `pnpm-workspace.yaml`, for one this pnpm cannot read at all.
-    fn locate_workspace<Sys: EnvVarOs>(
+    pub(super) fn locate_workspace<Sys: EnvVarOs>(
         &self,
         start_dir: &std::path::Path,
     ) -> Option<(std::path::PathBuf, Option<WorkspaceSettings>)> {
@@ -127,15 +158,12 @@ impl Config {
         // directory is where `auth.ini` lives.
         let global_config_dir = default_config_dir::<Sys>();
         self.config_dir.clone_from(&global_config_dir);
-        let global_settings = self.skip_if_unreadable(self.load_global_settings::<Sys>(), || None)?;
+        let global_settings = self.load_global_settings::<Sys>()?;
 
         // Captured here, before any later layer can flip the boolean:
         // only the CLI-seeded value suppresses the search.
         self.workspace_search_skipped = self.ignore_workspace;
-        let workspace_yaml =
-            self.skip_if_unreadable(self.resolve_workspace_yaml::<Sys>(start_dir), || {
-                self.locate_workspace::<Sys>(start_dir)
-            })?;
+        let workspace_yaml = self.resolve_workspace_yaml::<Sys>(start_dir)?;
 
         let AuthSources { mut npmrc_auth, trusted_auth } = self.collect_auth_sources::<Sys>(
             start_dir,
@@ -144,9 +172,7 @@ impl Config {
             global_config_dir.as_deref(),
         )?;
 
-        let bootstrap =
-            self.apply_bootstrap_settings::<Sys>(trusted_auth, global_settings.as_ref());
-        self.skip_if_unreadable(bootstrap, || ())?;
+        self.apply_bootstrap_settings::<Sys>(trusted_auth, global_settings.as_ref())?;
 
         // Collected as each file is applied, since applying it is what makes
         // a declared route indistinguishable by value from a resolved one.
@@ -165,23 +191,12 @@ impl Config {
             start_dir,
         );
 
-        let workspace_dir = workspace_yaml.as_ref().map(|(dir, _)| dir.clone());
-        let applied = self.apply_workspace_yaml::<Sys>(
+        self.apply_workspace_yaml_unless_unreadable::<Sys>(
             workspace_yaml,
             &mut explicit,
             &mut declared_registries,
             for_self_update,
-        );
-        if applied.is_err() && self.skip_unreadable_settings {
-            self.apply_workspace_yaml::<Sys>(
-                workspace_dir.map(|dir| (dir, None)),
-                &mut explicit,
-                &mut declared_registries,
-                for_self_update,
-            )?;
-        } else {
-            applied?;
-        }
+        )?;
 
         // Apply `_auth` routes after workspace yaml (so they win over
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
@@ -210,7 +225,8 @@ impl Config {
         trusted_auth: NpmrcAuth,
         global_settings: Option<&WorkspaceSettings>,
     ) -> Result<(), LoadWorkspaceYamlError> {
-        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth)?;
+        let bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth);
+        self.package_manager_bootstrap = self.skip_if_unreadable(bootstrap, Default::default)?;
         if let Some(global_settings) = global_settings {
             let bootstrap = &mut self.package_manager_bootstrap;
             global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
@@ -235,7 +251,15 @@ impl Config {
         npmrc_auth.tls.apply_tls_and_local_address(self);
     }
 
+    /// The global `config.yaml`, or none in its place when it cannot be
+    /// read at all and [`Config::skip_unreadable_settings`] is set.
     pub(super) fn load_global_settings<Sys: EnvVar>(
+        &self,
+    ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
+        self.skip_if_unreadable(self.read_global_settings::<Sys>(), || None)
+    }
+
+    fn read_global_settings<Sys: EnvVar>(
         &self,
     ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
         let mut global_settings = self.config_dir
