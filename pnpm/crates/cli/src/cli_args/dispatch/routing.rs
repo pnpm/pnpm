@@ -97,7 +97,6 @@ fn route_project<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<Co
         CliCommand::Stop(args) => dispatch_script::stop(ctx, args),
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
-        CliCommand::Xmas(_) => dispatch_query::not_implemented("xmas"),
         command => route_maintenance(command, ctx),
     }
 }
