@@ -258,6 +258,52 @@ fn add_missing_peer_types_resolves_via_pnpr() {
     drop((root, mock_instance));
 }
 
+/// A server that predates `addMissingPeerTypes` drops it from the request
+/// and returns a lockfile resolved without it, which the client must not save.
+#[test]
+fn install_via_pnpr_rejects_a_lockfile_resolved_without_add_missing_peer_types() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut older_server = mockito::Server::new();
+    let done = serde_json::json!({
+        "type": "done",
+        "lockfile": { "lockfileVersion": "9.0", "importers": { ".": {} } },
+    });
+    let resolve_mock = older_server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body(format!("{done}\n"))
+        .expect(1)
+        .create();
+
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    crate::_utils::append_workspace_yaml_key(&workspace, "addMissingPeerTypes", "true");
+
+    let output = pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &older_server.url()])
+        .output()
+        .expect("run pnpm install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(!output.status.success());
+    assert!(format!("{stdout}{stderr}").contains(
+        "ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES"
+    ),);
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+    resolve_mock.assert();
+
+    drop((root, mock_instance));
+}
+
 /// A pnpr-resolved lockfile is rewritten wholesale from the server's
 /// answer, so `time:` has to survive the round trip the same way a
 /// locally resolved install preserves it.
