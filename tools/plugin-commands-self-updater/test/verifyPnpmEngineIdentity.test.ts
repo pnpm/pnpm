@@ -8,6 +8,7 @@ import nock from 'nock'
 import { verifyPnpmEngineIdentity, type RegistryKey } from '@pnpm/tools.plugin-commands-self-updater'
 
 const REGISTRY = 'https://registry.example.test/'
+const CANONICAL_REGISTRY = 'https://registry.npmjs.org/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
 const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
@@ -147,6 +148,64 @@ test('throws when the pnpm v12 platform binary signature does not validate over 
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '12.0.0', optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
 })
 
+test('falls back to the canonical npm registry when the configured registry serves no signature', async () => {
+  const key = createSigningKey()
+  mockPackument('pnpm', PNPM_INTEGRITY, [])
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], '9.1.0', CANONICAL_REGISTRY)
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
+})
+
+test('falls back to the canonical npm registry when the configured registry re-signs with its own key', async () => {
+  const npmKey = createSigningKey()
+  const mirrorKey = createSigningKey()
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: mirrorKey.keyid, sig: mirrorKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: npmKey.keyid, sig: npmKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], '9.1.0', CANONICAL_REGISTRY)
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(npmKey))).resolves.toBeUndefined()
+})
+
+test('throws when the canonical npm registry signature does not validate over the installed bytes', async () => {
+  const npmKey = createSigningKey()
+  const mirrorKey = createSigningKey()
+  mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: mirrorKey.keyid, sig: mirrorKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+  mockPackument('pnpm', 'sha512-genuine-pnpm', [{ keyid: npmKey.keyid, sig: npmKey.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }], '9.1.0', CANONICAL_REGISTRY)
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(npmKey))).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH',
+  })
+})
+
+test('throws when neither the configured nor the canonical npm registry is reachable', async () => {
+  const stage = stageWithPnpmLockfile()
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(createSigningKey()))).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+    message: expect.stringContaining('the canonical npm registry'),
+  })
+})
+
+test('does not send the configured registry credentials to the canonical npm registry', async () => {
+  const key = createSigningKey()
+  nock(REGISTRY, { reqheaders: { authorization: 'Bearer mirror-token' } })
+    .get('/pnpm')
+    .reply(200, packumentBody('pnpm', PNPM_INTEGRITY, [], '9.1.0', REGISTRY))
+  nock(CANONICAL_REGISTRY, { badheaders: ['authorization'] })
+    .get('/pnpm')
+    .reply(200, packumentBody('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }], '9.1.0', CANONICAL_REGISTRY))
+  const stage = stageWithPnpmLockfile()
+  const opts = {
+    ...optsTrusting(key),
+    rawConfig: { '//registry.example.test/:_authToken': 'mirror-token' },
+  }
+
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).resolves.toBeUndefined()
+  expect(nock.isDone()).toBe(true)
+})
+
 function baseOpts () {
   return {
     rawConfig: {},
@@ -243,18 +302,25 @@ function writeStageLockfile (stage: string, lines: string[]): void {
   fs.writeFileSync(path.join(stage, 'pnpm-lock.yaml'), `${lines.join('\n')}\n`, 'utf8')
 }
 
-function mockPackument (name: string, integrity: string, signatures: unknown, version = '9.1.0'): void {
-  const encodedPath = name[0] === '@' ? `/@${encodeURIComponent(name.slice(1))}` : `/${name}`
-  nock(REGISTRY)
-    .get(encodedPath)
-    .reply(200, {
-      name,
-      time: { [version]: '2024-01-01T00:00:00.000Z' },
-      versions: {
-        [version]: { name, version, dist: { integrity, signatures, tarball: `${REGISTRY}${name}/-/x-${version}.tgz` } },
-      },
-    })
+function mockPackument (name: string, integrity: string, signatures: unknown, version = '9.1.0', registry = REGISTRY): void {
+  nock(registry)
+    .get(packumentPath(name))
+    .reply(200, packumentBody(name, integrity, signatures, version, registry))
     .persist()
+}
+
+function packumentPath (name: string): string {
+  return name[0] === '@' ? `/@${encodeURIComponent(name.slice(1))}` : `/${name}`
+}
+
+function packumentBody (name: string, integrity: string, signatures: unknown, version: string, registry: string) {
+  return {
+    name,
+    time: { [version]: '2024-01-01T00:00:00.000Z' },
+    versions: {
+      [version]: { name, version, dist: { integrity, signatures, tarball: `${registry}${name}/-/x-${version}.tgz` } },
+    },
+  }
 }
 
 function createSigningKey (): { keyid: string, publicKey: string, sign: (id: string, integrity: string) => string } {

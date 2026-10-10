@@ -15,6 +15,8 @@ import semver from 'semver'
 
 import { NPM_SIGNING_KEYS } from './npmSigningKeys.js'
 
+const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
+
 export interface RegistryKey {
   expires: string | null
   key: string
@@ -70,6 +72,11 @@ interface InstalledPackageToVerify {
  * public keys (see {@link getNpmSigningKeys}), so a registry cannot answer
  * with its own key pair; the signed packument is fetched from the configured
  * registry, which an npm mirror proxies transparently.
+ *
+ * When the configured registry provides no signature that validates against
+ * those keys (mirrors that strip `dist.signatures` or re-sign with their own
+ * key), the signature is fetched from the canonical npm registry instead. It is
+ * verified over the installed integrity, so it proves the same thing.
  *
  * Fails closed: verification failure — including an unreachable registry —
  * refuses the version switch rather than running an unverified binary. This
@@ -206,6 +213,28 @@ async function findSignatureFailure (
   trustedKeys: RegistryKey[],
   ctx: FetchPackumentContext
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  const primary = await attemptSignatureVerification(pkg, trustedKeys, ctx)
+  if (primary == null || equalRegistries(pkg.registry, CANONICAL_NPM_REGISTRY)) return primary
+
+  const secondary = await attemptSignatureVerification(
+    { ...pkg, registry: CANONICAL_NPM_REGISTRY },
+    trustedKeys,
+    { ...ctx, retry: { ...ctx.retry, retries: 0 } }
+  )
+  if (secondary == null) return undefined
+  if (primary.category === 'invalid') return primary
+  if (secondary.category !== 'unreachable') return secondary
+  return {
+    reason: `${primary.reason}; the canonical npm registry (${CANONICAL_NPM_REGISTRY}) could not be consulted either: ${secondary.reason}`,
+    category: 'unreachable',
+  }
+}
+
+async function attemptSignatureVerification (
+  pkg: InstalledPackageToVerify,
+  trustedKeys: RegistryKey[],
+  ctx: FetchPackumentContext
+): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
   let packument: Packument | undefined
   try {
     packument = await fetchPackument(pkg, ctx)
@@ -227,7 +256,7 @@ async function findSignatureFailure (
     return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
   }
   if (signatures.length === 0) {
-    return { reason: `${pkg.name}@${pkg.version} has no registry signature`, category: 'absent' }
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature on ${redactUrlCredentials(pkg.registry)}`, category: 'absent' }
   }
 
   // The message is built from the installed integrity, so a signature only
@@ -267,6 +296,15 @@ async function fetchPackument (
     )
   }
   return body
+}
+
+function equalRegistries (left: string, right: string): boolean {
+  return normalizeRegistryUrl(left) === normalizeRegistryUrl(right)
+}
+
+function normalizeRegistryUrl (registry: string): string {
+  const withSlash = redactUrlCredentials(registry.endsWith('/') ? registry : `${registry}/`)
+  return withSlash.toLowerCase()
 }
 
 // Registry URLs may legally embed basic-auth credentials
