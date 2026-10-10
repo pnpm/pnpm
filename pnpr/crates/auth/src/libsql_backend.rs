@@ -19,8 +19,10 @@
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
 use super::token_store::{mint_token, unix_seconds};
+mod connector;
 mod schema;
 mod user_admin;
+use connector::LibsqlConnector;
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -96,11 +98,13 @@ impl LibsqlAuth {
     /// primary — always fresh, but a network round-trip on the auth hot
     /// path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
+        let connector = LibsqlConnector::with_platform_roots()?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
             Some(path) => {
                 let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token);
+                    Builder::new_remote_replica(path, settings.url.clone(), auth_token)
+                        .connector(connector);
                 let interval = settings.sync_interval_secs.unwrap_or(
                     LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
                 );
@@ -112,7 +116,11 @@ impl LibsqlAuth {
             None => {
                 with_auth_timeout(
                     DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                    Box::pin(
+                        Builder::new_remote(settings.url.clone(), auth_token)
+                            .connector(connector)
+                            .build(),
+                    ),
                 )
                 .await?
             }

@@ -160,7 +160,9 @@ diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
 http = { version = "1.4.0" }
+http-0-2 = { package = "http", version = "0.2.12" }
 httpdate = { version = "1.0.3" }
+hyper-0-14 = { package = "hyper", version = "0.14.32", default-features = false, features = ["client", "runtime"] }
 # Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
 # pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2
 # is already in the tree through `idna`, so this adds the collator and its
@@ -222,6 +224,7 @@ semver = { version = "1.0.28" }
 shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
+rustls-platform-verifier = { version = "0.7.0" }
 serde-saphyr = { version = "0.0.29" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
@@ -237,6 +240,7 @@ tabled = { version = "0.21", features = ["ansi"] }
 tar = { version = "0.4.46" }
 text-block-macros = { version = "0.2.0" }
 tower = { version = "0.5.3" }
+tower-0-4 = { package = "tower", version = "0.4.13", default-features = false, features = ["util"] }
 tower-http = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
@@ -244,6 +248,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # unification does not pull OS networking or process drivers into WASI builds.
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 toml = { version = "1.1.5" }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12"] }
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
 webpki-root-certs = { version = "1.0.7" }
