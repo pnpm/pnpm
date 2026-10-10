@@ -10,6 +10,7 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
+import { hardlinkedDirMatches } from './hardlinkedDirMatches.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
@@ -286,7 +287,11 @@ function hardlinkPkg (
   // to bypass the missing-source preservation below.
   if (missingSourceHasSomethingToPreserve(to, opts)) return undefined
   if (opts.force || shouldRelinkPkg(to, opts)) {
-    importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
+    const reuseHardlinks = !opts.force && opts.resolvedFrom === 'local-dir' && !opts.symlinks?.size &&
+      hardlinkedDirMatches(to, opts.filesMap, opts.keepModulesDir ?? false)
+    if (!reuseHardlinks) {
+      importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
+    }
     removeQuarantineFromNativeBinaries(to, opts)
     return 'hardlink'
   }

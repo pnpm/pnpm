@@ -73,6 +73,7 @@ junction = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }
 pretty_assertions = { workspace = true }
+same-file = { workspace = true }
 serde-saphyr = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }

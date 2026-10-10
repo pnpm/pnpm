@@ -1,3 +1,5 @@
+pub(super) mod symlinks;
+
 use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
@@ -370,19 +372,7 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     let Ok(store_meta) = fs::metadata(store_path) else {
         return false;
     };
-    // Unix carries the file's identity in the stat results already.
-    // Windows keeps it behind an open handle, which `same-file` opens —
-    // worth two handles to spare a hardlinked package a full read on the
-    // platform where hardlinking is the default tier.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if target_meta.ino() == store_meta.ino() && target_meta.dev() == store_meta.dev() {
-            return true;
-        }
-    }
-    #[cfg(windows)]
-    if same_file::is_same_file(target, store_path).unwrap_or(false) {
+    if file_identity_matches((target, &target_meta), (store_path, &store_meta)) {
         return true;
     }
     target_meta.len() == store_meta.len()
@@ -430,6 +420,31 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
     }
 }
 
-mod symlinks;
 #[cfg(test)]
 mod tests;
+
+/// Compare regular files without accepting equal-byte copies or unknown file identities.
+pub(super) fn file_identity_matches(
+    target: (&Path, &fs::Metadata),
+    source: (&Path, &fs::Metadata),
+) -> bool {
+    if !target.1.is_file() || !source.1.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        target.1.ino() != 0
+            && target.1.dev() != 0
+            && target.1.ino() == source.1.ino()
+            && target.1.dev() == source.1.dev()
+    }
+    #[cfg(windows)]
+    {
+        same_file::is_same_file(target.0, source.0).unwrap_or(false)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        false
+    }
+}
