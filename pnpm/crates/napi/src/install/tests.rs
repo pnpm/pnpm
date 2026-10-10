@@ -110,6 +110,7 @@ fn install_options() -> InstallOptions {
         peers_suffix_max_length: None,
         dedupe_peer_dependents: None,
         dedupe_peers: None,
+        add_missing_peer_types: None,
         dedupe_direct_deps: None,
         dedupe_injected_deps: None,
         resolve_peers_from_workspace_root: None,
