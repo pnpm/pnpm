@@ -1,5 +1,6 @@
 use super::LibsqlConnector;
 use crate::libsql_backend::{LibsqlAuth, RegistryError};
+use http_0_2::Uri;
 use libsql::Builder;
 use pnpm_testing_utils::{env_guard::EnvGuard, trusted_tls_server::TrustedTlsServer};
 use pnpr_config::{LibsqlSettings, MaxUsers};
@@ -116,6 +117,25 @@ async fn refuses_to_carry_a_token_over_plain_http_off_loopback() {
         .err()
         .unwrap();
     assert!(error.to_string().contains("non-loopback host"), "{error}");
+}
+
+#[tokio::test]
+async fn refuses_an_uppercase_https_uri_on_a_connector_for_http() {
+    // Built from parts, so the scheme keeps its case, unlike a parsed URI.
+    let uri = Uri::builder()
+        .scheme("HTTPS")
+        .authority("127.0.0.1:8080")
+        .path_and_query("/v2/pipeline")
+        .build()
+        .unwrap();
+    assert_eq!(uri.scheme_str(), Some("HTTPS"));
+    let error = LibsqlConnector::for_url("http://127.0.0.1:8080", true)
+        .unwrap()
+        .oneshot(uri)
+        .await
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("cannot be dialed over TLS"), "{error}");
 }
 
 #[tokio::test]

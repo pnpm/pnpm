@@ -70,7 +70,10 @@ impl LibsqlConnector {
 
     /// Why `uri` must not be dialed, if it must not.
     fn refusal(&self, uri: &Uri) -> Option<&'static str> {
-        match (uri.scheme_str() == Some("https"), self.tls.is_some()) {
+        let https = uri
+            .scheme_str()
+            .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https"));
+        match (https, self.tls.is_some()) {
             (true, false) => Some("an http:// database URL cannot be dialed over TLS"),
             // A database can name a `base_url` for later requests, and libsql
             // sends the auth token with each one.
