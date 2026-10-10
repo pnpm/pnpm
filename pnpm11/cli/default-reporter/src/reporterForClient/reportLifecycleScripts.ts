@@ -333,6 +333,10 @@ const SGR_RESET = '\u001B[0m'
  * cursor movement cannot move the reporter's cursor.
  */
 function printableScriptLine (line: string): string {
+  const uncolored = line.replace(SGR_SEQUENCE, '')
+  if (uncolored.search(CONTROL_CHARACTERS_EXCEPT_TAB) === -1) {
+    return chalk.level > 0 && uncolored !== line ? line + SGR_RESET : uncolored
+  }
   const colors = chalk.level > 0 ? line.match(SGR_SEQUENCE) ?? [] : []
   const printable = line.split(SGR_SEQUENCE)
     .map((text, index) => stripVTControlCharacters(text.replace(C1_CONTROL_STRING, '')).replace(CONTROL_CHARACTERS_EXCEPT_TAB, '') + (colors[index] ?? ''))
