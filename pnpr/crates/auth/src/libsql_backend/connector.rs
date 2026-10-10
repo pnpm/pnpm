@@ -79,14 +79,28 @@ impl Service<Uri> for LibsqlConnector {
     }
 
     fn call(&mut self, uri: Uri) -> Self::Future {
-        let tls = self.tls.clone();
+        let tls = match (uri.scheme_str() == Some("https"), self.tls.clone()) {
+            (true, Some(tls)) => Some(tls),
+            (false, None) => None,
+            // A database reached over HTTPS can name a plain-HTTP `base_url`
+            // for later requests, which would carry the auth token in clear.
+            (false, Some(_)) => {
+                return Box::pin(async {
+                    Err("refusing plain HTTP to a database reached over HTTPS".into())
+                });
+            }
+            (true, None) => {
+                return Box::pin(async {
+                    Err("an http:// database URL cannot be dialed over TLS".into())
+                });
+            }
+        };
         let tcp = self.tcp.call(uri.clone());
         Box::pin(async move {
             let stream = tcp.await?;
-            if uri.scheme_str() != Some("https") {
+            let Some(tls) = tls else {
                 return Ok(MaybeTlsStream::Plain(stream));
-            }
-            let tls = tls.ok_or("an http:// database URL cannot be dialed over TLS")?;
+            };
             let host = uri.host().ok_or("database URL has no host")?;
             // `Uri::host` keeps the brackets of an IPv6 literal.
             let host = host.trim_start_matches('[').trim_end_matches(']');

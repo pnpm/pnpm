@@ -12,6 +12,7 @@ use std::{
     net::{TcpListener, TcpStream},
     sync::Arc,
 };
+use tower_0_4::ServiceExt;
 
 /// The Hrana pipeline response to libsql's request for one statement:
 /// a batch with an empty step result, the autocommit state, and the close.
@@ -60,6 +61,17 @@ async fn rejects_a_server_the_platform_does_not_trust() {
         .await
         .unwrap_err();
     assert!(format!("{error:?}").contains("invalid peer certificate"), "{error:?}");
+}
+
+#[tokio::test]
+async fn refuses_plain_http_on_a_connector_for_https() {
+    let url = serve_plain_http(EXECUTE_RESPONSE);
+    let error = connector_trusting_test_ca()
+        .oneshot(url.parse().unwrap())
+        .await
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("refusing plain HTTP"), "{error}");
 }
 
 #[tokio::test]
