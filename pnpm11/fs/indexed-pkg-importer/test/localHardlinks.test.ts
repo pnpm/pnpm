@@ -108,13 +108,16 @@ test('injected refresh replaces a symlink at the package root', () => {
   expect(fs.readFileSync(path.join(source, 'package.json'), 'utf8')).toBe('{}')
 })
 
-test('bundled dependencies prevent injected hardlink reuse', () => {
+test.each([false, true])('bundled dependencies prevent injected hardlink reuse with keepModulesDir=%s', (keepModulesDir) => {
   const { source, target, install, options } = fixture()
+  options.keepModulesDir = keepModulesDir
   const bundled = path.join(source, 'node_modules/bundled/index.js')
   fs.mkdirSync(path.dirname(bundled), { recursive: true })
   fs.writeFileSync(bundled, 'bundled')
   options.filesMap.set('node_modules/bundled/index.js', bundled)
   expect(install()).toBe('hardlink')
+  const originalDirectory = fs.statSync(target, { bigint: true }).ino
   expect(install()).toBe('hardlink')
+  expect(fs.statSync(target, { bigint: true }).ino).not.toBe(originalDirectory)
   expect(fs.readFileSync(path.join(target, 'node_modules/bundled/index.js'), 'utf8')).toBe('bundled')
 })
