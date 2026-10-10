@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpr now resolves with the `addMissingPeerTypes` setting that pnpm sends.
+When pnpm sends the `addMissingPeerTypes` setting, pnpr now resolves the matching `@types` packages as optional peers of the packages that peer-depend on a library.
