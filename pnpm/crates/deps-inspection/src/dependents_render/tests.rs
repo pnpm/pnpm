@@ -129,6 +129,25 @@ fn depth_limits_how_deep_the_tree_is_rendered() {
     assert!(with_depth.contains("mid-a@2.0.0"));
 }
 
+#[test]
+fn maximum_depth_renders_the_same_as_no_depth() {
+    let unlimited = opts(Some(usize::MAX));
+    let none = opts(None);
+
+    assert_eq!(
+        render_dependents_tree(&deep_tree(), &unlimited),
+        render_dependents_tree(&deep_tree(), &none),
+    );
+    assert_eq!(
+        render_dependents_json(&deep_tree(), &unlimited),
+        render_dependents_json(&deep_tree(), &none),
+    );
+    assert_eq!(
+        render_dependents_parseable(&deep_tree(), &unlimited),
+        render_dependents_parseable(&deep_tree(), &none),
+    );
+}
+
 // Port of upstream's 'renders displayName instead of name when provided' (deps/inspection/list/test/renderDependentsTree.test.ts).
 #[test]
 fn renders_display_name_instead_of_name_when_provided() {

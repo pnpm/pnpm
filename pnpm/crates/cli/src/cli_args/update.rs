@@ -2,6 +2,7 @@ use crate::{
     State,
     cli_args::{
         lockfile_dir::LockfileDirArg,
+        parse_depth_limit,
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
@@ -121,8 +122,9 @@ pub struct UpdateSelectionArgs {
     #[clap(long)]
     pub patches: bool,
     /// How deep to inspect dependencies. `0` means top-level
-    /// dependencies only. Defaults to unlimited.
-    #[clap(long)]
+    /// dependencies only. Defaults to unlimited, which `Infinity` also
+    /// selects.
+    #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
@@ -383,7 +385,7 @@ impl UpdateArgs {
         let all_dependency_groups =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
         self.selection.patches
-            && self.selection.depth.is_none()
+            && self.selection.depth.is_none_or(|depth| depth == usize::MAX)
             && !update_actions
             && !self.dependency_options.no_optional
             && all_dependency_groups
