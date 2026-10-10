@@ -279,8 +279,9 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
     drop((root, mock_instance));
 }
 
+/// `@pnpm.e2e/foo` also exists in the registry, which must not provide it.
 #[test]
-fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
+fn legacy_deploy_leaves_workspace_peers_of_workspace_dependencies_missing() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -297,21 +298,16 @@ fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
             "name": "lib",
             "version": "1.0.0",
             "files": ["index.js"],
-            "peerDependencies": { "peer": "workspace:^" },
+            "peerDependencies": { "peer": "workspace:^", "@pnpm.e2e/foo": "workspace:*" },
         }),
     );
+    write_project(&workspace, "peer", &serde_json::json!({ "name": "peer", "version": "1.0.0" }));
     write_project(
         &workspace,
-        "peer",
-        &serde_json::json!({
-            "name": "peer",
-            "version": "1.0.0",
-            "files": ["index.js"],
-        }),
+        "foo",
+        &serde_json::json!({ "name": "@pnpm.e2e/foo", "version": "1.0.0" }),
     );
-    fs::write(workspace.join("packages/peer/index.js"), "module.exports = 'workspace peer'")
-        .unwrap();
-    fs::write(workspace.join("packages/lib/index.js"), "module.exports = require('peer')").unwrap();
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = 'lib'").unwrap();
     fs::write(workspace.join("packages/app/index.js"), "console.log(require('lib'))").unwrap();
 
     pacquet
@@ -324,19 +320,20 @@ fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy");
+    let entries = virtual_store_entries(&deploy_dir);
+    dbg!(&entries);
     assert!(
-        virtual_store_entries(&deploy_dir)
+        !entries
             .iter()
-            .any(|entry| entry.starts_with("peer@file+")),
-        "the workspace peer should be injected into the deploy virtual store",
+            .any(|entry| entry.starts_with("peer@") || entry.starts_with("@pnpm.e2e+foo@")),
+        "a workspace peer must stay missing",
     );
-    fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
     Command::new("node")
         .current_dir(&deploy_dir)
         .arg("index.js")
         .assert()
         .success()
-        .stdout("workspace peer\n");
+        .stdout("lib\n");
 
     drop((root, mock_instance));
 }

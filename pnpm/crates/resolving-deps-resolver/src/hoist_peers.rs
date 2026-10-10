@@ -100,12 +100,6 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     let Some(selectors) = opts.all_preferred_versions.get(peer_name) else {
         return opts.auto_install_peers.then(|| range.to_string());
     };
-    // A `workspace:` range resolves to the workspace project. A preferred
-    // version may belong to a registry package of the same name, so the
-    // peer is not deduped onto one.
-    if range.starts_with("workspace:") {
-        return opts.auto_install_peers.then(|| range.to_string());
-    }
     preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
 }
 
@@ -114,7 +108,7 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
 /// lets a version resolved for one importer be auto-installed as another
 /// importer's peer even though nothing in that importer's closure accepts it,
 /// silently producing a peer graph that mixes incompatible majors. Scheme
-/// specifiers (named-registry, `npm:` aliases) contribute a
+/// specifiers (named-registry, `npm:` aliases, `workspace:`) contribute a
 /// comparable range through `get_peer_version_range`, so they get range-aware
 /// selection too; specs with no version body (`catalog:`, dist-tags) yield a
 /// non-semver value and keep the dedupe-to-highest behavior. The raw scheme is

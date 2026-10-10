@@ -46,8 +46,7 @@ async fn missing_peer_is_reported() {
     );
 }
 
-// The hoist installs a missing peer from `raw_range`. A bare `workspace:^`
-// carries no version, so stripping its protocol leaves an unresolvable `^`.
+// The hoist reads `raw_range` to leave a `workspace:` peer missing.
 #[tokio::test]
 async fn missing_workspace_peer_keeps_its_protocol() {
     let mut table = HashMap::default();
