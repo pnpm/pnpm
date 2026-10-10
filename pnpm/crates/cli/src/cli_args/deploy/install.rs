@@ -253,8 +253,7 @@ impl DeployArgs {
         // no declaring manifest, and must still be copied into the deploy.
         // This applies to every workspace package of the deploy install,
         // whatever the workspace sets; a legacy deploy saves no lockfile,
-        // so the setting is not recorded anywhere. pnpm 11 left such a
-        // peer missing; installing it is intentional.
+        // so the setting is not recorded anywhere.
         if matches!(mode, DeployInstallMode::Legacy) {
             deploy_config.inject_workspace_packages = true;
         }

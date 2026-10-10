@@ -578,3 +578,66 @@ async fn auto_installs_a_workspace_union_peer_as_one_workspace_range() {
         Some(&DepPath::from("peer@2.0.0".to_string())),
     );
 }
+
+#[tokio::test]
+async fn does_not_hoist_a_workspace_union_with_an_aliased_member() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("lib".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("lib", "peer", "workspace:foo@^1.0.0 || workspace:^2.0.0"),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "lib": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(resolved_specifiers(&resolver, "peer"), Vec::<String>::new());
+    assert!(result.peers_result.peer_dependency_issues.missing.contains_key("peer"));
+}
+
+#[tokio::test]
+async fn does_not_dedupe_an_optional_workspace_peer_onto_a_registry_version() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("lib".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "lib",
+            "1.0.0",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "peer": "workspace:*" },
+                "peerDependenciesMeta": { "peer": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("uses-peer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "uses-peer",
+            "1.0.0",
+            serde_json::json!({
+                "name": "uses-peer",
+                "version": "1.0.0",
+                "dependencies": { "peer": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer".to_string(), "1.0.0".to_string()),
+        fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "lib": "1.0.0",
+        "uses-peer": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert!(!result.peers_result.direct_dependencies_by_alias.contains_key("peer"));
+}

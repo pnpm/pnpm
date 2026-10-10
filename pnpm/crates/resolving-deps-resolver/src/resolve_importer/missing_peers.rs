@@ -60,24 +60,28 @@ pub(super) fn classify_missing_peer(
         .filter(|entry| !entry.optional)
         .map(|entry| entry.raw_range.as_str())
         .collect();
+    // Any `workspace:` declaration, optional or not, confines the peer to the
+    // workspace project. The optional path dedupes onto a preferred version,
+    // which may belong to a registry package, so it never takes such a peer.
+    if entries
+        .iter()
+        .any(|entry| entry.raw_range.starts_with("workspace:"))
+    {
+        if required_ranges.is_empty() {
+            return MissingPeerKind::Unhoistable;
+        }
+        let ranges: Vec<&str> = entries
+            .iter()
+            .map(|entry| entry.raw_range.as_str())
+            .collect();
+        return merge_workspace_peer_ranges(&ranges, auto_install_peers_from_highest_match);
+    }
     if required_ranges.is_empty() {
         let ordered = distinct_wanted_ranges(entries);
         if ordered.is_empty() {
             return MissingPeerKind::Unhoistable;
         }
         return MissingPeerKind::Optional(ordered);
-    }
-    // An optional `workspace:` declaration still confines the peer to the
-    // workspace project once another consumer requires it.
-    if entries
-        .iter()
-        .any(|entry| entry.raw_range.starts_with("workspace:"))
-    {
-        let ranges: Vec<&str> = entries
-            .iter()
-            .map(|entry| entry.raw_range.as_str())
-            .collect();
-        return merge_workspace_peer_ranges(&ranges, auto_install_peers_from_highest_match);
     }
     match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
         Some(range) => MissingPeerKind::Required(range),
@@ -101,10 +105,13 @@ fn merge_workspace_peer_ranges(
     ranges: &[&str],
     auto_install_peers_from_highest_match: bool,
 ) -> MissingPeerKind {
-    let ranges: Vec<Cow<'_, str>> = ranges
+    let Some(ranges) = ranges
         .iter()
         .map(|range| join_workspace_union(range))
-        .collect();
+        .collect::<Option<Vec<Cow<'_, str>>>>()
+    else {
+        return MissingPeerKind::Unhoistable;
+    };
     let first = &ranges[0];
     if ranges
         .iter()
@@ -135,10 +142,12 @@ fn merge_workspace_peer_ranges(
 /// Rewrite a `||` union whose members carry `workspace:` as one
 /// `workspace:` range, which the workspace resolver reads as a whole:
 /// `workspace:^1 || workspace:^2` → `workspace:^1 || ^2`. A shorthand member
-/// admits any version, so the union becomes `workspace:*`.
-fn join_workspace_union(range: &str) -> Cow<'_, str> {
+/// admits any version, so the union becomes `workspace:*`. `None` when a
+/// member is neither a semver range nor a shorthand, such as an aliased
+/// `workspace:foo@^1`, whose package one prefix cannot carry for the rest.
+fn join_workspace_union(range: &str) -> Option<Cow<'_, str>> {
     if !range.contains("||") {
-        return Cow::Borrowed(range);
+        return Some(Cow::Borrowed(range));
     }
     let members: Vec<&str> = range
         .split("||")
@@ -147,13 +156,17 @@ fn join_workspace_union(range: &str) -> Cow<'_, str> {
             member.strip_prefix("workspace:").unwrap_or(member)
         })
         .collect();
+    let is_shorthand = |member: &&str| matches!(*member, "" | "*" | "^" | "~");
     if members
         .iter()
-        .any(|member| matches!(*member, "" | "*" | "^" | "~"))
+        .any(|member| !is_shorthand(member) && Range::parse(member).is_err())
     {
-        return Cow::Borrowed("workspace:*");
+        return None;
     }
-    Cow::Owned(format!("workspace:{}", members.join(" || ")))
+    if members.iter().any(is_shorthand) {
+        return Some(Cow::Borrowed("workspace:*"));
+    }
+    Some(Cow::Owned(format!("workspace:{}", members.join(" || "))))
 }
 
 /// The distinct wanted ranges the entries name, in first-seen order.
