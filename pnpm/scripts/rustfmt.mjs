@@ -39,7 +39,7 @@ export function ensureInstallation (config, { root = cacheRoot, run = spawnSync 
       '--rev', config.revision, '--locked', '--root', staging,
       '--bin', 'rustfmt', '--bin', 'cargo-fmt', 'rustfmt-nightly'], {
       cwd: staging,
-      env: buildEnvironment(),
+      env: buildEnvironment(toolchainRustc(run, config.toolchain)),
     })
     if (!isInstalled(staging)) throw new Error('The rustfmt build did not install both formatter binaries')
     try {
@@ -80,13 +80,25 @@ function isInstalled (destination) {
   return ['rustfmt', 'cargo-fmt'].every(name => fs.existsSync(binaryPath(destination, name)))
 }
 
-function buildEnvironment () {
-  const env = { ...process.env }
-  for (const name of ['RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'RUSTFLAGS',
+// RUSTC is pinned rather than left to PATH: `pnpm pipeline` puts its own
+// stable Rust first on PATH, and the fork needs the nightly's rustc-dev crates.
+function buildEnvironment (rustc) {
+  const env = { ...process.env, RUSTC: rustc }
+  for (const name of ['RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'RUSTFLAGS',
     'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'CARGO_BUILD_TARGET']) {
     delete env[name]
   }
   return env
+}
+
+function toolchainRustc (run, toolchain) {
+  const result = run('rustup', ['which', 'rustc', '--toolchain', toolchain], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 2],
+  })
+  if (result.error != null) throw result.error
+  if (result.status !== 0) throw new Error(`rustup which rustc --toolchain ${toolchain} failed (${result.status ?? result.signal})`)
+  return result.stdout.trim()
 }
 
 function checkedRun (run, args, options = {}) {
