@@ -410,7 +410,9 @@ async fn an_altered_blob_is_refused() {
     assert_eq!(store.download_artifact_blob(&blob_request).await.expect("download"), blob);
 
     cache.store(&blob_hash, b"altered".to_vec());
-    assert!(store.download_artifact_blob(&blob_request).await.is_err());
+    let error = store.download_artifact_blob(&blob_request).await.expect_err("altered blob");
+    eprintln!("{error}");
+    assert!(matches!(error, PnprClientError::Protocol(_)), "a content fault is quarantinable");
 }
 
 /// The object a publication stored first: its first blob.

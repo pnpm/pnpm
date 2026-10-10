@@ -53,7 +53,7 @@ impl TurborepoArtifactStore {
         authorization: Option<String>,
     ) -> Result<TurborepoArtifactStore, PnprClientError> {
         if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(url) {
-            return Err(PnprClientError::Protocol(
+            return Err(PnprClientError::RemoteCache(
                 "remote cache credentials require HTTPS or a loopback server".to_string(),
             ));
         }

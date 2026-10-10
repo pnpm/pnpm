@@ -119,13 +119,12 @@ impl ArtifactStore {
 
 mod turborepo;
 
-/// Reword an error of the Turborepo transport, which shares the pnpr error
-/// type, so it does not name pnpr.
+/// Reword a server or network failure of the Turborepo transport, which
+/// shares the pnpr error type, so it does not name pnpr. `Protocol` passes
+/// through: it marks content the server got wrong, which callers quarantine.
 fn remote_cache_error(error: PnprClientError) -> PnprClientError {
     match error {
-        PnprClientError::Server(message) | PnprClientError::Protocol(message) => {
-            PnprClientError::RemoteCache(message)
-        }
+        PnprClientError::Server(message) => PnprClientError::RemoteCache(message),
         PnprClientError::Http(error) => PnprClientError::RemoteCache(error.to_string()),
         other => other,
     }

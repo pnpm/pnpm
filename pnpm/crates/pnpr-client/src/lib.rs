@@ -349,7 +349,7 @@ pub enum PnprClientError {
     #[from(ignore)]
     Server(#[error(not(source))] String),
 
-    #[display("malformed pnpr response: {_0}")]
+    #[display("malformed server response: {_0}")]
     #[from(ignore)]
     Protocol(#[error(not(source))] String),
 
