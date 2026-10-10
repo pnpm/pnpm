@@ -356,6 +356,7 @@ jobs:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
     # job only type-checks it, so Windows gets its own Clippy row. macOS does
     # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
@@ -407,6 +408,7 @@ jobs:
     name: Rust CI / Doc / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # rustdoc resolves intra-doc links only in the code compiled for the
     # target, so a link from shared docs to a `#[cfg(unix)]` item breaks on
     # Windows alone. Windows gets its own row, as it does in Clippy.
