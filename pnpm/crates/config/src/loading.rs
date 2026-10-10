@@ -61,9 +61,9 @@ impl Config {
         self.current_inner::<Sys>(start_dir, true).map_err(|failure| failure.error)
     }
 
-    /// [`Config::apply_workspace_yaml`], leaving out the workspace file's
-    /// settings when [`Config::skip_unreadable_settings`] is set and they
-    /// fail to apply. The workspace root still applies.
+    /// [`Config::apply_workspace_yaml`], leaving out all of the workspace
+    /// file's settings when [`Config::skip_unreadable_settings`] is set and
+    /// they fail to apply. The workspace root still applies.
     fn apply_workspace_yaml_unless_unreadable<Sys>(
         &mut self,
         workspace_yaml: Option<(std::path::PathBuf, Option<WorkspaceSettings>)>,
@@ -74,6 +74,17 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        if !self.skip_unreadable_settings {
+            return self.apply_workspace_yaml::<Sys>(
+                workspace_yaml,
+                explicit,
+                declared_registries,
+                for_self_update,
+            );
+        }
+        // Whole or not at all: a failure partway through must not leave the
+        // settings applied before it in force.
+        let before = (self.clone(), *explicit, declared_registries.clone());
         let workspace_dir = workspace_yaml.as_ref().map(|(dir, _)| dir.clone());
         let applied = self.apply_workspace_yaml::<Sys>(
             workspace_yaml,
@@ -81,9 +92,10 @@ impl Config {
             declared_registries,
             for_self_update,
         );
-        if applied.is_ok() || !self.skip_unreadable_settings {
+        if applied.is_ok() {
             return applied;
         }
+        (*self, *explicit, *declared_registries) = before;
         self.apply_workspace_yaml::<Sys>(
             workspace_dir.map(|dir| (dir, None)),
             explicit,

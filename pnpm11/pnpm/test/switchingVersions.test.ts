@@ -60,6 +60,24 @@ test('switch to the pinned pnpm version although this pnpm cannot read any of th
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('a pnpm-workspace.yaml that fails partway leaves none of its settings in force', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pmOnFail: 'ignore',
+    catalog: { 'is-positive': '1.0.0' },
+    catalogs: { default: { 'is-positive': '1.0.0' } },
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
 test('a broken pnpm-workspace.yaml does not override the machine\'s opt-out from switching', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

@@ -81,13 +81,24 @@ async function applyProjectWorkspaceManifestUnlessUnreadable (
   state: ConfigBuildState,
   opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
 ): Promise<Record<string, string> | undefined> {
+  if (!opts.skipUnreadableSettings) return applyProjectWorkspaceManifest(state, opts)
+  // Whole or not at all: a failure partway through must not leave the
+  // settings applied before it in force.
+  const before = { ...state.pnpmConfig }
   try {
     return await applyProjectWorkspaceManifest(state, opts)
-  } catch (err: unknown) {
-    if (!opts.skipUnreadableSettings) throw err
+  } catch {
+    restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
     state.pnpmConfig.workspacePackagePatterns = ['.']
     return undefined
   }
+}
+
+function restoreConfig (config: Record<string, unknown>, before: Record<string, unknown>): void {
+  for (const key of Object.keys(config)) {
+    if (!(key in before)) delete config[key]
+  }
+  Object.assign(config, before)
 }
 
 async function applyProjectWorkspaceManifest (
