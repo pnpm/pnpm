@@ -31,8 +31,7 @@ impl ArtifactStore {
         if let Some(url) = settings.url.as_deref() {
             let authorization = settings.token
                 .as_ref()
-                .map(|token| format!("Bearer {token}"))
-                .or_else(|| config.auth_headers.for_secure_url(url));
+                .map(|token| format!("Bearer {token}"));
             return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
                 .map(|store| Some(ArtifactStore::Turborepo(store)))
                 .map_err(remote_cache_error);

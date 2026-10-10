@@ -45,12 +45,8 @@ impl TurborepoCache {
         listener.set_nonblocking(true).expect("set the Turborepo cache listener to nonblocking");
         let url = format!("http://{}", listener.local_addr().expect("read the listener address"));
         let shared = Arc::<Shared>::default();
-        let artifacts =
-            Router::new().route("/v8/artifacts/{hash}", get(get_artifact).put(put_artifact));
-        // Also under `/api`, the path of Vercel's API base URL.
         let router = Router::new()
-            .merge(artifacts.clone())
-            .nest("/api", artifacts)
+            .route("/v8/artifacts/{hash}", get(get_artifact).put(put_artifact))
             .layer(DefaultBodyLimit::disable())
             .with_state(Arc::clone(&shared));
         thread::Builder::new()

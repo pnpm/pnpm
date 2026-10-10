@@ -192,7 +192,7 @@ remoteCache:
 | `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. |
 | `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
 | `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the organizations it declares under [`artifacts.orgs`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |
-| `token` | Global config or environment | The bearer token for `url`. Without one, the [`.npmrc`](../npmrc.md) credentials for `url` are used. |
+| `token` | Global config or environment | The bearer token for `url`. |
 | `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
 | `publish` | Global config or environment | `true` publishes what this machine builds: dependency builds and `pnpm pipeline` task results. A task result includes the task's output files and its captured terminal output. Defaults to `false`. Set under `sideEffectsCache.remote`, it publishes dependency builds only. |
 | `privateKey`, `keyId`, `builderId` | Global config or environment | The key that signs published artifacts, the id consumers trust it under, and a label for the builder. Required with `publish`. |
@@ -218,12 +218,9 @@ export PNPM_REMOTE_CACHE_TEAM=team_abc123
 export PNPM_REMOTE_CACHE_TOKEN="$VERCEL_TOKEN"
 ```
 
-On your own machine, keep it in your user `.npmrc` instead, where `pnpm` finds
-it for `url`:
-
-```ini title="~/.npmrc"
-//vercel.com/api/:_authToken=<access token>
-```
+On your own machine, keep it as `remoteCache.token` in the
+[global configuration file](../cli/config.md) instead, as in the example
+above.
 
 `pnpm` does not read the token `turbo login` stores. That token expires within
 hours, and only `turbo` renews it.
