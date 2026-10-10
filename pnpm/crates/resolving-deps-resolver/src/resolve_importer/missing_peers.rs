@@ -66,18 +66,55 @@ pub(super) fn classify_missing_peer(
         }
         return MissingPeerKind::Optional(ordered);
     }
-    // A `workspace:` peer is satisfied only by a workspace project, which
-    // the importer does not depend on. Hoisting its range would install a
-    // registry package of the same name, so the peer stays missing.
     if required_ranges
         .iter()
         .any(|range| range.starts_with("workspace:"))
     {
-        return MissingPeerKind::Unhoistable;
+        return merge_workspace_peer_ranges(
+            &required_ranges,
+            auto_install_peers_from_highest_match,
+        );
     }
     match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
         Some(range) => MissingPeerKind::Required(range),
         None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// Merge the ranges of a peer that at least one consumer declares with
+/// `workspace:`.
+///
+/// The versions the consumers name are intersected, and the result keeps
+/// the `workspace:` protocol, so only the workspace project satisfies the
+/// hoisted peer. A shorthand (`workspace:`, `workspace:*`, `workspace:^`,
+/// `workspace:~`) names no version and narrows nothing. When no consumer
+/// names a version, distinct shorthands merge into `workspace:*`.
+fn merge_workspace_peer_ranges(
+    ranges: &[&str],
+    auto_install_peers_from_highest_match: bool,
+) -> MissingPeerKind {
+    let versioned: Vec<&str> = ranges
+        .iter()
+        .map(|range| range.strip_prefix("workspace:").unwrap_or(range))
+        .filter(|body| !matches!(*body, "" | "*" | "^" | "~"))
+        .collect();
+    if versioned.is_empty() {
+        let first = ranges[0];
+        let merged = if ranges
+            .iter()
+            .all(|range| *range == first)
+        {
+            first
+        } else {
+            "workspace:*"
+        };
+        return MissingPeerKind::Required(merged.to_string());
+    }
+    match merge_ranges(&versioned, auto_install_peers_from_highest_match) {
+        Some(range) if Range::parse(&range).is_ok() => {
+            MissingPeerKind::Required(format!("workspace:{range}"))
+        }
+        _ => MissingPeerKind::Unhoistable,
     }
 }
 

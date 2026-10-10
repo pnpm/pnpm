@@ -46,7 +46,8 @@ async fn missing_peer_is_reported() {
     );
 }
 
-// The hoist reads `raw_range` to leave a `workspace:` peer missing.
+// The hoist installs a missing peer from `raw_range`, so it must keep the
+// `workspace:` protocol that confines the peer to the workspace project.
 #[tokio::test]
 async fn missing_workspace_peer_keeps_its_protocol() {
     let mut table = HashMap::default();
