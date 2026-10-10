@@ -3,7 +3,7 @@
 use super::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, PROJECT_MANIFEST_BASENAMES, Path,
     PathBuf, WorkspacePattern, compile_user_negations, dot_pruning_ignore_template,
-    managed::{is_under_ignored_directory, resolve_ignored_directories},
+    managed::{is_under_ignored_directory, managed_directory_ignores, resolve_ignored_directories},
     manifest_walk_ignores, split_include_and_negation,
     walk::{has_always_ignored_component, normalize_manifest_patterns, split_parent_prefix},
 };
@@ -138,8 +138,7 @@ fn pattern_selects(
         let ignores = manifest_walk_ignores(
             normalized,
             dot_pruning_ignore_template,
-            walk_root,
-            ignored_directories,
+            &managed_directory_ignores(walk_root, ignored_directories),
         )
         .map_err(invalid_glob)?;
         for candidate in candidates {
