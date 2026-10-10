@@ -270,8 +270,6 @@ pub enum CliCommand {
     Profile(NotImplementedArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Token(NotImplementedArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
