@@ -365,7 +365,7 @@ async fn resolve_save_specifier_saves_an_exact_version_without_network() {
 
     assert_eq!(
         resolver.resolve_save_specifier("tool:", "22.11.0", None).await.unwrap(),
-        "tool:22.11.0"
+        "tool:22.11.0",
     );
 }
 
