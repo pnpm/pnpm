@@ -68,6 +68,8 @@ pnx node@tool:22 --version
 pnx yarn@tool:4 --version
 ```
 
+`yarn@tool:<version>` picks Yarn from wherever that line is published, like `yarn@<version>` does.
+
 `runtime:` is an alias of `tool:` and keeps working everywhere it worked before. `pnpm-lock.yaml` still records these entries with `runtime:` keys, such as `node@runtime:24.6.0`.
 
 ### Named registries
