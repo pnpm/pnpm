@@ -3500,6 +3500,20 @@ test('skipping unreadable settings leaves out only the _auth source that fails',
   expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
 })
 
+test('skipping a workspace file that fails partway does not make minimumReleaseAge strict', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60,
+    catalog: { foo: '1.0.0' },
+    catalogs: { default: { foo: '2.0.0' } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({}, { workspaceDir: process.cwd(), skipUnreadableSettings: true })
+
+  expect(config.minimumReleaseAge).not.toBe(60)
+  expect(config.minimumReleaseAgeStrict).not.toBe(true)
+})
+
 test('a scope declared in the project .npmrc beats the global _auth file', async () => {
   prepareEmpty()
 

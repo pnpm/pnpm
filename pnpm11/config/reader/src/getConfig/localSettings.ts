@@ -85,10 +85,13 @@ async function applyProjectWorkspaceManifestUnlessUnreadable (
   // Whole or not at all: a failure partway through must not leave the
   // settings applied before it in force.
   const before = { ...state.pnpmConfig }
+  const explicitlySetKeysBefore = [...state.explicitlySetKeys]
   try {
     return await applyProjectWorkspaceManifest(state, opts)
   } catch {
     restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
+    state.explicitlySetKeys.clear()
+    for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
     state.pnpmConfig.workspacePackagePatterns = ['.']
     return undefined
   }
