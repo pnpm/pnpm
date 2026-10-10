@@ -182,8 +182,8 @@ function recordedPeerResolutions (
   const devDependencies = projectSnapshot.devDependencies ?? {}
   const recordedPeers = Object.entries(manifest.peerDependencies ?? {})
     .filter(([peerName, peerRange]) =>
-      ctx.injectedWorkspace ||
-      isRecordedWorkspaceProtocolPeerLink(peerRange, Object.hasOwn(devDependencies, peerName) ? devDependencies[peerName] : undefined, ctx)
+      Object.hasOwn(devDependencies, peerName) &&
+      (ctx.injectedWorkspace || isRecordedWorkspaceProtocolPeerLink(peerRange, devDependencies[peerName], ctx))
     )
     .map(([peerName]) => peerName)
   return convertResolvedDependencies(pick(recordedPeers, devDependencies), ctx.convertOptions)
@@ -198,11 +198,10 @@ function recordedPeerResolutions (
  */
 function isRecordedWorkspaceProtocolPeerLink (
   peerRange: string,
-  devReference: string | undefined,
+  devReference: string,
   ctx: Pick<RecordedPeerContext, 'workspaceProjectDirs'> & { convertOptions: ConvertOptions }
 ): boolean {
-  if (!peerRange.startsWith('workspace:')) return false
-  if (devReference == null || !devReference.startsWith('link:')) return false
+  if (!peerRange.startsWith('workspace:') || !devReference.startsWith('link:')) return false
   const target = resolveLinkOrFile(devReference, ctx.convertOptions)
   return target != null && ctx.workspaceProjectDirs.has(target.resolvedPath)
 }
