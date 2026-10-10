@@ -29,6 +29,9 @@ pub(crate) fn tool_install_selector(request: &str) -> Option<String> {
     if name == PackageManager::Yarn.name()
         && let Some(version_spec) = strip_tool_protocol(version_spec)
     {
+        if !is_version_request(version_spec) {
+            return None;
+        }
         let bare = format!("{name}@{version_spec}");
         return Some(tool_install_selector(&bare).unwrap_or(bare));
     }

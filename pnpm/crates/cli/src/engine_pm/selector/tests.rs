@@ -44,6 +44,7 @@ fn yarn_tool_requests_map_like_bare_versions() {
         tool_install_selector("yarn@runtime:4").as_deref(),
         Some("yarn@npm:@yarnpkg/cli-dist@4"),
     );
+    assert_eq!(tool_install_selector("yarn@tool:npm:@yarnpkg/cli-dist@4"), None);
 }
 
 /// Everything else is an ordinary package, including a scoped name whose
