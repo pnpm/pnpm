@@ -142,3 +142,155 @@ fn edit_rejects_project_local_editor() {
     assert!(stderr.contains("outside the project was found"), "{stderr}");
     drop(root);
 }
+
+#[test]
+fn edit_fails_for_package_that_is_not_installed() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet(&workspace)
+        .with_args(["edit", "missing-dependency"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "edit must fail for missing package");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Could not find package"), "{stderr}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_rejects_path_traversal() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"test-project"}"#).unwrap();
+    for traversal in ["../outside", "foo/../bar", ".."] {
+        let output = pacquet(&workspace)
+            .with_args(["edit", traversal])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "edit {traversal} must fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("Invalid package path segment"), "{traversal}: {stderr}");
+    }
+    drop(root);
+}
+
+#[test]
+fn edit_flag_editor_overrides_env_and_accepts_arguments() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"flag-edited\";');""#;
+    let mut cmd = pacquet(&workspace);
+    cmd.env("EDITOR", "non_existent_editor_command_xyz");
+    cmd.with_args(["edit", "is-positive", "--editor", dummy_editor])
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
+    assert!(content.contains("flag-edited"), "{content}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_fails_when_editor_exits_non_zero() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let mut cmd = pacquet(&workspace);
+    cmd.env("EDITOR", r#"node -e "process.exit(1)""#);
+    let output = cmd
+        .with_args(["edit", "is-positive"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "edit must fail on editor failure");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Editor command exited with failure status"), "{stderr}");
+
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_fails_with_empty_editor() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet(&workspace)
+        .with_args(["edit", "is-positive", "--editor", ""])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "edit must fail with empty editor");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("No editor command specified"), "{stderr}");
+
+    drop(npmrc_info);
+    drop(root);
+}
