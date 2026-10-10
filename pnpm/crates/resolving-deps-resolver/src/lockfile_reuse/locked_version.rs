@@ -1,6 +1,7 @@
 use super::reduce_named_registry_spec;
 use node_semver::{Range, Version};
 use pnpm_lockfile::{PkgNameVerPeer, Prefix, ResolvedDependencySpec};
+use pnpm_tool_protocol::strip_tool_protocol;
 
 /// Whether `bare_specifier` admits the version `spec` locked as `key`. `None`
 /// when the locked version or the specifier has no comparable form.
@@ -27,7 +28,7 @@ pub(super) fn admits_locked_version(
     Some(range.satisfies(ver_peer.version_semver()?))
 }
 
-/// Whether a `runtime:` dependency keeps its locked version: a range selector
+/// Whether a `tool:` / `runtime:` dependency keeps its locked version: a range selector
 /// names the locked release channel (`rc/^24` keeps only an `rc/` pin) and
 /// admits `locked_version`, and any other selector is unchanged.
 fn runtime_selector_keeps_locked_version(
@@ -35,17 +36,16 @@ fn runtime_selector_keeps_locked_version(
     bare_specifier: &str,
     locked_version: &Version,
 ) -> bool {
-    let (Some(locked), Some(wanted)) = (
-        locked_specifier.strip_prefix(Prefix::Runtime.as_str()),
-        bare_specifier.strip_prefix(Prefix::Runtime.as_str()),
-    ) else {
+    let (Some(locked), Some(wanted)) =
+        (strip_tool_protocol(locked_specifier), strip_tool_protocol(bare_specifier))
+    else {
         return locked_specifier == bare_specifier;
     };
     let (locked_channel, _) = split_release_channel(locked);
     let (wanted_channel, wanted_range) = split_release_channel(wanted);
     match wanted_range.parse::<Range>() {
         Ok(range) => locked_channel == wanted_channel && range.satisfies(locked_version),
-        Err(_) => locked_specifier == bare_specifier,
+        Err(_) => locked == wanted,
     }
 }
 

@@ -1,4 +1,4 @@
-//! Resolves `bun@runtime:<spec>` dependencies.
+//! Resolves `bun@tool:<spec>` (alias `bun@runtime:<spec>`) dependencies.
 
 use std::sync::Arc;
 
@@ -12,11 +12,11 @@ use pnpm_resolving_resolver_base::{
     ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
     resolve_package_version,
 };
+use pnpm_tool_protocol::split_tool_protocol;
 
 use crate::read_bun_assets::{ReadBunAssetsError, read_bun_assets};
 
 const RESOLVED_VIA: &str = "github.com/oven-sh/bun";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`BunResolver`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -82,7 +82,7 @@ impl BunResolver {
         wanted_dependency: &WantedDependency,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(version_spec) = bare_runtime_spec(wanted_dependency, "bun") else {
+        let Some((protocol, version_spec)) = bare_runtime_spec(wanted_dependency, "bun") else {
             return Ok(None);
         };
         let version_spec = normalize_runtime_spec(version_spec);
@@ -119,7 +119,7 @@ impl BunResolver {
             format!("bun@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("runtime:{version_spec}")),
+            Some(format!("{protocol}{version_spec}")),
         )))
     }
 
@@ -128,7 +128,7 @@ impl BunResolver {
         query: &LatestQuery,
         opts: &ResolveOptions,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "bun") else {
+        let Some((_, manifest_spec)) = bare_runtime_spec(&query.wanted_dependency, "bun") else {
             return Ok(None);
         };
         let version_spec =
@@ -194,13 +194,17 @@ fn bun_resolve_result(
     }
 }
 
-fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
+/// The protocol as written (`tool:` or `runtime:`) and the version selector
+/// of a `(alias, bareSpecifier)` pair naming `expected_alias`. `None` (defer to
+/// the next resolver) for any other shape.
+fn bare_runtime_spec<'a>(
+    wanted: &'a WantedDependency,
+    expected_alias: &str,
+) -> Option<(&'a str, &'a str)> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(split_tool_protocol)
 }
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {

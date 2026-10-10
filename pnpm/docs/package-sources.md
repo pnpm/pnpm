@@ -55,6 +55,21 @@ pnpm add pypi:httpx
 
 Such a dependency is recorded in that ecosystem's own manifest and lockfile, not in `package.json` or `pnpm-lock.yaml`. See [Cargo dependencies](./cargo.md) and [Python dependencies](./python.md).
 
+### Provisioned tools
+
+Added in: v12.13.0 (pnpm v12 only)
+
+The `tool:` protocol asks for a tool pnpm downloads from the tool's own releases instead of from npm: Node.js, Bun, Deno, and Yarn.
+
+```sh
+pnpm add node@tool:24
+pnpm add bun@tool:1.3.0
+pnx node@tool:22 --version
+pnx yarn@tool:4 --version
+```
+
+`runtime:` is an alias of `tool:` and keeps working everywhere it worked before. `pnpm-lock.yaml` still records these entries with `runtime:` keys, such as `node@runtime:24.6.0`.
+
 ### Named registries
 
 Added in: v11.1.0

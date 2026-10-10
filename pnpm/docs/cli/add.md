@@ -65,7 +65,7 @@ Naming a [package manager](../package-managers.md) — `npm`, `yarn` or `bun` �
 pnpm add yarn@4
 ```
 
-writes `"packageManager": "yarn@4.18.0"`, and every other package manager is recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager). Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit `node@runtime:22` spelling already did — `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@runtime:1.3.0`).
+writes `"packageManager": "yarn@4.18.0"`, and every other package manager is recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager). Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit [`node@tool:22`](../package-sources.md#provisioned-tools) spelling does. `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@tool:1.3.0`).
 
 Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Classic-only `yarn` package, and `pnpm add -g node@22` installs that Node.js release rather than a wrapper that downloads one.
 

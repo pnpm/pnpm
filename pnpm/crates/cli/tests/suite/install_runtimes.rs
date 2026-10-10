@@ -72,6 +72,33 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
 }
 
 #[test]
+fn frozen_install_accepts_tool_specifiers_against_a_runtime_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "");
+    let mut server = mockito::Server::new();
+    let fixtures = [
+        runtime_fixture(&mut server, "node", "22.0.0", host_platform(), host_arch()),
+        runtime_fixture(&mut server, "deno", "2.4.2", host_platform(), host_arch()),
+        runtime_fixture(&mut server, "bun", "1.2.19", host_platform(), host_arch()),
+    ];
+    let dependencies = fixtures
+        .iter()
+        .map(|fixture| {
+            (fixture.name.to_string(), Value::String(format!("tool:{}", fixture.version)))
+        })
+        .collect::<Map<_, _>>();
+    fs::write(workspace.join("package.json"), json!({ "dependencies": dependencies }).to_string())
+        .unwrap();
+    write_runtime_lockfile(&workspace, &fixtures);
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_installed(&workspace, &fixtures);
+}
+
+#[test]
 fn node_runtime_fails_when_missing_offline() {
     assert_runtime_missing_offline("node", "22.0.0");
 }
@@ -146,6 +173,46 @@ fn installs_node_runtime_from_the_rc_channel() {
         .success();
     assert!(workspace.join("node_modules/node/package.json").exists());
     assert!(fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap().contains(version));
+}
+
+#[test]
+fn installs_node_from_a_tool_specifier() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("tool:{version}") } }).to_string(),
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/node/package.json").exists());
+    let lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap())
+            .unwrap();
+    assert_eq!(
+        lockfile["importers"]["."]["dependencies"]["node"],
+        json!({ "specifier": format!("tool:{version}"), "version": format!("runtime:{version}") }),
+    );
+    assert!(
+        lockfile["packages"]
+            .get(format!("node@runtime:{version}"))
+            .is_some()
+    );
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 }
 
 #[test]

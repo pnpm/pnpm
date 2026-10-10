@@ -1,8 +1,7 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
 use crate::{
-    OverriddenDependencyMatcher, VersionsOverrider,
-    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+    OverriddenDependencyMatcher, VersionsOverrider, runtime_specifier::node_runtime_version_spec,
 };
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
@@ -353,7 +352,7 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    if let Some(selector) = node_runtime_version_spec(alias, declared) {
+    if let Some((protocol, selector)) = node_runtime_version_spec(alias, declared) {
         // A selector naming a release channel the resolver does not know is
         // left for it to reject, rather than moved to a channel-less one it
         // would accept.
@@ -361,7 +360,7 @@ fn bumped_range(
             return None;
         }
         let bumped = format!(
-            "{RUNTIME_PROTOCOL}{}",
+            "{protocol}{}",
             normalize_node_runtime_version_specifier(
                 selector,
                 &resolved.to_string(),

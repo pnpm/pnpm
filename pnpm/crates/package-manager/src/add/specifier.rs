@@ -204,10 +204,11 @@ pub(super) async fn bare_save_specifier(
     ) {
         return Ok(workspace_specifier);
     }
-    if let Some(version_spec) =
+    if let Some((protocol, version_spec)) =
         explicit_spec.and_then(|spec| node_runtime_version_spec(package_name, spec))
     {
-        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
+        return resolve_node_runtime_specifier(protocol, version_spec, prev_specifier, inputs)
+            .await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
         return Ok(resolve_jsr_save_specifier(jsr, manifest, inputs).await?
@@ -239,6 +240,7 @@ fn cataloged_specifier(package_name: &str, inputs: &AddResolveInputs<'_, '_>) ->
 }
 
 pub(super) async fn resolve_node_runtime_specifier(
+    protocol: &str,
     version_spec: &str,
     prev_specifier: Option<&str>,
     inputs: &AddResolveInputs<'_, '_>,
@@ -254,7 +256,7 @@ pub(super) async fn resolve_node_runtime_specifier(
     node_resolver.offline = config.offline;
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     node_resolver
-        .resolve_save_specifier(version_spec, prev_specifier)
+        .resolve_save_specifier(protocol, version_spec, prev_specifier)
         .await
         .map_err(AddError::ResolveRuntimeSpec)
 }

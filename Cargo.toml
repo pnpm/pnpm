@@ -95,6 +95,7 @@ pnpm-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-w
 pnpm-resolving-resolver-base = { path = "pnpm/crates/resolving-resolver-base" }
 pnpm-resolving-tarball-resolver = { path = "pnpm/crates/resolving-tarball-resolver" }
 pnpm-semver-include-prerelease = { path = "pnpm/crates/semver-include-prerelease" }
+pnpm-tool-protocol = { path = "pnpm/crates/tool-protocol" }
 pnpm-versioning = { path = "pnpm/crates/versioning" }
 pnpm-workspace = { path = "pnpm/crates/workspace" }
 pnpm-workspace-manifest-writer = { path = "pnpm/crates/workspace-manifest-writer" }
