@@ -274,6 +274,7 @@ fn create_config(
         raw_cli_config: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
+        editor: None,
     }
 }
 
