@@ -1,7 +1,4 @@
-use super::{
-    FindWorkspaceProjectsOpts, TempDir, find_project_names, find_workspace_projects, fs,
-    make_project,
-};
+use super::{TempDir, find_project_names, fs, make_project};
 
 #[test]
 fn subtree_exclusions_preserve_directory_only_exclusions_and_explicit_hidden_includes() {
@@ -56,6 +53,7 @@ fn subtree_exclusions_follow_symlink_spelling_without_excluding_other_paths_to_t
 #[cfg(unix)]
 #[test]
 fn subtree_exclusions_do_not_read_excluded_directories() {
+    use super::{FindWorkspaceProjectsOpts, find_workspace_projects};
     use std::os::unix::fs::PermissionsExt;
     let root = TempDir::new().unwrap();
     make_project(root.path(), ".", "root");
@@ -63,14 +61,17 @@ fn subtree_exclusions_do_not_read_excluded_directories() {
     let generated = root.path().join("generated");
     let permissions = fs::metadata(&generated).unwrap().permissions();
     fs::set_permissions(&generated, fs::Permissions::from_mode(0o000)).unwrap();
-    let projects = find_workspace_projects(
-        root.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["**".to_string(), "!generated/**".to_string()]),
-            ..Default::default()
-        },
-    );
+    let projects = std::panic::catch_unwind(|| {
+        find_workspace_projects(
+            root.path(),
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(vec!["**".to_string(), "!generated/**".to_string()]),
+                ..Default::default()
+            },
+        )
+    });
     fs::set_permissions(&generated, permissions).unwrap();
+    let projects = projects.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     assert_eq!(projects.unwrap().len(), 1);
 }
 
