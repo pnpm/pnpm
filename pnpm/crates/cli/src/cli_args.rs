@@ -28,6 +28,7 @@ pub mod docs;
 pub mod doctor;
 pub(crate) mod ecosystem_deps;
 pub(crate) mod engine_deps;
+pub mod edit;
 pub mod env;
 pub mod exec;
 pub mod fetch;

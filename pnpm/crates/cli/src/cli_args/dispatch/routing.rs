@@ -25,6 +25,7 @@ pub(super) fn route<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     match command {
         CliCommand::Add(args) => dispatch_install::add(ctx, args),
+        CliCommand::Edit(args) => dispatch_install::edit(ctx, args),
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Ci(args) => dispatch_install::ci(ctx, args),

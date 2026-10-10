@@ -27,6 +27,8 @@ pub enum CliCommand {
     Recursive,
     /// Add a package
     Add(AddArgs),
+    /// Opens an installed package's folder in the default text editor.
+    Edit(EditArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
