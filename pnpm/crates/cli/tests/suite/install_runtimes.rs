@@ -206,7 +206,7 @@ fn installs_node_from_a_tool_specifier() {
     assert!(
         lockfile["packages"]
             .get(format!("node@runtime:{version}"))
-            .is_some()
+            .is_some(),
     );
 
     command(&workspace)
