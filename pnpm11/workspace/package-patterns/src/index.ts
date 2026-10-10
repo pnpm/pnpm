@@ -17,6 +17,13 @@ export function normalizePatterns (patterns: readonly string[]): string[] {
   return normalizedPatterns
 }
 
+/** Exclusions that cover every descendant and can prune a directory walk. */
+export function getExcludedSubtrees (patterns: readonly string[]): string[] {
+  return splitPatterns(patterns).excluded
+    .map(pattern => pattern.endsWith('/') ? pattern.slice(0, -1) : pattern)
+    .filter(pattern => !pattern.startsWith('../') && (pattern === '**' || pattern.endsWith('/**')))
+}
+
 export interface IsWorkspaceProjectDirOptions {
   workspaceDir: string
   dir: string

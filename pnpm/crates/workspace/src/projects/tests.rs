@@ -12,6 +12,7 @@ use tempfile::TempDir;
 
 mod managed_directories;
 mod membership;
+mod negations;
 mod normalization;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
