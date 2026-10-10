@@ -13,6 +13,31 @@ impl WorkspaceSettings {
     /// `serde_saphyr` renders the offending source line verbatim under its
     /// errors, so rejecting at parse time would print the very credential
     /// being rejected into the terminal and any CI log.
+    /// Validate the sections the checks below cover. With `skip_invalid`, a
+    /// section that fails is left out instead, so one this pnpm rejects does
+    /// not take the file's other settings with it (see
+    /// [`crate::Config::skip_unreadable_settings`]).
+    pub(super) fn validate_sections(
+        &mut self,
+        skip_invalid: bool,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        if !skip_invalid {
+            self.validate_registries()?;
+            self.validate_tasks()?;
+            return self.validate_pipelines();
+        }
+        if self.validate_registries().is_err() {
+            self.registries = None;
+        }
+        if self.validate_tasks().is_err() {
+            self.tasks = None;
+        }
+        if self.validate_pipelines().is_err() {
+            self.pipelines = None;
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)

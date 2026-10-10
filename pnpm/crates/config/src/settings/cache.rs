@@ -19,7 +19,7 @@ impl Config {
     }
 
     /// `PNPM_REMOTE_CACHE_*` overlays `remoteCache`, so a CI runner can
-    /// inject the token and signing material it must not commit. A malformed
+    /// inject the signing material it must not commit. A malformed
     /// JSON variable is dropped with a warning, as in
     /// [`Self::apply_remote_side_effects_cache_env`].
     pub(crate) fn apply_remote_cache_env<Sys: EnvVar>(&mut self) {
@@ -27,7 +27,6 @@ impl Config {
         let settings = RemoteCacheSettings {
             url: read("URL"),
             team: read("TEAM"),
-            token: read("TOKEN"),
             org: read("ORG"),
             trusted_keys: read("TRUSTED_KEYS").and_then(|value| json_map("TRUSTED_KEYS", &value)),
             private_key: read("PRIVATE_KEY"),

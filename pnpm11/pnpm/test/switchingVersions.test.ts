@@ -39,6 +39,61 @@ test('switch to the pinned pnpm version although a task setting is only known to
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('switch to the pinned pnpm version although this pnpm cannot read any of the configuration', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    XDG_CONFIG_HOME: configHome,
+    pnpm_config__auth: JSON.stringify({ 'https://registry.example': { laterField: 'x' }, 'not a url': 1 }),
+  }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: 5\n')
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('a pnpm-workspace.yaml that fails partway leaves none of its settings in force', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pmOnFail: 'ignore',
+    catalog: { 'is-positive': '1.0.0' },
+    catalogs: { default: { 'is-positive': '1.0.0' } },
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('a broken pnpm-workspace.yaml does not override the machine\'s opt-out from switching', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  // The machine opts out through the environment, where v11 reads pmOnFail.
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_pm_on_fail: 'ignore' }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: 5\n')
+
+  const { status, stdout } = execPnpmSync(['help'], { env })
+
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
 test('switch to the pinned pnpm version although an option is only known to it (pnpm/pnpm#16353)', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

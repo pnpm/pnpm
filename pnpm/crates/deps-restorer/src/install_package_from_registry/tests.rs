@@ -72,7 +72,7 @@ fn create_config(
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         skip_store_dir_resolution: false,
-        skip_unreadable_workspace_settings: false,
+        skip_unreadable_settings: false,
         store_dir_placement_skipped: false,
         store_relocation: None,
         state_dir: store_dir.join("state"),

@@ -109,7 +109,6 @@ remoteCache:
 remoteCache:
   url: https://vercel.com/api
   team: team_abc123
-  token: <access token>
   trustedKeys:
     ci-2026: <base64 public key>
 ```
@@ -119,13 +118,12 @@ On the machine that publishes, usually CI, add the private key and turn publishi
 ```sh
 export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
 export PNPM_REMOTE_CACHE_TEAM=team_abc123
-export PNPM_REMOTE_CACHE_TOKEN=<access token>
-export PNPM_REMOTE_CACHE_TRUSTED_KEYS='{"ci-2026":"<base64 public key>"}'
-export PNPM_REMOTE_CACHE_PRIVATE_KEY=<base64 private key>
+export PNPM_REMOTE_CACHE_TRUSTED_KEYS="{\"ci-2026\":\"$PUBLIC_KEY\"}"
+export PNPM_REMOTE_CACHE_PRIVATE_KEY="$PRIVATE_KEY"
 export PNPM_REMOTE_CACHE_KEY_ID=ci-2026
 export PNPM_REMOTE_CACHE_BUILDER_ID=ci
 export PNPM_REMOTE_CACHE_PUBLISH=true
-pnpm pipeline
+env "pnpm_config_//vercel.com/api/:_authToken=$VERCEL_TOKEN" pnpm pipeline
 ```
 
 See [Shared side-effects cache](/pnpr/shared-side-effects-cache#publishing-from-a-builder) for how to generate a key pair.

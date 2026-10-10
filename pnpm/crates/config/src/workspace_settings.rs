@@ -183,8 +183,21 @@ impl Config {
         }
     }
 
-    /// Find the workspace root and read its `pnpm-workspace.yaml`.
+    /// Find the workspace root and read its `pnpm-workspace.yaml`. One
+    /// that cannot be read at all keeps only the root when
+    /// [`Config::skip_unreadable_settings`] is set.
     pub(super) fn resolve_workspace_yaml<Sys>(
+        &self,
+        start_dir: &std::path::Path,
+    ) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        let resolved = self.read_workspace_yaml::<Sys>(start_dir);
+        self.skip_if_unreadable(resolved, || self.locate_workspace::<Sys>(start_dir))
+    }
+
+    fn read_workspace_yaml<Sys>(
         &self,
         start_dir: &std::path::Path,
     ) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError>
@@ -207,9 +220,9 @@ impl Config {
         let workspace_yaml = if self.ignore_workspace {
             None
         } else if let Some(env_dir) = env_workspace_dir {
-            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_workspace_settings)?)
+            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_settings)?)
         } else {
-            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_workspace_settings)?
+            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_settings)?
                 .map(|(path, settings)| {
                     let base_dir = path
                         .parent()

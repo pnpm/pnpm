@@ -425,6 +425,8 @@ mod reset;
 
 mod settings;
 
+mod global;
+
 mod readable;
 
 mod error;

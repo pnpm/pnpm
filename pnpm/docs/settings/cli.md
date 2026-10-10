@@ -103,6 +103,8 @@ Overrides the `onFail` behavior of both the `packageManager` field and `devEngin
 * `warn` — print a warning but continue (equivalent to the previous `packageManagerStrict: false` or `COREPACK_ENABLE_STRICT=0`).
 * `ignore` — skip the check entirely (equivalent to the previous `managePackageManagerVersions: false`). Useful when version management is handled by an external tool such as asdf, mise, or Volta.
 
+A part of the configuration pnpm cannot read does not stop it from switching to the declared pnpm version, which reads the configuration itself. pnpm leaves out only what it cannot read, so it switches only when the `pmOnFail` it can read is `download`.
+
 Can be set via CLI flag, environment variable, or `pnpm-workspace.yaml`:
 
 ```sh

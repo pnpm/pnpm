@@ -9,7 +9,7 @@ use super::{
 pub(super) struct ConfigLoad {
     /// Place the store, which a switch or a sync uses.
     pub(super) resolve_store: bool,
-    /// See [`Config::skip_unreadable_workspace_settings`].
+    /// See [`Config::skip_unreadable_settings`].
     pub(super) skip_unreadable_settings: bool,
 }
 
@@ -29,7 +29,7 @@ pub(super) fn load_pre_command_config(
         config_overrides,
     );
     config.skip_store_dir_resolution = !load.resolve_store;
-    config.skip_unreadable_workspace_settings = load.skip_unreadable_settings;
+    config.skip_unreadable_settings = load.skip_unreadable_settings;
     let mut config = config
         .current_keeping_warnings::<Host>(dir)
         .map_err(|failure| {

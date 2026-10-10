@@ -94,6 +94,104 @@ fn an_unrecognized_task_setting_does_not_stop_the_switch_to_the_pinned_version()
     drop((root, mock_instance));
 }
 
+/// No setting may keep a project from the pnpm it pins: the pinned version
+/// reads the configuration itself, and may understand what this one rejects.
+/// Here every source this pnpm reads is unusable to it.
+#[test]
+fn unreadable_configuration_does_not_stop_the_switch_to_the_pinned_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "packages: [\n");
+    let global_config = root.path().join("xdg-config/pnpm");
+    fs::create_dir_all(&global_config).expect("create the global config dir");
+    fs::write(global_config.join("config.yaml"), "registry: [not, a, url\n")
+        .expect("write the global config");
+    let mut pacquet = pacquet;
+    pacquet
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .env(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"laterField":"x"},"not a url":1}"#,
+        );
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+/// A repository that breaks its own `pnpm-workspace.yaml` loses only that
+/// file: the machine's own settings still apply, so its opt-out from version
+/// switching holds and the failure is reported.
+#[test]
+fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "packages: [\n");
+    let global_config = root.path().join("xdg-config/pnpm");
+    fs::create_dir_all(&global_config).expect("create the global config dir");
+    // A section this pnpm rejects leaves the rest of the file in force.
+    fs::write(
+        global_config.join("config.yaml"),
+        "pmOnFail: ignore\ntasks:\n  build:\n    concurrency: 0\n",
+    )
+    .expect("write the global config");
+    let mut pacquet = pacquet;
+    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_failure(&output);
+    assert_ne!(stdout(&output), "9.3.0\n", "the machine opted out of switching");
+    assert_contains(&stderr(&output), "load configuration");
+
+    drop((root, mock_instance));
+}
+
+/// The workspace file's settings are left out whole when one of them fails
+/// to apply, so none applied before the failure stays in force.
+#[test]
+fn a_workspace_setting_that_fails_to_apply_leaves_out_the_rest_of_the_file() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "pmOnFail: ignore\noverrides:\n  foo: $missing\n");
+    let mut pacquet = pacquet;
+    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

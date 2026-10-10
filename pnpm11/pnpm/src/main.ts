@@ -15,7 +15,7 @@ import { checkSudo } from './checkSudo.js'
 import { type Command, NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from './getConfig.js'
-import { handlePackageManagerAndRuntimes, shouldSkipPmHandling } from './packageManagerCheck.js'
+import { handlePackageManagerAndRuntimes, shouldSkipPmHandling, switchPastUnreadableConfig } from './packageManagerCheck.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
@@ -138,23 +138,11 @@ async function readCommandConfig (
   parsedCliArgs: ParsedCliArgsWithBuiltIn,
   rejectUnknownOptions: boolean
 ): Promise<LoadedConfig | undefined> {
-  const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir, rawCliConfig } = parsedCliArgs
+  const { cmd, options: cliOptions, unknownOptions } = parsedCliArgs
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
   applyGlobalScope(parsedCliArgs, isConfigCommand)
-  let { config, context } = await getConfig(cliOptions, {
-    excludeReporter: false,
-    // When we just want to print the location of the global bin directory,
-    // we don't need the write permission to it. Related issue: pnpm/pnpm#2700
-    globalDirShouldAllowWrite: cmd !== 'root' && cmd !== 'prefix',
-    skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
-    workspaceDir,
-    rawCliConfig,
-    onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
-    forSelfUpdate: cmd === 'self-update',
-    ignoreProjectNpmrc: isGlobalConfigCommand(isConfigCommand, cliOptions),
-    printWarnings: !isSingleSettingRead(cmd, cliParams),
-  }) as LoadedConfig
-  if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams, cliOptions.location)) {
+  let { config, context } = await loadConfigOrSwitchToPinnedPnpm(parsedCliArgs, isConfigCommand)
+  if (handlesPackageManager(parsedCliArgs)) {
     await handlePackageManagerAndRuntimes({ cmd, cliOptions, config, context, rejectUnknownOptions })
   }
   if (rejectUnknownOptions) {
@@ -173,6 +161,46 @@ async function readCommandConfig (
   }) as LoadedConfig)
   applyInvocationToConfig(config, parsedCliArgs)
   return { config, context }
+}
+
+/**
+ * Loads the config for the command. A load that fails first gives the pnpm
+ * the project pins a chance to run instead, since it may read what this one
+ * cannot: no setting may keep a project from the pnpm it pins.
+ */
+async function loadConfigOrSwitchToPinnedPnpm (
+  parsedCliArgs: ParsedCliArgsWithBuiltIn,
+  isConfigCommand: boolean
+): Promise<LoadedConfig> {
+  const { cmd, params: cliParams, options: cliOptions, workspaceDir, rawCliConfig } = parsedCliArgs
+  const getConfigOpts = {
+    excludeReporter: false,
+    // When we just want to print the location of the global bin directory,
+    // we don't need the write permission to it. Related issue: pnpm/pnpm#2700
+    globalDirShouldAllowWrite: cmd !== 'root' && cmd !== 'prefix',
+    skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
+    workspaceDir,
+    rawCliConfig,
+    onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
+    forSelfUpdate: cmd === 'self-update',
+    ignoreProjectNpmrc: isGlobalConfigCommand(isConfigCommand, cliOptions),
+    printWarnings: !isSingleSettingRead(cmd, cliParams),
+  }
+  try {
+    return await getConfig(cliOptions, getConfigOpts) as LoadedConfig
+  } catch (err: unknown) {
+    if (handlesPackageManager(parsedCliArgs)) {
+      await switchPastUnreadableConfig(
+        () => getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }),
+        cliOptions
+      )
+    }
+    throw err
+  }
+}
+
+function handlesPackageManager ({ cmd, params, options }: ParsedCliArgsWithBuiltIn): boolean {
+  return cmd !== 'setup' && !shouldSkipPmHandling(cmd, params, options.location)
 }
 
 /**

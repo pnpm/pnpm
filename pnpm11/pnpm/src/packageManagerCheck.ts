@@ -77,6 +77,36 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
 }
 
 /**
+ * Switches to the pnpm the project pins when the configuration fails to load:
+ * the pinned pnpm reads the configuration itself, and may understand what
+ * this one rejects. No setting may keep a project from the pnpm it pins.
+ * `loadReadable` loads the configuration without what this pnpm cannot read,
+ * so the machine's own settings, such as its `pmOnFail`, registry, and
+ * credentials, still apply. Returns when there is no pin to switch to or the
+ * switch cannot happen, leaving the original failure to be reported.
+ */
+export async function switchPastUnreadableConfig (
+  loadReadable: () => Promise<{ config: Config, context: ConfigContext }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
+  cliOptions: Record<string, any>
+): Promise<void> {
+  if (cliOptions.global || isExecutedByCorepack()) return
+  let loaded: { config: Config, context: ConfigContext }
+  try {
+    loaded = await loadReadable()
+  } catch {
+    return
+  }
+  const pm = loaded.context.wantedPackageManager
+  if (pm?.name !== 'pnpm' || pm.onFail !== 'download') return
+  try {
+    await switchCliVersion(loaded.config, loaded.context)
+  } catch {
+    // The configuration's own failure is the one to report.
+  }
+}
+
+/**
  * Returns whether the command may bypass project package-manager and runtime
  * handling. Config command aliases bypass it unless `location` is exactly
  * `project`; an absent or unrecognized location therefore retains config's
