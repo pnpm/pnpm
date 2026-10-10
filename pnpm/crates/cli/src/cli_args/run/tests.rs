@@ -91,7 +91,7 @@ fn specified_scripts_match_utf16_code_units() {
     );
     assert_eq!(
         ScriptSelector::new("/^..$/").unwrap().select(&manifest, false),
-        vec!["😀".to_string()]
+        vec!["😀".to_string()],
     );
 }
 
