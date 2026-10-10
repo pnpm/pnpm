@@ -103,6 +103,7 @@ jobs:
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
+              - '.github/actions/remote-cache/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
@@ -391,8 +392,16 @@ jobs:
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Clippy
-        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-clippy --include-workspace-root --full
 
   doc:
     name: Rust CI / Doc / ${{ matrix.os_label }}
@@ -425,10 +434,18 @@ jobs:
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-doc --include-workspace-root --full
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
