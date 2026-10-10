@@ -30,6 +30,7 @@ fn a_platform_reads_the_same_in_either_spelling() {
         ("powerpc64-unknown-linux-gnu", "linux-ppc64be"),
         ("powerpc64le-unknown-linux-gnu", "linux-ppc64le"),
         ("riscv64gc-unknown-linux-musl", "linux-riscv64-musl"),
+        ("loongarch64-unknown-linux-gnu", "linux-loong64"),
     ] {
         assert_eq!(spelled(triple), platform, "{triple}");
         assert_eq!(spelled(platform), platform);
@@ -106,6 +107,19 @@ fn current_keeps_the_endianness_the_host_is() {
     };
     assert_eq!(wheel("powerpc64le"), ["ppc64le"]);
     assert_eq!(wheel("powerpc64"), ["ppc64"]);
+}
+
+#[test]
+fn current_resolves_a_loongarch_host() {
+    let host = SupportedArchitectures::Platforms(vec!["current".parse().unwrap()]);
+    let named = |cpu| {
+        host.platforms("linux", cpu, "glibc")
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(named("loongarch64"), ["linux-loong64"]);
+    assert_eq!(named("loong64"), ["linux-loong64"]);
 }
 
 /// A baseline carries the two numbers of a libc release. Which releases
