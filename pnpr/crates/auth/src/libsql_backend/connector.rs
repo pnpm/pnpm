@@ -1,8 +1,7 @@
 //! The HTTP connector libsql dials the database with.
 //!
 //! libsql's own TLS connector would add a second rustls release to the
-//! build, so pnpr supplies one built on the workspace's rustls with the
-//! platform trust store, the same trust reqwest uses for upstreams.
+//! build, so pnpr supplies one built on the workspace's rustls.
 
 use http_0_2::Uri;
 use hyper_0_14::client::{
