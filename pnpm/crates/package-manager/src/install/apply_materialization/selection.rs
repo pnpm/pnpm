@@ -171,11 +171,14 @@ pub(super) async fn package_map_engine_name(
     config: &'static Config,
     current: &Lockfile,
 ) -> Option<String> {
-    let runtime_major = crate::install_frozen_lockfile::find_runtime_node_major(&current.importers);
-    let configured_major = config.node_version
-        .as_deref()
-        .and_then(crate::install_frozen_lockfile::parse_major_from_version);
-    match runtime_major.or(configured_major) {
+    let runtime_pin = pnpm_deps_restorer::find_root_runtime_node_version(&current.importers);
+    let target_major = pnpm_deps_restorer::target_node_major(
+        pnpm_deps_restorer::TargetNodeUse::Execution,
+        config.node_version.as_deref(),
+        runtime_pin.as_deref(),
+        None,
+    );
+    match target_major {
         Some(major) => Some(pnpm_graph_hasher::engine_name(major, None, None)),
         None if config.enable_global_virtual_store => tokio::task::spawn_blocking(|| {
             pnpm_graph_hasher::detect_node_major()

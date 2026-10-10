@@ -17,7 +17,6 @@ pub(super) struct UpToDateCheck<'a> {
     /// not registered in the store.
     pub(super) resolve_only: bool,
     pub(super) disable_optimistic_repeat_install: bool,
-    pub(super) effective_node_version: Option<&'a str>,
 }
 /// Whether nothing has changed since the previous successful install
 /// (settings, workspace structure, manifest mtimes), so the whole pipeline can
@@ -115,7 +114,6 @@ pub(super) fn build_state_allows_short_circuit(
                     wanted,
                     check.workspace.config,
                     check.workspace.workspace_root,
-                    check.effective_node_version,
                 ) {
                     return Ok(false);
                 }
