@@ -16,12 +16,15 @@ Each check reports how to fix what it finds, and the command exits with a non-ze
 ```text
 ✓ Versions: pnpm 12.3.4, Node.js 22.20.0
 ✓ Install method: pnpm
+✓ Node.js on PATH: /Users/example/.local/share/fnm/node-versions/v22.20.0/installation/bin/node
+✓ Script shell: scripts run in /bin/sh (/bin/bash), package executables in /bin/sh (/bin/bash)
 ✓ Global bin directory: /Users/example/Library/pnpm/bin
 ✓ Cache directory: /Users/example/Library/Caches/pnpm
 ✓ Store directory: /Users/example/Library/pnpm/store/v10
 ✓ Filesystem: available: reflink, hardlink, symlink
 ✓ Registry connectivity: https://registry.npmjs.org/ (128ms)
 ✓ Install smoke test: offline "file:" install linked its dependency
+✓ Lifecycle scripts: an install script ran /Users/example/.local/share/fnm/node-versions/v22.20.0/installation/bin/node, a script in /Users/example/my-project ran /Users/example/.local/share/fnm/node-versions/v22.20.0/installation/bin/node
 
 All checks passed
 ```
@@ -35,6 +38,20 @@ Reports the running pnpm and Node.js versions.
 ### Install method
 
 Reports how pnpm was installed — as the `pnpm` package or the `@pnpm/exe` standalone build — and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
+
+### Node.js on PATH
+
+Added in: v12.9.0
+
+Lists the `node` executables on `PATH` in lookup order. Lifecycle scripts run the first one. pnpm itself does not need Node.js, but the executables that packages put in `node_modules/.bin` do.
+
+Warns when there is no `node` on `PATH`, and when a `node` entry is skipped because it is a broken link, not executable, or not a file. A version manager that relinks `node` while scripts run can leave such an entry behind.
+
+### Script shell
+
+Added in: v12.9.0
+
+Reports the shell that runs scripts: the [`scriptShell`](../settings/other.md#scriptshell), the built-in shell emulator, or `sh`. Outside Windows it also reports what `/bin/sh` is, because `/bin/sh` starts every executable in `node_modules/.bin`. On macOS that is the shell `/private/var/select/sh` links to.
 
 ### Global bin directory
 
@@ -66,6 +83,16 @@ Installs a throwaway package as a `file:` dependency, entirely offline, in a tem
 
 This check is always offline by construction, so `--offline` does not skip it.
 
+### Lifecycle scripts
+
+Added in: v12.9.0
+
+Installs a temporary project whose `postinstall` script calls a dependency's executable, then runs the same executable through `pnpm exec` in the current project, if there is one. Both go through the executable's `node_modules/.bin` shim, which has to find `node` on `PATH`. The check reports the `node` each run used.
+
+If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and which `node`, if any, it started. A shim that finds no `node` is the usual cause of a script failing with exit status 127.
+
+The run in the current project goes through `pnpm exec`, so the project's pnpmfile and `nodeOptions` apply to it as they do to `pnpm exec`. It does not install the project's dependencies. The whole check is skipped when there is no `node` on `PATH`.
+
 ## Options
 
 ### --offline
@@ -74,7 +101,7 @@ Skip the checks that need network access.
 
 ### --benchmark
 
-Also time the filesystem and install checks, reporting the duration alongside each result.
+Also time the filesystem, install, and lifecycle script checks, reporting the duration alongside each result.
 
 ### --json
 

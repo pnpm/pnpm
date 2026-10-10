@@ -120,14 +120,19 @@ impl DoctorArgs {
     /// Run every check and render the report. Returns the text (or JSON) to
     /// print alongside the outcome, leaving printing and the exit status to
     /// the caller.
-    pub async fn run(&self, config: &Config) -> miette::Result<DoctorResult> {
+    ///
+    /// `project_dir` is where a script probe runs when it holds a project.
+    pub async fn run(&self, config: &Config, project_dir: &Path) -> miette::Result<DoctorResult> {
         let mut checks = vec![check_versions(), check_install_method()];
+        checks.push(scripts::check_node_on_path(std::env::var_os("PATH").as_deref()));
+        checks.push(scripts::check_script_shell(config));
         checks.push(check_global_bin_dir(config));
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
         checks.push(check_writable_dir("Store directory", config.store_dir.root()));
         checks.push(check_filesystem_capabilities(config, self.benchmark));
         checks.push(self.check_connectivity(config).await);
-        checks.push(check_install_smoke_test(self.benchmark));
+        checks.push(install_probe::check_install_smoke_test(self.benchmark));
+        checks.push(scripts::check_lifecycle_scripts(project_dir, self.benchmark));
 
         let outcome = if checks
             .iter()
@@ -343,77 +348,6 @@ fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_file(source, link)
 }
 
-/// Install a throwaway package as a `file:` dependency, entirely offline, to
-/// confirm this binary can resolve, fetch into the store, and link a dependency
-/// end to end. Catches both classes of broken release the release gate exists
-/// for: a binary that will not run at all, and one whose install path crashes.
-fn check_install_smoke_test(benchmark: bool) -> CheckResult {
-    let title = "Install smoke test";
-    let started = Instant::now();
-    let Ok(base) = tempfile::tempdir() else {
-        return CheckResult::warn(
-            title,
-            "could not create a temporary directory",
-            "Check that the system temp directory is writable.",
-        );
-    };
-    match run_install_smoke_test(base.path()) {
-        Ok(()) => CheckResult::pass(title, r#"offline "file:" install linked its dependency"#)
-            .timed(benchmark, started),
-        Err(detail) => CheckResult::fail(
-            title,
-            detail,
-            r#"Run "pnpm install" in a scratch project to see the full error."#,
-        ),
-    }
-}
-
-fn run_install_smoke_test(base: &Path) -> Result<(), String> {
-    let provider = base.join("provider");
-    let consumer = base.join("consumer");
-    let store = base.join("store");
-    fs::create_dir_all(&provider).map_err(|error| error.to_string())?;
-    fs::create_dir_all(&consumer).map_err(|error| error.to_string())?;
-    fs::write(provider.join("package.json"), r#"{"name":"pnpm-doctor-fixture","version":"0.0.0"}"#)
-        .map_err(|error| error.to_string())?;
-    fs::write(
-        consumer.join("package.json"),
-        r#"{"name":"pnpm-doctor-consumer","version":"0.0.0","private":true,"dependencies":{"pnpm-doctor-fixture":"file:../provider"}}"#,
-    )
-    .map_err(|error| error.to_string())?;
-
-    // A throwaway store keeps the probe from writing into the real one. The
-    // fixture is a temp directory with no lockfile and no workspace above it,
-    // so nothing here depends on the lockfile or workspace flags.
-    let pnpm = pnpm_executor::current_pnpm_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(pnpm)
-        .current_dir(&consumer)
-        .args(["install", "--offline", "--ignore-scripts"])
-        .arg(format!("--store-dir={}", store.display()))
-        .output()
-        .map_err(|error| error.to_string())?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let reason = last_line(stderr.trim());
-        return Err(format!(
-            r#"offline "file:" install failed{}"#,
-            if reason.is_empty() { String::new() } else { format!(": {reason}") },
-        ));
-    }
-    if !consumer.join("node_modules/pnpm-doctor-fixture/package.json").exists() {
-        return Err("install reported success but the dependency was not linked".to_owned());
-    }
-    Ok(())
-}
-
-fn last_line(text: &str) -> String {
-    text.lines()
-        .rfind(|line| !line.trim().is_empty())
-        .unwrap_or_default()
-        .to_owned()
-}
-
 fn can_write_to_dir(dir: &Path) -> bool {
     let probe = dir.join(format!(".pnpm-doctor-write-{}", pnpm_fs::process_id()));
     let written = fs::write(&probe, b"").is_ok();
@@ -468,6 +402,9 @@ fn status_mark(status: CheckStatus) -> &'static str {
         CheckStatus::Fail => "✗",
     }
 }
+
+mod install_probe;
+mod scripts;
 
 #[cfg(test)]
 mod tests;
