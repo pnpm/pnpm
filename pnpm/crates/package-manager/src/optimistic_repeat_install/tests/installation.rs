@@ -129,7 +129,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -175,7 +175,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
@@ -271,7 +271,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }

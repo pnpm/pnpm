@@ -1,3 +1,4 @@
+mod peers;
 mod spec;
 
 #[cfg(test)]
@@ -5,40 +6,66 @@ mod tests;
 
 use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
-use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
-};
+use peers::PeerShadowing;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use spec::spec_satisfies_snapshot_dep;
+use spec::{SpecDirs, spec_satisfies_snapshot_dep};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 /// Project manifests keyed by their lexically normalized project directory.
-pub(crate) type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
+pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
 
+/// Each project's manifest as another importer's injected dependency reads
+/// it: the project's entry in `dependency_manifests` when it has one, else
+/// its importer manifest.
 pub(crate) fn project_manifests_by_dir<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    dependency_manifests: Option<&ProjectManifestsByDir<'a>>,
 ) -> ProjectManifestsByDir<'a> {
-    manifests
+    let mut by_dir: ProjectManifestsByDir<'a> = manifests
         .into_iter()
         .filter_map(|manifest| {
             let dir = manifest.path().parent()?;
             Some((pnpm_fs::lexical_normalize(dir), manifest))
         })
-        .collect()
+        .collect();
+    if let Some(dependency_manifests) = dependency_manifests {
+        by_dir.extend(
+            dependency_manifests
+                .iter()
+                .map(|(dir, manifest)| (dir.clone(), *manifest)),
+        );
+    }
+    by_dir
+}
+
+/// The dependency manifests `projects` carry (see
+/// [`pnpm_workspace::Project::dependency_manifest`]), keyed by project
+/// directory. `None` when no project carries one, which is every install the
+/// Node-API binding did not hand such a manifest to.
+pub(crate) fn dependency_manifests_by_dir(
+    projects: Option<&[pnpm_workspace::Project]>,
+) -> Option<ProjectManifestsByDir<'_>> {
+    let by_dir: ProjectManifestsByDir<'_> = projects?
+        .iter()
+        .filter_map(|project| {
+            let manifest = project.dependency_manifest.as_ref()?;
+            Some((pnpm_fs::lexical_normalize(&project.root_dir), manifest))
+        })
+        .collect();
+    (!by_dir.is_empty()).then_some(by_dir)
 }
 
 struct LocalDepContext<'a> {
     name: &'a str,
     rel_path: &'a str,
     dir: &'a Path,
-    lockfile_dir: &'a Path,
-    workspace_root: &'a Path,
+    dirs: SpecDirs<'a>,
     catalogs: &'a Catalogs,
 }
 
@@ -142,8 +169,11 @@ fn check_single_dep_spec_directory_freshness(
             name: &dep_str,
             rel_path: &dir_res.directory,
             dir: &local_dep_dir,
-            lockfile_dir: check.lockfile_dir,
-            workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
+            dirs: SpecDirs {
+                workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
+                lockfile_dir: check.lockfile_dir,
+                manifests_by_dir: check.workspace.manifests_by_dir,
+            },
             catalogs: check.workspace.catalogs,
         };
         check_single_directory_dep_freshness(check, &dep, snapshot, pkg_meta)?;
@@ -189,7 +219,7 @@ fn workspace_manifest_for_unbuilt_publish_dir(
         {
             return Some(manifest);
         }
-        if candidate == dep.workspace_root {
+        if candidate == dep.dirs.workspace_root {
             return None;
         }
         candidate = candidate.parent()?;
@@ -206,12 +236,13 @@ fn check_single_directory_dep_freshness(
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
     };
+    let peers = PeerShadowing::of(&local_manifest, pkg_meta, check.config.auto_install_peers);
     check_local_dep_group_freshness(
         dep,
         &local_manifest,
         DependencyGroup::Prod,
         snapshot.dependencies.as_ref(),
-        false,
+        (false, &peers.shadowed),
     )?;
     if check.config.optional {
         check_local_dep_group_freshness(
@@ -219,97 +250,10 @@ fn check_single_directory_dep_freshness(
             &local_manifest,
             DependencyGroup::Optional,
             snapshot.optional_dependencies.as_ref(),
-            check.optional_exclusions.allow_unresolved,
+            (check.optional_exclusions.allow_unresolved, &HashSet::new()),
         )?;
     }
-    check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
-}
-
-/// Compares only the declared peer ranges with the recorded ones. The
-/// resolved peers in the snapshot are whatever the parent provides, such as
-/// a `link:` to a workspace project or a version outside the range (an unmet
-/// peer only warns), so they say nothing about whether the lockfile is stale.
-fn check_local_peer_deps_freshness(
-    dep: &LocalDepContext<'_>,
-    local_manifest: &PackageManifest,
-    pkg_meta: &pnpm_lockfile::PackageMetadata,
-) -> Result<(), FreshnessCheckError> {
-    let mut manifest_peers: std::collections::HashMap<&str, &str> = local_manifest
-        .dependencies([DependencyGroup::Peer])
-        .collect();
-    for name in optional_peer_names(local_manifest) {
-        manifest_peers.entry(name).or_insert("*");
-    }
-    check_recorded_peer_specs_match(dep, &manifest_peers, pkg_meta)?;
-    check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)
-}
-
-fn check_recorded_peer_specs_match(
-    dep: &LocalDepContext<'_>,
-    manifest_peers: &std::collections::HashMap<&str, &str>,
-    pkg_meta: &pnpm_lockfile::PackageMetadata,
-) -> Result<(), FreshnessCheckError> {
-    let recorded_count =
-        pkg_meta.peer_dependencies.as_ref().map_or(0, std::collections::HashMap::len);
-    if manifest_peers.len() != recorded_count {
-        return Err(dep.outdated());
-    }
-    for (name, spec) in manifest_peers {
-        let recorded_spec = pkg_meta.peer_dependencies
-            .as_ref()
-            .and_then(|p| p.get(*name));
-        if recorded_spec.map(String::as_str) == Some(spec) {
-            continue;
-        }
-        if dep.catalogs.is_empty() {
-            return Err(dep.outdated());
-        }
-        let wanted =
-            WantedDependency { alias: (*name).to_string(), bare_specifier: (*spec).to_string() };
-        match resolve_from_catalog(dep.catalogs, &wanted, CatalogAnchor::AsWritten) {
-            CatalogResolutionResult::Found(found)
-                if recorded_spec == Some(&found.resolution.specifier) => {}
-            CatalogResolutionResult::Misconfiguration(misconfiguration) => {
-                return Err(FreshnessCheckError::InvalidCatalog(misconfiguration.error));
-            }
-            _ => return Err(dep.outdated()),
-        }
-    }
-    Ok(())
-}
-
-fn check_peer_dependencies_meta_freshness(
-    dep: &LocalDepContext<'_>,
-    local_manifest: &PackageManifest,
-    pkg_meta: &pnpm_lockfile::PackageMetadata,
-) -> Result<(), FreshnessCheckError> {
-    let manifest_meta = local_manifest
-        .value()
-        .get("peerDependenciesMeta")
-        .and_then(serde_json::Value::as_object);
-    let recorded_meta = pkg_meta.peer_dependencies_meta.as_ref();
-    let manifest_optional_count = optional_peer_names(local_manifest).count();
-    let recorded_optional_count = recorded_meta.map_or(0, |meta| {
-        meta.values()
-            .filter(|m| m.optional)
-            .count()
-    });
-    if manifest_optional_count != recorded_optional_count {
-        return Err(dep.outdated());
-    }
-    if let Some(recorded) = recorded_meta {
-        for (name, meta) in recorded {
-            let manifest_optional = manifest_meta
-                .and_then(|m| m.get(name))
-                .and_then(|entry| entry.get("optional"))
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            if meta.optional != manifest_optional {
-                return Err(dep.outdated());
-            }
-        }
-    }
-    Ok(())
+    peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }
 
 fn check_local_dep_group_freshness(
@@ -319,9 +263,9 @@ fn check_local_dep_group_freshness(
     snapshot_deps: Option<
         &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
     >,
-    allow_unresolved: bool,
+    (allow_unresolved, shadowed): (bool, &HashSet<&str>),
 ) -> Result<(), FreshnessCheckError> {
-    let manifest_deps: std::collections::HashMap<&str, &str> = local_manifest
+    let mut manifest_deps: std::collections::HashMap<&str, &str> = local_manifest
         .dependencies([group])
         .collect();
     if let Some(snapshot_deps) = snapshot_deps {
@@ -334,6 +278,9 @@ fn check_local_dep_group_freshness(
         }
         check_snapshot_keys_in_manifest(dep, &valid_keys, snapshot_deps)?;
     }
+    // The snapshot records the peer's resolution for these, whose range the
+    // peer check compares.
+    manifest_deps.retain(|name, _| !shadowed.contains(name));
     check_manifest_specs_satisfy_snapshot(dep, &manifest_deps, snapshot_deps, allow_unresolved)
 }
 
@@ -388,14 +335,7 @@ fn check_manifest_specs_satisfy_snapshot(
             }
             return Err(dep.outdated());
         };
-        if !spec_satisfies_snapshot_dep(
-            dep.workspace_root,
-            dep.lockfile_dir,
-            dep.dir,
-            name,
-            spec,
-            lockfile_dep,
-        ) {
+        if !spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, lockfile_dep) {
             return Err(dep.outdated());
         }
     }

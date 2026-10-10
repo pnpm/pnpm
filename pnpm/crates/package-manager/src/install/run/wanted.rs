@@ -108,25 +108,41 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile: lockfiles.wanted.get(),
                 project_manifests,
-                freshness: LockfileFreshnessInputs {
-                    lockfile_dir: &workspace.dirs.workspace_root,
-                    manifests: &lockfiles.manifest_freshness_inputs,
-                    workspace_packages: workspace.workspace_packages.as_ref(),
-                    config: install.context.config,
-                    catalogs: &workspace.catalogs,
-                    pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-                    scope: FreshnessScope {
-                        ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-                        prune_stale_importers: scope.prune_stale_importers,
-                        allow_missing_dependency_free_importers: true,
-                        allow_unresolved_optional_dependencies: false,
-                        patches_only: false,
-                    },
-                },
+                freshness: freshness_inputs(
+                    install,
+                    (workspace, scope),
+                    loaded,
+                    &lockfiles.manifest_freshness_inputs,
+                ),
             })
             .await;
     }
     Ok(lockfiles)
+}
+/// The freshness gates' inputs for `manifests`, scoped the way an
+/// unfrozen install scopes them.
+pub(super) fn freshness_inputs<'r>(
+    install: InstallView<'r>,
+    (workspace, scope): (&'r InstallWorkspace<'_>, &'r InstallScope<'_>),
+    loaded: &'r Loaded<'_>,
+    manifests: &'r [(String, &'r PackageManifest)],
+) -> LockfileFreshnessInputs<'r, 'r> {
+    LockfileFreshnessInputs {
+        lockfile_dir: &workspace.dirs.workspace_root,
+        manifests,
+        workspace_packages: workspace.workspace_packages.as_ref(),
+        dependency_manifests: scope.dependency_manifests.as_ref(),
+        config: install.context.config,
+        catalogs: &workspace.catalogs,
+        pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
+        scope: FreshnessScope {
+            ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+            prune_stale_importers: scope.prune_stale_importers,
+            allow_missing_dependency_free_importers: true,
+            allow_unresolved_optional_dependencies: false,
+            patches_only: false,
+        },
+    }
 }
 // Every subsequent freshness check and write must use the reconciled branch fold.
 pub(super) fn reconcile_branch_lockfile(
@@ -160,21 +176,12 @@ pub(super) async fn synthesize_wanted(
             lockfile_is_absent: loaded.wanted.lockfile.is_none(),
             frozen_lockfile: install.lockfile_policy.frozen,
             prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
-            freshness: LockfileFreshnessInputs {
-                lockfile_dir: &workspace.dirs.workspace_root,
-                manifests: manifest_freshness_inputs,
-                workspace_packages: workspace.workspace_packages.as_ref(),
-                config: install.context.config,
-                catalogs: &workspace.catalogs,
-                pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-                scope: FreshnessScope {
-                    ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-                    prune_stale_importers: scope.prune_stale_importers,
-                    allow_missing_dependency_free_importers: true,
-                    allow_unresolved_optional_dependencies: false,
-                    patches_only: false,
-                },
-            },
+            freshness: freshness_inputs(
+                install,
+                (workspace, scope),
+                loaded,
+                manifest_freshness_inputs,
+            ),
         },
     )
     .await

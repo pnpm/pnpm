@@ -155,7 +155,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -202,7 +202,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &state,
         &[],
@@ -721,7 +721,7 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &state,
         &[],

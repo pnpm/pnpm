@@ -316,3 +316,121 @@ fn repeat_install_with_unchanged_in_memory_manifest_needs_no_registry() {
         .expect("a repeat install with an unchanged in-memory manifest needs no registry");
     assert!(project_dir.join("node_modules/@pnpm.e2e/foo").exists());
 }
+
+/// A workspace whose `lib` project is injected into `app`, with an importer
+/// manifest that drops the dependencies its `dependencyManifest` declares —
+/// the shape Bit passes after transforming its importer manifests. One of
+/// them injects the `util` project through `workspace:*`; another is also a
+/// peer, which `app` provides at a version the dependency spec rejects.
+fn injected_dependency_manifest_options(
+    temp_dir: &std::path::Path,
+    registry_url: &str,
+) -> super::InstallOptions {
+    let root_dir = temp_dir.join("workspace");
+    let app_dir = root_dir.join("app");
+    let lib_dir = root_dir.join("lib");
+    let util_dir = root_dir.join("util");
+    // Like the host's, the project directories hold no `package.json`: every
+    // manifest is passed in memory.
+    for dir in [&app_dir, &lib_dir, &util_dir] {
+        std::fs::create_dir_all(dir).expect("create project dir");
+    }
+    let mut options = install_options();
+    options.dir = root_dir.to_string_lossy().into_owned();
+    options.projects = vec![
+        NodeApiProject {
+            root_dir: options.dir.clone(),
+            manifest: serde_json::json!({ "name": "root" }),
+            dependency_manifest: None,
+        },
+        NodeApiProject {
+            root_dir: app_dir.to_string_lossy().into_owned(),
+            manifest: serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/foo": "100.1.0", "lib": "workspace:*" },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+            dependency_manifest: None,
+        },
+        NodeApiProject {
+            root_dir: lib_dir.to_string_lossy().into_owned(),
+            manifest: serde_json::json!({ "name": "lib", "version": "1.0.0" }),
+            dependency_manifest: Some(serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/foo": "100.0.0", "util": "workspace:*" },
+                "dependenciesMeta": { "util": { "injected": true } },
+                "peerDependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+            })),
+        },
+        NodeApiProject {
+            root_dir: util_dir.to_string_lossy().into_owned(),
+            manifest: serde_json::json!({ "name": "util", "version": "1.0.0" }),
+            dependency_manifest: None,
+        },
+    ];
+    options.store_dir = Some(
+        temp_dir
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    options.cache_dir = Some(
+        temp_dir
+            .join("cache")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    options.registries = Some(HashMap::from([("default".to_string(), registry_url.to_string())]));
+    options
+}
+
+/// The lockfile records the injected `lib` with the dependencies of its
+/// `dependencyManifest`, so a repeat install with unchanged inputs has to
+/// compare it against that manifest, not the importer manifest. The repeat
+/// run has no registry and no metadata cache, so anything but the fast path
+/// fails it. A frozen run fails on a lockfile it judges outdated.
+#[test]
+fn repeat_install_compares_injected_project_with_its_dependency_manifest() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = injected_dependency_manifest_options(temp_dir.path(), registry.url());
+    let root_dir = std::path::PathBuf::from(&options.dir);
+
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");
+    // The peer suffix names the injected lib's slot, e.g.
+    // `lib@file+lib(@pnpm.e2e+foo@100.1.0)`.
+    let injected_lib_deps = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .map(|entry| entry.expect("virtual store entry").path())
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("lib@file+lib"))
+        })
+        .expect("the injected lib's slot")
+        .join("node_modules");
+    let injected_foo = injected_lib_deps.join("@pnpm.e2e/foo");
+    assert!(injected_foo.exists(), "the injected lib gets its dependency manifest's dependency");
+    assert!(injected_lib_deps.join("util").exists(), "the injected lib gets the injected util");
+    let lockfile = std::fs::read_to_string(root_dir.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("'@pnpm.e2e/foo': 100.1.0"),
+        "the peer `app` provides wins over lib's own dependency:\n{lockfile}",
+    );
+
+    std::fs::remove_dir_all(temp_dir.path().join("cache")).expect("wipe the metadata cache");
+    options.registries =
+        Some(HashMap::from([("default".to_string(), "http://127.0.0.1:9/".to_string())]));
+    options.fetch_retries = Some(0);
+
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("the repeat-install fast path accepts the lockfile");
+
+    // The frozen run verifies the lockfile against the registry.
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url().to_string())]));
+    options.frozen_lockfile = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("the frozen install accepts the lockfile");
+    assert!(injected_foo.exists());
+}

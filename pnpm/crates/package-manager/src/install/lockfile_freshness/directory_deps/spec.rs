@@ -1,22 +1,34 @@
-use std::path::{Path, PathBuf};
+use super::ProjectManifestsByDir;
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
+
+/// Where the specs of a local directory dependency resolve.
+pub(super) struct SpecDirs<'a> {
+    pub(super) workspace_root: &'a Path,
+    pub(super) lockfile_dir: &'a Path,
+    /// The workspace projects' manifests, consulted before a `workspace:`
+    /// target's `package.json` on disk: a host that hands its project
+    /// manifests over in memory need not have written one.
+    pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
+}
 
 pub(super) fn spec_satisfies_snapshot_dep(
-    workspace_root: &Path,
-    lockfile_dir: &Path,
+    dirs: &SpecDirs<'_>,
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     if let Some(matches) =
-        file_or_link_spec_satisfies(lockfile_dir, local_dep_dir, spec, lockfile_dep)
+        file_or_link_spec_satisfies(dirs.lockfile_dir, local_dep_dir, spec, lockfile_dep)
     {
         return matches;
     }
     if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
         return workspace_spec_satisfies(
-            workspace_root,
-            lockfile_dir,
+            dirs,
             local_dep_dir,
             dep_name,
             spec,
@@ -103,8 +115,7 @@ fn is_workspace_path(workspace_spec: &str) -> bool {
 }
 
 fn workspace_spec_satisfies(
-    workspace_root: &Path,
-    lockfile_dir: &Path,
+    dirs: &SpecDirs<'_>,
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
@@ -113,26 +124,19 @@ fn workspace_spec_satisfies(
 ) -> bool {
     if is_workspace_path(workspace_spec) {
         workspace_path_spec_satisfies(
-            lockfile_dir,
+            dirs.lockfile_dir,
             local_dep_dir,
             spec,
             workspace_spec,
             lockfile_dep,
         )
     } else {
-        workspace_range_spec_satisfies(
-            workspace_root,
-            lockfile_dir,
-            dep_name,
-            workspace_spec,
-            lockfile_dep,
-        )
+        workspace_range_spec_satisfies(dirs, dep_name, workspace_spec, lockfile_dep)
     }
 }
 
 fn workspace_range_spec_satisfies(
-    workspace_root: &Path,
-    lockfile_dir: &Path,
+    dirs: &SpecDirs<'_>,
     dep_name: &str,
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
@@ -143,14 +147,7 @@ fn workspace_range_spec_satisfies(
         return false;
     };
     if let Some(link) = lockfile_dep.as_link_target() {
-        return linked_target_satisfies(
-            workspace_root,
-            lockfile_dir,
-            link,
-            expected_name,
-            parsed_range_str,
-            &range,
-        );
+        return linked_target_satisfies(dirs, link, expected_name, parsed_range_str, &range);
     }
     if !snapshot_dep_name_matches(lockfile_dep, dep_name, expected_name) {
         return false;
@@ -164,14 +161,7 @@ fn workspace_range_spec_satisfies(
     else {
         return false;
     };
-    linked_target_satisfies(
-        workspace_root,
-        lockfile_dir,
-        recorded,
-        expected_name,
-        parsed_range_str,
-        &range,
-    )
+    linked_target_satisfies(dirs, recorded, expected_name, parsed_range_str, &range)
 }
 
 fn parse_workspace_range(workspace_spec: &str) -> (Option<&str>, &str) {
@@ -199,8 +189,7 @@ fn snapshot_dep_name_matches(
 }
 
 fn linked_target_satisfies(
-    workspace_root: &Path,
-    lockfile_dir: &Path,
+    dirs: &SpecDirs<'_>,
     link: &str,
     expected_name: &str,
     range_str: &str,
@@ -210,15 +199,7 @@ fn linked_target_satisfies(
     if link_path.is_absolute() {
         return false;
     }
-    let target_dir = lockfile_dir.join(link_path);
-    let Ok(canonical_manifest) = target_manifest_within_workspace(workspace_root, &target_dir)
-    else {
-        return false;
-    };
-    let Ok(content) = std::fs::read_to_string(&canonical_manifest) else {
-        return false;
-    };
-    let Ok(pkg_json) = pnpm_package_manifest::parse_manifest(&content) else {
+    let Some(pkg_json) = target_manifest(dirs, &dirs.lockfile_dir.join(link_path)) else {
         return false;
     };
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {
@@ -237,10 +218,36 @@ fn linked_target_satisfies(
     range.satisfies(&version)
 }
 
-fn target_manifest_within_workspace(
-    workspace_root: &Path,
+/// The manifest of the workspace project at `target_dir`: the one already
+/// loaded for it, else its `package.json`, read only when it stays inside
+/// the workspace.
+fn target_manifest<'a>(
+    dirs: &SpecDirs<'a>,
     target_dir: &Path,
-) -> Result<PathBuf, ()> {
+) -> Option<Cow<'a, serde_json::Value>> {
+    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
+    let manifest_path = target_dir.join("package.json");
+    if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
+        // A project passed in memory may have no `package.json`. One that has
+        // a `package.json` linking outside the workspace is not trusted, as the
+        // disk read below does not trust it.
+        let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
+            && !std::fs::canonicalize(&manifest_path)
+                .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
+        return (!escapes).then_some(Cow::Borrowed(manifest.value()));
+    }
+    let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
+        return None;
+    }
+    let content = std::fs::read_to_string(&canonical_manifest).ok()?;
+    pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
+}
+
+/// The canonical workspace root, when `target_dir` lies inside it both as
+/// written and with symlinks resolved. A loaded project is held to this too,
+/// so a project directory that links outside the workspace is not trusted.
+fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Result<PathBuf, ()> {
     if !pnpm_fs::is_subdir(workspace_root, target_dir) {
         return Err(());
     }
@@ -249,12 +256,7 @@ fn target_manifest_within_workspace(
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
         return Err(());
     }
-    let canonical_manifest =
-        std::fs::canonicalize(target_dir.join("package.json")).map_err(|_| ())?;
-    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
-        return Err(());
-    }
-    Ok(canonical_manifest)
+    Ok(canonical_root)
 }
 
 fn npm_or_registry_spec_satisfies(

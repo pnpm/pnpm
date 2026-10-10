@@ -1,7 +1,9 @@
 pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
-pub(crate) use directory_deps::{ProjectManifestsByDir, project_manifests_by_dir};
+pub(crate) use directory_deps::{
+    ProjectManifestsByDir, dependency_manifests_by_dir, project_manifests_by_dir,
+};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -108,6 +110,8 @@ async fn workspace_manifests_satisfy(
             lockfile_dir: lockfile_root,
             manifests: &manifest_freshness_inputs,
             workspace_packages: workspace_packages.as_ref(),
+            // Projects read from disk carry no dependency manifests.
+            dependency_manifests: None,
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
@@ -155,6 +159,10 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) lockfile_dir: &'a Path,
     pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
     pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    /// The manifests projects expose as injected dependencies where they
+    /// differ from their importer manifests; see
+    /// [`dependency_manifests_by_dir`].
+    pub(super) dependency_manifests: Option<&'a ProjectManifestsByDir<'manifest>>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
@@ -341,8 +349,10 @@ fn check_importer_freshness(
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
-    let project_manifests =
-        project_manifests_by_dir(inputs.manifests.iter().map(|(_, manifest)| *manifest));
+    let project_manifests = project_manifests_by_dir(
+        inputs.manifests.iter().map(|(_, manifest)| *manifest),
+        inputs.dependency_manifests,
+    );
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order.
