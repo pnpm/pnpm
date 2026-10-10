@@ -54,7 +54,7 @@ pub(super) fn classify_missing_peer(
     // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
     // it to a comparable range itself. The optional path below dedupes onto
     // an already-present version, so it uses the display range instead.
-    let mut required_ranges: Vec<&str> = entries
+    let required_ranges: Vec<&str> = entries
         .iter()
         .filter(|entry| !entry.optional)
         .map(|entry| hoistable_peer_range(&entry.raw_range))
@@ -66,23 +66,51 @@ pub(super) fn classify_missing_peer(
         }
         return MissingPeerKind::Optional(ordered);
     }
-    // A workspace shorthand admits any version of the workspace project, so
-    // it narrows nothing next to another consumer's range. Distinct
-    // shorthands alone would not intersect as semver, so they merge into one.
-    if required_ranges
-        .iter()
-        .any(|range| !is_workspace_shorthand(range))
-    {
-        required_ranges.retain(|range| !is_workspace_shorthand(range));
-    } else if required_ranges
-        .windows(2)
-        .any(|pair| pair[0] != pair[1])
-    {
-        required_ranges = vec!["workspace:*"];
+    if required_ranges.iter().any(|range| is_workspace_shorthand(range)) {
+        return merge_with_workspace_shorthand(
+            &required_ranges,
+            auto_install_peers_from_highest_match,
+        );
     }
     match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
         Some(range) => MissingPeerKind::Required(range),
         None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// Merge the ranges of a peer that at least one consumer declares with a
+/// workspace shorthand.
+///
+/// The shorthand admits any version of the workspace project, so only the
+/// other consumers' ranges narrow the merge. The result keeps the
+/// `workspace:` protocol, so a registry package of the same name never
+/// satisfies it. Distinct shorthands alone merge into `workspace:*`.
+fn merge_with_workspace_shorthand(
+    ranges: &[&str],
+    auto_install_peers_from_highest_match: bool,
+) -> MissingPeerKind {
+    let versioned: Vec<&str> = ranges
+        .iter()
+        .copied()
+        .filter(|range| !is_workspace_shorthand(range))
+        .collect();
+    if versioned.is_empty() {
+        let first = ranges[0];
+        let merged = if ranges
+            .iter()
+            .all(|range| *range == first)
+        {
+            first
+        } else {
+            "workspace:*"
+        };
+        return MissingPeerKind::Required(merged.to_string());
+    }
+    match merge_ranges(&versioned, auto_install_peers_from_highest_match) {
+        Some(range) if Range::parse(&range).is_ok() => {
+            MissingPeerKind::Required(format!("workspace:{range}"))
+        }
+        _ => MissingPeerKind::Unhoistable,
     }
 }
 
