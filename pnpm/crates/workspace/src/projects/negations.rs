@@ -22,21 +22,28 @@ pub(super) fn rebase_subtree_negations(
     workspace_root: &Path,
     walk_root: &Path,
 ) -> Vec<String> {
+    let Ok(relative) = workspace_root.strip_prefix(walk_root) else {
+        return Vec::new();
+    };
+    let Some(components) = relative
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .map(|name| wax::escape(name).into_owned())
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    let prefix = components.join("/");
     patterns
         .iter()
-        .filter_map(|pattern| {
-            let relative = workspace_root.strip_prefix(walk_root).ok()?;
-            let prefix = relative
-                .components()
-                .map(|component| {
-                    component
-                        .as_os_str()
-                        .to_str()
-                        .map(|name| wax::escape(name).into_owned())
-                })
-                .collect::<Option<Vec<_>>>()?
-                .join("/");
-            Some(if prefix.is_empty() { pattern.clone() } else { format!("{prefix}/{pattern}") })
-        })
+        .map(
+            |pattern| {
+                if prefix.is_empty() { pattern.clone() } else { format!("{prefix}/{pattern}") }
+            },
+        )
         .collect()
 }
