@@ -29,7 +29,7 @@ use pnpm_resolving_resolver_base::{
 };
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Config deps keep the npm tarball layout: `registries` is a workspace
 /// setting, and config deps are resolved before workspace settings apply. The
@@ -45,6 +45,19 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    let update = BTreeSet::new();
+    resolve_and_install_config_deps_updating::<Reporter>(config_deps, &update, resolver, opts).await
+}
+
+/// [`resolve_and_install_config_deps`], but the config dependencies named in
+/// `update` are resolved again even when the env lockfile already holds
+/// their specifier. Backs `add --config`.
+pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
+    config_deps: &BTreeMap<String, ConfigDependency>,
+    update: &BTreeSet<String>,
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<(), ConfigDepError> {
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
@@ -53,7 +66,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     let mut lockfile_changed = drop_removed_config_deps(&mut env_lockfile, config_deps);
 
     for (name, value) in config_deps {
-        match plan_config_dep(&mut env_lockfile, opts, name, value)? {
+        match plan_config_dep(&mut env_lockfile, opts, name, value, update.contains(name))? {
             ConfigDepPlan::Satisfied => {}
             ConfigDepPlan::Migrated => lockfile_changed = true,
             ConfigDepPlan::Resolve { specifier, integrity } => {
@@ -116,11 +129,15 @@ fn plan_config_dep(
     opts: &ConfigDepsInstallOptions<'_>,
     name: &str,
     value: &ConfigDependency,
+    update: bool,
 ) -> Result<ConfigDepPlan, ConfigDepError> {
     match value {
         ConfigDependency::Detailed(detail) => plan_detailed(env_lockfile, opts, name, detail),
         ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
             plan_pinned(env_lockfile, name, value)
+        }
+        ConfigDependency::VersionWithIntegrity(specifier) if update => {
+            Ok(ConfigDepPlan::Resolve { specifier: specifier.clone(), integrity: None })
         }
         ConfigDependency::VersionWithIntegrity(specifier) => {
             plan_specifier(env_lockfile, name, specifier)

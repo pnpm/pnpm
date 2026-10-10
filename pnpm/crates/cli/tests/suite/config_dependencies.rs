@@ -474,6 +474,41 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
     drop((root, mock_instance));
 }
 
+/// The env lockfile pins `latest` to an older version, as it does once a
+/// newer version is published after the config dependency was added.
+#[test]
+fn add_config_resolves_a_locked_specifier_again() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    set_config_dependencies(&workspace, "'@pnpm.e2e/foo': latest");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    fs::write(&lockfile_path, lockfile.replace("specifier: 100.0.0", "specifier: latest"))
+        .expect("write lockfile");
+
+    pacquet_at(&workspace)
+        .with_args(["add", "--config", "@pnpm.e2e/foo@latest"])
+        .assert()
+        .success();
+
+    let env_lockfile =
+        EnvLockfile::read(&workspace).expect("read env lockfile").expect("env lockfile exists");
+    let dependency = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
+    assert_eq!(dependency.specifier, "latest");
+    assert_eq!(dependency.version, "100.1.0");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn add_config_validates_all_selectors_before_writing_files() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

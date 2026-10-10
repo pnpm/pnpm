@@ -29,7 +29,7 @@ use pnpm_config::{
 };
 use pnpm_env_installer::{
     ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
-    resolve_and_install_config_deps, resolve_package_manager_integrities,
+    resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
     running_version_unpublished,
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
@@ -44,7 +44,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -64,7 +64,9 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     if config_dependencies.is_empty() {
         return Ok(());
     }
-    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
+    let update = BTreeSet::new();
+    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile, &update)
+        .await
 }
 
 /// Install the project's `configDependencies` and run their `updateConfig`
@@ -299,7 +301,8 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
         );
     }
 
-    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
+    let update = added.keys().cloned().collect();
+    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, &update).await?;
 
     pnpm_workspace_manifest_writer::set_config_dependencies(
         root_dir,
@@ -318,6 +321,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,
     root_dir: &Path,
     frozen_lockfile: bool,
+    update: &BTreeSet<String>,
 ) -> Result<()> {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
@@ -347,8 +351,9 @@ async fn resolve_and_install<Reporter: self::Reporter>(
         config.frozen_store,
     )
     .await;
-    let result = resolve_and_install_config_deps::<Reporter>(
+    let result = resolve_and_install_config_deps_updating::<Reporter>(
         config_dependencies,
+        update,
         &context.resolver,
         &options,
     )
