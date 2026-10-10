@@ -1,7 +1,7 @@
 mod catalogs;
 use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
 
-use super::recursive::discover_workspace_projects;
+use super::{recursive::discover_workspace_projects, update::UpdateSaveArgs};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
@@ -107,6 +107,20 @@ impl UpdateDepSpecs {
 
     fn production_groups(&self) -> [Option<&BTreeMap<String, String>>; 2] {
         [self.dependencies.as_ref(), self.optional_dependencies.as_ref()]
+    }
+}
+
+impl UpdateSaveArgs {
+    /// `--changeset` or `--no-changeset`, falling back to
+    /// `updateConfig.changeset`.
+    pub(super) fn generates_changeset(&self, config: &Config) -> bool {
+        if self.changeset {
+            true
+        } else if self.no_changeset {
+            false
+        } else {
+            config.update_config.changeset.unwrap_or(false)
+        }
     }
 }
 

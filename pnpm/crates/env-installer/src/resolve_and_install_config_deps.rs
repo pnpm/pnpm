@@ -10,14 +10,10 @@
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError,
-    install_config_deps::install_config_deps,
-    options::ConfigDepsInstallOptions,
-    parse_integrity::parse_integrity,
-    prune::prune_env_lockfile,
-    resolve_optional_subdeps::resolve_optional_subdeps,
+    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
+    prune::prune_env_lockfile, resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
-    verify_env_lockfile::{assert_valid_migrated_config_dep, write_verified_env_lockfile},
+    verify_env_lockfile::write_verified_env_lockfile,
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
@@ -30,9 +26,12 @@ use pnpm_resolving_resolver_base::{
     ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
     VersionSelectorType, WantedDependency,
 };
-use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
+use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
+
+mod plan;
+use plan::{ToResolve, plan_config_deps};
 
 /// Config deps keep the npm tarball layout: `registries` is a workspace
 /// setting, and config deps are resolved before workspace settings apply. The
@@ -92,20 +91,8 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
-
-    let mut to_resolve: Vec<(String, String, Option<Integrity>)> = Vec::new();
-    let mut lockfile_changed = drop_removed_config_deps(&mut env_lockfile, config_deps);
-
-    for (name, value) in config_deps {
-        let update = updates.prev_specifiers.contains_key(name);
-        match plan_config_dep(&mut env_lockfile, opts, name, value, update)? {
-            ConfigDepPlan::Satisfied => {}
-            ConfigDepPlan::Migrated => lockfile_changed = true,
-            ConfigDepPlan::Resolve { specifier, integrity } => {
-                to_resolve.push((name.clone(), specifier, integrity));
-            }
-        }
-    }
+    let (to_resolve, lockfile_changed) =
+        plan_config_deps(&mut env_lockfile, config_deps, updates, opts)?;
 
     if opts.frozen_lockfile && (lockfile_changed || !to_resolve.is_empty()) {
         return Err(ConfigDepError::FrozenLockfileOutdated {
@@ -119,20 +106,8 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
         return Ok(BTreeMap::new());
     }
 
-    let mut saved_specifiers = BTreeMap::new();
-    for (name, specifier, pinned_integrity) in &to_resolve {
-        let request = ResolveRequest {
-            name,
-            specifier,
-            pinned_integrity: pinned_integrity.as_ref(),
-            updates: updates.prev_specifiers.contains_key(name).then_some(updates),
-        };
-        let saved = resolve_one(&mut env_lockfile, resolver, opts, &request).await?;
-        if request.updates.is_some() {
-            saved_specifiers.insert(name.clone(), saved);
-        }
-    }
-
+    let saved_specifiers =
+        resolve_config_deps(&mut env_lockfile, &to_resolve, updates, resolver, opts).await?;
     // Removal, migration and resolution can each orphan packages and
     // snapshots; drop them before writing.
     prune_env_lockfile(&mut env_lockfile);
@@ -142,105 +117,33 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     Ok(saved_specifiers)
 }
 
-/// Drop env-lockfile entries for config deps that were removed from
-/// `pnpm-workspace.yaml`, so they stop being installed and get pruned from
-/// `.pnpm-config`. Reports whether anything was dropped.
-fn drop_removed_config_deps(
+/// Resolve `to_resolve` into the env lockfile. Returns the specifier each
+/// one in `updates` is recorded with.
+async fn resolve_config_deps(
     env_lockfile: &mut EnvLockfile,
-    config_deps: &BTreeMap<String, ConfigDependency>,
-) -> bool {
-    let importer = env_lockfile.root_importer_mut();
-    let before = importer.config_dependencies.len();
-    importer.config_dependencies.retain(|name, _| config_deps.contains_key(name));
-    importer.config_dependencies.len() != before
-}
-
-/// What one declared config dependency still needs before it can be
-/// installed.
-enum ConfigDepPlan {
-    /// The env lockfile already describes it.
-    Satisfied,
-    /// It was migrated into the env lockfile from the declaration's own
-    /// integrity and tarball, so the lockfile needs writing.
-    Migrated,
-    /// It has to be resolved against the registry.
-    Resolve { specifier: String, integrity: Option<Integrity> },
-}
-
-fn plan_config_dep(
-    env_lockfile: &mut EnvLockfile,
+    to_resolve: &[ToResolve],
+    updates: &ConfigDepUpdates,
+    resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
-    name: &str,
-    value: &ConfigDependency,
-    update: bool,
-) -> Result<ConfigDepPlan, ConfigDepError> {
-    match value {
-        ConfigDependency::Detailed(detail) => plan_detailed(env_lockfile, opts, name, detail),
-        ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
-            plan_pinned(env_lockfile, name, value)
-        }
-        ConfigDependency::VersionWithIntegrity(specifier) if update => {
-            Ok(ConfigDepPlan::Resolve { specifier: specifier.clone(), integrity: None })
-        }
-        ConfigDependency::VersionWithIntegrity(specifier) => {
-            plan_specifier(env_lockfile, name, specifier)
+) -> Result<BTreeMap<String, String>, ConfigDepError> {
+    let mut saved_specifiers = BTreeMap::new();
+    for (name, specifier, pinned_integrity) in to_resolve {
+        let request = ResolveRequest {
+            name,
+            specifier,
+            pinned_integrity: pinned_integrity.as_ref(),
+            updates: updates.prev_specifiers.contains_key(name).then_some(updates),
+        };
+        let saved = resolve_one(env_lockfile, resolver, opts, &request).await?;
+        if request.updates.is_some() {
+            saved_specifiers.insert(name.clone(), saved);
         }
     }
-}
-
-/// A declaration carrying its own tarball URL is recorded without a
-/// resolution round trip.
-fn plan_detailed(
-    env_lockfile: &mut EnvLockfile,
-    opts: &ConfigDepsInstallOptions<'_>,
-    name: &str,
-    detail: &ConfigDependencyDetail,
-) -> Result<ConfigDepPlan, ConfigDepError> {
-    if has_config_dep(env_lockfile, name) {
-        return Ok(ConfigDepPlan::Satisfied);
-    }
-    let (version, integrity) = parse_integrity(name, &detail.integrity)?;
-    assert_valid_migrated_config_dep(name, &version)?;
-    let Some(tarball) = detail.tarball.clone() else {
-        return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
-    };
-    let registry = opts.verification.pick_registry(name);
-    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry)?;
-    Ok(ConfigDepPlan::Migrated)
-}
-
-/// A `<version>+<integrity>` declaration pins the integrity but still needs
-/// the tarball URL a resolution provides.
-fn plan_pinned(
-    env_lockfile: &EnvLockfile,
-    name: &str,
-    value: &str,
-) -> Result<ConfigDepPlan, ConfigDepError> {
-    if has_config_dep(env_lockfile, name) {
-        return Ok(ConfigDepPlan::Satisfied);
-    }
-    let (version, integrity) = parse_integrity(name, value)?;
-    assert_valid_migrated_config_dep(name, &version)?;
-    Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) })
-}
-
-/// A bare specifier is satisfied only when the lockfile already resolved
-/// that exact specifier and still holds the package it resolved to.
-fn plan_specifier(
-    env_lockfile: &EnvLockfile,
-    name: &str,
-    specifier: &str,
-) -> Result<ConfigDepPlan, ConfigDepError> {
-    if let Some(existing) = config_dep(env_lockfile, name)
-        && existing.specifier == *specifier
-        && env_lockfile.packages.contains_key(&pkg_key(name, &existing.version)?)
-    {
-        return Ok(ConfigDepPlan::Satisfied);
-    }
-    Ok(ConfigDepPlan::Resolve { specifier: specifier.to_string(), integrity: None })
+    Ok(saved_specifiers)
 }
 
 /// One config dependency to resolve.
+#[derive(Clone, Copy)]
 struct ResolveRequest<'a> {
     name: &'a str,
     specifier: &'a str,
@@ -263,6 +166,52 @@ impl ResolveRequest<'_> {
             ..WantedDependency::default()
         }
     }
+
+    /// Resolve the request, rejecting a resolution that broke a policy or
+    /// carries no integrity. Returns the result and the version it picked.
+    async fn resolve(
+        &self,
+        resolver: &dyn Resolver,
+        opts: &ConfigDepsInstallOptions<'_>,
+    ) -> Result<(ResolveResult, String), ConfigDepError> {
+        let Self {
+            name,
+            specifier,
+            pinned_integrity,
+            updates,
+        } = *self;
+        let resolve_opts = config_dep_resolve_options(opts, pinned_integrity.is_some(), updates);
+        let no_integrity = || missing_config_integrity(name, specifier);
+        let result = resolver
+            .resolve(&self.wanted_dependency(), &resolve_opts)
+            .await
+            .map_err(|error| ConfigDepError::Resolve {
+                spec: format!("{name}@{specifier}"),
+                error,
+            })?
+            .ok_or_else(no_integrity)?;
+        assert_no_policy_violation(&result)?;
+        if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
+            return Err(no_integrity());
+        }
+        let version = result.package.name_ver
+            .as_ref()
+            .ok_or_else(no_integrity)?
+            .suffix
+            .to_string();
+        Ok((result, version))
+    }
+
+    /// The specifier the resolution is recorded with. A resolver that does
+    /// not compute one leaves the declared specifier.
+    fn saved_specifier(&self, result: &ResolveResult) -> String {
+        match (self.updates, &result.normalized_bare_specifier) {
+            (Some(updates), Some(normalized)) if !updates.keeps_specifier(self.specifier) => {
+                normalized.clone()
+            }
+            _ => self.specifier.to_string(),
+        }
+    }
 }
 
 /// Resolve a single config dependency and record it (plus one level of
@@ -274,40 +223,10 @@ async fn resolve_one(
     opts: &ConfigDepsInstallOptions<'_>,
     request: &ResolveRequest<'_>,
 ) -> Result<String, ConfigDepError> {
-    let &ResolveRequest {
-        name,
-        specifier,
-        pinned_integrity,
-        updates,
-    } = request;
-    let wanted = request.wanted_dependency();
-    let resolve_opts = config_dep_resolve_options(opts, pinned_integrity.is_some(), updates);
-    let no_integrity = || missing_config_integrity(name, specifier);
-    let result = resolver
-        .resolve(&wanted, &resolve_opts)
-        .await
-        .map_err(|error| ConfigDepError::Resolve { spec: format!("{name}@{specifier}"), error })?
-        .ok_or_else(no_integrity)?;
-    assert_no_policy_violation(&result)?;
-
-    if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
-        return Err(no_integrity());
-    }
-    let version = result.package.name_ver
-        .as_ref()
-        .ok_or_else(no_integrity)?
-        .suffix
-        .to_string();
-    let registry = opts.verification.pick_registry(name);
+    let (result, version) = request.resolve(resolver, opts).await?;
+    let ResolveRequest { name, pinned_integrity, .. } = *request;
     let key = pkg_key(name, &version)?;
-    // A resolver that does not compute a specifier leaves the declared one.
-    let saved_specifier = match (updates, &result.normalized_bare_specifier) {
-        (Some(updates), Some(normalized)) if !updates.keeps_specifier(specifier) => {
-            normalized.clone()
-        }
-        _ => specifier.to_string(),
-    };
-
+    let saved_specifier = request.saved_specifier(&result);
     record_config_dependency(
         env_lockfile,
         &key,
@@ -315,7 +234,7 @@ async fn resolve_one(
         &version,
         result.resolution,
         pinned_integrity,
-        registry,
+        opts.verification.pick_registry(name),
     )?;
 
     // A pinned dependency covers only itself, so its optional subdeps stay out

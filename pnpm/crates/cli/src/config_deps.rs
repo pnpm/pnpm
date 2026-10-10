@@ -7,11 +7,15 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
+pub use declarations::{add_config_dependencies, update_config_dependencies};
 pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
     load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
 };
 
+pub(crate) use declarations::declared_specifier;
+
+mod declarations;
 mod network;
 mod store_index;
 
@@ -36,11 +40,10 @@ use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, Resolver, UpdateBehavior, WantedDependency,
+    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
 };
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
@@ -290,104 +293,6 @@ async fn resolve_engine_with(
             reason: violation.reason,
         }),
     }))
-}
-
-/// Add config dependencies: resolve + install them (merged with any
-/// already-declared config deps), then write the specifiers they are saved
-/// with into `pnpm-workspace.yaml`'s `configDependencies` block. Backs
-/// `pacquet add --config`.
-pub async fn add_config_dependencies<Reporter: self::Reporter>(
-    config: &Config,
-    root_dir: &Path,
-    added: &BTreeMap<String, String>,
-    range_spec_style: RangeSpecStyle,
-) -> Result<()> {
-    let declared = config.config_dependencies.clone().unwrap_or_default();
-    let updates = ConfigDepUpdates {
-        prev_specifiers: added
-            .keys()
-            .map(|name| (name.clone(), declared_specifier(&declared, name)))
-            .collect(),
-        behavior: UpdateBehavior::Off,
-        range_spec_style,
-    };
-    let mut config_dependencies = declared;
-    for (name, specifier) in added {
-        config_dependencies.insert(
-            name.clone(),
-            ConfigDependency::VersionWithIntegrity(specifier.clone()),
-        );
-    }
-
-    let saved =
-        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, &updates)
-            .await?;
-    // An integrity-pinned specifier is recorded as written.
-    let specifiers = added
-        .iter()
-        .map(|(name, specifier)| {
-            (
-                name.as_str(),
-                saved
-                    .get(name)
-                    .unwrap_or(specifier)
-                    .as_str(),
-            )
-        });
-    record_config_dependencies(root_dir, specifiers)
-}
-
-/// Resolve the config dependencies in `updates` again and save the
-/// specifiers they resolve to, in `pnpm-workspace.yaml` and in `config`.
-/// Backs `pacquet update`.
-pub async fn update_config_dependencies<Reporter: self::Reporter>(
-    config: &mut Config,
-    root_dir: &Path,
-    updates: &ConfigDepUpdates,
-) -> Result<()> {
-    let Some(config_dependencies) = config.config_dependencies.clone() else {
-        return Ok(());
-    };
-    if updates.prev_specifiers.is_empty() {
-        return Ok(());
-    }
-    let saved =
-        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, updates)
-            .await?;
-    record_config_dependencies(
-        root_dir,
-        saved
-            .iter()
-            .map(|(name, specifier)| (name.as_str(), specifier.as_str())),
-    )?;
-    let declared = config.config_dependencies.get_or_insert_default();
-    for (name, specifier) in saved {
-        declared.insert(name, ConfigDependency::VersionWithIntegrity(specifier));
-    }
-    Ok(())
-}
-
-/// The specifier `pnpm-workspace.yaml` declares for `name`, if it declares
-/// one an update can start from.
-pub(crate) fn declared_specifier(
-    declared: &BTreeMap<String, ConfigDependency>,
-    name: &str,
-) -> Option<String> {
-    match declared.get(name)? {
-        ConfigDependency::VersionWithIntegrity(specifier) if !specifier.contains('+') => {
-            Some(specifier.clone())
-        }
-        _ => None,
-    }
-}
-
-fn record_config_dependencies<'a>(
-    root_dir: &Path,
-    specifiers: impl Iterator<Item = (&'a str, &'a str)>,
-) -> Result<()> {
-    pnpm_workspace_manifest_writer::set_config_dependencies(root_dir, specifiers)
-        .into_diagnostic()
-        .wrap_err("recording the config dependencies in pnpm-workspace.yaml")
 }
 
 /// Build the resolver + install options from `config` and resolve +
