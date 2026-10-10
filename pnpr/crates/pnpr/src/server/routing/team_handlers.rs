@@ -17,9 +17,7 @@ pub(super) struct TeamPath {
     pub(super) team: String,
 }
 
-// --------------------------------------------------------------------
 // Orgs and teams.
-// --------------------------------------------------------------------
 
 /// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
 /// `scope`.

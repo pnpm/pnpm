@@ -357,12 +357,9 @@ fn package_tarball(manifest: &Value) -> Vec<u8> {
     let manifest = manifest.to_string();
     gzipped_tarball(&[("package/package.json", &manifest)])
 }
-
-// --------------------------------------------------------------------
 // End-to-end lifecycle against a hosted in-process pnpr. The shared
 // `pnpm_testing_utils` registry runs in proxy mode and rejects
 // publishes, so these tests serve their own static-mode instance.
-// --------------------------------------------------------------------
 
 /// A hosted pnpr on an ephemeral localhost port, backed by a fresh
 /// storage tempdir (returned so it outlives the test).

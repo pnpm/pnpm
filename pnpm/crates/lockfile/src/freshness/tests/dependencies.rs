@@ -130,12 +130,9 @@ fn optional_only_dependency_match_satisfies() {
     );
     assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
 }
-
-// ---------------------------------------------------------------------------
 // `auto-install-peers` — peers materialized into the importer's
 // `dependencies` must not read as lockfile drift. Ports
 // `packages/lockfile/verification/test/satisfiesPackageManifest.ts`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn peer_only_dependency_is_satisfied_when_auto_install_peers() {

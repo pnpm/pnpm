@@ -2,10 +2,7 @@ use super::{
     AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome,
     validate_username,
 };
-
-// ---------------------------------------------------------------
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
 /// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
@@ -103,10 +100,7 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
         None => PathBuf::from(name),
     }
 }
-
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 /// Hash a password off the reactor — bcrypt at cost 10 takes
 /// ~50–100 ms and stalls every other async task on the same thread

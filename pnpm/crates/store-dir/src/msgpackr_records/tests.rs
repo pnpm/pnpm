@@ -264,8 +264,6 @@ fn rejects_truncated_buffer() {
     let err = transcode_to_plain_msgpack(&[0xd4, 0x72, 0x40, 0x92, 0xa1, b'k']).unwrap_err();
     assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
-
-// ===== Encoder tests =====
 //
 // The round-trip pattern is: `encode` → `transcode_to_plain_msgpack`
 // → `rmp_serde::from_slice`. The transcoder is the Rust
