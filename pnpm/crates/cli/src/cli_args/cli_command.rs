@@ -116,6 +116,20 @@ pub struct CliArgs {
     /// Automatically answer yes to prompts.
     #[clap(short = 'y', long, global = true)]
     pub yes: bool,
+    /// Load environment variables from a dotenv-style file before running.
+    /// Repeat to layer more files: the first file naming a variable wins,
+    /// and variables already in the environment are never overridden. The
+    /// loaded variables are visible to config resolution (`PNPM_CONFIG_<KEY>`
+    /// overrides and `${VAR}` tokens in user-level `.npmrc` files), to
+    /// lifecycle scripts, and to any pnpm the command dispatches to.
+    //
+    // The load runs on the main thread before startup, since the process
+    // environment must not be mutated once another thread is alive. This
+    // field exists so the flag is still accepted, validated, documented,
+    // and completed — a valueless `--env-file` is reported instead of
+    // silently ignored.
+    #[clap(long = "env-file", value_name = "PATH", global = true)]
+    pub env_file: Vec<PathBuf>,
     #[clap(flatten)]
     pub paths: CliPathArgs,
     #[clap(flatten)]

@@ -45,7 +45,7 @@ use crate::{
 };
 use derive_more::Display;
 use identity::{local_bin_identity, provider_of_target};
-use native_shim::{dispatch_legacy_shim, try_native_dispatch};
+use native_shim::dispatch_legacy_shim;
 use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
 use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
@@ -81,17 +81,74 @@ mod trust;
 /// sibling `node` shim included, inherit.
 const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 
-/// Intercept a launch under a shim name, or a legacy shim's `--shim`
-/// invocation of the dispatcher it replaced. `None` means this is pnpm
-/// itself and the regular CLI should proceed; `Some(code)` means the
-/// dispatch ran (or failed) and the process must exit with `code`. On Unix
-/// a successful dispatch never returns at all — the target is `exec`ed in
-/// place.
-pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
-    if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
-        return Some(dispatch_legacy_shim(&argv[2..]));
+/// What this process was launched as, resolved once in [`crate::main`].
+///
+/// Classification reads the shim sidecar, so reading it again later in
+/// dispatch could observe a different answer when a shim install, removal,
+/// or migration lands in between: pnpm would then skip `--env-file`
+/// loading and run as the CLI, or inject the loaded environment into a
+/// newly detected shim target. Resolving once and carrying the verdict
+/// into dispatch keeps the `--env-file` gate and the dispatch consistent.
+pub(crate) enum ShimLaunch {
+    /// Plain pnpm; run the CLI.
+    Cli,
+    /// A legacy shim's `--shim` invocation.
+    Legacy,
+    /// A native shim launch with its recorded target.
+    Native { name: String, bin_dir: PathBuf, target: ShimTarget },
+    /// A shim launch whose target cannot be used. The message is already
+    /// formatted for stderr; dispatch prints it and exits 1.
+    Broken(String),
+}
+
+impl ShimLaunch {
+    /// Classify this launch: a legacy shim's `--shim` invocation, or an
+    /// executable carrying a native shim name with a recorded global
+    /// target. Anything else is pnpm itself. When the launch is a shim,
+    /// the arguments belong to the shim target and pnpm must not
+    /// interpret them (in particular, it must not load `--env-file`
+    /// files named there).
+    pub(crate) fn detect(argv: &[OsString]) -> Self {
+        if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
+            return Self::Legacy;
+        }
+        match native_shim::resolve_native_launch() {
+            native_shim::NativeLaunch::Cli => Self::Cli,
+            native_shim::NativeLaunch::Dispatch { name, bin_dir, target } => {
+                Self::Native { name, bin_dir, target }
+            }
+            native_shim::NativeLaunch::Broken(message) => Self::Broken(message),
+        }
     }
-    try_native_dispatch(argv)
+
+    /// Whether this process was launched as a shim rather than as pnpm
+    /// itself.
+    pub(crate) fn is_shim(&self) -> bool {
+        !matches!(self, Self::Cli)
+    }
+
+    /// Intercept a launch under a shim name, or a legacy shim's `--shim`
+    /// invocation of the dispatcher it replaced. `None` means this is pnpm
+    /// itself and the regular CLI should proceed; `Some(code)` means the
+    /// dispatch ran (or failed) and the process must exit with `code`. On Unix
+    /// a successful dispatch never returns at all — the target is `exec`ed in
+    /// place.
+    pub(crate) fn dispatch(&self, argv: &[OsString]) -> Option<i32> {
+        match self {
+            Self::Cli => None,
+            Self::Legacy => Some(dispatch_legacy_shim(argv.get(2..).unwrap_or_default())),
+            Self::Native { name, bin_dir, target } => {
+                let invocation = ShimInvocation { name, bin_dir, target };
+                let settings = trusted_shim_settings();
+                let args = argv.get(1..).unwrap_or_default();
+                Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
+            }
+            Self::Broken(message) => {
+                eprintln!("{message}");
+                Some(1)
+            }
+        }
+    }
 }
 
 /// The shim being dispatched: its bin name, the directory it lives in

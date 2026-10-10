@@ -32,6 +32,7 @@ mod dialoguer_wasm;
 mod ecosystem_add;
 mod ecosystem_install;
 mod engine_pm;
+mod env_file;
 mod executable_link;
 mod fatal_error;
 mod flag_relocation;
@@ -61,6 +62,10 @@ use pnpm_package_manager::configure_rayon_pool;
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
+// Carrying the command behind the closure below hides its side effects
+// from `clippy::must_use_candidate`, which then wants this attribute.
+// It is correct anyway: dropping the code would always exit 0.
+#[must_use]
 pub fn main() -> ExitCode {
     #[cfg(target_family = "wasm")]
     if let Err(error) = initialize_wasm_paths() {
@@ -70,10 +75,28 @@ pub fn main() -> ExitCode {
     // Runs before anything can print, so the first styled byte already
     // reaches a console that understands it; see `virtual_terminal`.
     virtual_terminal::enable();
-    enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
-    match run_on_big_stack(run_cli) {
+    // The launch verdict is resolved once and carried into the command:
+    // re-reading the shim sidecar later could observe a concurrent shim
+    // install or removal and disagree with the gate below (see
+    // `shim_dispatch::ShimLaunch`).
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    let launch = shim_dispatch::ShimLaunch::detect(&argv);
+    // Load `--env-file` variables here, on the main thread before the
+    // startup thread below exists: `std::env::set_var` must not run once
+    // another thread is alive (see `env_file`). A shim launch is exempt:
+    // its arguments belong to the shim target and travel there untouched.
+    if !launch.is_shim()
+        && let Err(error) = env_file::load_from_argv(&argv)
+    {
+        report_fatal_error(&error);
+        return ExitCode::FAILURE;
+    }
+    // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
+    // define, so it starts only after the load.
+    enable_tracing_by_env();
+    match run_on_big_stack(|| run_cli(&launch, &argv)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             report_fatal_error(&error);
@@ -128,13 +151,13 @@ fn is_reported_error(error: &miette::Report) -> bool {
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
-fn run_cli() -> miette::Result<()> {
-    let argv: Vec<OsString> = std::env::args_os().collect();
+fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Result<()> {
+    let argv = argv.to_vec();
     // A context-aware global shim is this executable launched under the
     // shim's name, so dispatch runs on the raw argv before any rewriting
     // or clap machinery below: a shim named like an alias must not have
     // the alias subcommand injected into the arguments it forwards.
-    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv) {
+    if let Some(exit_code) = launch.dispatch(&argv) {
         #[expect(
             clippy::exit,
             reason = "the shim dispatcher propagates the dispatched command's exit status"
@@ -142,10 +165,14 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let argv_with_alias = argv_with_alias_subcommand(argv);
-    let child_argv = argv_with_alias
-        .iter()
+    // `--env-file` is this binary's own option: an older pnpm a command
+    // dispatches to would reject the unknown flag, so it never reaches the
+    // child — the variables it names travel by environment inheritance
+    // instead (see `env_file`). The strip keeps the program name in place
+    // so the passthrough boundary still computes.
+    let child_argv = env_file::strip_flags(&argv_with_alias)
+        .into_iter()
         .skip(1)
-        .cloned()
         .collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps

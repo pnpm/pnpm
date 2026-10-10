@@ -53,6 +53,7 @@ mod dlx;
 mod docs;
 mod dry_run;
 mod env;
+mod env_file;
 mod exclude_links_from_lockfile;
 mod exec;
 mod exec_recursive;
