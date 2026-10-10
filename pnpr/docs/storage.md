@@ -77,12 +77,17 @@ locking:
   object is tolerated, but an object with different bytes left by a concurrent
   publisher of the same `name@version` is never overwritten; the losing publish
   gets a `409` before it writes any packument.
-- **Shared artifacts** — immutable artifact objects use create-only writes, and
-  the quota counter uses conditional updates across replicas. A publication
-  whose compatibility set overlaps an existing artifact for the same input key
-  gets a `409`; a byte-identical retry succeeds. After an ambiguous object-store
-  write failure, pnpr reclaims blobs referenced by no stored envelope and
-  rebuilds quota once active publications drain.
+- **Shared artifacts** — envelopes and blobs up to 8 MiB use create-only
+  writes, and the quota counter uses conditional updates across replicas. A
+  larger blob is uploaded in parts and committed only once its bytes match its
+  integrity, so a concurrent upload of it can only store the same bytes. A
+  publication whose compatibility set overlaps an existing artifact for the
+  same input key gets a `409`; a byte-identical retry succeeds. After an
+  ambiguous object-store write failure, pnpr reclaims blobs referenced by no
+  stored envelope and rebuilds quota once active publications drain. An upload
+  that fails and cannot be aborted leaves incomplete parts that pnpr cannot
+  list, so give the bucket a lifecycle rule that aborts incomplete multipart
+  uploads.
 
 This applies to the S3 backend. The local filesystem backend keeps its
 single-process behavior, since the shared-store race is specific to replicas

@@ -8,6 +8,8 @@ mod publication;
 
 mod quota;
 
+mod blob_upload;
+
 use std::{
     collections::BTreeMap,
     fmt,
@@ -33,7 +35,7 @@ use pnpm_shared_artifact_protocol::{
     PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse,
     ResolvedArtifact, SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
 };
-use pnpr_config::{HostedStoreConfig, normalize_key_prefix};
+use pnpr_config::{ArtifactQuota, HostedStoreConfig, normalize_key_prefix};
 use pnpr_error::RegistryError;
 use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
@@ -468,5 +470,21 @@ impl ObjectStore for FailArtifactWrites {
         options: RenameOptions,
     ) -> object_store::Result<()> {
         self.inner.rename_opts(from, to, options).await
+    }
+}
+
+/// The rule the store's own tests are written against: a caller reads and
+/// publishes the organization named after it, and nothing else.
+impl super::OrgAccess for str {
+    fn username(&self) -> &str {
+        self
+    }
+
+    fn may_read(&self, org: &str) -> bool {
+        org == self
+    }
+
+    fn may_publish(&self, org: &str) -> bool {
+        org == self
     }
 }

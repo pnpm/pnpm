@@ -303,6 +303,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [sideEffectsCache](./settings/build.md#sideeffectscache)
 * [sideEffectsCacheReadonly](./settings/build.md#sideeffectscachereadonly)
 * [sideEffectsCache.remote](./settings/build.md#sideeffectscacheremote)
+* [remoteCache](./settings/build.md#remotecache)
 * [unsafePerm](./settings/build.md#unsafeperm)
 * [nodeOptions](./settings/build.md#nodeoptions)
 * [verifyDepsBeforeRun](./settings/build.md#verifydepsbeforerun)

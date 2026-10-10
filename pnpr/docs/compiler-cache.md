@@ -11,19 +11,21 @@ developer machines. No pnpm workspace or `package.json` is involved.
 
 ## Declaring a cache
 
+A compiler cache belongs to an organization the server declares under
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces),
+and is named after it:
+
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  compilerCaches:
+  orgs:
     acme:
       access: [ci-builder, alice, bob]
       publish: ci-builder
 ```
 
-These are pnpr account names, and each caller supplies its own pnpr token.
-`access` is required for reads and writes alike; `publish` additionally gates
-writes. An empty list denies access, and the `$authenticated` token works here
-too. An undeclared cache is unavailable.
+Each caller supplies its own pnpr token. `access` is required for reads and
+writes alike; `publish` additionally gates writes.
 
 This is what lets CI publish while developers only read, even where their tokens
 otherwise permit registry writes. Read-only token restrictions are enforced as
@@ -89,8 +91,9 @@ compiler-cache namespace. A cache key is immutable: the first successful `PUT`
 wins. `SCCACHE_WEBDAV_KEY_PREFIX` can select a fresh namespace, though that does
 not reclaim old entries.
 
-The experimental limits are 256 MiB per compiler entry, 1 GiB per owner or cache
-name, and 10 GiB globally across artifacts. A compiler cache sharing a name with
+The experimental limit is 256 MiB per compiler entry. Entries count toward the
+[`artifacts.quota`](configuration.md#registry-resolver-and-artifact-surfaces)
+of their cache name and of the whole artifact store. A compiler cache sharing a name with
 a side-effects owner shares its quota. Live compiler entries are not evicted
 automatically yet.
 

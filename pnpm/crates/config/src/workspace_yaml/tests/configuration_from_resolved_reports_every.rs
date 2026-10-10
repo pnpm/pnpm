@@ -34,6 +34,7 @@ fn from_resolved_reports_every_setting() {
         tag_version_prefix: "release-".to_string(),
         save_catalog_name: Some("default".to_string()),
         pipeline_base: Some("origin/main".to_string()),
+        remote_cache: Some(Box::default()),
         init_author_name: Some("Example".to_string()),
         init_author_email: Some("example@example.com".to_string()),
         init_author_url: Some("https://example.com".to_string()),

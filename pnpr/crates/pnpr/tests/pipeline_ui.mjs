@@ -18,14 +18,15 @@ function element () {
 }
 
 test('run data is rendered as text and credentials are not persisted', async () => {
-  const nodes = new Map(['token', 'status', 'runs', 'detail', 'workspace', 'refresh'].map(id => [id, element()]))
+  const nodes = new Map(['token', 'status', 'runs', 'detail', 'org', 'workspace', 'refresh'].map(id => [id, element()]))
   const body = element()
   nodes.get('runs').querySelector = () => body
   const payload = '<img src=x onerror="stealToken()">'
   const source = readFileSync(new URL('../src/server/pipeline_ui.html', import.meta.url), 'utf8').split('<script>')[1].split('</script>')[0]
   const context = vm.createContext({
     document: { getElementById: id => nodes.get(id), createElement: element },
-    fetch: async () => ({ ok: true, json: async () => ({ runs: [{ workspace: payload, runId: '100-default', summary: { pipeline: payload, base: payload, selection: { mode: payload }, tasks: { build: null } } }] }) }),
+    URLSearchParams,
+    fetch: async () => ({ ok: true, json: async () => ({ runs: [{ org: payload, workspace: payload, runId: '100-default', summary: { pipeline: payload, base: payload, selection: { mode: payload }, tasks: { build: null } } }] }) }),
     localStorage: new Proxy({}, { get () { throw new Error('credentials must stay in memory') } }),
   })
   vm.runInContext(source, context)
@@ -35,5 +36,7 @@ test('run data is rendered as text and credentials are not persisted', async () 
   assert.equal(row.children[1].textContent, payload)
   assert.equal(row.children[2].textContent, payload)
   assert.equal(row.children[3].textContent, payload)
+  assert.equal(row.children[4].textContent, payload)
+  assert.equal(row.dataset.org, payload)
   assert.equal(row.dataset.workspace, payload)
 })

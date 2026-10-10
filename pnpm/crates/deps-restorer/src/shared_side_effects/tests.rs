@@ -200,15 +200,16 @@ mod restore {
         SecretKey,
         pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
     };
-    use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
+    use pnpm_config::{Config, RemoteCacheSettings, RemoteSideEffectsCacheSettings};
     use pnpm_lockfile::{
         ImporterDepVersion, PackageKey, PackageMetadata, ProjectSnapshot, ResolvedDependencySpec,
         SnapshotEntry,
     };
     use pnpm_pnpr_client::{
-        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, ArtifactSubject,
-        BuilderProfile, CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest,
-        SignedArtifactEnvelope,
+        ARTIFACT_KIND, ArtifactBlobSource, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+        ArtifactPayload, ArtifactPublication, ArtifactStore, ArtifactSubject, BuilderProfile,
+        CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest, SignedArtifactEnvelope,
+        TurborepoArtifactStore,
     };
     use pnpm_shared_artifact_protocol::{
         ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
@@ -216,6 +217,7 @@ mod restore {
     use pnpm_store_dir::{
         CafsFileInfo, RemoteSideEffectsOrigin, SYMLINK_MODE, SideEffectsDiff, StoreDir,
     };
+    use pnpm_testing_utils::turborepo_cache::TurborepoCache;
     use sha2::{Digest as _, Sha512};
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
@@ -355,6 +357,22 @@ mod restore {
         let [candidate] = request.candidates.as_slice() else {
             panic!("expected exactly one candidate, got {}", request.candidates.len());
         };
+        let envelope = signed_envelope(candidate, compatibility_tag, manifest);
+        let response = ResolveArtifactsResponse {
+            artifacts: vec![ResolvedArtifact {
+                key: candidate.key.clone(),
+                variants: vec![ArtifactVariant { envelope }],
+            }],
+        };
+        serde_json::to_string(&response).expect("serialize response")
+    }
+
+    /// The fixture build of `candidate`, signed by the fixture key.
+    fn signed_envelope(
+        candidate: &ArtifactCandidate,
+        compatibility_tag: &str,
+        manifest: ArtifactManifest,
+    ) -> SignedArtifactEnvelope {
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
             subject: candidate.subject.clone(),
@@ -375,7 +393,7 @@ mod restore {
         // the wire format the client verifies — and so a payload this test
         // builds wrong fails here rather than being silently discarded as an
         // unverifiable variant.
-        let envelope = SignedArtifactEnvelope::sign(
+        SignedArtifactEnvelope::sign(
             &payload,
             KEY_ID,
             secret_key()
@@ -383,14 +401,7 @@ mod restore {
                 .expect("fixture private key")
                 .as_bytes(),
         )
-        .expect("sign the fixture payload");
-        let response = ResolveArtifactsResponse {
-            artifacts: vec![ResolvedArtifact {
-                key: candidate.key.clone(),
-                variants: vec![ArtifactVariant { envelope }],
-            }],
-        };
-        serde_json::to_string(&response).expect("serialize response")
+        .expect("sign the fixture payload")
     }
 
     #[test]
@@ -508,18 +519,7 @@ mod restore {
         blobs: BTreeMap<String, Vec<u8>>,
         expected_downloads: usize,
     ) -> SideEffectsMapsBySnapshot {
-        let snapshots = snapshots();
-        let importers = importers();
-        let packages = packages();
-        let platform = super::super::artifact_platform(&importers)
-            .expect("the host compatibility floor must be readable on a supported platform");
-        assert_eq!(
-            platform.node_major(),
-            22,
-            "the lockfile's Node pin, not the machine's Node, must decide the platform",
-        );
-        let mut supported_tags = platform.supported_tags().expect("supported tags");
-        let compatibility_tag = supported_tags.swap_remove(0);
+        let compatibility_tag = fixture_platform_tag();
 
         let mut server = mockito::Server::new_async().await;
         let handshake = server
@@ -556,6 +556,71 @@ mod restore {
             .create_async()
             .await;
 
+        let side_effects = apply_with_config(&config(&server.url(), store_dir)).await;
+
+        handshake.assert_async().await;
+        resolve.assert_async().await;
+        blob.assert_async().await;
+        side_effects
+    }
+
+    /// The tag a build of the fixture on this machine is published under.
+    fn fixture_platform_tag() -> String {
+        let platform = super::super::artifact_platform(&importers())
+            .expect("the host compatibility floor must be readable on a supported platform");
+        assert_eq!(
+            platform.node_major(),
+            22,
+            "the lockfile's Node pin, not the machine's Node, must decide the platform",
+        );
+        platform
+            .supported_tags()
+            .expect("supported tags")
+            .swap_remove(0)
+    }
+
+    /// The candidate an install of the fixture asks the remote cache about.
+    /// Its input key is derived from the lockfile and the host, so it is
+    /// learned from a lookup rather than rebuilt here.
+    async fn requested_candidate(store_dir: &StoreDir) -> ArtifactCandidate {
+        let mut server = mockito::Server::new_async().await;
+        let _handshake = server
+            .mock("GET", "/-/pnpr")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .create_async()
+            .await;
+        let requested = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let _resolve = server
+            .mock("POST", "/-/pnpr/v0/artifacts/resolve")
+            .with_header("content-type", "application/json")
+            .with_body_from_request({
+                let requested = std::sync::Arc::clone(&requested);
+                move |request| {
+                    *requested.lock().unwrap() = Some(request.body().unwrap().clone());
+                    br#"{"artifacts":[]}"#.to_vec()
+                }
+            })
+            .create_async()
+            .await;
+        apply_with_config(&config(&server.url(), store_dir)).await;
+        let body = requested
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the install looked the fixture up");
+        let request: ResolveArtifactsRequest = serde_json::from_slice(&body).unwrap();
+        request.candidates
+            .into_iter()
+            .next()
+            .expect("one candidate")
+    }
+
+    /// Apply the shared cache for the fixture snapshot under `config`.
+    async fn apply_with_config(config: &Config) -> SideEffectsMapsBySnapshot {
+        let snapshots = snapshots();
+        let importers = importers();
+        let packages = packages();
         let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
         let mut side_effects = SideEffectsMapsBySnapshot::new();
         let (store_index_writer, store_index_writer_task) =
@@ -571,7 +636,7 @@ mod restore {
                         "row".to_string(),
                     )]),
                 },
-                config: &config(&server.url(), store_dir),
+                config,
                 snapshots: &snapshots,
                 packages: &packages,
                 requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
@@ -593,10 +658,6 @@ mod restore {
         .await;
         drop(store_index_writer);
         store_index_writer_task.await.unwrap().unwrap();
-
-        handshake.assert_async().await;
-        resolve.assert_async().await;
-        blob.assert_async().await;
         side_effects
     }
 
@@ -652,6 +713,57 @@ mod restore {
         let restored = restore(&store_dir, 0).await;
 
         assert_eq!(restored, seeded);
+    }
+
+    /// The restore above, served by a server that speaks the Turborepo Remote
+    /// Cache API instead of a pnpr server.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_build_stored_on_a_turborepo_server_is_restored() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let candidate = requested_candidate(&store_dir).await;
+        let cache = TurborepoCache::start();
+        let envelope = signed_envelope(&candidate, &fixture_platform_tag(), built_manifest());
+        let build = tempfile::tempdir().expect("tempdir");
+        let built = build.path().join("addon.node");
+        std::fs::write(&built, built_bytes()).expect("write the built file");
+        ArtifactStore::Turborepo(TurborepoArtifactStore::new(cache.url(), None, None).unwrap())
+            .publish_artifact(&ArtifactPublication {
+                key: candidate.key.clone(),
+                envelope,
+                blobs: vec![ArtifactBlobSource {
+                    integrity: integrity_of(built_bytes()),
+                    size: built_bytes().len() as u64,
+                    path: built,
+                }],
+            })
+            .await
+            .expect("publish the fixture build");
+
+        let mut config = config("http://pnpr.invalid", &store_dir);
+        config.pnpr_server = None;
+        config.remote_cache = Some(Box::new(RemoteCacheSettings {
+            url: Some(cache.url().to_string()),
+            ..Default::default()
+        }));
+        let side_effects = apply_with_config(&config).await;
+
+        let restored = restored_overlay(&side_effects).files
+            .get(BUILT_FILE)
+            .expect("the built file must be in the overlay");
+        assert_eq!(std::fs::read(restored).expect("read restored"), built_bytes());
     }
 
     /// An artifact that names no files is a build whose whole effect landed
@@ -746,6 +858,23 @@ mod restore {
         config
     }
 
+    /// Answer every blob a publication checks for as missing, and accept its
+    /// upload. Returns the upload mock.
+    async fn accept_blob_uploads(server: &mut mockito::ServerGuard) -> mockito::Mock {
+        server
+            .mock("HEAD", "/-/pnpr/v0/artifacts/blob")
+            .match_query(mockito::Matcher::Any)
+            .with_status(404)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", "/-/pnpr/v0/artifacts/blob")
+            .match_query(mockito::Matcher::Any)
+            .with_status(201)
+            .create_async()
+            .await
+    }
+
     /// Publish `diff` for the fixture snapshot from a blocking thread, the
     /// way the build phase does.
     async fn publish(config: Config, store_dir: StoreDir, diff: SideEffectsDiff) {
@@ -797,6 +926,7 @@ mod restore {
         let store_dir = StoreDir::new(store.path());
         let mut server = mockito::Server::new_async().await;
         let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
 
         let untouched = server
             .mock("PUT", "/-/pnpr/v0/artifacts")
@@ -831,6 +961,7 @@ mod restore {
         };
         publish(config, store_dir, built).await;
         published.assert_async().await;
+        uploads.assert_async().await;
     }
 
     /// A build that created a symlink is shared like any other.
@@ -852,6 +983,7 @@ mod restore {
         let store_dir = StoreDir::new(store.path());
         let mut server = mockito::Server::new_async().await;
         let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
         let published = server
             .mock("PUT", "/-/pnpr/v0/artifacts")
             .expect(1)
@@ -875,5 +1007,6 @@ mod restore {
         publish(config, store_dir, linked).await;
 
         published.assert_async().await;
+        uploads.assert_async().await;
     }
 }

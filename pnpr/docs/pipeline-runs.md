@@ -12,20 +12,24 @@ scrollback of whichever machine ran them.
 ```yaml title="pnpr.yaml"
 pipeline:
   enabled: true
-  workspaces:
-    acme-app:
-      access: [team:platform]
+artifacts:
+  orgs:
+    acme:
+      access: [alice, bob]
       publish: ci-builder
 ```
 
-`access` decides who may list and read a workspace's runs, `publish` who may
-submit one. A workspace nobody may access is invisible rather than forbidden: a
-listing filters to what the caller can see, and a read of an unreadable
-workspace answers `404`.
+A run is recorded under the organization the client's
+[`remoteCache.org`](/settings/build#remotecache) names, which must be one the
+server declares under
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
+`access` decides who may list and read the organization's runs, `publish` who
+may submit one. An organization nobody may access is invisible rather than
+forbidden: a listing filters to what the caller can see, and a read of an
+unreadable organization answers `404`.
 
-The workspace key is the identity `pnpm pipeline` derives from the workspace
-root directory. Run the command once with `--report` and read the name back from
-the listing.
+Within an organization, runs are grouped by workspace: the identity
+`pnpm pipeline` derives from the workspace root directory.
 
 Records live with the hosted packages, so a run submitted through one replica is
 listed and served by every other.
@@ -49,9 +53,9 @@ Each submission carries a summary document and the run's event stream.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `PUT` | `/-/pnpr/v0/pipeline/runs` | Record one run. Requires `publish` on the run's workspace. |
-| `GET` | `/-/pnpr/v0/pipeline/runs` | The most recent run summaries, newest first. Accepts `workspace` and `limit`. |
-| `GET` | `/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}` | One run's full record, event stream included. |
+| `PUT` | `/-/pnpr/v0/pipeline/runs` | Record one run. Requires `publish` on the run's organization. |
+| `GET` | `/-/pnpr/v0/pipeline/runs` | The most recent run summaries, newest first. Accepts `org`, `workspace`, and `limit`. |
+| `GET` | `/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}` | One run's full record, event stream included. |
 | `GET` | `/-/pnpr/v0/pipeline` | A self-contained web viewer over the two read endpoints. |
 
 The viewer is static HTML with no data of its own. The reads it issues carry the

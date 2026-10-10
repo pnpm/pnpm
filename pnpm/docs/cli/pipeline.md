@@ -92,9 +92,49 @@ tasks:
 
 pnpm points Cargo's target and build directories at that path and always executes the task, restoring an immutable snapshot of the previous build state rather than the task's own outputs. The directory must be relative to the project and ignored by git. Snapshots are stored apart from installed packages, so evicting one can never break an installation.
 
+## Sharing the cache between machines
+
+Added in: v12.12.0
+
+A cacheable task's result can also be shared through the server [`remoteCache`](../settings/build.md#remotecache) names: a server that speaks the Turborepo Remote Cache API, such as Vercel Remote Cache, or a [pnpr](/pnpr) server. A CI run that publishes its results lets a later run on another machine restore them instead of running the tasks.
+
+Results are signed artifacts, the same kind the [remote side-effects cache](../settings/build.md#sideeffectscacheremote) uses. A machine restores a result only when it is signed by one of its `trustedKeys`, so only the machines that hold a private key can publish results others will use.
+
+```yaml title="pnpm-workspace.yaml"
+remoteCache:
+  org: acme
+```
+
+```yaml title="~/.config/pnpm/config.yaml"
+remoteCache:
+  url: https://vercel.com/api
+  team: team_abc123
+  token: <access token>
+  trustedKeys:
+    ci-2026: <base64 public key>
+```
+
+On the machine that publishes, usually CI, add the private key and turn publishing on. A published result includes the task's output files and its captured terminal output, so publish only from machines whose logs every reader may see:
+
+```sh
+export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
+export PNPM_REMOTE_CACHE_TEAM=team_abc123
+export PNPM_REMOTE_CACHE_TOKEN=<access token>
+export PNPM_REMOTE_CACHE_TRUSTED_KEYS='{"ci-2026":"<base64 public key>"}'
+export PNPM_REMOTE_CACHE_PRIVATE_KEY=<base64 private key>
+export PNPM_REMOTE_CACHE_KEY_ID=ci-2026
+export PNPM_REMOTE_CACHE_BUILDER_ID=ci
+export PNPM_REMOTE_CACHE_PUBLISH=true
+pnpm pipeline
+```
+
+See [Shared side-effects cache](/pnpr/shared-side-effects-cache#publishing-from-a-builder) for how to generate a key pair.
+
+A remote result that is missing, untrusted, or fails verification is a miss, and the task runs. A server that cannot be reached never fails the run. A task's outputs are published when they are at most 10,000 files, each at most 4 GiB and all together at most 16 GiB. [Cargo build state](#reusing-cargo-build-state) stays on the local machine.
+
 ## Reporting a run
 
-Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration); `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
+Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration), under the organization [`remoteCache.org`](../settings/build.md#remotecache) names; `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
 
 ## Watching a repository
 

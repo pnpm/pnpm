@@ -115,6 +115,7 @@ impl WorkspaceSettings {
             python: Some(config.python.clone()),
             tools: Some(config.tools.clone()),
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
+            remote_cache: config.remote_cache.as_deref().cloned(),
             reporter_hide_prefix: config.reporter_hide_prefix,
             loglevel: config.loglevel,
             reporter: config.reporter,

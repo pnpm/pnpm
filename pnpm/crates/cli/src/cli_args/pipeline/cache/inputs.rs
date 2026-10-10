@@ -199,7 +199,7 @@ impl TaskCache {
         Ok(Some(create_hex_hash(&components.join("\0"))))
     }
 
-    fn project_rel(&self, project: &Path) -> String {
+    pub fn project_rel(&self, project: &Path) -> String {
         pathdiff::diff_paths(project, &self.workspace_root)
             .map(|path| path.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"))
             .filter(|path| !path.is_empty())

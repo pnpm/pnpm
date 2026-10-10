@@ -5,12 +5,13 @@ use super::{
     LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
     NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
     PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
-    PythonSettings, RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
-    SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
-    SkillsSettings, SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings,
-    TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings,
-    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
+    PythonSettings, RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures,
+    SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
+    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
+    drop_placeholders, fs, read_readable_settings, redact_and_sanitize, resolvable_placeholders,
+    resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -297,6 +298,7 @@ pub struct WorkspaceSettings {
     #[serde(default, deserialize_with = "crate::workspace_yaml::deserialize_tools")]
     pub tools: Option<BTreeMap<Tool, ToolSettings>>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
+    pub remote_cache: Option<RemoteCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,

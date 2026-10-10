@@ -9,7 +9,8 @@ pub use compatibility::{
     linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
     platform_fingerprint, validate_supported_tags, windows_supported_tags, windows_tag,
 };
-pub use validation::{blob_id, validate_manifest_path, verify_blob};
+pub use signatures::decode_trusted_keys;
+pub use validation::{blob_id, validate_manifest_path, verify_blob, verify_blob_digest};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
@@ -30,9 +31,19 @@ pub const SIGNATURE_ALGORITHM: &str = "ecdsa-p256-sha256";
 pub const MAX_CANDIDATES: usize = 2_048;
 pub const MAX_VARIANTS_PER_CANDIDATE: usize = 8;
 pub const MAX_MANIFEST_FILES: usize = 10_000;
-pub const MAX_FILE_SIZE: u64 = 64 * 1024 * 1024;
-pub const MAX_ARTIFACT_SIZE: u64 = 64 * 1024 * 1024;
-pub const MAX_ENCODED_FILE_SIZE: usize = (MAX_FILE_SIZE as usize).div_ceil(3) * 4;
+pub const DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS: ArtifactSizeLimits =
+    ArtifactSizeLimits { file: 64 * 1024 * 1024, artifact: 64 * 1024 * 1024 };
+/// A task's outputs can hold release binaries, so a task result is allowed
+/// far more than a dependency build. Its blobs are streamed, never held in
+/// memory whole.
+pub const WORKSPACE_TASK_SIZE_LIMITS: ArtifactSizeLimits =
+    ArtifactSizeLimits { file: 4 * 1024 * 1024 * 1024, artifact: 16 * 1024 * 1024 * 1024 };
+/// The largest blob any artifact kind admits.
+pub const MAX_BLOB_SIZE: u64 = WORKSPACE_TASK_SIZE_LIMITS.file;
+/// What a publication may carry inline, base64-encoded in its JSON body. A
+/// larger blob is uploaded on its own.
+pub const MAX_INLINE_UPLOAD_SIZE: u64 = 64 * 1024 * 1024;
+pub const MAX_ENCODED_FILE_SIZE: usize = (MAX_INLINE_UPLOAD_SIZE as usize).div_ceil(3) * 4;
 pub const MAX_SIGNED_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
 /// The file-type bits of an added entry that records a symlink. The entry's
 /// content is the link target, stored and transferred as a regular file, so
@@ -52,6 +63,15 @@ pub const MAX_ENCODED_SIGNATURE_SIZE: usize = MAX_SIGNATURE_SIZE.div_ceil(3) * 4
 pub const MAX_RESOLVE_RESPONSE_SIZE: usize = 16 * 1024 * 1024;
 const COMPATIBILITY_FLOOR_RANK_OFFSET: u64 = 64;
 const COMPATIBILITY_FLOOR_RANK_STRIDE: u64 = 1_000_000_000_000;
+
+/// How large one kind of artifact may be, in bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactSizeLimits {
+    /// One file.
+    pub file: u64,
+    /// Every file the manifest adds.
+    pub artifact: u64,
+}
 
 #[derive(Debug, Display, Error)]
 pub enum ArtifactProtocolError {
@@ -266,6 +286,14 @@ impl ArtifactSubject {
     #[must_use]
     pub fn workspace_task(project: impl Into<String>, task: impl Into<String>) -> Self {
         Self::WorkspaceTask { project: project.into(), task: task.into() }
+    }
+
+    #[must_use]
+    pub fn size_limits(&self) -> ArtifactSizeLimits {
+        match self {
+            Self::DependencySideEffects { .. } => DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS,
+            Self::WorkspaceTask { .. } => WORKSPACE_TASK_SIZE_LIMITS,
+        }
     }
 
     fn artifact_kind_and_input_key_prefix(&self) -> (&'static str, &'static str) {

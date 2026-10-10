@@ -9,7 +9,7 @@ pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, LockfileSetting, PackageExtension,
-    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
+    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteCacheSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
     TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };

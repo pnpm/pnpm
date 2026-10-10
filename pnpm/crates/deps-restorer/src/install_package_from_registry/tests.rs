@@ -128,6 +128,7 @@ fn create_config(
         cargo: Default::default(),
         python: Default::default(),
         remote_side_effects_cache: None,
+        remote_cache: None,
         registries_by_prefix: Default::default(),
         registry_options_by_url: Default::default(),
         auto_install_peers: false,

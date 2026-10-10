@@ -26,6 +26,8 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
+pub use staged_records::PipelineRunKey;
+
 mod staged_records;
 
 mod registry_records;
@@ -565,23 +567,13 @@ impl Storage {
     // about something that happened once, not derived data a replica can
     // rebuild, so it lives in the hosted store every replica shares rather
     // than on the replica that happened to receive it. Records are
-    // append-only, keyed `<workspace>/<run id>`.
+    // append-only, keyed `<org>/<workspace>/<run id>`.
 }
 
 /// Reserved directory (fs) / key segment (S3) holding staged publishes.
 /// The leading dot keeps it out of the package namespace: a package name
 /// can never start with `.`.
 pub(crate) const STAGED_DIR: &str = ".staged";
-
-/// Reserved namespace holding pipeline run records, versioned so a later
-/// record shape can live beside this one.
-pub(crate) const PIPELINE_RUNS_DIR: &str = ".pipeline-runs/v0";
-
-/// A run's key within its namespace. The identifiers are the client's, so
-/// they are checked here as well as by the endpoint that accepts them.
-fn pipeline_run_key(workspace: &str, run_id: &str) -> Result<String> {
-    Ok(format!("{}/{}", validated_record_name(workspace)?, validated_record_name(run_id)?))
-}
 
 /// Reject any identifier that could smuggle a path segment before it reaches
 /// a filesystem path or object key.

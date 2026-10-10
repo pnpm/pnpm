@@ -74,13 +74,25 @@ has an [`s3:` block](storage.md), they live under the reserved
 conditional quota updates let several stateless pnpr replicas share one
 artifact tier.
 
-Artifacts are stored per owner. In this proof of concept an `organization`
-owner's name must equal the authenticated pnpr username, so the login name a
-client uses is the organization it may read and write. Publisher-owned artifacts
-are rejected until publisher discovery is defined.
+Artifacts are stored per owner, an organization the server declares under
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
+Its `access` list decides who may restore its artifacts and its `publish` list
+who may publish them:
 
-pnpr enforces its own storage bounds: at most eight variants per input key,
-1 GiB per owner, and 10 GiB across the server's artifact cache. Local storage
+```yaml title="config.yaml"
+artifacts:
+  enabled: true
+  orgs:
+    acme:
+      access: [ci-builder, alice, bob]
+      publish: ci-builder
+```
+
+Publisher-owned artifacts are rejected until publisher discovery is defined.
+
+pnpr enforces its own storage bounds: at most eight variants per input key, and
+the [`artifacts.quota`](configuration.md#registry-resolver-and-artifact-surfaces)
+per owner and across the server's artifact cache. Local storage
 serializes updates with an advisory lock; S3 replicas coordinate the quota
 counter with conditional object writes. A lookup's scanned envelope bytes plus
 its serialized response share one 16 MiB budget.
@@ -142,6 +154,12 @@ over both files — the shape a CI runner wants for material it must not commit:
 The `PNPM_REMOTE_SIDE_EFFECTS_CACHE_*` names still work, and the ones above win
 when both are set.
 
+Since pnpm v12.12.0, `org` and the trust material can also be set under the
+[`remoteCache`](/settings/build#remotecache) setting, which the task cache of
+`pnpm pipeline` shares. A field set there wins over the same field under
+`sideEffectsCache.remote`. `remoteCache.url` stores the artifacts on a server
+that speaks the Turborepo Remote Cache API instead of on pnpr.
+
 The repository and the machine each contribute the half they own: a workspace
 naming `org` and `packages` keeps whatever trust material the global
 file or the environment supplied.
@@ -159,7 +177,8 @@ export PNPM_SIDE_EFFECTS_CACHE_REMOTE_BUILDER_ID='ci/main/42'
 ```
 
 `pnpm install` then runs the lifecycle scripts as usual, captures the actual
-post-build diff, signs it, and stores it with
+post-build diff, and signs it. It uploads each blob the server lacks with
+`PUT /-/pnpr/v0/artifacts/blob`, then stores the signed envelope with
 `PUT /-/pnpr/v0/artifacts`. `imageDigest`, `architectureBaseline` and `buildEnv`
 are optional provenance recorded in the signed payload. Never commit the private
 key.

@@ -879,3 +879,117 @@ fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
     assert_eq!(config.hoist_pattern, Some(vec!["eslint-*".to_string()]));
     assert_eq!(config.public_hoist_pattern, defaults.public_hoist_pattern);
 }
+
+#[test]
+fn rejects_workspace_controlled_remote_cache_secrets() {
+    for (setting, field) in [
+        ("url: https://attacker.example", "url"),
+        ("team: team_attacker", "team"),
+        ("token: repository-controlled-token", "token"),
+        ("trustedKeys:\n    ci: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+        ("keyId: ci", "keyId"),
+        ("builderId: ci/main/1", "builderId"),
+        ("publish: true", "publish"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n    CC: clang", "buildEnv"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("remoteCache:\n  org: acme\n  {setting}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(&format!("remoteCache.{field}")), "{error}");
+    }
+}
+
+#[test]
+fn a_workspace_naming_the_org_keeps_the_machines_remote_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "remoteCache:\n  org: acme\n")
+        .unwrap();
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        "remoteCache:\n  url: https://cache.example.com\n  team: team_acme\n  token: machine-token\n  privateKey: machine-key\n  publish: true\n",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .unwrap()
+        .apply_to(&mut config, dir.path());
+
+    assert_eq!(
+        config.remote_cache_settings(),
+        crate::RemoteCacheSettings {
+            url: Some("https://cache.example.com".to_string()),
+            team: Some("team_acme".to_string()),
+            token: Some("machine-token".to_string()),
+            org: Some("acme".to_string()),
+            private_key: Some("machine-key".to_string()),
+            publish: Some(true),
+            ..Default::default()
+        },
+    );
+}
+
+/// `sideEffectsCache.remote` held the signing fields before `remoteCache`
+/// did, so a machine configured that way keeps its trust, and `remoteCache`
+/// wins where both set a field.
+#[test]
+fn remote_cache_falls_back_to_the_side_effects_signing_fields() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        "sideEffectsCache:\n  remote:\n    org: older-org\n    keyId: older-key\n    builderId: ci/older\n    trustedKeys:\n      older-key: AAAA\nremoteCache:\n  keyId: newer-key\n",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+
+    let settings = config.remote_cache_settings();
+    assert_eq!(settings.org.as_deref(), Some("older-org"));
+    assert_eq!(settings.key_id.as_deref(), Some("newer-key"));
+    assert_eq!(settings.builder_id.as_deref(), Some("ci/older"));
+    assert_eq!(
+        settings.trusted_keys,
+        Some(std::collections::BTreeMap::from([("older-key".to_string(), "AAAA".to_string())])),
+    );
+}
+
+#[test]
+fn remote_cache_environment_overrides_the_files() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_REMOTE_CACHE_TOKEN" => Some("ci-token".to_string()),
+                "PNPM_REMOTE_CACHE_TRUSTED_KEYS" => Some(r#"{"ci":"AAAA"}"#.to_string()),
+                "PNPM_REMOTE_CACHE_BUILD_ENV" => Some("not json".to_string()),
+                "PNPM_REMOTE_CACHE_PUBLISH" => Some("true".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    config.remote_cache = Some(Box::new(crate::RemoteCacheSettings {
+        url: Some("https://cache.example.com".to_string()),
+        token: Some("file-token".to_string()),
+        ..Default::default()
+    }));
+    config.apply_remote_cache_env::<Env>();
+
+    let remote = config.remote_cache_settings();
+    assert_eq!(remote.url.as_deref(), Some("https://cache.example.com"));
+    assert_eq!(remote.token.as_deref(), Some("ci-token"));
+    assert_eq!(
+        remote.trusted_keys,
+        Some(std::collections::BTreeMap::from([("ci".to_string(), "AAAA".to_string())])),
+    );
+    assert_eq!(remote.build_env, None);
+    assert_eq!(remote.publish, Some(true));
+}

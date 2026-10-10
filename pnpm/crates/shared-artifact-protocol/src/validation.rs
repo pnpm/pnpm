@@ -1,7 +1,7 @@
 use super::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactProtocolError, ArtifactSubject, BASE64, BTreeMap, BuilderProfile,
-    HashSet, MAX_ARTIFACT_SIZE, MAX_ENCODED_FILE_SIZE, MAX_FILE_SIZE, MAX_MANIFEST_FILES,
+    ArtifactPayload, ArtifactProtocolError, ArtifactSizeLimits, ArtifactSubject, BASE64, BTreeMap,
+    BuilderProfile, HashSet, MAX_ENCODED_FILE_SIZE, MAX_INLINE_UPLOAD_SIZE, MAX_MANIFEST_FILES,
     OwnerScope, PackageIdentity, PublishArtifactRequest, SYMLINK_MODE, Sha512,
     ValidatedArtifactPublication, validate_compatibility,
 };
@@ -39,6 +39,7 @@ fn decode_uploaded_blob(
 /// be declared with one size.
 fn validate_added_file<'a>(
     file: &'a ArtifactFile,
+    max_size: u64,
     integrity_sizes: &mut BTreeMap<&'a String, u64>,
 ) -> Result<(), ArtifactProtocolError> {
     if file.mode != 0o644 && file.mode != 0o755 && file.mode != SYMLINK_MODE {
@@ -47,7 +48,7 @@ fn validate_added_file<'a>(
             file.path, file.mode,
         )));
     }
-    if file.size > MAX_FILE_SIZE {
+    if file.size > max_size {
         return Err(ArtifactProtocolError::InvalidManifest(format!(
             "path {:?} exceeds the per-file size limit",
             file.path,
@@ -150,8 +151,14 @@ pub fn blob_id(integrity: &str) -> Result<String, ArtifactProtocolError> {
 }
 
 pub fn verify_blob(integrity: &str, bytes: &[u8]) -> Result<(), ArtifactProtocolError> {
+    verify_blob_digest(integrity, &Sha512::digest(bytes))
+}
+
+/// [`verify_blob`] for bytes hashed as they streamed past: `digest` is their
+/// SHA-512.
+pub fn verify_blob_digest(integrity: &str, digest: &[u8]) -> Result<(), ArtifactProtocolError> {
     let expected = blob_id(integrity)?;
-    let actual = hex(&Sha512::digest(bytes));
+    let actual = hex(digest);
     if expected != actual {
         return Err(ArtifactProtocolError::InvalidBlobIntegrity(
             "downloaded bytes do not match the declared digest".to_string(),
@@ -284,9 +291,9 @@ impl PublishArtifactRequest {
                         "uploaded blob size overflow".to_string(),
                     )
                 })?;
-            if uploaded_size > MAX_ARTIFACT_SIZE {
+            if uploaded_size > MAX_INLINE_UPLOAD_SIZE {
                 return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
-                    "uploaded blobs exceed the {MAX_ARTIFACT_SIZE}-byte artifact limit",
+                    "inline blobs exceed the {MAX_INLINE_UPLOAD_SIZE}-byte limit",
                 )));
             }
             blobs.insert(blob.integrity.clone(), bytes);
@@ -315,7 +322,7 @@ impl ArtifactPayload {
         self.subject.validate(&self.owner)?;
         validate_builder_profile(&self.builder_profile)?;
         validate_compatibility(&self.compatibility)?;
-        self.manifest.validate()
+        self.manifest.validate(self.subject.size_limits())
     }
 }
 
@@ -371,7 +378,7 @@ impl ArtifactBlobRequest {
 }
 
 impl ArtifactManifest {
-    pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
+    pub fn validate(&self, limits: ArtifactSizeLimits) -> Result<(), ArtifactProtocolError> {
         let file_count = self.added.len().saturating_add(self.deleted.len());
         if file_count > MAX_MANIFEST_FILES {
             return Err(ArtifactProtocolError::InvalidManifest(format!(
@@ -385,15 +392,16 @@ impl ArtifactManifest {
         for file in &self.added {
             validate_manifest_path(&file.path)?;
             insert_unique_path(&file.path, &mut exact_paths, &mut folded_paths)?;
-            validate_added_file(file, &mut integrity_sizes)?;
+            validate_added_file(file, limits.file, &mut integrity_sizes)?;
             total_size = total_size
                 .checked_add(file.size)
                 .ok_or_else(|| {
                     ArtifactProtocolError::InvalidManifest("artifact size overflow".to_string())
                 })?;
-            if total_size > MAX_ARTIFACT_SIZE {
+            if total_size > limits.artifact {
                 return Err(ArtifactProtocolError::InvalidManifest(format!(
-                    "artifact exceeds the {MAX_ARTIFACT_SIZE}-byte size limit",
+                    "artifact exceeds the {}-byte size limit",
+                    limits.artifact,
                 )));
             }
         }

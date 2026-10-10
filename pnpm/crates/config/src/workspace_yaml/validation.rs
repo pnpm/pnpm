@@ -141,7 +141,27 @@ impl WorkspaceSettings {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
         }
-        Ok(())
+        self.reject_machine_only_remote_cache_fields(path)
+    }
+
+    /// The token and everything that describes signing belong to the
+    /// machine, for the reasons [`Self::reject_repo_controlled_trust_material`]
+    /// gives for `sideEffectsCache.remote`.
+    fn reject_machine_only_remote_cache_fields(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(settings) = self.remote_cache.as_ref() else {
+            return Ok(());
+        };
+        let Some((field, _)) = settings
+            .machine_only_fields()
+            .into_iter()
+            .find(|(_, is_set)| *is_set)
+        else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust { path: path.to_path_buf(), field })
     }
 
     pub(super) fn reject_machine_only_fields(
