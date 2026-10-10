@@ -212,7 +212,6 @@ pub(super) fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Edit(_)
             | CliCommand::Profile(_)
             | CliCommand::Token(_)
-            | CliCommand::Xmas(_)
             | CliCommand::SelfUpdate(_)
             | CliCommand::Setup(_)
             | CliCommand::Shim(_)
@@ -250,8 +249,7 @@ pub(super) fn should_skip_command_name(command: &str) -> bool {
             | "shim"
             | "store"
             | "token"
-            | "with"
-            | "xmas",
+            | "with",
     )
 }
 
