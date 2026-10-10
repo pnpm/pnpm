@@ -177,5 +177,8 @@ libc = { workspace = true }
 pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
 
+[build-dependencies]
+winresource = { workspace = true }
+
 [lints]
 workspace = true
