@@ -479,9 +479,49 @@ fn json_env_rejects_non_http_scheme() {
 fn json_env_rejects_invalid_scope_name() {
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"@org/pkg":{"authToken":"tok"}}}"#
+        )]
     );
     assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+/// A key shaped like a scope entry but missing its `@` is a typo, not a field
+/// a later pnpm defines: dropping it would drop the scope's route.
+#[test]
+fn json_env_rejects_a_scope_missing_its_at() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+    );
+    let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
+    assert!(error.contains(r#"did you mean "@org"?"#), "{error}");
+}
+
+/// The global config is shared by every pnpm on the machine, so a field a
+/// later version defines under a registry URL must not stop this one. A key
+/// that starts with `@` is a scope, and stays strict.
+#[test]
+fn json_auth_skips_unknown_fields_under_a_registry() {
+    static_env!(Env, &[]);
+    let global = serde_json::json!({
+        "https://registry.example": {
+            "authToken": "credential-only",
+            "laterSetting": { "enabled": true },
+            "@": { "authToken": "registry-token" },
+        },
+    });
+    let auth =
+        NpmrcAuth::from_json_sources::<Env>(Some(&global)).expect("unknown fields are skipped");
+    assert_eq!(default_auth_token(&auth, "//registry.example/"), Some(Some("registry-token")));
+    assert_eq!(
+        auth.warnings,
+        vec![
+            r#"Ignoring the unknown field "authToken" under https://registry.example/ in _auth"#,
+            r#"Ignoring the unknown field "laterSetting" under https://registry.example/ in _auth"#,
+        ],
+    );
 }
 
 #[test]

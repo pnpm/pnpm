@@ -26,7 +26,7 @@ export interface JsonAuthResult {
   defaultCandidates?: string[]
 }
 
-export function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
+export function readJsonAuthEnv (env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
   if (value == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
 
@@ -36,7 +36,7 @@ export function readJsonAuthEnv (env: Record<string, string | undefined>): JsonA
   } catch (err: unknown) {
     throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${isError(err) ? err.message : String(err)}`)
   }
-  return parseJsonAuth(parsed, 'pnpm_config__auth')
+  return parseJsonAuth(parsed, 'pnpm_config__auth', warnings)
 }
 
 /**
@@ -47,8 +47,15 @@ export function readJsonAuthEnv (env: Record<string, string | undefined>): JsonA
  * Strict: any malformed entry throws. Both sources are user-controlled, so a
  * typo should fail fast rather than silently drop auth. `source` names the
  * origin in errors; raw URL keys are never echoed — they can embed secrets.
+ *
+ * The exception is a key under a registry URL that does not start with `@`
+ * and is not shaped like a scope entry: a field a later pnpm may define. It
+ * is skipped with a warning, since the global config is shared by every pnpm
+ * version on the machine, and one an older version does not know must not
+ * stop it. A scope-shaped key missing its `@` is a typo, and dropping it
+ * would drop the scope's route, so it still throws.
  */
-function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
+function parseJsonAuth (parsed: unknown, source: string, warnings: string[]): JsonAuthResult {
   if (!isJsonObject(parsed)) {
     throw new PnpmError('INVALID_AUTH_SETTING', `${source} must be a JSON object`)
   }
@@ -60,7 +67,10 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}] must be an object keyed by scope`)
     }
     for (const [scope, rawCreds] of Object.entries(scopes)) {
-      addJsonAuthScope(collected, { registry, scope, rawCreds, source })
+      const entry = { registry, scope, rawCreds, source }
+      if (!skipFieldForALaterPnpm(entry, warnings)) {
+        addJsonAuthScope(collected, entry)
+      }
     }
   }
   const { auth, registries, defaultCandidates } = collected
@@ -101,14 +111,28 @@ function addJsonAuthScope (collected: CollectedJsonAuth, { registry, scope, rawC
   }
 }
 
+/**
+ * Whether `entry` is a field a later pnpm may define rather than a scope, in
+ * which case it is skipped with a warning. A scope-shaped key missing its
+ * `@` throws (see `parseJsonAuth`).
+ */
+function skipFieldForALaterPnpm ({ registry, scope, rawCreds, source }: JsonAuthScopeEntry, warnings: string[]): boolean {
+  if (scope.startsWith('@')) return false
+  if (isJsonObject(rawCreds) && 'authToken' in rawCreds) {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: scope must be "@" or a package scope like "@org" (did you mean "@${scope}"?)`)
+  }
+  warnings.push(`Ignoring the unknown field ${JSON.stringify(scope)} under ${registry.normalized} in _auth`)
+  return true
+}
+
 function isJsonObject (value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
-export function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
+export function readGlobalConfigAuth (globalConfigAuth: unknown, warnings: string[]): JsonAuthResult {
   if (globalConfigAuth == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
-  return parseJsonAuth(globalConfigAuth, '_auth')
+  return parseJsonAuth(globalConfigAuth, '_auth', warnings)
 }
 
 interface JsonAuthRegistry {

@@ -99,6 +99,13 @@ interface GetConfigOptions {
   forSelfUpdate?: boolean
   /** Collects warnings as they are found, so they survive a failed load. */
   warnings?: string[]
+  /**
+   * Read no configuration file: neither the global config.yaml, the
+   * `.npmrc` files and `auth.ini`, `_auth`, nor the settings of
+   * `pnpm-workspace.yaml`. Only for switching to the pnpm a project pins when
+   * a full load fails, since the pinned pnpm reads the configuration itself.
+   */
+  defaultsOnly?: boolean
 }
 
 interface GetConfigResult {
@@ -136,7 +143,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   const workspaceManifestRegistries = opts.ignoreLocalSettings
     ? undefined
-    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate })
+    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, defaultsOnly: opts.defaultsOnly })
   resolveRegistriesByScope(state, { ...initialRegistries, globalYamlRegistries, workspaceManifestRegistries })
 
   const maxSocketsFromEnv = applyEnvVarSettings(state)
@@ -198,7 +205,9 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
   const env = opts.env ?? process.env
   const defaultOptions = createDefaultOptions(opts.workspaceDir)
   const configDir = getConfigDir(process)
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const globalYamlConfig = opts.defaultsOnly
+    ? undefined
+    : await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
     defaultOptions: defaultOptions as Record<string, unknown>,
@@ -213,6 +222,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
     warnings: opts.warnings,
+    ignoreConfigFiles: opts.defaultsOnly,
   })
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)

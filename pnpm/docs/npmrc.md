@@ -163,6 +163,8 @@ It is **ignored** in a project `pnpm-workspace.yaml` or `.npmrc`, so a checked-o
 
 The value is keyed by registry URL, so each secret is explicitly bound to the host that may receive it. Registry URL keys must use `http` or `https` and must not include credentials, query strings, or fragments. Within each registry URL, `@` means registry-wide (default) credentials, and a package scope such as `@org` binds credentials to that scope on the same host. The only supported credential field is `authToken` (it maps to `_authToken` / bearer auth); the deprecated `basicAuth` / `username` + `password` forms and `tokenHelper` are not accepted here.
 
+A key under a registry URL that does not start with `@` is skipped with a warning, so a field a later pnpm defines does not stop this one. A key that holds an `authToken` object but lacks its `@`, such as `org` for `@org`, is an error.
+
 In the global `config.yaml`:
 
 ```yaml title="config.yaml"

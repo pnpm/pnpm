@@ -105,11 +105,11 @@ impl RemoteSideEffectsCacheSettings {
 /// it, artifacts go to `pnprServer`.
 ///
 /// Like [`RemoteSideEffectsCacheSettings`], one section assembled from several
-/// sources: a repository may name `org`, while the server, its credential,
-/// and everything that describes the act of signing travel with the machine.
-/// `token` is not scoped to a URL the way `.npmrc` credentials are, so a
-/// repository that could name `url` could send the token anywhere. Loading a
-/// `pnpm-workspace.yaml` that sets one of those fails with
+/// sources: a repository may name `org`, while the server and everything
+/// that describes the act of signing travel with the machine. The server's
+/// credential is not here: it is the auth settings' credential for `url`.
+/// Loading a `pnpm-workspace.yaml` that sets one of the machine's fields
+/// fails with
 /// [`LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust`](crate::workspace_yaml::error::LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust).
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
@@ -128,10 +128,6 @@ pub struct RemoteCacheSettings {
     /// Sent as `teamId` when it starts with `team_`, as `slug` otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub team: Option<String>,
-    /// Bearer token for [`Self::url`]. Without one, the `.npmrc` credentials
-    /// for the URL are used.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token: Option<String>,
     /// The organization that owns the artifacts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
@@ -163,7 +159,6 @@ impl RemoteCacheSettings {
         let Self {
             url,
             team,
-            token,
             org,
             trusted_keys,
             private_key,
@@ -176,7 +171,6 @@ impl RemoteCacheSettings {
         } = other;
         overlay_some(&mut self.url, url);
         overlay_some(&mut self.team, team);
-        overlay_some(&mut self.token, token);
         overlay_some(&mut self.org, org);
         overlay_some(&mut self.trusted_keys, trusted_keys);
         overlay_some(&mut self.private_key, private_key);
@@ -210,11 +204,10 @@ impl RemoteCacheSettings {
 
     /// The fields a committed file may not set, with whether this section
     /// sets each.
-    pub(crate) fn machine_only_fields(&self) -> [(&'static str, bool); 11] {
+    pub(crate) fn machine_only_fields(&self) -> [(&'static str, bool); 10] {
         [
             ("url", self.url.is_some()),
             ("team", self.team.is_some()),
-            ("token", self.token.is_some()),
             ("trustedKeys", self.trusted_keys.is_some()),
             ("privateKey", self.private_key.is_some()),
             ("keyId", self.key_id.is_some()),

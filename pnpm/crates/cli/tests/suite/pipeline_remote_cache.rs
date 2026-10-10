@@ -68,13 +68,19 @@ fn pnpm_on_machine(project: &Path, machine: &Path, runs: &Path) -> Command {
     command
 }
 
+/// The auth setting that holds the token for `cache`, as a machine's auth
+/// file or environment names it.
+fn cache_token_key(cache: &TurborepoCache) -> String {
+    format!("{}:_authToken", pnpm_network::nerf_dart(&format!("{}/", cache.url())))
+}
+
 /// [`pnpm_on_machine`] on a machine that names `cache` in its environment.
 fn pnpm_with_cache(project: &Path, machine: &Path, runs: &Path, cache: &TurborepoCache) -> Command {
     let mut command = pnpm_on_machine(project, machine, runs);
     command
         .env("PNPM_REMOTE_CACHE_URL", cache.url())
         .env("PNPM_REMOTE_CACHE_TEAM", TEAM)
-        .env("PNPM_REMOTE_CACHE_TOKEN", TOKEN);
+        .env(format!("pnpm_config_{}", cache_token_key(cache)), TOKEN);
     command
 }
 
@@ -99,7 +105,12 @@ fn a_task_published_from_one_machine_is_restored_on_another() {
     fs::create_dir_all(builder.join("config/pnpm")).unwrap();
     fs::write(
         builder.join("config/pnpm/config.yaml"),
-        format!("remoteCache:\n  url: {}\n  team: {TEAM}\n  token: {TOKEN}\n  trustedKeys:\n    {KEY_ID}: {public_key}\n  privateKey: {private_key}\n  keyId: {KEY_ID}\n  builderId: ci/main/1\n  publish: true\n", cache.url()),
+        format!("remoteCache:\n  url: {}\n  team: {TEAM}\n  trustedKeys:\n    {KEY_ID}: {public_key}\n  privateKey: {private_key}\n  keyId: {KEY_ID}\n  builderId: ci/main/1\n  publish: true\n", cache.url()),
+    )
+    .unwrap();
+    fs::write(
+        builder.join("config/pnpm/auth.ini"),
+        format!("{}={TOKEN}\n", cache_token_key(&cache)),
     )
     .unwrap();
     pnpm_on_machine(&project, &builder, &runs)

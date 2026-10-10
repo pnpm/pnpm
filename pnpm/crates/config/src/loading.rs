@@ -61,6 +61,49 @@ impl Config {
         self.current_inner::<Sys>(start_dir, true).map_err(|failure| failure.error)
     }
 
+    /// The configuration from built-in defaults, the workspace root the
+    /// directory tree places, and the environment and CLI values, with no
+    /// configuration file or credential read. Only for switching to the pnpm
+    /// a project pins when [`Config::current`] fails: the pinned pnpm reads
+    /// the configuration itself, and may understand what this one rejects.
+    pub fn current_from_defaults<Sys>(
+        mut self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
+        self.state_dir.clone_from(&default_state_dir);
+        self.anchor_default_module_dirs(start_dir);
+        self.config_dir = default_config_dir::<Sys>();
+        self.workspace_search_skipped = self.ignore_workspace;
+        let workspace_dir = if self.ignore_workspace {
+            None
+        } else {
+            pnpm_workspace::WORKSPACE_DIR_ENV_VARS
+                .iter()
+                .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    crate::workspace_yaml::find_workspace_manifest(start_dir)
+                        .and_then(|manifest| manifest.parent().map(Path::to_path_buf))
+                })
+        };
+        let mut explicit = ExplicitPaths::default();
+        self.apply_workspace_yaml::<Sys>(
+            workspace_dir.map(|dir| (dir, None)),
+            &mut explicit,
+            &mut crate::npmrc_auth::DeclaredRegistries::default(),
+            false,
+        )?;
+        self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
+        self.apply_cli_setting_values(&mut explicit, &default_state_dir, start_dir);
+        self.apply_store_derivations::<Sys>(explicit, &mut NpmrcAuth::default(), start_dir)?;
+        self.apply_layout_derivations::<Sys>();
+        Ok(self)
+    }
+
     pub(super) fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,

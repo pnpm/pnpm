@@ -113,7 +113,8 @@ fn pre_command_plan_from_input(
                 .ok_or(error);
         }
     };
-    let pin = resolve_pin(input, config_overrides, &dir, process_state, config)?;
+    let pin =
+        resolve_pin(input, config_overrides, &dir, process_state, config, ConfigLoad::default())?;
     let (config, package_manager_to_sync) = match pin.action {
         PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
         PreCommandAction::Continue { config, package_manager_to_sync } => {
@@ -128,8 +129,12 @@ fn pre_command_plan_from_input(
     }))
 }
 
-/// Switch to the pinned pnpm when the configuration fails to load only
-/// because of settings this pnpm cannot read, which the pinned one may.
+/// Switch to the pinned pnpm when the configuration fails to load, since
+/// the pinned one may read what this one cannot. The configuration is read
+/// again without the `pnpm-workspace.yaml` settings this pnpm cannot read,
+/// and only when that fails too, with no configuration file at all: no
+/// setting may keep a project from the pnpm it pins, while one this pnpm can
+/// read, such as a `pmOnFail` that declines the switch, still decides.
 /// `None` leaves the failure to be reported.
 fn switch_past_unreadable_settings(
     input: &PreCommandInput,
@@ -137,9 +142,15 @@ fn switch_past_unreadable_settings(
     dir: &Path,
     process_state: SwitchProcessState,
 ) -> Option<PreCommandPlan> {
-    let load = ConfigLoad { resolve_store: false, skip_unreadable_settings: true };
-    let config = load_pre_command_config(input, config_overrides, dir, load).ok()?;
-    match resolve_pin(input, config_overrides, dir, process_state, config).ok()?.action {
+    let readable = ConfigLoad { skip_unreadable_settings: true, ..ConfigLoad::default() };
+    let (load, config) = match load_pre_command_config(input, config_overrides, dir, readable) {
+        Ok(config) => (readable, config),
+        Err(_) => {
+            let defaults = ConfigLoad { defaults_only: true, ..ConfigLoad::default() };
+            (defaults, load_pre_command_config(input, config_overrides, dir, defaults).ok()?)
+        }
+    };
+    match resolve_pin(input, config_overrides, dir, process_state, config, load).ok()?.action {
         PreCommandAction::Switch(plan) => Some(PreCommandPlan::Switch(plan)),
         PreCommandAction::Continue { .. } => None,
     }
@@ -160,6 +171,7 @@ fn resolve_pin(
     dir: &Path,
     process_state: SwitchProcessState,
     config: Config,
+    load: ConfigLoad,
 ) -> miette::Result<PinReading> {
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
@@ -171,7 +183,7 @@ fn resolve_pin(
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
     let outcome =
         resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
-    let action = plan_pin_action(outcome, input, config_overrides, dir, config)?;
+    let action = plan_pin_action(outcome, input, config_overrides, dir, config, load)?;
     Ok(PinReading { action, manifest, env_root: roots.env, running_matches_pin })
 }
 
@@ -192,11 +204,9 @@ fn plan_pin_action(
     config_overrides: &ConfigOverrides,
     dir: &Path,
     config: Config,
+    load: ConfigLoad,
 ) -> miette::Result<PreCommandAction> {
-    let load = ConfigLoad {
-        resolve_store: true,
-        skip_unreadable_settings: config.skip_unreadable_workspace_settings,
-    };
+    let load = ConfigLoad { resolve_store: true, ..load };
     match outcome {
         PinOutcome::Switch(target) => {
             let mut config = load_pre_command_config(input, config_overrides, dir, load)?;

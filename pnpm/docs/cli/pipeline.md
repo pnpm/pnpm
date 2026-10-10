@@ -109,7 +109,6 @@ remoteCache:
 remoteCache:
   url: https://vercel.com/api
   team: team_abc123
-  token: <access token>
   trustedKeys:
     ci-2026: <base64 public key>
 ```
@@ -117,11 +116,11 @@ remoteCache:
 On the machine that publishes, usually CI, add the private key and turn publishing on. A published result includes the task's output files and its captured terminal output, so publish only from machines whose logs every reader may see:
 
 ```sh
+pnpm config set //vercel.com/api/:_authToken "$VERCEL_TOKEN"
 export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
 export PNPM_REMOTE_CACHE_TEAM=team_abc123
-export PNPM_REMOTE_CACHE_TOKEN=<access token>
-export PNPM_REMOTE_CACHE_TRUSTED_KEYS='{"ci-2026":"<base64 public key>"}'
-export PNPM_REMOTE_CACHE_PRIVATE_KEY=<base64 private key>
+export PNPM_REMOTE_CACHE_TRUSTED_KEYS="{\"ci-2026\":\"$PUBLIC_KEY\"}"
+export PNPM_REMOTE_CACHE_PRIVATE_KEY="$PRIVATE_KEY"
 export PNPM_REMOTE_CACHE_KEY_ID=ci-2026
 export PNPM_REMOTE_CACHE_BUILDER_ID=ci
 export PNPM_REMOTE_CACHE_PUBLISH=true

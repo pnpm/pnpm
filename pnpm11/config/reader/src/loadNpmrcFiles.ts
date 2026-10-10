@@ -71,6 +71,8 @@ export interface LoadNpmrcConfigOpts {
   globalConfigAuth?: unknown
   /** Receives the warnings as they are found, so they survive a throw. */
   warnings?: string[]
+  /** Read neither the `.npmrc` files, `auth.ini`, nor `_auth`. */
+  ignoreConfigFiles?: boolean
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -141,6 +143,12 @@ interface NpmrcSources {
 }
 
 function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSourcesContext): NpmrcSources {
+  if (opts.ignoreConfigFiles) {
+    const cli = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
+    const builtin = readPnpmBuiltinConfig(opts.moduleDirname, warnings, env)
+    const jsonAuth = { auth: {}, registries: {}, fallbackRegistries: {} }
+    return { builtin, user: {}, authIni: {}, workspace: {}, envScoped: {}, jsonAuth, cli }
+  }
   const userConfigPath = normalizePath(opts.npmrcAuthFile) ?? path.resolve(os.homedir(), '.npmrc')
 
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
@@ -193,8 +201,8 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
 // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
 // key of the global pnpm config yaml. The env var wins on conflict.
 function readJsonAuth (globalConfigAuth: unknown, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
-  const envJsonAuth = readJsonAuthEnv(env)
-  const globalConfigJsonAuth = readGlobalConfigAuth(globalConfigAuth)
+  const envJsonAuth = readJsonAuthEnv(env, warnings)
+  const globalConfigJsonAuth = readGlobalConfigAuth(globalConfigAuth, warnings)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: envJsonAuth.registries,

@@ -28,7 +28,7 @@ import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSet
  */
 export async function applyLocalSettings (
   state: ConfigBuildState,
-  { forSelfUpdate }: { forSelfUpdate?: boolean }
+  { forSelfUpdate, defaultsOnly }: { forSelfUpdate?: boolean, defaultsOnly?: boolean }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig, warnings } = state
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
@@ -42,6 +42,12 @@ export async function applyLocalSettings (
 
   await readEnginePinManifest(state)
 
+  if (defaultsOnly) {
+    if (pnpmConfig.workspaceDir != null) {
+      pnpmConfig.workspacePackagePatterns = ['.']
+    }
+    return undefined
+  }
   if (pnpmConfig.workspaceDir != null) {
     return applyProjectWorkspaceManifest(state, { forSelfUpdate, workspaceDir: pnpmConfig.workspaceDir })
   }

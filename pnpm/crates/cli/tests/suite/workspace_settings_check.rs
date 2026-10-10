@@ -94,6 +94,42 @@ fn an_unrecognized_task_setting_does_not_stop_the_switch_to_the_pinned_version()
     drop((root, mock_instance));
 }
 
+/// No setting may keep a project from the pnpm it pins: the pinned version
+/// reads the configuration itself, and may understand what this one rejects.
+/// Here every source this pnpm reads is unusable to it.
+#[test]
+fn unreadable_configuration_does_not_stop_the_switch_to_the_pinned_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    write_workspace_yaml(&workspace, "packages: [\n");
+    let global_config = root.path().join("xdg-config/pnpm");
+    fs::create_dir_all(&global_config).expect("create the global config dir");
+    fs::write(global_config.join("config.yaml"), "registry: [not, a, url\n")
+        .expect("write the global config");
+    let mut pacquet = pacquet;
+    pacquet
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .env(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"laterField":"x"},"not a url":1}"#,
+        );
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

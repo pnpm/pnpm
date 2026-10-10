@@ -29,9 +29,7 @@ impl ArtifactStore {
         settings: &RemoteCacheSettings,
     ) -> Result<Option<ArtifactStore>, PnprClientError> {
         if let Some(url) = settings.url.as_deref() {
-            let authorization = settings.token
-                .as_ref()
-                .map(|token| format!("Bearer {token}"));
+            let authorization = config.auth_headers.for_secure_url(url);
             return TurborepoArtifactStore::new(url, settings.team.as_deref(), authorization)
                 .map(|store| Some(ArtifactStore::Turborepo(store)))
                 .map_err(remote_cache_error);

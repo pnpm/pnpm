@@ -182,7 +182,6 @@ remoteCache:
 remoteCache:
   url: https://vercel.com/api
   team: team_abc123
-  token: <access token>
   trustedKeys:
     ci-2026: <base64 P-256 SubjectPublicKeyInfo DER public key>
 ```
@@ -192,14 +191,13 @@ remoteCache:
 | `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. |
 | `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
 | `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the organizations it declares under [`artifacts.orgs`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |
-| `token` | Global config or environment | The bearer token for `url`. |
 | `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
 | `publish` | Global config or environment | `true` publishes what this machine builds: dependency builds and `pnpm pipeline` task results. A task result includes the task's output files and its captured terminal output. Defaults to `false`. Set under `sideEffectsCache.remote`, it publishes dependency builds only. |
 | `privateKey`, `keyId`, `builderId` | Global config or environment | The key that signs published artifacts, the id consumers trust it under, and a label for the builder. Required with `publish`. |
 | `imageDigest`, `architectureBaseline`, `buildEnv` | Global config or environment | Optional provenance recorded in the signed artifact. |
 
 Every field is also read from the environment as `PNPM_REMOTE_CACHE_` followed
-by the field name in upper snake case, such as `PNPM_REMOTE_CACHE_TOKEN`.
+by the field name in upper snake case, such as `PNPM_REMOTE_CACHE_URL`.
 `trustedKeys` and `buildEnv` take a JSON object there. The environment takes
 precedence over both files. A `pnpm-workspace.yaml` that sets a field marked
 "Global config or environment" fails with
@@ -208,19 +206,17 @@ server could have the machine's token sent to a server of its choosing.
 
 #### Authenticating with Vercel Remote Cache
 
-Create an access token in your Vercel account settings, under Tokens, scoped
-to the team that owns the cache. In CI, store it as a secret and pass it in
-the environment:
+`pnpm` sends the server the credential its
+[authentication settings](../npmrc.md) hold for `url`, as it does for a
+registry. Create an access token in your Vercel account settings, under
+Tokens, scoped to the team that owns the cache, and store it:
 
 ```sh
-export PNPM_REMOTE_CACHE_URL=https://vercel.com/api
-export PNPM_REMOTE_CACHE_TEAM=team_abc123
-export PNPM_REMOTE_CACHE_TOKEN="$VERCEL_TOKEN"
+pnpm config set //vercel.com/api/:_authToken "$VERCEL_TOKEN"
 ```
 
-On your own machine, keep it as `remoteCache.token` in the
-[global configuration file](../cli/config.md) instead, as in the example
-above.
+Use this form rather than [`_auth`](../npmrc.md#_auth). An `_auth` entry also
+routes package requests to its URL.
 
 `pnpm` does not read the token `turbo login` stores. That token expires within
 hours, and only `turbo` renews it.

@@ -885,7 +885,6 @@ fn rejects_workspace_controlled_remote_cache_secrets() {
     for (setting, field) in [
         ("url: https://attacker.example", "url"),
         ("team: team_attacker", "team"),
-        ("token: repository-controlled-token", "token"),
         ("trustedKeys:\n    ci: repository-controlled-key", "trustedKeys"),
         ("privateKey: repository-controlled-key", "privateKey"),
         ("keyId: ci", "keyId"),
@@ -913,7 +912,7 @@ fn a_workspace_naming_the_org_keeps_the_machines_remote_cache() {
     std::fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "remoteCache:\n  org: acme\n")
         .unwrap();
     let global: WorkspaceSettings = serde_saphyr::from_str(
-        "remoteCache:\n  url: https://cache.example.com\n  team: team_acme\n  token: machine-token\n  privateKey: machine-key\n  publish: true\n",
+        "remoteCache:\n  url: https://cache.example.com\n  team: team_acme\n  privateKey: machine-key\n  publish: true\n",
     )
     .unwrap();
 
@@ -929,7 +928,6 @@ fn a_workspace_naming_the_org_keeps_the_machines_remote_cache() {
         crate::RemoteCacheSettings {
             url: Some("https://cache.example.com".to_string()),
             team: Some("team_acme".to_string()),
-            token: Some("machine-token".to_string()),
             org: Some("acme".to_string()),
             private_key: Some("machine-key".to_string()),
             publish: Some(true),
@@ -966,7 +964,7 @@ fn remote_cache_environment_overrides_the_files() {
     impl crate::EnvVar for Env {
         fn var(key: &str) -> Option<String> {
             match key {
-                "PNPM_REMOTE_CACHE_TOKEN" => Some("ci-token".to_string()),
+                "PNPM_REMOTE_CACHE_TEAM" => Some("team_ci".to_string()),
                 "PNPM_REMOTE_CACHE_TRUSTED_KEYS" => Some(r#"{"ci":"AAAA"}"#.to_string()),
                 "PNPM_REMOTE_CACHE_BUILD_ENV" => Some("not json".to_string()),
                 "PNPM_REMOTE_CACHE_PUBLISH" => Some("true".to_string()),
@@ -978,14 +976,14 @@ fn remote_cache_environment_overrides_the_files() {
     let mut config = Config::new();
     config.remote_cache = Some(Box::new(crate::RemoteCacheSettings {
         url: Some("https://cache.example.com".to_string()),
-        token: Some("file-token".to_string()),
+        team: Some("team_file".to_string()),
         ..Default::default()
     }));
     config.apply_remote_cache_env::<Env>();
 
     let remote = config.remote_cache_settings();
     assert_eq!(remote.url.as_deref(), Some("https://cache.example.com"));
-    assert_eq!(remote.token.as_deref(), Some("ci-token"));
+    assert_eq!(remote.team.as_deref(), Some("team_ci"));
     assert_eq!(
         remote.trusted_keys,
         Some(std::collections::BTreeMap::from([("ci".to_string(), "AAAA".to_string())])),

@@ -27,6 +27,7 @@ export async function getConfig (
     forSelfUpdate?: boolean
     ignoreProjectNpmrc?: boolean
     printWarnings?: boolean
+    defaultsOnly?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   const warnings: string[] = []
@@ -41,6 +42,7 @@ export async function getConfig (
       forSelfUpdate: opts.forSelfUpdate,
       ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
       warnings,
+      defaultsOnly: opts.defaultsOnly,
     })
     context.cliOptions = cliOptions
     context.rawCliConfig = opts.rawCliConfig

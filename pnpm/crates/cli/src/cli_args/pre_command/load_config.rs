@@ -11,6 +11,8 @@ pub(super) struct ConfigLoad {
     pub(super) resolve_store: bool,
     /// See [`Config::skip_unreadable_workspace_settings`].
     pub(super) skip_unreadable_settings: bool,
+    /// Read no configuration file at all. See [`Config::current_from_defaults`].
+    pub(super) defaults_only: bool,
 }
 
 /// Load the configuration the pre-command pass reads, with the global
@@ -30,17 +32,21 @@ pub(super) fn load_pre_command_config(
     );
     config.skip_store_dir_resolution = !load.resolve_store;
     config.skip_unreadable_workspace_settings = load.skip_unreadable_settings;
-    let mut config = config
-        .current_keeping_warnings::<Host>(dir)
-        .map_err(|failure| {
-            // A load that skips unreadable settings retries one that failed
-            // and printed these already.
-            if input.key_issues != KeyIssueReporting::Skip && !load.skip_unreadable_settings {
-                emit_npmrc_warnings(&failure.warnings);
-            }
-            miette::Report::new(failure.error)
-        })
-        .wrap_err("load configuration")?;
+    let loaded = if load.defaults_only {
+        config.current_from_defaults::<Host>(dir).map_err(miette::Report::new)
+    } else {
+        config
+            .current_keeping_warnings::<Host>(dir)
+            .map_err(|failure| {
+                // A load that skips unreadable settings retries one that failed
+                // and printed these already.
+                if input.key_issues != KeyIssueReporting::Skip && !load.skip_unreadable_settings {
+                    emit_npmrc_warnings(&failure.warnings);
+                }
+                miette::Report::new(failure.error)
+            })
+    };
+    let mut config = loaded.wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {
         config.color = color;

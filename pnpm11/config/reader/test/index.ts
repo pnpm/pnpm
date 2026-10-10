@@ -2549,6 +2549,29 @@ test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async 
   })).rejects.toThrow('only "authToken" is supported')
 })
 
+test('pnpm_config__auth skips a field under a registry URL that is not a scope', async () => {
+  prepareEmpty()
+
+  // The global config is shared by every pnpm on the machine, so a field a
+  // later version defines must not stop this one. Scope keys stay strict.
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          authToken: 'credential-only',
+          '@': { authToken: 'registry-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('registry-token')
+  expect(warnings).toContain('Ignoring the unknown field "authToken" under https://json-test.example/ in _auth')
+})
+
 test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
   prepareEmpty()
 
@@ -2693,8 +2716,15 @@ test('pnpm_config__auth registry URL with credentials or query aborts the load w
 
 test('pnpm_config__auth invalid scope name aborts the load', async () => {
   prepareEmpty()
-  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  const error = await expectAuthError({ 'https://json-test.example': { '@org/pkg': { authToken: 'token' } } })
   expect(error.message).toContain('scope must be')
+})
+
+test('pnpm_config__auth scope missing its @ aborts the load', async () => {
+  prepareEmpty()
+  // A typo, not a field a later pnpm defines: dropping it would drop the scope's route.
+  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  expect(error.message).toContain('did you mean "@org"?')
 })
 
 test('pnpm_config__auth scope value that is not an auth object aborts the load', async () => {
