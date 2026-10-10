@@ -101,9 +101,10 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
         return opts.auto_install_peers.then(|| range.to_string());
     };
     // A `workspace:` range resolves to the workspace project. A preferred
-    // version may belong to a registry package of the same name.
+    // version may belong to a registry package of the same name, so the
+    // peer is not deduped onto one.
     if range.starts_with("workspace:") {
-        return Some(range.to_string());
+        return opts.auto_install_peers.then(|| range.to_string());
     }
     preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
 }

@@ -217,13 +217,17 @@ fn returns_valid_specifier_when_given_only_range_preferred_version_selectors() {
 #[test]
 fn keeps_a_workspace_range_instead_of_a_preferred_version() {
     let preferred = preferred(&[("foo", &[("1.0.0", plain(VersionSelectorType::Version))])]);
-    for auto_install_peers in [true, false] {
-        let result =
-            hoist_peers(&opts(auto_install_peers, &preferred), &[missing("foo", "workspace:*")]);
-        let mut expected = BTreeMap::new();
-        expected.insert("foo".to_string(), "workspace:*".to_string());
-        assert_eq!(result, expected);
-    }
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "workspace:*")]);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "workspace:*".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn leaves_a_workspace_peer_missing_without_auto_install_peers() {
+    let preferred = preferred(&[("foo", &[("1.0.0", plain(VersionSelectorType::Version))])]);
+    let result = hoist_peers(&opts(false, &preferred), &[missing("foo", "workspace:*")]);
+    assert_eq!(result, BTreeMap::new());
 }
 
 #[test]
