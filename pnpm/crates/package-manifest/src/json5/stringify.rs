@@ -97,7 +97,7 @@ fn write_key(out: &mut String, key: &str) {
     }
 }
 
-fn is_identifier(key: &str) -> bool {
+pub(crate) fn is_identifier(key: &str) -> bool {
     let mut characters = key.chars();
     match characters.next() {
         Some(first) if is_id_start(first) => characters.all(is_id_continue),
@@ -113,8 +113,18 @@ fn is_id_continue(character: char) -> bool {
     is_id_start(character) || character.is_ascii_digit()
 }
 
+/// Render `value` as a JSON5 string literal delimited by `quote`.
+pub(crate) fn quote_string(value: &str, quote: char) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    write_quoted(&mut out, value, quote);
+    out
+}
+
 fn write_string(out: &mut String, value: &str) {
-    let quote = choose_quote(value);
+    write_quoted(out, value, choose_quote(value));
+}
+
+fn write_quoted(out: &mut String, value: &str, quote: char) {
     out.push(quote);
     let mut characters = value.chars().peekable();
     while let Some(character) = characters.next() {
