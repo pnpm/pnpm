@@ -261,7 +261,7 @@ jobs:
     # npm trusted publishing still requires this publish job to run on GitHub-hosted macOS.
     runs-on: macos-latest
     env:
-      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
+      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64-glibc,linux-arm64-glibc,linux-x64-musl,win32-x64,win32-arm64'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -280,12 +280,12 @@ jobs:
           runtime: node@26.11.1
       - name: Build TypeScript executable artifacts
         env:
-          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64-glibc,linux-arm64-glibc,linux-x64-musl,win32-x64,win32-arm64'
         run: pn --filter=@pnpm/exe run build-artifacts
 
       - name: Verify TypeScript npm packages
         env:
-          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64-glibc,linux-arm64-glibc,linux-x64-musl,win32-x64,win32-arm64'
         # Inspect the same tarballs that publish will upload before the first
         # immutable npm publish, including the generated platform packages.
         # zizmor: ignore[adhoc-packages] -- This smoke test intentionally
@@ -501,7 +501,7 @@ jobs:
     runs-on: macos-latest
     environment: release
     env:
-      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
+      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64-glibc,linux-arm64-glibc,linux-x64-musl,win32-x64,win32-arm64'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -540,7 +540,7 @@ jobs:
       # fallback to token authentication.
       - name: Build TypeScript executable artifacts
         env:
-          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64-glibc,linux-arm64-glibc,linux-x64-musl,win32-x64,win32-arm64'
         run: pn --filter=@pnpm/exe run build-artifacts
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
