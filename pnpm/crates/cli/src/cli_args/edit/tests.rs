@@ -17,7 +17,7 @@ fn test_parse_package_path() {
     assert!(parse_package_path("foo:bar").is_err());
     assert!(parse_package_path("foo/./bar").is_err());
     assert!(parse_package_path("@scope/").is_err());
-    assert!(parse_package_path("foo\\..\\bar").is_err());
+    assert!(parse_package_path(r"foo\..\bar").is_err());
 }
 
 #[test]
@@ -27,14 +27,14 @@ fn test_split_shell_args() {
     assert_eq!(split_shell_args(""), Vec::<String>::new());
     assert_eq!(split_shell_args("   "), Vec::<String>::new());
     assert_eq!(
-        split_shell_args("node -e \"process.exit(0)\""),
+        split_shell_args(r#"node -e "process.exit(0)""#),
         vec!["node", "-e", "process.exit(0)"],
     );
     assert_eq!(
         split_shell_args("node -e 'process.exit(0)'"),
         vec!["node", "-e", "process.exit(0)"],
     );
-    assert_eq!(split_shell_args("my\\ editor"), vec!["my editor"]);
+    assert_eq!(split_shell_args(r"my\ editor"), vec!["my editor"]);
 }
 
 #[test]
