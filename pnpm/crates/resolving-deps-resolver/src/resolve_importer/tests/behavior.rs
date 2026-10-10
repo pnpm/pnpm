@@ -550,3 +550,31 @@ async fn does_not_merge_a_workspace_peer_with_an_npm_alias() {
     assert_eq!(resolved_specifiers(&resolver, "peer"), Vec::<String>::new());
     assert!(result.peers_result.peer_dependency_issues.missing.contains_key("peer"));
 }
+
+#[tokio::test]
+async fn auto_installs_a_workspace_union_peer_as_one_workspace_range() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("lib".to_string(), "1.0.0".to_string()),
+        peer_declaring_lib("lib", "peer", "workspace:^1.0.0 || workspace:^2.0.0"),
+    );
+    table.insert(
+        ("peer".to_string(), "workspace:^1.0.0 || ^2.0.0".to_string()),
+        fake_result("peer", "2.0.0", serde_json::json!({ "name": "peer", "version": "2.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "lib": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resolved_specifiers(&resolver, "peer"),
+        vec!["workspace:^1.0.0 || ^2.0.0".to_string()],
+    );
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("peer"),
+        Some(&DepPath::from("peer@2.0.0".to_string())),
+    );
+}

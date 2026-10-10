@@ -1,5 +1,6 @@
 use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo};
 use node_semver::Range;
+use std::borrow::Cow;
 
 /// Split the missing-peer report into the inputs the inner and outer
 /// loops consume.
@@ -100,10 +101,14 @@ fn merge_workspace_peer_ranges(
     ranges: &[&str],
     auto_install_peers_from_highest_match: bool,
 ) -> MissingPeerKind {
-    let first = ranges[0];
+    let ranges: Vec<Cow<'_, str>> = ranges
+        .iter()
+        .map(|range| join_workspace_union(range))
+        .collect();
+    let first = &ranges[0];
     if ranges
         .iter()
-        .all(|range| *range == first)
+        .all(|range| range == first)
     {
         return MissingPeerKind::Required(first.to_string());
     }
@@ -125,6 +130,30 @@ fn merge_workspace_peer_ranges(
         Some(range) => MissingPeerKind::Required(format!("workspace:{range}")),
         None => MissingPeerKind::Unhoistable,
     }
+}
+
+/// Rewrite a `||` union whose members carry `workspace:` as one
+/// `workspace:` range, which the workspace resolver reads as a whole:
+/// `workspace:^1 || workspace:^2` → `workspace:^1 || ^2`. A shorthand member
+/// admits any version, so the union becomes `workspace:*`.
+fn join_workspace_union(range: &str) -> Cow<'_, str> {
+    if !range.contains("||") {
+        return Cow::Borrowed(range);
+    }
+    let members: Vec<&str> = range
+        .split("||")
+        .map(|member| {
+            let member = member.trim();
+            member.strip_prefix("workspace:").unwrap_or(member)
+        })
+        .collect();
+    if members
+        .iter()
+        .any(|member| matches!(*member, "" | "*" | "^" | "~"))
+    {
+        return Cow::Borrowed("workspace:*");
+    }
+    Cow::Owned(format!("workspace:{}", members.join(" || ")))
 }
 
 /// The distinct wanted ranges the entries name, in first-seen order.
