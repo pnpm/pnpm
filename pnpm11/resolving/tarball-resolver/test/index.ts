@@ -108,3 +108,35 @@ test('tarballs from GitHub (is-negative)', async () => {
     resolvedVia: 'url',
   })
 })
+
+test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', async () => {
+  const calls: string[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetch: any = async (url: string, opts: { method: string }) => {
+    calls.push(opts.method)
+    if (opts.method === 'HEAD') {
+      return {
+        status: 405,
+      }
+    }
+    return {
+      status: 200,
+      url: 'https://pkg.pr.new/canonical/pkg@123',
+      headers: new Map([['cache-control', 'immutable']]),
+    }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, {
+    bareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+  })
+
+  expect(calls).toEqual(['HEAD', 'GET'])
+  expect(resolutionResult).toStrictEqual({
+    id: 'https://pkg.pr.new/foo/bar@1.0.0',
+    normalizedBareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+    resolution: {
+      tarball: 'https://pkg.pr.new/canonical/pkg@123',
+    },
+    resolvedVia: 'url',
+  })
+})
+
