@@ -1,4 +1,4 @@
-use super::{de_hardlink_dir, parse_package_path};
+use super::{de_hardlink_dir, parse_package_path, split_shell_args};
 use std::fs;
 use tempfile::tempdir;
 
@@ -12,6 +12,29 @@ fn test_parse_package_path() {
     assert!(parse_package_path("..").is_err());
     assert!(parse_package_path("foo/../bar").is_err());
     assert!(parse_package_path("@scope").is_err());
+    assert!(parse_package_path("express/").is_err());
+    assert!(parse_package_path("/express").is_err());
+    assert!(parse_package_path("foo:bar").is_err());
+    assert!(parse_package_path("foo/./bar").is_err());
+    assert!(parse_package_path("@scope/").is_err());
+    assert!(parse_package_path("foo\\..\\bar").is_err());
+}
+
+#[test]
+fn test_split_shell_args() {
+    assert_eq!(split_shell_args("vi"), vec!["vi"]);
+    assert_eq!(split_shell_args("code --wait"), vec!["code", "--wait"]);
+    assert_eq!(split_shell_args(""), Vec::<String>::new());
+    assert_eq!(split_shell_args("   "), Vec::<String>::new());
+    assert_eq!(
+        split_shell_args("node -e \"process.exit(0)\""),
+        vec!["node", "-e", "process.exit(0)"],
+    );
+    assert_eq!(
+        split_shell_args("node -e 'process.exit(0)'"),
+        vec!["node", "-e", "process.exit(0)"],
+    );
+    assert_eq!(split_shell_args("my\\ editor"), vec!["my editor"]);
 }
 
 #[test]
