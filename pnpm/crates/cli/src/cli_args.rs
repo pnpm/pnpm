@@ -95,6 +95,7 @@ pub mod sudo_guard;
 pub mod supported_architectures;
 pub mod tasks;
 pub mod team;
+pub mod token;
 pub mod undeprecate;
 pub mod unlink;
 pub mod unpublish;

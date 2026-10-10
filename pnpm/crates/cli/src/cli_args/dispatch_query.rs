@@ -4,7 +4,7 @@ pub(super) use maintenance::{
     store, tasks, with,
 };
 pub(super) use registry::{
-    access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
+    access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team, token,
     undeprecate, unpublish, unstar, view, whoami,
 };
 
@@ -54,6 +54,7 @@ use super::{
     store::StoreCommand,
     tasks::TasksArgs,
     team::TeamArgs,
+    token::TokenArgs,
     undeprecate::UndeprecateArgs,
     unpublish::UnpublishArgs,
     unstar::UnstarArgs,
