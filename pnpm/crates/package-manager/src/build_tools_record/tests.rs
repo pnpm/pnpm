@@ -154,3 +154,13 @@ fn recorded_tools_are_offered_for_reuse() {
         .collect();
     assert_eq!(tools, ["yarn@tool:1.22.22"]);
 }
+
+/// A tool entry no snapshot names is never handed to a new package.
+#[test]
+fn unreferenced_tool_entries_are_not_offered() {
+    let mut prior = parse(RECORDED);
+    for (_, snapshot) in prior.snapshots.iter_mut().flatten() {
+        snapshot.build_dependencies = None;
+    }
+    assert!(PriorRecords::of(&prior).tools().is_empty());
+}

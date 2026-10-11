@@ -128,16 +128,23 @@ impl<'a> PriorRecords<'a> {
         PriorRecords { lockfile, snapshots_by_package }
     }
 
-    /// The tools the previous lockfile records, which a package that needs
-    /// one of them reuses when its version satisfies the package.
+    /// The tools the previous lockfile's snapshots record, which a package
+    /// that needs one of them reuses when its version satisfies the
+    /// package. An entry no snapshot names is not offered.
     fn tools(&self) -> ToolCatalog {
-        self.lockfile.packages
-            .iter()
-            .flatten()
-            .filter(|(key, metadata)| {
-                pnpm_lockfile::build_tool_artifact(key, &metadata.resolution).is_some()
+        let Some(packages) = self.lockfile.packages.as_ref() else {
+            return ToolCatalog::new();
+        };
+        self.snapshots_by_package
+            .values()
+            .flat_map(|snapshot| {
+                snapshot.build_dependency_keys().map(|(_, key)| key.without_peer())
             })
-            .map(|(key, metadata)| (key.clone(), metadata.clone()))
+            .filter_map(|key| {
+                let metadata = packages.get(&key)?;
+                pnpm_lockfile::build_tool_artifact(&key, &metadata.resolution)?;
+                Some((key, metadata.clone()))
+            })
             .collect()
     }
 
