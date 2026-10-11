@@ -80,7 +80,7 @@ function splitPatterns (patterns: readonly string[]): { included: string[], excl
     // An absolute pattern selects nothing, as the paths it is matched against
     // are relative to the workspace root. A negated one excludes nothing for
     // the same reason, so it may not reach the exclusion list.
-    if (body.startsWith('/')) continue
+    if (body.startsWith('/') || body.startsWith('\\') || path.win32.isAbsolute(body)) continue
     // The walk resolves "./" and "a/../b" on its way down. Matching a path
     // against the glob instead leaves that to be done up front.
     ;(negated ? excluded : included).push(path.posix.normalize(body))
