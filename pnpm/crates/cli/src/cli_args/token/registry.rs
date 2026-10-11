@@ -192,7 +192,10 @@ pub(super) async fn create_token(
 ) -> miette::Result<CreateTokenResponse> {
     let endpoint = join_registry_endpoint(url, "-/npm/v1/tokens")
         .unwrap_or_else(|_| format!("{url}-/npm/v1/tokens"));
-    let (_client, response) = send_with_retry(http_client, &endpoint, retry_opts, |cli| {
+    // Every POST that reaches the registry mints a token, so a retry after a
+    // lost response would leave an extra live token nobody was shown.
+    let single_attempt = RetryOpts { retries: 0, ..retry_opts };
+    let (_client, response) = send_with_retry(http_client, &endpoint, single_attempt, |cli| {
         apply_auth_and_otp(cli.post(&endpoint).json(request), Some(auth_header), otp)
     })
     .await

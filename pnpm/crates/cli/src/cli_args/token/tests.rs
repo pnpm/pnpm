@@ -89,3 +89,8 @@ fn redacts_long_token_arguments() {
     assert_eq!(redact_token_argument("abcdef"), "abcdef");
     assert_eq!(redact_token_argument("npm_secretvalue"), "npm_secr…");
 }
+
+#[test]
+fn redaction_strips_control_characters() {
+    assert_eq!(redact_token_argument("ab\u{1b}[2Jcd"), "ab[2Jcd");
+}

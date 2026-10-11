@@ -404,3 +404,103 @@ fn token_revoke_failure_does_not_print_the_full_token() {
     assert!(!stderr.contains(full_token));
     assert!(stderr.contains("npm_secr…"));
 }
+
+#[test]
+fn token_revoke_sends_one_delete_per_token() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let list_mock = server
+        .mock("GET", "/-/npm/v1/tokens")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({ "objects": [{ "key": "aaaaaa1111", "token": "npm_ab" }] })
+                .to_string(),
+        )
+        .create();
+    let delete_mock = server
+        .mock("DELETE", "/-/npm/v1/tokens/token/aaaaaa1111")
+        .expect(1)
+        .create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_args(["token", "revoke", "aaaaaa", "aaaaaa1111"])
+        .output()
+        .expect("spawn pacquet token revoke");
+
+    list_mock.assert();
+    delete_mock.assert();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout={stdout}\nstderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("Removed 1 token"));
+}
+
+#[test]
+fn token_revoke_reports_tokens_revoked_before_a_failure() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let list_mock = server
+        .mock("GET", "/-/npm/v1/tokens")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "objects": [
+                    { "key": "aaaaaa1111", "token": "npm_ab" },
+                    { "key": "bbbbbb2222", "token": "npm_cd" },
+                ],
+            })
+            .to_string(),
+        )
+        .create();
+    let first_delete = server.mock("DELETE", "/-/npm/v1/tokens/token/aaaaaa1111").create();
+    let second_delete = server
+        .mock("DELETE", "/-/npm/v1/tokens/token/bbbbbb2222")
+        .with_status(400)
+        .create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_args(["token", "revoke", "aaaaaa", "bbbbbb"])
+        .output()
+        .expect("spawn pacquet token revoke");
+
+    list_mock.assert();
+    first_delete.assert();
+    second_delete.assert();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("Revoked 1 of 2 tokens"));
+}
+
+#[test]
+fn token_create_does_not_retry() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let mock = server
+        .mock("POST", "/-/npm/v1/tokens")
+        .with_status(503)
+        .expect(1)
+        .create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+
+    let command = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_args(["token", "create"]);
+    let output = assert_cmd::Command::from_std(command)
+        .write_stdin("hunter2\n")
+        .output()
+        .expect("spawn pacquet token create");
+
+    mock.assert();
+    assert!(!output.status.success());
+}
