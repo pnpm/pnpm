@@ -4,7 +4,7 @@ use super::{
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
-use pnpm_config::{Config, NodePackageMapType};
+use pnpm_config::{Config, NodePackageMapMode, NodePackageMapType};
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, read_modules_manifest};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -27,13 +27,12 @@ fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_hoisted_package_map(&config));
 
-    config.write_package_map = true;
+    config.node_package_map_mode = NodePackageMapMode::WriteOnly;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(crate::should_write_hoisted_package_map(&config));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
 
-    config.write_package_map = false;
-    config.node_experimental_package_map = true;
+    config.node_package_map_mode = NodePackageMapMode::Load;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));

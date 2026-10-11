@@ -562,13 +562,13 @@ fn the_virtual_store_dir_flag_moves_the_global_virtual_store() {
 }
 
 #[test]
-fn an_isolated_install_writes_package_map_without_node_resolver() {
+fn an_isolated_install_writes_a_write_only_package_map() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
-    set_gvs_workspace_yaml(&workspace, "writePackageMap: true\n");
+    set_gvs_workspace_yaml(&workspace, "nodePackageMap:\n  mode: write-only\n");
     pacquet(&workspace)
         .with_arg("install")
         .assert()

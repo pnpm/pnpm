@@ -166,6 +166,14 @@ impl WorkspaceSettings {
     {
         match key {
             "macosBackup" => config.macos_backup.clone_from(&defaults.macos_backup),
+            "nodePackageMap" => {
+                config.node_package_map_mode = defaults.node_package_map_mode;
+                config.node_package_map_type = defaults.node_package_map_type;
+            }
+            "nodeExperimentalPackageMap" => {
+                config.node_package_map_mode = defaults.node_package_map_mode;
+            }
+            "nodePackageMapType" => config.node_package_map_type = defaults.node_package_map_type,
             "storeDir" => config.reset_store_dir_to_default::<Sys>(base_dir),
             "lockfileDir" => {
                 config.lockfile_dir = None;

@@ -1,7 +1,8 @@
 use super::{
-    Config, LockfileSetting, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting,
-    StoreDir, UpdateConfig, WorkspaceSettings, no_proxy_scalar, overlay, overlay_some,
-    overlay_tools, registries, resolve, resolve_child_concurrency, warn_deprecated_pairing,
+    Config, LockfileSetting, NodePackageMapMode, Path, PnpmfileSetting, ProxyKeys, ProxyValue,
+    SideEffectsCacheSetting, StoreDir, UpdateConfig, WorkspaceSettings, no_proxy_scalar, overlay,
+    overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
+    warn_deprecated_pairing,
 };
 use pnpm_network::normalize_registry_url;
 
@@ -52,6 +53,8 @@ impl WorkspaceSettings {
         identically_named_settings!(apply);
         self.apply_lockfile(config);
 
+        self.apply_node_package_map(config);
+
         if let Some(macos_backup) = self.macos_backup.take() {
             overlay(&mut config.macos_backup.exclude_modules_dir, macos_backup.exclude_modules_dir);
             overlay(&mut config.macos_backup.exclude_store_dir, macos_backup.exclude_store_dir);
@@ -82,6 +85,19 @@ impl WorkspaceSettings {
         self.apply_process_settings(config);
         self.apply_resolution_settings(config, base_dir);
         self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
+    }
+
+    /// The `nodePackageMap` section is applied after its deprecated
+    /// spellings so it wins when one source carries both.
+    fn apply_node_package_map(&mut self, config: &mut Config) {
+        if let Some(enabled) = self.node_experimental_package_map.take() {
+            config.node_package_map_mode = NodePackageMapMode::from_experimental_flag(enabled);
+        }
+        overlay(&mut config.node_package_map_type, self.node_package_map_type.take());
+        if let Some(section) = self.node_package_map.take() {
+            overlay(&mut config.node_package_map_mode, section.mode);
+            overlay(&mut config.node_package_map_type, section.map_type);
+        }
     }
 
     pub(super) fn apply_update_settings(

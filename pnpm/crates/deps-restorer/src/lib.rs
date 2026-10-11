@@ -169,7 +169,7 @@ pub fn should_write_package_map(
     config: &pnpm_config::Config,
     node_linker: pnpm_config::NodeLinker,
 ) -> bool {
-    (config.node_experimental_package_map || config.write_package_map)
+    config.node_package_map_mode.writes()
         && node_linker == pnpm_config::NodeLinker::Isolated
         && !config.virtual_store_only
 }
@@ -179,7 +179,7 @@ pub fn should_write_package_map(
 /// store and so has a writer of its own.
 #[must_use]
 pub fn should_write_hoisted_package_map(config: &pnpm_config::Config) -> bool {
-    (config.node_experimental_package_map || config.write_package_map) && !config.virtual_store_only
+    config.node_package_map_mode.writes() && !config.virtual_store_only
 }
 
 mod build_options;

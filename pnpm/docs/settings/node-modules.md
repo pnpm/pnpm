@@ -52,26 +52,29 @@ nodeLinker:
     - vitest
 ```
 
-### nodeExperimentalPackageMap
+### nodePackageMap.mode
 
-Added in: v11.8.0
+Added in: v12.13.0
 
-* Default: **false**
-* Type: **Boolean**
+* Default: **off**
+* Type: **off**, **write-only**, **load**
 
-When `true`, pnpm writes `node_modules/.package-map.json` during isolated and hoisted installs and injects it into pnpm-managed Node.js script environments by adding Node's `--experimental-package-map` option to `NODE_OPTIONS`.
+Controls `node_modules/.package-map.json`, which pnpm writes during isolated and hoisted installs.
 
-Nothing reads the map without this setting, so pnpm does not write one. An install that stops writing the map also removes one an earlier install left.
+* **off** - pnpm writes no package map. An install also removes a map that an earlier install left.
+* **write-only** - pnpm writes the package map for other tools to read. Node.js does not load it.
+* **load** - pnpm writes the package map and adds Node's `--experimental-package-map` option to `NODE_OPTIONS` in pnpm-managed Node.js script environments.
 
-CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
+The environment variable is `PNPM_CONFIG_NODE_PACKAGE_MAP_MODE`.
 
 ```yaml title="pnpm-workspace.yaml"
-nodeExperimentalPackageMap: true
+nodePackageMap:
+  mode: write-only
 ```
 
-### nodePackageMapType
+### nodePackageMap.type
 
-Added in: v11.8.0
+Added in: v12.13.0
 
 * Default: **standard**
 * Type: **standard**, **loose**
@@ -81,11 +84,27 @@ Controls how `node_modules/.package-map.json` is generated.
 * **standard** - only declared dependencies are available through the package map.
 * **loose** - also maps packages that are reachable through the installed `node_modules` layout, which can allow undeclared hoisted dependencies to resolve.
 
-CLI and environment configuration use the kebab-case name `node-package-map-type`.
+The environment variable is `PNPM_CONFIG_NODE_PACKAGE_MAP_TYPE`.
 
 ```yaml title="pnpm-workspace.yaml"
-nodePackageMapType: loose
+nodePackageMap:
+  mode: load
+  type: loose
 ```
+
+### nodeExperimentalPackageMap
+
+Added in: v11.8.0
+
+Deprecated since v12.13.0: use [`nodePackageMap.mode`](#nodepackagemapmode) instead. `nodeExperimentalPackageMap: true` is the same as `mode: load`, and `false` is the same as `mode: off`. When both are set in the same place, `nodePackageMap` takes precedence.
+
+CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
+
+### nodePackageMapType
+
+Added in: v11.8.0
+
+Deprecated since v12.13.0: use [`nodePackageMap.type`](#nodepackagemaptype-1) instead. When both are set in the same place, `nodePackageMap` takes precedence.
 
 ### symlink
 
