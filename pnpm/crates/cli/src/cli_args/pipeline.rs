@@ -17,7 +17,7 @@ pub use selection::{Selection, SelectionMode};
 mod arguments;
 
 use super::{
-    recursive::{ExecutionStatus, Status, discover_workspace_projects},
+    recursive::{ExecutionStatus, Status, discover_workspace_projects, is_root_only_patterns},
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
 };
@@ -135,13 +135,15 @@ pub fn run_pipeline(
     };
     let (name, requested_tasks) = run.requested_tasks()?;
 
-    let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
+    let (projects, patterns) = discover_workspace_projects(run.workspace_root, config)?;
     let graph = build_full_graph(&projects, config)?;
 
     let base = pipeline_base(invocation, config);
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
         workspace_root: run.workspace_root,
+        include_workspace_root: config.include_workspace_root
+            || patterns.as_deref().is_some_and(is_root_only_patterns),
         base: &base,
         full: invocation.full,
         config,
@@ -156,7 +158,12 @@ pub fn run_pipeline(
     )?;
 
     if selection.requested.is_empty() {
-        run.info(format!("No projects are affected since {base} — nothing to run."));
+        run.info(match selection.mode {
+            SelectionMode::Affected => {
+                format!("No projects are affected since {base} — nothing to run.")
+            }
+            SelectionMode::Full => "No projects are selected — nothing to run.".to_string(),
+        });
         return run.conclude(&report, None, 0);
     }
     run.execute(&PipelinePlan {

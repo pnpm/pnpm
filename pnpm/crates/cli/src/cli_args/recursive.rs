@@ -518,7 +518,7 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
 }
 
 /// Whether the workspace enumerates the root project only.
-fn is_root_only_patterns(patterns: &[String]) -> bool {
+pub(crate) fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
 }
 

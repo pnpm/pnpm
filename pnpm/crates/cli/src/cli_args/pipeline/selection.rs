@@ -49,7 +49,7 @@ pub(super) fn build_full_graph<'a>(
 pub struct Selection {
     /// The projects whose pipeline tasks the run requests: the changed
     /// projects and their dependents. Root tasks participate when
-    /// `includeWorkspaceRoot` is enabled.
+    /// `includeWorkspaceRoot` is enabled or the workspace is root-only.
     pub requested: Vec<PathBuf>,
     /// The dependency closure of `requested` — the projects the task
     /// graph spans. The extra projects participate only through
@@ -75,6 +75,9 @@ pub enum SelectionMode {
 pub(super) struct SelectAffectedOptions<'a> {
     pub(super) graph: &'a ProjectGraph<GraphPkg<'a>>,
     pub(super) workspace_root: &'a Path,
+    /// `includeWorkspaceRoot`, or a workspace whose `packages` list only the
+    /// root, as recursive commands decide it.
+    pub(super) include_workspace_root: bool,
     pub(super) base: &'a str,
     pub(super) full: bool,
     pub(super) config: &'a Config,
@@ -86,9 +89,7 @@ pub(super) fn select_affected_projects(
 ) -> miette::Result<Selection> {
     let all_dirs: Vec<PathBuf> = options.graph
         .keys()
-        .filter(|dir| {
-            options.config.include_workspace_root || dir.as_path() != options.workspace_root
-        })
+        .filter(|dir| options.include_workspace_root || dir.as_path() != options.workspace_root)
         .cloned()
         .collect();
 
@@ -147,20 +148,18 @@ fn projects_with_dependents(
 /// The task graph additionally spans the affected set's transitive
 /// dependencies; see [`Selection::selected`] for why.
 fn with_transitive_dependencies(
-    graph: &ProjectGraph<GraphPkg<'_>>,
+    options: &SelectAffectedOptions<'_>,
     affected: &HashSet<PathBuf>,
-    workspace_root: &Path,
-    config: &Config,
 ) -> HashSet<PathBuf> {
     let mut selected = affected.clone();
     let mut stack: Vec<PathBuf> = affected.iter().cloned().collect();
     while let Some(dir) = stack.pop() {
-        let dependencies = graph
+        let dependencies = options.graph
             .get(&dir)
             .map(|node| node.dependencies.as_slice())
             .unwrap_or_default();
         for dependency in dependencies {
-            if (config.include_workspace_root || dependency.as_path() != workspace_root)
+            if (options.include_workspace_root || dependency.as_path() != options.workspace_root)
                 && selected.insert(dependency.clone())
             {
                 stack.push(dependency.clone());
@@ -277,15 +276,10 @@ fn affected_selection(
     // A project whose only changes match `testPattern` is selected itself
     // without pulling in its dependents.
     affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
-    if !options.config.include_workspace_root {
+    if !options.include_workspace_root {
         affected.remove(options.workspace_root);
     }
-    let selected = with_transitive_dependencies(
-        options.graph,
-        &affected,
-        options.workspace_root,
-        options.config,
-    );
+    let selected = with_transitive_dependencies(options, &affected);
 
     // In the workspace graph's deterministic order, which is the
     // dispatch tie-break order.
