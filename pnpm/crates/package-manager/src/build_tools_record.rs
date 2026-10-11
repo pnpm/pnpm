@@ -150,7 +150,8 @@ impl<'a> PriorRecords<'a> {
 
     /// What the previous lockfile recorded for the package at
     /// `metadata_key`, when it holds the same package and every tool it
-    /// names. `Some(None)` is a package it found needs no build.
+    /// names is that tool's own artifact. `Some(None)` is a package it
+    /// found needs no build.
     fn carried(
         &self,
         lockfile: &Lockfile,
@@ -176,6 +177,7 @@ impl<'a> PriorRecords<'a> {
                 let metadata = packages
                     .get(&key.without_peer())?
                     .clone();
+                pnpm_lockfile::build_tool_artifact(&key, &metadata.resolution)?;
                 Some((alias.clone(), (key, metadata)))
             })
             .collect::<Option<BuildToolRecord>>()?;

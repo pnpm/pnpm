@@ -164,3 +164,18 @@ fn unreferenced_tool_entries_are_not_offered() {
     }
     assert!(PriorRecords::of(&prior).tools().is_empty());
 }
+
+/// A carried record whose tool is not that tool's own artifact sends the
+/// package back to be examined.
+#[test]
+fn an_invalid_carried_tool_is_examined_again() {
+    let prior = parse(&RECORDED.replace(
+        "tarball: https://registry.npmjs.org/yarn/-/yarn-1.22.22.tgz",
+        "tarball: 'file:./yarn.tgz'",
+    ));
+    assert!(
+        PriorRecords::of(&prior)
+            .carried(&unrecorded(), &key(BUILT))
+            .is_none()
+    );
+}
