@@ -57,7 +57,9 @@ function getExecPath (): string {
     // to the exe file instead of the js path.
     return process.execPath
   }
-  return process.argv[1] ?? process.cwd()
+  // npm and Homebrew start pnpm through a symlink in their bin directory,
+  // and `process.argv[1]` keeps that path.
+  return process.argv[1] == null ? process.cwd() : fs.realpathSync(process.argv[1])
 }
 
 /**
