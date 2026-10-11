@@ -98,12 +98,20 @@ fn a_build_tool_entry_must_be_the_tools_own_artifact() {
             })
     };
     let berry = "{integrity: sha512-mQ==, tarball: https://registry.npmjs.org/@yarnpkg/cli-dist/-/cli-dist-4.9.2.tgz}";
-    let variations = "{type: variations, variants: []}";
+    let variations = text_block! {
+        "type: variations"
+        "variants:"
+        "  - resolution: {type: binary, archive: tarball, bin: bin/node, integrity: sha512-mQ==, url: https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-x64.tar.gz}"
+        "    targets: [{os: linux, cpu: x64}]"
+    };
+    let local_variations = variations.replace("https://nodejs.org/dist/v24.6.0", "file:.");
 
     assert_eq!(artifact("yarn@tool:4.9.2", berry), Some("@yarnpkg/cli-dist"));
     assert_eq!(artifact("yarn@tool:1.22.22", berry), Some("yarn"));
     assert_eq!(artifact("yarn@tool:6.0.0", variations), Some("archive"));
     assert_eq!(artifact("node@tool:24.6.0", variations), Some("archive"));
+    assert_eq!(artifact("node@tool:24.6.0", &local_variations), None);
+    assert_eq!(artifact("node@tool:24.6.0", "{type: variations, variants: []}"), None);
     // A local file, a tarball without integrity, and a registry resolution
     // whose URL would come from the tool's name.
     assert_eq!(

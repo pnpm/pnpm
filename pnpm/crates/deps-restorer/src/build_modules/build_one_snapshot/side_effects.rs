@@ -267,25 +267,6 @@ pub(super) struct SideEffectsUpload<'a> {
 ///
 /// All errors are swallowed with a `tracing::warn!`. A failed upload doesn't
 /// fail the install: the next install re-runs the build.
-/// The store-index key the package's files were filed under, which keys a
-/// built git-hosted package by its recorded build tools.
-fn files_index_file(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    metadata_key: &PackageKey,
-) -> Option<String> {
-    let packages = context.graph.packages?;
-    let build_tools = context.graph.snapshots
-        .get(snapshot_key)
-        .and_then(|snapshot| pnpm_lockfile::build_tools_identity(snapshot, Some(packages)));
-    store_index_key_for_resolution(
-        &packages.get(metadata_key)?.resolution,
-        &metadata_key.pkg_id(),
-        !context.scripts.ignore,
-        build_tools.as_deref(),
-    )
-}
-
 pub(super) fn upload_side_effects_cache(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
@@ -327,6 +308,25 @@ pub(super) fn upload_side_effects_cache(
             "side-effects cache upload failed; build proceeds",
         );
     }
+}
+
+/// The store-index key the package's files were filed under, which keys a
+/// built git-hosted package by its recorded build tools.
+fn files_index_file(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    metadata_key: &PackageKey,
+) -> Option<String> {
+    let packages = context.graph.packages?;
+    let build_tools = context.graph.snapshots
+        .get(snapshot_key)
+        .and_then(|snapshot| pnpm_lockfile::build_tools_identity(snapshot, Some(packages)));
+    store_index_key_for_resolution(
+        &packages.get(metadata_key)?.resolution,
+        &metadata_key.pkg_id(),
+        !context.scripts.ignore,
+        build_tools.as_deref(),
+    )
 }
 pub(super) fn upload_and_publish(
     context: &BuildOneSnapshot<'_>,

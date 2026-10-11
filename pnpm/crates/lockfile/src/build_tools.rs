@@ -42,19 +42,34 @@ pub fn build_tool_artifact<'a>(
         {
             Some(BuildToolArtifact::Registry { package, tarball })
         }
-        (
-            PackageManagerSource::Archive,
-            LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
-        ) => Some(BuildToolArtifact::Archive),
+        (PackageManagerSource::Archive, archive) if is_downloaded_archive(archive) => {
+            Some(BuildToolArtifact::Archive)
+        }
         _ => None,
     }
 }
 
 fn is_pinned_http_tarball(tarball: &TarballResolution) -> bool {
-    let url = tarball.tarball.to_ascii_lowercase();
-    tarball.integrity.is_some()
-        && !tarball.is_git_hosted()
-        && (url.starts_with("https://") || url.starts_with("http://"))
+    tarball.integrity.is_some() && !tarball.is_git_hosted() && is_http_url(&tarball.tarball)
+}
+
+/// A binary archive, or platform archives, that are all downloads.
+fn is_downloaded_archive(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Binary(binary) => is_http_url(&binary.url),
+        LockfileResolution::Variations(variations) => {
+            !variations.variants.is_empty()
+                && variations.variants
+                    .iter()
+                    .all(|variant| is_downloaded_archive(&variant.resolution))
+        }
+        _ => false,
+    }
+}
+
+fn is_http_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    url.starts_with("https://") || url.starts_with("http://")
 }
 
 impl crate::Lockfile {

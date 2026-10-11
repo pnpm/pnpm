@@ -57,4 +57,7 @@ fn paths_outside_the_package_name_no_file() {
     assert!(!package.contains(&absolute));
     assert_eq!(package.read_head("../outside.js", 1), None);
     assert!(!archive.contains("../outside.js"));
+    if cfg!(windows) {
+        assert!(!package.contains(r"..\outside.js"));
+    }
 }

@@ -1,8 +1,8 @@
 //! Resolve the tools a build environment asks for into lockfile entries.
 
-use super::{BuildToolRecord, BuildToolRecorder, RecordBuildToolsError};
+use super::{BuildToolRecord, BuildToolRecorder, RecordBuildToolsError, ToolCatalog};
 use pnpm_git_fetcher::{BuildEnvironment, PreferredPm};
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, Prefix};
+use pnpm_lockfile::{PackageKey, PackageMetadata, Prefix};
 use pnpm_resolving_resolver_base::{ResolveResult, WantedDependency};
 use pnpm_tool_protocol::{PackageManagerSource, TOOL_PROTOCOL, package_manager_source};
 
@@ -29,19 +29,22 @@ impl WantedTool<'_> {
 }
 
 impl BuildToolRecorder<'_> {
-    /// The record of `environment`'s tools. A tool `lockfile` already
-    /// records at a satisfying version is reused, the way a regular
-    /// dependency's locked version is.
+    /// The record of `environment`'s tools. A tool `catalog` already holds
+    /// at a satisfying version is reused, the way a regular dependency's
+    /// locked version is. A tool resolved here joins `catalog`.
     pub(super) async fn resolve_tools(
         &self,
-        lockfile: &Lockfile,
+        catalog: &mut ToolCatalog,
         environment: &BuildEnvironment,
     ) -> Result<BuildToolRecord, RecordBuildToolsError> {
         let mut record = BuildToolRecord::new();
         for tool in wanted_tools(environment) {
-            let entry = match locked_tool(lockfile, &tool) {
-                Some(entry) => entry,
-                None => self.resolve_tool(&tool).await?,
+            let entry = if let Some(entry) = locked_tool(catalog, &tool) {
+                entry
+            } else {
+                let entry = self.resolve_tool(&tool).await?;
+                catalog.insert(entry.0.clone(), entry.1.clone());
+                entry
             };
             let alias = tool.name.parse().expect("a tool name is a valid package name");
             record.insert(alias, entry);
@@ -103,16 +106,15 @@ fn wanted_tools(environment: &BuildEnvironment) -> Vec<WantedTool<'_>> {
         .collect()
 }
 
-/// The highest version of `tool` that `lockfile` records and the tool's
-/// range admits, from the same source the range selects.
+/// The highest version of `tool` that `catalog` holds and the tool's range
+/// admits, from the same source the range selects.
 fn locked_tool(
-    lockfile: &Lockfile,
+    catalog: &ToolCatalog,
     tool: &WantedTool<'_>,
 ) -> Option<(PackageKey, PackageMetadata)> {
     let range = node_semver::Range::parse(tool.version_spec).ok()?;
     let source = package_manager_source(tool.name, tool.version_spec);
-    lockfile.packages
-        .as_ref()?
+    catalog
         .iter()
         .filter(|(key, _)| key.suffix.prefix() == Prefix::Tool && key.name.to_string() == tool.name)
         .filter_map(|(key, metadata)| Some((key.suffix.version_semver()?, key, metadata)))
@@ -136,8 +138,14 @@ fn resolved_version(result: &ResolveResult, registry_package: Option<&str>) -> O
 }
 
 fn tool_metadata(result: ResolveResult) -> PackageMetadata {
+    tool_metadata_of(result.resolution)
+}
+
+/// A tool's `packages:` entry: its resolution, and nothing a package's
+/// manifest would contribute.
+fn tool_metadata_of(resolution: pnpm_lockfile::LockfileResolution) -> PackageMetadata {
     PackageMetadata {
-        resolution: result.resolution,
+        resolution,
         version: None,
         engines: None,
         cpu: None,
@@ -151,3 +159,6 @@ fn tool_metadata(result: ResolveResult) -> PackageMetadata {
         peer_dependencies_meta: None,
     }
 }
+
+#[cfg(test)]
+mod tests;

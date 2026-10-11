@@ -198,6 +198,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             http_client: self.install.drivers.http_client,
             git_source_cache: &self.stores.caches.git_source_cache,
             tarball_mem_cache: &self.resources.tarball_mem_cache,
+            store_index: self.stores.index.as_ref(),
         };
         build_tools.record::<Reporter>(lockfile, prior, sources).await
     }

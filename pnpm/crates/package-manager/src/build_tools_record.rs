@@ -14,13 +14,19 @@ mod errors;
 mod package_read;
 mod tool_resolution;
 
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef};
+use pnpm_lockfile::{
+    Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
+};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver};
 use std::collections::HashMap;
 
 /// The tools one package records: each one's name in `buildDependencies`,
 /// its key, and its `packages:` entry.
 type BuildToolRecord = HashMap<PkgName, (PackageKey, PackageMetadata)>;
+
+/// The tool entries known so far: the previous lockfile's, and those this
+/// pass resolved. Packages that need the same tool share one entry.
+type ToolCatalog = HashMap<PackageKey, PackageMetadata>;
 
 /// What records the tools: the resolver chain of the install, kept past
 /// resolution only while this runs, and where the packages are read from.
@@ -38,45 +44,54 @@ impl BuildToolRecorder<'_> {
         lockfile: &mut Lockfile,
         prior: Option<&Lockfile>,
     ) -> Result<(), RecordBuildToolsError> {
-        let prior =
-            prior.filter(|prior| pnpm_lockfile::recorded_lock_build_tools(prior.settings.as_ref()));
+        let prior = prior
+            .filter(|prior| pnpm_lockfile::recorded_lock_build_tools(prior.settings.as_ref()))
+            .map(PriorRecords::of);
         let mut records: HashMap<PackageKey, Option<BuildToolRecord>> = HashMap::new();
         let mut unrecorded = Vec::new();
         for metadata_key in git_hosted_metadata_keys(lockfile) {
-            match prior.and_then(|prior| carried_record(prior, lockfile, &metadata_key)) {
+            match prior
+                .as_ref()
+                .and_then(|prior| prior.carried(lockfile, &metadata_key))
+            {
                 Some(record) => drop(records.insert(metadata_key, record)),
                 None => unrecorded.push(metadata_key),
             }
         }
         let lockfile_view = &*lockfile;
-        let fresh = futures_util::future::try_join_all(
+        let environments = futures_util::future::try_join_all(
             unrecorded
                 .iter()
-                .map(|key| self.fresh_record::<Reporter>(lockfile_view, key)),
+                .map(|key| self.read_environment::<Reporter>(lockfile_view, key)),
         )
         .await?;
-        records.extend(unrecorded.into_iter().zip(fresh));
+        let mut catalog = prior
+            .as_ref()
+            .map(PriorRecords::tools)
+            .unwrap_or_default();
+        for (metadata_key, environment) in unrecorded.into_iter().zip(environments) {
+            let record = match environment {
+                Some(environment) => Some(self.resolve_tools(&mut catalog, &environment).await?),
+                None => None,
+            };
+            records.insert(metadata_key, record);
+        }
         apply_records(lockfile, &records);
         Ok(())
     }
 
-    async fn fresh_record<Reporter: pnpm_reporter::Reporter>(
+    async fn read_environment<Reporter: pnpm_reporter::Reporter>(
         &self,
         lockfile: &Lockfile,
         metadata_key: &PackageKey,
-    ) -> Result<Option<BuildToolRecord>, RecordBuildToolsError> {
+    ) -> Result<Option<pnpm_git_fetcher::BuildEnvironment>, RecordBuildToolsError> {
         let Some(metadata) = lockfile.packages
             .as_ref()
             .and_then(|packages| packages.get(metadata_key))
         else {
             return Ok(None);
         };
-        let Some(environment) =
-            self.sources.read_build_environment::<Reporter>(metadata_key, metadata).await?
-        else {
-            return Ok(None);
-        };
-        self.resolve_tools(lockfile, &environment).await.map(Some)
+        self.sources.read_build_environment::<Reporter>(metadata_key, metadata).await
     }
 }
 
@@ -97,41 +112,68 @@ fn git_hosted_metadata_keys(lockfile: &Lockfile) -> Vec<PackageKey> {
     keys
 }
 
-/// What `prior` recorded for the package at `metadata_key`, when it holds
-/// the same package and every tool it names. `Some(None)` is a package
-/// `prior` found needs no build.
-fn carried_record(
-    prior: &Lockfile,
-    lockfile: &Lockfile,
-    metadata_key: &PackageKey,
-) -> Option<Option<BuildToolRecord>> {
-    let resolution = |lockfile: &Lockfile| {
-        lockfile.packages
-            .as_ref()?
-            .get(metadata_key)
-            .map(|metadata| metadata.resolution.clone())
-    };
-    if resolution(prior)? != resolution(lockfile)? {
-        return None;
+/// The previous lockfile, with a snapshot of each package at hand.
+struct PriorRecords<'a> {
+    lockfile: &'a Lockfile,
+    snapshots_by_package: HashMap<PackageKey, &'a SnapshotEntry>,
+}
+
+impl<'a> PriorRecords<'a> {
+    fn of(lockfile: &'a Lockfile) -> Self {
+        let snapshots_by_package = lockfile.snapshots
+            .iter()
+            .flatten()
+            .map(|(key, snapshot)| (key.without_peer(), snapshot))
+            .collect();
+        PriorRecords { lockfile, snapshots_by_package }
     }
-    let snapshot = prior.snapshots
-        .as_ref()?
-        .iter()
-        .find_map(|(key, snapshot)| (key.without_peer() == *metadata_key).then_some(snapshot))?;
-    if snapshot.build_dependencies.is_none() {
-        return Some(None);
+
+    /// The tools the previous lockfile records, which a package that needs
+    /// one of them reuses when its version satisfies the package.
+    fn tools(&self) -> ToolCatalog {
+        self.lockfile.packages
+            .iter()
+            .flatten()
+            .filter(|(key, metadata)| {
+                pnpm_lockfile::build_tool_artifact(key, &metadata.resolution).is_some()
+            })
+            .map(|(key, metadata)| (key.clone(), metadata.clone()))
+            .collect()
     }
-    let packages = prior.packages.as_ref()?;
-    let record = snapshot
-        .build_dependency_keys()
-        .map(|(alias, key)| {
-            let metadata = packages
-                .get(&key.without_peer())?
-                .clone();
-            Some((alias.clone(), (key, metadata)))
-        })
-        .collect::<Option<BuildToolRecord>>()?;
-    Some(Some(record))
+
+    /// What the previous lockfile recorded for the package at
+    /// `metadata_key`, when it holds the same package and every tool it
+    /// names. `Some(None)` is a package it found needs no build.
+    fn carried(
+        &self,
+        lockfile: &Lockfile,
+        metadata_key: &PackageKey,
+    ) -> Option<Option<BuildToolRecord>> {
+        let resolution = |lockfile: &Lockfile| {
+            lockfile.packages
+                .as_ref()?
+                .get(metadata_key)
+                .map(|metadata| metadata.resolution.clone())
+        };
+        if resolution(self.lockfile)? != resolution(lockfile)? {
+            return None;
+        }
+        let snapshot = self.snapshots_by_package.get(metadata_key)?;
+        if snapshot.build_dependencies.is_none() {
+            return Some(None);
+        }
+        let packages = self.lockfile.packages.as_ref()?;
+        let record = snapshot
+            .build_dependency_keys()
+            .map(|(alias, key)| {
+                let metadata = packages
+                    .get(&key.without_peer())?
+                    .clone();
+                Some((alias.clone(), (key, metadata)))
+            })
+            .collect::<Option<BuildToolRecord>>()?;
+        Some(Some(record))
+    }
 }
 
 /// Write `records` into `lockfile`: each package's snapshots get its

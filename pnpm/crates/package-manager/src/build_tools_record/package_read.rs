@@ -23,6 +23,7 @@ pub(crate) struct PackageSources<'a> {
     pub http_client: &'a ThrottledClient,
     pub git_source_cache: &'a GitSourceCache,
     pub tarball_mem_cache: &'a MemCache,
+    pub store_index: Option<&'a pnpm_store_dir::SharedReadonlyStoreIndex>,
 }
 
 impl PackageSources<'_> {
@@ -46,7 +47,7 @@ impl PackageSources<'_> {
             .await
             .map_err(RecordBuildToolsError::ReadGitPackage),
             LockfileResolution::Tarball(tarball) => {
-                let files = self.archive_files::<Reporter>(metadata_key, tarball).await?;
+                let files = self.archive_files::<Reporter>(tarball).await?;
                 archive_build_environment(metadata_key, &files, tarball.path.as_deref())
             }
             _ => Ok(None),
@@ -55,11 +56,9 @@ impl PackageSources<'_> {
 
     async fn archive_files<Reporter: self::Reporter>(
         &self,
-        metadata_key: &PackageKey,
         tarball: &TarballResolution,
     ) -> Result<Arc<HashMap<String, PathBuf>>, RecordBuildToolsError> {
         let config = self.config;
-        let package_id = metadata_key.pkg_id();
         IngestTarballToStore {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
@@ -72,11 +71,13 @@ impl PackageSources<'_> {
                 unpacked_size: None,
                 file_count: None,
                 url: &tarball.tarball,
-                id: &package_id,
+                // The id resolution read the archive under, so the store
+                // index row it left answers this read too.
+                id: &tarball.tarball,
             },
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &config.store_dir,
-                index: None,
+                index: self.store_index.cloned(),
                 index_writer: None,
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,

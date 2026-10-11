@@ -1,4 +1,4 @@
-use super::{apply_records, carried_record, git_hosted_metadata_keys};
+use super::{PriorRecords, apply_records, git_hosted_metadata_keys};
 use pnpm_lockfile::{Lockfile, PackageKey};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
@@ -90,7 +90,9 @@ fn records_carry_over_for_an_unchanged_package() {
     let prior = parse(RECORDED);
     let lockfile = unrecorded();
 
-    let built = carried_record(&prior, &lockfile, &key(BUILT)).expect("carried");
+    let built = PriorRecords::of(&prior)
+        .carried(&lockfile, &key(BUILT))
+        .expect("carried");
     let built = built.expect("a record");
     let tools: Vec<String> = built
         .values()
@@ -98,7 +100,9 @@ fn records_carry_over_for_an_unchanged_package() {
         .collect();
     assert_eq!(tools, ["yarn@tool:1.22.22"]);
     assert_eq!(
-        carried_record(&prior, &lockfile, &key(PLAIN)).map(|record| record.is_none()),
+        PriorRecords::of(&prior)
+            .carried(&lockfile, &key(PLAIN))
+            .map(|record| record.is_none()),
         Some(true),
     );
 }
@@ -115,7 +119,8 @@ fn a_package_the_previous_lockfile_does_not_hold_is_examined_again() {
     }
     packages.insert(key(moved), metadata);
 
-    assert!(carried_record(&prior, &lockfile, &key(moved)).is_none());
+    let carried = PriorRecords::of(&prior).carried(&lockfile, &key(moved));
+    assert!(carried.is_none());
 }
 
 #[test]
@@ -125,7 +130,9 @@ fn applied_records_round_trip_to_the_recorded_lockfile() {
     let records: HashMap<_, _> = [BUILT, PLAIN]
         .into_iter()
         .map(|metadata_key| {
-            let record = carried_record(&prior, &lockfile, &key(metadata_key)).expect("carried");
+            let record = PriorRecords::of(&prior)
+                .carried(&lockfile, &key(metadata_key))
+                .expect("carried");
             (key(metadata_key), record)
         })
         .collect();
@@ -133,4 +140,17 @@ fn applied_records_round_trip_to_the_recorded_lockfile() {
     apply_records(&mut lockfile, &records);
 
     assert_eq!(lockfile, prior);
+}
+
+/// A package that needs a tool the previous lockfile records reuses that
+/// version rather than resolving the tool again.
+#[test]
+fn recorded_tools_are_offered_for_reuse() {
+    let prior = parse(RECORDED);
+    let tools: Vec<String> = PriorRecords::of(&prior)
+        .tools()
+        .keys()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(tools, ["yarn@tool:1.22.22"]);
 }
