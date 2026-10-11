@@ -245,7 +245,12 @@ impl ConfigOverrides {
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
         );
-        if let Some(value) = self.node_experimental_package_map {
+        // `--config.node-package-map-mode` reaches the config through
+        // `Config::current` before these overrides run, so the deprecated
+        // flag must not overwrite it.
+        if let Some(value) = self.node_experimental_package_map
+            && !self.unported.contains_key("node-package-map-mode")
+        {
             config.node_package_map_mode = NodePackageMapMode::from_experimental_flag(value);
             config.explicit_settings.insert("nodeExperimentalPackageMap".to_string(), value.into());
         }
