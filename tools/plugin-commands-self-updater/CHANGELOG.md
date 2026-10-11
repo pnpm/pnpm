@@ -1,5 +1,12 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.64
+
+### Patch Changes
+
+- 97f550c: Switching to the pnpm version in `packageManager` now works through registry mirrors that strip npm's signatures or re-sign packages with their own key. pnpm then reads the signature from `https://registry.npmjs.org/` and verifies it against the integrity of the downloaded pnpm [#16778](https://github.com/pnpm/pnpm/issues/16778).
+  - @pnpm/cli-utils@1001.3.18
+
 ## 1000.1.63
 
 ### Patch Changes
