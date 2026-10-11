@@ -37,7 +37,7 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
                 .create_new(true)
                 .open(&staged)?;
             io::copy(&mut source, &mut output)?;
-            output.sync_all()?;
+            pnpm_fs::sync_file(&output)?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt as _;
@@ -97,7 +97,7 @@ pub(crate) fn replace_script(contents: &[u8], destination: &Path) -> io::Result<
             .open(&staged)?;
         output.write_all(contents)?;
         pnpm_fs::file_mode::make_file_executable(&output)?;
-        output.sync_all()?;
+        pnpm_fs::sync_file(&output)?;
         drop(output);
         swap_into_place(&staged, destination)
     };

@@ -201,7 +201,7 @@ pub(super) fn write_workspace_file(
         if let Some(mode) = mode {
             file.set_permissions(fs::Permissions::from_mode(mode))?;
         }
-        file.sync_all()?;
+        pnpm_fs::sync_file(&file)?;
         // SAFETY: both names are valid C strings and both directory descriptors
         // refer to the same live, pinned directory.
         if unsafe {

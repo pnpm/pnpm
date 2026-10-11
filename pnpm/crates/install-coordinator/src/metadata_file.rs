@@ -194,7 +194,7 @@ fn write_file(
     let result = (|| {
         file.write_all(contents)?;
         file.set_permissions(fs::Permissions::from_mode(mode))?;
-        file.sync_all()?;
+        pnpm_fs::sync_file(&file)?;
         rename_at(parent, &temporary, &destination)
     })();
     drop(file);
