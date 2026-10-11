@@ -75,7 +75,7 @@ pub enum SelectionMode {
 pub(super) struct SelectAffectedOptions<'a> {
     pub(super) graph: &'a ProjectGraph<GraphPkg<'a>>,
     pub(super) workspace_root: &'a Path,
-    /// See `recursive::keeps_workspace_root`.
+    /// See [`keeps_workspace_root`](crate::cli_args::recursive::keeps_workspace_root).
     pub(super) include_workspace_root: bool,
     pub(super) base: &'a str,
     pub(super) full: bool,
@@ -232,9 +232,12 @@ fn select_changed_projects(
     // A changed file above every package maps to the workspace root
     // project: the root manifest, the lockfile, a shared config. Those
     // feed every project in ways project topology cannot see, so pruning
-    // is disabled for the run rather than guessed at. A root-only
-    // workspace has nothing to prune.
-    if options.graph.len() > 1
+    // is disabled for the run rather than guessed at. Without a non-root
+    // project there is nothing to prune.
+    let has_non_root_project = options.graph
+        .keys()
+        .any(|dir| dir != options.workspace_root);
+    if has_non_root_project
         && changed.changed_projects
             .iter()
             .chain(&changed.ignore_dependent_for_projects)
