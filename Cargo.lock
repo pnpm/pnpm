@@ -4854,6 +4854,7 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pgp",
+ "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
  "pnpm-wasm-host",

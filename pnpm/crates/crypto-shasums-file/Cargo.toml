@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-fs = { workspace = true }
 pnpm-network = { workspace = true }
 
 base64 = { workspace = true }

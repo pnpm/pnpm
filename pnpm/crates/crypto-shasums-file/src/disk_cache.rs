@@ -176,7 +176,7 @@ pub(crate) fn write_cached_shasums(
         TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
     ));
     let temp = path.with_file_name(temp_name);
-    // `sync_all` before the rename so a crash cannot persist the
+    // Sync before the rename so a crash cannot persist the
     // renamed name pointing at partially-written content — a torn
     // SHASUMS prefix still parses and would otherwise be served
     // (missing platform rows) until the cache is cleared.
@@ -186,7 +186,7 @@ pub(crate) fn write_cached_shasums(
         .open(&temp)
         .and_then(|mut file| {
             file.write_all(body)?;
-            file.sync_all()
+            pnpm_fs::sync_file(&file)
         });
     if written.is_err() || fs::rename(&temp, &path).is_err() {
         let _ = fs::remove_file(&temp);

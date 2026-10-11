@@ -75,7 +75,7 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
             create_private_file(path)
         })?;
     tmp.write_all(bytes)?;
-    tmp.as_file().sync_all()?;
+    crate::sync_file(tmp.as_file())?;
     inherit_permissions(path, tmp.as_file(), inherit)?;
     let mut pending = Some(tmp.into_temp_path());
     crate::retry::retry_transient_file_locks(|| {
