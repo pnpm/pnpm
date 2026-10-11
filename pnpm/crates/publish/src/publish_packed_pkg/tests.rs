@@ -13,6 +13,7 @@ use crate::{
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
     registry_config_keys::parse_supported_registry_url,
 };
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
@@ -728,6 +729,13 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
 /// real sigstore call is made. The registry `PUT` itself still goes over the
 /// wire to the mocked server.
 struct ProvenanceSys;
+fn npm_id_token() -> String {
+    let payload = URL_SAFE_NO_PAD.encode(
+        serde_json::to_vec(&json!({ "aud": "npm:registry.example" })).unwrap(),
+    );
+    format!("header.{payload}.signature")
+}
+
 impl Clock for ProvenanceSys {
     fn now_ms() -> u64 {
         0
@@ -735,9 +743,11 @@ impl Clock for ProvenanceSys {
 }
 impl EnvVar for ProvenanceSys {
     fn var(name: &str) -> Option<String> {
+        if name == "NPM_ID_TOKEN" {
+            return Some(npm_id_token());
+        }
         let value = match name {
             "GITHUB_ACTIONS" => "true",
-            "NPM_ID_TOKEN" => "npm-id-token",
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "request-token",
             "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",
             "GITHUB_SERVER_URL" => "https://github.com",

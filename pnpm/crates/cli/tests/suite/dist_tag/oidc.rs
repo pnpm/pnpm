@@ -4,6 +4,8 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Output};
 
+const NPM_ID_TOKEN: &str = "header.eyJhdWQiOiJucG06MTI3LjAuMC4xIn0.signature";
+
 fn run_with_oidc(
     workspace: &Path,
     auth_file: &Path,
@@ -37,7 +39,7 @@ fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
         .create();
     let exchange = server
         .mock("POST", "/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg")
-        .match_header("authorization", "Bearer test-id-token")
+        .match_header("authorization", Matcher::Exact(format!("Bearer {NPM_ID_TOKEN}")))
         .with_status(200)
         .with_body(r#"{"token":"oidc-registry-token"}"#)
         .expect(3)
@@ -80,7 +82,7 @@ fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
             &auth_file,
             &args,
             &[
-                ("NPM_ID_TOKEN", "test-id-token"),
+                ("NPM_ID_TOKEN", NPM_ID_TOKEN),
                 ("GITHUB_ACTIONS", "true"),
                 ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token"),
                 ("ACTIONS_ID_TOKEN_REQUEST_URL", &identity_url),
@@ -108,7 +110,7 @@ fn oidc_exchange_rejection_falls_back_to_configured_token() {
     let registry = format!("{}/", server.url());
     let exchange = server
         .mock("POST", "/-/npm/v1/oidc/token/exchange/package/pkg")
-        .match_header("authorization", "Bearer test-id-token")
+        .match_header("authorization", Matcher::Exact(format!("Bearer {NPM_ID_TOKEN}")))
         .with_status(401)
         .with_body(r#"{"body":{"message":"exchange rejected"}}"#)
         .create();
@@ -124,7 +126,7 @@ fn oidc_exchange_rejection_falls_back_to_configured_token() {
         &workspace,
         &auth_file,
         &["add", "pkg@1.0.0", "beta"],
-        &[("NPM_ID_TOKEN", "test-id-token")],
+        &[("NPM_ID_TOKEN", NPM_ID_TOKEN)],
     );
 
     exchange.assert();
@@ -199,7 +201,7 @@ fn gitlab_uses_a_forwarded_token_without_provenance() {
     let registry = format!("{}/", server.url());
     let exchange = server
         .mock("POST", "/-/npm/v1/oidc/token/exchange/package/pkg")
-        .match_header("authorization", "Bearer gitlab-id-token")
+        .match_header("authorization", Matcher::Exact(format!("Bearer {NPM_ID_TOKEN}")))
         .with_status(200)
         .with_body(r#"{"token":"oidc-registry-token"}"#)
         .create();
@@ -218,7 +220,7 @@ fn gitlab_uses_a_forwarded_token_without_provenance() {
         &workspace,
         &auth_file,
         &["ls", "pkg"],
-        &[("GITLAB_CI", "true"), ("NPM_ID_TOKEN", "gitlab-id-token")],
+        &[("GITLAB_CI", "true"), ("NPM_ID_TOKEN", NPM_ID_TOKEN)],
     );
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), "latest: 1.0.0\n");
