@@ -1,7 +1,7 @@
 use super::{
     super::{
-        BuildModulesError, PackageKey, Path, Reporter, materialize_side_effects,
-        store_index_key_for_resolution,
+        BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, Path, Reporter,
+        materialize_side_effects, store_index_key_for_resolution,
     },
     BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
 };
@@ -83,9 +83,10 @@ pub(super) fn already_built<Reporter: self::Reporter>(
 /// skips a package whose side-effects row for this cache key is empty.
 /// The build ran before and changed nothing inside the package, so there
 /// is nothing to restore, and running it again would only repeat that.
-/// pnpm v11's `rebuild` takes any row as a hit the same way. An install
-/// still runs such a build, because its effect may lie outside the
-/// package directory (pnpm/pnpm#14717).
+/// pnpm v11's `rebuild` takes any row as a hit the same way, unless the
+/// package directory carries [`NEEDS_BUILD_MARKER`]: that slot has not
+/// been built yet. An install still runs such a build, because its effect
+/// may lie outside the package directory (pnpm/pnpm#14717).
 ///
 /// [`RebuildOptions::skip_if_has_side_effects_cache`]: crate::RebuildOptions::skip_if_has_side_effects_cache
 fn rebuild_found_empty_row(
@@ -95,7 +96,12 @@ fn rebuild_found_empty_row(
 ) -> bool {
     let hit = context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
         && context.cache.read
-        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key));
+        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key))
+        && !context
+            .pkg_roots()
+            .all(snapshot_key)
+            .iter()
+            .any(|pkg_dir| pkg_dir.join(NEEDS_BUILD_MARKER).exists());
     if hit {
         tracing::debug!(
             target: "pacquet::build",
