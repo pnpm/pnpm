@@ -158,12 +158,7 @@ pub fn run_pipeline(
     )?;
 
     if selection.requested.is_empty() {
-        run.info(match selection.mode {
-            SelectionMode::Affected => {
-                format!("No projects are affected since {base} — nothing to run.")
-            }
-            SelectionMode::Full => "No projects are selected — nothing to run.".to_string(),
-        });
+        run.info(empty_selection_message(selection.mode, &base));
         return run.conclude(&report, None, 0);
     }
     run.execute(&PipelinePlan {
@@ -173,6 +168,15 @@ pub fn run_pipeline(
         selection: &selection,
         report: &report,
     })
+}
+
+fn empty_selection_message(mode: SelectionMode, base: &str) -> String {
+    match mode {
+        SelectionMode::Affected => {
+            format!("No projects are affected since {base} — nothing to run.")
+        }
+        SelectionMode::Full => "No projects are selected — nothing to run.".to_string(),
+    }
 }
 
 /// What every phase of one pipeline run reads.
