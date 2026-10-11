@@ -5,7 +5,7 @@
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
     PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    resolve_executable, standalone_manifest, write_windows_alias_wrapper,
+    standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -87,7 +87,10 @@ fn resolve_executable_follows_a_bin_symlink_into_the_package() {
     std::fs::create_dir_all(launcher.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink("../lib/node_modules/pnpm/pnpm", &launcher).unwrap();
 
-    assert_eq!(resolve_executable(&launcher).unwrap(), dunce::canonicalize(&engine).unwrap());
+    assert_eq!(
+        super::resolve_executable(&launcher).unwrap(),
+        dunce::canonicalize(&engine).unwrap()
+    );
 }
 
 #[test]
