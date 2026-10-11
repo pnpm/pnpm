@@ -4,18 +4,24 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Output};
 
-fn run_with_oidc(workspace: &Path, auth_file: &Path, args: &[&str]) -> Output {
-    pacquet_at(workspace)
+fn run_with_oidc(
+    workspace: &Path,
+    auth_file: &Path,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Output {
+    let mut command = pacquet_at(workspace)
         .with_arg("--npmrc-auth-file")
         .with_arg(auth_file)
         .with_arg("dist-tag")
         .with_args(args)
+        .without_env("NPM_ID_TOKEN")
+        .without_env("GITLAB_CI")
         .without_env("GITHUB_ACTIONS")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
-        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
-        .env("NPM_ID_TOKEN", "test-id-token")
-        .output()
-        .expect("spawn pnpm dist-tag with OIDC token")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL");
+    command.envs(env.iter().copied());
+    command.output().expect("spawn pnpm dist-tag with OIDC token")
 }
 
 #[test]
@@ -23,6 +29,12 @@ fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
+    let identity_url = format!("{}/identity", server.url());
+    let identity = server
+        .mock("GET", "/identity")
+        .match_query(Matcher::Any)
+        .expect(0)
+        .create();
     let exchange = server
         .mock("POST", "/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg")
         .match_header("authorization", "Bearer test-id-token")
@@ -63,12 +75,23 @@ fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
     ] {
         let mut args = args;
         args.extend(["--registry", &registry]);
-        let output = run_with_oidc(&workspace, &auth_file, &args);
+        let output = run_with_oidc(
+            &workspace,
+            &auth_file,
+            &args,
+            &[
+                ("NPM_ID_TOKEN", "test-id-token"),
+                ("GITHUB_ACTIONS", "true"),
+                ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token"),
+                ("ACTIONS_ID_TOKEN_REQUEST_URL", &identity_url),
+            ],
+        );
         assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     }
 
     exchange.assert();
+    identity.assert();
     add.assert();
     tags.assert();
     remove.assert();
@@ -97,7 +120,12 @@ fn oidc_exchange_rejection_falls_back_to_configured_token() {
     let auth_contents = format!("{}:_authToken=configured-token\n", nerf(&registry));
     let auth_file = configure(root.path(), &workspace, &registry, &auth_contents);
 
-    let output = run_with_oidc(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
+    let output = run_with_oidc(
+        &workspace,
+        &auth_file,
+        &["add", "pkg@1.0.0", "beta"],
+        &[("NPM_ID_TOKEN", "test-id-token")],
+    );
 
     exchange.assert();
     add.assert();
@@ -147,6 +175,7 @@ fn github_oidc_uses_the_packages_scoped_registry() {
         .with_arg(&auth_file)
         .with_args(["dist-tag", "ls", "@scope/pkg"])
         .without_env("NPM_ID_TOKEN")
+        .without_env("GITLAB_CI")
         .env("GITHUB_ACTIONS", "true")
         .env("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token")
         .env("ACTIONS_ID_TOKEN_REQUEST_URL", format!("{}/identity", server.url()))
@@ -160,5 +189,124 @@ fn github_oidc_uses_the_packages_scoped_registry() {
     tags.assert();
     visibility.assert();
     assert_eq!(fs::read(&auth_file).unwrap(), b"");
+    drop((root, server));
+}
+
+#[test]
+fn gitlab_uses_a_forwarded_token_without_provenance() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let exchange = server
+        .mock("POST", "/-/npm/v1/oidc/token/exchange/package/pkg")
+        .match_header("authorization", "Bearer gitlab-id-token")
+        .with_status(200)
+        .with_body(r#"{"token":"oidc-registry-token"}"#)
+        .create();
+    let tags = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .match_header("authorization", "Bearer oidc-registry-token")
+        .with_status(200)
+        .with_body(r#"{"latest":"1.0.0"}"#)
+        .create();
+    let visibility = server
+        .mock("GET", "/-/package/pkg/visibility")
+        .expect(0)
+        .create();
+    let auth_file = configure(root.path(), &workspace, &registry, "");
+    let output = run_with_oidc(
+        &workspace,
+        &auth_file,
+        &["ls", "pkg"],
+        &[("GITLAB_CI", "true"), ("NPM_ID_TOKEN", "gitlab-id-token")],
+    );
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "latest: 1.0.0\n");
+    exchange.assert();
+    tags.assert();
+    visibility.assert();
+    assert_eq!(fs::read(&auth_file).unwrap(), b"");
+    drop((root, server));
+}
+
+#[test]
+fn unavailable_oidc_uses_configured_credentials_without_network_overhead() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let identity_url = format!("{}/identity", server.url());
+    let identity = server
+        .mock("GET", "/identity")
+        .match_query(Matcher::Any)
+        .expect(0)
+        .create();
+    let exchange = server
+        .mock("POST", "/-/npm/v1/oidc/token/exchange/package/pkg")
+        .expect(0)
+        .create();
+    let add = server
+        .mock("PUT", "/-/package/pkg/dist-tags/beta")
+        .match_header("authorization", "Bearer configured-token")
+        .with_status(201)
+        .expect(4)
+        .create();
+    let auth_contents = format!("{}:_authToken=configured-token\n", nerf(&registry));
+    let auth_file = configure(root.path(), &workspace, &registry, &auth_contents);
+    let cases: &[&[(&str, &str)]] = &[
+        &[],
+        &[("GITHUB_ACTIONS", "true")],
+        &[("GITHUB_ACTIONS", "true"), ("ACTIONS_ID_TOKEN_REQUEST_URL", &identity_url)],
+        &[("GITLAB_CI", "true")],
+    ];
+    for env in cases {
+        let output = run_with_oidc(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"], env);
+        assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
+    identity.assert();
+    exchange.assert();
+    add.assert();
+    assert_eq!(fs::read_to_string(&auth_file).unwrap(), auth_contents);
+    drop((root, server));
+}
+
+#[test]
+fn rejected_github_identity_uses_configured_credentials() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let identity_url = format!("{}/identity", server.url());
+    let identity = server
+        .mock("GET", "/identity")
+        .match_query(Matcher::UrlEncoded("audience".into(), "npm:127.0.0.1".into()))
+        .match_header("authorization", "Bearer request-token")
+        .with_status(403)
+        .with_body("forbidden")
+        .create();
+    let exchange = server
+        .mock("POST", "/-/npm/v1/oidc/token/exchange/package/pkg")
+        .expect(0)
+        .create();
+    let add = server
+        .mock("PUT", "/-/package/pkg/dist-tags/beta")
+        .match_header("authorization", "Bearer configured-token")
+        .with_status(201)
+        .create();
+    let auth_contents = format!("{}:_authToken=configured-token\n", nerf(&registry));
+    let auth_file = configure(root.path(), &workspace, &registry, &auth_contents);
+    let output = run_with_oidc(
+        &workspace,
+        &auth_file,
+        &["add", "pkg@1.0.0", "beta"],
+        &[
+            ("GITHUB_ACTIONS", "true"),
+            ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token"),
+            ("ACTIONS_ID_TOKEN_REQUEST_URL", &identity_url),
+        ],
+    );
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    identity.assert();
+    exchange.assert();
+    add.assert();
+    assert_eq!(fs::read_to_string(&auth_file).unwrap(), auth_contents);
     drop((root, server));
 }
