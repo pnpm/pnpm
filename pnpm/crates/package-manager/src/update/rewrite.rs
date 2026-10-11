@@ -19,7 +19,7 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
 use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
-use pnpm_tool_protocol::{TOOL_PROTOCOL, is_tool_specifier, split_tool_protocol};
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, is_tool_specifier, strip_tool_protocol};
 
 /// What one matched direct dependency is rewritten against.
 pub(super) struct MatchedRewriteInputs<'a, 'ctx, 'borrow> {
@@ -256,13 +256,10 @@ pub(super) fn requested_version_rewrite(
 /// `devEngines.runtime`. A version the node resolver answers is recorded
 /// through that resolver's own rule.
 fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> String {
-    // The selector may name the protocol itself (`pnpm update node@tool:22`),
-    // and its spelling then wins over the declaration's.
-    let (protocol, requested) = split_tool_protocol(requested)
-        .or_else(|| split_tool_protocol(previous).map(|(protocol, _)| (protocol, requested)))
-        .unwrap_or((TOOL_PROTOCOL, requested));
-    let as_requested = || format!("{protocol}{requested}");
-    let Some((_, selector)) = node_runtime_version_spec(alias, previous) else {
+    // The selector may name the protocol itself (`pnpm update node@tool:22`).
+    let requested = strip_tool_protocol(requested).unwrap_or(requested);
+    let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
+    let Some(selector) = node_runtime_version_spec(alias, previous) else {
         // A deno or bun declaration records the selector as asked, which is
         // what their resolvers report back for it.
         return as_requested();
@@ -276,7 +273,7 @@ fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> St
         return as_requested();
     };
     format!(
-        "{protocol}{}",
+        "{RUNTIME_PROTOCOL}{}",
         normalize_node_runtime_version_specifier(selector, &version.to_string(), Some(previous)),
     )
 }

@@ -239,20 +239,18 @@ async fn resolve_save_specifier_pins_the_picked_version() {
     );
 
     let cases = [
-        ("runtime:", "26", None, "runtime:26.5.0"),
-        ("runtime:", "^26", None, "runtime:^26.5.0"),
-        ("runtime:", "26", Some("runtime:~26.4.0"), "runtime:~26.5.0"),
-        ("runtime:", "", None, "runtime:26.5.0"),
-        ("runtime:", "lts", None, "runtime:24.13.0"),
-        ("tool:", "26", None, "tool:26.5.0"),
-        ("tool:", "26", Some("runtime:~26.4.0"), "tool:~26.5.0"),
-        ("runtime:", "26", Some("tool:^26.4.0"), "runtime:^26.5.0"),
+        ("26", None, "runtime:26.5.0"),
+        ("^26", None, "runtime:^26.5.0"),
+        ("26", Some("runtime:~26.4.0"), "runtime:~26.5.0"),
+        ("", None, "runtime:26.5.0"),
+        ("lts", None, "runtime:24.13.0"),
+        ("26", Some("tool:^26.4.0"), "runtime:^26.5.0"),
     ];
-    for (protocol, version_spec, prev_specifier, expected) in cases {
+    for (version_spec, prev_specifier, expected) in cases {
         assert_eq!(
-            resolver.resolve_save_specifier(protocol, version_spec, prev_specifier).await.unwrap(),
+            resolver.resolve_save_specifier(version_spec, prev_specifier).await.unwrap(),
             expected,
-            "protocol={protocol:?}, version_spec={version_spec:?}, prev_specifier={prev_specifier:?}",
+            "version_spec={version_spec:?}, prev_specifier={prev_specifier:?}",
         );
     }
     index.assert_async().await;
@@ -273,7 +271,7 @@ async fn resolve_save_specifier_errors_when_no_version_satisfies() {
         format!("{}/download/release/", server.url()),
     );
 
-    let err = resolver.resolve_save_specifier("runtime:", "99", None).await.unwrap_err();
+    let err = resolver.resolve_save_specifier("99", None).await.unwrap_err();
     let code: &dyn miette::Diagnostic = &err;
     assert_eq!(
         code.code()
@@ -363,10 +361,7 @@ async fn resolve_save_specifier_saves_an_exact_version_without_network() {
         "http://127.0.0.1:9/download/release/".to_string(),
     );
 
-    assert_eq!(
-        resolver.resolve_save_specifier("tool:", "22.11.0", None).await.unwrap(),
-        "tool:22.11.0",
-    );
+    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0");
 }
 
 /// An exact-version resolve skips the release index, so a nonexistent

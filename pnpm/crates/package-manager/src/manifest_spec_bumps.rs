@@ -17,6 +17,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_tool_protocol::RUNTIME_PROTOCOL;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
@@ -352,7 +353,7 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    if let Some((protocol, selector)) = node_runtime_version_spec(alias, declared) {
+    if let Some(selector) = node_runtime_version_spec(alias, declared) {
         // A selector naming a release channel the resolver does not know is
         // left for it to reject, rather than moved to a channel-less one it
         // would accept.
@@ -360,7 +361,7 @@ fn bumped_range(
             return None;
         }
         let bumped = format!(
-            "{protocol}{}",
+            "{RUNTIME_PROTOCOL}{}",
             normalize_node_runtime_version_specifier(
                 selector,
                 &resolved.to_string(),

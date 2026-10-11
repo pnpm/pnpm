@@ -2,39 +2,30 @@
 //! provisions itself (Node.js, Bun, Deno, Yarn 6) rather than an npm package.
 //!
 //! `runtime:` is accepted as an alias wherever a user writes a specifier.
-//! Lockfile keys and the specifiers pnpm generates from `engines.runtime` /
-//! `devEngines.runtime` keep `runtime:` until the next lockfile major.
+//! Every specifier and lockfile key pnpm writes keeps `runtime:` until the
+//! next lockfile major, because `engines.runtime` / `devEngines.runtime`
+//! store no protocol and read back as `runtime:`.
 
 /// The protocol of a provisioned tool.
 pub const TOOL_PROTOCOL: &str = "tool:";
 
-/// The alias of [`TOOL_PROTOCOL`], which lockfile keys use.
+/// The alias of [`TOOL_PROTOCOL`], which every specifier and lockfile key
+/// pnpm writes uses.
 pub const RUNTIME_PROTOCOL: &str = "runtime:";
-
-/// Splits `specifier` into the protocol as written (`tool:` or `runtime:`)
-/// and the version selector behind it. `None` for any other protocol.
-#[must_use]
-pub fn split_tool_protocol(specifier: &str) -> Option<(&str, &str)> {
-    [TOOL_PROTOCOL, RUNTIME_PROTOCOL]
-        .into_iter()
-        .find_map(|protocol| {
-            specifier
-                .strip_prefix(protocol)
-                .map(|selector| (&specifier[..protocol.len()], selector))
-        })
-}
 
 /// The version selector behind `tool:` or `runtime:`. `None` for any other
 /// protocol.
 #[must_use]
 pub fn strip_tool_protocol(specifier: &str) -> Option<&str> {
-    split_tool_protocol(specifier).map(|(_, selector)| selector)
+    specifier
+        .strip_prefix(TOOL_PROTOCOL)
+        .or_else(|| specifier.strip_prefix(RUNTIME_PROTOCOL))
 }
 
 /// `true` when `specifier` is written in `tool:` or `runtime:`.
 #[must_use]
 pub fn is_tool_specifier(specifier: &str) -> bool {
-    split_tool_protocol(specifier).is_some()
+    strip_tool_protocol(specifier).is_some()
 }
 
 /// `true` when `left` and `right` are the same tool request, treating

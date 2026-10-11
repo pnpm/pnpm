@@ -10,7 +10,7 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
-use pnpm_tool_protocol::split_tool_protocol;
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
 use crate::read_yarn_releases::{
     ReadYarnReleasesError, YarnRelease, asset_variants, fetch_yarn_releases,
@@ -88,7 +88,7 @@ impl YarnResolver {
         wanted_dependency: &WantedDependency,
         _opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some((protocol, version_spec)) = bare_runtime_spec(wanted_dependency) else {
+        let Some(version_spec) = bare_runtime_spec(wanted_dependency) else {
             return Ok(None);
         };
         let releases = self
@@ -115,7 +115,7 @@ impl YarnResolver {
             id: format!("yarn@runtime:{version}").into(),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("{protocol}{version_spec}")),
+            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
@@ -213,13 +213,12 @@ fn without_prerelease(version: &node_semver::Version) -> node_semver::Version {
     }
 }
 
-/// The protocol as written (`tool:` or `runtime:`) and the version selector
-/// of a `yarn` request.
-fn bare_runtime_spec(wanted: &WantedDependency) -> Option<(&str, &str)> {
+/// The version selector of a `yarn@tool:` / `yarn@runtime:` request.
+fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(split_tool_protocol)
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 /// The archive member the manifest advertises as the engine's bin. See

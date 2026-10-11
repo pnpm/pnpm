@@ -30,7 +30,7 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pnpm_tool_protocol::{split_tool_protocol, strip_tool_protocol};
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use ssri::Integrity;
 
 use crate::{
@@ -156,7 +156,7 @@ impl NodeResolver {
         wanted_dependency: &WantedDependency,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some((protocol, version_spec)) = bare_runtime_spec(wanted_dependency, "node") else {
+        let Some(version_spec) = bare_runtime_spec(wanted_dependency, "node") else {
             return Ok(None);
         };
         if let Some((current, version)) = opts.refresh.kept_runtime() {
@@ -189,7 +189,7 @@ impl NodeResolver {
             format!("node@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("{protocol}{range}")),
+            Some(format!("{RUNTIME_PROTOCOL}{range}")),
         )))
     }
 
@@ -272,15 +272,13 @@ impl NodeResolver {
     }
 
     /// The specifier an `add node@tool:<spec>` request saves to the
-    /// manifest: `protocol` (`tool:` or `runtime:`, as the request spells
-    /// it) plus the picked version, pinned exactly unless the
-    /// previous specifier (or the requested spec) carries a `^`/`~`
+    /// manifest: `runtime:` plus the picked version, pinned exactly unless
+    /// the previous specifier (or the requested spec) carries a `^`/`~`
     /// operator. This is the same normalization [`Resolver::resolve`]
     /// reports through `normalized_bare_specifier`, computed without
     /// fetching the platform asset list.
     pub async fn resolve_save_specifier(
         &self,
-        protocol: &str,
         version_spec: &str,
         prev_specifier: Option<&str>,
     ) -> Result<String, NodeResolverError> {
@@ -292,12 +290,12 @@ impl NodeResolver {
         let parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
         if let Some(version) = exact_release_version(&parsed) {
-            return Ok(format!("{protocol}{version}"));
+            return Ok(format!("{RUNTIME_PROTOCOL}{version}"));
         }
         let picked = self.pick_node_version(version_spec).await?;
         let range =
             normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
-        Ok(format!("{protocol}{range}"))
+        Ok(format!("{RUNTIME_PROTOCOL}{range}"))
     }
 
     async fn resolve_latest_impl(
@@ -305,7 +303,7 @@ impl NodeResolver {
         query: &LatestQuery,
         _opts: &ResolveOptions,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        let Some((_, manifest_spec)) = bare_runtime_spec(&query.wanted_dependency, "node") else {
+        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "node") else {
             return Ok(None);
         };
         let spec_owned;
@@ -442,17 +440,14 @@ fn node_resolve_result(
     }
 }
 
-/// The protocol as written (`tool:` or `runtime:`) and the version selector
-/// of a `(alias, bareSpecifier)` pair naming `expected_alias`. `None` (defer to
-/// the next resolver) for any other shape.
-fn bare_runtime_spec<'a>(
-    wanted: &'a WantedDependency,
-    expected_alias: &str,
-) -> Option<(&'a str, &'a str)> {
+/// The version selector of a `tool:` / `runtime:` `(alias, bareSpecifier)`
+/// pair naming `expected_alias`. `None` (defer to the next resolver) for any
+/// other shape.
+fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(split_tool_protocol)
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 /// The selector a `runtime:` declaration saves for `resolved_version`.

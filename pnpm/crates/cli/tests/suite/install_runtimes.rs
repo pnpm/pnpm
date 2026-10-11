@@ -346,6 +346,41 @@ fn update_moves_a_channel_qualified_devengines_runtime_range() {
     );
 }
 
+/// `devEngines.runtime` stores no protocol, so its lockfile specifier stays
+/// `runtime:` whichever spelling the command used.
+#[test]
+fn tool_requests_keep_runtime_specifier_for_devengines_runtime() {
+    for subcommand in ["add", "update"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+        let workspace = prepare_workspace(
+            &root,
+            format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+        );
+        write_devengines_manifest(&workspace, "rc/24.0.0", Some("download"));
+        command(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+
+        command(&workspace)
+            .with_args([subcommand, "node@tool:rc/24.1.0", "--lockfile-only"])
+            .assert()
+            .success();
+
+        let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+        let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+        assert!(
+            manifest.contains("devEngines")
+                && !manifest.contains("tool:")
+                && lockfile.contains("version: runtime:24.1.0")
+                && !lockfile.contains("tool:"),
+            "{subcommand}: {manifest}\n{lockfile}",
+        );
+    }
+}
+
 #[test]
 fn add_keeps_the_locked_devengines_runtime_version() {
     let root = tempfile::tempdir().unwrap();
