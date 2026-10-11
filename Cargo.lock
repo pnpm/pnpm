@@ -4936,6 +4936,7 @@ dependencies = [
  "derive_more",
  "node-semver",
  "pnpm-crypto-hash",
+ "pnpm-tool-protocol",
 ]
 
 [[package]]
