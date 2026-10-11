@@ -333,7 +333,7 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
         return Ok(cas_paths);
     }
     let allow_build_closure = |_dep_path: &str| Some(false);
-    let files_index_file = git_hosted_store_index_key(package_id, !config.ignore_scripts, None);
+    let files_index_file = git_hosted_store_index_key(package_id, !config.ignore_scripts);
     let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
         scripts: pnpm_git_fetcher::PrepareScriptOptions {
             ignore: config.ignore_scripts,
@@ -358,7 +358,6 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
         // manager has to be provided to it.
         package_id,
         requester: "",
-        build_tools: pnpm_git_fetcher::BuildTools::Detected,
     }
     .run::<Reporter>()
     .await

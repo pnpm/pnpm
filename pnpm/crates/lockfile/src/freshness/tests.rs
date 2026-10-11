@@ -29,7 +29,6 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        lock_build_tools: false,
         resolution: crate::freshness::ResolutionSettingsCheck {
             auto_install_peers: true,
             dedupe_peers: false,

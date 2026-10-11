@@ -48,9 +48,8 @@ async fn pnpmfile_checksum(hook: Option<&Arc<dyn PnpmfileHooks>>) -> Option<Stri
 }
 
 /// The configured pnpr server, unless the pnpmfile defines a hook that
-/// shapes resolution or `lockBuildTools` is on. The server runs no
-/// pnpmfile and records no build tools, so such an install resolves locally
-/// and warns that the server is not used
+/// shapes resolution. The server runs no pnpmfile, so such an install
+/// resolves locally and warns that the server is not used
 /// ([pnpm/pnpm#14460](https://github.com/pnpm/pnpm/issues/14460)).
 pub(crate) async fn pnpr_target<'a, Reporter: self::Reporter>(
     state: &'a State,
@@ -59,13 +58,6 @@ pub(crate) async fn pnpr_target<'a, Reporter: self::Reporter>(
     let Some(server) = state.config.pnpr_server.as_deref() else {
         return Ok(None);
     };
-    if state.config.lock_build_tools {
-        let server = redact_url_for_display(server);
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "Resolving dependencies locally because the pnpr server at {server} cannot record build tools (lockBuildTools)",
-        ));
-        return Ok(None);
-    }
     let pnpmfile_hook = load_pnpmfile(state, pnpr_lockfile_dir(state, link))?;
     if let Some(hook) = pnpmfile_hook.as_ref()
         && let Some(unsupported) = resolution_hook(hook.as_ref()).await?

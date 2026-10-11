@@ -7,8 +7,6 @@
 //! escape the git root via [`safe_join_path`].
 
 use crate::{
-    BuildTools,
-    build_environment::{PREPUBLISH_SCRIPTS, requires_build},
     error::PreparePackageError,
     pm_shims::{provide_running_pnpm, shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
@@ -26,6 +24,15 @@ use std::{
     path::{Path, PathBuf},
     sync::{LazyLock, Mutex, PoisonError},
 };
+
+/// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
+/// runs automatically as part of `<pm>-install` (npm/yarn/pnpm fold it
+/// into the install lifecycle), so we don't need to invoke it
+/// separately.
+///
+/// Note: `prepublishOnly` is intentionally omitted here — neither npm
+/// nor Yarn run it for git-hosted deps.
+const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
 /// Closure shape used to ask the install policy whether the package at
 /// a dep path is allowed to run lifecycle scripts. `Some(false)` explicitly
@@ -49,7 +56,6 @@ pub struct PreparePackageOptions<'a> {
     pub pkg_resolution_id: &'a str,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
-    pub build_tools: BuildTools<'a>,
 }
 
 /// Result of [`prepare_package`], distinguishing a package that requires
@@ -67,14 +73,12 @@ impl PreparedPackage {
         requested_key: &'a str,
         package_id: &str,
         ignore_scripts: bool,
-        build_tools: Option<&str>,
     ) -> std::borrow::Cow<'a, str> {
         if self.should_be_built
             && ((self.ignored_build && !ignore_scripts)
                 || (!self.ignored_build && requested_key.ends_with("\tnot-built")))
         {
-            pnpm_store_dir::git_hosted_store_index_key(package_id, !self.ignored_build, build_tools)
-                .into()
+            pnpm_store_dir::git_hosted_store_index_key(package_id, !self.ignored_build).into()
         } else {
             requested_key.into()
         }
@@ -93,7 +97,10 @@ pub fn prepare_package<Reporter: self::Reporter>(
     let Some(manifest) = manifest else {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false, ignored_build: false });
     };
-    if !requires_build(&manifest, pkg_dir.as_path()) {
+    let scripts = manifest.get("scripts").and_then(Value::as_object);
+    if scripts.is_none_or(serde_json::Map::is_empty)
+        || !package_should_be_built(&manifest, &pkg_dir)
+    {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false, ignored_build: false });
     }
     if opts.scripts.ignore
@@ -110,16 +117,17 @@ pub fn prepare_package<Reporter: self::Reporter>(
     let pm = wanted_pm.pm;
     let dep_path = manifest_dep_path(&manifest);
 
+    let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
-    let build_path = build_path::provide_build_tools::<Reporter>(opts, &wanted_pm, &dep_path)?;
-    let extra_bin_paths = build_path.bin_paths(opts.extra_bin_paths);
+    let shims_dir =
+        provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.scripts.running_pnpm)?;
+    if let Some(dir) = shims_dir.as_ref() {
+        extra_bin_paths.insert(0, dir.path().to_path_buf());
+    }
 
     let extra_env = prepare_env(opts.extra_env, opts.scripts.running_pnpm.pm_on_fail);
-    let mut run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths, &extra_env);
-    if let Some(node) = build_path.node {
-        run_opts.environment.node_execpath = Some(node);
-    }
+    let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths, &extra_env);
 
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
     remove_install_node_modules(&pkg_dir)?;
@@ -295,7 +303,7 @@ fn prepublish_invocation(
 ///
 /// A `pmOnFail` other than `download` leaves pnpm itself to the running
 /// pnpm, whatever version the dependency pins.
-pub(super) fn provide_wanted_pm<Reporter: self::Reporter>(
+fn provide_wanted_pm<Reporter: self::Reporter>(
     wanted_pm: &WantedPm,
     dep_path: &str,
     running_pnpm: crate::RunningPnpm<'_>,
@@ -358,7 +366,7 @@ fn provide_package_manager(
     Ok(dir)
 }
 
-pub(super) fn describe_wanted_pm(wanted: &WantedPm) -> String {
+fn describe_wanted_pm(wanted: &WantedPm) -> String {
     match &wanted.version_spec {
         Some(version_spec) => format!("{}@{version_spec}", wanted.pm.name()),
         None => wanted.pm.name().to_string(),
@@ -442,6 +450,36 @@ pub fn resolve_package_build_permission(
     })
 }
 
+/// Decide whether the package needs building.
+fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
+    let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) else {
+        return false;
+    };
+    if scripts
+        .get("prepare")
+        .and_then(Value::as_str)
+        .is_some_and(|script| !script.is_empty())
+    {
+        return true;
+    }
+    let has_prepublish_script = PREPUBLISH_SCRIPTS
+        .iter()
+        .any(|name| {
+            scripts
+                .get(*name)
+                .and_then(Value::as_str)
+                .is_some_and(|script| !script.is_empty())
+        });
+    if !has_prepublish_script {
+        return false;
+    }
+    let main_file = manifest
+        .get("main")
+        .and_then(Value::as_str)
+        .unwrap_or("index.js");
+    !pkg_dir.join(main_file).exists()
+}
+
 /// Join `sub` onto `root` and reject results that climb outside.
 ///
 /// `sub` is a resolution's `path` field, which keeps the leading slash
@@ -482,8 +520,6 @@ fn inject_script(manifest: &mut Value, stage: &str, script: &str) {
 fn map_lifecycle_err(source: LifecycleScriptError) -> PreparePackageError {
     PreparePackageError::LifecycleFailed { source }
 }
-
-mod build_path;
 
 #[cfg(test)]
 mod tests;

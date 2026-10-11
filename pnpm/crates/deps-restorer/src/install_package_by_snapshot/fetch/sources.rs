@@ -9,9 +9,7 @@ use super::{
 use crate::{build_modules::exec_scripts_prepend_node_path, custom_fetcher::CustomFetchOutcome};
 use pnpm_config::PmOnFail;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitHostedTarballFetcher};
-use pnpm_lockfile::{
-    BinaryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
-};
+use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMetadata};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
@@ -20,7 +18,7 @@ use std::{collections::HashMap, path::PathBuf};
 impl InstallPackageBySnapshot<'_> {
     pub(in super::super) async fn custom_fetch<Reporter: self::Reporter>(
         &self,
-        (package_key, snapshot): (&PackageKey, &SnapshotEntry),
+        package_key: &PackageKey,
         metadata: &PackageMetadata,
         package_id: &str,
         download: &IngestTarballToStore<'_>,
@@ -49,13 +47,7 @@ impl InstallPackageBySnapshot<'_> {
             }
             CustomFetchOutcome::Fetched { resolution, tarball } => {
                 let cas_paths = self.prepare_custom_tarball::<Reporter>(
-                    SnapshotFetch {
-                        package_key,
-                        snapshot,
-                        package_id,
-                        resolution: &resolution,
-                        download,
-                    },
+                    SnapshotFetch { package_key, package_id, resolution: &resolution, download },
                     tarball.files_map.clone(),
                 )
                 .await?;
@@ -78,7 +70,6 @@ impl InstallPackageBySnapshot<'_> {
                 download: fetch.download,
                 resolution: fetch.resolution,
                 package_key: fetch.package_key,
-                snapshot: fetch.snapshot,
                 package_id: fetch.package_id,
                 allow_build: &allow_build,
                 scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),
@@ -117,10 +108,7 @@ impl InstallPackageBySnapshot<'_> {
         let config = self.ctx.config;
         let built = !config.ignore_scripts
             && allow_build(&fetch.package_key.without_peer().to_string()) != Some(false);
-        let build_tools =
-            self.build_tools_for::<Reporter>(fetch.package_key, fetch.snapshot, built).await?;
-        let files_index_file =
-            git_hosted_store_index_key(fetch.package_id, built, build_tools.identity());
+        let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
             scripts: prepare_script_options(config, exec_scripts_prepend_node_path(config)),
@@ -143,7 +131,6 @@ impl InstallPackageBySnapshot<'_> {
             package_id: fetch.package_id,
             package_name: &package_name,
             requester: self.ctx.requester,
-            build_tools: build_tools.as_build_tools(),
         }
         .run::<Reporter>()
         .await
@@ -210,12 +197,12 @@ impl InstallPackageBySnapshot<'_> {
         cas_paths: HashMap<String, PathBuf>,
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
-        let built = !config.ignore_scripts
-            && (fetch.allow_build)(&fetch.package_key.without_peer().to_string()) != Some(false);
-        let build_tools =
-            self.build_tools_for::<Reporter>(fetch.package_key, fetch.snapshot, built).await?;
-        let files_index_file =
-            git_hosted_store_index_key(fetch.package_id, built, build_tools.identity());
+        let files_index_file = git_hosted_store_index_key(
+            fetch.package_id,
+            !config.ignore_scripts
+                && (fetch.allow_build)(&fetch.package_key.without_peer().to_string())
+                    != Some(false),
+        );
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
             scripts: prepare_script_options(config, fetch.scripts_prepend_node_path),
             store: pnpm_git_fetcher::GitStoreContext {
@@ -229,7 +216,6 @@ impl InstallPackageBySnapshot<'_> {
 
             package_id: fetch.package_id,
             requester: self.ctx.requester,
-            build_tools: build_tools.as_build_tools(),
         }
         .run::<Reporter>()
         .await

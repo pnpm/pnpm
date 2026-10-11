@@ -33,7 +33,6 @@ pub(super) struct CustomFetched {
 }
 pub(super) struct SnapshotFetch<'f> {
     package_key: &'f PackageKey,
-    snapshot: &'f SnapshotEntry,
     package_id: &'f str,
     /// The effective resolution, which a custom fetcher's `delegate`
     /// may have replaced.
@@ -55,7 +54,6 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
     /// may have replaced.
     resolution: &'a LockfileResolution,
     package_key: &'a PackageKey,
-    snapshot: &'a SnapshotEntry,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
     scripts_prepend_node_path: ExecScriptsPrependNodePath,
@@ -166,13 +164,8 @@ impl InstallPackageBySnapshot<'_> {
         emit_progress_resolved::<Reporter>(&package_id, self.ctx.requester);
 
         let download = self.ingest(metadata, &package_id);
-        let custom = self.custom_fetch::<Reporter>(
-            (package_key, snapshot),
-            metadata,
-            &package_id,
-            &download,
-        )
-        .await?;
+        let custom =
+            self.custom_fetch::<Reporter>(package_key, metadata, &package_id, &download).await?;
         let resolution = custom.resolution.as_ref().unwrap_or(&metadata.resolution);
         // Derived from the effective resolution, not the lockfile's: a
         // custom fetcher's `delegate` can resolve to a directory, and
@@ -184,7 +177,6 @@ impl InstallPackageBySnapshot<'_> {
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
-                    snapshot,
                     package_id: &package_id,
                     resolution,
                     download: &download,
@@ -205,7 +197,7 @@ impl InstallPackageBySnapshot<'_> {
         Ok(InstalledPackage { cas_paths, source_is_mutable, source_exists })
     }
 
-    pub(super) fn ingest<'d>(
+    fn ingest<'d>(
         &'d self,
         metadata: &'d PackageMetadata,
         package_id: &'d str,
@@ -325,7 +317,6 @@ impl InstallPackageBySnapshot<'_> {
             download: fetch.download,
             resolution: fetch.resolution,
             package_key: fetch.package_key,
-            snapshot: fetch.snapshot,
             package_id: fetch.package_id,
             allow_build,
             scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),

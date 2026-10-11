@@ -65,7 +65,6 @@ pub struct GitFetcher<'a> {
     /// `git+…#<commit>` id and carries no name.
     pub package_name: &'a str,
     pub requester: &'a str,
-    pub build_tools: crate::BuildTools<'a>,
 }
 
 /// Output of [`GitFetcher::run`]. Mirrors the shape of
@@ -129,7 +128,6 @@ impl GitFetcher<'_> {
             self.store.files_index_file,
             self.package_id,
             self.scripts.ignore,
-            self.build_tools.identity(),
         );
         queue_files_index(
             self.store.index_writer,
@@ -175,7 +173,6 @@ impl<'a> GitFetcher<'a> {
 
             extra_bin_paths: &[],
             extra_env: &NO_EXTRA_ENV,
-            build_tools: self.build_tools,
         }
     }
 }
@@ -391,26 +388,6 @@ pub struct GitManifestQuery<'a> {
 pub async fn read_git_manifest(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
-    read_git_package(&query, |_, _, manifest| manifest)
-}
-
-/// The [`BuildEnvironment`](crate::BuildEnvironment) of the package a `Git`
-/// resolution points at, read from the same checkout as
-/// [`read_git_manifest`]. `None` when the package needs no build.
-pub async fn read_git_build_environment(
-    query: GitManifestQuery<'_>,
-) -> Result<Option<crate::BuildEnvironment>, GitFetcherError> {
-    read_git_package(&query, |root, pkg_dir, manifest| {
-        crate::detect_build_environment(root, pkg_dir, manifest.as_ref()?)
-    })
-}
-
-/// Check the package of `query` out and hand `read` the repository root,
-/// the package directory, and its manifest.
-fn read_git_package<Output>(
-    query: &GitManifestQuery<'_>,
-    read: impl FnOnce(&Path, &Path, Option<Value>) -> Option<Output>,
-) -> Result<Option<Output>, GitFetcherError> {
     tokio::task::block_in_place(|| {
         let source = query.source_cache
             .get_with_config(
@@ -431,9 +408,7 @@ fn read_git_package<Output>(
         // happily read an arbitrary `package.json` off the host and
         // stamp its name onto this dep.
         let pkg_dir = safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
-        let manifest =
-            safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)?;
-        Ok(read(source.path(), &pkg_dir, manifest))
+        safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
 

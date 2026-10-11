@@ -31,7 +31,6 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
-        lock_build_tools: false,
         node_linker_excluded: Vec::new(),
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),

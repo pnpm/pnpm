@@ -1,4 +1,7 @@
-use super::{PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path};
+use super::{
+    PreparePackageOptions, PreparedPackage, package_should_be_built, prepare_package,
+    safe_join_path,
+};
 use crate::error::PreparePackageError;
 use miette::Diagnostic;
 use pnpm_executor::ScriptsPrependNodePath;
@@ -26,7 +29,6 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: ignore_scripts,
             unsafe_perm: true,
@@ -48,7 +50,6 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
 fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -73,7 +74,6 @@ fn opts_allow_dep_path<'a>(
 ) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -90,6 +90,45 @@ fn opts_allow_dep_path<'a>(
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
+}
+
+#[test]
+fn package_should_be_built_false_for_empty_scripts() {
+    let dir = tempdir().unwrap();
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    assert!(!package_should_be_built(&manifest, dir.path()));
+}
+
+#[test]
+fn package_should_be_built_true_for_non_empty_prepare() {
+    let dir = tempdir().unwrap();
+    let manifest = json!({
+        "name": "x", "version": "0.0.0",
+        "scripts": { "prepare": "tsc" },
+    });
+    assert!(package_should_be_built(&manifest, dir.path()));
+}
+
+#[test]
+fn package_should_be_built_false_when_main_exists_and_prepare_absent() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("index.js"), "").unwrap();
+    let manifest = json!({
+        "name": "x", "version": "0.0.0",
+        "scripts": { "prepublish": "true" },
+    });
+    assert!(!package_should_be_built(&manifest, dir.path()));
+}
+
+#[test]
+fn package_should_be_built_true_when_main_missing_and_prepublish_set() {
+    let dir = tempdir().unwrap();
+    // `main` defaults to `index.js`; create no file so it's missing.
+    let manifest = json!({
+        "name": "x", "version": "0.0.0",
+        "scripts": { "prepack": "rollup -c" },
+    });
+    assert!(package_should_be_built(&manifest, dir.path()));
 }
 
 #[test]

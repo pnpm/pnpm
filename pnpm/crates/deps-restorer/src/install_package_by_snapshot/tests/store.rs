@@ -60,7 +60,6 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::super::InstallPackageBySnapshot {
-        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,
@@ -157,7 +156,6 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::super::InstallPackageBySnapshot {
-        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,

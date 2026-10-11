@@ -7,7 +7,6 @@ pub use agent_skills::{
 };
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
-pub use build_tools_record::RecordBuildToolsError;
 pub use catalog_cleanup::{WriteWorkspaceCatalogsError, prune_against_project_lockfiles};
 pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
@@ -49,7 +48,6 @@ mod add;
 mod agent_skills;
 mod build_resolution_verifiers;
 mod build_snapshot;
-mod build_tools_record;
 mod catalog_cleanup;
 mod catalog_mode;
 mod check_custom_resolver_force_resolve;

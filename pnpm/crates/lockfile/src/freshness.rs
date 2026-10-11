@@ -18,7 +18,7 @@ pub use manifest::satisfies_package_manifest;
 pub use recorded_settings::{
     auto_install_peers_changed, exclude_links_from_lockfile_changed,
     recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
-    recorded_lock_build_tools, recorded_peers_suffix_max_length,
+    recorded_peers_suffix_max_length,
 };
 pub use spec_diff::SpecDiff;
 
@@ -36,7 +36,6 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
-    pub lock_build_tools: bool,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -260,14 +259,6 @@ pub enum StalenessReason {
     )]
     AddMissingPeerTypesChanged { lockfile: bool, config: bool },
 
-    /// The lockfile's `settings.lockBuildTools` differs from the current
-    /// install's `Config::lock_build_tools`. Normalized like
-    /// [`Self::DedupePeersChanged`].
-    #[display(
-        "`lockBuildTools` in the lockfile ({lockfile}) doesn't match the current config ({config})"
-    )]
-    LockBuildToolsChanged { lockfile: bool, config: bool },
-
     /// The lockfile's `settings.excludeLinksFromLockfile` differs from
     /// the current install's `Config::exclude_links_from_lockfile`. The
     /// setting decides whether `link:` deps are recorded at all, so a
@@ -330,7 +321,6 @@ impl StalenessReason {
             StalenessReason::AutoInstallPeersChanged { .. }
             | StalenessReason::DedupePeersChanged { .. }
             | StalenessReason::AddMissingPeerTypesChanged { .. }
-            | StalenessReason::LockBuildToolsChanged { .. }
             | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
             | StalenessReason::PeersSuffixMaxLengthChanged { .. }
             | StalenessReason::InjectWorkspacePackagesChanged { .. } => self.settings_block_key(),
@@ -378,7 +368,6 @@ pub fn check_lockfile_settings(
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
-    recorded_settings::check_lock_build_tools(lockfile, check.lock_build_tools)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted

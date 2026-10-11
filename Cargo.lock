@@ -5522,7 +5522,6 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-reporter",
  "pnpm-resolving-resolver-base",
- "pnpm-tool-protocol",
  "pnpm-wasm-host",
  "pretty_assertions",
  "serde",
@@ -6466,7 +6465,6 @@ version = "0.0.1"
 name = "pnpm-tool-protocol"
 version = "0.0.1"
 dependencies = [
- "node-semver",
  "pretty_assertions",
 ]
 

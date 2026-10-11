@@ -12,7 +12,6 @@ async fn fetcher_packs_subfolder_when_path_set() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -91,7 +90,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: true,
             unsafe_perm: true,

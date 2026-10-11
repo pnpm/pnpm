@@ -56,42 +56,41 @@ pub fn engines_runtime_dependencies(
     engines_field: &str,
     deps_field: &str,
 ) -> Vec<(&'static str, String)> {
-    RUNTIME_NAMES
-        .into_iter()
-        .filter(|runtime_name| {
-            manifest
-                .get(deps_field)
-                .and_then(|deps| deps.get(runtime_name))
-                .is_none()
-        })
-        .filter_map(|runtime_name| {
-            let version = downloadable_runtime_version(manifest, engines_field, runtime_name)?;
-            Some((runtime_name, format!("runtime:{version}")))
-        })
-        .collect()
-}
-
-/// The version the first `runtime_name` entry of
-/// `manifest[engines_field].runtime` pins, when that entry asks for
-/// `onFail: "download"`.
-#[must_use]
-pub fn downloadable_runtime_version<'a>(
-    manifest: &'a Value,
-    engines_field: &str,
-    runtime_name: &str,
-) -> Option<&'a str> {
-    let runtimes: &[Value] = match manifest.get(engines_field)?.get("runtime")? {
-        Value::Array(arr) => arr.as_slice(),
-        single @ Value::Object(_) => std::slice::from_ref(single),
-        _ => return None,
+    let mut dependencies = Vec::new();
+    let Some(runtime_entry) = manifest
+        .get(engines_field)
+        .and_then(|engines| engines.get("runtime"))
+    else {
+        return dependencies;
     };
-    let runtime = runtimes
-        .iter()
-        .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))?;
-    if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
-        return None;
+    for runtime_name in RUNTIME_NAMES {
+        if manifest
+            .get(deps_field)
+            .and_then(|deps| deps.get(runtime_name))
+            .is_some()
+        {
+            continue;
+        }
+        let runtimes: &[Value] = match runtime_entry {
+            Value::Array(arr) => arr.as_slice(),
+            single @ Value::Object(_) => std::slice::from_ref(single),
+            _ => continue,
+        };
+        let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
+        else {
+            continue;
+        };
+        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
+            continue;
+        }
+        let Some(version) = runtime.get("version").and_then(Value::as_str) else {
+            continue;
+        };
+        dependencies.push((runtime_name, format!("runtime:{}", version.trim())));
     }
-    Some(runtime.get("version")?.as_str()?.trim())
+    dependencies
 }
 
 /// Apply the configured runtime failure policy to both engine fields.

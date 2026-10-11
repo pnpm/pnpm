@@ -119,15 +119,6 @@ impl SettingsComparison<'_> {
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
             .or_else(|| self.agent_skills_drift())
-            .or_else(|| self.build_tools_drift())
-    }
-    fn build_tools_drift(&self) -> Option<&'static str> {
-        return_drift_if!(
-            self,
-            "lockBuildTools",
-            self.recorded.lock_build_tools != self.live.lock_build_tools,
-        );
-        None
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -363,7 +354,6 @@ fn recorded_allow_builds(
 
 fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
-        lock_build_tools: config.lock_build_tools.then_some(true),
         lockfile_include_resolution_settings: config
             .lockfile_include_resolution_settings
             .then_some(true),

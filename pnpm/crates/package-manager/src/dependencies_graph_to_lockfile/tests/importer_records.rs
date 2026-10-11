@@ -527,7 +527,6 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
-            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
@@ -621,7 +620,6 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
-            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,

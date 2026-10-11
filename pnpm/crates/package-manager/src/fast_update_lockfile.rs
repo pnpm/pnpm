@@ -193,18 +193,12 @@ fn importer_root_keys(lockfile: &Lockfile) -> VecDeque<PkgNameVerPeer> {
         .collect()
 }
 
-/// Every edge of `snapshot`, its build tools included: a tool stays in the
-/// lockfile while a package that builds with it does.
 fn snapshot_child_keys(snapshot: &SnapshotEntry) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
-    [
-        snapshot.dependencies.as_ref(),
-        snapshot.optional_dependencies.as_ref(),
-        snapshot.build_dependencies.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .flatten()
-    .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+    [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
 }
 
 /// Recompute every snapshot's `optional` flag from what still reaches it:

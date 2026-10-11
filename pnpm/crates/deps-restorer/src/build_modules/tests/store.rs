@@ -33,8 +33,8 @@ fn side_effects_key_for_git_hosted_tarball_matches_warm_lookup() {
     });
 
     assert_eq!(
-        store_index_key_for_resolution(&resolution, pkg_id, true, None),
-        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true, None)),
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true)),
     );
 }
 #[test]
@@ -48,8 +48,8 @@ fn side_effects_key_for_git_resolution_does_not_require_integrity() {
     });
 
     assert_eq!(
-        store_index_key_for_resolution(&resolution, pkg_id, true, None),
-        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true, None)),
+        store_index_key_for_resolution(&resolution, pkg_id, true),
+        Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, true)),
     );
 }
 /// If a failed materialization left the slot without its manifest (a

@@ -1108,4 +1108,3 @@ fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &s
 }
 
 mod builds;
-mod locked_build_tools;
