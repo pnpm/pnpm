@@ -17,7 +17,7 @@ pub use selection::{Selection, SelectionMode};
 mod arguments;
 
 use super::{
-    recursive::{ExecutionStatus, Status, discover_workspace_projects, is_root_only_patterns},
+    recursive::{ExecutionStatus, Status, discover_workspace_projects, keeps_workspace_root},
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
 };
@@ -142,8 +142,7 @@ pub fn run_pipeline(
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
         workspace_root: run.workspace_root,
-        include_workspace_root: config.include_workspace_root
-            || patterns.as_deref().is_some_and(is_root_only_patterns),
+        include_workspace_root: keeps_workspace_root(config, patterns.as_deref()),
         base: &base,
         full: invocation.full,
         config,

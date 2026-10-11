@@ -484,7 +484,7 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
-        if config.include_workspace_root {
+        if keeps_workspace_root(config, *workspace_patterns) {
             return None;
         }
         // An inclusion selector already pins the selected set, so the
@@ -494,13 +494,6 @@ impl AutoExcludeRoot<'_> {
             .chain(config.filter_prod.iter())
             .any(|filter| !filter.starts_with('!'))
         {
-            return None;
-        }
-        // A root-only workspace (patterns === ['.']) has no non-root project
-        // to keep, so excluding the root would empty the selection. Absent
-        // patterns mean no `pnpm-workspace.yaml`.
-        let patterns = (*workspace_patterns)?;
-        if is_root_only_patterns(patterns) {
             return None;
         }
         Some(format!("!{{{}}}", relative_workspace_dir(config, prefix)))
@@ -517,8 +510,16 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
         .unwrap_or_else(|| ".".to_string())
 }
 
+/// Whether a selection that names no project keeps the workspace root:
+/// `includeWorkspaceRoot` is set, or the workspace has no non-root project
+/// to keep, so excluding the root would empty the selection.
+/// `workspace_patterns` is `None` when there is no `pnpm-workspace.yaml`.
+pub(crate) fn keeps_workspace_root(config: &Config, workspace_patterns: Option<&[String]>) -> bool {
+    config.include_workspace_root || workspace_patterns.is_none_or(is_root_only_patterns)
+}
+
 /// Whether the workspace enumerates the root project only.
-pub(crate) fn is_root_only_patterns(patterns: &[String]) -> bool {
+fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
 }
 
