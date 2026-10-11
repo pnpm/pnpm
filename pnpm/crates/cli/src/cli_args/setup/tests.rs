@@ -5,7 +5,7 @@
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
     PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    standalone_manifest, write_windows_alias_wrapper,
+    resolve_executable, standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -74,6 +74,20 @@ fn standalone_manifest_declares_package_files() {
             "files": ["pnpm.exe", "dist/"],
         }),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn resolve_executable_follows_a_bin_symlink_into_the_package() {
+    let root = tempfile::tempdir().unwrap();
+    let engine = root.path().join("lib/node_modules/pnpm/pnpm");
+    std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
+    std::fs::write(&engine, b"engine").unwrap();
+    let launcher = root.path().join("bin/pn");
+    std::fs::create_dir_all(launcher.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink("../lib/node_modules/pnpm/pnpm", &launcher).unwrap();
+
+    assert_eq!(resolve_executable(&launcher).unwrap(), dunce::canonicalize(&engine).unwrap());
 }
 
 #[test]

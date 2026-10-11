@@ -406,6 +406,33 @@ test('setup ignores legacy shim cleanup failures', async () => {
 // Windows the .cmd wrappers take over.
 const posixTest = process.platform === 'win32' ? test.skip : test
 
+// Creating a file symlink needs extra privileges on Windows.
+// Creating a file symlink on Windows needs elevated rights.
+posixTest('setup does not install the CLI globally when pnpm runs through a symlink to its JS entry point', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(false)
+  jest.mocked(spawnSync).mockClear()
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const entryPoint = path.join(tmpDir, 'lib/node_modules/pnpm/bin/pnpm.mjs')
+  actualFs.mkdirSync(path.dirname(entryPoint), { recursive: true })
+  actualFs.writeFileSync(entryPoint, '')
+  const launcher = path.join(tmpDir, 'bin/pnpm')
+  actualFs.mkdirSync(path.dirname(launcher))
+  actualFs.symlinkSync('../lib/node_modules/pnpm/bin/pnpm.mjs', launcher)
+  const originalArgv1 = process.argv[1]
+  process.argv[1] = launcher
+  try {
+    await setup.handler({ pnpmHomeDir: path.join(tmpDir, 'home') })
+  } finally {
+    process.argv[1] = originalArgv1
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).not.toHaveBeenCalled()
+})
+
 posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
