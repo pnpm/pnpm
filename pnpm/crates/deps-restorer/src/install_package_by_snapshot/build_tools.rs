@@ -51,6 +51,15 @@ pub enum BuildToolError {
     )]
     InvalidRecord { package_key: String, tool_key: String },
 
+    #[display("The lockfile records {tool_key} as a build tool, but its download is {installed}.")]
+    #[diagnostic(
+        code(ERR_PNPM_BUILD_TOOL_MISMATCH),
+        help(
+            "The lockfile entry of the tool may have been tampered with. Check it before you install."
+        )
+    )]
+    NotTheRecordedTool { tool_key: String, installed: String },
+
     #[diagnostic(transparent)]
     PrivateInstall(#[error(source)] PrivateInstallError),
 
@@ -192,6 +201,7 @@ impl InstallPackageBySnapshot<'_> {
             ImportIndexedDirOpts::default(),
         )
         .map_err(|source| BuildToolError::Import { tool_key: tool_key.to_string(), source })?;
+        check_installed_identity(tool_key, artifact, install.dir())?;
         let runs_on_node = matches!(artifact, BuildToolArtifact::Registry { .. });
         let tool = ProvisionedTool::from_dir(name, version, install.dir(), runs_on_node)
             .map_err(|source| BuildToolError::ReadManifest {
@@ -248,6 +258,37 @@ impl InstallPackageBySnapshot<'_> {
     }
 }
 
+/// The installed manifest must name the package and version the record
+/// stands for: a tarball of some other package does not become the tool by
+/// matching the integrity the lockfile records for it.
+fn check_installed_identity(
+    tool_key: &PackageKey,
+    artifact: BuildToolArtifact<'_>,
+    dir: &std::path::Path,
+) -> Result<(), BuildToolError> {
+    let expected_name = match artifact {
+        BuildToolArtifact::Registry { package, .. } => package.to_string(),
+        BuildToolArtifact::Archive => tool_key.name.to_string(),
+    };
+    let expected_version = tool_key.suffix.version().to_string();
+    let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(dir)
+        .map_err(|source| BuildToolError::ReadManifest { tool_key: tool_key.to_string(), source })?
+        .unwrap_or_default();
+    let field = |name: &str| {
+        manifest
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+    };
+    if field("name") == expected_name && field("version") == expected_version {
+        return Ok(());
+    }
+    Err(BuildToolError::NotTheRecordedTool {
+        tool_key: tool_key.to_string(),
+        installed: format!("{}@{}", field("name"), field("version")),
+    })
+}
+
 fn invalid_record(package_key: &PackageKey, tool_key: &PackageKey) -> BuildToolError {
     BuildToolError::InvalidRecord {
         package_key: package_key.to_string(),
@@ -260,3 +301,6 @@ impl From<BuildToolError> for InstallPackageBySnapshotError {
         InstallPackageBySnapshotError::BuildTool(error)
     }
 }
+
+#[cfg(test)]
+mod tests;

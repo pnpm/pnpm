@@ -38,3 +38,29 @@ fn cas_files_contain_directories() {
     assert!(package.contains("./lib/"));
     assert!(!package.contains("li"));
 }
+
+/// A manifest's `main` cannot make the build check look outside the
+/// package.
+#[test]
+fn paths_outside_the_package_name_no_file() {
+    let root = tempfile::tempdir().unwrap();
+    let package = root.path().join("package");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(root.path().join("outside.js"), "").unwrap();
+    let files = HashMap::from([("outside.js".to_string(), root.path().join("outside.js"))]);
+    let archive = CasPackageFiles { files: &files, dir: Some("package") };
+
+    assert!(!package.as_path().contains("../outside.js"));
+    assert!(
+        !package
+            .as_path()
+            .contains(
+                &root
+                    .path()
+                    .join("outside.js")
+                    .to_string_lossy()
+            )
+    );
+    assert_eq!(package.as_path().read_head("../outside.js", 1), None);
+    assert!(!archive.contains("../outside.js"));
+}

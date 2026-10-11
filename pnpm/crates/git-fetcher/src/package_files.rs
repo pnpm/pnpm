@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     fs,
     io::Read as _,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// The files of one directory of a package, addressed by paths relative to
@@ -20,14 +20,24 @@ pub trait PackageFiles {
     fn read_head(&self, path: &str, limit: u64) -> Option<Vec<u8>>;
 }
 
+/// Paths come from the package's own manifest, so one that is absolute or
+/// climbs out of the directory names no file of it.
 impl PackageFiles for Path {
     fn contains(&self, path: &str) -> bool {
-        self.join(path).exists()
+        is_inside(path) && self.join(path).exists()
     }
 
     fn read_head(&self, path: &str, limit: u64) -> Option<Vec<u8>> {
-        read_file_head(&self.join(path), limit)
+        is_inside(path)
+            .then(|| read_file_head(&self.join(path), limit))
+            .flatten()
     }
+}
+
+fn is_inside(path: &str) -> bool {
+    Path::new(path)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 /// A directory of an archive the store holds, as the map from each file's
@@ -40,19 +50,22 @@ pub struct CasPackageFiles<'a> {
 }
 
 impl CasPackageFiles<'_> {
-    fn archive_path(&self, path: &str) -> String {
+    fn archive_path(&self, path: &str) -> Option<String> {
+        if !is_inside(path) {
+            return None;
+        }
         let path = path.trim_start_matches("./").trim_end_matches('/');
-        match self.dir.unwrap_or("").trim_matches('/') {
+        Some(match self.dir.unwrap_or("").trim_matches('/') {
             "" => path.to_string(),
             dir => format!("{dir}/{path}"),
-        }
+        })
     }
 }
 
 impl PackageFiles for CasPackageFiles<'_> {
     /// A directory counts too, as it does on disk: `main` may name one.
     fn contains(&self, path: &str) -> bool {
-        let path = self.archive_path(path);
+        let Some(path) = self.archive_path(path) else { return false };
         let dir_prefix = format!("{path}/");
         self.files.contains_key(&path)
             || self.files
@@ -61,7 +74,7 @@ impl PackageFiles for CasPackageFiles<'_> {
     }
 
     fn read_head(&self, path: &str, limit: u64) -> Option<Vec<u8>> {
-        read_file_head(self.files.get(&self.archive_path(path))?, limit)
+        read_file_head(self.files.get(&self.archive_path(path)?)?, limit)
     }
 }
 
