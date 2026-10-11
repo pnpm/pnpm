@@ -1,4 +1,4 @@
-//! Resolves `deno@runtime:<spec>` dependencies.
+//! Resolves `deno@tool:<spec>` (alias `deno@runtime:<spec>`) dependencies.
 
 use std::sync::Arc;
 
@@ -12,11 +12,11 @@ use pnpm_resolving_resolver_base::{
     ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
     resolve_package_version,
 };
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
 use crate::read_deno_assets::{ReadDenoAssetsError, read_deno_assets};
 
 const RESOLVED_VIA: &str = "github.com/denoland/deno";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`DenoResolver`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -112,7 +112,7 @@ impl DenoResolver {
             format!("deno@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("runtime:{version_spec}")),
+            Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
         )))
     }
 
@@ -187,13 +187,14 @@ fn deno_resolve_result(
     }
 }
 
+/// The version selector of a `tool:` / `runtime:` `(alias, bareSpecifier)`
+/// pair naming `expected_alias`. `None` (defer to the next resolver) for any
+/// other shape.
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {

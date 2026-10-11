@@ -1,3 +1,5 @@
+use pnpm_tool_protocol::{is_tool_specifier, strip_tool_protocol};
+
 use super::{Map, PackageManifestError, Range, Value, Version, json};
 
 /// Runtime aliases recognised by `devEngines.runtime` /
@@ -93,7 +95,7 @@ pub fn engines_runtime_dependencies(
 
 /// Apply the configured runtime failure policy to both engine fields.
 ///
-/// A non-download policy removes `runtime:` dependency entries only for names
+/// A non-download policy removes `tool:` / `runtime:` dependency entries only for names
 /// managed by the corresponding engines field. `download` re-runs the normal
 /// engine-to-dependency conversion.
 pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
@@ -155,7 +157,7 @@ fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
         .collect()
 }
 
-/// Drop the `runtime:` dependency entries pnpm itself wrote for the runtimes
+/// Drop the `tool:` / `runtime:` dependency entries pnpm itself wrote for the runtimes
 /// the engines field manages. A hand-written entry under the same name is
 /// left alone.
 fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[&str]) {
@@ -166,7 +168,7 @@ fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[
         let written_by_pnpm = deps
             .get(*runtime_name)
             .and_then(Value::as_str)
-            .is_some_and(|specifier| specifier.starts_with("runtime:"));
+            .is_some_and(is_tool_specifier);
         if written_by_pnpm {
             deps.remove(*runtime_name);
         }
@@ -217,14 +219,14 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     None
 }
 
-/// Fold `runtime:<version>` dependency entries back into
+/// Fold `tool:<version>` / `runtime:<version>` dependency entries back into
 /// `devEngines.runtime` / `engines.runtime` before writing a manifest.
 ///
 /// The in-memory dependency form drives resolution and lockfile checks,
 /// while the on-disk manifest keeps the `devEngines.runtime` /
 /// `engines.runtime` contract.
 ///
-/// Mutates `manifest` in place and removes consumed `runtime:` dependency
+/// Mutates `manifest` in place and removes consumed `tool:` / `runtime:` dependency
 /// entries. Returns `InvalidAttribute` when a field shape prevents a
 /// lossless write.
 pub fn convert_dependencies_to_engines_runtime(
@@ -246,7 +248,7 @@ pub fn convert_dependencies_to_engines_runtime(
             .and_then(Value::as_object)
             .and_then(|deps| deps.get(runtime_name))
             .and_then(Value::as_str)
-            .and_then(|dep| dep.strip_prefix("runtime:"))
+            .and_then(strip_tool_protocol)
             .map(str::trim)
             .map(str::to_string);
         if let Some(version) = version {

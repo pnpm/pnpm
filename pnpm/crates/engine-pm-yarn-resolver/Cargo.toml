@@ -15,6 +15,7 @@ pnpm-crypto-shasums-file = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 
 derive_more = { workspace = true }
 miette = { workspace = true }

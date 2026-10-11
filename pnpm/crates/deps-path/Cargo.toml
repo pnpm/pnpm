@@ -14,6 +14,7 @@ repository.workspace = true
 derive_more = { workspace = true }
 node-semver = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 
 [lints]
 workspace = true

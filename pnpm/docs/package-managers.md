@@ -71,9 +71,9 @@ The resolved version of a package manager other than pnpm is not written to `pnp
 
 ### Runtimes
 
-`pnpm add` follows the same rule for the runtimes: naming `node` or `deno` records it under `engines.runtime`, the way the explicit `node@runtime:22` spelling already did.
+`pnpm add` follows the same rule for the runtimes: naming `node` or `deno` records it under `engines.runtime`, the way the explicit `node@tool:22` spelling does.
 
-`bun` is both a runtime and a package manager, and the package manager answers first: `pnpm add bun` declares it as the project's package manager. To add it as a runtime, ask for one — `pnpm add bun@runtime:1.3.0`.
+`bun` is both a runtime and a package manager, and the package manager answers first: `pnpm add bun` declares it as the project's package manager. To add it as a runtime, ask for the [provisioned tool](./package-sources.md#provisioned-tools): `pnpm add bun@tool:1.3.0`.
 
 ## Installing one globally
 

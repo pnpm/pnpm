@@ -20,6 +20,7 @@ pub const RESERVED_VERSION_PREFIXES: &[&str] = &[
     "pkg",
     "runtime",
     "ssh",
+    "tool",
     "workspace",
 ];
 
