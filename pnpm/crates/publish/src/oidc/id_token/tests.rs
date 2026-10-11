@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 const REGISTRY: &str = "https://registry.npmjs.org/";
 
-fn npm_id_token(audience: Value) -> String {
+fn npm_id_token(audience: &Value) -> String {
     let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({ "aud": audience })).unwrap());
     format!("header.{payload}.signature")
 }
@@ -44,11 +44,11 @@ macro_rules! github_actions_env {
 
 #[tokio::test]
 async fn returns_npm_id_token_without_any_fetch() {
-    let expected = npm_id_token(json!("npm:registry.npmjs.org"));
+    let expected = npm_id_token(&json!("npm:registry.npmjs.org"));
     struct Sys;
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
-            (name == "NPM_ID_TOKEN").then(|| npm_id_token(json!("npm:registry.npmjs.org")))
+            (name == "NPM_ID_TOKEN").then(|| npm_id_token(&json!("npm:registry.npmjs.org")))
         }
     }
     impl Clock for Sys {
@@ -73,7 +73,7 @@ async fn rejects_npm_id_token_with_a_different_registry_audience() {
     struct Sys;
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
-            (name == "NPM_ID_TOKEN").then(|| npm_id_token(json!("npm:attacker.example")))
+            (name == "NPM_ID_TOKEN").then(|| npm_id_token(&json!("npm:attacker.example")))
         }
     }
     impl Clock for Sys {
@@ -95,12 +95,12 @@ async fn rejects_npm_id_token_with_a_different_registry_audience() {
 
 #[tokio::test]
 async fn accepts_npm_id_token_with_matching_audience_in_array() {
-    let expected = npm_id_token(json!(["sigstore", "npm:registry.npmjs.org"]));
+    let expected = npm_id_token(&json!(["sigstore", "npm:registry.npmjs.org"]));
     struct Sys;
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
             (name == "NPM_ID_TOKEN").then(|| {
-                npm_id_token(json!(["sigstore", "npm:registry.npmjs.org"]))
+                npm_id_token(&json!(["sigstore", "npm:registry.npmjs.org"]))
             })
         }
     }
