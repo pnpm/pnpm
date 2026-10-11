@@ -21,7 +21,7 @@ pub fn sync_file(file: &File) -> io::Result<()> {
 fn is_full_fsync_unsupported(error: &io::Error) -> bool {
     matches!(
         error.raw_os_error(),
-        Some(libc::ENOTTY | libc::ENOTSUP | libc::EOPNOTSUPP | libc::EINVAL)
+        Some(libc::ENOTTY | libc::ENOTSUP | libc::EOPNOTSUPP | libc::EINVAL),
     )
 }
 
