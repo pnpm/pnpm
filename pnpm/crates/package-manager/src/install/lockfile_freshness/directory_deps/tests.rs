@@ -1,5 +1,6 @@
 use super::{
-    LocalDepContext, SpecDirs, check_local_dep_group_freshness, dependency_manifests_by_dir,
+    GroupMatching, LocalDepContext, SpecDirs, check_local_dep_group_freshness,
+    dependency_manifests_by_dir,
     peers::{PeerShadowing, check_recorded_peer_specs_match},
     project_manifests_by_dir,
 };
@@ -205,7 +206,7 @@ fn check_dependency_that_is_also_a_peer(
         &manifest,
         DependencyGroup::Prod,
         Some(&snapshot_deps),
-        (false, &peers.shadowed),
+        GroupMatching { shadowed: &peers.shadowed, allow_unresolved: false },
     )?;
     peers.check_local_peer_deps_freshness(&dep, &manifest, &metadata)
 }

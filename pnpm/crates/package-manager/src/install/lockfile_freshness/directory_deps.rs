@@ -242,7 +242,7 @@ fn check_single_directory_dep_freshness(
         &local_manifest,
         DependencyGroup::Prod,
         snapshot.dependencies.as_ref(),
-        (false, &peers.shadowed),
+        GroupMatching { shadowed: &peers.shadowed, allow_unresolved: false },
     )?;
     if check.config.optional {
         check_local_dep_group_freshness(
@@ -250,10 +250,20 @@ fn check_single_directory_dep_freshness(
             &local_manifest,
             DependencyGroup::Optional,
             snapshot.optional_dependencies.as_ref(),
-            (check.optional_exclusions.allow_unresolved, &HashSet::new()),
+            GroupMatching {
+                shadowed: &HashSet::new(),
+                allow_unresolved: check.optional_exclusions.allow_unresolved,
+            },
         )?;
     }
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
+}
+
+/// How one dependency group's manifest specs are matched against the
+/// snapshot's.
+pub(super) struct GroupMatching<'a> {
+    pub(super) shadowed: &'a HashSet<&'a str>,
+    pub(super) allow_unresolved: bool,
 }
 
 fn check_local_dep_group_freshness(
@@ -263,8 +273,9 @@ fn check_local_dep_group_freshness(
     snapshot_deps: Option<
         &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
     >,
-    (allow_unresolved, shadowed): (bool, &HashSet<&str>),
+    matching: GroupMatching<'_>,
 ) -> Result<(), FreshnessCheckError> {
+    let GroupMatching { shadowed, allow_unresolved } = matching;
     let mut manifest_deps: std::collections::HashMap<&str, &str> = local_manifest
         .dependencies([group])
         .collect();
