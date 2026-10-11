@@ -10,13 +10,40 @@ fn syncs_a_regular_file() {
 
 #[cfg(target_vendor = "apple")]
 #[test]
-fn falls_back_only_when_full_fsync_is_unsupported() {
-    use super::is_full_fsync_unsupported;
-    use std::io::Error;
+fn falls_back_to_fsync_when_full_sync_is_unsupported() {
+    use super::sync_with_fallback;
+    use std::{cell::Cell, io::Error};
     for errno in [libc::ENOTTY, libc::ENOTSUP, libc::EOPNOTSUPP, libc::EINVAL] {
-        assert!(is_full_fsync_unsupported(&Error::from_raw_os_error(errno)), "errno {errno}");
+        let fell_back = Cell::new(false);
+        sync_with_fallback(
+            || Err(Error::from_raw_os_error(errno)),
+            || {
+                fell_back.set(true);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(fell_back.get(), "errno {errno}");
+        let fsync_error = sync_with_fallback(
+            || Err(Error::from_raw_os_error(errno)),
+            || Err(Error::from_raw_os_error(libc::EIO)),
+        )
+        .unwrap_err();
+        assert_eq!(fsync_error.raw_os_error(), Some(libc::EIO), "errno {errno}");
     }
+}
+
+#[cfg(target_vendor = "apple")]
+#[test]
+fn keeps_other_full_sync_errors() {
+    use super::sync_with_fallback;
+    use std::io::Error;
     for errno in [libc::EIO, libc::ENOSPC, libc::EBADF] {
-        assert!(!is_full_fsync_unsupported(&Error::from_raw_os_error(errno)), "errno {errno}");
+        let error = sync_with_fallback(
+            || Err(Error::from_raw_os_error(errno)),
+            || panic!("fell back to fsync on errno {errno}"),
+        )
+        .unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(errno));
     }
 }

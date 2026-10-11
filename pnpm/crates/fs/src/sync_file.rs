@@ -7,22 +7,29 @@ use std::{fs::File, io};
 /// systems reject, such as virtiofs and SMB shares. There this falls back to
 /// `fsync`, as `SQLite` and Node.js do.
 pub fn sync_file(file: &File) -> io::Result<()> {
-    let result = file.sync_all();
     #[cfg(target_vendor = "apple")]
-    if let Err(error) = &result
-        && is_full_fsync_unsupported(error)
-    {
-        return fsync(file);
-    }
-    result
+    return sync_with_fallback(|| file.sync_all(), || fsync(file));
+    #[cfg(not(target_vendor = "apple"))]
+    file.sync_all()
 }
 
+/// Runs `full_sync`, and `fsync` only if the file system does not support it.
 #[cfg(target_vendor = "apple")]
-fn is_full_fsync_unsupported(error: &io::Error) -> bool {
-    matches!(
-        error.raw_os_error(),
-        Some(libc::ENOTTY | libc::ENOTSUP | libc::EOPNOTSUPP | libc::EINVAL),
-    )
+fn sync_with_fallback(
+    full_sync: impl FnOnce() -> io::Result<()>,
+    fsync: impl FnOnce() -> io::Result<()>,
+) -> io::Result<()> {
+    match full_sync() {
+        Err(error)
+            if matches!(
+                error.raw_os_error(),
+                Some(libc::ENOTTY | libc::ENOTSUP | libc::EOPNOTSUPP | libc::EINVAL),
+            ) =>
+        {
+            fsync()
+        }
+        result => result,
+    }
 }
 
 #[cfg(target_vendor = "apple")]
