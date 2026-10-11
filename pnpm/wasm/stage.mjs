@@ -107,9 +107,12 @@ async function validateDependencies (directory) {
     const file = path.join(directory, entry.name)
     if (entry.isSymbolicLink()) throw new Error(`The bundled WASM runtime contains a symlink: ${file}`)
     if (entry.isDirectory()) await validateDependencies(file)
-    else if (entry.name.endsWith('.map')) await rm(file)
+    else if (entry.name.endsWith('.map') || UNPACKED_FILES.has(entry.name)) await rm(file)
   }
 }
+
+/** `pnpm pack` leaves these out of the tarball at any depth. */
+const UNPACKED_FILES = new Set(['.npmignore', '.gitignore'])
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const destination = path.join(root, 'pnpm/npm/wasm')

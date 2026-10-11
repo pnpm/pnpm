@@ -73,7 +73,7 @@ where
     Ok(public.then_some(true))
 }
 
-fn id_token_payload(id_token: &str) -> Result<Value, DetermineProvenanceError> {
+pub(super) fn id_token_payload(id_token: &str) -> Result<Value, DetermineProvenanceError> {
     let mut parts = id_token.split('.');
     let (Some(header_b64), Some(payload_b64)) = (parts.next(), parts.next()) else {
         return Err(ProvenanceError::MalformedIdToken.into());

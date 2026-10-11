@@ -11,8 +11,10 @@ repository.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
+base64 = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
 pnpm-graph-hasher = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-python-resolver = { workspace = true }
@@ -25,8 +27,10 @@ indexmap = { workspace = true }
 miette = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
@@ -35,7 +39,6 @@ mockito = { workspace = true }
 p256 = { workspace = true }
 pnpr = { workspace = true }
 serde_json = { workspace = true }
-sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 

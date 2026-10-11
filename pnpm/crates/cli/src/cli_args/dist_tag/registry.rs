@@ -11,6 +11,8 @@ use crate::cli_args::{
     },
 };
 use pnpm_network::escaped_package_name;
+use pnpm_publish::{Host, OidcHttpOptions, fetch_token_and_provenance_by_oidc};
+use pnpm_reporter::Reporter;
 
 pub(super) struct SetDistTagRequest<'a> {
     pub(super) package_name: &'a str,
@@ -265,12 +267,30 @@ pub(super) fn registry_for_package(context: &DistTagContext<'_>, package_name: &
     )
 }
 
-pub(super) fn auth_header_for_registry(
+pub(super) async fn auth_header_for_registry<Reporter: self::Reporter>(
     context: &DistTagContext<'_>,
     registry_url: &str,
     package_name: &str,
-) -> Option<String> {
-    auth_header_for_package(context.config, registry_url, package_name)
+) -> miette::Result<Option<String>> {
+    let config = context.config;
+    let http = OidcHttpOptions {
+        fetch_retries: Some(config.fetch_retries),
+        fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),
+        fetch_retry_maxtimeout: Some(config.fetch_retry_maxtimeout),
+        fetch_retry_mintimeout: Some(config.fetch_retry_mintimeout),
+        fetch_timeout: Some(config.fetch_timeout),
+    };
+    // Dist-tag requests need only the token, so skip the publish provenance probe.
+    let oidc = fetch_token_and_provenance_by_oidc::<Host, Reporter>(
+        package_name,
+        registry_url,
+        Some(false),
+        &http,
+    )
+    .await?;
+    Ok(oidc
+        .map(|token| format!("Bearer {}", token.auth_token))
+        .or_else(|| auth_header_for_package(config, registry_url, package_name)))
 }
 
 fn dist_tags_url(package_name: &str, registry_url: &str) -> miette::Result<String> {

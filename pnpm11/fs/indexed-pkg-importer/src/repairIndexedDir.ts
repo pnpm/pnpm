@@ -7,6 +7,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 
 import { clearDirBlockingFile, clearDirentBlockingDir, makeFileMapDirs } from './dirUtils.js'
 import { filesHaveEqualContents } from './filesHaveEqualContents.js'
+import { filesHaveSameIdentity } from './hardlinkedDirMatches.js'
 import type { ImportFile, IndexedDirImport } from './importIndexedDir.js'
 
 export function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImport): void {
@@ -109,11 +110,7 @@ export function mismatchReason (target: string, src: string): string | undefined
     const targetStat = fs.lstatSync(target, { bigint: true })
     if (!targetStat.isFile()) return 'is not a regular file'
     const srcStat = gfs.statSync(src, { bigint: true })
-    const hasSameFileIdentity = targetStat.ino !== 0n &&
-      targetStat.dev !== 0n &&
-      targetStat.ino === srcStat.ino &&
-      targetStat.dev === srcStat.dev
-    if (hasSameFileIdentity) return undefined
+    if (filesHaveSameIdentity(targetStat, srcStat)) return undefined
     if (targetStat.size !== srcStat.size) return 'has a different size'
     if (!filesHaveEqualContents(target, src)) return 'has different content'
     return undefined

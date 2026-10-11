@@ -19,6 +19,7 @@ pub(super) fn merge_settings(
             dedupe_peers: ours.dedupe_peers.or(theirs.dedupe_peers),
             exclude_links_from_lockfile: ours.exclude_links_from_lockfile
                 || theirs.exclude_links_from_lockfile,
+            add_missing_peer_types: ours.add_missing_peer_types.or(theirs.add_missing_peer_types),
             inject_workspace_packages: ours.inject_workspace_packages
                 || theirs.inject_workspace_packages,
             peers_suffix_max_length: ours.peers_suffix_max_length

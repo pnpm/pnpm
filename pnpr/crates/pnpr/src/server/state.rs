@@ -145,6 +145,7 @@ fn artifact_store(
                 &config.storage.hosted_backend,
                 &config.storage.cache_dir,
             )
+            .map(|store| store.with_quota(config.features.artifacts.quota))
         })
         .transpose()
 }

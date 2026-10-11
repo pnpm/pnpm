@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use futures_util::future::join_all;
 use object_store::{ObjectStoreExt as _, memory::InMemory};
-use pnpr_config::HostedStoreConfig;
+use pnpr_config::{ArtifactQuota, HostedStoreConfig};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -125,7 +125,7 @@ async fn quota_rejects_new_entries_but_allows_hits_and_retries() {
     let directory = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, directory.path())
         .unwrap()
-        .with_limits((DIGEST_SIZE + 1) as u64, 1024);
+        .with_quota(ArtifactQuota { owner: (DIGEST_SIZE + 1) as u64, total: 1024 });
     let input = key("one");
     store
         .publish_compiler_cache("ci", &input, Bytes::from_static(b"a"))

@@ -1,7 +1,11 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 mod agent_skills;
+mod equivalence;
 use agent_skills::agent_skills_settings;
+use equivalence::{
+    allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
+};
 
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
@@ -144,6 +148,11 @@ impl SettingsComparison<'_> {
             recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
         );
         return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
+        return_drift_if!(
+            self,
+            "addMissingPeerTypes",
+            recorded.add_missing_peer_types != live.add_missing_peer_types,
+        );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
         return_drift_if!(
             self,
@@ -273,58 +282,6 @@ impl SettingsComparison<'_> {
     }
 }
 
-/// `enableGlobalVirtualStore` has no `?? default` coercion on pnpm's
-/// read side, but its `undefined` default and an explicit `false` both
-/// mean "global virtual store off". pnpm omits the key for the former
-/// and records `false` only when CI forces it; pacquet omits both.
-/// Normalize the absent and `false` forms before comparing so a
-/// pnpm-written file (omitted or `false`) matches a pacquet install
-/// with the store off, while a real `true`/`false` flip still trips.
-pub(crate) fn enable_global_virtual_store_match(
-    state_value: Option<bool>,
-    current_value: Option<bool>,
-) -> bool {
-    state_value.unwrap_or(false) == current_value.unwrap_or(false)
-}
-
-/// Pnpm writes `Some({})` for an empty `allowBuilds`; pacquet writes
-/// `None` for the same effective value. Treat them as equivalent so
-/// cross-package-manager state files don't trip the comparison.
-pub(crate) fn allow_builds_match(
-    state_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
-    current_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
-) -> bool {
-    match (state_value, current_value) {
-        (None, None) => true,
-        (Some(map), None) | (None, Some(map)) => map.is_empty(),
-        (Some(state_map), Some(current_map)) => state_map == current_map,
-    }
-}
-
-/// `packageExtensions` are compared as opaque `serde_json::Value`
-/// trees so the workspace-state file written by either implementation
-/// round-trips through the other. Empty maps are equivalent to absent
-/// — pacquet's [`pnpm_config::WorkspaceSettings::apply_to`] already collapses
-/// `packageExtensions: {}` to `None`, but pnpm may write `Some({})`
-/// directly, and the workspace-state file is shared across the two.
-pub(crate) fn package_extensions_match(
-    state_value: Option<&serde_json::Value>,
-    current_value: Option<&serde_json::Value>,
-) -> bool {
-    fn is_empty(value: &serde_json::Value) -> bool {
-        match value {
-            serde_json::Value::Object(map) => map.is_empty(),
-            serde_json::Value::Null => true,
-            _ => false,
-        }
-    }
-    match (state_value, current_value) {
-        (None, None) => true,
-        (Some(value), None) | (None, Some(value)) => is_empty(value),
-        (Some(state_value), Some(current_value)) => state_value == current_value,
-    }
-}
-
 /// Build the [`WorkspaceStateSettings`] that today's install would
 /// write. Shared with `install::build_workspace_state` so the
 /// freshness check sees the same byte shape the writer produced —
@@ -353,6 +310,7 @@ pub(crate) fn current_settings(
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        add_missing_peer_types: config.add_missing_peer_types.then_some(true),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,

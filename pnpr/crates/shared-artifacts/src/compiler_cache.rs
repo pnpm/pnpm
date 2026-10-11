@@ -1,13 +1,12 @@
 use bytes::Bytes;
 use object_store::{ObjectStoreExt as _, PutPayload};
-use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::{RegistryError, Result};
 use sha2::{Digest as _, Sha512};
 use std::time::Instant;
 
 use super::{
     ACTIVE_PUBLICATION_EXPIRY, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
-    artifact_operation_id, bad_request, digest_segment, owner_key,
+    artifact_operation_id, bad_request, digest_segment, org_key,
 };
 
 pub const MAX_COMPILER_CACHE_ENTRY_SIZE: usize = 256 * 1024 * 1024;
@@ -54,7 +53,7 @@ impl SharedArtifactStore {
         if bytes.len() > MAX_COMPILER_CACHE_ENTRY_SIZE {
             return Err(bad_request("compiler cache entry exceeds the size limit".to_string()));
         }
-        let owner = owner_key(cache, &OwnerScope::organization(cache))?;
+        let owner = org_key(cache);
         let path = compiler_cache_path(&owner, key);
         if self.compiler_cache_size(cache, key).await?.is_some() {
             return Ok(false);
@@ -93,7 +92,7 @@ impl SharedArtifactStore {
         cache: &str,
         key: &CompilerCacheKey,
     ) -> Result<Option<u64>> {
-        let owner = owner_key(cache, &OwnerScope::organization(cache))?;
+        let owner = org_key(cache);
         let path = self.object_path(&compiler_cache_path(&owner, key));
         match self.store.head(&path).await {
             Ok(metadata) => {
@@ -117,7 +116,7 @@ impl SharedArtifactStore {
         cache: &str,
         key: &CompilerCacheKey,
     ) -> Result<Option<Bytes>> {
-        let owner = owner_key(cache, &OwnerScope::organization(cache))?;
+        let owner = org_key(cache);
         let path = compiler_cache_path(&owner, key);
         let Some(stored) =
             self.read_object_bounded(&path, (MAX_COMPILER_CACHE_ENTRY_SIZE + DIGEST_SIZE) as u64)

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { isError } from '@pnpm/error'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
-import { createManifestExclusionMatcher, normalizePatterns } from '@pnpm/workspace.package-patterns'
+import { createManifestExclusionMatcher, getExcludedSubtrees, normalizePatterns } from '@pnpm/workspace.package-patterns'
 import { readExactProjectManifest, readExactProjectManifestSync } from '@pnpm/workspace.project-manifest-reader'
 import pFilter from 'p-filter'
 import { glob, globSync } from 'tinyglobby'
@@ -28,7 +28,7 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = opts.patterns ?? ['.', '**']
   delete globOpts.patterns
-  const paths: string[] = excludeManifests(await glob(normalizePatterns(patterns), globOpts), patterns)
+  const paths: string[] = excludeManifests(await glob(normalizePatterns(patterns), { ...globOpts, ignore: [...globOpts.ignore, ...getExcludedSubtrees(patterns)] }), patterns)
 
   if (opts.includeRoot) {
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
@@ -63,7 +63,7 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = opts.patterns ?? ['.', '**']
   delete globOpts.patterns
-  const paths: string[] = excludeManifests(globSync(normalizePatterns(patterns), globOpts), patterns)
+  const paths: string[] = excludeManifests(globSync(normalizePatterns(patterns), { ...globOpts, ignore: [...globOpts.ignore, ...getExcludedSubtrees(patterns)] }), patterns)
 
   if (opts.includeRoot) {
     paths.push(...globSync(normalizePatterns(['.']), globOpts))

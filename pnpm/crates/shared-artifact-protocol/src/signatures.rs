@@ -1,5 +1,5 @@
 use super::{
-    ArtifactPayload, ArtifactProtocolError, BASE64, MAX_ENCODED_SIGNATURE_SIZE,
+    ArtifactPayload, ArtifactProtocolError, BASE64, BTreeMap, MAX_ENCODED_SIGNATURE_SIZE,
     MAX_ENCODED_SIGNED_PAYLOAD_SIZE, MAX_SIGNED_PAYLOAD_SIZE, SIGNATURE_ALGORITHM, Sha256,
     Signature, SignedArtifactEnvelope, SigningKey, VerifyingKey, hex, validate_scalar,
 };
@@ -163,4 +163,21 @@ impl SignedArtifactEnvelope {
         }
         Ok((signature, signature_bytes))
     }
+}
+
+/// Decode trusted keys as configuration spells them: base64 P-256
+/// `SubjectPublicKeyInfo` DER, keyed by key id. The error names the key id
+/// whose value is not base64.
+pub fn decode_trusted_keys(
+    encoded: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    encoded
+        .iter()
+        .map(|(key_id, public_key)| {
+            BASE64
+                .decode(public_key)
+                .map(|public_key| (key_id.clone(), public_key))
+                .map_err(|_| key_id.clone())
+        })
+        .collect()
 }

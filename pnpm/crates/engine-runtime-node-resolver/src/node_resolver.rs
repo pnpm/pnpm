@@ -30,6 +30,7 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 use ssri::Integrity;
 
 use crate::{
@@ -42,7 +43,6 @@ use crate::{
 };
 
 const RESOLVED_VIA: &str = "nodejs.org";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`NodeResolver::resolve`] / [`NodeResolver::resolve_latest`].
 ///
@@ -189,7 +189,7 @@ impl NodeResolver {
             format!("node@runtime:{version}").into(),
             LockfileResolution::Variations(VariationsResolution { variants }),
             &version,
-            Some(format!("runtime:{range}")),
+            Some(format!("{RUNTIME_PROTOCOL}{range}")),
         )))
     }
 
@@ -271,7 +271,7 @@ impl NodeResolver {
         })
     }
 
-    /// The specifier an `add node@runtime:<spec>` request saves to the
+    /// The specifier an `add node@tool:<spec>` request saves to the
     /// manifest: `runtime:` plus the picked version, pinned exactly unless
     /// the previous specifier (or the requested spec) carries a `^`/`~`
     /// operator. This is the same normalization [`Resolver::resolve`]
@@ -290,12 +290,12 @@ impl NodeResolver {
         let parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
         if let Some(version) = exact_release_version(&parsed) {
-            return Ok(format!("{BARE_SPEC_PREFIX}{version}"));
+            return Ok(format!("{RUNTIME_PROTOCOL}{version}"));
         }
         let picked = self.pick_node_version(version_spec).await?;
         let range =
             normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
-        Ok(format!("{BARE_SPEC_PREFIX}{range}"))
+        Ok(format!("{RUNTIME_PROTOCOL}{range}"))
     }
 
     async fn resolve_latest_impl(
@@ -440,16 +440,14 @@ fn node_resolve_result(
     }
 }
 
-/// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
-/// halves match the runtime contract. Returns `None` (defer to the
-/// next resolver) for any other shape.
+/// The version selector of a `tool:` / `runtime:` `(alias, bareSpecifier)`
+/// pair naming `expected_alias`. `None` (defer to the next resolver) for any
+/// other shape.
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 /// The selector a `runtime:` declaration saves for `resolved_version`.
@@ -470,9 +468,7 @@ pub fn normalize_node_runtime_version_specifier(
     {
         return resolved_version.to_string();
     }
-    let source = prev_specifier
-        .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
-        .unwrap_or(version_spec);
+    let source = prev_specifier.and_then(strip_tool_protocol).unwrap_or(version_spec);
     let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
     let prefix = if spec.starts_with('^') {
         "^"

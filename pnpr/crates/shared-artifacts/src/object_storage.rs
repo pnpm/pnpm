@@ -1,8 +1,8 @@
 use super::{
-    ARTIFACT_OBJECT_PREFIX, ARTIFACT_QUOTA_OBJECT, ARTIFACT_USAGE_FILE, Arc, BoxStream,
-    MAX_GLOBAL_ARTIFACT_BYTES, MAX_OWNER_ARTIFACT_BYTES, ObjectMeta, ObjectPath, ObjectStore,
-    ObjectStoreExt, PutMode, PutOptions, PutPayload, QuotaCoordination, Result,
-    SharedArtifactStore, is_create_conflict, stored_object_too_large,
+    ARTIFACT_OBJECT_PREFIX, ARTIFACT_QUOTA_OBJECT, ARTIFACT_USAGE_FILE, Arc, ArtifactQuota,
+    BoxStream, ObjectMeta, ObjectPath, ObjectStore, ObjectStoreExt, PutMode, PutOptions,
+    PutPayload, QuotaCoordination, Result, SharedArtifactStore, is_create_conflict,
+    stored_object_too_large,
 };
 
 impl SharedArtifactStore {
@@ -11,8 +11,7 @@ impl SharedArtifactStore {
             store,
             prefix: format!("{prefix}{ARTIFACT_OBJECT_PREFIX}/"),
             quota: QuotaCoordination::Conditional,
-            owner_limit: MAX_OWNER_ARTIFACT_BYTES,
-            global_limit: MAX_GLOBAL_ARTIFACT_BYTES,
+            limits: ArtifactQuota::default(),
         }
     }
 

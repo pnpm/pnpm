@@ -279,6 +279,94 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
     drop((root, mock_instance));
 }
 
+/// `@pnpm.e2e/foo` also exists in the registry, which must not provide it.
+#[test]
+fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "peer": "workspace:^", "@pnpm.e2e/foo": "workspace:^1.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "peer",
+        &serde_json::json!({
+            "name": "peer",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+    write_project(
+        &workspace,
+        "foo",
+        &serde_json::json!({
+            "name": "@pnpm.e2e/foo",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+    fs::write(workspace.join("packages/peer/index.js"), "module.exports = 'workspace peer'")
+        .unwrap();
+    fs::write(workspace.join("packages/foo/index.js"), "module.exports = 'workspace foo'").unwrap();
+    fs::write(
+        workspace.join("packages/lib/index.js"),
+        "module.exports = require('peer') + ' ' + require('@pnpm.e2e/foo')",
+    )
+    .unwrap();
+    fs::write(workspace.join("packages/app/index.js"), "console.log(require('lib'))").unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    let entries = virtual_store_entries(&deploy_dir);
+    dbg!(&entries);
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.starts_with("peer@file+"))
+            && entries
+                .iter()
+                .any(|entry| entry.starts_with("@pnpm.e2e+foo@file+")),
+        "the workspace peers should be injected into the deploy virtual store",
+    );
+    assert!(
+        !entries
+            .iter()
+            .any(|entry| entry.starts_with("@pnpm.e2e+foo@1.")),
+        "the registry must not provide a workspace peer",
+    );
+    fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
+    Command::new("node")
+        .current_dir(&deploy_dir)
+        .arg("index.js")
+        .assert()
+        .success()
+        .stdout("workspace peer workspace foo\n");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn legacy_deploy_prefers_workspace_lockfile_versions() {
     let CommandTempCwd {

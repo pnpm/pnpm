@@ -22,6 +22,7 @@ pnpm-cmd-shim = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-deps-restorer = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
 pnpm-engine-pm-yarn-resolver = { workspace = true }

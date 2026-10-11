@@ -75,6 +75,7 @@ fn single_importer_opts<'a>(
             auto_install_peers,
             dedupe_peers: None,
             exclude_links_from_lockfile,
+            add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),

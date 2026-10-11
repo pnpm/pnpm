@@ -201,6 +201,7 @@ fn normalized_runtime_spec_preserves_version_prefix() {
         ("^22", Some("runtime:22.0.0"), "22.11.0"),
         ("rc/^22", None, "^22.11.0"),
         ("22", Some("runtime:^22.0.0-rc.0"), "^22.11.0"),
+        ("22", Some("tool:~22.0.0"), "~22.11.0"),
     ];
     for (version_spec, prev_specifier, expected) in cases {
         assert_eq!(
@@ -243,6 +244,7 @@ async fn resolve_save_specifier_pins_the_picked_version() {
         ("26", Some("runtime:~26.4.0"), "runtime:~26.5.0"),
         ("", None, "runtime:26.5.0"),
         ("lts", None, "runtime:24.13.0"),
+        ("26", Some("tool:^26.4.0"), "runtime:^26.5.0"),
     ];
     for (version_spec, prev_specifier, expected) in cases {
         assert_eq!(

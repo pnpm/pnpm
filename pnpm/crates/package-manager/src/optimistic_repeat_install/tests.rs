@@ -90,7 +90,7 @@ fn check_with_catalogs(
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -113,7 +113,7 @@ fn check_with_lockfile(
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -437,7 +437,10 @@ fn content_check_decision_for(
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness,
+        manifests: crate::RepeatInstallManifests {
+            freshness: manifest_freshness,
+            dependency_manifests: None,
+        },
     })
 }
 
@@ -554,7 +557,7 @@ fn workspace_deps_status_for_selected(
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &state,
         selected_project_dirs,
@@ -982,6 +985,6 @@ fn linked_sibling_decision_for_spec(
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }

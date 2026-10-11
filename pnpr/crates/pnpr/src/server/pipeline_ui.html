@@ -18,12 +18,13 @@
 <h1>pnpr pipeline runs</h1>
 <div class="bar">
   <input id="token" type="password" placeholder="Bearer token (from your .npmrc)">
+  <input id="org" placeholder="organization filter (optional)">
   <input id="workspace" placeholder="workspace filter (optional)">
   <button id="refresh">Refresh</button>
 </div>
 <div id="status">Paste a token and refresh.</div>
 <table hidden id="runs"><thead>
-  <tr><th>Run</th><th>Workspace</th><th>Pipeline</th><th>Base</th><th>Selection</th><th>Tasks</th></tr>
+  <tr><th>Run</th><th>Organization</th><th>Workspace</th><th>Pipeline</th><th>Base</th><th>Selection</th><th>Tasks</th></tr>
 </thead><tbody></tbody></table>
 <pre hidden id="detail"></pre>
 <script>
@@ -50,18 +51,23 @@
   async function refresh() {
     detail.hidden = true;
     status.textContent = 'Loading…';
-    const workspace = document.getElementById('workspace').value.trim();
+    const filters = new URLSearchParams();
+    for (const name of ['org', 'workspace']) {
+      const value = document.getElementById(name).value.trim();
+      if (value) filters.set(name, value);
+    }
     try {
-      const query = workspace ? '?workspace=' + encodeURIComponent(workspace) : '';
+      const query = filters.size ? '?' + filters : '';
       const { runs } = await api('/-/pnpr/v0/pipeline/runs' + query);
       const rows = runs.map((run) => {
         const summary = run.summary || {};
         const selection = summary.selection || {};
         const when = new Date(Number(String(run.runId).split('-')[0])).toLocaleString();
         const row = document.createElement('tr');
+        row.dataset.org = run.org;
         row.dataset.workspace = run.workspace;
         row.dataset.run = run.runId;
-        for (const value of [when, run.workspace, summary.pipeline || '?', summary.base || '',
+        for (const value of [when, run.org, run.workspace, summary.pipeline || '?', summary.base || '',
           `${selection.mode || ''} (${selection.requestedProjects ?? '?'} of ${selection.includedProjects ?? '?'})`,
           counts(summary.tasks)]) {
           const cell = document.createElement('td');
@@ -88,7 +94,8 @@
     if (!row) return;
     event.preventDefault();
     try {
-      const run = await api('/-/pnpr/v0/pipeline/runs/' + encodeURIComponent(row.dataset.workspace) + '/' + encodeURIComponent(row.dataset.run));
+      const path = [row.dataset.org, row.dataset.workspace, row.dataset.run].map(encodeURIComponent).join('/');
+      const run = await api('/-/pnpr/v0/pipeline/runs/' + path);
       detail.textContent = JSON.stringify(run, null, 2);
       detail.hidden = false;
     } catch (error) {

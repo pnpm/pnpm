@@ -1,26 +1,27 @@
 use super::{
-    Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen, parse_log_yaml,
+    ArtifactQuota, Config, Identity, LogFormat, LogLevel, Path, PathBuf, RegistryError, listen,
+    parse_log_yaml,
 };
 
 #[test]
-fn compiler_cache_policies_distinguish_readers_and_publishers() {
+fn org_policies_distinguish_readers_and_publishers() {
     let config = Config::from_yaml_str(
-        "artifacts:\n  enabled: true\n  compilerCaches:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
+        "artifacts:\n  enabled: true\n  orgs:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
         Path::new("/config"), listen(), None,
     ).unwrap();
-    let policy = &config.features.artifacts.compiler_caches["acme"];
+    let policy = &config.features.artifacts.orgs["acme"];
     assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
     assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
     assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
     assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
     assert!(
-        config.features.artifacts.compiler_caches["disabled"].access.is_empty(),
+        config.features.artifacts.orgs["disabled"].access.is_empty(),
         "empty access must deny reads",
     );
 }
 
 #[test]
-fn compiler_cache_policies_reject_ambiguous_or_incomplete_declarations() {
+fn org_policies_reject_ambiguous_or_incomplete_declarations() {
     for declaration in [
         "    '../acme': { access: ci, publish: ci }",
         "    acme: { access: ci }",
@@ -28,9 +29,29 @@ fn compiler_cache_policies_reject_ambiguous_or_incomplete_declarations() {
         "    acme: { access: ci, publish: 'team:missing' }",
         "    acme: { access: ci, publish: ci, unexpected: true }",
     ] {
-        let yaml = format!("artifacts:\n  enabled: true\n  compilerCaches:\n{declaration}\n");
+        let yaml = format!("artifacts:\n  enabled: true\n  orgs:\n{declaration}\n");
         let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
         assert!(result.is_err(), "accepted {declaration:?}");
+    }
+}
+
+#[test]
+fn artifact_quota_is_configured_in_gib() {
+    let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.features.artifacts.quota, ArtifactQuota::default());
+
+    let yaml = "artifacts:\n  quota:\n    ownerGiB: 50\n    totalGiB: 500\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).unwrap();
+    let gib = 1024 * 1024 * 1024;
+    assert_eq!(
+        config.features.artifacts.quota,
+        ArtifactQuota { owner: 50 * gib, total: 500 * gib },
+    );
+
+    for quota in ["ownerGiB: 0", "ownerGiB: 20\n    totalGiB: 10", "perOwner: 1"] {
+        let yaml = format!("artifacts:\n  quota:\n    {quota}\n");
+        let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
+        assert!(result.is_err(), "accepted {quota:?}");
     }
 }
 
@@ -271,4 +292,15 @@ fn a_scim_token_must_be_long_and_stays_out_of_debug_output() {
     let scim = config.identity.auth.scim.as_ref().expect("auth.scim is set");
     assert_eq!(scim.token, token);
     assert!(!format!("{scim:?}").contains(&token));
+}
+
+#[test]
+fn the_retired_per_surface_policies_are_refused() {
+    for yaml in [
+        "artifacts:\n  compilerCaches:\n    acme: { access: ci, publish: ci }\n",
+        "pipeline:\n  workspaces:\n    app: { access: ci, publish: ci }\n",
+    ] {
+        let result = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None);
+        assert!(result.is_err(), "accepted {yaml:?}");
+    }
 }

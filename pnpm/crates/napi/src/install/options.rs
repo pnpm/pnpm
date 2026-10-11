@@ -71,6 +71,7 @@ pub struct InstallOptions {
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub add_missing_peer_types: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -125,7 +126,8 @@ pub struct InstallOptions {
     pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
-    /// Allow every dependency's build scripts to run.
+    /// Allow every dependency's build scripts to run, except the ones
+    /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,

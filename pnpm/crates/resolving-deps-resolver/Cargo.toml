@@ -36,6 +36,7 @@ futures-util = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 pathdiff = { workspace = true }
 pipe-trait = { workspace = true }
 serde_json = { workspace = true }

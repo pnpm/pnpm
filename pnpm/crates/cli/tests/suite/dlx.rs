@@ -463,23 +463,27 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
 /// The real releases are what this runs, because no fixture can stand in
 /// for a package manager — pnpm verifies an engine against npm's
 /// published signature before running it, so the bytes have to be real.
+///
+/// `yarn@tool:4.9.2` is the same request through the `tool:` protocol.
 #[test]
 fn dlx_provisions_a_package_manager_by_name() {
-    let CommandTempCwd { mut pacquet, root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    for spec in ["yarn@4.9.2", "yarn@tool:4.9.2"] {
+        let CommandTempCwd { mut pacquet, root, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
 
-    let registry_arg = format!("--config.registry={}", npmrc_info.mock_instance.url());
-    let output = pacquet
-        .env("YARN_IGNORE_PATH", "1")
-        .args([registry_arg.as_str(), "dlx", "yarn@4.9.2", "--version"])
-        .output()
-        .expect("run pacquet dlx yarn@4.9.2");
-    dbg!(&output);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "stderr:\n{stderr}");
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "4.9.2");
+        let registry_arg = format!("--config.registry={}", npmrc_info.mock_instance.url());
+        let output = pacquet
+            .env("YARN_IGNORE_PATH", "1")
+            .args([registry_arg.as_str(), "dlx", spec, "--version"])
+            .output()
+            .expect("run pacquet dlx");
+        dbg!(spec, &output);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{spec} stderr:\n{stderr}");
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "4.9.2");
 
-    drop((root, npmrc_info));
+        drop((root, npmrc_info));
+    }
 }
 
 #[cfg(unix)]

@@ -7,8 +7,9 @@ use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_pnpr_handshake, serve_publish_artifact,
-    serve_resolve, serve_resolve_artifacts, serve_verify_lockfile,
+    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_pnpr_handshake,
+    serve_publish_artifact, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
+    serve_verify_lockfile,
 };
 
 mod pipeline_runs;
@@ -78,6 +79,8 @@ mod authentication;
 mod batch;
 mod cargo;
 mod compiler_cache;
+mod org_access;
+use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
 mod managed_state;

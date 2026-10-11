@@ -210,6 +210,9 @@ pub(crate) type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, O
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    /// The raw side-effects rows the overlays above were built from,
+    /// including the empty rows those overlays leave out.
+    pub side_effects_by_snapshot: SideEffectsBySnapshot,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
     /// Snapshot keys whose package directories this run materialized.
     /// The build phase uses this list to record only newly deferred
@@ -238,6 +241,7 @@ impl CreateVirtualStoreOutput {
     ) -> crate::BuildPhaseCache<'a> {
         crate::BuildPhaseCache {
             maps_by_snapshot: &self.side_effects_maps_by_snapshot,
+            diffs_by_snapshot: &self.side_effects_by_snapshot,
             requires_build_by_snapshot: &self.requires_build_by_snapshot,
             engine_name,
             store_index_writer,
@@ -530,6 +534,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
     CreateVirtualStoreOutput {
         package_manifests: PackageManifests::new(),
         side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
+        side_effects_by_snapshot: SideEffectsBySnapshot::new(),
         requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
         materialized_snapshots: Vec::new(),
         fetch_failed: HashSet::new(),

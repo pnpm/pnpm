@@ -119,7 +119,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
             included: super::included_dependencies(&check.dependency_groups),
             supported_architectures: check.supported_architectures.as_ref(),
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;
@@ -254,12 +254,24 @@ pub fn build_workspace_packages_map(
     Some(map)
 }
 
+/// [`build_workspace_packages_map`] over `(root_dir, manifest)` pairs, with
+/// the projects' dependency manifests (see
+/// [`super::dependency_manifests_by_dir`]) in place of their importer
+/// manifests where they have one.
 pub(crate) fn build_workspace_packages_map_from_manifests(
     projects: &[(PathBuf, &PackageManifest)],
+    dependency_manifests: Option<&super::ProjectManifestsByDir<'_>>,
 ) -> pnpm_resolving_resolver_base::WorkspacePackages {
     let mut map = std::collections::BTreeMap::new();
     for (root_dir, manifest) in projects {
-        insert_workspace_package(&mut map, root_dir, manifest, manifest);
+        let dependency_manifest = dependency_manifests
+            .and_then(|by_dir| {
+                by_dir
+                    .get(&pnpm_fs::lexical_normalize(root_dir))
+                    .copied()
+            })
+            .unwrap_or(manifest);
+        insert_workspace_package(&mut map, root_dir, manifest, dependency_manifest);
     }
     map
 }
@@ -268,11 +280,12 @@ pub(crate) fn workspace_packages_for_freshness(
     config: &Config,
     is_workspace_install: bool,
     projects: &[(PathBuf, &PackageManifest)],
+    dependency_manifests: Option<&super::ProjectManifestsByDir<'_>>,
 ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
     (is_workspace_install
         && config.exclude_links_from_lockfile
         && config.link_workspace_packages.enabled_at_depth(0))
-    .then(|| build_workspace_packages_map_from_manifests(projects))
+    .then(|| build_workspace_packages_map_from_manifests(projects, dependency_manifests))
 }
 
 fn insert_workspace_package(

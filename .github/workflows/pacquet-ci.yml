@@ -103,6 +103,7 @@ jobs:
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
+              - '.github/actions/remote-cache/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
@@ -207,7 +208,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: just
 
@@ -226,7 +227,7 @@ jobs:
           just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -355,6 +356,7 @@ jobs:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
     # job only type-checks it, so Windows gets its own Clippy row. macOS does
     # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
@@ -391,13 +393,22 @@ jobs:
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Clippy
-        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-clippy --include-workspace-root --full
 
   doc:
     name: Rust CI / Doc / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # rustdoc resolves intra-doc links only in the code compiled for the
     # target, so a link from shared docs to a `#[cfg(unix)]` item breaks on
     # Windows alone. Windows gets its own row, as it does in Clippy.
@@ -425,10 +436,18 @@ jobs:
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-doc --include-workspace-root --full
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
@@ -547,7 +566,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cargo-deny
 

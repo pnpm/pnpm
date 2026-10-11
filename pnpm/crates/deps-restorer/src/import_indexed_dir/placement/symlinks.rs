@@ -24,7 +24,9 @@ pub(super) struct SymlinkRoots<'a> {
 
 /// Every key of `cas_paths` and each directory above it, the package root
 /// included as `""`.
-pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&str> {
+pub(in crate::import_indexed_dir) fn imported_paths(
+    cas_paths: &HashMap<String, PathBuf>,
+) -> HashSet<&str> {
     let mut imported = HashSet::from([""]);
     for entry in cas_paths.keys() {
         let mut path = entry.as_str();
@@ -37,7 +39,7 @@ pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&s
 
 /// Whether `path` is a symlink or, on Windows, a junction, which
 /// [`fs::FileType::is_symlink`] does not report.
-pub(super) fn is_symlink(path: &Path) -> bool {
+pub(in crate::import_indexed_dir) fn is_symlink(path: &Path) -> bool {
     let Ok(metadata) = fs::symlink_metadata(path) else {
         return false;
     };

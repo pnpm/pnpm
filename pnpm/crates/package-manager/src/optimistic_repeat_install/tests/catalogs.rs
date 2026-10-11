@@ -46,7 +46,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
@@ -107,7 +107,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -143,7 +143,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("override")),

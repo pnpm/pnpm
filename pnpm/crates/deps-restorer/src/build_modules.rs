@@ -503,7 +503,11 @@ impl BuildModules<'_> {
             can_write_store: self.cache.store_index_writer.is_some()
                 && self.cache.store_dir.is_some(),
             has_packages: self.graph.packages.is_some(),
-            has_cache_rows: self.cache.maps_by_snapshot.is_some_and(|map| !map.is_empty()),
+            // A rebuild that skips cached builds also reads the empty rows
+            // the overlays leave out.
+            has_cache_rows: self.cache.side_effects.has_overlays()
+                || (self.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
+                    && self.cache.side_effects.has_rows()),
         });
         let graph = cache_gate_active.then(|| {
             // Every requires-build snapshot is a root, including the ones

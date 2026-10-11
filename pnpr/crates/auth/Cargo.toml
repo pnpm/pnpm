@@ -11,7 +11,16 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [features]
-backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql"]
+backend-libsql = [
+  "dep:libsql",
+  "dep:http-0-2",
+  "dep:hyper-0-14",
+  "dep:rustls",
+  "dep:rustls-platform-verifier",
+  "dep:tokio-rustls",
+  "dep:tower-0-4",
+  "pnpr-error/backend-libsql",
+]
 backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
 backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
 
@@ -26,19 +35,26 @@ base64 = { workspace = true }
 bcrypt = { workspace = true }
 chrono = { workspace = true }
 getrandom = { workspace = true }
+http-0-2 = { workspace = true, optional = true }
+hyper-0-14 = { workspace = true, optional = true }
 libsql = { workspace = true, optional = true }
 openidconnect = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
+rustls = { workspace = true, features = ["aws-lc-rs"], optional = true }
+rustls-platform-verifier = { workspace = true, optional = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true }
+tokio-rustls = { workspace = true, optional = true }
+tower-0-4 = { workspace = true, optional = true }
 tracing = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["form", "json"] }
+pnpm-testing-utils = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true, features = ["util"] }

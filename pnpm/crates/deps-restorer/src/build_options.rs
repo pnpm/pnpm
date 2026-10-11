@@ -102,13 +102,51 @@ impl<'a> BuildScriptOptions<'a> {
     }
 }
 
+/// The side-effects-cache rows `CreateVirtualStore`'s prefetch read from
+/// the store index, as the `is_built` gate looks them up.
+#[derive(Default, Clone, Copy)]
+pub struct CachedSideEffects<'a> {
+    /// Per-snapshot overlays, by cache key. `None` means no overlays were
+    /// prefetched, so the gate restores no cached build output.
+    pub overlays: Option<&'a crate::SideEffectsMapsBySnapshot>,
+    /// The raw rows the overlays were built from. An empty row has no
+    /// overlay, so only a rebuild with
+    /// [`crate::RebuildOptions::skip_if_has_side_effects_cache`] reads
+    /// it, to learn that the build already ran.
+    pub rows: Option<&'a crate::SideEffectsBySnapshot>,
+}
+
+impl<'a> CachedSideEffects<'a> {
+    /// The overlay recorded for `snapshot_key` under `cache_key`.
+    pub(crate) fn overlay(
+        self,
+        snapshot_key: &PackageKey,
+        cache_key: &str,
+    ) -> Option<&'a pnpm_store_dir::SideEffectsOverlay> {
+        self.overlays?.get(snapshot_key)?.get(cache_key)
+    }
+
+    /// Whether the row recorded for `snapshot_key` under `cache_key` is
+    /// empty: its build ran and changed nothing inside the package.
+    pub(crate) fn has_empty_row(self, snapshot_key: &PackageKey, cache_key: &str) -> bool {
+        self.rows
+            .and_then(|rows| rows.get(snapshot_key))
+            .and_then(|diffs| diffs.get(cache_key))
+            .is_some_and(pnpm_store_dir::SideEffectsDiff::is_empty)
+    }
+
+    pub(crate) fn has_overlays(self) -> bool {
+        self.overlays.is_some_and(|overlays| !overlays.is_empty())
+    }
+
+    pub(crate) fn has_rows(self) -> bool {
+        self.rows.is_some_and(|rows| !rows.is_empty())
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct BuildCacheContext<'a> {
-    /// Per-snapshot side-effects-cache overlays — passed in from
-    /// `CreateVirtualStore`'s prefetch. `None` means the cache is
-    /// disabled or no rows were prefetched; the gate falls through
-    /// to "rebuild" for every snapshot.
-    pub maps_by_snapshot: Option<&'a crate::SideEffectsMapsBySnapshot>,
+    pub side_effects: CachedSideEffects<'a>,
     /// `<platform>;<arch>;node<major>` — the prefix part of the
     /// dep-state cache key. Computed once at install
     /// start by [`pnpm_graph_hasher::detect_node_major`] +

@@ -28,7 +28,7 @@ import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSet
  */
 export async function applyLocalSettings (
   state: ConfigBuildState,
-  { forSelfUpdate }: { forSelfUpdate?: boolean }
+  { forSelfUpdate, skipUnreadableSettings }: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig, warnings } = state
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
@@ -43,7 +43,7 @@ export async function applyLocalSettings (
   await readEnginePinManifest(state)
 
   if (pnpmConfig.workspaceDir != null) {
-    return applyProjectWorkspaceManifest(state, { forSelfUpdate, workspaceDir: pnpmConfig.workspaceDir })
+    return applyProjectWorkspaceManifestUnlessUnreadable(state, { forSelfUpdate, skipUnreadableSettings, workspaceDir: pnpmConfig.workspaceDir })
   }
   if (cliOptions['global']) {
     return applyGlobalPackageDirWorkspaceManifest(state)
@@ -75,6 +75,33 @@ async function readEnginePinManifest ({ pnpmConfig, warnings }: ConfigBuildState
     pnpmConfig.wantedPackageManager = wantedPmResult.pm
   }
   warnings.push(...wantedPmResult.warnings)
+}
+
+async function applyProjectWorkspaceManifestUnlessUnreadable (
+  state: ConfigBuildState,
+  opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
+): Promise<Record<string, string> | undefined> {
+  if (!opts.skipUnreadableSettings) return applyProjectWorkspaceManifest(state, opts)
+  // Whole or not at all: a failure partway through must not leave the
+  // settings applied before it in force.
+  const before = { ...state.pnpmConfig }
+  const explicitlySetKeysBefore = [...state.explicitlySetKeys]
+  try {
+    return await applyProjectWorkspaceManifest(state, opts)
+  } catch {
+    restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
+    state.explicitlySetKeys.clear()
+    for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
+    state.pnpmConfig.workspacePackagePatterns = ['.']
+    return undefined
+  }
+}
+
+function restoreConfig (config: Record<string, unknown>, before: Record<string, unknown>): void {
+  for (const key of Object.keys(config)) {
+    if (!(key in before)) delete config[key]
+  }
+  Object.assign(config, before)
 }
 
 async function applyProjectWorkspaceManifest (

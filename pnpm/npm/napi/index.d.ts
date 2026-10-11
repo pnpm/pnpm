@@ -169,6 +169,13 @@ export interface InstallOptions extends SharedEngineOptions {
    * re-resolves from scratch.
    */
   dedupePeers?: boolean
+  /**
+   * Add the `@types` package of every peer dependency as an optional peer,
+   * unless the package already declares it (the `addMissingPeerTypes`
+   * setting). Must match the value the existing lockfile was generated with,
+   * or the install re-resolves from scratch.
+   */
+  addMissingPeerTypes?: boolean
   dedupeDirectDeps?: boolean
   dedupeInjectedDeps?: boolean
   resolvePeersFromWorkspaceRoot?: boolean

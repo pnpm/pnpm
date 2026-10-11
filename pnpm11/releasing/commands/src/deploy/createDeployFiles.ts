@@ -6,6 +6,7 @@ import type {
   LockfileObject,
   PackageSnapshots,
   ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import type {
   DependenciesField,
@@ -160,7 +161,7 @@ function convertWorkspaceImporters (
       manifest,
       dedupedPeerResolutions: injectedWorkspace
         ? convertResolvedDependencies(
-          pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
+          pickOwn(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
           convertOptions
         )
         : undefined,
@@ -333,4 +334,12 @@ function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string
 function omitKeys<Value> (record: Record<string, Value> | undefined, keys: Set<string>): Record<string, Value> | undefined {
   if (record == null) return undefined
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
+}
+
+/**
+ * `ramda`'s `pick` also copies inherited properties, so a peer named after an
+ * `Object.prototype` member, such as `constructor`, would pick up that member.
+ */
+function pickOwn (names: string[], dependencies: ResolvedDependencies): ResolvedDependencies {
+  return Object.fromEntries(names.filter(name => Object.hasOwn(dependencies, name)).map(name => [name, dependencies[name]]))
 }

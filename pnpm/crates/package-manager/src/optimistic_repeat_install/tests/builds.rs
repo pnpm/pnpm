@@ -210,7 +210,7 @@ fn returns_skipped_when_allow_builds_drift() {
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &["allowBuilds"],
     );

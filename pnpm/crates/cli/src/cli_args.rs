@@ -131,5 +131,15 @@ pub(crate) fn grammar() -> &'static clap::Command {
     GRAMMAR.get_or_init(<CliArgs as clap::CommandFactory>::command)
 }
 
+/// Parses a `--depth` value: a non-negative integer, or `Infinity` for no
+/// limit.
+pub(crate) fn parse_depth_limit(text: &str) -> Result<usize, String> {
+    if text.eq_ignore_ascii_case("Infinity") {
+        return Ok(usize::MAX);
+    }
+    text.parse()
+        .map_err(|_| format!("expected a non-negative integer or Infinity, got `{text}`"))
+}
+
 #[cfg(test)]
 mod tests;

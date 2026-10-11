@@ -30,6 +30,23 @@ fn archive_published_tools_go_through_the_runtime_protocol() {
     assert_eq!(tool_install_selector("deno").as_deref(), Some("deno@runtime:latest"));
 }
 
+/// `yarn@tool:<range>` names a Yarn line the way `yarn@<range>` does,
+/// wherever that line is published.
+#[test]
+fn yarn_tool_requests_map_like_bare_versions() {
+    assert_eq!(tool_install_selector("yarn@tool:1.22.22").as_deref(), Some("yarn@1.22.22"));
+    assert_eq!(
+        tool_install_selector("yarn@tool:4.9.2").as_deref(),
+        Some("yarn@npm:@yarnpkg/cli-dist@4.9.2"),
+    );
+    assert_eq!(tool_install_selector("yarn@tool:6").as_deref(), Some("yarn@runtime:6"));
+    assert_eq!(
+        tool_install_selector("yarn@runtime:4").as_deref(),
+        Some("yarn@npm:@yarnpkg/cli-dist@4"),
+    );
+    assert_eq!(tool_install_selector("yarn@tool:npm:@yarnpkg/cli-dist@4"), None);
+}
+
 /// Everything else is an ordinary package, including a scoped name whose
 /// leading `@` must not be read as a version separator.
 #[test]
@@ -47,6 +64,7 @@ fn other_packages_are_left_alone() {
 fn a_request_that_locates_a_package_is_left_alone() {
     assert_eq!(tool_install_selector("node@runtime:22"), None);
     assert_eq!(tool_install_selector("bun@runtime:1.3.0"), None);
+    assert_eq!(tool_install_selector("node@tool:22"), None);
     assert_eq!(tool_install_selector("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
     assert_eq!(tool_install_selector("node@github:nodejs/node"), None);
     // The GitHub shorthand locates one without spelling out a protocol.

@@ -3,18 +3,18 @@ use super::{
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
     InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
     PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
-    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
-    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
-    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, workspace_yaml,
+    RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings, ReporterType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault,
+    StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues,
+    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
+    default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+    default_fetch_warn_timeout_ms, default_git_shallow_hosts, default_hoist_pattern,
+    default_install_state_dir, default_modules_cache_max_age, default_modules_dir,
+    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
+    default_state_dir, default_store_dir, default_tag_version_prefix, default_unsafe_perm,
+    default_user_agent, default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci,
+    npmrc_auth, side_effects_cache_remote_env, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -258,11 +258,15 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
-    /// Leave out each top-level setting of `pnpm-workspace.yaml` that does
-    /// not parse or validate on its own, which a newer pnpm may give a shape
-    /// or a value this one rejects. Only for loading configuration that
-    /// decides whether to switch to the pnpm the project pins.
-    pub skip_unreadable_workspace_settings: bool,
+    /// Leave out what this pnpm cannot read, which a newer pnpm may give a
+    /// shape or a value this one rejects: each top-level setting of the
+    /// global `config.yaml` and `pnpm-workspace.yaml` that does not parse or
+    /// validate on its own, and any source that still fails, such as `_auth`
+    /// or a project `.npmrc` `tokenHelper`. Every other source still applies,
+    /// so a repository that breaks its own files cannot drop the machine's
+    /// settings. Only for loading configuration that decides whether to
+    /// switch to the pnpm the project pins.
+    pub skip_unreadable_settings: bool,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.
@@ -808,6 +812,11 @@ pub struct Config {
     /// manifests are patched during resolution.
     pub ignore_compatibility_db: bool,
 
+    /// When `true`, every peer dependency `X` of a dependency also makes
+    /// `@types/X` an optional peer of it, unless the package already
+    /// declares `@types/X`. The `addMissingPeerTypes` setting; default `false`.
+    pub add_missing_peer_types: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all
@@ -1017,6 +1026,10 @@ pub struct Config {
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
+    /// `remoteCache`. Boxed so the section does not grow every future that
+    /// holds a `Config`. Read it through [`Config::remote_cache_settings`].
+    pub remote_cache: Option<Box<RemoteCacheSettings>>,
+
     /// `sideEffectsCache.read` and `.write` as declared, which
     /// [`Config::side_effects_cache_read`] and
     /// [`Config::side_effects_cache_write`] prefer over the boolean pair.
@@ -1130,8 +1143,8 @@ pub struct Config {
     pub agent_skills_disabled: bool,
 
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
-    /// `true`, every package may run lifecycle scripts regardless of
-    /// `allow_builds`. Default `false` to match pnpm v11.
+    /// `true`, every package may run lifecycle scripts except the ones
+    /// `allow_builds` sets to `false`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
 
     /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the

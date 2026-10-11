@@ -181,6 +181,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
+        if let Some(remote) = self.remote_cache.take() {
+            config.remote_cache.get_or_insert_default().overlay(remote);
+        }
         self.apply_side_effects_cache(config);
         self.apply_named_registries(config, declared_prefixes);
     }

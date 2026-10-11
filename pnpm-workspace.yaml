@@ -141,8 +141,12 @@ tasks:
     concurrencyGroup: cargo
   ci:rust-clippy:
     concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS]
   ci:rust-doc:
     concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS, RUSTDOCFLAGS]
   ci:rust-dylint:
     concurrencyGroup: cargo
   ci:rust-test:

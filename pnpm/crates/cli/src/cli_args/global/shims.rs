@@ -6,12 +6,13 @@ use super::{
     record_package_manager_shims, remove_native_shim, scan_global_packages,
     virtual_shim_bins_to_restore, virtual_shim_owner, virtual_shim_restoration_owners,
 };
+use pnpm_tool_protocol::is_tool_specifier;
 
 /// Link `pkgs`' bins into the global bin dir in the shape selected by the
 /// `globalShims` record: bins of an enabled providing package become
 /// context-aware shims, everything else gets direct shims. The runtime
-/// names only count when actually installed through the `runtime:`
-/// protocol, so an npm package that happens to be called `node` is not
+/// names only count when actually installed through the `tool:` /
+/// `runtime:` protocol, so an npm package that happens to be called `node` is not
 /// elevated.
 pub(super) fn link_global_bins(
     config: &Config,
@@ -41,7 +42,7 @@ pub(super) fn link_global_bins(
                     && (!pnpm_package_manifest::is_runtime_alias(name)
                         || dependencies
                             .iter()
-                            .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
+                            .any(|(alias, spec)| alias == name && is_tool_specifier(spec)))
             })
         });
     migrate_legacy_shims(global_bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;

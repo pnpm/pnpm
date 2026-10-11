@@ -138,6 +138,9 @@ pub(super) fn apply_dedupe_settings(config: &mut Config, overlay: &ConfigOverlay
     if let Some(value) = overlay.dedupe_peers {
         config.dedupe_peers = value;
     }
+    if let Some(value) = overlay.add_missing_peer_types {
+        config.add_missing_peer_types = value;
+    }
     if let Some(value) = overlay.dedupe_direct_deps {
         config.dedupe_direct_deps = value;
     }

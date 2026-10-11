@@ -96,6 +96,19 @@ When enabled, peer dependency suffixes use version-only identifiers (`name@versi
 
 This is different from [`dedupePeerDependents`](#dedupepeerdependents), which deduplicates packages that have the same peer dependencies across different workspace projects. `dedupePeers` simplifies the peer dependency suffix format itself.
 
+### addMissingPeerTypes
+
+Added in: v12.12.0
+
+* Default: **false**
+* Type: **Boolean**
+
+When `true`, every peer dependency of a dependency also makes the matching `@types` package an optional peer of it. A package with a peer dependency on `react` gets an optional peer dependency on `@types/react`, and one on `@babel/core` gets `@types/babel__core`. A package that already declares the `@types` package keeps its own declaration. pnpm does not install an `@types` package that nothing in your workspace depends on.
+
+Many packages peer-depend on a library without declaring its `@types` package. TypeScript then looks for the types next to the package's own location. With [`enableGlobalVirtualStore`](./node-modules.md#enableglobalvirtualstore) that location is outside your project, so the types your project installs are not found. With this setting, pnpm links the `@types` package next to every package that peer-depends on the library, as it does with any [optional peer dependency](#optional-peer-dependencies).
+
+Changing this setting changes the lockfile.
+
 ### strictPeerDependencies
 
 * Default: **false**

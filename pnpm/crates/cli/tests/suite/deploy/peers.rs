@@ -97,6 +97,8 @@ fn shared_lockfile_deploy_binds_a_singleton_peer_outside_the_declared_range() {
     drop((root, mock_instance));
 }
 
+/// No ancestor of `lib` depends on its peer, and the deployed graph holds two
+/// versions of it, so nothing says which one injecting `lib` would bind.
 #[test]
 fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_peer() {
     let CommandTempCwd {
@@ -108,6 +110,30 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_ambiguous_peer_workspace(&workspace);
+    write_project(
+        &workspace,
+        "other-v1-0-0",
+        &serde_json::json!({
+            "name": "other-v1-0-0",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/peer-a": "1.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": {
+                "lib": "workspace:*",
+                "other": "workspace:*",
+                "other-v1-0-0": "workspace:*",
+            },
+        }),
+    );
 
     pacquet
         .with_arg("install")
@@ -425,3 +451,5 @@ fn shared_lockfile_deploy_does_not_resurrect_an_excluded_optional_peer() {
 
     drop((root, mock_instance));
 }
+
+mod ancestors;

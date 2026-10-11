@@ -571,3 +571,33 @@ fn client_binary_in_prefers_the_existing_binary() {
 
     let _ = fs::remove_dir_all(&root);
 }
+
+#[test]
+fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
+    let scenario = BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore;
+    let dir = std::env::temp_dir().join(format!("pnpm-benchmark-injected-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    create_package_json(&dir, None, scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_install_script(&dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["dependencies"]["injected-benchmark-library"], "workspace:*");
+    assert_eq!(manifest["dependenciesMeta"]["injected-benchmark-library"]["injected"], true);
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(workspace.contains("dedupeInjectedDeps: false"));
+    assert!(workspace.contains("packages/*"));
+    assert!(
+        fs::read_to_string(dir.join("prewarm.bash"))
+            .unwrap()
+            .ends_with("exec pnpm install --offline --no-frozen-lockfile\n"),
+    );
+    assert!(
+        fs::read_to_string(dir.join("install.bash")).unwrap().contains("install --frozen-lockfile"),
+    );
+    assert!(!scenario.seeds_lockfile());
+    assert!(!scenario.prewarms_node_modules());
+    assert!(scenario.cleanup().remove.is_empty());
+    assert!(scenario.cleanup().restore.is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}

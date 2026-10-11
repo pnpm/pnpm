@@ -5,6 +5,7 @@ use super::{
 };
 use crate::engine_pm::provision::ProvisionedEngine;
 use pnpm_rust_toolchain::Channel;
+use pnpm_tool_protocol::strip_tool_protocol;
 
 /// A tool pnpm provisions itself rather than installing from the
 /// registry.
@@ -76,13 +77,20 @@ pub(super) fn provisioned_tool<'a>(
 /// without a version resolves.
 pub(super) fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
     let (name, version_spec) = split_spec(command);
+    let pm = PackageManager::parse(name)?;
     let version_spec = version_spec.unwrap_or("latest");
+    // `yarn@tool:4` is the same request as `yarn@4`. Bun's `tool:` requests
+    // fall through to the runtime path, which provisions the same binary.
+    let version_spec = match strip_tool_protocol(version_spec) {
+        Some(version_spec) if pm == PackageManager::Yarn => version_spec,
+        _ => version_spec,
+    };
     // A specifier that locates a package names what to install, not a line
     // of the tool, so it stays on the ordinary dlx path.
     if !is_version_request(version_spec) {
         return None;
     }
-    Some((PackageManager::parse(name)?, version_spec))
+    Some((pm, version_spec))
 }
 
 /// Split a dlx command word into the runtime it names and the version
@@ -90,10 +98,10 @@ pub(super) fn parse_package_manager_spec(command: &str) -> Option<(PackageManage
 pub(super) fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
     let (name, version_spec) = split_spec(command);
     let version_spec = version_spec.unwrap_or("latest");
-    // `node@runtime:22` is the same request spelled with the protocol the
+    // `node@tool:22` is the same request spelled with the protocol the
     // resolver uses; anything else that locates a package is an ordinary
     // one.
-    let version_spec = match version_spec.strip_prefix("runtime:") {
+    let version_spec = match strip_tool_protocol(version_spec) {
         Some(version_spec) => version_spec,
         None if is_version_request(version_spec) => version_spec,
         None => return None,

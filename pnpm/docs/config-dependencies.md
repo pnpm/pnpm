@@ -19,8 +19,21 @@ For example, running `pnpm add --config my-configs` will add this entry to your 
 
 ```yaml title="pnpm-workspace.yaml"
 configDependencies:
-  my-configs: "1.0.0"
+  my-configs: "^1.0.0"
 ```
+
+Since v12.12.0, the saved range follows the same rules as `pnpm add`. It uses [`savePrefix`](./settings/other.md#saveprefix), and `--save-exact` saves the exact version. A dist-tag such as `my-configs@latest` is saved as a range on the version it resolved to.
+
+## How to Update Config Dependencies
+
+Since v12.12.0, [`pnpm update`](./cli/update.md) updates config dependencies the way it updates the dependencies in `package.json`:
+
+* `pnpm update` moves each config dependency to the newest version its range allows and saves the new range in `pnpm-workspace.yaml`.
+* `pnpm update --latest` moves them to their latest version, keeping the range operator.
+* `pnpm update my-configs` updates only the config dependencies it names. Patterns such as `"@myorg/*"` are accepted.
+* A config dependency declared with a dist-tag keeps tracking the tag. Only `pnpm-lock.yaml` moves.
+
+Config dependencies are left alone by `--interactive`, `--patches`, `--no-save`, `--filter`, and the flags that select dependency groups, such as `--prod`. A config dependency pinned with `version+integrity` is not updated.
 
 **Important:**
 

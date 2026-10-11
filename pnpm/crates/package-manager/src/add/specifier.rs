@@ -4,7 +4,10 @@ use super::{
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
 };
-use crate::{CatalogModeDep, decide_catalog_outcome, runtime_specifier::node_runtime_version_spec};
+use crate::{
+    CatalogModeDep, decide_catalog_outcome,
+    runtime_specifier::{node_runtime_version_spec, runtime_save_specifier},
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, SaveWorkspaceProtocol, Tool};
 use pnpm_engine_runtime_node_resolver::NodeResolver;
@@ -174,6 +177,8 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 ///   picked Node.js version, so the `devEngines.runtime` entry the
 ///   saved dependency folds into records e.g. `26.5.0`, not the
 ///   requested `26`;
+/// - an explicit `deno` / `bun` `tool:` or `runtime:` request is saved as
+///   `runtime:`, the spelling its folded declaration reads back as;
 /// - a `jsr:` selector is pinned the same way and rendered back under
 ///   its protocol — `pnpm add jsr:@scope/pkg` records `jsr:^1.2.3`;
 /// - a re-add with no version keeps the dependency's current
@@ -208,6 +213,11 @@ pub(super) async fn bare_save_specifier(
         explicit_spec.and_then(|spec| node_runtime_version_spec(package_name, spec))
     {
         return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
+    }
+    if let Some(specifier) =
+        explicit_spec.and_then(|spec| runtime_save_specifier(package_name, spec))
+    {
+        return Ok(specifier);
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
         return Ok(resolve_jsr_save_specifier(jsr, manifest, inputs).await?

@@ -123,12 +123,15 @@ These three are mounted when top-level `artifacts.enabled` is true, independentl
 of `resolver.enabled`. They serve
 the [shared side-effects cache](shared-side-effects-cache.md) proof of concept
 and, like the other `POST` resolver endpoints, require a pnpr `Authorization`
-header. Artifacts are owner-scoped, and in this proof of concept an
-organization's name must equal the authenticated username.
+header. Artifacts are owned by an organization, and
+[`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces)
+decides who may read and who may publish what each one owns.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `PUT` | `/-/pnpr/v0/artifacts` | Stores one immutable opaque signed envelope and its inline content-addressed blobs in the authenticated organization's namespace. At most eight variants per input key; a different artifact whose compatible consumers overlap an existing variant gets `409 Conflict`. |
+| `PUT` | `/-/pnpr/v0/artifacts` | Stores one immutable opaque signed envelope in its organization's namespace. Every blob its manifest names is already stored or carried inline, base64-encoded, up to 64 MiB in all. Requires `publish` on that organization. At most eight variants per input key; a different artifact whose compatible consumers overlap an existing variant gets `409 Conflict`. |
+| `PUT` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Stores one blob, streamed from the request body, ahead of the envelope that names it. Requires `publish` on that organization and a `Content-Length` of at most 4 GiB. The blob is stored only if its bytes match the integrity. A blob nothing references yet is kept for at least an hour. |
+| `HEAD` | `/-/pnpr/v0/artifacts/blob?organization=<name>&integrity=<sha512-…>` | Whether the blob is stored, with its size as `Content-Length`. |
 | `POST` | `/-/pnpr/v0/artifacts/resolve` | One batched lookup for candidate input keys. Returns at most eight signed variants per key; scanned envelope bytes plus the serialized response share one 16 MiB budget. |
 | `POST` | `/-/pnpr/v0/artifacts/blob` | Reads one owner-scoped blob by its SHA-512 integrity. |
 | `GET` `HEAD` `PUT` | `/-/pnpr/v0/compiler-cache/{cache}/{key}` | One [Cargo compilation cache](compiler-cache.md) entry, over the subset of WebDAV sccache uses. `PROPFIND` answers for virtual parent directories. Added in v0.1.0-alpha.11. |
@@ -154,9 +157,9 @@ Mounted when `pipeline.enabled` is true. See
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `PUT` | `/-/pnpr/v0/pipeline/runs` | Record one run. Requires `publish` on its workspace. |
-| `GET` | `/-/pnpr/v0/pipeline/runs` | Recent run summaries, newest first. Accepts `workspace` and `limit`. |
-| `GET` | `/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}` | One run's full record, event stream included. |
+| `PUT` | `/-/pnpr/v0/pipeline/runs` | Record one run. Requires `publish` on its organization. |
+| `GET` | `/-/pnpr/v0/pipeline/runs` | Recent run summaries, newest first. Accepts `org`, `workspace`, and `limit`. |
+| `GET` | `/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}` | One run's full record, event stream included. |
 | `GET` | `/-/pnpr/v0/pipeline` | A static web viewer over the two read endpoints. |
 
 ## Registry read endpoints

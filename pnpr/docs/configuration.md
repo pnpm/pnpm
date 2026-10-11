@@ -531,7 +531,7 @@ resolver:
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  compilerCaches:
+  orgs:
     acme:
       access: [ci-builder, alice, bob]
       publish: ci-builder
@@ -542,8 +542,34 @@ artifacts:
   artifact-version list. The handshake itself is served when either the resolver
   or artifact surface is enabled, so an artifact-only tier is discoverable.
 
-  `compilerCaches` declares the [Cargo compilation caches](compiler-cache.md)
-  this server hosts and who may read and publish to each.
+  `orgs` declares the organizations this server keeps build output for, and who
+  may read and who may publish what each one owns. An organization owns three
+  things:
+
+  - its signed artifacts: [shared side effects](shared-side-effects-cache.md)
+    and `pnpm pipeline` task results,
+  - its [Cargo compilation cache](compiler-cache.md),
+  - its [pipeline run records](pipeline-runs.md).
+
+  `access` and `publish` list pnpr usernames, or `$authenticated` for every
+  signed-in account. Teams are declared per registry, so `team:` entries are
+  refused here. Publishing also requires `access`. An empty list denies
+  everyone. An organization nobody may read is invisible: requests for it answer
+  as if it did not exist. An undeclared organization is unavailable.
+  `orgs` is read even when `enabled` is false, for a server that only stores
+  pipeline runs.
+
+  `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
+  owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
+  all of them together, defaulting to 10. A `pnpm pipeline` task result can hold
+  release binaries, so a server that stores them usually needs more:
+
+```yaml title="pnpr.yaml"
+artifacts:
+  quota:
+    ownerGiB: 50
+    totalGiB: 200
+```
 
 - The **pipeline run surface** — the endpoints that store and serve
   [`pnpm pipeline` run records](pipeline-runs.md), a peer of the artifact store.
@@ -552,11 +578,9 @@ artifacts:
 ```yaml title="pnpr.yaml"
 pipeline:
   enabled: true
-  workspaces:
-    acme-app:
-      access: [team:platform]
-      publish: ci-builder
 ```
+
+  Who may read and submit runs is decided by [`artifacts.orgs`](#registry-resolver-and-artifact-surfaces).
 
 Something must be served: a config with no registries (or the registry
 surface disabled by flag), the resolver disabled, and artifacts disabled is a

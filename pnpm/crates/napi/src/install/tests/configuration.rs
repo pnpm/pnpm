@@ -101,3 +101,20 @@ fn a_configured_store_dir_outranks_pnpm_home_dir() {
 
     assert_eq!(config.store_dir.root(), configured_store.join(STORE_VERSION));
 }
+
+#[test]
+fn resolved_config_applies_add_missing_peer_types() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    for (add_missing_peer_types, expected) in
+        [(Some(true), true), (Some(false), false), (None, false)]
+    {
+        let mut options = install_options();
+        options.add_missing_peer_types = add_missing_peer_types;
+        let overlay = build_overlay(&options, false).expect("overlay");
+        assert_eq!(
+            resolve_config(dir.path(), &overlay).expect("config").add_missing_peer_types,
+            expected,
+        );
+    }
+}

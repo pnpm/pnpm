@@ -52,7 +52,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,

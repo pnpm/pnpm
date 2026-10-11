@@ -73,7 +73,7 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
   try {
     for (const scenario of scenarios) {
       const input = report(stable, stable)
-      if (!scenario.includes('PEER_HEAVY') && !scenario.includes('LINKED_WORKSPACE')) {
+      if (!scenario.includes('PEER_HEAVY') && !scenario.includes('LINKED_WORKSPACE') && !scenario.includes('INJECTED_WORKSPACE')) {
         input.results.push(command('pnpr@HEAD', Array(10).fill(1.4)), command('pnpr@main', stable))
       }
       input.confirmation = { results: input.results }
@@ -82,7 +82,7 @@ test('all scenarios and both engines are checked, and missing reports fail', asy
     const result = await renderComparison(directory)
     assert.equal(result.failed, true)
     assert.equal(result.markdown.match(/\| Regression \|/g).length, 10)
-    assert.equal(result.markdown.match(/\| Within tolerance \|/g).length, 12)
+    assert.equal(result.markdown.match(/\| Within tolerance \|/g).length, 13)
     const cli = new URL('./compare-integrated-benchmarks.mjs', import.meta.url)
     const run = spawnSync(process.execPath, [fileURLToPath(cli), directory], { encoding: 'utf8' })
     assert.equal(run.status, 1)

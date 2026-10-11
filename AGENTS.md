@@ -43,7 +43,8 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 ### TypeScript pnpm v11 Core Directories
 
 -   `pnpm11/pnpm/`: The CLI entry point and main package.
--   `pnpm11/pkg-manager/`: Core package management logic (installation, linking, etc.).
+-   `pnpm11/installing/`: Core package management logic (installation, linking, etc.).
+-   `pnpm11/bins/`: Linking and removing package bins.
 -   `pnpm11/resolving/`: Dependency resolution logic (resolvers for npm, tarballs, git, etc.).
 -   `pnpm11/fetching/`: Package fetching logic.
 -   `pnpm11/store/`: Store management logic (content-addressable storage).
@@ -159,7 +160,7 @@ Security is the first review priority and performance the second. Surface only i
 
 **Before writing new code, always analyze the existing codebase for similar functionality.** This is a large monorepo with many shared utilities — duplication is a real risk.
 
--   **Search before you write.** Before implementing any non-trivial logic, search the codebase for existing functions, utilities, or patterns that do the same or similar thing. Check `packages/`, `fs/`, `crypto/`, `text/`, and other shared directories first.
+-   **Search before you write.** Before implementing any non-trivial logic, search the codebase for existing functions, utilities, or patterns that do the same or similar thing. Check `pnpm11/fs/`, `pnpm11/crypto/`, `pnpm11/text/`, `pnpm11/object/`, and other shared directories first.
 -   **Extract shared code.** If you find that the logic you need already exists in another package but is not exported or reusable, refactor it into a shared package rather than duplicating it. If you are adding new code that is similar to code that already exists elsewhere in the repo, move the common parts into a shared package that both locations can use.
 -   **Prefer open source packages over custom implementations.** Do not reimplement functionality that is already available as a well-maintained open source package. Use established libraries for common tasks (e.g., path manipulation, string utilities, data structures, schema validation). Only write custom code when no suitable package exists or when the existing packages are too heavy or unmaintained.
 -   **Keep the dependency on the right level.** When adding a new open source dependency, add it to the most specific package that needs it, not to the root or to a shared package unless multiple packages depend on it.
@@ -391,7 +392,7 @@ Recurring engineering conventions in this codebase — the rules reviewers most 
 -   **Reuse repo libraries.** Don't add a dependency, or hand-roll logic, for a job an existing repo utility or an already-present library does — search for it first. Deduplicate copy-pasted logic into a shared function or package.
 -   **String parsing.** Prefer plain string operations over a custom regular expression. When the input needs structured parsing with backtracking, use the existing parser-combinator pattern (`object/property-path`).
 -   **Dependency placement.** Shared infrastructure (the logger, etc.) is a peer dependency. (The narrowest-package rule is covered under "Code Reuse and Avoiding Duplication" above.)
--   **Config and layering.** Configurable values flow through `@pnpm/config` and reach commands via options — don't hardcode them (CLI options are camelCased automatically). Command handlers return data and let the CLI print it, which keeps them unit-testable. Don't add a wrapper function that adds nothing.
+-   **Config and layering.** Configurable values flow through `@pnpm/config.reader` and reach commands via options — don't hardcode them (CLI options are camelCased automatically). Command handlers return data and let the CLI print it, which keeps them unit-testable. Don't add a wrapper function that adds nothing.
 -   **Async and loops.** Prefer async fs and `async/await`; run independent work with `Promise.all`/`Promise.any` and `await` what must complete; hoist invariant work out of loops.
 
 ## Common Gotchas

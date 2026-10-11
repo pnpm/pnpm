@@ -211,7 +211,7 @@ impl PackageManifest {
         if let Some(permissions) = permissions {
             pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
         }
-        tmp.as_file().sync_all()?;
+        pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }

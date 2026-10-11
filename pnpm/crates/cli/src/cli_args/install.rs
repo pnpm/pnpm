@@ -49,8 +49,8 @@ use pnpr_lockfile::{
 };
 use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
 use pnpr_request::{
-    PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
-    resolve_projects_for_pnpr, resolve_projects_options,
+    PnprBenchmarkRegistryOverride, PnprRequestInputs, check_pnpr_applied_settings, pnpr_catalogs,
+    pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
 };
 use pnpr_resolution::{
     DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,

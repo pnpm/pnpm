@@ -14,6 +14,7 @@ use pnpm_package_manifest::{
     package_manager_spec::{is_version_request, split_spec},
 };
 use pnpm_rust_toolchain::Channel;
+use pnpm_tool_protocol::strip_tool_protocol;
 
 /// The install selector for `request`, or `None` when it names no tool
 /// pnpm manages and the request stands as written.
@@ -23,6 +24,17 @@ use pnpm_rust_toolchain::Channel;
 #[must_use]
 pub(crate) fn tool_install_selector(request: &str) -> Option<String> {
     let (name, version_spec) = split_request(request);
+    // Yarn's lines come from different sources, so `yarn@tool:4` maps the
+    // way `yarn@4` does.
+    if name == PackageManager::Yarn.name()
+        && let Some(version_spec) = strip_tool_protocol(version_spec)
+    {
+        if !is_version_request(version_spec) {
+            return None;
+        }
+        let bare = format!("{name}@{version_spec}");
+        return Some(tool_install_selector(&bare).unwrap_or(bare));
+    }
     // A specifier that locates a package — `node@runtime:22`, an explicit
     // `yarn@npm:@yarnpkg/cli-dist@4`, `yarn@yarnpkg/berry` — already says
     // what to install, and rewriting it would nest one locator inside

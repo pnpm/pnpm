@@ -111,6 +111,27 @@ setTimeout(sample, 20)
     .expect("write concurrency probe");
 }
 
+/// Each run waits, for up to 30 seconds, until `count` runs are running at
+/// once, and writes `all-running` when they are.
+fn write_all_running_probe(workspace: &Path, count: usize) -> [String; 2] {
+    let source = format!(
+        r"const fs = require('fs')
+const path = require('path')
+const marker = path.join('..', 'running-' + path.basename(process.cwd()))
+fs.mkdirSync(marker)
+const deadline = Date.now() + 30000
+const poll = () => {{
+  const running = fs.readdirSync('..').filter((entry) => entry.startsWith('running-'))
+  if (running.length === {count}) fs.writeFileSync('../all-running', '')
+  else if (!fs.existsSync('../all-running') && Date.now() < deadline) return setTimeout(poll, 20)
+  fs.rmdirSync(marker)
+}}
+poll()
+",
+    );
+    write_exec_probe(workspace, "await-all-running.cjs", &source)
+}
+
 /// A program that records its own process group and its parent's, for
 /// the one test whose subject is POSIX process groups.
 #[cfg(unix)]
@@ -317,17 +338,17 @@ fn recursive_exec_respects_workspace_concurrency() {
 fn recursive_exec_accepts_infinite_workspace_concurrency() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
-    write_concurrency_probe(&workspace);
+    let probe = write_all_running_probe(&workspace, 3);
 
     pacquet
         .with_args(["--workspace-concurrency=Infinity", "-r", "exec"])
-        .with_args(CONCURRENCY_PROBE_ARGS)
+        .with_args(probe)
         .assert()
         .success();
 
     assert!(
-        workspace.join("exceeded-concurrency").exists(),
-        "Infinity should start all three commands together",
+        workspace.join("all-running").exists(),
+        "Infinity should run all three commands at once",
     );
 
     drop(root);
@@ -368,17 +389,17 @@ fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
 fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
-    write_concurrency_probe(&workspace);
+    let probe = write_all_running_probe(&workspace, 3);
 
     pacquet
         .with_args(["--parallel", "exec"])
-        .with_args(CONCURRENCY_PROBE_ARGS)
+        .with_args(probe)
         .assert()
         .success();
 
     assert!(
-        workspace.join("exceeded-concurrency").exists(),
-        "--parallel should start all three commands together",
+        workspace.join("all-running").exists(),
+        "--parallel should run all three commands at once",
     );
 
     drop(root);

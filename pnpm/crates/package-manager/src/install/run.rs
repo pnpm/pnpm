@@ -17,6 +17,7 @@ use wanted::{Lockfiles, settle_wanted_lockfile};
 mod lockfile_load;
 use lockfile_load::{Loaded, load_lockfiles};
 
+mod importer_selection;
 mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 

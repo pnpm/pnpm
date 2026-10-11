@@ -9,6 +9,7 @@ mod _utils;
 
 mod add;
 mod add_jsr;
+mod add_missing_peer_types;
 mod add_types;
 mod agent_skills;
 mod approve_builds;
@@ -126,6 +127,7 @@ mod peers;
 mod ping;
 mod pipeline_cache;
 mod pipeline_cargo_cache;
+mod pipeline_remote_cache;
 mod pipeline_watch;
 mod pkg_recursive;
 mod pnpm_cli_cmd_shim;

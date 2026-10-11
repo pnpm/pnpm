@@ -1,3 +1,5 @@
+pub use selectors::{ParsedSelector, parse_update_param};
+
 pub(crate) use latest::is_workspace_local_path_specifier;
 
 mod install;

@@ -9,7 +9,7 @@ pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, LockfileSetting, PackageExtension,
-    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
+    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteCacheSettings,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
     TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
@@ -238,7 +238,7 @@ macro_rules! identically_named_settings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies, ignore_compatibility_db,
+            strict_peer_dependencies, ignore_compatibility_db, add_missing_peer_types,
             resolve_peers_from_workspace_root, verify_store_integrity,
             strict_store_pkg_content_check, frozen_store,
             include_workspace_root, fail_if_no_match,
@@ -424,6 +424,8 @@ mod resolved;
 mod reset;
 
 mod settings;
+
+mod global;
 
 mod readable;
 
