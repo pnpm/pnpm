@@ -50,7 +50,7 @@ pnpm exchanges the CI identity token for a temporary token scoped to the package
 
 When OIDC is unavailable or the registry rejects the exchange, pnpm falls back to configured credentials. Missing GitHub request variables and rejected identity requests also use this fallback. Network errors and invalid identity-request URLs are reported.
 
-OIDC uses the configured fetch timeout and retry settings. A remove operation reuses its exchanged token for both the tag lookup and deletion. Without an OIDC token source, no identity or token-exchange request is made.
+OIDC requests use the configured fetch timeout and retry settings.
 
 ## Options
 

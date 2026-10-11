@@ -30,8 +30,7 @@ where
     Reporter: self::Reporter,
 {
     if let Some(token) = truthy_env::<Sys>("NPM_ID_TOKEN") {
-        let parsed_registry = Url::parse(registry).map_err(GetIdTokenError::InvalidRegistry)?;
-        let audience = format!("npm:{}", parsed_registry.host_str().unwrap_or_default());
+        let audience = registry_audience(registry)?;
         let payload = id_token_payload(&token)
             .map_err(|_| GetIdTokenError::IdToken(IdTokenError::NpmIdTokenAudienceMismatch))?;
         if !token_has_audience(&payload, &audience) {
@@ -44,10 +43,13 @@ where
         return Ok(None);
     }
 
-    let parsed_registry = Url::parse(registry).map_err(GetIdTokenError::InvalidRegistry)?;
-    let audience = format!("npm:{}", parsed_registry.host_str().unwrap_or_default());
-
+    let audience = registry_audience(registry)?;
     github_request_token::<Sys, Reporter>(&audience, options).await.map(Some).map_err(Into::into)
+}
+
+fn registry_audience(registry: &str) -> Result<String, GetIdTokenError> {
+    let parsed_registry = Url::parse(registry).map_err(GetIdTokenError::InvalidRegistry)?;
+    Ok(format!("npm:{}", parsed_registry.host_str().unwrap_or_default()))
 }
 
 fn token_has_audience(payload: &serde_json::Value, expected: &str) -> bool {
@@ -66,7 +68,7 @@ fn token_has_audience(payload: &serde_json::Value, expected: &str) -> bool {
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum IdTokenError {
     #[display("NPM_ID_TOKEN is invalid or does not match the selected registry audience")]
-    #[diagnostic(code(ERR_PNPM_ID_TOKEN_AUDIENCE_MISMATCH))]
+    #[diagnostic(code(ERR_PNPM_ID_TOKEN_REGISTRY_AUDIENCE_MISMATCH))]
     NpmIdTokenAudienceMismatch,
 
     #[display("Incorrect permissions for idToken within GitHub Workflows")]

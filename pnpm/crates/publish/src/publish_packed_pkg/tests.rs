@@ -730,9 +730,8 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
 /// wire to the mocked server.
 struct ProvenanceSys;
 fn npm_id_token() -> String {
-    let payload = URL_SAFE_NO_PAD.encode(
-        serde_json::to_vec(&json!({ "aud": "npm:127.0.0.1" })).unwrap(),
-    );
+    let payload =
+        URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({ "aud": "npm:127.0.0.1" })).unwrap());
     format!("header.{payload}.signature")
 }
 
