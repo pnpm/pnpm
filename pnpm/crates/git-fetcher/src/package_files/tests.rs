@@ -50,17 +50,11 @@ fn paths_outside_the_package_name_no_file() {
     let files = HashMap::from([("outside.js".to_string(), root.path().join("outside.js"))]);
     let archive = CasPackageFiles { files: &files, dir: Some("package") };
 
-    assert!(!package.as_path().contains("../outside.js"));
-    assert!(
-        !package
-            .as_path()
-            .contains(
-                &root
-                    .path()
-                    .join("outside.js")
-                    .to_string_lossy()
-            )
-    );
-    assert_eq!(package.as_path().read_head("../outside.js", 1), None);
+    let absolute = root.path().join("outside.js");
+    let absolute = absolute.to_string_lossy();
+    let package = package.as_path();
+    assert!(!package.contains("../outside.js"));
+    assert!(!package.contains(&absolute));
+    assert_eq!(package.read_head("../outside.js", 1), None);
     assert!(!archive.contains("../outside.js"));
 }
