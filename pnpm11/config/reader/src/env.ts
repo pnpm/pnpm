@@ -154,7 +154,11 @@ function parseValueByModule (schema: ModuleSchema, envVar: string, env: { HOME?:
   }
 
   if (schema === url) {
-    return new url.URL(envVar).toString()
+    try {
+      return new url.URL(envVar).toString()
+    } catch {
+      return undefined
+    }
   }
 
   return undefined
