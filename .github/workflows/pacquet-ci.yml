@@ -226,6 +226,18 @@ jobs:
 
           just install
 
+      # The bundle is committed so that `cargo build` works without Node.js.
+      # `just install` regenerates it through the `prepare` script of
+      # `@pnpm/esm-loader`.
+      - name: Check that the committed loader bundle is up to date
+        shell: bash
+        run: |
+          bundle=pnpm/crates/deps-restorer/src/cas-loader.mjs.inc
+          if ! git ls-files --error-unmatch -- "$bundle" > /dev/null || ! git diff --quiet -- "$bundle"; then
+            echo "::error file=$bundle::$bundle is missing from git or stale. Run pnpm install and commit the regenerated file."
+            exit 1
+          fi
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
