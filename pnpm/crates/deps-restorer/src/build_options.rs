@@ -109,6 +109,11 @@ pub struct BuildCacheContext<'a> {
     /// disabled or no rows were prefetched; the gate falls through
     /// to "rebuild" for every snapshot.
     pub maps_by_snapshot: Option<&'a crate::SideEffectsMapsBySnapshot>,
+    /// The raw side-effects rows `maps_by_snapshot` was built from. An
+    /// empty row has no overlay there, so only a rebuild with
+    /// [`crate::RebuildOptions::skip_if_has_side_effects_cache`] reads
+    /// it, to learn that the build already ran.
+    pub diffs_by_snapshot: Option<&'a crate::SideEffectsBySnapshot>,
     /// `<platform>;<arch>;node<major>` — the prefix part of the
     /// dep-state cache key. Computed once at install
     /// start by [`pnpm_graph_hasher::detect_node_major`] +

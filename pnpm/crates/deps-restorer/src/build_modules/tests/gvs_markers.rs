@@ -94,6 +94,7 @@ new file mode 100644
         BuildModules {
             cache: crate::BuildCacheContext {
                 maps_by_snapshot: None,
+                diffs_by_snapshot: None,
                 engine_name: None,
                 read: false,
                 write: false,

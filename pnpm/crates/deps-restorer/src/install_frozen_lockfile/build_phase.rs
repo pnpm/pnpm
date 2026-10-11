@@ -298,6 +298,7 @@ fn build_modules<'a>(
     BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(inputs.cache.maps_by_snapshot),
+            diffs_by_snapshot: Some(inputs.cache.diffs_by_snapshot),
             engine_name: inputs.cache.engine_name,
             read: config.side_effects_cache_read()
                 || config.remote_side_effects_cache.is_some(),

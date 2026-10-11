@@ -131,6 +131,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     let result = BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(&side_effects_maps),
+            diffs_by_snapshot: None,
             engine_name: Some(engine),
             read: true,
             write: false,
@@ -223,6 +224,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     let err = BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(&side_effects_maps),
+            diffs_by_snapshot: None,
             engine_name: Some("darwin;arm64;node20"),
             read: false,
             write: false,
@@ -402,6 +404,7 @@ async fn write_path_populates_side_effects_row() {
     BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: None,
+            diffs_by_snapshot: None,
             engine_name: Some(engine),
             read: true,
             write: true,

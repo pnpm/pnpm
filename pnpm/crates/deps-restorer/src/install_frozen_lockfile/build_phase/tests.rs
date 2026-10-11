@@ -50,6 +50,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
     let inputs = BuildPhaseInputs {
         cache: crate::BuildPhaseCache {
             maps_by_snapshot: &HashMap::new(),
+            diffs_by_snapshot: &HashMap::new(),
             requires_build_by_snapshot: &requires_build,
             engine_name: None,
             store_index_writer: &writer,
@@ -128,6 +129,7 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
     let inputs = BuildPhaseInputs {
         cache: crate::BuildPhaseCache {
             maps_by_snapshot: &HashMap::new(),
+            diffs_by_snapshot: &HashMap::new(),
             requires_build_by_snapshot: &HashMap::new(),
             engine_name: None,
             store_index_writer: &writer,
@@ -242,6 +244,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
     let output = run_build_phase::<SilentReporter>(&BuildPhaseInputs {
         cache: crate::BuildPhaseCache {
             maps_by_snapshot: &side_effects_maps_by_snapshot,
+            diffs_by_snapshot: &HashMap::new(),
             requires_build_by_snapshot: &requires_build_by_snapshot,
             engine_name: None,
             store_index_writer: &store_index_writer,

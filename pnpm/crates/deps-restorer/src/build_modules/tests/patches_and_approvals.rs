@@ -197,6 +197,7 @@ new file mode 100644
     BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: None,
+            diffs_by_snapshot: None,
             engine_name: Some(engine),
             read: true,
             write: true,
@@ -338,6 +339,7 @@ new file mode 100644
     BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: None,
+            diffs_by_snapshot: None,
             engine_name: None,
             read: false,
             write: false,
@@ -448,6 +450,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     let err = BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: None,
+            diffs_by_snapshot: None,
             engine_name: None,
             read: false,
             write: false,
