@@ -731,7 +731,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
 struct ProvenanceSys;
 fn npm_id_token() -> String {
     let payload = URL_SAFE_NO_PAD.encode(
-        serde_json::to_vec(&json!({ "aud": "npm:registry.example" })).unwrap(),
+        serde_json::to_vec(&json!({ "aud": "npm:127.0.0.1" })).unwrap(),
     );
     format!("header.{payload}.signature")
 }
@@ -817,6 +817,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
     };
     let mock = server
         .mock("PUT", "/pkg")
+        .match_header("authorization", "Bearer registry-token")
         .match_body(mockito::Matcher::PartialJsonString(
             r#"{"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
                 .to_owned(),
