@@ -21,6 +21,9 @@ mod build_policy;
 #[cfg(unix)]
 mod gvs_markers;
 
+#[cfg(unix)]
+mod empty_side_effects;
+
 use super::{BuildModules, allow_build_policy::AllowBuildPolicy};
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.
@@ -176,7 +179,7 @@ fn frozen_backstop_run(
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,

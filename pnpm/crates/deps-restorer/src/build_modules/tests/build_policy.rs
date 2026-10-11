@@ -124,7 +124,7 @@ fn build_modules_collects_ignored_builds() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -209,7 +209,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -294,7 +294,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -378,7 +378,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -458,7 +458,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -553,7 +553,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -645,7 +645,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -826,7 +826,10 @@ fn using_side_effects_cache_skips_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(&side_effects_maps),
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&side_effects_maps),
+                rows: None,
+            },
             engine_name: Some(engine),
             read: true,
             write: false,
@@ -980,7 +983,10 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(&side_effects_maps),
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&side_effects_maps),
+                rows: None,
+            },
             engine_name: Some(engine),
             read: true,
             write: false,

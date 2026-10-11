@@ -179,9 +179,19 @@ pub struct BuildPhasePolicy<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseCache<'a> {
     pub maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
+    pub diffs_by_snapshot: &'a crate::SideEffectsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
     pub engine_name: Option<&'a str>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
+}
+
+impl<'a> BuildPhaseCache<'a> {
+    pub(crate) fn side_effects(&self) -> crate::CachedSideEffects<'a> {
+        crate::CachedSideEffects {
+            overlays: Some(self.maps_by_snapshot),
+            rows: Some(self.diffs_by_snapshot),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
