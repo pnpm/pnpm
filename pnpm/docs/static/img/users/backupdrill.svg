@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#16263F"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <path d="M 464.7 158.5 A 250 250 0 1 0 641.5 335.3"
+        fill="none" stroke="#22D3EE" stroke-width="34" stroke-linecap="round"/>
+  <polygon points="627.3,272.2 682.2,326.5 600.8,349.1" fill="#22D3EE"/>
+  <g fill="none" stroke="#F8FAFC" stroke-width="26" stroke-linecap="round">
+    <ellipse cx="400" cy="300" rx="115" ry="44"/>
+    <line x1="285" y1="300" x2="285" y2="500"/>
+    <line x1="515" y1="300" x2="515" y2="500"/>
+    <path d="M 285 500 A 115 44 0 0 0 515 500"/>
+    <path d="M 285 398 A 115 44 0 0 0 515 398"/>
+  </g>
+</svg>
