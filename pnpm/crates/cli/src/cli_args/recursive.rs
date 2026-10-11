@@ -510,10 +510,13 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
         .unwrap_or_else(|| ".".to_string())
 }
 
-/// Whether a selection that names no project keeps the workspace root:
-/// `includeWorkspaceRoot` is set, or the workspace has no non-root project
-/// to keep, so excluding the root would empty the selection.
-/// `workspace_patterns` is `None` when there is no `pnpm-workspace.yaml`.
+/// Whether a selection that names no project keeps the workspace root. It
+/// does when any of these hold:
+///
+/// - `includeWorkspaceRoot` is set.
+/// - `workspace_patterns` lists only the root, so excluding it would empty
+///   the selection.
+/// - `workspace_patterns` is `None`: there is no `pnpm-workspace.yaml`.
 pub(crate) fn keeps_workspace_root(config: &Config, workspace_patterns: Option<&[String]>) -> bool {
     config.include_workspace_root || workspace_patterns.is_none_or(is_root_only_patterns)
 }

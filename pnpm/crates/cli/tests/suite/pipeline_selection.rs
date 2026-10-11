@@ -92,29 +92,56 @@ fn a_root_only_workspace_selects_the_root() {
     }
 }
 
-#[test]
-fn a_root_only_workspace_selects_the_root_for_a_change() {
+fn pipeline_after_root_change(workspace_manifest: &str, args: &[&str]) -> Assert {
     let root = tempfile::tempdir().unwrap();
     let fixture = GitRepoFixture::init(root.path(), "demo");
     fixture.write_file("package.json", ROOT_MANIFEST);
-    fixture.write_file("pnpm-workspace.yaml", "packages: ['.']\npipelines:\n  default: [build]\n");
+    fixture.write_file("pnpm-workspace.yaml", workspace_manifest);
+    fixture.write_file(
+        "pkg/package.json",
+        r#"{"name":"pkg","version":"1.0.0","scripts":{"build":"echo pkg"}}"#,
+    );
     fixture.write_file("source", "first");
     let base = fixture.commit("initial");
     fixture.write_file("source", "second");
-    let result = pipeline(
-        &root.path().join("demo-src"),
-        &root.path().join("config"),
-        &["--base", &base, "--dry-run", "--json"],
-    );
-    let stdout = &result.get_output().stdout;
-    let text = String::from_utf8_lossy(stdout);
-    assert!(!text.contains("The diff touches workspace-root files"), "{text}");
-    let document: serde_json::Value = serde_json::from_slice(stdout).unwrap();
-    assert!(runs_root_build(&document), "the root must participate: {document}");
+    let args: Vec<&str> = ["--base", &base]
+        .into_iter()
+        .chain(args.iter().copied())
+        .collect();
+    pipeline(&root.path().join("demo-src"), &root.path().join("config"), &args)
 }
 
 #[test]
-fn an_empty_full_selection_does_not_report_affected_projects() {
+fn a_root_only_workspace_selects_the_root_for_a_change() {
+    for packages in ["packages: ['.']\n", ""] {
+        let result = pipeline_after_root_change(
+            &format!("{packages}pipelines:\n  default: [build]\n"),
+            &["--dry-run", "--json"],
+        );
+        let stdout = &result.get_output().stdout;
+        let text = String::from_utf8_lossy(stdout);
+        assert!(!text.contains("The diff touches workspace-root files"), "{text}");
+        let document: serde_json::Value = serde_json::from_slice(stdout).unwrap();
+        assert!(
+            runs_root_build(&document),
+            "the root must participate with {packages:?}: {document}",
+        );
+    }
+}
+
+#[test]
+fn a_root_change_in_a_workspace_with_projects_runs_every_project() {
+    let result = pipeline_after_root_change(
+        "packages: [pkg]\npipelines:\n  default: [build]\n",
+        &["--dry-run"],
+    );
+    let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
+    assert!(output.contains("The diff touches workspace-root files"), "{output}");
+    assert!(output.contains("pkg#build"), "{output}");
+}
+
+#[test]
+fn an_empty_full_selection_reports_no_selected_projects() {
     let project = tempfile::tempdir().unwrap();
     fs::write(project.path().join("package.json"), ROOT_MANIFEST).unwrap();
     fs::write(

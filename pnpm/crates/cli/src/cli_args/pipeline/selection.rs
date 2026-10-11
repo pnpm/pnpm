@@ -232,12 +232,10 @@ fn select_changed_projects(
     // A changed file above every package maps to the workspace root
     // project: the root manifest, the lockfile, a shared config. Those
     // feed every project in ways project topology cannot see, so pruning
-    // is disabled for the run rather than guessed at. Without a non-root
-    // project there is nothing to prune.
-    let has_non_root_project = options.graph
-        .keys()
-        .any(|dir| dir != options.workspace_root);
-    if has_non_root_project
+    // is disabled for the run rather than guessed at. A run over the root
+    // alone has nothing to prune.
+    let covers_only_root = matches!(all_dirs, [dir] if dir == options.workspace_root);
+    if !covers_only_root
         && changed.changed_projects
             .iter()
             .chain(&changed.ignore_dependent_for_projects)

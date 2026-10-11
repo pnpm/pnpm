@@ -52,7 +52,7 @@ pnpm pipeline release  # build only
 4. Restores each cacheable task whose key it has seen before, and runs the rest.
 5. Keeps going after a task fails, so one run reports every failure rather than the first.
 
-The workspace root is left out of the selection unless [`includeWorkspaceRoot`](../workspaces.md#includeworkspaceroot) is `true` or `packages` lists only the root.
+The workspace root is left out of the selection unless [`includeWorkspaceRoot`](../workspaces.md#includeworkspaceroot) is `true`, or `packages` is omitted or lists only the root.
 
 Use `--dry-run` to see the graph without installing configuration dependencies, running workspace hooks, or executing anything. Add `--json` for the nodes and edges.
 
