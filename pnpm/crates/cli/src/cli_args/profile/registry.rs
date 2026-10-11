@@ -4,7 +4,7 @@ use crate::cli_args::{
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
 use miette::{Context, IntoDiagnostic};
-use pnpm_network::{RetryOpts, ThrottledClient, read_limited_body, send_with_retry};
+use pnpm_network::{RetryOpts, ThrottledClient, UNPRIORITIZED, read_limited_body, send_with_retry};
 use pnpm_network_web_auth::otp_challenge_from_unauthorized_body;
 use serde_json::{Map, Value};
 
@@ -36,21 +36,26 @@ impl ProfileRegistry<'_> {
 
     /// POST `body` and return the registry's reply. An empty reply is an
     /// empty object.
+    ///
+    /// The body can carry the account password or an authenticator code, so
+    /// the request is sent once and never follows a redirect.
     pub(super) async fn update(&self, body: &Value) -> miette::Result<Value> {
         let endpoint = self.endpoint()?;
         let body_bytes = serde_json::to_vec(body)
             .into_diagnostic()
             .wrap_err("serializing profile request body")?;
-        let (client, response) = send_with_retry(self.client, &endpoint, self.retry_opts, |cli| {
-            let builder = cli
-                .post(&endpoint)
-                .header("content-type", "application/json")
-                .body(body_bytes.clone());
-            apply_auth_and_otp(builder, Some(self.auth_header), self.otp)
-        })
-        .await
-        .into_diagnostic()
-        .wrap_err("updating user profile")?;
+        let client =
+            self.client.acquire_for_url_without_redirects_with_priority(&endpoint, UNPRIORITIZED)
+                .await;
+        let request = client
+            .post(&endpoint)
+            .header("content-type", "application/json")
+            .body(body_bytes);
+        let response = apply_auth_and_otp(request, Some(self.auth_header), self.otp)
+            .send()
+            .await
+            .into_diagnostic()
+            .wrap_err("updating user profile")?;
         let reply = read_json_response(response, "update profile").await?;
         drop(client);
         Ok(reply)

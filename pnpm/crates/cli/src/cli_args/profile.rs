@@ -168,12 +168,12 @@ impl ProfileArgs {
         let mut body = writable_fields(&registry.fetch().await?);
         body.insert(property.to_string(), value);
         let reply = registry.update(&Value::Object(body)).await?;
-        self.render_set(
-            property,
-            reply
-                .get(property)
-                .filter(|value| !value.is_null()),
-        )
+        // The password is write-only: never print what the registry echoes.
+        let result = (property != "password")
+            .then(|| reply.get(property))
+            .flatten()
+            .filter(|value| !value.is_null());
+        self.render_set(property, result)
     }
 
     fn render_set(&self, property: &str, result: Option<&Value>) -> miette::Result<Option<String>> {

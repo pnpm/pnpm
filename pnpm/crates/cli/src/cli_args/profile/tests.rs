@@ -212,7 +212,7 @@ async fn set_password_prompts_until_the_new_passwords_match() {
     let post = mock_update(
         &mut server,
         json!({ "password": { "old": "old", "new": "new" } }),
-        &json!({ "name": "alice" }),
+        &json!({ "name": "alice", "password": { "old": "old", "new": "new" } }),
     );
     let output = args(&["set", "password"]).execute::<ScriptedPrompts>(&config).await.unwrap();
     post.assert_async().await;
@@ -315,6 +315,28 @@ async fn update_rejects_a_malformed_reply() {
     let err =
         args(&["set", "fullname", "x"]).execute::<ScriptedPrompts>(&config).await.unwrap_err();
     assert!(format!("{err:?}").contains("parsing profile response"), "{err:?}");
+}
+
+#[tokio::test]
+async fn update_does_not_follow_redirects() {
+    scripted_prompts!(passwords = ["hunter2"], otps = []);
+    let mut server = mockito::Server::new_async().await;
+    let mut elsewhere = mockito::Server::new_async().await;
+    let config = authed_config(&format!("{}/", server.url()));
+    let _get =
+        mock_profile(&mut server, &json!({ "tfa": { "pending": false, "mode": "auth-only" } }));
+    let _redirect = server
+        .mock("POST", "/-/npm/v1/user")
+        .with_status(307)
+        .with_header("location", &format!("{}/-/npm/v1/user", elsewhere.url()))
+        .create();
+    let forwarded = elsewhere
+        .mock("POST", Matcher::Any)
+        .expect(0)
+        .create();
+    let err = args(&["disable-2fa"]).execute::<ScriptedPrompts>(&config).await.unwrap_err();
+    forwarded.assert_async().await;
+    assert!(err.to_string().contains("307"), "{err}");
 }
 
 #[tokio::test]
