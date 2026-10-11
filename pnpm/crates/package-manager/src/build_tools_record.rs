@@ -128,16 +128,21 @@ impl<'a> PriorRecords<'a> {
         PriorRecords { lockfile, snapshots_by_package }
     }
 
-    /// The tools the previous lockfile's snapshots record, which a package
-    /// that needs one of them reuses when its version satisfies the
-    /// package. An entry no snapshot names is not offered.
+    /// The tools the previous lockfile's git-hosted snapshots record, which
+    /// a package that needs one of them reuses when its version satisfies
+    /// the package. An entry no such snapshot names is not offered.
     fn tools(&self) -> ToolCatalog {
         let Some(packages) = self.lockfile.packages.as_ref() else {
             return ToolCatalog::new();
         };
         self.snapshots_by_package
-            .values()
-            .flat_map(|snapshot| {
+            .iter()
+            .filter(|(package, _)| {
+                packages
+                    .get(*package)
+                    .is_some_and(|metadata| metadata.resolution.is_git_hosted())
+            })
+            .flat_map(|(_, snapshot)| {
                 snapshot.build_dependency_keys().map(|(_, key)| key.without_peer())
             })
             .filter_map(|key| {

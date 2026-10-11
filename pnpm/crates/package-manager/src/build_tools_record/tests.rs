@@ -176,3 +176,21 @@ fn an_invalid_carried_tool_is_examined_again() {
     let carried = PriorRecords::of(&prior).carried(&unrecorded(), &key(BUILT));
     assert!(carried.is_none());
 }
+
+/// Only a git-hosted package's record offers its tools: one an edited
+/// lockfile attaches to a registry package is ignored.
+#[test]
+fn tools_a_registry_snapshot_names_are_not_offered() {
+    let mut prior = parse(RECORDED);
+    let snapshots = prior.snapshots.as_mut().unwrap();
+    let recorded = snapshots[&key(BUILT)].build_dependencies.clone();
+    snapshots
+        .get_mut(&key(BUILT))
+        .unwrap()
+        .build_dependencies = None;
+    snapshots
+        .get_mut(&key("is-positive@1.0.0"))
+        .unwrap()
+        .build_dependencies = recorded;
+    assert!(PriorRecords::of(&prior).tools().is_empty());
+}
