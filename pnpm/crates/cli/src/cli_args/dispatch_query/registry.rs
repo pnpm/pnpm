@@ -75,7 +75,7 @@ pub(in super::super) fn dist_tag<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
+        if let Some(output) = args.run::<CliReporter>(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
             if output.is_empty() {
                 return Ok(());

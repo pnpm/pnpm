@@ -39,6 +39,14 @@ List all dist-tags for a package. If no package name is given, the dist-tags for
 pnpm dist-tag ls foo
 ```
 
+## Trusted publishing
+
+`pnpm dist-tag add`, `rm`, and `ls` can authenticate through OIDC in CI using the package's trusted publisher. Enable **Allow npm dist-tag** in the package's trusted publishing settings. GitHub Actions also requires `id-token: write` permission.
+
+pnpm exchanges the CI identity token for a temporary token scoped to the package and its configured registry. The token stays in memory and is not saved to `.npmrc`. Dist-tag commands do not generate provenance.
+
+When OIDC is unavailable or the registry rejects the exchange, pnpm falls back to configured credentials.
+
 ## Options
 
 ### --registry &lt;url\>
