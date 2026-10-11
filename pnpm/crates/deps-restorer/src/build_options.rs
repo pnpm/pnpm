@@ -106,9 +106,8 @@ impl<'a> BuildScriptOptions<'a> {
 /// the store index, as the `is_built` gate looks them up.
 #[derive(Default, Clone, Copy)]
 pub struct CachedSideEffects<'a> {
-    /// Per-snapshot overlays, by cache key. `None` means the cache is
-    /// disabled or no rows were prefetched; the gate falls through to
-    /// "rebuild" for every snapshot.
+    /// Per-snapshot overlays, by cache key. `None` means no overlays were
+    /// prefetched, so the gate restores no cached build output.
     pub overlays: Option<&'a crate::SideEffectsMapsBySnapshot>,
     /// The raw rows the overlays were built from. An empty row has no
     /// overlay, so only a rebuild with

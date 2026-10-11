@@ -99,7 +99,7 @@ fn rebuild_found_empty_row(
         && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key))
         && !context
             .pkg_roots()
-            .all(snapshot_key)
+            .all_recorded(snapshot_key)
             .iter()
             .any(|pkg_dir| pkg_dir.join(NEEDS_BUILD_MARKER).exists());
     if hit {
