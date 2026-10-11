@@ -168,6 +168,22 @@ impl PackageManagerBootstrap {
 /// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
 /// setting, so a source that sets either one decides both, or `pnpm config
 /// get` would answer one of the two with the value the install did not use.
+/// `nodePackageMap` supersedes the deprecated spellings; mirror it there so
+/// `config get` answers for them as well.
+fn mirror_node_package_map(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    section: NodePackageMapSettings,
+) {
+    if let Some(mode) = section.mode {
+        target.insert("nodeExperimentalPackageMap".to_string(), mode.loads().into());
+    }
+    if let Some(map_type) = section.map_type
+        && let Ok(map_type) = serde_json::to_value(map_type)
+    {
+        target.insert("nodePackageMapType".to_string(), map_type);
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -192,17 +208,8 @@ fn collect_explicit_settings(
             serde_json::Value::Bool(virtual_store_type.is_global()),
         );
     }
-    // `nodePackageMap` supersedes the deprecated spellings; mirror it there so
-    // `config get` answers for them as well.
     if let Some(section) = settings.node_package_map {
-        if let Some(mode) = section.mode {
-            target.insert("nodeExperimentalPackageMap".to_string(), mode.loads().into());
-        }
-        if let Some(map_type) = section.map_type
-            && let Ok(map_type) = serde_json::to_value(map_type)
-        {
-            target.insert("nodePackageMapType".to_string(), map_type);
-        }
+        mirror_node_package_map(target, section);
     }
     // `audit.level` supersedes the deprecated `auditLevel` spelling; mirror it
     // there so `config get audit-level` answers the way pnpm does.
