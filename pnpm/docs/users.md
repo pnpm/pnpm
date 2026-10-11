@@ -63,4 +63,5 @@ pnpm is used by many folks. Are you using it too? [Add your company](https://git
   <a href="https://osmos.ai/" title="Osmos"><img src="/img/users/osmos.svg" alt="Osmos" width="250" style="padding: 20px" /></a>
   <a href="https://nx.dev" title="Nx"><img src="/img/users/nx.svg" alt="Nx" width="150" style="padding: 20px" /></a>
   <a href="https://angular.dev" title="Angular"><img src="/img/users/angular.svg" alt="Angular" width="130" style="padding: 20px" /></a>
+  <a href="https://datahabibi.ae/" title="dataHabibi"><img src="/img/users/datahabibi.png" alt="dataHabibi" width="128" style="padding: 20px" /></a>
 </div>
