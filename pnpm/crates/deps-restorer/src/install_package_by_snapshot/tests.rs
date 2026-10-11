@@ -122,6 +122,7 @@ async fn run_snapshot_install_with_session(
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     super::InstallPackageBySnapshot {
+        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,

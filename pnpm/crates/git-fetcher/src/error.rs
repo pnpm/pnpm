@@ -65,6 +65,30 @@ pub enum PreparePackageError {
         source: std::io::Error,
     },
 
+    /// `lockBuildTools` is on and the lockfile records no package manager
+    /// for a git-hosted package that has to be built.
+    #[display(
+        r#"The lockfile records no build tools for the git-hosted package "{dep_path}", which is prepared with {package_manager}."#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_LOCKFILE_MISSING_BUILD_TOOLS),
+        help(
+            r#"Run "pnpm install" without "--frozen-lockfile" to record them. If a regular install reports this too, run "pnpm update" for the dependency."#
+        )
+    )]
+    MissingBuildTools { dep_path: String, package_manager: String },
+
+    /// The package manager the lockfile records for a git-hosted package is
+    /// not the one the package asks for at the locked commit.
+    #[display(
+        r#"The lockfile records {recorded} as the package manager of the git-hosted package "{dep_path}", but the package asks for {package_manager}."#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_LOCKFILE_BUILD_TOOLS_MISMATCH),
+        help(r#"Run "pnpm update" for the dependency to record its build tools again."#)
+    )]
+    BuildToolMismatch { dep_path: String, recorded: String, package_manager: String },
+
     #[display("I/O error during preparePackage: {_0}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_PREPARE_PACKAGE_IO))]
     Io(#[error(source)] std::io::Error),

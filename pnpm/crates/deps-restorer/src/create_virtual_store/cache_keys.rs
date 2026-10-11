@@ -22,25 +22,60 @@ pub(super) fn derive_cache_keys(
     };
     let selector = runtime_platform_selector(supported_architectures);
     snapshots
-        .keys()
-        .map(|snapshot_key| {
+        .iter()
+        .map(|(snapshot_key, snapshot)| {
             let cache_key =
                 snapshot_cache_key(snapshot_key, packages, config.ignore_scripts, &selector)
-                    .map(|mut key| {
-                        if key.is_git_hosted
-                            && allow_build_policy.check(&snapshot_key.without_peer().to_string())
-                                == Some(false)
-                        {
-                            key.value = Some(pnpm_store_dir::git_hosted_store_index_key(
-                                &snapshot_key.without_peer().pkg_id(),
-                                false,
-                            ));
-                        }
-                        key
+                    .map(|key| {
+                        GitHostedBuild { snapshot_key, snapshot, packages }.rekey(
+                            key,
+                            config,
+                            allow_build_policy,
+                        )
                     });
             (snapshot_key.clone(), cache_key)
         })
         .collect()
+}
+
+/// A git-hosted snapshot, whose store-index key depends on how it is
+/// built.
+struct GitHostedBuild<'a> {
+    snapshot_key: &'a PackageKey,
+    snapshot: &'a SnapshotEntry,
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+}
+
+impl GitHostedBuild<'_> {
+    /// Key `key` the way the git fetcher files the package: unbuilt when
+    /// `allowBuilds` denies it, and under its recorded build tools when it
+    /// is built.
+    fn rekey(
+        &self,
+        mut key: SnapshotCacheKey,
+        config: &Config,
+        allow_build_policy: &crate::AllowBuildPolicy,
+    ) -> SnapshotCacheKey {
+        if !key.is_git_hosted {
+            return key;
+        }
+        let pkg_id = self.snapshot_key.without_peer().pkg_id();
+        if allow_build_policy.check(&self.snapshot_key.without_peer().to_string()) == Some(false) {
+            key.value = Some(pnpm_store_dir::git_hosted_store_index_key(&pkg_id, false, None));
+            return key;
+        }
+        let build_tools = config.lock_build_tools
+            .then(|| pnpm_lockfile::build_tools_identity(self.snapshot, Some(self.packages)))
+            .flatten();
+        if let (Some(_), Some(build_tools)) = (&key.value, build_tools) {
+            key.value = Some(pnpm_store_dir::git_hosted_store_index_key(
+                &pkg_id,
+                !config.ignore_scripts,
+                Some(&build_tools),
+            ));
+        }
+        key
+    }
 }
 /// Sorted + deduplicated so `prefetch_cas_paths` doesn't redo identical
 /// SELECT + integrity-check work for peer variants of one package.
@@ -122,6 +157,7 @@ pub(super) fn snapshot_cache_key(
                     &metadata.resolution,
                     &pkg_id,
                     !ignore_scripts,
+                    None,
                 ),
                 is_git_hosted: true,
             })
@@ -304,7 +340,7 @@ pub(super) fn tarball_cache_key(
         return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     }
     Ok(SnapshotCacheKey {
-        value: store_index_key_for_resolution(resolution, pkg_id, !ignore_scripts),
+        value: store_index_key_for_resolution(resolution, pkg_id, !ignore_scripts, None),
         is_git_hosted: tarball.is_git_hosted(),
     })
 }

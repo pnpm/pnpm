@@ -104,11 +104,17 @@ mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 
+/// `build_tools` is the [`pnpm_lockfile::build_tools_identity`] of the
+/// package's snapshot, which keys a built git-hosted package.
 pub fn store_index_key_for_resolution(
     resolution: &pnpm_lockfile::LockfileResolution,
     pkg_id: &str,
     built: bool,
+    build_tools: Option<&str>,
 ) -> Option<String> {
+    if resolution.is_git_hosted() {
+        return Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, built, build_tools));
+    }
     match resolution {
         pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
             Some(pnpm_store_dir::pick_store_index_key(
@@ -116,13 +122,10 @@ pub fn store_index_key_for_resolution(
                     .as_ref()
                     .map(ToString::to_string)
                     .as_deref(),
-                tarball.is_git_hosted(),
+                false,
                 pkg_id,
                 built,
             ))
-        }
-        pnpm_lockfile::LockfileResolution::Git(_) => {
-            Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, built))
         }
         _ => resolution
             .integrity()

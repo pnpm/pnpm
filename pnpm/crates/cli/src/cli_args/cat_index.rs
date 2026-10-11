@@ -203,7 +203,10 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
 }
 
 fn git_store_index_keys(pkg_id: &str) -> Vec<String> {
-    vec![git_hosted_store_index_key(pkg_id, true), git_hosted_store_index_key(pkg_id, false)]
+    vec![
+        git_hosted_store_index_key(pkg_id, true, None),
+        git_hosted_store_index_key(pkg_id, false, None),
+    ]
 }
 
 fn fallback_pkg_ids(alias: &str, requested_bare: Option<&str>) -> Vec<String> {

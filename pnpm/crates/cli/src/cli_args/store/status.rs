@@ -89,12 +89,19 @@ fn packages_to_check(
         .iter()
         .flatten()
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
-        .filter_map(|(key, _)| {
+        .filter_map(|(key, snapshot)| {
             let metadata = lockfile.packages
                 .as_ref()?
                 .get(&key.without_peer())?;
-            let store_index_key =
-                store_index_key_for_resolution(&metadata.resolution, &key.pkg_id(), true)?;
+            let build_tools = config.lock_build_tools
+                .then(|| pnpm_lockfile::build_tools_identity(snapshot, lockfile.packages.as_ref()))
+                .flatten();
+            let store_index_key = store_index_key_for_resolution(
+                &metadata.resolution,
+                &key.pkg_id(),
+                true,
+                build_tools.as_deref(),
+            )?;
             let modules_dir = virtual_store_dir
                 .join(key.to_virtual_store_name(max_length))
                 .join("node_modules");

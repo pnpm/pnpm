@@ -14,8 +14,8 @@ pub use project::{
 pub use readme::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
-    node_version_from_engines_runtime,
+    convert_engines_runtime_to_dependencies, downloadable_runtime_version,
+    engines_runtime_dependencies, is_runtime_alias, node_version_from_engines_runtime,
 };
 pub use serialization::{parse_manifest, parse_manifest_bytes, safe_read_package_json_from_dir};
 pub use truthiness::is_truthy;

@@ -1,11 +1,11 @@
 //! Detect the package manager and version expected by a git-hosted dependency
 //! from the manifest and lockfile or workspace configuration it ships.
 
+use crate::PackageFiles;
 use pnpm_package_manifest::package_manager_spec::{
     dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
 };
 use serde_json::Value;
-use std::{fs, io::Read as _, path::Path};
 
 /// Package manager a git-hosted dep wants to install with. The variant
 /// drives the synthesized `<pm>-install` script in
@@ -54,48 +54,52 @@ impl PreferredPm {
     }
 }
 
-/// Determine the package manager and version to prepare the package at `dir`.
+/// Determine the package manager and version to prepare the package whose
+/// repository root holds `files`.
 ///
 /// Manifest pins (`packageManager`, `devEngines.packageManager`) take precedence
 /// over lockfiles and `pnpm-workspace.yaml`. When Yarn is selected without an
 /// explicit version specifier, the Yarn line is inferred from `yarn.lock`.
 #[must_use]
-pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
+pub fn detect_wanted_pm(
+    files: &(impl PackageFiles + ?Sized),
+    manifest: Option<&Value>,
+) -> WantedPm {
     let wanted = manifest
         .and_then(manifest_pin)
         .unwrap_or_else(|| WantedPm {
-            pm: detect_preferred_pm(dir),
+            pm: detect_preferred_pm(files),
             version_spec: None,
             pinned: false,
         });
     if wanted.version_spec.is_some() || wanted.pm != PreferredPm::Yarn {
         return wanted;
     }
-    WantedPm { version_spec: yarn_line_of_lockfile(dir), ..wanted }
+    WantedPm { version_spec: yarn_line_of_lockfile(files), ..wanted }
 }
 
 const YARN_CLASSIC_SPEC: &str = "1";
 const YARN_BERRY_SPEC: &str = ">=2";
 
-/// Sniff `dir` for a lockfile or `pnpm-workspace.yaml` and return the matching package manager.
+/// Sniff `files` for a lockfile or `pnpm-workspace.yaml` and return the matching package manager.
 ///
 /// Lockfiles take precedence over `pnpm-workspace.yaml`. Defaults to [`PreferredPm::Npm`]
 /// when neither is present.
 #[must_use]
-pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
-    if dir.join("pnpm-lock.yaml").exists() {
+pub fn detect_preferred_pm(files: &(impl PackageFiles + ?Sized)) -> PreferredPm {
+    if files.contains("pnpm-lock.yaml") {
         return PreferredPm::Pnpm;
     }
-    if dir.join("yarn.lock").exists() {
+    if files.contains("yarn.lock") {
         return PreferredPm::Yarn;
     }
-    if dir.join("package-lock.json").exists() {
+    if files.contains("package-lock.json") {
         return PreferredPm::Npm;
     }
-    if dir.join("bun.lockb").exists() || dir.join("bun.lock").exists() {
+    if files.contains("bun.lockb") || files.contains("bun.lock") {
         return PreferredPm::Bun;
     }
-    if dir.join("pnpm-workspace.yaml").exists() {
+    if files.contains("pnpm-workspace.yaml") {
         return PreferredPm::Pnpm;
     }
     PreferredPm::Npm
@@ -131,16 +135,11 @@ fn pinned_version(version: &str) -> Option<String> {
     node_semver::Range::parse(version).is_ok().then(|| version.to_string())
 }
 
-/// Detect whether `yarn.lock` in `dir` was written by Yarn Classic or Yarn Berry.
-fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
+/// Detect whether the `yarn.lock` among `files` was written by Yarn Classic or Yarn Berry.
+fn yarn_line_of_lockfile(files: &(impl PackageFiles + ?Sized)) -> Option<String> {
     const HEADER_BYTES: u64 = 64 * 1024;
 
-    let lockfile = fs::File::open(dir.join("yarn.lock")).ok()?;
-    let mut header = Vec::new();
-    lockfile
-        .take(HEADER_BYTES)
-        .read_to_end(&mut header)
-        .ok()?;
+    let header = files.read_head("yarn.lock", HEADER_BYTES)?;
     let berry = header
         .split(|byte| *byte == b'\n')
         .any(|line| line.trim_ascii_start().starts_with(b"__metadata:"));

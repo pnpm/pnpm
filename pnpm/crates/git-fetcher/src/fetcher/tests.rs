@@ -304,6 +304,7 @@ fn failing_fetcher<'a>(
     git_bin: &'a Path,
 ) -> GitFetcher<'a> {
     GitFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,

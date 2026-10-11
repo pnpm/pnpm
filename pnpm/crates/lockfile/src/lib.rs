@@ -1,6 +1,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
+pub use build_tools::*;
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
@@ -30,6 +31,7 @@ pub use snapshot_dep_ref::*;
 pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
+mod build_tools;
 mod catalog_snapshots;
 mod comver;
 mod env_lockfile;
@@ -93,6 +95,12 @@ pub struct LockfileSettings {
     /// [`Self::dedupe_peers`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add_missing_peer_types: Option<bool>,
+    /// Recorded as `Some(true)` when the install ran with `lockBuildTools`
+    /// on, omitted otherwise, like [`Self::dedupe_peers`]. It says that
+    /// every git-hosted package that needs a build carries its
+    /// [`buildDependencies`](crate::SnapshotEntry::build_dependencies).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_build_tools: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
     /// this lockfile. `false` round-trips as a missing key — the key
     /// is stripped on save so historic v9 lockfiles (which never

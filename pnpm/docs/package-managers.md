@@ -108,6 +108,8 @@ pnpm provides that package manager when the dependency pinned a version, or when
 
 A pnpm pin is an exception when [`pmOnFail`](./settings/cli.md#pmonfail) is set to anything other than `download`. The running pnpm then prepares the dependency. The nested install applies the same `pmOnFail` to the dependency's pin, so `ignore` prepares it silently, `warn` prints a warning, and `error` fails the install.
 
+The version that prepares the dependency is chosen on each machine. With [`lockBuildTools`](./settings/build.md#lockbuildtools), the lockfile records it, and every install prepares the dependency with the same package manager and Node.js.
+
 ## What changes for a project coming from v11
 
 | Command | v11 | v12 |

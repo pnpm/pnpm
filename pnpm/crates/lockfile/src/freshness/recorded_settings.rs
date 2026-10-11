@@ -14,6 +14,7 @@ impl StalenessReason {
             StalenessReason::AddMissingPeerTypesChanged { .. } => {
                 Some("settings.addMissingPeerTypes")
             }
+            StalenessReason::LockBuildToolsChanged { .. } => Some("settings.lockBuildTools"),
             StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
                 Some("settings.excludeLinksFromLockfile")
             }
@@ -67,6 +68,21 @@ pub(super) fn check_recorded_settings(
     }
 
     check_resolution_settings(settings, check.resolution_settings)
+}
+
+/// `settings.lockBuildTools` against the current configuration.
+pub(super) fn check_lock_build_tools(
+    lockfile: &Lockfile,
+    configured: bool,
+) -> Result<(), StalenessReason> {
+    let recorded = recorded_lock_build_tools(lockfile.settings.as_ref());
+    if recorded != configured {
+        return Err(StalenessReason::LockBuildToolsChanged {
+            lockfile: recorded,
+            config: configured,
+        });
+    }
+    Ok(())
 }
 
 fn check_peer_settings(
@@ -173,6 +189,12 @@ pub fn recorded_dedupe_peers(recorded: Option<&LockfileSettings>) -> bool {
 #[must_use]
 pub fn recorded_add_missing_peer_types(recorded: Option<&LockfileSettings>) -> bool {
     recorded.and_then(|settings| settings.add_missing_peer_types).unwrap_or(false)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
+pub fn recorded_lock_build_tools(recorded: Option<&LockfileSettings>) -> bool {
+    recorded.and_then(|settings| settings.lock_build_tools).unwrap_or(false)
 }
 
 /// See [`auto_install_peers_changed`].

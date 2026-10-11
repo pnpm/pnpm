@@ -257,6 +257,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     // Cold install: fetch the fixture, synthesize the manifest, queue the row.
     let cold_cas_paths = super::super::InstallPackageBySnapshot {
+        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,
@@ -341,6 +342,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
     let warm_cas_paths = super::super::InstallPackageBySnapshot {
+        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: warm_index.as_ref(),

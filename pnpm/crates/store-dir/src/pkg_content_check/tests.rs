@@ -108,7 +108,7 @@ fn keys_that_name_no_package_are_not_checked() {
     assert_eq!(
         pkg_content_mismatch(
             Some(&manifest("bar", "2.0.0")),
-            &crate::git_hosted_store_index_key("github.com/foo/bar#deadbeef", true),
+            &crate::git_hosted_store_index_key("github.com/foo/bar#deadbeef", true, None),
         ),
         None,
     );

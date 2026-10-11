@@ -120,7 +120,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
     assert!(!workspace_b.join("node_modules/shared-prepare/prepare.txt").exists());
 
     let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
-    let store_index_key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
+    let store_index_key = pnpm_store_dir::git_hosted_store_index_key(&spec, true, None);
     let store_index = pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("open store index");
     let mut legacy_index = store_index
         .get(&store_index_key)
