@@ -406,7 +406,6 @@ test('setup ignores legacy shim cleanup failures', async () => {
 // Windows the .cmd wrappers take over.
 const posixTest = process.platform === 'win32' ? test.skip : test
 
-// Creating a file symlink needs extra privileges on Windows.
 // Creating a file symlink on Windows needs elevated rights.
 posixTest('setup does not install the CLI globally when pnpm runs through a symlink to its JS entry point', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
