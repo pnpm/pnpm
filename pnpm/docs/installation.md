@@ -114,6 +114,16 @@ Do you wanna use pnpm on CI servers? See: [Continuous Integration](./continuous-
 
 :::
 
+## Building from source
+
+Building pnpm needs only Cargo. Check out a release tag of the [pnpm repository](https://github.com/pnpm/pnpm) and run from its root:
+
+```sh
+cargo build --release --locked -p pnpm-cli --bin pnpm
+```
+
+The binary is written to `target/release/pnpm`.
+
 ## Compatibility
 
 Here is a list of past pnpm versions with respective Node.js version support.
