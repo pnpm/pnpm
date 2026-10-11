@@ -173,9 +173,6 @@ fn an_invalid_carried_tool_is_examined_again() {
         "tarball: https://registry.npmjs.org/yarn/-/yarn-1.22.22.tgz",
         "tarball: 'file:./yarn.tgz'",
     ));
-    assert!(
-        PriorRecords::of(&prior)
-            .carried(&unrecorded(), &key(BUILT))
-            .is_none()
-    );
+    let carried = PriorRecords::of(&prior).carried(&unrecorded(), &key(BUILT));
+    assert!(carried.is_none());
 }
