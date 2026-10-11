@@ -89,7 +89,7 @@ fn resolve_executable_follows_a_bin_symlink_into_the_package() {
 
     assert_eq!(
         super::resolve_executable(&launcher).unwrap(),
-        dunce::canonicalize(&engine).unwrap()
+        dunce::canonicalize(&engine).unwrap(),
     );
 }
 
