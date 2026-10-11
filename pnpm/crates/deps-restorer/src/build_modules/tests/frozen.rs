@@ -134,8 +134,10 @@ async fn frozen_store_skips_side_effects_upload() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(&side_effects_maps),
-            diffs_by_snapshot: None,
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&side_effects_maps),
+                rows: None,
+            },
             engine_name: Some("darwin;arm64;node20"),
             read: true,
             write: true,

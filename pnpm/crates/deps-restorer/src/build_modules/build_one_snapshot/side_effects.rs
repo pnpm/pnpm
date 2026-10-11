@@ -67,10 +67,8 @@ pub(super) fn already_built<Reporter: self::Reporter>(
 ) -> Result<bool, BuildModulesError> {
     if !bypasses_side_effects_cache(context, candidate)
         && context.cache.read
-        && let Some(maps_by_snapshot) = context.cache.maps_by_snapshot
-        && let Some(maps) = maps_by_snapshot.get(snapshot_key)
         && let Some(key) = cache_key
-        && let Some(overlay) = maps.get(key)
+        && let Some(overlay) = context.cache.side_effects.overlay(snapshot_key, key)
     {
         return satisfy_from_side_effects_cache::<Reporter>(
             context,
@@ -97,12 +95,7 @@ fn rebuild_found_empty_row(
 ) -> bool {
     let hit = context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
         && context.cache.read
-        && cache_key.is_some_and(|key| {
-            context.cache.diffs_by_snapshot
-                .and_then(|diffs_by_snapshot| diffs_by_snapshot.get(snapshot_key))
-                .and_then(|diffs| diffs.get(key))
-                .is_some_and(pnpm_store_dir::SideEffectsDiff::is_empty)
-        });
+        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key));
     if hit {
         tracing::debug!(
             target: "pacquet::build",

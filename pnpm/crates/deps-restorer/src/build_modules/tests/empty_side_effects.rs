@@ -74,8 +74,10 @@ fn build_with_an_empty_row(rebuild: Option<&RebuildOptions>) -> Result<(), Strin
     BuildModules {
         cache: crate::BuildCacheContext {
             // The overlays leave the empty row out, as the store's read path does.
-            maps_by_snapshot: Some(&HashMap::new()),
-            diffs_by_snapshot: Some(&diffs_by_snapshot),
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&HashMap::new()),
+                rows: Some(&diffs_by_snapshot),
+            },
             engine_name: Some(ENGINE),
             read: true,
             write: false,

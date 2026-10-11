@@ -185,6 +185,15 @@ pub struct BuildPhaseCache<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
+impl<'a> BuildPhaseCache<'a> {
+    pub(crate) fn side_effects(&self) -> crate::CachedSideEffects<'a> {
+        crate::CachedSideEffects {
+            overlays: Some(self.maps_by_snapshot),
+            rows: Some(self.diffs_by_snapshot),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct BuildPhaseDirectories<'a> {
     /// `lockfileDir` — the project root. Threaded to
