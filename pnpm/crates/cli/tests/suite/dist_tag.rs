@@ -1,3 +1,5 @@
+mod oidc;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
@@ -43,6 +45,10 @@ fn run_dist_tag_command(
         .with_arg(auth_file)
         .with_arg(command)
         .with_args(args)
+        .without_env("NPM_ID_TOKEN")
+        .without_env("GITHUB_ACTIONS")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
         .output()
         .expect("spawn pacquet dist-tag")
 }

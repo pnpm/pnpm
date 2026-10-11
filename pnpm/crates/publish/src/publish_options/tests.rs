@@ -88,7 +88,10 @@ const REGISTRY: &str = "https://registry.npmjs.org/";
 /// Build a JWT-shaped `header.payload.signature` token carrying the GitHub
 /// repository visibility the orchestrator's visibility probe relies on.
 fn public_repo_id_token() -> String {
-    let payload = json!({ "repository_visibility": "public" });
+    let payload = json!({
+        "aud": "npm:registry.npmjs.org",
+        "repository_visibility": "public",
+    });
     let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
     format!("header.{payload_b64}.signature")
 }
