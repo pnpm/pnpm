@@ -6,6 +6,10 @@
 //! next lockfile major, because `engines.runtime` / `devEngines.runtime`
 //! store no protocol and read back as `runtime:`.
 
+pub use package_manager_source::{PackageManagerSource, package_manager_source};
+
+mod package_manager_source;
+
 /// The protocol of a provisioned tool.
 pub const TOOL_PROTOCOL: &str = "tool:";
 

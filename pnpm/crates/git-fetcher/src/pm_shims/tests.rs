@@ -162,3 +162,86 @@ fn the_running_pnpm_is_called_without_dlx() {
     assert!(body.contains("/opt/pnpm"), "{body}");
     assert!(!body.contains("dlx"), "{body}");
 }
+
+fn provisioned(bins: &[(&str, &str)], runs_on_node: bool) -> crate::ProvisionedTool {
+    crate::ProvisionedTool {
+        name: "npm".to_string(),
+        version: "10.9.2".to_string(),
+        bins: bins
+            .iter()
+            .map(|(name, path)| ((*name).to_string(), std::path::PathBuf::from(path)))
+            .collect(),
+        runs_on_node,
+    }
+}
+
+/// A recorded package manager runs from its own directory, on the recorded
+/// Node.js, with no `pnpm dlx` resolving it again.
+#[test]
+fn a_locked_package_manager_runs_its_recorded_files() {
+    let dir = tempdir().unwrap();
+    let tool = provisioned(
+        &[("npm", "/tools/npm/bin/npm-cli.js"), ("npx", "/tools/npm/bin/npx-cli.js")],
+        true,
+    );
+    super::write_locked_pm_shims(
+        dir.path(),
+        PreferredPm::Npm,
+        &tool,
+        Some(Path::new("/tools/node/bin/node")),
+    )
+    .expect("write the shims");
+
+    let npm = shim_body(dir.path(), "npm");
+    assert!(npm.contains("/tools/node/bin/node"), "{npm}");
+    assert!(npm.contains("/tools/npm/bin/npm-cli.js"), "{npm}");
+    assert!(!npm.contains("dlx"), "{npm}");
+    let npx = shim_body(dir.path(), "npx");
+    assert!(npx.contains("/tools/npm/bin/npx-cli.js"), "{npx}");
+}
+
+#[test]
+fn a_locked_package_manager_without_a_recorded_node_runs_on_the_hosts() {
+    let dir = tempdir().unwrap();
+    let tool = provisioned(
+        &[("npm", "/tools/npm/bin/npm-cli.js"), ("npx", "/tools/npm/bin/npx-cli.js")],
+        true,
+    );
+    super::write_locked_pm_shims(dir.path(), PreferredPm::Npm, &tool, None)
+        .expect("write the shims");
+
+    let npm = shim_body(dir.path(), "npm");
+    assert!(npm.contains("node "), "{npm}");
+}
+
+/// `bunx` is `bun x` of the recorded executable.
+#[test]
+fn a_locked_executable_runs_directly() {
+    let dir = tempdir().unwrap();
+    let tool = crate::ProvisionedTool {
+        name: "bun".to_string(),
+        ..provisioned(&[("bun", "/tools/bun/bun")], false)
+    };
+    super::write_locked_pm_shims(
+        dir.path(),
+        PreferredPm::Bun,
+        &tool,
+        Some(Path::new("/tools/node")),
+    )
+    .expect("write the shims");
+
+    let bunx = shim_body(dir.path(), "bunx");
+    assert!(bunx.contains("/tools/bun/bun"), "{bunx}");
+    assert!(!bunx.contains("/tools/node"), "{bunx}");
+    let subcommand = if cfg!(windows) { r#""x""# } else { "'x'" };
+    assert!(bunx.contains(subcommand), "{bunx}");
+}
+
+#[test]
+fn a_locked_tool_without_the_command_fails() {
+    let dir = tempdir().unwrap();
+    let tool = provisioned(&[("npx", "/tools/npm/bin/npx-cli.js")], true);
+    let error = super::write_locked_pm_shims(dir.path(), PreferredPm::Npm, &tool, None)
+        .expect_err("npm is missing");
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+}

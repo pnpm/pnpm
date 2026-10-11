@@ -26,6 +26,17 @@ pub struct SnapshotEntry {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub optional_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    /// The tools pnpm provisions to build this package, such as the
+    /// package manager and Node.js that prepare a git-hosted dependency.
+    ///
+    /// No install follows these edges: a build tool is never linked into
+    /// `node_modules`. Pruning the lockfile does follow them, so a tool
+    /// stays recorded for as long as a package references it.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub build_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transitive_peer_dependencies: Option<Vec<String>>,

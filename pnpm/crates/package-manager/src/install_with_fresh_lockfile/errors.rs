@@ -109,6 +109,9 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     RootDepManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
+    #[diagnostic(transparent)]
+    RecordBuildTools(#[error(source)] crate::RecordBuildToolsError),
+
     #[display("Failed to build lockfile from resolved dependency graph: {_0}")]
     #[diagnostic(code(pnpm_package_manager::dependencies_graph_to_lockfile))]
     DependenciesGraphToLockfile(#[error(source)] Box<DependenciesGraphToLockfileError>),

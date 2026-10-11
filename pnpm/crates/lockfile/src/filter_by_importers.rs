@@ -110,10 +110,11 @@ impl Lockfile {
         }
 
         let reachable = collect_reachable(&filtered, seeds, options, &peer_edges)?;
-        let reachable_metadata: HashSet<_> = reachable
+        let mut reachable_metadata: HashSet<_> = reachable
             .iter()
             .map(PkgNameVerPeer::without_peer)
             .collect();
+        reachable_metadata.extend(filtered.build_tool_keys(&reachable));
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
             peer_edges.prune_dangling(snapshots);

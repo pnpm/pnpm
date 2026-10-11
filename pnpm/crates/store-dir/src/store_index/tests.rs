@@ -66,11 +66,11 @@ fn key_format_is_integrity_tab_pkg_id() {
 fn git_hosted_key_uses_built_marker() {
     // Mirrors upstream's `gitHostedStoreIndexKey(pkgId, { built })`.
     assert_eq!(
-        git_hosted_store_index_key("github.com/foo/bar/abc1234", true),
+        git_hosted_store_index_key("github.com/foo/bar/abc1234", true, None),
         "github.com/foo/bar/abc1234\tbuilt",
     );
     assert_eq!(
-        git_hosted_store_index_key("github.com/foo/bar/abc1234", false),
+        git_hosted_store_index_key("github.com/foo/bar/abc1234", false, None),
         "github.com/foo/bar/abc1234\tnot-built",
     );
 }

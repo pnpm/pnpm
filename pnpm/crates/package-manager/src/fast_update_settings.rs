@@ -14,6 +14,7 @@ use std::{
 /// resolution.
 pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings {
     LockfileSettings {
+        lock_build_tools: config.lock_build_tools.then_some(true),
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers.then_some(true),
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
@@ -54,6 +55,7 @@ pub(crate) enum ChangedSetting {
     AddMissingPeerTypes,
     PeersSuffixMaxLength,
     InjectWorkspacePackages,
+    LockBuildTools,
     ResolutionSettings,
 }
 
@@ -96,17 +98,19 @@ pub(crate) fn apply_settings_update(
     true
 }
 
+/// Reads one boolean setting the lockfile records.
+type RecordedFlag = fn(Option<&LockfileSettings>) -> bool;
+
 fn changed_settings(
     recorded: Option<&LockfileSettings>,
     settings: &LockfileSettings,
 ) -> Vec<ChangedSetting> {
+    let flag_changed = |read: RecordedFlag| read(recorded) != read(Some(settings));
     let mut changed = Vec::new();
     if pnpm_lockfile::auto_install_peers_changed(recorded, settings.auto_install_peers) {
         changed.push(ChangedSetting::AutoInstallPeers);
     }
-    if pnpm_lockfile::recorded_dedupe_peers(recorded)
-        != pnpm_lockfile::recorded_dedupe_peers(Some(settings))
-    {
+    if flag_changed(pnpm_lockfile::recorded_dedupe_peers) {
         changed.push(ChangedSetting::DedupePeers);
     }
     if pnpm_lockfile::exclude_links_from_lockfile_changed(
@@ -115,9 +119,7 @@ fn changed_settings(
     ) {
         changed.push(ChangedSetting::ExcludeLinksFromLockfile);
     }
-    if pnpm_lockfile::recorded_add_missing_peer_types(recorded)
-        != pnpm_lockfile::recorded_add_missing_peer_types(Some(settings))
-    {
+    if flag_changed(pnpm_lockfile::recorded_add_missing_peer_types) {
         changed.push(ChangedSetting::AddMissingPeerTypes);
     }
     if pnpm_lockfile::recorded_peers_suffix_max_length(recorded)
@@ -125,10 +127,11 @@ fn changed_settings(
     {
         changed.push(ChangedSetting::PeersSuffixMaxLength);
     }
-    if pnpm_lockfile::recorded_inject_workspace_packages(recorded)
-        != pnpm_lockfile::recorded_inject_workspace_packages(Some(settings))
-    {
+    if flag_changed(pnpm_lockfile::recorded_inject_workspace_packages) {
         changed.push(ChangedSetting::InjectWorkspacePackages);
+    }
+    if flag_changed(pnpm_lockfile::recorded_lock_build_tools) {
+        changed.push(ChangedSetting::LockBuildTools);
     }
     // Unrecorded settings are dropped on write rather than compared.
     if settings.resolution != ResolutionSettings::default()
@@ -156,9 +159,19 @@ fn setting_cannot_affect_lockfile(
         ChangedSetting::InjectWorkspacePackages => {
             has_no_injectable_dependencies(lockfile, manifests, workspace_package_names)
         }
+        ChangedSetting::LockBuildTools => has_no_git_hosted_packages(lockfile),
         // Only a resolution under the recorded values may record them.
         ChangedSetting::ResolutionSettings => false,
     }
+}
+
+/// `lockBuildTools` only records the tools that prepare git-hosted
+/// packages.
+fn has_no_git_hosted_packages(lockfile: &Lockfile) -> bool {
+    lockfile.packages
+        .iter()
+        .flatten()
+        .all(|(_, metadata)| !metadata.resolution.is_git_hosted())
 }
 
 /// The peer settings only change how peer dependencies are

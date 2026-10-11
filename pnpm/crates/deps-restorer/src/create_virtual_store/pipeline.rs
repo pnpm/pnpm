@@ -386,6 +386,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `drain_cold_downloads` so it doesn't serialize
             // inside this cooperative task.
             defer_link: true,
+            packages: Some(inputs.wanted.packages),
             #[cfg(test)]
             link_concurrency_probe: self.link_concurrency_probe,
         }

@@ -70,13 +70,14 @@ pub fn materialization_closure(
             skipped.contains_optional_excluded(key)
         })
     });
-    let reachable_metadata = metadata_walk
+    let mut reachable_metadata = metadata_walk
         .as_ref()
         .unwrap_or(&reachable)
         .snapshot_keys
         .iter()
         .map(PackageKey::without_peer)
         .collect::<HashSet<_>>();
+    reachable_metadata.extend(lockfile.build_tool_keys(&reachable.snapshot_keys));
     let importers = lockfile.importers
         .iter()
         .filter(|(id, _)| reachable.importer_ids.contains(*id))

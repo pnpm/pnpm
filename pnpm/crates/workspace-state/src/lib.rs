@@ -146,6 +146,10 @@ pub struct WorkspaceStateSettings {
     /// such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add_missing_peer_types: Option<bool>,
+    /// `lockBuildTools`, recorded only while it is on. pnpm v11 has no such
+    /// setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_build_tools: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

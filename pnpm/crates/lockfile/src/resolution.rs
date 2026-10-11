@@ -380,6 +380,17 @@ pub enum LockfileResolution {
 }
 
 impl LockfileResolution {
+    /// Whether the package comes from a git repository, either cloned or
+    /// downloaded as a git host's archive, and so is prepared on install.
+    #[must_use]
+    pub fn is_git_hosted(&self) -> bool {
+        match self {
+            LockfileResolution::Git(_) => true,
+            LockfileResolution::Tarball(tarball) => tarball.is_git_hosted(),
+            _ => false,
+        }
+    }
+
     /// Get the integrity field if available.
     #[must_use]
     pub fn integrity(&self) -> Option<&'_ Integrity> {

@@ -49,6 +49,7 @@ fn manifest(value: Value) -> PackageManifest {
 
 fn recorded_settings() -> LockfileSettings {
     LockfileSettings {
+        lock_build_tools: None,
         auto_install_peers: true,
         dedupe_peers: None,
         exclude_links_from_lockfile: false,
@@ -63,6 +64,7 @@ fn recorded_settings() -> LockfileSettings {
 fn records_every_setting_the_locked_graph_cannot_notice() {
     let manifest = manifest(json!({ "dependencies": { "foo": "^1.0.0" } }));
     let settings = LockfileSettings {
+        lock_build_tools: None,
         auto_install_peers: false,
         dedupe_peers: Some(true),
         exclude_links_from_lockfile: true,

@@ -48,6 +48,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         catalogs: &catalogs,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,

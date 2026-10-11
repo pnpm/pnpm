@@ -72,6 +72,7 @@ fn single_importer_opts<'a>(
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers,
             dedupe_peers: None,
             exclude_links_from_lockfile,

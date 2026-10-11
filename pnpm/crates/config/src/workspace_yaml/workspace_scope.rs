@@ -123,6 +123,7 @@ impl WorkspaceSettings {
         self.strict_peer_dependencies = None;
         self.ignore_compatibility_db = None;
         self.add_missing_peer_types = None;
+        self.lock_build_tools = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;

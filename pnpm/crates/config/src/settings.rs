@@ -817,6 +817,12 @@ pub struct Config {
     /// declares `@types/X`. The `addMissingPeerTypes` setting; default `false`.
     pub add_missing_peer_types: bool,
 
+    /// When `true`, the package manager and Node.js that prepare a
+    /// git-hosted dependency are recorded in the lockfile, and every later
+    /// install provisions exactly the recorded, integrity-checked tools.
+    /// The experimental `lockBuildTools` setting; default `false`.
+    pub lock_build_tools: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all

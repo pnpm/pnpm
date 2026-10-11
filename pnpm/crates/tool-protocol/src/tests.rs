@@ -24,3 +24,24 @@ fn spellings_compare_equal() {
     assert!(!tool_specifiers_equal("tool:22", "runtime:24"));
     assert!(!tool_specifiers_equal("tool:22", "22"));
 }
+
+#[test]
+fn package_managers_come_from_their_own_sources() {
+    use crate::{PackageManagerSource, package_manager_source};
+    assert_eq!(package_manager_source("npm", "10"), Some(PackageManagerSource::Registry("npm")));
+    assert_eq!(
+        package_manager_source("yarn", "1.22.22"),
+        Some(PackageManagerSource::Registry("yarn")),
+    );
+    assert_eq!(
+        package_manager_source("yarn", ">=2"),
+        Some(PackageManagerSource::Registry("@yarnpkg/cli-dist")),
+    );
+    assert_eq!(
+        package_manager_source("yarn", "latest"),
+        Some(PackageManagerSource::Registry("@yarnpkg/cli-dist")),
+    );
+    assert_eq!(package_manager_source("yarn", "6.0.0"), Some(PackageManagerSource::Archive));
+    assert_eq!(package_manager_source("bun", "1.3.0"), Some(PackageManagerSource::Archive));
+    assert_eq!(package_manager_source("cnpm", "1"), None);
+}

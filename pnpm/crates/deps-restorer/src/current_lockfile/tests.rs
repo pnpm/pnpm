@@ -125,6 +125,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor }).unwrap(),
         settings: Some(LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: marker == "fresh",
             dedupe_peers: Some(marker == "fresh"),
             exclude_links_from_lockfile: marker != "fresh",
