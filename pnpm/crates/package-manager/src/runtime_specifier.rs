@@ -11,9 +11,9 @@ use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 /// `node`, `deno` and `bun` all reify through `tool:` / `runtime:`, but only the node
 /// resolver moves the saved specifier onto the version it picked, through
 /// `normalize_node_runtime_version_specifier`. The deno and bun resolvers
-/// report the requested selector back unchanged, so `add` saves theirs
-/// verbatim (see [`runtime_save_specifier`]) and an update has nothing of
-/// theirs to move.
+/// report the requested selector back unchanged, so `add` saves it as asked
+/// under `runtime:` ([`runtime_save_specifier`]) and an update has nothing
+/// of theirs to move.
 pub(crate) fn node_runtime_version_spec<'a>(
     package_name: &str,
     specifier: &'a str,

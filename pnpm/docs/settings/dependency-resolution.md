@@ -571,7 +571,7 @@ The built-in URLs are also the prefixes that a tarball URL recorded in the lockf
 
 #### Reserved alias names
 
-Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
+Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Since v12.13.0, `tool` is reserved for [provisioned tools](../package-sources.md#provisioned-tools). Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
 
 #### Named registries in the lockfile
 
