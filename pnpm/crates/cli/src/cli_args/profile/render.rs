@@ -2,7 +2,7 @@ use miette::IntoDiagnostic;
 use serde_json::Value;
 use std::fmt::Write as _;
 
-pub(super) const KNOWN_PROFILE_KEYS: &[&str] = &[
+const KNOWN_PROFILE_KEYS: &[&str] = &[
     "name",
     "email",
     "two-factor auth",
@@ -15,16 +15,18 @@ pub(super) const KNOWN_PROFILE_KEYS: &[&str] = &[
     "updated",
 ];
 
-pub(super) fn render_single_property(
-    cleaned: &[(String, String)],
-    prop: &str,
-    parseable: bool,
-) -> String {
-    let val = cleaned
+/// The values of `props`, tab-separated, for `pnpm profile get <key>...`.
+pub(super) fn render_selected_properties(cleaned: &[(String, String)], props: &[&str]) -> String {
+    props
         .iter()
-        .find(|(key, _)| key == prop)
-        .map_or("", |(_, value)| value.as_str());
-    if parseable { format!("{prop}\t{val}") } else { val.to_string() }
+        .map(|prop| {
+            cleaned
+                .iter()
+                .find(|(key, _)| key == prop)
+                .map_or("", |(_, value)| value.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join("\t")
 }
 
 pub(super) fn render_all_properties(
@@ -43,7 +45,7 @@ pub(super) fn render_all_properties(
     Ok(out.trim_end().to_string())
 }
 
-pub(crate) fn format_profile_map(info: &Value) -> Vec<(String, String)> {
+pub(super) fn format_profile_map(info: &Value) -> Vec<(String, String)> {
     let mut map = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
@@ -85,14 +87,19 @@ fn format_email_field(info: &Value) -> String {
     }
 }
 
+/// The 2FA mode, or `disabled` when 2FA is off or its setup was never
+/// confirmed.
 fn format_tfa_field(info: &Value) -> String {
-    match info.get("tfa") {
-        Some(tfa) => tfa
-            .get("mode")
-            .and_then(Value::as_str)
-            .map_or_else(|| "disabled".to_string(), ToString::to_string),
-        None => "disabled".to_string(),
+    tfa_mode(info).unwrap_or("disabled").to_string()
+}
+
+/// The 2FA mode the registry enforces, or `None` when 2FA is off or pending.
+pub(super) fn tfa_mode(info: &Value) -> Option<&str> {
+    let tfa = info.get("tfa")?;
+    if tfa.get("pending").and_then(Value::as_bool) == Some(true) {
+        return None;
     }
+    tfa.get("mode").and_then(Value::as_str)
 }
 
 fn append_extra_profile_fields(

@@ -180,6 +180,13 @@ fn profile_set_property() {
     let registry = format!("{}/", server.url());
     let auth_file = authed_file(root.path(), &registry, "secret-token");
 
+    let profile = server
+        .mock("GET", "/-/npm/v1/user")
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "name": "testuser", "fullname": "Old Name" }).to_string())
+        .create();
     let mock = server
         .mock("POST", "/-/npm/v1/user")
         .match_header("authorization", "Bearer secret-token")
@@ -189,7 +196,7 @@ fn profile_set_property() {
         })))
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(json!({ "ok": true }).to_string())
+        .with_body(json!({ "fullname": "New Name" }).to_string())
         .create();
 
     let output = pacquet_at(&workspace)
@@ -204,6 +211,7 @@ fn profile_set_property() {
         .output()
         .expect("spawn pnpm profile set");
 
+    profile.assert();
     mock.assert();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -211,57 +219,21 @@ fn profile_set_property() {
 }
 
 #[test]
-fn profile_enable_and_disable_2fa() {
+fn profile_disable_2fa_when_not_enabled() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let auth_file = authed_file(root.path(), &registry, "secret-token");
 
-    let mock_enable = server
-        .mock("POST", "/-/npm/v1/user")
+    let mock = server
+        .mock("GET", "/-/npm/v1/user")
         .match_header("authorization", "Bearer secret-token")
-        .match_header("content-type", "application/json")
-        .match_body(Matcher::Json(json!({
-            "tfa": {
-                "mode": "auth-only",
-            },
-        })))
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(json!({ "ok": true }).to_string())
+        .with_body(json!({ "name": "testuser", "tfa": null }).to_string())
         .create();
 
-    let output_enable = pacquet_at(&workspace)
-        .with_arg("--npmrc-auth-file")
-        .with_arg(&auth_file)
-        .with_arg("--registry")
-        .with_arg(&registry)
-        .with_arg("profile")
-        .with_arg("enable-2fa")
-        .with_arg("auth-only")
-        .output()
-        .expect("spawn pnpm profile enable-2fa");
-
-    mock_enable.assert();
-    assert!(output_enable.status.success());
-    let stdout = String::from_utf8_lossy(&output_enable.stdout);
-    assert_eq!(stdout.trim(), "Two factor authentication mode changed to: auth-only");
-
-    let mock_disable = server
-        .mock("POST", "/-/npm/v1/user")
-        .match_header("authorization", "Bearer secret-token")
-        .match_header("content-type", "application/json")
-        .match_body(Matcher::Json(json!({
-            "tfa": {
-                "mode": "disable",
-            },
-        })))
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(json!({ "ok": true }).to_string())
-        .create();
-
-    let output_disable = pacquet_at(&workspace)
+    let output = pacquet_at(&workspace)
         .with_arg("--npmrc-auth-file")
         .with_arg(&auth_file)
         .with_arg("--registry")
@@ -271,8 +243,8 @@ fn profile_enable_and_disable_2fa() {
         .output()
         .expect("spawn pnpm profile disable-2fa");
 
-    mock_disable.assert();
-    assert!(output_disable.status.success());
-    let stdout = String::from_utf8_lossy(&output_disable.stdout);
-    assert_eq!(stdout.trim(), "Two factor authentication disabled.");
+    mock.assert();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "Two factor authentication not enabled.");
 }

@@ -268,6 +268,7 @@ pub enum CliCommand {
     // Registered rather than left to the external-subcommand fallback so
     // it names npm instead of failing as a missing package script.
     Edit(NotImplementedArgs),
+    /// Change settings on your registry profile.
     Profile(ProfileArgs),
     /// Manage authentication tokens on the registry.
     Token(TokenArgs),
