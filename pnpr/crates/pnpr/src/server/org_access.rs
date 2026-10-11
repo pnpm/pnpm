@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use pnpr_config::StorageAccess;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::OrgAccess;
+use pnpr_shared_artifacts::{OrgAccess, OrgGrant};
 
 use super::{AppState, require_caller};
 
@@ -32,26 +32,26 @@ impl<'a> CallerOrgs<'a> {
         })
     }
 
-    /// `Ok` when the caller may read what `org` owns and, with `publish`,
-    /// publish to it. An organization the caller cannot read answers as
-    /// not found, so its existence is not disclosed.
+    /// `Ok` when the caller holds `grant` on `org`. An organization the
+    /// caller cannot read answers as not found, so its existence is not
+    /// disclosed.
     pub(super) fn authorize(
         &self,
         org: &str,
-        publish: bool,
+        grant: OrgGrant,
         action: &'static str,
     ) -> Result<(), RegistryError> {
         if !self.may_read(org) {
             return Err(RegistryError::NotFound);
         }
-        if publish && !self.may_publish(org) {
-            return Err(RegistryError::Forbidden {
+        match grant {
+            OrgGrant::Publish if !self.may_publish(org) => Err(RegistryError::Forbidden {
                 user: self.username.clone(),
                 action,
                 resource: org.to_string(),
-            });
+            }),
+            OrgGrant::Publish | OrgGrant::Read => Ok(()),
         }
-        Ok(())
     }
 
     /// Every organization the caller may read.

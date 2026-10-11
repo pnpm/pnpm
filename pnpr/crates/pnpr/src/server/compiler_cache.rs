@@ -7,7 +7,7 @@ use axum::{
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::CompilerCacheKey;
+use pnpr_shared_artifacts::{CompilerCacheKey, OrgGrant};
 use serde::Deserialize;
 
 use super::{AppState, AuthedCaller, CallerOrgs, private_no_cache};
@@ -94,8 +94,9 @@ pub(super) async fn authorize_request(
     } else {
         key
     };
-    let authorization = authorize(&state, &identity, &cache, request.method() == Method::PUT)
-        .and_then(|()| CompilerCacheKey::try_from(key));
+    let grant = if request.method() == Method::PUT { OrgGrant::Publish } else { OrgGrant::Read };
+    let authorization =
+        authorize(&state, &identity, &cache, grant).and_then(|()| CompilerCacheKey::try_from(key));
     if let Err(error) = authorization {
         return private_no_cache(error.into_response());
     }
@@ -126,7 +127,7 @@ pub(super) async fn directory(
     Path(path): Path<CollectionPath>,
     method: Method,
 ) -> Response {
-    if let Err(error) = authorize(&state, &identity, &path.cache, false) {
+    if let Err(error) = authorize(&state, &identity, &path.cache, OrgGrant::Read) {
         return private_no_cache(error.into_response());
     }
     if method.as_str() != "PROPFIND" {
@@ -156,8 +157,8 @@ fn authorize(
     state: &AppState,
     identity: &Identity,
     cache: &str,
-    publish: bool,
+    grant: OrgGrant,
 ) -> Result<(), RegistryError> {
     CallerOrgs::new(state, identity, "compiler cache")?
-        .authorize(cache, publish, "publish to the compiler cache of")
+        .authorize(cache, grant, "publish to the compiler cache of")
 }

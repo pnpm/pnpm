@@ -2,6 +2,8 @@ use super::{
     AppState, AuthedCaller, CallerOrgs, Path, RegistryError, Response, State, StatusCode, header,
     not_found, private_no_cache,
 };
+use pnpr_shared_artifacts::OrgGrant;
+
 use axum::response::IntoResponse;
 
 /// `PUT /-/pnpr/v0/pipeline/runs` — record one `pnpm pipeline` run under its
@@ -27,7 +29,7 @@ pub(super) async fn serve_publish_pipeline_run(
             );
         }
     };
-    if let Err(error) = caller.authorize(&run.org, true, "publish pipeline runs to") {
+    if let Err(error) = caller.authorize(&run.org, OrgGrant::Publish, "publish pipeline runs to") {
         return private_no_cache(error.into_response());
     }
     private_no_cache(
@@ -56,7 +58,7 @@ pub(super) async fn serve_list_pipeline_runs(
     };
     let query = parse_pipeline_run_query(uri.query().unwrap_or_default());
     if let Some(org) = &query.org
-        && let Err(error) = caller.authorize(org, false, "read pipeline runs of")
+        && let Err(error) = caller.authorize(org, OrgGrant::Read, "read pipeline runs of")
     {
         return private_no_cache(error.into_response());
     }
@@ -105,7 +107,7 @@ pub(super) async fn serve_get_pipeline_run(
     Path((org, workspace, run_id)): Path<(String, String, String)>,
 ) -> Response {
     let authorized = CallerOrgs::new(&state, &identity, "pipeline runs")
-        .and_then(|caller| caller.authorize(&org, false, "read pipeline runs of"));
+        .and_then(|caller| caller.authorize(&org, OrgGrant::Read, "read pipeline runs of"));
     if let Err(error) = authorized {
         return private_no_cache(error.into_response());
     }
