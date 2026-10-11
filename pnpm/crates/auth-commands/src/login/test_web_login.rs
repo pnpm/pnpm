@@ -103,13 +103,14 @@ async fn should_print_the_npm_notice_headers_before_the_auth_url() {
     assert_eq!(messages[3], "Press ENTER to open the URL in your browser.");
 }
 
-/// A notice is registry-controlled text, so control characters are removed
-/// before it reaches the terminal. HTTP header values cannot carry C0
-/// controls like ESC or CR/LF, but they can carry a tab and UTF-8-encoded
-/// C1 controls such as CSI (U+009B) and NEL (U+0085); the spoofed escape
-/// still must not survive.
+/// A notice is registry-controlled text, so control and formatting
+/// characters are removed before it reaches the terminal. HTTP header values
+/// cannot carry C0 controls like ESC or CR/LF, but they can carry a tab,
+/// UTF-8-encoded C1 controls such as CSI (U+009B) and NEL (U+0085), and
+/// formatting characters such as a bidi override (U+202E) or a zero-width
+/// space (U+200B).
 #[tokio::test]
-async fn should_strip_control_characters_from_an_npm_notice() {
+async fn should_strip_control_and_formatting_characters_from_an_npm_notice() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
     login_fake!(FakeHost);
     reset();
@@ -120,7 +121,7 @@ async fn should_strip_control_characters_from_an_npm_notice() {
     server
         .mock("POST", "/-/v1/login")
         .with_status(200)
-        .with_header("npm-notice", "\u{9b}31mVerification code:\t123456\u{85}")
+        .with_header("npm-notice", "\u{9b}31mVerification code:\t\u{202e}123\u{200b}456\u{85}")
         .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
         .create_async()
         .await;

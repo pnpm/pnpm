@@ -5,6 +5,7 @@ use pnpm_network_web_auth::{
     poll_for_web_auth_token, prompt_browser_open,
 };
 use pnpm_reporter::Reporter;
+use pnpm_text_sanitize::sanitize_inline;
 use serde_json::Value;
 
 use super::{error::LoginError, global_info, registry_join};
@@ -101,16 +102,14 @@ async fn web_login_post(
 }
 
 /// Print the `npm-notice` values of the probe response in the order received.
-/// The text is registry-controlled, so control characters are removed first.
-/// A notice that is empty afterwards is skipped. A notice never fails the login.
+/// The text is registry-controlled, so control and formatting characters are
+/// removed first. A notice that is empty afterwards is skipped. A notice never
+/// fails the login.
 fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
     for notice in notices {
-        let sanitized: String = notice
-            .chars()
-            .filter(|character| !character.is_control())
-            .collect();
+        let sanitized = sanitize_inline(notice);
         if !sanitized.is_empty() {
-            global_info::<Reporter>(sanitized);
+            global_info::<Reporter>(sanitized.into_owned());
         }
     }
 }

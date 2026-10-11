@@ -4546,6 +4546,7 @@ dependencies = [
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "pnpm-wasm-host",
  "pnpm-workspace-manifest-writer",
  "pretty_assertions",
