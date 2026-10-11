@@ -3112,6 +3112,10 @@
     - deny-builds-over-allow-all
     - injected-dependency-manifest-freshness
     - napi-add-missing-peer-types
+"@pnpm/napi@12.12.1":
+  dir: pnpm/npm/napi
+  intents:
+    - rebuild-skips-empty-side-effects
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -6012,6 +6016,13 @@ pacquet@12.12.0:
     - reuse-injected-hardlinks
     - switch-past-unreadable-config
     - update-config-dependencies
+pacquet@12.12.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - dist-tag-oidc
+    - quiet-audience-checks
+    - rebuild-skips-empty-side-effects
+    - tool-protocol
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
