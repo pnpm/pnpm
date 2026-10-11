@@ -515,7 +515,6 @@ pub(crate) fn check_lockfile_settings_drift(
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
-            lock_build_tools: config.lock_build_tools,
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers,

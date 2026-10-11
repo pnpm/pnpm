@@ -14,7 +14,6 @@ async fn fetcher_handles_repo_without_package_json() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -68,7 +67,6 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
         &|dep_path| (!dep_path.contains("://")).then_some(true);
 
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -131,7 +129,6 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
         &|dep_path| (dep_path == "x@git+file:///tmp/repo.git#abc123").then_some(true);
 
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,

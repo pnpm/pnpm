@@ -286,7 +286,7 @@ pub(super) struct TrustGate {
     pub(super) exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
 }
 impl TrustGate {
-    pub(super) fn of(config: &Config) -> Result<Self, InstallWithFreshLockfileError> {
+    fn of(config: &Config) -> Result<Self, InstallWithFreshLockfileError> {
         Ok(Self {
             policy: resolver_trust_policy(config.trust_policy),
             exclude: config.trust_policy_exclude

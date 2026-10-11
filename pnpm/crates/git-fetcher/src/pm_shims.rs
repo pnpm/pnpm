@@ -15,7 +15,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{ProvisionedTool, preferred_pm::WantedPm};
+use crate::preferred_pm::WantedPm;
 
 /// The commands a package manager answers to, all of which a dependency's
 /// scripts may reach for, and how each one is run.
@@ -69,92 +69,6 @@ pub(crate) fn write_pm_shims(
         }
     }
     Ok(written)
-}
-
-/// Write shims into `dir` that run each command of `pm` from `tool`, the
-/// package manager the lockfile records. A tool whose commands are scripts
-/// runs on `node`, or on the host's `node` when it is `None`.
-pub(crate) fn write_locked_pm_shims(
-    dir: &Path,
-    pm: crate::preferred_pm::PreferredPm,
-    tool: &ProvisionedTool,
-    node: Option<&Path>,
-) -> io::Result<()> {
-    fs::create_dir_all(dir)?;
-    for (name, run_as) in shim_commands(pm) {
-        let (command, args) = run_as
-            .split_first()
-            .unwrap_or((name, &[]));
-        let target = tool
-            .command(command)
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("{}@{} publishes no {command} command", tool.name, tool.version),
-                )
-            })?;
-        let launcher = match (tool.runs_on_node, node) {
-            (false, _) => Launcher::Direct,
-            (true, None) => Launcher::HostNode,
-            (true, Some(node)) => Launcher::Node(node),
-        };
-        let program = LockedProgram { launcher, target, args };
-        let (file_name, contents) = locked_shim_file(name, &program);
-        write_executable(&dir.join(file_name), &contents)?;
-    }
-    Ok(())
-}
-
-/// What a locked shim runs: `target` with `args` in front of the caller's.
-struct LockedProgram<'a> {
-    launcher: Launcher<'a>,
-    target: &'a Path,
-    args: &'a [&'a str],
-}
-
-/// How a locked shim starts its target.
-#[derive(Clone, Copy)]
-enum Launcher<'a> {
-    /// The target is an executable.
-    Direct,
-    /// The target is a script for whatever `node` the build's `PATH` has.
-    HostNode,
-    /// The target is a script for this Node.js.
-    Node(&'a Path),
-}
-
-#[cfg(any(unix, target_os = "wasi"))]
-fn locked_shim_file(name: &str, program: &LockedProgram<'_>) -> (String, String) {
-    use pnpm_cmd_shim::sh_single_quote;
-
-    let mut words: Vec<String> = Vec::new();
-    match program.launcher {
-        Launcher::Node(node) => words.push(sh_single_quote(&node.to_string_lossy())),
-        Launcher::HostNode => words.push("node".to_string()),
-        Launcher::Direct => {}
-    }
-    words.push(sh_single_quote(&program.target.to_string_lossy()));
-    words.extend(program.args.iter().map(|arg| sh_single_quote(arg)));
-    (name.to_string(), format!("#!/bin/sh\nexec {} \"$@\"\n", words.join(" ")))
-}
-
-#[cfg(windows)]
-fn locked_shim_file(name: &str, program: &LockedProgram<'_>) -> (String, String) {
-    use pnpm_cmd_shim::cmd_escape;
-
-    let mut words: Vec<String> = Vec::new();
-    match program.launcher {
-        Launcher::Node(node) => words.push(format!(r#""{}""#, cmd_escape(&node.to_string_lossy()))),
-        Launcher::HostNode => words.push("node".to_string()),
-        Launcher::Direct => {}
-    }
-    words.push(format!(r#""{}""#, cmd_escape(&program.target.to_string_lossy())));
-    words.extend(
-        program.args
-            .iter()
-            .map(|arg| format!(r#""{}""#, cmd_escape(arg))),
-    );
-    (format!("{name}.cmd"), format!("@{} %*\r\n", words.join(" ")))
 }
 
 /// Put the running pnpm on the build's `PATH` as `pnpm`, returning the

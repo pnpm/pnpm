@@ -35,7 +35,6 @@ fn snap(deps: &[(&str, &str)]) -> SnapshotEntry {
         .map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v))))
         .collect();
     SnapshotEntry {
-        build_dependencies: None,
         id: None,
         dependencies: (!map.is_empty()).then_some(map),
         optional_dependencies: None,

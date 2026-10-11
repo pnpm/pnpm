@@ -16,7 +16,6 @@ pnpm-diagnostics = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
-pnpm-tool-protocol = { workspace = true }
 
 chrono = { workspace = true }
 derive_more = { workspace = true }

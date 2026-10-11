@@ -263,7 +263,6 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
             .expect("v9 is compatible with major=9"),
         settings: Some(LockfileSettings {
-            lock_build_tools: None,
             auto_install_peers: true,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
@@ -304,7 +303,6 @@ fn peers_suffix_max_length_serialized_when_set() {
         lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
             .expect("v9 is compatible with major=9"),
         settings: Some(LockfileSettings {
-            lock_build_tools: None,
             auto_install_peers: true,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,

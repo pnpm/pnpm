@@ -66,8 +66,7 @@ fn parse_err() {
     case!("1.21.3(" => "Mismatch parenthesis", ParsePkgVerPeerError::MismatchParenthesis);
     case!("1.21.3)" => "Mismatch parenthesis", ParsePkgVerPeerError::MismatchParenthesis);
     case!("file:" => "Empty path after `file:` scheme", ParsePkgVerPeerError::EmptyFilePath);
-    case!("runtime:file:packages/pkg" => "`runtime:` / `tool:` and `file:` schemes are mutually exclusive", ParsePkgVerPeerError::ConflictingSchemes);
-    case!("tool:file:packages/pkg" => "`runtime:` / `tool:` and `file:` schemes are mutually exclusive", ParsePkgVerPeerError::ConflictingSchemes);
+    case!("runtime:file:packages/pkg" => "`runtime:` and `file:` schemes are mutually exclusive", ParsePkgVerPeerError::ConflictingSchemes);
 }
 
 #[test]
@@ -156,18 +155,6 @@ fn parse_runtime_prefix_with_peer_suffix() {
     assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
     assert_eq!(parsed.peer(), "(node@22.0.0)");
     assert_eq!(parsed.to_string(), "runtime:22.0.0(node@22.0.0)");
-}
-
-/// A build tool's key (`yarn@tool:4.9.2`) parses as a `tool:` version,
-/// not as a version from a registry named `tool`.
-#[test]
-fn parse_tool_prefix_round_trips() {
-    let parsed: PkgVerPeer = "tool:4.9.2".parse().expect("parse tool version");
-    dbg!(&parsed);
-    assert_eq!(parsed.prefix(), Prefix::Tool);
-    assert_eq!(parsed.version_semver(), Some(&"4.9.2".parse::<Version>().unwrap()));
-    assert_eq!(parsed.registry_qualified(), None);
-    assert_eq!(parsed.to_string(), "tool:4.9.2");
 }
 
 #[test]

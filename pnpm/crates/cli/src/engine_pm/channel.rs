@@ -9,7 +9,11 @@
 
 use crate::cli_args::self_update::install_pnpm::pnpm_package_to_install;
 use pnpm_env_installer::pnpm_engine_packages;
-use pnpm_tool_protocol::{PackageManagerSource, package_manager_source};
+
+/// Yarn moved its CLI to `@yarnpkg/cli-dist` in 2.0, and Yarn 6
+/// (`yarnpkg/zpm`) is a native binary with no npm package at all.
+const YARN_BERRY_MAJOR: u64 = 2;
+const YARN_NATIVE_MAJOR: u64 = 6;
 
 const NPM_PACKAGES: [&str; 1] = ["npm"];
 const YARN_CLASSIC_PACKAGES: [&str; 1] = ["yarn"];
@@ -99,10 +103,11 @@ impl PackageManager {
     }
 
     pub(crate) fn channel(self, version_spec: &str) -> Channel {
-        match (self, package_manager_source(self.name(), version_spec)) {
-            (_, Some(PackageManagerSource::Registry(package))) => Channel::Registry { package },
-            (PackageManager::Yarn, _) => Channel::Binary(BinaryChannel::Yarn),
-            _ => Channel::Binary(BinaryChannel::Bun),
+        match self {
+            PackageManager::Bun => Channel::Binary(BinaryChannel::Bun),
+            PackageManager::Npm => Channel::Registry { package: NPM_PACKAGES[0] },
+            PackageManager::Pnpm => Channel::Registry { package: "pnpm" },
+            PackageManager::Yarn => yarn_channel(version_spec),
         }
     }
 
@@ -121,7 +126,7 @@ impl PackageManager {
                     links_native_binary: package.links_native_binary,
                 })
             }
-            PackageManager::Yarn => match self.channel(version) {
+            PackageManager::Yarn => match yarn_channel(version) {
                 Channel::Registry { package } if package == YARN_CLASSIC_PACKAGES[0] => {
                     Some(single_package(&YARN_CLASSIC_PACKAGES))
                 }
@@ -134,6 +139,28 @@ impl PackageManager {
 
 fn single_package(packages: &'static [&'static str; 1]) -> EnginePackages {
     EnginePackages { wrapper: packages[0], pinned: packages, links_native_binary: false }
+}
+
+fn yarn_channel(version_spec: &str) -> Channel {
+    match committed_major(version_spec) {
+        Some(major) if major >= YARN_NATIVE_MAJOR => Channel::Binary(BinaryChannel::Yarn),
+        Some(major) if major < YARN_BERRY_MAJOR => {
+            Channel::Registry { package: YARN_CLASSIC_PACKAGES[0] }
+        }
+        _ => Channel::Registry { package: YARN_BERRY_PACKAGES[0] },
+    }
+}
+
+/// The lowest major a specifier admits, or `None` when it admits any
+/// version — a dist-tag, a wildcard, or something unparsable. Yarn's
+/// channels are split by major, so a specifier that does not commit to one
+/// falls through to the current line rather than to Yarn 1.
+fn committed_major(version_spec: &str) -> Option<u64> {
+    let version_spec = version_spec.trim();
+    if version_spec.is_empty() || version_spec == "*" || version_spec.eq_ignore_ascii_case("x") {
+        return None;
+    }
+    Some(node_semver::Range::parse(version_spec).ok()?.min_version()?.major)
 }
 
 #[cfg(test)]

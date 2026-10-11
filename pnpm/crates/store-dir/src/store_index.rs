@@ -357,18 +357,9 @@ pub fn store_index_key(integrity: &str, pkg_id: &str) -> String {
 /// ran during fetch (`preparePackage`), so `built` is part of the key. The
 /// integrity-only key would collapse the built/not-built variants into one
 /// slot.
-///
-/// `build_tools` identifies the tools the lockfile records for the build
-/// (`lockBuildTools`), so a package built by one set of tools is never
-/// served to an install that records another. It takes no part in the key
-/// of a package that was not built.
 #[must_use]
-pub fn git_hosted_store_index_key(pkg_id: &str, built: bool, build_tools: Option<&str>) -> String {
-    match (built, build_tools) {
-        (true, Some(build_tools)) => store_index_key(pkg_id, &format!("built:{build_tools}")),
-        (true, None) => store_index_key(pkg_id, "built"),
-        (false, _) => store_index_key(pkg_id, "not-built"),
-    }
+pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
+    store_index_key(pkg_id, if built { "built" } else { "not-built" })
 }
 
 /// Pick the store-index key for a tarball-shaped resolution.
@@ -384,7 +375,7 @@ pub fn pick_store_index_key(
 ) -> String {
     match integrity {
         Some(integrity) if !git_hosted => store_index_key(integrity, pkg_id),
-        _ => git_hosted_store_index_key(pkg_id, built, None),
+        _ => git_hosted_store_index_key(pkg_id, built),
     }
 }
 

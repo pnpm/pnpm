@@ -52,7 +52,6 @@ pub struct GitHostedTarballFetcher<'a> {
     /// [`crate::GitFetcher`] for its other role.
     pub package_id: &'a str,
     pub requester: &'a str,
-    pub build_tools: crate::BuildTools<'a>,
 }
 
 impl GitHostedTarballFetcher<'_> {
@@ -108,7 +107,6 @@ impl GitHostedTarballFetcher<'_> {
                     self.store.files_index_file,
                     self.package_id,
                     self.scripts.ignore,
-                    self.build_tools.identity(),
                 );
                 queue_files_index(
                     self.store.index_writer,
@@ -138,7 +136,6 @@ impl GitHostedTarballFetcher<'_> {
             self.store.files_index_file,
             self.package_id,
             self.scripts.ignore,
-            self.build_tools.identity(),
         );
         queue_files_index(
             self.store.index_writer,
@@ -161,7 +158,6 @@ impl<'a> GitHostedTarballFetcher<'a> {
 
             extra_bin_paths: &[],
             extra_env: &NO_EXTRA_ENV,
-            build_tools: self.build_tools,
         }
     }
 }

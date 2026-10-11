@@ -347,29 +347,6 @@ allowBuilds:
 
 :::
 
-### lockBuildTools
-
-Added in: v12.13.0
-
-* Default: **false**
-* Type: **Boolean**
-
-Records in the lockfile the package manager and Node.js that build each [git-hosted dependency](../package-managers.md#preparing-a-git-hosted-dependency), and builds it with exactly those on every later install. This setting is experimental.
-
-```yaml title="pnpm-workspace.yaml"
-lockBuildTools: true
-```
-
-With the setting on:
-
-* the package manager the dependency asks for is resolved when the dependency enters the lockfile, and recorded with its integrity. A version the lockfile already records is reused when it satisfies the request.
-* the Node.js the dependency pins in `devEngines.runtime` with `onFail: download` is recorded too. A dependency that ships a `binding.gyp` builds on the project's Node.js instead, so that the addon it compiles loads in the project.
-* later installs download the recorded tools, check them against the recorded integrity, and build with them. They never use a copy on the host, and never resolve a version again.
-* the record changes only when the dependency is resolved again, for example by `pnpm update`.
-* a frozen install fails when the lockfile was written without the setting. Run `pnpm install` once and commit the lockfile.
-
-The recorded tools are never installed into `node_modules`. A dependency prepared with pnpm records no package manager: the running pnpm prepares it, or the pnpm version it pins.
-
 ### permissions
 
 Added in: v12.11.0

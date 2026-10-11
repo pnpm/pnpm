@@ -28,7 +28,6 @@ async fn fetcher_rejects_option_shaped_commit() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -73,7 +72,6 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -124,7 +122,6 @@ async fn fetcher_imports_package_into_cas() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -181,7 +178,6 @@ async fn fetcher_rejects_commit_mismatch() {
     // commit.
     let bogus = "0000000000000000000000000000000000000000";
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -252,7 +248,6 @@ async fn fetcher_blocks_build_when_not_allowed() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -317,7 +312,6 @@ async fn fetcher_runs_prepare_script_when_allowed() {
     let repo_url = format!("file://{}", bare.display());
 
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -377,7 +371,6 @@ async fn fetcher_surfaces_prepare_failure() {
     let repo_url = format!("file://{}", bare.display());
 
     let err = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -460,7 +453,6 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         &|dep_path| (dep_path == "x@git+file:///tmp/repo.git#abc123").then_some(true);
 
     let received = GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -561,7 +553,6 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -655,7 +646,6 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
-        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
