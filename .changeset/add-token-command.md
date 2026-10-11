@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-Added the `token` command to manage authentication tokens on the registry.
+Added `pnpm token` to list, create, and revoke authentication tokens on the registry.

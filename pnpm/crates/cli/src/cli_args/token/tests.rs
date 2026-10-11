@@ -1,4 +1,4 @@
-use super::{generate_token_ids, registry::TokenItem};
+use super::{generate_token_ids, redact_token_argument, registry::TokenItem};
 use crate::cli_args::{CliArgs, cli_command::CliCommand};
 use clap::Parser;
 
@@ -65,4 +65,27 @@ fn parses_token_cli_args() {
     assert!(token_args.read_only);
     assert_eq!(token_args.cidr, ["10.0.0.0/8", "192.168.0.0/16"]);
     assert_eq!(token_args.params, ["create"]);
+}
+
+#[test]
+fn skips_prefix_lengths_inside_a_multibyte_character() {
+    let mut tokens = vec![TokenItem {
+        key: "abcde\u{e9}f".to_string(),
+        token: "abcde".to_string(),
+        id: None,
+        name: None,
+        created: None,
+        readonly: false,
+        cidr_whitelist: None,
+    }];
+
+    generate_token_ids(&mut tokens);
+
+    assert_eq!(tokens[0].id.as_deref(), Some("abcde\u{e9}"));
+}
+
+#[test]
+fn redacts_long_token_arguments() {
+    assert_eq!(redact_token_argument("abcdef"), "abcdef");
+    assert_eq!(redact_token_argument("npm_secretvalue"), "npm_secr…");
 }

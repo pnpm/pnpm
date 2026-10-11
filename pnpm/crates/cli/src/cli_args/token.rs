@@ -2,13 +2,16 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-use crate::cli_args::registry_client::build_registry_client;
+use crate::{
+    cli_args::registry_client::build_registry_client_with_guard, confirm_prompt::stdin_is_terminal,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
+use pnpm_auth_commands::login::{Host, PromptPassword};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, normalize_registry_url};
-use registry::{TokenItem, create_token, delete_token, fetch_token_list};
+use pnpm_network::{RetryOpts, ThrottledClient, normalize_registry_url, origins_redirect_guard};
+use registry::{CreateTokenRequest, TokenItem, create_token, delete_token, fetch_token_list};
 use std::fmt::Write as _;
 
 pub(crate) const TOKEN_BODY_LIMIT: usize = 1024 * 1024;
@@ -41,8 +44,16 @@ pub enum TokenError {
     #[display("No token matching \"{id}\" found.")]
     #[diagnostic(code(ERR_PNPM_TOKEN_NOT_FOUND))]
     NotFound {
+        /// The argument, cut by [`redact_token_argument`].
         #[error(not(source))]
         id: String,
+    },
+
+    #[display("Failed to read the password: {reason}")]
+    #[diagnostic(code(ERR_PNPM_TOKEN_PASSWORD_READ_FAILED))]
+    PasswordReadFailed {
+        #[error(not(source))]
+        reason: String,
     },
 
     #[display("Failed to {action}: {status} {status_text}. {body}")]
@@ -68,24 +79,31 @@ pub enum TokenError {
 
 #[derive(Debug, Default, Args)]
 pub struct TokenArgs {
+    /// The base URL of the npm registry.
     #[clap(long)]
     pub registry: Option<String>,
 
+    /// One-time password for registries that require two-factor authentication.
     #[clap(long)]
     pub otp: Option<String>,
 
+    /// Output results in JSON format.
     #[clap(long)]
     pub json: bool,
 
+    /// Output results in tab-separated format.
     #[clap(long, short = 'p')]
     pub parseable: bool,
 
+    /// Mark a created token as read-only.
     #[clap(long)]
     pub read_only: bool,
 
+    /// Restrict a created token to these CIDR ranges.
     #[clap(long, value_delimiter = ',')]
     pub cidr: Vec<String>,
 
+    /// The subcommand (`list`, `revoke`, or `create`) and its arguments.
     pub params: Vec<String>,
 }
 
@@ -95,7 +113,7 @@ pub(crate) fn generate_token_ids(tokens: &mut [TokenItem]) {
         let key = &tokens[i].key;
         let mut chosen = key.clone();
         for len in min_len..=key.len() {
-            let prefix = &key[..len];
+            let Some(prefix) = key.get(..len) else { continue };
             let has_collision = tokens
                 .iter()
                 .enumerate()
@@ -112,12 +130,11 @@ pub(crate) fn generate_token_ids(tokens: &mut [TokenItem]) {
 fn format_single_token(token: &TokenItem) -> String {
     let created = token.created
         .as_deref()
-        .map_or(
-            "",
-            |created_at| {
-                if created_at.len() >= 10 { &created_at[..10] } else { created_at }
-            },
-        );
+        .map_or("", |created_at| {
+            created_at
+                .get(..10)
+                .unwrap_or(created_at)
+        });
     let id = token.id.as_deref().unwrap_or(&token.key);
     let name_part = match &token.name {
         Some(name) if !name.is_empty() => format!(" name {name}"),
@@ -171,12 +188,39 @@ fn resolve_key_to_remove(id: &str, tokens: &[TokenItem]) -> miette::Result<Strin
         Err(TokenError::Ambiguous { id: id.to_string() }.into())
     } else if tokens
         .iter()
-        .any(|tok| id.starts_with(&tok.token) || tok.key == id)
+        .any(|tok| !tok.token.is_empty() && id.starts_with(&tok.token))
     {
         Ok(id.to_string())
     } else {
-        Err(TokenError::NotFound { id: id.to_string() }.into())
+        Err(TokenError::NotFound { id: redact_token_argument(id) }.into())
     }
+}
+
+/// Shorten a `revoke` argument for diagnostics, because it may be a full,
+/// still-valid token.
+pub(crate) fn redact_token_argument(id: &str) -> String {
+    const VISIBLE_CHARS: usize = 8;
+    match id.char_indices().nth(VISIBLE_CHARS) {
+        Some((cut, _)) => format!("{}…", &id[..cut]),
+        None => id.to_string(),
+    }
+}
+
+async fn read_password() -> miette::Result<String> {
+    tokio::task::spawn_blocking(|| -> Result<String, String> {
+        if stdin_is_terminal().map_err(|err| err.to_string())? {
+            return Host::prompt_password("Password:").map_err(|err| err.to_string());
+        }
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).map_err(|err| err.to_string())?;
+        Ok(line
+            .trim_end_matches(['\r', '\n'])
+            .to_string())
+    })
+    .await
+    .map_err(|err| err.to_string())
+    .flatten()
+    .map_err(|reason| TokenError::PasswordReadFailed { reason }.into())
 }
 
 impl TokenArgs {
@@ -185,7 +229,8 @@ impl TokenArgs {
         let normalized = normalize_registry_url(registry_url);
         let auth_header =
             config.auth_headers.for_url(&normalized).ok_or(TokenError::Unauthorized)?;
-        let http_client = build_registry_client(config)?;
+        let redirect_guard = origins_redirect_guard([normalized.as_ref()]);
+        let http_client = build_registry_client_with_guard(config, Some(&redirect_guard))?;
         let retry_opts = config.retry_opts();
 
         let subcmd = self.params.first().map_or("list", String::as_str);
@@ -227,21 +272,28 @@ impl TokenArgs {
         auth: &str,
         retry: RetryOpts,
     ) -> miette::Result<Option<String>> {
-        let id = self.params.get(1).ok_or(TokenError::KeyRequired)?;
+        let ids = self.params.get(1..).unwrap_or_default();
+        if ids.is_empty() {
+            return Err(TokenError::KeyRequired.into());
+        }
         let mut tokens = fetch_token_list(url, client, auth, retry).await?;
         generate_token_ids(&mut tokens);
-        let key_to_remove = resolve_key_to_remove(id, &tokens)?;
-        delete_token(url, client, auth, self.otp.as_deref(), &key_to_remove, retry).await?;
+        let keys_to_remove = ids
+            .iter()
+            .map(|id| resolve_key_to_remove(id, &tokens))
+            .collect::<miette::Result<Vec<_>>>()?;
+        for key in &keys_to_remove {
+            delete_token(url, client, auth, self.otp.as_deref(), key, retry).await?;
+        }
         if self.json {
-            let json_res = serde_json::json!({
-                "token": id,
-            });
-            return Ok(Some(serde_json::to_string_pretty(&json_res).into_diagnostic()?));
+            return Ok(Some(serde_json::to_string_pretty(&keys_to_remove).into_diagnostic()?));
         }
         if self.parseable {
-            return Ok(Some(format!("token\t{id}")));
+            return Ok(Some(keys_to_remove.join("\t")));
         }
-        Ok(Some("Removed 1 token".to_string()))
+        let count = keys_to_remove.len();
+        let plural = if count == 1 { "" } else { "s" };
+        Ok(Some(format!("Removed {count} token{plural}")))
     }
 
     async fn run_create(
@@ -251,9 +303,13 @@ impl TokenArgs {
         auth: &str,
         retry: RetryOpts,
     ) -> miette::Result<Option<String>> {
-        let created =
-            create_token(url, client, auth, self.otp.as_deref(), self.read_only, &self.cidr, retry)
-                .await?;
+        let password = read_password().await?;
+        let request = CreateTokenRequest {
+            password: &password,
+            readonly: self.read_only,
+            cidr_whitelist: &self.cidr,
+        };
+        let created = create_token(url, client, auth, self.otp.as_deref(), &request, retry).await?;
 
         if self.json {
             return Ok(Some(serde_json::to_string_pretty(&created).into_diagnostic()?));

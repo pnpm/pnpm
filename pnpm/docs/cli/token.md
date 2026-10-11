@@ -3,7 +3,7 @@ id: token
 title: pnpm token
 ---
 
-Added in: v12.12.0
+Added in: v12.13.0
 
 Manage authentication tokens on the configured registry.
 
@@ -35,7 +35,7 @@ Revoke one or more authentication tokens by their key, ID prefix, or token value
 pnpm token create [--read-only] [--cidr <cidr>]
 ```
 
-Create a new authentication token.
+Create a new authentication token. pnpm asks for your account password. If standard input is not a terminal, pnpm reads the password from its first line.
 
 ## Options
 

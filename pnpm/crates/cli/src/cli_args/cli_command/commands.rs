@@ -270,6 +270,7 @@ pub enum CliCommand {
     Edit(NotImplementedArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Profile(NotImplementedArgs),
+    /// Manage authentication tokens on the registry.
     Token(TokenArgs),
     /// Not implemented in pnpm. Use the npm CLI directly.
     Xmas(NotImplementedArgs),
