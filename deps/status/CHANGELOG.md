@@ -1,5 +1,11 @@
 # @pnpm/deps.status
 
+## 1003.0.46
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.73
+
 ## 1003.0.45
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pnpm
 
+## 10.34.7
+
+### Patch Changes
+
+- 97f550c: Switching to the pnpm version in `packageManager` now works through registry mirrors that strip npm's signatures or re-sign packages with their own key. pnpm then reads the signature from `https://registry.npmjs.org/` and verifies it against the integrity of the downloaded pnpm [#16778](https://github.com/pnpm/pnpm/issues/16778).
+- b11d7bb: The update notification now suggests the [standalone install script](https://pnpm.io/installation) instead of `pnpm self-update` when `PNPM_HOME` is not set, such as when another package manager installed pnpm. `pnpm self-update` installs into `PNPM_HOME`, so in that case it cannot replace the pnpm in use.
+
 ## 10.34.6
 
 ### Patch Changes
