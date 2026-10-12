@@ -341,6 +341,7 @@ impl PythonPrepare<'_> {
         let root = tempfile::tempdir().into_diagnostic()?;
         let mut registry = self.registry();
         let solution = resolver::resolve::<Reporter>(&mut registry, requires).await?;
+        registry.fetch_selected_wheels::<Reporter>(&solution).await?;
         let mut wheels = Vec::new();
         for package in solution {
             wheels.push(&registry.wheels[&package]);
