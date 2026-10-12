@@ -9,8 +9,8 @@ use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_importer::ResolveImporterError,
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings,
-        WorkspaceResolvePeersResult, resolve_peers_workspace,
+        ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings, WorkspaceResolvePeersResult,
+        resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
 };
