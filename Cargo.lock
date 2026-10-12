@@ -5361,6 +5361,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "derive_more",
+ "libc",
  "pnpm-crypto-hash",
  "pnpm-lockfile",
  "pnpm-process",

@@ -27,6 +27,9 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "process", "signal"] }
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+libc = { workspace = true }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-process = { path = "../process" }
 
