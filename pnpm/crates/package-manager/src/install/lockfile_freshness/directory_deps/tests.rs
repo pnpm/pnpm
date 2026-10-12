@@ -305,7 +305,7 @@ fn a_directory_dependency_whose_dependency_went_unresolved_is_outdated() {
 }
 
 #[test]
-fn a_directory_dependencys_unresolved_optional_is_satisfied_only_when_frozen() {
+fn an_unresolved_optional_of_a_directory_dependency_is_satisfied_only_when_frozen() {
     assert!(
         check_dep_with_an_unresolved_entry("optionalDependencies", false).is_err(),
         "a resolving install retries the optional dependency",
