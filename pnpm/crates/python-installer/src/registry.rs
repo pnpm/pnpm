@@ -142,10 +142,13 @@ impl<'a> Registry<'a> {
     }
 
     /// Offer the resolution what the index page of `name` holds.
+    /// A page that cannot be read leaves `name` unrecorded, so asking for
+    /// it again reads it again.
     pub(super) fn record_index(&mut self, name: &PackageName, page: &CachedIndex) -> Result<()> {
-        self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
-        self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
-        if !page.missing {
+        if page.missing {
+            self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
+            self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
+        } else {
             self.resolution.offer(name, page)?;
         }
         self.resolution.downloaded.insert(name.clone());

@@ -235,6 +235,46 @@ async fn an_install_refuses_a_wheel_that_requires_more_than_its_metadata_file() 
     );
 }
 
+/// A page that cannot be read fails the resolution with its own error,
+/// also when it was read ahead while the resolution waited on another.
+#[tokio::test]
+async fn an_unreadable_page_read_ahead_fails_with_its_own_error() {
+    for (slow, unreadable) in [("alpha", "beta"), ("beta", "alpha")] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new_async().await;
+        let release = Release { name: slow, requires: "" };
+        let page = release
+            .page(&release.digest())
+            .into_bytes();
+        let _slow_page = server
+            .mock("GET", format!("/simple/{slow}/").as_str())
+            .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+            .with_chunked_body(move |writer| {
+                std::thread::sleep(Duration::from_secs(2));
+                writer.write_all(&page)
+            })
+            .create_async()
+            .await;
+        let _metadata = server
+            .mock("GET", format!("/files/{}.metadata", release.filename()).as_str())
+            .with_body(release.metadata())
+            .create_async()
+            .await;
+        let _unreadable_page = server
+            .mock("GET", format!("/simple/{unreadable}/").as_str())
+            .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+            .with_body(r#"{"files": "not a list"}"#)
+            .create_async()
+            .await;
+        project(root.path(), &server.url(), &[slow, unreadable]);
+
+        assert_failure_contains(
+            pacquet_in(root.path()).args(["install", "--lockfile-only"]),
+            "Python index must support the Simple JSON API",
+        );
+    }
+}
+
 /// An offline resolution reads the metadata files an earlier run cached.
 /// Resolving downloaded no wheel, so there is none to read them from.
 #[tokio::test]
