@@ -5,7 +5,6 @@ use super::{
 };
 
 /// The depPaths [`Walker::build_final_dep_paths`] settled on.
-#[derive(Default)]
 pub(crate) struct FinalDepPaths {
     pub(crate) by_node_id: HashMap<NodeId, DepPath>,
     /// The peer ids each peer-suffixed final depPath was built from, so a
@@ -18,10 +17,9 @@ pub(crate) struct FinalDepPaths {
 
 /// Whether [`Walker::build_final_dep_paths`] keeps the peer ids behind
 /// each peer-suffixed depPath, for a pass that retargets those peers.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PeerIdRecording {
     Record,
-    #[default]
     Skip,
 }
 
@@ -38,7 +36,12 @@ impl Walker<'_> {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
         let context = FinalPeerContext { scc_of: &scc_of, cyclic_peer_names: &cyclic_peer_names };
-        let mut final_dep_paths = FinalDepPaths { recording, ..FinalDepPaths::default() };
+        let mut final_dep_paths = FinalDepPaths {
+            recording,
+            by_node_id: HashMap::default(),
+            peer_ids: HashMap::default(),
+            visiting: HashSet::default(),
+        };
         let mut node_ids: Vec<NodeId> = self.nodes.external_peers
             .keys()
             .cloned()
