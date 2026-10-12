@@ -1,3 +1,4 @@
+use super::_utils::{append_workspace_yaml_key, enable_gvs_in_workspace_yaml};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -332,11 +333,12 @@ fn edit_rebuilds_an_aliased_dependency_and_preserves_store_content() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     fs::write(workspace.join("package.json"), serde_json::json!({"dependencies": {"alias": "npm:@pnpm.e2e/install-script-example@1.0.0"}}).to_string()).unwrap();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "allowBuilds:\n  '@pnpm.e2e/install-script-example': true\npackageImportMethod: hardlink\n",
-    )
-    .unwrap();
+    append_workspace_yaml_key(
+        &workspace,
+        "allowBuilds",
+        "\n  '@pnpm.e2e/install-script-example': true",
+    );
+    append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
     pacquet(&workspace)
         .with_arg("install")
         .assert()
@@ -356,6 +358,153 @@ fn edit_rebuilds_an_aliased_dependency_and_preserves_store_content() {
     assert!(marker.exists(), "edit did not rebuild the aliased package");
     assert_eq!(fs::read(&store_copy).unwrap(), original);
     assert_ne!(fs::read(package_dir.join("package.json")).unwrap(), original);
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_ignores_empty_editor_environment_values() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"is-positive": "1.0.0"}}).to_string(),
+    )
+    .unwrap();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let editor = r#"node -e "require('fs').writeFileSync(require('path').join(process.argv[1], 'edited'), 'yes');""#;
+    for empty in ["", "   "] {
+        pacquet(&workspace)
+            .with_args(["edit", "is-positive"])
+            .with_env("EDITOR", empty)
+            .with_env("VISUAL", editor)
+            .assert()
+            .success();
+        let marker = workspace.join("node_modules/is-positive/edited");
+        assert_eq!(fs::read_to_string(&marker).unwrap(), "yes");
+        fs::remove_file(marker).unwrap();
+    }
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_rebuilds_only_the_selected_snapshot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let package = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {
+            "first": format!("npm:{package}@1.0.0"), "second": format!("npm:{package}@2.0.0")
+        }})
+        .to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("\n  '{package}': true"));
+    append_workspace_yaml_key(&workspace, "sideEffectsCache", false);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let first_bin = workspace.join("node_modules/first/generated-by-postinstall.js");
+    let second_bin = workspace.join("node_modules/second/generated-by-postinstall.js");
+    assert!(first_bin.exists());
+    assert!(second_bin.exists());
+    fs::remove_file(&first_bin).unwrap();
+    fs::remove_file(&second_bin).unwrap();
+    pacquet(&workspace)
+        .with_args(["edit", "first", "--editor", r#"node -e "process.exit(0)""#])
+        .assert()
+        .success();
+    assert!(first_bin.exists(), "the edited snapshot was not rebuilt");
+    assert!(!second_bin.exists(), "the unedited snapshot was rebuilt");
+    pacquet(&workspace)
+        .with_args(["rebuild", package])
+        .assert()
+        .success();
+    assert!(second_bin.exists(), "name-based rebuild no longer selected the other version");
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_rejects_shared_virtual_store_without_modifying_the_package() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"is-positive": "1.0.0"}}).to_string(),
+    )
+    .unwrap();
+    enable_gvs_in_workspace_yaml(&workspace, "globalVirtualStoreDir: ../shared-store\n");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let package = workspace.join("node_modules/is-positive");
+    let original = fs::read(package.join("index.js")).unwrap();
+    let editor = r#"node -e "require('fs').writeFileSync(require('path').join(process.argv[1], 'index.js'), 'edited');""#;
+    let output = pacquet(&workspace)
+        .with_args(["edit", "is-positive", "--editor", editor])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("shared virtual store"), "{stderr}");
+    assert!(stderr.contains("pnpm patch"), "{stderr}");
+    assert_eq!(fs::read(package.join("index.js")).unwrap(), original);
+    drop(npmrc_info);
+    drop(root);
+}
+
+#[test]
+fn edit_does_not_publish_modified_files_to_the_shared_build_cache() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"@pnpm.e2e/install-script-example": "1.0.0"}})
+            .to_string(),
+    )
+    .unwrap();
+    append_workspace_yaml_key(
+        &workspace,
+        "allowBuilds",
+        "\n  '@pnpm.e2e/install-script-example': true",
+    );
+    append_workspace_yaml_key(&workspace, "sideEffectsCache", true);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let package = workspace.join("node_modules/@pnpm.e2e/install-script-example");
+    let original = fs::read(package.join("create.js")).unwrap();
+    let editor = r#"node -e "require('fs').writeFileSync(require('path').join(process.argv[1], 'create.js'), 'require(\"fs\").writeFileSync(\"generated-by-install.js\", \"edited\");');""#;
+    pacquet(&workspace)
+        .with_args(["edit", "@pnpm.e2e/install-script-example", "--editor", editor])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(package.join("generated-by-install.js")).unwrap(), "edited");
+    assert_ne!(fs::read(package.join("create.js")).unwrap(), original);
+    let other = root.path().join("other-project");
+    fs::create_dir(&other).unwrap();
+    for name in ["package.json", "pnpm-workspace.yaml", ".npmrc"] {
+        fs::copy(workspace.join(name), other.join(name)).unwrap();
+    }
+    pacquet(&other)
+        .with_args(["install", "--offline"])
+        .assert()
+        .success();
+    let other_package = other.join("node_modules/@pnpm.e2e/install-script-example");
+    assert_eq!(fs::read(other_package.join("create.js")).unwrap(), original);
+    assert_ne!(
+        fs::read_to_string(other_package.join("generated-by-install.js")).unwrap(),
+        "edited",
+    );
     drop(npmrc_info);
     drop(root);
 }

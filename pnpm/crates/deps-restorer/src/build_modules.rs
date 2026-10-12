@@ -175,6 +175,9 @@ pub struct RebuildOptions {
     /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
     pub selected_names: Option<HashSet<String>>,
 
+    /// Exact snapshot keys to rebuild. When present, this overrides name selection.
+    pub selected_snapshots: Option<HashSet<PackageKey>>,
+
     /// Importer ids whose own deferred install scripts this rebuild
     /// should run — `pnpm rebuild --pending` reads them out of
     /// `.modules.yaml`'s `pendingBuilds`. A dependency's build is settled
@@ -230,15 +233,23 @@ impl RebuildOptions {
     /// `foo@1.0.0` parses as either.
     #[must_use]
     pub fn settles_dependency(&self, dep_path: &str) -> bool {
+        if let Some(snapshots) = &self.selected_snapshots {
+            return dep_path
+                .parse::<PackageKey>()
+                .ok()
+                .is_some_and(|key| snapshots.contains(&key));
+        }
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
 
-    /// Whether the snapshot installed under `key` is in the rebuild
-    /// selection, by its package name or its allow-build key.
+    /// Whether the snapshot installed under `key` is in the rebuild selection.
     #[must_use]
     pub fn selects_snapshot(&self, key: &PackageKey) -> bool {
-        self.selected_names.is_none() || self.settles_dependency(&key.to_string())
+        match &self.selected_snapshots {
+            Some(snapshots) => snapshots.contains(key),
+            None => self.selected_names.is_none() || self.settles_dependency(&key.to_string()),
+        }
     }
 }
 

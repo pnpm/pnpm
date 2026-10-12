@@ -1,6 +1,7 @@
 use crate::state::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic, miette};
+use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions};
 use pnpm_reporter::Reporter;
 use std::{
     env, fs, io,
@@ -27,17 +28,24 @@ pub struct EditArgs {
 impl EditArgs {
     pub async fn run<ReporterType: Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let parts = parse_package_path(&self.package_path)?;
+        if state.config.enable_global_virtual_store {
+            return Err(miette!(
+                code = "ERR_PNPM_EDIT_SHARED_STORE",
+                help = "Use pnpm patch to create a project-specific patch",
+                "Cannot edit dependencies in a shared virtual store",
+            ));
+        }
         let modules_dir = dunce::canonicalize(&state.config.modules_dir)
             .into_diagnostic()
             .wrap_err("Failed to canonicalize modules directory")?;
         let real_pkg_path =
             resolve_package_dir(&modules_dir, &parts, state.config.virtual_store_dir())?;
 
-        let package_name = installed_package_name(&real_pkg_path)?;
         let editor = self.pick_editor(&state);
         let project_root =
             state.config.workspace_dir.as_deref().unwrap_or_else(|| state.project_dir());
         let mut command = resolve_editor_command(&editor, project_root, &real_pkg_path)?;
+        let package_key = installed_package_key(&state, &parts)?;
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
             .wrap_err_with(|| {
@@ -56,7 +64,7 @@ impl EditArgs {
             return Err(miette!("Editor command exited with failure status"));
         }
 
-        rebuild_package::<ReporterType>(&state, &package_name).await?;
+        rebuild_package::<ReporterType>(state, package_key).await?;
 
         Ok(())
     }
@@ -65,37 +73,74 @@ impl EditArgs {
         self.editor
             .clone()
             .or_else(|| state.config.editor.clone())
-            .or_else(|| env::var("EDITOR").ok())
-            .or_else(|| env::var("VISUAL").ok())
+            .or_else(|| {
+                env::var("EDITOR")
+                    .ok()
+                    .filter(|editor| !editor.trim().is_empty())
+            })
+            .or_else(|| {
+                env::var("VISUAL")
+                    .ok()
+                    .filter(|editor| !editor.trim().is_empty())
+            })
             .unwrap_or_else(|| if cfg!(windows) { "notepad".to_owned() } else { "vi".to_owned() })
     }
 }
 
-fn installed_package_name(package_dir: &Path) -> miette::Result<String> {
-    let manifest_path = package_dir.join("package.json");
-    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
-        .wrap_err_with(|| format!("Reading '{}'", manifest_path.display()))?;
-    manifest
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .filter(|name| !name.is_empty())
-        .map(str::to_owned)
-        .ok_or_else(|| {
-            let path = manifest_path.display();
-            miette!("Missing package name in '{path}'")
-        })
+fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<PackageKey> {
+    use pnpm_deps_inspection::{
+        TreeNodeId,
+        build::importer_id_for,
+        graph::{BuildGraphOptions, build_dependency_graph},
+    };
+    let lockfile = Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
+        .into_diagnostic()
+        .wrap_err("Loading the installed lockfile")?
+        .ok_or_else(|| miette!("The installed lockfile is missing. Run pnpm install first"))?;
+    let mut node = TreeNodeId::Importer(importer_id_for(state.lockfile_dir(), state.project_dir()));
+    let options = BuildGraphOptions {
+        lockfile: &lockfile,
+        include: pnpm_modules_yaml::IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        },
+        only_projects: false,
+        peer_edges: PeerEdgeOptions::default(),
+    };
+    let graph = build_dependency_graph(&[node.clone()], &options);
+    for part in parts {
+        node = graph.nodes
+            .get(&node)
+            .and_then(|node| {
+                node.edges
+                    .iter()
+                    .find(|edge| &edge.alias == part)
+            })
+            .and_then(|edge| edge.target.clone())
+            .ok_or_else(|| miette!("Package '{part}' is missing from the installed lockfile"))?;
+    }
+    let TreeNodeId::Package(key) = node else {
+        return Err(miette!("The selected package is not an installed dependency"));
+    };
+    Ok(key)
 }
 
 async fn rebuild_package<ReporterType: Reporter + 'static>(
-    state: &State,
-    package_name: &str,
+    mut state: State,
+    package_key: PackageKey,
 ) -> miette::Result<()> {
+    let mut config = state.config.clone();
+    // Edited files and build results must stay out of caches shared by other projects.
+    config.side_effects_cache_read_setting = Some(false);
+    config.side_effects_cache_write_setting = Some(false);
+    config.remote_side_effects_cache = None;
+    state.config = pnpm_config::Config::leak(config);
     let selection = super::rebuild::RebuildSelection {
-        names: Some(vec![package_name.to_string()]),
-        projects: Vec::new(),
+        snapshots: Some(vec![package_key]),
+        ..Default::default()
     };
-    super::rebuild::run_rebuild::<ReporterType>(state, selection, None).await
+    super::rebuild::run_rebuild::<ReporterType>(&state, selection, None).await
 }
 
 fn resolve_package_dir(

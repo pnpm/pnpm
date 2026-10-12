@@ -139,6 +139,7 @@ fn build_with_an_empty_row(
 
 fn rebuild_options(skip_if_has_side_effects_cache: bool) -> RebuildOptions {
     RebuildOptions {
+        selected_snapshots: None,
         selected_names: None,
         pending_projects: Vec::new(),
         check_lockfile_patches_only: true,
