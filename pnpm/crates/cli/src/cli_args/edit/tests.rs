@@ -1,4 +1,4 @@
-use super::{de_hardlink_dir, parse_package_path, split_shell_args};
+use super::{de_hardlink_dir, parse_package_path};
 use std::fs;
 use tempfile::tempdir;
 
@@ -21,20 +21,18 @@ fn test_parse_package_path() {
 }
 
 #[test]
-fn test_split_shell_args() {
-    assert_eq!(split_shell_args("vi"), vec!["vi"]);
-    assert_eq!(split_shell_args("code --wait"), vec!["code", "--wait"]);
-    assert_eq!(split_shell_args(""), Vec::<String>::new());
-    assert_eq!(split_shell_args("   "), Vec::<String>::new());
+fn editor_arguments_preserve_empty_values_and_reject_unclosed_quotes() {
+    let root = tempdir().unwrap();
+    let command =
+        super::resolve_editor_command("/editor --wait ''", root.path(), root.path()).unwrap();
+    let arguments: Vec<_> = command.get_args().collect();
     assert_eq!(
-        split_shell_args(r#"node -e "process.exit(0)""#),
-        vec!["node", "-e", "process.exit(0)"],
+        arguments,
+        vec![std::ffi::OsStr::new("--wait"), std::ffi::OsStr::new(""), root.path().as_os_str()],
     );
-    assert_eq!(
-        split_shell_args("node -e 'process.exit(0)'"),
-        vec!["node", "-e", "process.exit(0)"],
-    );
-    assert_eq!(split_shell_args(r"my\ editor"), vec!["my editor"]);
+    let error =
+        super::resolve_editor_command("/editor 'unfinished", root.path(), root.path()).unwrap_err();
+    assert!(error.to_string().contains("Invalid editor command"), "{error}");
 }
 
 #[test]
@@ -72,4 +70,72 @@ fn test_de_hardlink_dir() {
     fs::write(&file_path, "modified").unwrap();
     assert_eq!(fs::read_to_string(&file_path).unwrap(), "modified");
     assert_eq!(fs::read_to_string(&link_path).unwrap(), "original");
+}
+
+#[cfg(unix)]
+#[test]
+fn de_hardlink_preserves_executable_mode_and_does_not_follow_symlinks() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let root = tempdir().unwrap();
+    let package = root.path().join("package");
+    fs::create_dir(&package).unwrap();
+    let store_file = root.path().join("store-file");
+    fs::write(&store_file, "original").unwrap();
+    fs::set_permissions(&store_file, fs::Permissions::from_mode(0o555)).unwrap();
+    let target = package.join("executable");
+    fs::hard_link(&store_file, &target).unwrap();
+    symlink(&store_file, package.join("symlink")).unwrap();
+    de_hardlink_dir(&package).unwrap();
+    assert_eq!(
+        fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+    );
+    assert_eq!(
+        fs::metadata(&store_file)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o555,
+    );
+    assert!(
+        fs::symlink_metadata(package.join("symlink"))
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
+    fs::write(&target, "edited").unwrap();
+    assert_eq!(fs::read_to_string(&store_file).unwrap(), "original");
+}
+
+#[cfg(unix)]
+#[test]
+fn package_resolution_rejects_external_links_and_accepts_external_virtual_store() {
+    use std::os::unix::fs::symlink;
+    let root = tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    let external = root.path().join("external");
+    let store = root.path().join("virtual-store");
+    fs::create_dir(&modules).unwrap();
+    fs::create_dir(&external).unwrap();
+    fs::create_dir(&store).unwrap();
+    symlink(&external, modules.join("unsafe")).unwrap();
+    let error = super::resolve_package_dir(&modules, &["unsafe".to_owned()], &store).unwrap_err();
+    assert!(error.to_string().contains("outside the expected"), "{error}");
+    let package = store.join("package");
+    fs::create_dir_all(package.join("node_modules/@scope/child")).unwrap();
+    symlink(&package, modules.join("safe")).unwrap();
+    assert_eq!(
+        super::resolve_package_dir(
+            &modules,
+            &["safe".to_owned(), "@scope/child".to_owned()],
+            &store
+        )
+        .unwrap(),
+        package.join("node_modules/@scope/child"),
+    );
 }

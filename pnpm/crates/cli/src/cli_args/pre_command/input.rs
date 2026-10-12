@@ -209,7 +209,6 @@ pub(super) fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::FindHash(_)
             | CliCommand::Runtime(_)
             | CliCommand::Env(_)
-            | CliCommand::Edit(_)
             | CliCommand::Profile(_)
             | CliCommand::Token(_)
             | CliCommand::SelfUpdate(_)
@@ -238,7 +237,6 @@ pub(super) fn should_skip_command_name(command: &str) -> bool {
             | "completion-server"
             | "dlx"
             | "doctor"
-            | "edit"
             | "env"
             | "find-hash"
             | "profile"

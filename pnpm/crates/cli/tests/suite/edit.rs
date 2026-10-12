@@ -294,3 +294,68 @@ fn edit_fails_with_empty_editor() {
     drop(npmrc_info);
     drop(root);
 }
+
+#[test]
+fn edit_uses_configured_editor() {
+    for source in ["workspace", "environment", "cli"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), r#"{"name":"test-project"}"#).unwrap();
+        let package_dir = workspace.join("node_modules/test-dependency");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(package_dir.join("package.json"), r#"{"name":"test-dependency"}"#).unwrap();
+        let editor = "pnpm-edit-configured-editor-missing";
+        let mut command = pacquet(&workspace).with_args(["edit", "test-dependency"]);
+        command.env("EDITOR", "pnpm-edit-fallback-editor-missing");
+        match source {
+            "workspace" => {
+                fs::write(workspace.join("pnpm-workspace.yaml"), format!("editor: {editor}\n"))
+                    .unwrap();
+            }
+            "environment" => {
+                command.env("PNPM_CONFIG_EDITOR", editor);
+            }
+            "cli" => {
+                command.arg(format!("--config.editor={editor}"));
+            }
+            _ => unreachable!(),
+        }
+        let output = command.output().unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success());
+        assert!(stderr.contains(editor), "{source}: {stderr}");
+        drop(root);
+    }
+}
+
+#[test]
+fn edit_rebuilds_an_aliased_dependency_and_preserves_store_content() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), serde_json::json!({"dependencies": {"alias": "npm:@pnpm.e2e/install-script-example@1.0.0"}}).to_string()).unwrap();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  '@pnpm.e2e/install-script-example': true\npackageImportMethod: hardlink\n",
+    )
+    .unwrap();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let package_dir = workspace.join("node_modules/alias");
+    let marker = package_dir.join("generated-by-install.js");
+    assert!(marker.exists());
+    fs::remove_file(&marker).unwrap();
+    let original = fs::read(package_dir.join("package.json")).unwrap();
+    let store_copy = root.path().join("store-copy.json");
+    fs::hard_link(package_dir.join("package.json"), &store_copy).unwrap();
+    let editor = r#"node -e "const fs = require('fs'); const p = require('path').join(process.argv[1], 'package.json'); fs.appendFileSync(p, '\n');""#;
+    pacquet(&workspace)
+        .with_args(["edit", "alias", "--editor", editor])
+        .assert()
+        .success();
+    assert!(marker.exists(), "edit did not rebuild the aliased package");
+    assert_eq!(fs::read(&store_copy).unwrap(), original);
+    assert_ne!(fs::read(package_dir.join("package.json")).unwrap(), original);
+    drop(npmrc_info);
+    drop(root);
+}
