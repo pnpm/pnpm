@@ -261,6 +261,7 @@ fn check_single_directory_dep_freshness(
 
 /// How one dependency group's manifest specs are matched against the
 /// snapshot's.
+#[derive(Clone, Copy)]
 pub(super) struct GroupMatching<'a> {
     pub(super) shadowed: &'a HashSet<&'a str>,
     pub(super) allow_unresolved: bool,
