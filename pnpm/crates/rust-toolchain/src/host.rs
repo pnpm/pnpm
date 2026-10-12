@@ -33,7 +33,8 @@ pub(crate) fn host_triple() -> Option<String> {
                 "x86" => "i686",
                 _ => return None,
             };
-            format!("{architecture}-pc-windows-{}", windows_abi())
+            let abi = windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
+            format!("{architecture}-pc-windows-{abi}")
         }
         _ => return None,
     })
@@ -43,12 +44,13 @@ pub(crate) fn host_triple() -> Option<String> {
 /// built for, as rustup takes its default host from its own build. A pnpm
 /// built for MinGW, as MSYS2 builds it, installs a toolchain that links
 /// against MinGW rather than MSVC.
-fn windows_abi() -> &'static str {
-    if cfg!(all(target_env = "gnu", target_abi = "llvm")) {
-        "gnullvm"
-    } else if cfg!(target_env = "gnu") {
-        "gnu"
-    } else {
-        "msvc"
+fn windows_abi(gnu: bool, llvm: bool) -> &'static str {
+    match (gnu, llvm) {
+        (true, true) => "gnullvm",
+        (true, false) => "gnu",
+        (false, _) => "msvc",
     }
 }
+
+#[cfg(test)]
+mod tests;
