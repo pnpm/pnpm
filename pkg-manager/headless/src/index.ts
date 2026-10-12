@@ -381,7 +381,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
   }
   const depNodes = Object.values(graph)
-  // Unfetched nodes were already materialized. They are included for hoisting,
+  // Nodes without a fetch were already materialized. They are included for hoisting,
   // not to run their scripts or re-apply their patches.
   for (const depNode of depNodes) {
     if (depNode.fetching == null) depNode.isBuilt = true
