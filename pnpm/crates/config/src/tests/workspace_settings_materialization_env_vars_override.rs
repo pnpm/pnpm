@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, HostNoHome, LinkProbe, NodeLinker,
-    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, WorkspaceSettings, assert_eq, fs, io,
-    safe_host_var, tempdir, write_file,
+    NodePackageMapMode, NodePackageMapType, OsString, Path, PathBuf, TrustPolicy,
+    WorkspaceSettings, assert_eq, fs, io, safe_host_var, tempdir, write_file,
 };
 
 #[test]
@@ -483,8 +483,34 @@ pub fn package_map_settings_load_from_workspace_yaml() {
     )
     .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_mode, NodePackageMapMode::Load);
     assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
+}
+
+#[test]
+pub fn node_package_map_section_loads_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodePackageMap:\n  mode: write-only\n  type: loose\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.node_package_map_mode, NodePackageMapMode::WriteOnly);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
+}
+
+#[test]
+pub fn node_package_map_section_wins_over_its_deprecated_spellings() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeExperimentalPackageMap: true\nnodePackageMapType: loose\nnodePackageMap:\n  mode: write-only\n  type: standard\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.node_package_map_mode, NodePackageMapMode::WriteOnly);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Standard);
 }
 
 #[test]

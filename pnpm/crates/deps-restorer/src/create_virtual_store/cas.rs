@@ -187,8 +187,8 @@ fn validate_config(config: &pnpm_config::Config) -> Result<(), CreateVirtualStor
         Some("CAS opt-outs require the global virtual store")
     } else if !config.symlink {
         Some("CAS opt-outs require symlink=true for their dependency trees")
-    } else if config.node_experimental_package_map {
-        Some("nodeExperimentalPackageMap cannot be combined with the CAS loader")
+    } else if config.node_package_map_mode.writes() {
+        Some("nodePackageMap cannot be combined with the CAS loader")
     } else {
         None
     };

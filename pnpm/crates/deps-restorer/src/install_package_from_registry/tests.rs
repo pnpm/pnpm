@@ -79,7 +79,7 @@ fn create_config(
         modules_dir: modules_dir.to_path_buf(),
         macos_backup: Default::default(),
         node_linker: Default::default(),
-        node_experimental_package_map: false,
+        node_package_map_mode: Default::default(),
         node_package_map_type: Default::default(),
         symlink: false,
         install_state_dir: virtual_store_dir.to_path_buf(),

@@ -2,15 +2,16 @@ use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
     HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType, LinkWorkspacePackages,
-    LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting, NodePackageMapType,
-    PackageConfigsSetting, PackageExtension, PackageImportMethod, PackagePermissions, Path,
-    PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
-    RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings, ResolutionMode,
-    RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures, SystemEnv, TaskSettings, Tool,
-    ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings,
-    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
+    LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting, NodePackageMapMode,
+    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
+    PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
+    PythonSettings, RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures,
+    SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
+    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
+    drop_placeholders, fs, read_readable_settings, redact_and_sanitize, resolvable_placeholders,
+    resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -147,6 +148,15 @@ pub struct MacosBackupSettings {
     pub exclude_store_dir: Option<bool>,
 }
 
+/// The `nodePackageMap` section.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NodePackageMapSettings {
+    pub mode: Option<NodePackageMapMode>,
+    #[serde(rename = "type")]
+    pub map_type: Option<NodePackageMapType>,
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -221,6 +231,10 @@ pub struct WorkspaceSettings {
     pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinkerSetting>,
+    /// `nodePackageMap`. Wins over the deprecated
+    /// `nodeExperimentalPackageMap` and `nodePackageMapType` set in the same
+    /// source; see [`Self::apply_to`].
+    pub node_package_map: Option<NodePackageMapSettings>,
     pub node_experimental_package_map: Option<bool>,
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,

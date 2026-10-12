@@ -14,13 +14,13 @@ pub use sections::{
     TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub(crate) use settings::parse_settings;
-pub use settings::{MacosBackupSettings, WorkspaceSettings};
+pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinkerSetting, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
-    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType,
+    NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
+    VerifyDepsBeforeRun, VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
@@ -219,7 +219,6 @@ macro_rules! identically_named_settings {
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
-            node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
