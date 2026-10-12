@@ -550,6 +550,46 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 }
 
 #[tokio::test]
+async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
+    const ZSTD_FRAME_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
+
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app
+        .oneshot(
+            Request::get("/foo")
+                .header("accept-encoding", "zstd,gzip,deflate")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|value| value.to_str().ok()),
+        Some("zstd"),
+    );
+    let compressed = body_bytes(response.into_body()).await;
+    assert_eq!(compressed.get(..4), Some(&ZSTD_FRAME_MAGIC[..]));
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn packument_is_not_gzipped_without_accept_encoding() {
     let mut upstream = mockito::Server::new_async().await;
     let mock = upstream
