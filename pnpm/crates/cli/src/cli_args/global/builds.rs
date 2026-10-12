@@ -95,6 +95,7 @@ async fn rebuild_approved_groups<Reporter: self::Reporter + 'static>(
         let state = State::init(install_dir.join("package.json"), config, true)
             .wrap_err("initialize the global approve-builds state")?;
         let selection = crate::cli_args::rebuild::RebuildSelection {
+            snapshots: None,
             names: Some(build_packages),
             projects: Vec::new(),
         };
