@@ -112,6 +112,27 @@ The read-only store open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0. On 
 
 :::
 
+### storeIndexFormat
+
+Added in: v12.13.0
+
+* Default: **sqlite**
+* Type: **sqlite**, **files**
+
+How the store records which files each package has.
+
+* `sqlite` — one SQLite database, `index.db`. SQLite's locking only works between processes on one machine, so this format is for a store on a local disk.
+* `files` — one file per package in the `package-index` directory of the store. Use it for a store on a network filesystem that several machines use at once, such as a store shared by CI jobs. Each entry is written to a temporary file and renamed into place, so concurrent jobs need no locks.
+
+The format belongs to the store. pnpm creates the `package-index` directory the first time it writes to a store with `storeIndexFormat: files`, and from then on every pnpm process uses that directory for the store, whatever its own `storeIndexFormat` says. The packages recorded in an existing `index.db` are not carried over, so the first installs after switching download them again. To switch a store back to `sqlite`, delete its `package-index` directory.
+
+```yaml title="~/.config/pnpm/config.yaml"
+storeDir: /mnt/shared/pnpm-store
+storeIndexFormat: files
+```
+
+pnpm v11 reads only `index.db`, so it does not see the packages of a store that uses `files`.
+
 ## Lockfile Settings
 
 ### lockfile

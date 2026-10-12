@@ -363,8 +363,11 @@ impl<'a> InstallFrozenLockfile<'a> {
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+            &ctx.config.store_dir,
+            ctx.config.frozen_store,
+            ctx.config.store_index_format,
+        );
 
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 

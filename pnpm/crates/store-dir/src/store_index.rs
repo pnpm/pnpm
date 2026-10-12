@@ -1,3 +1,4 @@
+pub use files::PACKAGE_INDEX_DIR;
 pub use writer::StoreIndexWriter;
 
 use crate::StoreDir;
@@ -15,21 +16,46 @@ use std::{
 };
 use url::Url;
 
-/// SQLite-backed per-package index that pnpm v11 stores alongside the CAFS
-/// blobs. In the pacquet layout the file lives at
-/// `<store-root>/v11/index.db` — call [`StoreIndex::open_in`] with a
-/// [`StoreDir`] to hit that path, or [`StoreIndex::open`] with any directory
-/// to drop `index.db` right inside it (used by tests and tools).
+/// Per-package index that pnpm v11 stores alongside the CAFS blobs. By
+/// default it is an `SQLite` database at `<store-root>/v11/index.db` — call
+/// [`StoreIndex::open_in`] with a [`StoreDir`] to hit that path, or
+/// [`StoreIndex::open`] with any directory to drop `index.db` right inside it
+/// (used by tests and tools).
 ///
 /// Each row keys a package by its tarball integrity plus a package identifier
 /// and stores a msgpack-encoded [`PackageFilesIndex`]. The schema and PRAGMAs
 /// below match pnpm v11's on-disk index format so that the two tools can read
 /// each other's entries.
+///
+/// A store that has a [`PACKAGE_INDEX_DIR`] directory keeps one file per row
+/// there instead, for stores on a filesystem shared by several machines
+/// (`storeIndexFormat: files`). Every open detects the layout.
 pub struct StoreIndex {
-    conn: Connection,
-    // Fields drop in order: close SQLite before releasing its process lease.
-    #[cfg(target_os = "wasi")]
-    _lease: Arc<wasi_lease::IndexLease>,
+    backend: Backend,
+}
+
+enum Backend {
+    Sqlite {
+        conn: Connection,
+        // Fields drop in order: close SQLite before releasing its process lease.
+        #[cfg(target_os = "wasi")]
+        _lease: Arc<wasi_lease::IndexLease>,
+    },
+    Files(files::FilesIndex),
+}
+
+/// How a store keeps its package index: the `storeIndexFormat` setting.
+///
+/// The setting only decides the format of a store that has no per-file
+/// index yet. A store that has one keeps using it (see [`StoreIndex`]).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StoreIndexFormat {
+    /// One `SQLite` database, `index.db`.
+    #[default]
+    Sqlite,
+    /// One file per package under [`PACKAGE_INDEX_DIR`].
+    Files,
 }
 
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
@@ -67,6 +93,29 @@ pub enum StoreIndexError {
     #[display("Failed to create index.db at {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_FILE))]
     CreateFile {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display("Failed to create a store-index entry: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_ENTRY))]
+    CreateEntry {
+        #[error(source)]
+        source: pnpm_fs::EnsureFileError,
+    },
+
+    #[display("Failed to write the store-index entry at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE_ENTRY))]
+    WriteEntry {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display("Failed to read the store index at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_READ_ENTRY))]
+    ReadEntry {
         path: PathBuf,
         #[error(source)]
         source: std::io::Error,
@@ -137,6 +186,9 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
         pnpm_fs::file_mode::create_dir_all_inheriting_mode(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
@@ -170,11 +222,46 @@ impl StoreIndex {
         )
         .map_err(|source| StoreIndexError::InitSchema { source })?;
 
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+        ))
+    }
+
+    fn sqlite(
+        conn: Connection,
+        #[cfg(target_os = "wasi")] lease: Arc<wasi_lease::IndexLease>,
+    ) -> Self {
+        StoreIndex {
+            backend: Backend::Sqlite {
+                conn,
+                #[cfg(target_os = "wasi")]
+                _lease: lease,
+            },
+        }
+    }
+
+    fn detect_files(store_dir: &Path) -> Option<Self> {
+        files::FilesIndex::detect(store_dir)
+            .map(|index| StoreIndex { backend: Backend::Files(index) })
+    }
+
+    /// Whether the store at `store_dir` has an index to read, in either
+    /// format.
+    #[must_use]
+    pub fn exists(store_dir: &Path) -> bool {
+        store_dir.join("index.db").exists() || store_dir.join(PACKAGE_INDEX_DIR).is_dir()
+    }
+
+    /// Give the store at `store_dir` a per-file index if `format` asks for
+    /// one and the store has none yet. An existing per-file index is kept
+    /// whatever `format` says.
+    pub fn apply_format(store_dir: &Path, format: StoreIndexFormat) -> Result<(), StoreIndexError> {
+        match format {
+            StoreIndexFormat::Files => files::FilesIndex::create(store_dir),
+            StoreIndexFormat::Sqlite => Ok(()),
+        }
     }
 
     /// Open the `index.db` that lives directly under a [`StoreDir`]'s root.
@@ -197,6 +284,9 @@ impl StoreIndex {
     /// an immediate `SQLITE_BUSY` — i.e. a spurious cache miss that
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
         let db_path = store_dir.join("index.db");
         #[cfg(target_os = "wasi")]
         let lease = wasi_lease::acquire(&db_path, true)?;
@@ -204,11 +294,11 @@ impl StoreIndex {
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+        ))
     }
 
     /// Open an existing `index.db` from a store that is complete and
@@ -229,6 +319,9 @@ impl StoreIndex {
     /// No `busy_timeout` is set because an immutable connection takes no
     /// locks for it to wait on.
     pub fn open_immutable(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
         let db_path = store_dir.join("index.db");
         #[cfg(target_os = "wasi")]
         let lease = wasi_lease::acquire(&db_path, false)?;
@@ -238,11 +331,11 @@ impl StoreIndex {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
         )
         .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+        ))
     }
 
     /// Read-only counterpart to [`StoreIndex::open_in`].
@@ -252,9 +345,9 @@ impl StoreIndex {
 
     /// Open a read-only index wrapped in `Arc<Mutex<…>>` so it can be shared
     /// across the many cache lookups an install performs. Returns `None` if
-    /// `index.db` does not yet exist under the store — a first-time install
-    /// against an empty store — since there is nothing to read back and every
-    /// lookup would be a miss anyway.
+    /// the store has no index yet — a first-time install against an empty
+    /// store — since there is nothing to read back and every lookup would be
+    /// a miss anyway.
     ///
     /// Reusing one connection avoids reopening the `SQLite` database (and
     /// redoing its PRAGMAs) on every package, which otherwise scales
@@ -321,7 +414,7 @@ impl StoreIndex {
         open: fn(&Path) -> Result<Self, StoreIndexError>,
     ) -> Option<SharedReadonlyStoreIndex> {
         let store_root = store_dir.root();
-        if !store_root.join("index.db").exists() {
+        if !StoreIndex::exists(store_root) {
             return None;
         }
         open(store_root)
@@ -566,6 +659,8 @@ mod tests;
 mod writer;
 
 mod queries;
+
+mod files;
 
 #[cfg(target_os = "wasi")]
 mod wasi_lease;

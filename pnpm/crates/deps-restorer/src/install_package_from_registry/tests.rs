@@ -14,7 +14,7 @@ use pnpm_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir, StoreIndexFormat};
 use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
@@ -157,6 +157,7 @@ fn create_config(
         disallow_workspace_cycles: false,
         strict_store_pkg_content_check: true,
         frozen_store: false,
+        store_index_format: StoreIndexFormat::Sqlite,
         force: false,
         isolate_local_directory_imports: false,
         side_effects_cache: true,

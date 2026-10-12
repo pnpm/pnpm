@@ -326,12 +326,8 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     // than the verification cutoff.
     options.verification.resolution_policy = release_age_policy(config)?;
     options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
-    let store_index = store_index::StoreIndexSession::attach(
-        &mut options,
-        context.store.dir,
-        config.frozen_store,
-    )
-    .await;
+    let store_index =
+        store_index::StoreIndexSession::attach(&mut options, context.store.dir, config).await;
     let result = resolve_and_install_config_deps_updating::<Reporter>(
         config_dependencies,
         updates,

@@ -5,7 +5,7 @@ use super::{
     PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
     PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
     ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
+    SmartDefault, StoreDir, StoreIndexFormat, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
     WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
@@ -878,6 +878,10 @@ pub struct Config {
     ///
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
+
+    /// How a store without a package index yet keeps one: the
+    /// `storeIndexFormat` setting. See [`StoreIndexFormat`].
+    pub store_index_format: StoreIndexFormat,
 
     /// pnpm's `--force`. Refetch every package and re-materialize every
     /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)

@@ -170,7 +170,10 @@ fn readonly_index_reads_wal_commits_and_checkpointed_growth() {
             .set(&format!("pkg-{i:06}"), &initial)
             .unwrap();
     }
-    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    writer
+        .sqlite_conn()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
     let reader = StoreIndex::open_readonly(dir.path()).unwrap();
     assert_eq!(
         reader
@@ -194,7 +197,10 @@ fn readonly_index_reads_wal_commits_and_checkpointed_growth() {
             .as_ref(),
         Some(&added),
     );
-    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    writer
+        .sqlite_conn()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
     assert_eq!(reader.get("pkg-001099").unwrap(), Some(added));
     assert_eq!(reader.get("pkg-000000").unwrap(), Some(initial));
 }
@@ -211,9 +217,11 @@ fn delete_many_shrinks_index_db() {
             .map(|key| (key.clone(), sample_index())),
     )
     .unwrap();
-    idx.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    idx.sqlite_conn()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
     let pragma = |idx: &StoreIndex, name: &str| -> i64 {
-        idx.conn
+        idx.sqlite_conn()
             .query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
             .unwrap()
     };
@@ -350,7 +358,7 @@ fn get_decodes_msgpackr_records_rows() {
         0x65, 0x63, 0x6b, 0x65, 0x64, 0x41, 0x74, 0xa3, 0x61, 0x62, 0x63, 0xcd, 0x01, 0xa4, 0x11,
         0xcb, 0x42, 0x78, 0xbc, 0xfe, 0x56, 0x80, 0x00, 0x00,
     ];
-    idx.conn
+    idx.sqlite_conn()
         .execute(
             "INSERT INTO package_index (key, data) VALUES (?1, ?2)",
             rusqlite::params![key, msgpackr_row],
@@ -528,7 +536,7 @@ fn get_many_skips_undecodable_rows() {
     let good_key = store_index_key("sha512-good", "good@1.0.0");
     let bad_key = store_index_key("sha512-bad", "bad@1.0.0");
     idx.set(&good_key, &payload).unwrap();
-    idx.conn
+    idx.sqlite_conn()
         .execute(
             "INSERT INTO package_index (key, data) VALUES (?1, ?2)",
             rusqlite::params![&bad_key, &b"not msgpack"[..]],

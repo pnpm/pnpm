@@ -84,7 +84,8 @@ pub(super) async fn open_store_index_handles(
     caches: StoreCaches,
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
-    let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
+    let (writer, writer_task) =
+        StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
     StoreIndexHandles { index, writer, writer_task, caches }
 }
 

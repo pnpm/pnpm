@@ -217,6 +217,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
+* [storeIndexFormat](./settings/store.md#storeindexformat)
 
 ### Lockfile Settings
 

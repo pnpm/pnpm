@@ -17,8 +17,8 @@
 use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
     NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, StoreIndexFormat,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
@@ -184,6 +184,7 @@ impl WorkspaceSettings {
         tri_array_field!(settings, reader, public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(settings, reader, shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(settings, reader, store_dir, "STORE_DIR");
+        enum_field!(settings, reader, store_index_format, "STORE_INDEX_FORMAT", StoreIndexFormat);
         string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
         enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);

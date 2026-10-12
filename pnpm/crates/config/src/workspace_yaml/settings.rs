@@ -7,11 +7,11 @@ use super::{
     PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
     PythonSettings, RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
     ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, SupportedArchitectures,
-    SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
-    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
-    drop_placeholders, fs, read_readable_settings, redact_and_sanitize, resolvable_placeholders,
-    resolve_placeholders,
+    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, StoreIndexFormat,
+    SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
+    UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings, redact_and_sanitize,
+    resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -395,6 +395,9 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
+    /// `storeIndexFormat` from `pnpm-workspace.yaml`. See
+    /// [`crate::Config::store_index_format`].
+    pub store_index_format: Option<StoreIndexFormat>,
     /// `sideEffectsCache`: whether a build is restored, whether one is saved,
     /// and where from. A bare boolean sets reading and writing together.
     pub side_effects_cache: Option<SideEffectsCacheSetting>,

@@ -235,7 +235,7 @@ fn read_package_index(
     keys: Vec<String>,
     fallback_pkg_ids: Vec<String>,
 ) -> std::result::Result<Option<PackageFilesIndex>, StoreIndexError> {
-    if !store_dir.join("index.db").exists() {
+    if !StoreIndex::exists(store_dir) {
         return Ok(None);
     }
     let store_index = if frozen_store {
