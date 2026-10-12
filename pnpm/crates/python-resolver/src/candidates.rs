@@ -46,26 +46,32 @@ impl IndexFile {
     /// The digests of the metadata file, from whichever field publishes a
     /// SHA-256 for it, or else whichever says the file exists.
     fn metadata_digests(&self) -> Option<BTreeMap<String, String>> {
-        let declared = [&self.core_metadata, &self.dist_info_metadata]
+        let fields = [&self.core_metadata, &self.dist_info_metadata];
+        let field = fields
             .into_iter()
-            .filter_map(|value| match value {
-                serde_json::Value::Bool(true) => Some(BTreeMap::new()),
-                serde_json::Value::Object(digests) => Some(
+            .find(|field| field.get("sha256").is_some_and(serde_json::Value::is_string))
+            .or_else(|| {
+                fields
+                    .into_iter()
+                    .find(|field| {
+                        matches!(
+                            field,
+                            serde_json::Value::Bool(true) | serde_json::Value::Object(_),
+                        )
+                    })
+            })?;
+        Some(
+            field
+                .as_object()
+                .map_or_else(BTreeMap::new, |digests| {
                     digests
                         .iter()
                         .filter_map(|(name, digest)| {
                             Some((name.clone(), digest.as_str()?.to_string()))
                         })
-                        .collect::<BTreeMap<_, _>>(),
-                ),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let preferred = declared
-            .iter()
-            .position(|digests| digests.contains_key("sha256"))
-            .unwrap_or(0);
-        declared.into_iter().nth(preferred)
+                        .collect()
+                }),
+        )
     }
 }
 
