@@ -54,8 +54,12 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .without_ambient_pnpm_config()
 }
 
+/// How long [`wait_for_child`] and [`wait_for_child_output`] give a child
+/// before they stop it and fail the test.
+pub const CHILD_DEADLINE: Duration = Duration::from_secs(30);
+
 pub fn wait_for_child(child: &mut Child) -> ExitStatus {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + CHILD_DEADLINE;
     loop {
         if let Some(status) = child.try_wait().expect("read child status") {
             return status;
@@ -70,7 +74,7 @@ pub fn wait_for_child(child: &mut Child) -> ExitStatus {
 }
 
 pub fn wait_for_child_output(child: &mut Child, path: &Path, expected: &str) {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + CHILD_DEADLINE;
     loop {
         let output = fs::read_to_string(path).unwrap_or_default();
         if output.contains(expected) {

@@ -6,11 +6,17 @@
 
 #[cfg(unix)]
 use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::{CHILD_DEADLINE, wait_for_child};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -613,6 +619,11 @@ fn recursive_exec_report_summary_records_every_package_status() {
     drop(root);
 }
 
+/// The exec ending is what proves the bail terminated the two projects
+/// still in flight: their commands hold until something stops them, and
+/// pnpm waits for the commands it started, so an exec that cancelled
+/// nothing could not return. The summary's `running` entries prove both
+/// projects were in flight when the bail hit.
 #[test]
 fn recursive_exec_bail_cancels_in_flight_processes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -628,7 +639,7 @@ const name = require('path').basename(process.cwd())
 const mark = () => fs.writeFileSync('ran.txt', '')
 if (name === 'a-slow-1' || name === 'c-slow-2') {
   mark()
-  setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)
+  setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))
 } else if (name === 'b-fails') {
   let waited = 0
   const poll = () => {
@@ -645,23 +656,24 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
-    let output = pacquet
+    // `HOLD_MS` outlasts `wait_for_child`'s deadline, so an exec that
+    // cancels nothing trips that deadline instead of ending on its own.
+    // Nothing asserts on the hold elapsing: the timer only keeps a test
+    // that stops pnpm from leaving node behind.
+    let hold_ms = (CHILD_DEADLINE * 2).as_millis();
+    let stderr_path = workspace.join("exec.stderr");
+    let mut run = pacquet
         .with_args(["--workspace-concurrency=3", "--no-sort", "--report-summary", "-r", "exec"])
         .with_args(probe)
-        .output()
+        .env("HOLD_MS", hold_ms.to_string())
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the exec output"))
+        .spawn()
         .expect("spawn pacquet");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let status = wait_for_child(&mut run);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the exec output");
     eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "the failing project should fail the exec");
-    for name in ["a-slow-1", "c-slow-2"] {
-        assert!(
-            !workspace
-                .join(name)
-                .join("completed.txt")
-                .exists(),
-            "bail should interrupt {name}'s five-second command",
-        );
-    }
+    assert!(!status.success(), "the failing project should fail the exec");
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);
