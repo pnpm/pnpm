@@ -65,6 +65,41 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
   project.isExecutable('.bin/mime')
 })
 
+test('public hoist hands over to the retained version after a lockfile-only removal', async () => {
+  const project = prepareEmpty()
+  for (const [name, version] of [['a-old-runtime-user', '7.28.6'], ['b-current-runtime-user', '7.29.7']]) {
+    fs.mkdirSync(name)
+    fs.writeFileSync(path.join(name, 'package.json'), JSON.stringify({
+      name,
+      version: '1.0.0',
+      dependencies: { '@babel/runtime': version },
+    }))
+  }
+  const manifest = {
+    dependencies: {
+      'a-old-runtime-user': 'file:./a-old-runtime-user',
+      'b-current-runtime-user': 'file:./b-current-runtime-user',
+    },
+  }
+  const opts = { fastUnpack: false, hoistPattern: '*', publicHoistPattern: '*' }
+  const runtimeVersion = (): string => JSON.parse(fs.readFileSync('node_modules/@babel/runtime/package.json', 'utf8')).version
+
+  await install(manifest, testDefaults(opts))
+  expect(runtimeVersion()).toBe('7.28.6')
+
+  const updatedManifest = { dependencies: { 'b-current-runtime-user': manifest.dependencies['b-current-runtime-user'] } }
+  await install(updatedManifest, testDefaults({ ...opts, lockfileOnly: true }))
+  await install(updatedManifest, testDefaults({ ...opts, frozenLockfile: true }, { offline: true }, { offline: true }))
+
+  expect(runtimeVersion()).toBe('7.29.7')
+  expect(project.readModulesManifest()!.hoistedDependencies['@babel/runtime@7.29.7' as DepPath])
+    .toStrictEqual({ '@babel/runtime': 'public' })
+  expect(project.readModulesManifest()!.hoistedDependencies['@babel/runtime@7.28.6' as DepPath]).toBeUndefined()
+
+  await install(updatedManifest, testDefaults({ ...opts, frozenLockfile: true }, { offline: true }, { offline: true }))
+  expect(runtimeVersion()).toBe('7.29.7')
+})
+
 test('public hoist should not override directories that are already in the root of node_modules', async () => {
   const project = prepareEmpty()
   fs.mkdirSync('node_modules/debug', { recursive: true })
@@ -193,6 +228,51 @@ test('should rehoist after running a general install', async () => {
   expect(prevExpressModulePath).toEqual(currExpressModulePath)
 
   project.has('.pnpm/node_modules/debug') // debug hoisted because it is not a direct dep anymore
+})
+
+test('a filtered install after a removal keeps the other importers hoisted entries', async () => {
+  const rootManifestBefore = {
+    name: 'root',
+    dependencies: {
+      debug: '3.1.0',
+      express: '4.16.0',
+    },
+  }
+  const rootManifestAfter = {
+    name: 'root',
+    dependencies: {
+      express: '4.16.0',
+    },
+  }
+  const packageManifest = {
+    name: 'package',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const projects = preparePackages([
+    { location: '.', package: rootManifestBefore },
+    { location: 'package', package: packageManifest },
+  ])
+  const mutatedProjects: MutatedProject[] = [
+    { mutation: 'install', rootDir: process.cwd() as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('package') as ProjectRootDir },
+  ]
+  const allProjects = (rootManifest: { name: string, dependencies: Record<string, string> }) => [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: packageManifest, rootDir: path.resolve('package') as ProjectRootDir },
+  ]
+  await mutateModules(mutatedProjects, testDefaults({ allProjects: allProjects(rootManifestBefore), fastUnpack: false, hoistPattern: '*' }))
+  const hoistedDepOfPkg = (): boolean => Object.keys(projects['root'].readModulesManifest()!.hoistedDependencies)
+    .some((depPath) => depPath.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+  expect(hoistedDepOfPkg()).toBeTruthy()
+
+  // The lockfile-only resolve stands in for pulling a teammate's lockfile;
+  // the filtered install after it takes the headless path.
+  await mutateModules(mutatedProjects, testDefaults({ allProjects: allProjects(rootManifestAfter), fastUnpack: false, hoistPattern: '*', lockfileOnly: true }))
+  await mutateModules([mutatedProjects[0]], testDefaults({ allProjects: allProjects(rootManifestAfter), fastUnpack: false, hoistPattern: '*' }))
+
+  expect(hoistedDepOfPkg()).toBeTruthy()
 })
 
 test('should not override aliased dependencies', async () => {
