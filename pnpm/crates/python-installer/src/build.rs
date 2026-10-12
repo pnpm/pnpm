@@ -456,13 +456,25 @@ async fn run_hook<Output: serde::de::DeserializeOwned>(
         .join(if cfg!(windows) { "python.exe" } else { "python" })
         .display()
         .to_string();
-    // An unset PATH adds no entry: an empty one would search the project.
-    let inherited = std::env::var_os("PATH");
-    let path = pnpm_fs::join_paths(
-        std::iter::once(scripts).chain(inherited.iter().flat_map(pnpm_fs::split_paths)),
-    )
-    .into_diagnostic()
-    .wrap_err_with(|| format!("put {} on the PATH", environment.display()))?;
+    let path = hook_path(scripts, std::env::var_os("PATH").as_deref())
+        .into_diagnostic()
+        .wrap_err_with(|| format!("put {} on the PATH", environment.display()))?;
     let program = host::Program { path: Some(&path), ..host::Program::new(&interpreter) };
     host::run_program(program, operation, request).await
 }
+
+/// `scripts` followed by the non-empty entries of `inherited`. An empty
+/// entry names the directory a hook runs in, which is the project.
+fn hook_path(
+    scripts: std::path::PathBuf,
+    inherited: Option<&std::ffi::OsStr>,
+) -> Result<std::ffi::OsString, pnpm_fs::JoinPathsError> {
+    let inherited = inherited
+        .into_iter()
+        .flat_map(pnpm_fs::split_paths)
+        .filter(|directory| !directory.as_os_str().is_empty());
+    pnpm_fs::join_paths(std::iter::once(scripts).chain(inherited))
+}
+
+#[cfg(test)]
+mod tests;
