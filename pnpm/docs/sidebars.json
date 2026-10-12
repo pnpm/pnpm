@@ -107,7 +107,8 @@
             "cli/owner",
             "cli/team",
             "cli/star",
-            "cli/ping"
+            "cli/ping",
+            "cli/token"
           ]
         },
         {
