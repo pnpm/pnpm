@@ -65,6 +65,41 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
   project.isExecutable('.bin/mime')
 })
 
+test('public hoist hands over to the retained version after a lockfile-only removal', async () => {
+  const project = prepareEmpty()
+  for (const [name, version] of [['a-old-runtime-user', '7.28.6'], ['b-current-runtime-user', '7.29.7']]) {
+    fs.mkdirSync(name)
+    fs.writeFileSync(path.join(name, 'package.json'), JSON.stringify({
+      name,
+      version: '1.0.0',
+      dependencies: { '@babel/runtime': version },
+    }))
+  }
+  const manifest = {
+    dependencies: {
+      'a-old-runtime-user': 'file:./a-old-runtime-user',
+      'b-current-runtime-user': 'file:./b-current-runtime-user',
+    },
+  }
+  const opts = { fastUnpack: false, hoistPattern: '*', publicHoistPattern: '*' }
+  const runtimeVersion = (): string => JSON.parse(fs.readFileSync('node_modules/@babel/runtime/package.json', 'utf8')).version
+
+  await install(manifest, testDefaults(opts))
+  expect(runtimeVersion()).toBe('7.28.6')
+
+  const updatedManifest = { dependencies: { 'b-current-runtime-user': manifest.dependencies['b-current-runtime-user'] } }
+  await install(updatedManifest, testDefaults({ ...opts, lockfileOnly: true }))
+  await install(updatedManifest, testDefaults({ ...opts, frozenLockfile: true }, { offline: true }, { offline: true }))
+
+  expect(runtimeVersion()).toBe('7.29.7')
+  expect(project.readModulesManifest()!.hoistedDependencies['@babel/runtime@7.29.7' as DepPath])
+    .toStrictEqual({ '@babel/runtime': 'public' })
+  expect(project.readModulesManifest()!.hoistedDependencies['@babel/runtime@7.28.6' as DepPath]).toBeUndefined()
+
+  await install(updatedManifest, testDefaults({ ...opts, frozenLockfile: true }, { offline: true }, { offline: true }))
+  expect(runtimeVersion()).toBe('7.29.7')
+})
+
 test('public hoist should not override directories that are already in the root of node_modules', async () => {
   const project = prepareEmpty()
   fs.mkdirSync('node_modules/debug', { recursive: true })
