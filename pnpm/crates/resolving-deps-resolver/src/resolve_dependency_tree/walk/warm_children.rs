@@ -102,7 +102,10 @@ pub(super) async fn warm_result_children<Chain>(
 ) where
     Chain: Resolver + ?Sized,
 {
-    if children_warmup_claimed(ctx, parent.claim_id) {
+    let importer_claim_id = importer_claim_id(ctx, parent.claim_id);
+    if children_warmup_claimed(ctx, parent.claim_id)
+        || children_warmup_claimed(ctx, &importer_claim_id)
+    {
         return;
     }
     let Some(specs) =
@@ -111,7 +114,12 @@ pub(super) async fn warm_result_children<Chain>(
         return;
     };
     let (warmed, skipped_any) = children_to_warm(ctx, scope, &specs, depth + 1);
-    if !skipped_any && !claim_children_warmup(ctx, parent.claim_id) {
+    // A package some of whose children this importer left to lockfile
+    // reuse is claimed for this importer only: another importer, with
+    // another update scope, may have to warm them. The claim still stops
+    // a dependency cycle from being warmed again and again.
+    let claim_id = if skipped_any { importer_claim_id.as_str() } else { parent.claim_id };
+    if !claim_children_warmup(ctx, claim_id) {
         return;
     }
     let opts = ctx.opts_for_depth(depth + 1);
@@ -124,6 +132,13 @@ pub(super) async fn warm_result_children<Chain>(
         })
         .pipe(future::join_all)
         .await;
+}
+
+/// The key a package's warm-up is claimed under for the current importer
+/// alone. A package id never contains a tab, so the key cannot collide
+/// with a plain id.
+fn importer_claim_id(ctx: &TreeCtx, pkg_id: &str) -> String {
+    format!("{}\t{pkg_id}", ctx.importer.id)
 }
 
 /// The children of a node to warm, with their lockfile keys, and whether

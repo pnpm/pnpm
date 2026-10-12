@@ -625,8 +625,64 @@ async fn warm_up_leaves_a_package_with_a_skipped_child_to_the_next_importer() {
     .expect("resolve");
 
     assert_eq!(
-        resolver.calls_for("c", "^1.0.0"),
-        2,
-        "importer b warms `c`, which the root importer skipped, before its walk resolves it",
+        resolver.callers_of("c", "^1.0.0"),
+        vec![std::path::PathBuf::from("/repo/b"); 2],
+        "importer b warms `c`, which the root importer skipped, then its walk resolves it",
     );
+}
+
+/// Two packages that depend on each other, each with a child the walk
+/// reuses from the lockfile. Neither is fully warmed, so neither takes
+/// the shared claim; the warm-up must still stop going round the cycle.
+#[tokio::test]
+async fn warm_up_of_a_cycle_with_reused_children_terminates() {
+    // The walk asks for the lockfile's exact versions as well as the
+    // manifests' ranges.
+    let table = [
+        ("a", deps(&[("b", "^1.0.0"), ("side-a", "^1.0.0"), ("fresh", "^1.0.0")])),
+        ("b", deps(&[("a", "^1.0.0"), ("side-b", "^1.0.0"), ("fresh", "^1.0.0")])),
+        ("side-a", serde_json::json!({})),
+        ("side-b", serde_json::json!({})),
+        ("fresh", serde_json::json!({})),
+    ];
+    let resolver = WarmupProbeResolver::new(
+        table
+            .iter()
+            .flat_map(|(name, manifest)| {
+                ["^1.0.0", "1.0.0"].map(|range| {
+                    (
+                        (name.to_string(), range.to_string()),
+                        fake_result(name, "1.0.0", None, manifest.clone()),
+                    )
+                })
+            })
+            .collect(),
+    );
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("a", "^1.0.0", "1.0.0")],
+        &[
+            ("a@1.0.0", &[("b", "1.0.0"), ("side-a", "1.0.0"), ("fresh", "1.0.0")]),
+            ("b@1.0.0", &[("a", "1.0.0"), ("side-b", "1.0.0"), ("fresh", "1.0.0")]),
+            ("side-a@1.0.0", &[]),
+            ("side-b@1.0.0", &[]),
+        ],
+        &[],
+    );
+    // `fresh` has no snapshot, so `a` and `b` are resolved rather than
+    // reused, and their side children stay reusable.
+    let fresh_key: pnpm_lockfile::PkgNameVerPeer = "fresh@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&fresh_key);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+        .await
+        .expect("the warm-up does not go round the cycle forever");
+
+    assert!(resolver.calls_for("a", "^1.0.0") <= 2, "`a` is warmed at most once per importer");
+    assert!(resolver.calls_for("b", "^1.0.0") <= 2, "`b` is warmed at most once per importer");
 }
