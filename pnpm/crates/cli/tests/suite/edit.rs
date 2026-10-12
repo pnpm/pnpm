@@ -508,3 +508,62 @@ fn edit_does_not_publish_modified_files_to_the_shared_build_cache() {
     drop(npmrc_info);
     drop(root);
 }
+
+#[test]
+fn edit_rejects_linked_workspace_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    fs::create_dir_all(workspace.join("packages/linked")).unwrap();
+    fs::write(
+        workspace.join("packages/linked/package.json"),
+        r#"{"name":"linked","version":"1.0.0"}"#,
+    )
+    .unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"linked":"workspace:*"}}"#)
+        .unwrap();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = pacquet(&workspace)
+        .with_args(["edit", "linked", "--editor", "node -e 'process.exit(0)'"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("outside the expected node_modules tree"), "{stderr}");
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn edit_preserves_an_unreadable_hardlink_when_detaching_fails() {
+    use std::os::unix::fs::PermissionsExt;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"is-positive":"1.0.0"}}"#)
+        .unwrap();
+    append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let package_file = workspace.join("node_modules/is-positive/index.js");
+    let original = fs::read(&package_file).unwrap();
+    let store_copy = root.path().join("store-copy.js");
+    fs::hard_link(&package_file, &store_copy).unwrap();
+    let permissions = fs::metadata(&package_file).unwrap().permissions();
+    fs::set_permissions(&package_file, fs::Permissions::from_mode(0o000)).unwrap();
+    let output = pacquet(&workspace)
+        .with_args(["edit", "is-positive", "--editor", "node -e 'process.exit(0)'"])
+        .output()
+        .unwrap();
+    fs::set_permissions(&store_copy, permissions).unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Failed to break store hard links"), "{stderr}");
+    assert_eq!(fs::read(&package_file).unwrap(), original);
+    assert_eq!(fs::read(&store_copy).unwrap(), original);
+    drop(npmrc_info);
+    drop(root);
+}
