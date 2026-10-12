@@ -230,6 +230,51 @@ test('should rehoist after running a general install', async () => {
   project.has('.pnpm/node_modules/debug') // debug hoisted because it is not a direct dep anymore
 })
 
+test('a filtered install after a removal keeps the other importers hoisted entries', async () => {
+  const rootManifestBefore = {
+    name: 'root',
+    dependencies: {
+      debug: '3.1.0',
+      express: '4.16.0',
+    },
+  }
+  const rootManifestAfter = {
+    name: 'root',
+    dependencies: {
+      express: '4.16.0',
+    },
+  }
+  const packageManifest = {
+    name: 'package',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const projects = preparePackages([
+    { location: '.', package: rootManifestBefore },
+    { location: 'package', package: packageManifest },
+  ])
+  const mutatedProjects: MutatedProject[] = [
+    { mutation: 'install', rootDir: process.cwd() as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('package') as ProjectRootDir },
+  ]
+  const allProjects = (rootManifest: { name: string, dependencies: Record<string, string> }) => [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: packageManifest, rootDir: path.resolve('package') as ProjectRootDir },
+  ]
+  await mutateModules(mutatedProjects, testDefaults({ allProjects: allProjects(rootManifestBefore), fastUnpack: false, hoistPattern: '*' }))
+  const hoistedDepOfPkg = (): boolean => Object.keys(projects['root'].readModulesManifest()!.hoistedDependencies)
+    .some((depPath) => depPath.startsWith('@pnpm.e2e/dep-of-pkg-with-1-dep@'))
+  expect(hoistedDepOfPkg()).toBeTruthy()
+
+  // The lockfile-only resolve stands in for pulling a teammate's lockfile;
+  // the filtered install after it takes the headless path.
+  await mutateModules(mutatedProjects, testDefaults({ allProjects: allProjects(rootManifestAfter), fastUnpack: false, hoistPattern: '*', lockfileOnly: true }))
+  await mutateModules([mutatedProjects[0]], testDefaults({ allProjects: allProjects(rootManifestAfter), fastUnpack: false, hoistPattern: '*' }))
+
+  expect(hoistedDepOfPkg()).toBeTruthy()
+})
+
 test('should not override aliased dependencies', async () => {
   const project = prepareEmpty()
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias

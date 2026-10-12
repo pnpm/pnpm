@@ -344,7 +344,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
-      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
+      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)) ||
+      lockfileRemovesPackages(currentLockfile, wantedLockfile),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -380,6 +381,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
   }
   const depNodes = Object.values(graph)
+  // Unfetched nodes were already materialized. They are included for hoisting,
+  // not to run their scripts or re-apply their patches.
+  for (const depNode of depNodes) {
+    if (depNode.fetching == null) depNode.isBuilt = true
+  }
 
   const added = depNodes.filter(({ fetching }) => fetching).length
   statsLogger.debug({
@@ -448,37 +454,41 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
 
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
-      newHoistedDependencies = {
-        ...opts.hoistedDependencies,
-        ...await hoist({
-          extraNodePath: opts.extraNodePaths,
-          graph,
-          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
-            projectId,
-            new Map(Object.entries(deps)),
-          ])),
-          importerIds,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          privateHoistedModulesDir: hoistedModulesDir,
-          privateHoistPattern: opts.hoistPattern ?? [],
-          publicHoistedModulesDir,
-          publicHoistPattern: opts.publicHoistPattern ?? [],
-          virtualStoreDir,
-          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-          hoistedWorkspacePackages: opts.hoistWorkspacePackages
-            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-              if (project.manifest.name && project.id !== '.') {
-                hoistedWorkspacePackages[project.id] = {
-                  dir: project.rootDir,
-                  name: project.manifest.name,
-                }
+      const hoisted = await hoist({
+        extraNodePath: opts.extraNodePaths,
+        graph,
+        directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+          projectId,
+          new Map(Object.entries(deps)),
+        ])),
+        importerIds,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        privateHoistedModulesDir: hoistedModulesDir,
+        privateHoistPattern: opts.hoistPattern ?? [],
+        publicHoistedModulesDir,
+        publicHoistPattern: opts.publicHoistPattern ?? [],
+        virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
               }
-              return hoistedWorkspacePackages
-            }, {} as Record<string, HoistedWorkspaceProject>)
-            : undefined,
-          skipped: opts.skipped,
-        }),
-      }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
+        skipped: opts.skipped,
+      }) ?? {}
+      // Only a full graph covering all importers can replace the recorded map.
+      // Filtered or incremental installs must preserve the other entries.
+      const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
+        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+      newHoistedDependencies = hoistMapIsComplete
+        ? hoisted
+        : { ...opts.hoistedDependencies, ...hoisted }
     } else {
       newHoistedDependencies = {}
     }
@@ -857,6 +867,15 @@ async function getRootPackagesToLink (
 }
 
 const limitLinking = pLimit(16)
+
+// Compare with the full wanted lockfile so a filtered install is not mistaken
+// for a package removal. Removals change the hoist eligibility of retained deps.
+function lockfileRemovesPackages (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject): boolean {
+  if (currentLockfile?.packages == null) return false
+  const wantedPackages = wantedLockfile.packages
+  if (wantedPackages == null) return Object.keys(currentLockfile.packages).length > 0
+  return Object.keys(currentLockfile.packages).some((depPath) => wantedPackages[depPath as DepPath] == null)
+}
 
 async function linkAllPkgs (
   storeController: StoreController,
