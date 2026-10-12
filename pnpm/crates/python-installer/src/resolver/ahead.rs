@@ -1,4 +1,4 @@
-use super::super::registry::{CachedIndex, Fetcher, Registry};
+use super::super::registry::{CachedIndex, Fetcher, Registry, checked_metadata_digests};
 use futures_util::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use miette::Result;
 use pep440_rs::{Version, VersionSpecifiers};
@@ -340,7 +340,7 @@ impl<'a> Ahead<'a> {
         candidate: &IndexCandidate,
     ) {
         let key = (name.clone(), version.clone());
-        if candidate.core_metadata.is_none()
+        if checked_metadata_digests(candidate).is_none()
             || registry.resolution.packages.metadata.contains_key(&key)
             || self.unpublished.contains(&key)
             // A wheel this target cannot install is refused where the

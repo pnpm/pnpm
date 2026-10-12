@@ -147,7 +147,7 @@ Sharing is decided per workspace, so a repository can share an environment where
 
 ## Resolution
 
-pnpm reads what each release requires from the metadata file the index publishes beside its wheel ([PEP 658](https://peps.python.org/pep-0658/)), and downloads the wheel only once the release is selected. For an index that publishes no metadata file, pnpm reads the requirements out of the wheel. Index pages and metadata files are read in parallel, up to [`networkConcurrency`](./settings/network.md#networkconcurrency) at a time.
+pnpm reads what each release requires from the metadata file the index publishes beside its wheel ([PEP 658](https://peps.python.org/pep-0658/)), and downloads the wheel only once the release is selected. For an index that publishes no metadata file, or no SHA-256 to check it against, pnpm reads the requirements out of the wheel. Index pages and metadata files are read in parallel, up to [`networkConcurrency`](./settings/network.md#networkconcurrency) at a time.
 
 ### Faster resolution through pnpr
 

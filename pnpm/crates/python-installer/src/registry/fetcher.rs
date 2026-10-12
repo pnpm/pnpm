@@ -6,7 +6,7 @@ use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_python_resolver::{IndexCandidate, WheelMetadata, matches_published_digest, metadata_url};
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 use tokio::io::AsyncReadExt;
 use url::Url;
 
@@ -73,15 +73,16 @@ impl Fetcher<'_> {
 
     /// The `METADATA` the index publishes beside the wheel of `candidate`
     /// (PEP 658), or `None` when there is none to read: the index
-    /// publishes no such file, or an offline resolution has not cached it.
-    /// The caller then reads the metadata out of the wheel.
+    /// publishes no such file or no SHA-256 to check it against, or an
+    /// offline resolution has not cached it. The caller then reads the
+    /// metadata out of the wheel.
     pub(in super::super) async fn core_metadata(
         self,
         name: &PackageName,
         version: &Version,
         candidate: &IndexCandidate,
     ) -> Result<Option<WheelMetadata>> {
-        let Some(digests) = &candidate.core_metadata else { return Ok(None) };
+        let Some(digests) = checked_metadata_digests(candidate) else { return Ok(None) };
         let filename = &candidate.wheel.name;
         let url = metadata_url(&Url::parse(&candidate.wheel.url).into_diagnostic()?);
         let cache = self.config.cache_dir
@@ -137,6 +138,16 @@ impl Fetcher<'_> {
         }
         Ok(Some(response.body))
     }
+}
+
+/// The digests of the metadata file the index publishes beside the wheel
+/// of `candidate`, when they include a SHA-256 to check the file against.
+pub(in super::super) fn checked_metadata_digests(
+    candidate: &IndexCandidate,
+) -> Option<&BTreeMap<String, String>> {
+    candidate.core_metadata
+        .as_ref()
+        .filter(|digests| digests.contains_key("sha256"))
 }
 
 /// A metadata file an earlier run cached, or `None` when none is cached

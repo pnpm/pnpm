@@ -1,4 +1,4 @@
-pub(super) use fetcher::Fetcher;
+pub(super) use fetcher::{Fetcher, checked_metadata_digests};
 
 mod fetcher;
 

@@ -26,6 +26,11 @@ impl Release {
     }
 
     fn page(&self, metadata_digest: &str) -> String {
+        self.page_declaring(&json!({"sha256": metadata_digest}))
+    }
+
+    /// The index page, declaring the metadata file as `core_metadata`.
+    fn page_declaring(&self, core_metadata: &serde_json::Value) -> String {
         let archive = wheel(self.name, "1.0", self.requires, &[]);
         json!({
             "meta": {"api-version": "1.0"},
@@ -34,7 +39,7 @@ impl Release {
                 "filename": self.filename(),
                 "url": format!("/files/{}", self.filename()),
                 "hashes": {"sha256": format!("{:x}", Sha256::digest(&archive))},
-                "core-metadata": {"sha256": metadata_digest},
+                "core-metadata": core_metadata,
             }],
         })
         .to_string()
@@ -155,6 +160,79 @@ async fn a_metadata_file_the_index_does_not_serve_is_read_from_the_wheel() {
         .assert()
         .success();
     wheel_download.assert_async().await;
+}
+
+/// A metadata file the index publishes no SHA-256 for has nothing to be
+/// checked against, so the metadata is read out of the wheel.
+#[tokio::test]
+async fn a_metadata_file_without_a_sha256_is_read_from_the_wheel() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _page = server
+        .mock("GET", "/simple/beta/")
+        .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+        .with_body(BETA.page_declaring(&json!(true)))
+        .create_async()
+        .await;
+    let metadata = server
+        .mock("GET", format!("/files/{}.metadata", BETA.filename()).as_str())
+        .with_body(BETA.metadata())
+        .expect(0)
+        .create_async()
+        .await;
+    let wheel_download = server
+        .mock("GET", format!("/files/{}", BETA.filename()).as_str())
+        .with_body(wheel("beta", "1.0", "", &[]))
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    project(root.path(), &server.url(), &["beta"]);
+
+    pacquet_in(root.path())
+        .args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    metadata.assert_async().await;
+    wheel_download.assert_async().await;
+}
+
+/// Installing reads each wheel's own metadata, so a wheel that requires
+/// more than its metadata file said is refused rather than installed
+/// without what it requires.
+#[tokio::test]
+async fn an_install_refuses_a_wheel_that_requires_more_than_its_metadata_file() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let unrequiring = Release { name: "alpha", requires: "" };
+    let mut mocks = serve_release(&mut server, &BETA, None).await;
+    mocks.push(
+        server
+            .mock("GET", "/simple/alpha/")
+            .with_header("content-type", "application/vnd.pypi.simple.v1+json")
+            .with_body(ALPHA.page(&unrequiring.digest()))
+            .create_async()
+            .await,
+    );
+    mocks.push(
+        server
+            .mock("GET", format!("/files/{}.metadata", ALPHA.filename()).as_str())
+            .with_body(unrequiring.metadata())
+            .create_async()
+            .await,
+    );
+    mocks.push(
+        server
+            .mock("GET", format!("/files/{}", ALPHA.filename()).as_str())
+            .with_body(wheel("alpha", "1.0", ALPHA.requires, &[]))
+            .create_async()
+            .await,
+    );
+    project(root.path(), &server.url(), &["alpha"]);
+
+    assert_failure_contains(
+        pacquet_in(root.path()).arg("install"),
+        "Python lockfile does not satisfy the project",
+    );
 }
 
 /// An offline resolution reads the metadata files an earlier run cached.

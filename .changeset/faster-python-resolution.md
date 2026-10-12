@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Python dependencies resolve much faster. `pnpm install` now reads each release's requirements from the metadata file the index publishes beside its wheel (PEP 658), and reads index pages and metadata files in parallel. Wheels are downloaded only for the releases the resolution selects. On a project with 10 dependencies, `pnpm install --lockfile-only` dropped from about 40 seconds to about 4.
+Python dependencies resolve much faster. `pnpm install` now reads index pages and metadata files in parallel. When the index publishes a metadata file beside a wheel (PEP 658), as PyPI does, pnpm reads the release's requirements from it and downloads only the wheels of the releases it selects. On a project with 10 dependencies, `pnpm install --lockfile-only` dropped from about 40 seconds to about 4.
