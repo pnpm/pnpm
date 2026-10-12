@@ -17,6 +17,8 @@ Edits apply to the installed files in your project. pnpm breaks their hard links
 
 Choose the editor command. You can include arguments, such as `code --wait`.
 
+Set `editor` in `pnpm-workspace.yaml` or the global configuration file to choose a default. You can also set `PNPM_CONFIG_EDITOR`.
+
 Without this option, pnpm uses the configured editor, then `EDITOR`, then `VISUAL`, then `notepad` on Windows or `vi` on other systems.
 
 A bare editor command must resolve to an executable outside your project. To select an editor inside the project explicitly, provide its path with `--editor`.
