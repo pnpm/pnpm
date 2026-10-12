@@ -93,8 +93,8 @@ pub fn find_resume_root(
 /// returning them alongside the package patterns that selected them.
 /// Shared by recursive `run` / `exec` / `pack` so all discover the same
 /// set before [`select_recursive_projects`] narrows it. The patterns feed
-/// the root-only guard of [`AutoExcludeRoot`]; `None` means no
-/// `pnpm-workspace.yaml` was found.
+/// [`keeps_workspace_root`]; `None` means no `pnpm-workspace.yaml` was
+/// found or `--ignore-workspace` is set.
 ///
 /// The patterns come from `config.workspace_package_patterns`, already
 /// resolved from `--workspace-packages` or the manifest's `packages`.
@@ -516,7 +516,9 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
 /// - `includeWorkspaceRoot` is set.
 /// - `workspace_patterns` lists only the root, so excluding it would empty
 ///   the selection.
-/// - `workspace_patterns` is `None`: there is no `pnpm-workspace.yaml`.
+/// - `workspace_patterns` is `None`: there is no `pnpm-workspace.yaml`, or
+///   `--ignore-workspace` is set and the root is kept alongside every
+///   nested project.
 pub(crate) fn keeps_workspace_root(config: &Config, workspace_patterns: Option<&[String]>) -> bool {
     config.include_workspace_root || workspace_patterns.is_none_or(is_root_only_patterns)
 }

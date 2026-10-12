@@ -49,7 +49,7 @@ pub(super) fn build_full_graph<'a>(
 pub struct Selection {
     /// The projects whose pipeline tasks the run requests: the changed
     /// projects and their dependents, without the workspace root unless
-    /// `SelectAffectedOptions::include_workspace_root` is set.
+    /// `SelectAffectedOptions::keeps_workspace_root` is set.
     pub requested: Vec<PathBuf>,
     /// The dependency closure of `requested` — the projects the task
     /// graph spans. The extra projects participate only through
@@ -76,7 +76,7 @@ pub(super) struct SelectAffectedOptions<'a> {
     pub(super) graph: &'a ProjectGraph<GraphPkg<'a>>,
     pub(super) workspace_root: &'a Path,
     /// See [`keeps_workspace_root`](crate::cli_args::recursive::keeps_workspace_root).
-    pub(super) include_workspace_root: bool,
+    pub(super) keeps_workspace_root: bool,
     pub(super) base: &'a str,
     pub(super) full: bool,
     pub(super) config: &'a Config,
@@ -88,7 +88,7 @@ pub(super) fn select_affected_projects(
 ) -> miette::Result<Selection> {
     let all_dirs: Vec<PathBuf> = options.graph
         .keys()
-        .filter(|dir| options.include_workspace_root || dir.as_path() != options.workspace_root)
+        .filter(|dir| options.keeps_workspace_root || dir.as_path() != options.workspace_root)
         .cloned()
         .collect();
 
@@ -158,7 +158,7 @@ fn with_transitive_dependencies(
             .map(|node| node.dependencies.as_slice())
             .unwrap_or_default();
         for dependency in dependencies {
-            if (options.include_workspace_root || dependency.as_path() != options.workspace_root)
+            if (options.keeps_workspace_root || dependency.as_path() != options.workspace_root)
                 && selected.insert(dependency.clone())
             {
                 stack.push(dependency.clone());
@@ -278,7 +278,7 @@ fn affected_selection(
     // A project whose only changes match `testPattern` is selected itself
     // without pulling in its dependents.
     affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
-    if !options.include_workspace_root {
+    if !options.keeps_workspace_root {
         affected.remove(options.workspace_root);
     }
     let selected = with_transitive_dependencies(options, &affected);

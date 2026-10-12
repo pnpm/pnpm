@@ -10,6 +10,7 @@ fn pipeline(project: &Path, config_home: &Path, args: &[&str]) -> Assert {
         .without_ambient_pnpm_config()
         .current_dir(project)
         .env("XDG_CONFIG_HOME", config_home)
+        .env("XDG_CACHE_HOME", config_home.join("cache"))
         .arg("pipeline")
         .args(args)
         .assert()

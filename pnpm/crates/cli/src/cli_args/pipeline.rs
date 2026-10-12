@@ -142,7 +142,7 @@ pub fn run_pipeline(
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
         workspace_root: run.workspace_root,
-        include_workspace_root: keeps_workspace_root(config, patterns.as_deref()),
+        keeps_workspace_root: keeps_workspace_root(config, patterns.as_deref()),
         base: &base,
         full: invocation.full,
         config,
