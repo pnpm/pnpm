@@ -187,6 +187,29 @@ test('uninstall package with its bin files', async () => {
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
 })
 
+test('uninstall package whose bins are declared through directories.bin', async () => {
+  prepareEmpty()
+  const pkgDir = path.resolve('..', 'dir-bin-pkg')
+  fs.mkdirSync(path.join(pkgDir, 'bin'), { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'dir-bin-cmd'), '#!/usr/bin/env node\n')
+  writeJsonFile.sync(path.join(pkgDir, 'package.json'), {
+    name: 'dir-bin-pkg',
+    version: '1.0.0',
+    directories: { bin: 'bin' },
+  })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`link:${pkgDir}`], testDefaults({ save: true }))
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'dir-bin-cmd'))).toBeTruthy()
+
+  await mutateModulesInSingleProject({
+    dependencyNames: ['dir-bin-pkg'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ save: true }))
+
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'dir-bin-cmd'))).toBeFalsy()
+})
+
 test('relative link is uninstalled', async () => {
   const project = prepareEmpty()
   const opts = testDefaults({ manifest: {}, dir: process.cwd() })
