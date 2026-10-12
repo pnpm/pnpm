@@ -98,7 +98,7 @@ pub enum HoistedLinkerError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
     #[diagnostic(transparent)]
-    PruneWorkspaceHoists(#[error(source)] crate::PruneDirectDepsError),
+    PruneStaleLinks(#[error(source)] crate::PruneDirectDepsError),
     #[diagnostic(transparent)]
     HoistSymlink(#[error(source)] SymlinkPackageError),
     #[diagnostic(transparent)]
@@ -129,6 +129,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
     unlink_prior_workspace_hoists(inputs)?;
+    unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
@@ -379,7 +380,21 @@ fn unlink_prior_workspace_hoists(
         inputs.prior.hoisted_dependencies,
         None,
     )
-    .map_err(HoistedLinkerError::PruneWorkspaceHoists)
+    .map_err(HoistedLinkerError::PruneStaleLinks)
+}
+
+/// Runs before the linker writes the tree, so a package that replaces a
+/// removed `link:` dependency is not imported through the old link.
+fn unlink_stale_direct_links(inputs: &HoistedLinkerInputs<'_>) -> Result<(), HoistedLinkerError> {
+    let Some(current_lockfile) = inputs.prior.current_lockfile else { return Ok(()) };
+    crate::prune_stale_modules::prune_stale_hoisted_direct_links(
+        inputs.projects.symlink_workspace_root,
+        inputs.config.modules_dir_name(),
+        inputs.graph.lockfile,
+        current_lockfile,
+        inputs.projects.dependency_groups,
+    )
+    .map_err(HoistedLinkerError::PruneStaleLinks)
 }
 
 /// `hoist-workspace-packages` under this linker: every package lives in

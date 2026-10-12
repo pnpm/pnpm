@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
@@ -104,4 +107,29 @@ test('uninstall package with dependencies and do not touch other deps', async ()
       version: '2.1.0',
     },
   })
+})
+
+test('uninstall a linked dependency', async () => {
+  prepareEmpty()
+  const localPkgDir = path.resolve('..', 'local-pkg')
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({ name: '@local/pkg', version: '1.0.0' }))
+
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['link:../local-pkg'],
+    testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+  expect(fs.lstatSync('node_modules/@local/pkg').isSymbolicLink()).toBe(true)
+
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['@local/pkg'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ nodeLinker: 'hoisted', save: true }))).updatedProject.manifest
+
+  expect(manifest.dependencies).toStrictEqual({})
+  expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
+  expect(fs.existsSync(path.join(localPkgDir, 'package.json'))).toBe(true)
 })

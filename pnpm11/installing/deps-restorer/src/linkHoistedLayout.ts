@@ -14,6 +14,7 @@ import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './co
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
+import { unlinkStaleDirectLinks } from './unlinkStaleDirectLinks.js'
 import { getHoistedWorkspacePackages, removeBinsOfWorkspaceHoists } from './workspaceHoists.js'
 
 export interface HoistedLayout {
@@ -32,6 +33,7 @@ export async function linkHoistedLayout (ctx: HeadlessContext, depGraph: Headles
     // a project's name keeps the modules directory of what it replaces, which
     // through the symlink is the project's own node_modules.
     await unlinkPriorWorkspaceHoists(ctx)
+    await unlinkStaleDirectLinks(ctx, depGraph.filteredLockfile)
   }
   const heldBackBinsDirs = await linkHoistedTree(ctx, depGraph, layout)
   stageLogger.debug({

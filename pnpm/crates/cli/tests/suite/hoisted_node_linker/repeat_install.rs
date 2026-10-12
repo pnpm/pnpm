@@ -806,3 +806,47 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
 
     drop((root, mock_instance));
 }
+
+/// The hoisted linker's orphan diff covers only the package directories
+/// it imported, so a removed `link:` dependency needs its own cleanup.
+#[test]
+fn removing_a_linked_dependency_unlinks_it_under_the_hoisted_linker() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "@local/pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(&workspace, serde_json::json!({ "@local/pkg": "link:./local-pkg" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let link = workspace.join("node_modules/@local/pkg");
+    assert!(
+        is_symlink_or_junction(&link).expect("stat the link"),
+        "the install should link the local package",
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["remove", "@local/pkg"])
+        .assert()
+        .success();
+
+    assert!(fs::symlink_metadata(&link).is_err(), "the link should be removed");
+    assert!(local.join("package.json").exists(), "the link target should be left alone");
+
+    drop((root, mock_instance));
+}
