@@ -554,6 +554,11 @@ fn edit_preserves_an_unreadable_hardlink_when_detaching_fails() {
     fs::hard_link(&package_file, &store_copy).unwrap();
     let permissions = fs::metadata(&package_file).unwrap().permissions();
     fs::set_permissions(&package_file, fs::Permissions::from_mode(0o000)).unwrap();
+    // Privileged processes can read mode-000 files, so they cannot exercise this failure.
+    if fs::File::open(&package_file).is_ok() {
+        fs::set_permissions(&store_copy, permissions).unwrap();
+        return;
+    }
     let output = pacquet(&workspace)
         .with_args(["edit", "is-positive", "--editor", "node -e 'process.exit(0)'"])
         .output()
