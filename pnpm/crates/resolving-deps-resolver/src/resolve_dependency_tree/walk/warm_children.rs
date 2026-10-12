@@ -176,6 +176,21 @@ pub(super) async fn warm_child<Chain>(
     if child_id.starts_with("link:") || !claim_children_warmup(ctx, child_id) {
         return;
     }
+    let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
+    warm_grandchildren(ctx, resolver, &child, landed_prior, parent_depth + 1).await;
+}
+
+/// Warm the children of a warmed `child`, whose own children the walk
+/// derives from the lockfile entry `landed_prior` when it landed on one.
+async fn warm_grandchildren<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    child: &pnpm_resolving_resolver_base::ResolveResult,
+    landed_prior: Option<&PkgNameVerPeer>,
+    depth: i32,
+) where
+    Chain: Resolver + ?Sized,
+{
     // The parent alias scope is not tracked speculatively;
     // with `autoInstallPeers` off nothing is shadowed and
     // the real walk drops the edge instead.
@@ -184,15 +199,14 @@ pub(super) async fn warm_child<Chain>(
         &ParentPkgAliases::root(HashSet::default()),
         ctx.workspace.policy.auto_install_peers,
     );
-    let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
     warm_result_children(
         ctx,
         resolver,
-        &child,
+        child,
         &child_peer_shadowed,
-        resolves_children_through_catalogs(&child),
-        parent_depth + 1,
-        &ChildSeedScope::for_result(ctx, &child, landed_prior),
+        resolves_children_through_catalogs(child),
+        depth,
+        &ChildSeedScope::for_result(ctx, child, landed_prior),
     )
     .await;
 }
