@@ -1,6 +1,7 @@
 use super::{
     BTreeMap, Cursor, MAX_METADATA_BYTES, Offered, Target, WheelMetadata, candidates_from_page,
 };
+use pnpm_python_resolver::matches_published_digest;
 use std::io::Read;
 
 /// What a project page offers, refusing a page that is not one. The
@@ -23,28 +24,15 @@ pub(super) fn text(bytes: Vec<u8>, kind: &str, of: &str) -> Result<String, Strin
 }
 
 /// The metadata a document describes, refusing one that describes another
-/// distribution: what a wheel requires decides what a client installs, so
-/// metadata for something else must not stand in for it.
+/// distribution.
 pub(super) fn parse_metadata(
     document: &str,
     name: &pep508_rs::PackageName,
     version: &pep440_rs::Version,
     filename: &str,
 ) -> Result<WheelMetadata, String> {
-    let metadata =
-        WheelMetadata::parse(document).map_err(|err| super::super::report_message(&err))?;
-    let named = metadata.name
-        .parse::<pep508_rs::PackageName>()
-        .map_err(|err| format!("read the distribution the metadata of {filename} names: {err}"))?;
-    let versioned = metadata.version
-        .parse::<pep440_rs::Version>()
-        .map_err(|err| format!("read the version the metadata of {filename} names: {err}"))?;
-    if named != *name || versioned != *version {
-        return Err(format!(
-            "the metadata of {filename} describes {named} {versioned}, not {name} {version}",
-        ));
-    }
-    Ok(metadata)
+    WheelMetadata::parse_for(document, name, version, filename)
+        .map_err(|err| super::super::report_message(&err))
 }
 
 /// The project page of `canonical_name` under an index, keeping whatever
@@ -54,15 +42,6 @@ pub(super) fn project_page_url(index: &url::Url, canonical_name: &str) -> Result
     let mut url = index.clone();
     url.set_path(&format!("{}{canonical_name}/", index.path()));
     Ok(url)
-}
-
-/// The metadata file published beside a wheel (PEP 658), which is the
-/// wheel's own address with `.metadata` on the end of its path — the query
-/// stays where it is.
-pub(super) fn metadata_url(wheel: &url::Url) -> url::Url {
-    let mut url = wheel.clone();
-    url.set_path(&format!("{}.metadata", wheel.path()));
-    url
 }
 
 /// A document as it was read, beside the URL it came from: a redirected
@@ -99,9 +78,7 @@ pub(super) fn verify_digest(
     kind: &str,
     filename: &str,
 ) -> Result<(), String> {
-    let Some(expected) = digests.get("sha256") else { return Ok(()) };
-    let actual = pnpm_crypto_hash::create_hex_hash_bytes(bytes);
-    if !actual.eq_ignore_ascii_case(expected) {
+    if !matches_published_digest(bytes, digests) {
         return Err(format!(
             "the {kind} of {filename} does not match the SHA-256 the index published",
         ));

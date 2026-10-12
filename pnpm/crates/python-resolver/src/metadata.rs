@@ -1,5 +1,8 @@
-use miette::{Result, bail};
+use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pep440_rs::Version;
+use pep508_rs::PackageName;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// What resolution reads out of a wheel's `METADATA`: what it requires,
 /// which extras it offers, and which interpreters it accepts. A caller
@@ -42,6 +45,31 @@ impl WheelMetadata {
         Ok(metadata)
     }
 
+    /// Read the `METADATA` document of the wheel `filename`, refusing one
+    /// that describes another distribution: what a wheel requires decides
+    /// what is installed, so metadata for something else must not stand in
+    /// for it.
+    pub fn parse_for(
+        document: &str,
+        name: &PackageName,
+        version: &Version,
+        filename: &str,
+    ) -> Result<Self> {
+        let metadata = Self::parse(document)?;
+        let named = metadata.name
+            .parse::<PackageName>()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read the distribution the metadata of {filename} names"))?;
+        let versioned = metadata.version
+            .parse::<Version>()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read the version the metadata of {filename} names"))?;
+        if named != *name || versioned != *version {
+            bail!("the metadata of {filename} describes {named} {versioned}, not {name} {version}");
+        }
+        Ok(metadata)
+    }
+
     /// Read one metadata line. A continuation line (RFC 822 folding) extends
     /// the field being read; anything else closes it and starts the next,
     /// which is what the caller is handed back.
@@ -76,4 +104,25 @@ impl WheelMetadata {
             _ => {}
         }
     }
+}
+
+/// The metadata file an index publishes beside a wheel (PEP 658): the
+/// wheel's own address with `.metadata` on the end of its path. The query
+/// stays where it is.
+#[must_use]
+pub fn metadata_url(wheel: &url::Url) -> url::Url {
+    let mut url = wheel.clone();
+    url.set_path(&format!("{}.metadata", wheel.path()));
+    url
+}
+
+/// Whether `bytes` are what an index published `digests` for. An index
+/// that published no SHA-256 leaves nothing to check.
+#[must_use]
+pub fn matches_published_digest(bytes: &[u8], digests: &BTreeMap<String, String>) -> bool {
+    digests
+        .get("sha256")
+        .is_none_or(|expected| {
+            pnpm_crypto_hash::create_hex_hash_bytes(bytes).eq_ignore_ascii_case(expected)
+        })
 }
