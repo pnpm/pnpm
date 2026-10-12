@@ -1,4 +1,4 @@
-use super::{FilesIndex, PACKAGE_INDEX_DIR, TEMP_FILE_PREFIX, encode_entry};
+use super::{FilesIndex, INDEX_DIR, TEMP_FILE_PREFIX, encode_entry};
 use crate::{
     StoreDir, StoreIndex, StoreIndexFormat, StoreIndexWriter,
     store_index::{store_index_key, tests::sample_index},
@@ -117,7 +117,7 @@ async fn the_writer_switches_a_new_store_to_the_requested_format() {
     assert!(
         store_dir
             .root()
-            .join(PACKAGE_INDEX_DIR)
+            .join(INDEX_DIR)
             .is_dir(),
     );
     assert!(

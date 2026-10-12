@@ -1,5 +1,5 @@
 pub use error::StoreIndexError;
-pub use files::PACKAGE_INDEX_DIR;
+pub use files::INDEX_DIR;
 pub use format::StoreIndexFormat;
 pub use writer::StoreIndexWriter;
 
@@ -27,7 +27,7 @@ use url::Url;
 /// below match pnpm v11's on-disk index format so that the two tools can read
 /// each other's entries.
 ///
-/// A store that has a [`PACKAGE_INDEX_DIR`] directory keeps one file per row
+/// A store that has a [`INDEX_DIR`] directory keeps one file per row
 /// there instead, for stores on a filesystem shared by several machines
 /// (`storeIndexFormat: files`). Every open detects the layout.
 pub struct StoreIndex {
