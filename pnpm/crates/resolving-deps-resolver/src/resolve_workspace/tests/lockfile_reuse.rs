@@ -572,3 +572,61 @@ async fn warm_up_skips_the_children_the_walk_reuses_from_the_lockfile() {
     assert_eq!(graph_versions_of(&result, "reused"), ["2.0.0"]);
     assert_eq!(graph_versions_of(&result, "leaf"), ["1.0.0"]);
 }
+
+/// Whether a child is reused is decided per importer. An importer with
+/// no update skips a reusable child of a package it warms; a second
+/// importer updating that child cannot reuse it, so when it reaches the
+/// same package it warms the child itself.
+#[tokio::test]
+async fn warm_up_leaves_a_package_with_a_skipped_child_to_the_next_importer() {
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("p", deps(&[("c", "^1.0.0"), ("d", "^1.0.0")])),
+        caret_entry("c", serde_json::json!({})),
+        caret_entry("d", serde_json::json!({})),
+        (
+            ("d".to_string(), "1.0.0".to_string()),
+            fake_result("d", "1.0.0", None, serde_json::json!({})),
+        ),
+    ]));
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("p", "^1.0.0", "1.0.0")],
+        &[("p@1.0.0", &[("c", "1.0.0"), ("d", "1.0.0")]), ("c@1.0.0", &[]), ("d@1.0.0", &[])],
+        &[],
+    );
+    // `d` has no snapshot, so `p` resolves fresh for both importers and
+    // lands on its recorded entry; `c` stays reusable for the first one.
+    let root_importer = lockfile.importers["."].clone();
+    lockfile.importers.insert("b".to_string(), root_importer);
+    let d_key: pnpm_lockfile::PkgNameVerPeer = "d@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&d_key);
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "p": "^1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "p": "^1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut targets = crate::UpdateTargets::default();
+    targets.insert("c".to_string(), None);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+    opts.reuse.scopes_by_importer = std::collections::BTreeMap::from([(
+        "b".to_string(),
+        crate::UpdateReuseScope::Except(targets),
+    )]);
+
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
+    .await
+    .expect("resolve");
+
+    assert_eq!(
+        resolver.calls_for("c", "^1.0.0"),
+        2,
+        "importer b warms `c`, which the root importer skipped, before its walk resolves it",
+    );
+}
