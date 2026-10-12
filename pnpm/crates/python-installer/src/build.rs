@@ -144,7 +144,7 @@ impl PythonPrepare<'_> {
     ) -> Result<Backend517> {
         let mut request = request;
         request["output"] = serde_json::json!(output.path());
-        let wheel: BuiltWheel = host::run(&interpreter(environment.path()), "build", request)
+        let wheel: BuiltWheel = run_hook(environment.path(), "build", request)
             .await
             .wrap_err_with(|| format!("build the Python project at {}", root.display()))?;
         let metadata = host::inspect(&self.interpreter.executable, &wheel.files)
@@ -249,7 +249,7 @@ impl PythonPrepare<'_> {
     ) -> Result<BuildEnvironment> {
         let declared = self.install_requirements::<Reporter>(&requires).await?;
         let extra: Vec<String> =
-            host::run(&interpreter(declared.path()), "build_requires", request.clone()).await?;
+            run_hook(declared.path(), "build_requires", request.clone()).await?;
         if extra.is_empty() {
             return Ok(BuildEnvironment::Ready(declared));
         }
@@ -442,9 +442,25 @@ fn backend(manifest: &Manifest) -> Backend {
     }
 }
 
-fn interpreter(environment: &std::path::Path) -> String {
-    environment
-        .join(if cfg!(windows) { "Scripts/python.exe" } else { "bin/python" })
+/// Run a backend hook with the build environment's interpreter, and with
+/// the environment's scripts directory first on the PATH, as pip and
+/// `build` run it. A backend may run an executable its requirements
+/// install: `uv_build` finds `uv-build` with `shutil.which`.
+async fn run_hook<Output: serde::de::DeserializeOwned>(
+    environment: &Path,
+    operation: &str,
+    request: serde_json::Value,
+) -> Result<Output> {
+    let scripts = environment.join(if cfg!(windows) { "Scripts" } else { "bin" });
+    let interpreter = scripts
+        .join(if cfg!(windows) { "python.exe" } else { "python" })
         .display()
-        .to_string()
+        .to_string();
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    let path =
+        pnpm_fs::join_paths(std::iter::once(scripts).chain(pnpm_fs::split_paths(&inherited)))
+            .into_diagnostic()
+            .wrap_err_with(|| format!("put {} on the PATH", environment.display()))?;
+    let program = host::Program { path: Some(&path), ..host::Program::new(&interpreter) };
+    host::run_program(program, operation, request).await
 }
