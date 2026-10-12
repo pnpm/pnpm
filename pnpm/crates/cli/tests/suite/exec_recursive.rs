@@ -636,12 +636,10 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
   mark()
   setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))
 } else if (name === 'b-fails') {
-  let waited = 0
   const poll = () => {
     if (fs.existsSync('../a-slow-1/ran.txt') && fs.existsSync('../c-slow-2/ran.txt')) {
       process.exit(1)
     }
-    if ((waited += 1) >= 500) process.exit(2)
     setTimeout(poll, 10)
   }
   poll()
@@ -671,6 +669,15 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
     let stderr = fs::read_to_string(&stderr_path).expect("read the exec output");
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!status.success(), "the failing project should fail the exec");
+    for name in ["a-slow-1", "c-slow-2"] {
+        assert!(
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
+            "{name} must have started, or a `running` summary entry proves nothing",
+        );
+    }
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);

@@ -651,6 +651,15 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!status.success(), "the failing project should fail the run");
+    for name in ["a-slow-1", "c-slow-2"] {
+        assert!(
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
+            "{name} must have started, or a `running` summary entry proves nothing",
+        );
+    }
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);
