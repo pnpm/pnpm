@@ -514,3 +514,61 @@ async fn warm_up_of_a_speculative_only_edge_leaves_patch_bookkeeping_alone() {
         "a patch the real walk never applied must not count as applied",
     );
 }
+
+/// The walk takes a child's subtree from the prior lockfile without
+/// consulting metadata, so the warm-up leaves such a child alone; a
+/// sibling the lockfile cannot reproduce is still warmed, down to the
+/// children the lockfile never saw.
+#[tokio::test]
+async fn warm_up_skips_the_children_the_walk_reuses_from_the_lockfile() {
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("a", deps(&[("reused", "^2.0.0"), ("fresh", "^1.0.0")])),
+        (
+            ("reused".to_string(), "^2.0.0".to_string()),
+            fake_result("reused", "2.0.0", None, serde_json::json!({})),
+        ),
+        caret_entry("fresh", deps(&[("leaf", "^1.0.0")])),
+        // The walk pins the edge it cannot reuse to its locked version.
+        (
+            ("fresh".to_string(), "1.0.0".to_string()),
+            fake_result("fresh", "1.0.0", None, deps(&[("leaf", "^1.0.0")])),
+        ),
+        caret_entry("leaf", serde_json::json!({})),
+    ]));
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("a", "^1.0.0", "1.0.0")],
+        &[
+            ("a@1.0.0", &[("reused", "2.0.0"), ("fresh", "1.0.0")]),
+            ("reused@2.0.0", &[]),
+            ("fresh@1.0.0", &[]),
+        ],
+        &[],
+    );
+    // Without its snapshot, `fresh`'s subtree cannot be reproduced, which
+    // also sends `a` to a fresh resolve that lands on its recorded entry.
+    let fresh_key: pnpm_lockfile::PkgNameVerPeer = "fresh@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&fresh_key);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+            .await
+            .expect("resolve");
+
+    assert_eq!(resolver.calls_for("a", "^1.0.0"), 1, "a resolves fresh");
+    assert_eq!(
+        resolver.calls_for("reused", "^2.0.0"),
+        0,
+        "the child the walk reuses is neither warmed nor resolved",
+    );
+    assert_eq!(resolver.calls_for("fresh", "^1.0.0"), 1, "the sibling is warmed as declared");
+    assert_eq!(resolver.calls_for("fresh", "1.0.0"), 1, "and resolved by the walk at its pin");
+    assert_eq!(resolver.calls_for("leaf", "^1.0.0"), 1, "the warm-up reaches below `fresh`");
+    assert_eq!(graph_versions_of(&result, "reused"), ["2.0.0"]);
+    assert_eq!(graph_versions_of(&result, "leaf"), ["1.0.0"]);
+}

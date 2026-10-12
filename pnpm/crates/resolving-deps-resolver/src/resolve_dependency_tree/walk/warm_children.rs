@@ -1,9 +1,11 @@
 use super::{
-    ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver, TreeCtx,
-    WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
-    claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
-    opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
-    resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
+    ChildSeedScope, ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, PkgNameVerPeer,
+    ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey, async_recursion,
+    catalog_anchor, catalogs_for_children, child_wanted, claim_children_warmup,
+    declaring_manifest_dir, extract_children, future, is_update_target, landed_on_prior_entry,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
+    peer_shadowed_dependencies, project_relative_cache_scope, resolve_catalog_child_specs,
+    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
     wanted_package_root_link,
 };
 
@@ -15,6 +17,11 @@ use super::{
 /// fetch must never fail the install (the real resolve will surface
 /// it). Recovers the cross-level pipelining the postponed-resolution
 /// barrier otherwise serializes; pure overlap, no behavioral effect.
+///
+/// A child the walk will take from the prior lockfile's subtree is left
+/// alone: the walk never consults metadata for it, so warming it would
+/// only cost the lookups. The children's lockfile keys are derived as
+/// the walk derives them, from the snapshot the node landed on.
 pub(in super::super) async fn warm_children_resolutions<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -42,8 +49,23 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         &pending.peer_shadowed,
         pending.resolves_children_through_catalogs,
         pending.ancestry.depth,
+        &ChildSeedScope::of(ctx, pending),
     )
     .await;
+}
+
+/// Whether the walk will synthesize this edge's subtree from the prior
+/// lockfile instead of resolving it, under the gate `resolve_node_seed`
+/// applies.
+fn walk_reuses_subtree(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    prior: Option<&PkgNameVerPeer>,
+    depth: i32,
+) -> bool {
+    ctx.workspace.reuse.subtrees
+        && !node_depends_on_changed_direct_dep(ctx, prior)
+        && try_reuse_node(ctx, wanted, prior, depth).is_some()
 }
 
 /// Warm the resolutions of `result`'s whole subtree. Speculative only:
@@ -58,6 +80,7 @@ pub(super) async fn warm_result_children<Chain>(
     peer_shadowed: &HashSet<String>,
     through_catalogs: bool,
     depth: i32,
+    scope: &ChildSeedScope<'_>,
 ) where
     Chain: Resolver + ?Sized,
 {
@@ -68,16 +91,15 @@ pub(super) async fn warm_result_children<Chain>(
     let declaring_dir = declaring_manifest_dir(ctx, result);
     specs
         .iter()
-        .map(|(name, range, optional, injected)| {
-            let wanted = WantedDependency {
-                alias: Some(name.clone()),
-                bare_specifier: Some(range.clone()),
-                optional: Some(*optional),
-                injected: injected.then_some(true),
-                ..WantedDependency::default()
-            };
+        .filter_map(|spec| {
+            let (wanted, prior) = child_wanted(ctx, scope, spec, depth + 1);
+            if walk_reuses_subtree(ctx, &wanted, prior.as_ref(), depth + 1) {
+                return None;
+            }
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
-            async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth).await }
+            Some(
+                async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth, prior).await },
+            )
         })
         .pipe(future::join_all)
         .await;
@@ -117,6 +139,7 @@ pub(super) async fn warm_child<Chain>(
     wanted: WantedDependency,
     opts: &ResolveOptions,
     parent_depth: i32,
+    prior: Option<PkgNameVerPeer>,
 ) where
     Chain: Resolver + ?Sized,
 {
@@ -161,6 +184,7 @@ pub(super) async fn warm_child<Chain>(
         &ParentPkgAliases::root(HashSet::default()),
         ctx.workspace.policy.auto_install_peers,
     );
+    let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
     warm_result_children(
         ctx,
         resolver,
@@ -168,6 +192,7 @@ pub(super) async fn warm_child<Chain>(
         &child_peer_shadowed,
         resolves_children_through_catalogs(&child),
         parent_depth + 1,
+        &ChildSeedScope::for_result(ctx, &child, landed_prior),
     )
     .await;
 }

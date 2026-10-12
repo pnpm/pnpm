@@ -27,8 +27,9 @@ use workspace_resolution::resolve_wanted_cached;
 
 mod child_seeds;
 use child_seeds::{
-    catalogs_for_children, overlay_lookup_names, resolve_catalog_child_specs,
-    resolves_children_through_catalogs, seed_node_children,
+    ChildSeedScope, catalogs_for_children, child_wanted, landed_on_prior_entry,
+    overlay_lookup_names, resolve_catalog_child_specs, resolves_children_through_catalogs,
+    seed_node_children,
 };
 
 mod level_walk;
