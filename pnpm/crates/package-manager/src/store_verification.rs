@@ -38,6 +38,16 @@ pub(crate) struct StoreVerified {
 #[cfg(test)]
 mod tests;
 
+/// A run that fails before its fetch drops the verification: the task
+/// stops instead of reading the rest of the store for nobody.
+impl Drop for StoreVerification {
+    fn drop(&mut self) {
+        if let Some(started) = self.started.get_mut().unwrap_or_else(PoisonError::into_inner) {
+            started.task.abort();
+        }
+    }
+}
+
 impl StoreVerification {
     /// Start verifying the rows of `keys`, store-index keys of the wanted
     /// lockfile's registry packages. A second start replaces the first.

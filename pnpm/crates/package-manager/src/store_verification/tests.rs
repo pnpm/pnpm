@@ -8,12 +8,13 @@ use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 
-/// A row whose one file is in the store, and a row whose file is not.
-fn store_with_two_rows() -> (&'static StoreDir, String, String) {
+/// A row whose one file is in the store, and a row whose file is not. The
+/// directory lives as long as the returned handle.
+fn store_with_two_rows() -> (TempDir, &'static StoreDir, String, String) {
     let tmp = tempdir().unwrap();
-    let store_dir: &'static StoreDir = Box::leak(Box::new(StoreDir::new(tmp.keep())));
+    let store_dir: &'static StoreDir = Box::leak(Box::new(StoreDir::new(tmp.path())));
     let (_, hash) = store_dir.write_cas_file(b"hello", false).unwrap();
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -40,12 +41,12 @@ fn store_with_two_rows() -> (&'static StoreDir, String, String) {
     index
         .set(&gone, &row("ab".repeat(64)))
         .unwrap();
-    (store_dir, present, gone)
+    (tmp, store_dir, present, gone)
 }
 
 #[tokio::test]
 async fn finish_hands_over_the_rows_whose_files_are_in_place() {
-    let (store_dir, present, gone) = store_with_two_rows();
+    let (_tmp, store_dir, present, gone) = store_with_two_rows();
     let index = Arc::new(Mutex::new(StoreIndex::open_readonly_in(store_dir).unwrap()));
     let files = SharedVerifiedFilesCache::default();
 
@@ -64,4 +65,30 @@ async fn finish_hands_over_the_rows_whose_files_are_in_place() {
 #[tokio::test]
 async fn finish_without_a_start_is_no_verification() {
     assert!(StoreVerification::default().finish().await.is_none());
+}
+
+#[tokio::test]
+async fn dropping_the_verification_aborts_its_task() {
+    let (_tmp, store_dir, present, gone) = store_with_two_rows();
+    let index = Arc::new(Mutex::new(StoreIndex::open_readonly_in(store_dir).unwrap()));
+    let files = SharedVerifiedFilesCache::default();
+
+    let verification = StoreVerification::default();
+    verification.start(vec![present, gone], &index, store_dir, true, &files);
+    let task = verification.started
+        .lock()
+        .unwrap()
+        .as_ref()
+        .expect("started")
+        .task
+        .abort_handle();
+    drop(verification);
+
+    for _ in 0..100 {
+        if task.is_finished() {
+            return;
+        }
+        tokio::task::yield_now().await;
+    }
+    panic!("the verification task keeps running after its owner is dropped");
 }
