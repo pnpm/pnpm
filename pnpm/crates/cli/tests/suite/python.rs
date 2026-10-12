@@ -2936,6 +2936,53 @@ async fn a_requirement_the_backend_asks_for_is_approved_too() {
     );
 }
 
+/// A backend may run an executable its requirements install, as
+/// `uv_build` runs `uv-build`, found on the PATH.
+#[tokio::test]
+async fn a_backend_finds_the_executables_of_its_requirements_on_the_path() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let finding = format!(
+        "{TINY_BACKEND}\nimport shutil\n_build_tiny = _build\n\
+         def _build(directory, editable):\n    \
+         if shutil.which('tinytool') is None:\n        \
+         raise RuntimeError('tinytool was not properly installed')\n    \
+         return _build_tiny(directory, editable)\n",
+    );
+    let _backend = serve(
+        &mut server,
+        "tinybackend",
+        &[(
+            "80.0",
+            wheel(
+                "tinybackend",
+                "80.0",
+                "",
+                &[
+                    ("tinybuild.py", finding.as_str()),
+                    (
+                        "tinybackend-80.0.dist-info/entry_points.txt",
+                        "[console_scripts]\ntinytool = tinybackend:main\n",
+                    ),
+                ],
+            ),
+        )],
+    )
+    .await;
+    project(root.path(), &server.url(), &[]);
+    python_project(root.path(), "app", "dependencies = []");
+
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import app; print(app.MARKER)"])
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "workspace app\r\n" } else { "workspace app\n" });
+}
+
 #[tokio::test]
 async fn a_workspace_project_as_a_build_requirement_is_refused() {
     let root = tempfile::tempdir().unwrap();
