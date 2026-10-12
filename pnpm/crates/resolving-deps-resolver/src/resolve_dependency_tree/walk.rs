@@ -168,11 +168,9 @@ pub(super) enum NodeSeed {
 /// How the walk treats one package occurrence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NodeKind {
-    /// A workspace link. The linked project resolves its own dependencies
-    /// as a separate importer, so the node gets no children, no peer
-    /// dependencies, and `depth = -1` for the peer-resolution
-    /// short-circuit. Its node id is collapsed to a leaf so every
-    /// reference to the same workspace path shares one [`NodeId`].
+    /// A workspace link. The linked project resolves its own
+    /// dependencies as a separate importer, so this walk does not
+    /// descend into it.
     Link,
     /// A package with no dependencies, optional dependencies, peers, or
     /// `peerDependenciesMeta`.

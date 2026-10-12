@@ -404,14 +404,8 @@ impl ImporterHoistState {
     }
 }
 
-/// A hoisted peer as a direct dependency of the importer.
-///
-/// `optional` is false for both rounds: a hoisted required peer exists to
-/// satisfy a missing peer, so marking it optional would defeat the
-/// auto-install, and the optional-peer picker has already confirmed a
-/// preferred version is in scope. `injected` is false because a hoisted
-/// peer carries no manifest's `dependenciesMeta` — this path builds a
-/// fresh wanted dependency without threading the per-dep meta.
+/// A hoisted peer as a direct dependency of the importer, left
+/// non-optional even when the peer it satisfies was declared optional.
 fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
     DependencySpec { alias, bare_specifier, optional: false, injected: false }
 }
