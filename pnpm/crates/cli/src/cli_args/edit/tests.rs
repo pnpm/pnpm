@@ -117,9 +117,13 @@ fn de_hardlink_preserves_executable_mode_and_does_not_follow_symlinks() {
 fn package_resolution_rejects_external_links_and_accepts_external_virtual_store() {
     use std::os::unix::fs::symlink;
     let root = tempdir().unwrap();
-    let modules = root.path().join("node_modules");
-    let external = root.path().join("external");
-    let store = root.path().join("virtual-store");
+    let directory = root.path().join("directory");
+    let alias = root.path().join("alias");
+    fs::create_dir(&directory).unwrap();
+    symlink(&directory, &alias).unwrap();
+    let modules = alias.join("node_modules");
+    let external = alias.join("external");
+    let store = alias.join("virtual-store");
     fs::create_dir(&modules).unwrap();
     fs::create_dir(&external).unwrap();
     fs::create_dir(&store).unwrap();
@@ -136,6 +140,6 @@ fn package_resolution_rejects_external_links_and_accepts_external_virtual_store(
             &store
         )
         .unwrap(),
-        package.join("node_modules/@scope/child"),
+        dunce::canonicalize(package.join("node_modules/@scope/child")).unwrap(),
     );
 }
