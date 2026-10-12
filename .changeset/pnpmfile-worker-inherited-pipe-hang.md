@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed commands that load a pnpmfile, such as `pnpm install` and `pnpm patch-commit`, sometimes hanging forever on macOS.
+On macOS, `pnpm install`, `pnpm patch-commit`, and other commands that load a pnpmfile no longer hang at random.
