@@ -311,19 +311,18 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
     }
 }
 
-/// Drive [`fn@resolve_workspace`] through the adversarial interleaving
-/// of <https://github.com/pnpm/pnpm/issues/13567>.
+/// Drive [`fn@resolve_workspace`] through the transient-walk
+/// arrangement of <https://github.com/pnpm/pnpm/issues/13567>.
 ///
-/// Both importers depend on `shared@1.0.0`, whose children context is
-/// deterministically owned by the root importer (same depth, lower
-/// importer order). Delaying the root's `shared` resolution lets
-/// `pkg-b` reuse its locked `shared` subtree first — a transient walk
-/// that resolves the pinned `dep@<pinned_dep_version>` before losing
-/// the children context to the root, whose fresh walk resolves
-/// `dep@^1.0.0` to whatever `dep_results` maps it to. The pinned
-/// version is then unreachable, so the peer-hoist pickers deciding
-/// `host`'s missing `dep` peer must never see it; each caller asserts
-/// that for its peer shape.
+/// Both importers depend on `shared@1.0.0`, whose children context the
+/// root importer owns (same depth, lower importer order). The root's
+/// wave runs first, so its fresh walk resolves `dep@^1.0.0` to whatever
+/// `dep_results` maps it to. `pkg-b` then reuses its locked `shared`
+/// subtree, a transient walk that brings the pinned
+/// `dep@<pinned_dep_version>` into the shared maps and loses the
+/// children-context claim. The pinned version is unreachable, so the
+/// peer-hoist pickers deciding `host`'s missing `dep` peer must never
+/// see it; each caller asserts that for its peer shape.
 async fn resolve_with_transient_shared_walk(
     host_manifest: serde_json::Value,
     pinned_dep_version: &str,
@@ -380,7 +379,7 @@ async fn resolve_with_transient_shared_walk(
         importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
     })
     .await
-    .expect("resolve workspace under the adversarial interleaving")
+    .expect("resolve workspace in the transient-walk arrangement")
 }
 
 /// [`RecordingResolver`] with one artificially slow entry: its resolve

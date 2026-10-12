@@ -63,19 +63,8 @@ pub(super) struct InitializedImporters {
     pub(super) optional_direct: Vec<broken_optional::OptionalDirect>,
 }
 
-/// Phase 1: every importer's initial wave resolves before any peer
-/// hoist runs, then hoist rounds repeat across all importers until
-/// none hoists — a workspace-wide barrier, so an optional-peer pick
-/// sees every importer's resolved versions.
-///
-/// The initial waves run concurrently, like the TypeScript resolver's
-/// importer fan-out: the shared context's children-owner claims are
-/// rank-ordered (not arrival-ordered) and the peer-hoist pickers'
-/// preferred-version candidates are derived from the settled
-/// reachable tree (see `WorkspaceTreeCtx::run_preferred_versions`),
-/// so the resolved graph is the same regardless of interleaving, and
-/// a large workspace's walks overlap their resolver and hook waits
-/// instead of paying them importer by importer.
+/// Resolve every importer's initial wave, one importer at a time,
+/// before any hoist round runs.
 pub(super) async fn init_importers<Chain>(
     resolver: &Chain,
     sorted: SortedImporters<'_, '_>,

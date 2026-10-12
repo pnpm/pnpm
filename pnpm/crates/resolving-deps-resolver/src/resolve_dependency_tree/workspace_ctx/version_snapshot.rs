@@ -115,16 +115,17 @@ impl WorkspaceTreeCtx {
     /// [`pnpm_resolving_resolver_base::PreferredVersions`] entries the
     /// peer-hoist pickers bias toward.
     ///
-    /// Derived from the settled tree — the recorded roots plus the
-    /// children edges the deterministic children owners recorded — not
-    /// from resolution arrival order. Concurrent importer waves can
-    /// transiently walk (and resolve versions inside) a subtree whose
-    /// children ownership a better-placed occurrence later takes over;
-    /// whether such a walk happens at all depends on thread
-    /// interleaving, so an arrival-ordered fold gives the pickers
-    /// run-to-run varying candidates and reshuffles peer bindings on
-    /// every install. The reachable closure is interleaving-independent
-    /// because both the roots and the surviving children records are.
+    /// Derived from the settled tree, which is the recorded roots plus
+    /// the children edges the deterministic children owners recorded,
+    /// not resolution arrival order. A wave resolves each level's
+    /// siblings concurrently, so it can transiently walk (and resolve
+    /// versions inside) a subtree whose children ownership a
+    /// better-placed occurrence later takes over, and whether that walk
+    /// happens at all depends on how those resolutions interleave. An
+    /// arrival-ordered fold would hand the pickers run-to-run varying
+    /// candidates and reshuffle peer bindings on every install. The
+    /// reachable closure is interleaving-independent because both the
+    /// roots and the surviving children records are.
     ///
     /// The closure is cached and extended incrementally: shared-map
     /// growth (`revision`) only ever hangs new subtrees under new

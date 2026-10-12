@@ -385,8 +385,7 @@ pub(super) struct RunVersionsCache {
 ///
 /// Only keys are recorded, never values: the sync reads each key's
 /// current value, so a key logged several times, or logged by
-/// concurrently-walking importers in either order, converges on the
-/// same view.
+/// concurrent walks in either order, converges on the same view.
 #[derive(Default)]
 struct SyncLog {
     packages: Vec<String>,
