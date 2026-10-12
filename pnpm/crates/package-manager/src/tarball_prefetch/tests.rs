@@ -1,7 +1,8 @@
 use super::{
     TarballDownload,
     lockfile_entries::{
-        PendingPrefetch, registry_entry, without_store_hits, without_verified_store_hits,
+        PendingPrefetch, registry_entry, without_store_hits, without_verified_rows,
+        without_verified_store_hits,
     },
     run_tarball_download,
 };
@@ -238,4 +239,21 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
 
     assert!(unverified.is_empty(), "the row alone satisfies the speculative prefetch");
     assert_eq!(missing.len(), 1, "the files behind the row are gone, so the fetch downloads it");
+}
+
+/// The rows an early verification found in place are not read again.
+#[test]
+fn without_verified_rows_drops_the_entries_the_verification_holds() {
+    let verified_entry = pending("@foo/verified@1.0.0", "sha512-aGVsbG8=");
+    let other = pending("@foo/other@1.0.0", "sha512-d29ybGQ=");
+    let mut verified = pnpm_tarball::PrefetchResult::default();
+    verified.cas_paths.insert(verified_entry.store_key.clone(), Arc::new(HashMap::new()));
+
+    let kept = without_verified_rows(Some(&verified), vec![verified_entry, other]);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].package_id, "@foo/other@1.0.0");
+
+    let unfiltered =
+        without_verified_rows(None, vec![pending("@foo/other@1.0.0", "sha512-d29ybGQ=")]);
+    assert_eq!(unfiltered.len(), 1, "no verification leaves every entry to the fetch");
 }

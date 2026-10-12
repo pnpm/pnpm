@@ -473,6 +473,7 @@ async fn streaming_prefetcher(
                 &state.tarball_mem_cache,
                 None,
                 &streaming.lockfile_dir.to_string_lossy(),
+                None,
             )
             .await,
         )

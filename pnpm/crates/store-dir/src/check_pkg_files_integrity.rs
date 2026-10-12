@@ -5,6 +5,8 @@
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
+pub use pending_files_check::PendingFilesCheck;
+
 use crate::{
     CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
     symlinks::{read_recorded_symlink_target, writes_below_a_symlink},
@@ -240,39 +242,7 @@ pub fn defer_pkg_files_integrity(
     (result, PendingFilesCheck { files, algo })
 }
 
-/// The on-disk check of one store-index row's files, split off its
-/// map building by [`defer_pkg_files_integrity`].
-#[derive(Debug)]
-pub struct PendingFilesCheck {
-    files: HashMap<String, CafsFileInfo>,
-    algo: String,
-}
-
-impl PendingFilesCheck {
-    /// Whether every file the row records is still on disk with its
-    /// recorded content. A file already in `verified_files_cache` is
-    /// trusted without a stat; one that passes here is added to it.
-    #[must_use]
-    pub fn verify(self, store_dir: &StoreDir, verified_files_cache: &VerifiedFilesCache) -> bool {
-        let mut all_verified = true;
-        for (filename, info) in &self.files {
-            // A malformed digest already failed the row's maps.
-            let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
-                all_verified = false;
-                continue;
-            };
-            if verified_files_cache.contains(&path) {
-                continue;
-            }
-            if verify_file(&path, filename, info, &self.algo) {
-                verified_files_cache.insert(path);
-            } else {
-                all_verified = false;
-            }
-        }
-        all_verified
-    }
-}
+mod pending_files_check;
 
 /// Materialize the per-cache-key overlaid [`FilesMap`]s from a
 /// `PackageFilesIndex.side_effects` entry. The content of `added`

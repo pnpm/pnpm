@@ -125,6 +125,7 @@ impl<'a> RunExecution<'a> {
             owned: &self.owned,
             requester: &self.workspace.prefix,
             prefetch_downloads: self.prefetch_downloads.as_ref(),
+            store_verification: self.store_verification.as_ref(),
         }
     }
 
@@ -207,6 +208,7 @@ impl<'a> RunExecution<'a> {
             ),
             downloads: crate::install::materialize::MaterializationDownloads {
                 prefetch_downloads: self.prefetch_downloads.clone(),
+                store_verification: self.store_verification.clone(),
                 ..(&self.owned).into()
             },
         }

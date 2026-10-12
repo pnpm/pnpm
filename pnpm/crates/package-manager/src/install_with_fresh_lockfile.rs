@@ -336,6 +336,10 @@ pub(crate) struct FreshFetchingInputs {
     /// Where a run that fetches into the store keeps the prefetch's download
     /// tasks; `None` for every other run.
     pub(crate) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
+    /// Where a run that fetches into the store keeps the verification of
+    /// the wanted lockfile's rows it starts while resolving; `None` for
+    /// every other run.
+    pub(crate) store_verification: Option<Arc<crate::StoreVerification>>,
     /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
     /// stored `ThrottledClient` outlives any per-call borrow.
     pub(crate) http_client_arc: Arc<ThrottledClient>,

@@ -36,6 +36,9 @@ pub(crate) struct StoreFetchInputs<'a> {
     pub auth_override: Option<&'a Arc<AuthHeaders>>,
     pub requester: &'a str,
     pub supported_architectures: Option<&'a SupportedArchitectures>,
+    /// The rows a [`crate::StoreVerification`] verified during the
+    /// resolution, for a [`StoreFetchScope::NotPrefetched`] fetch.
+    pub verified: Option<crate::store_verification::StoreVerified>,
 }
 
 /// Fetch every registry package of the lockfile that the store lacks, and
@@ -46,12 +49,14 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
     inputs: StoreFetchInputs<'_>,
     scope: StoreFetchScope,
 ) -> Result<(), InstallError> {
+    let verified_files = inputs.verified.as_ref().map(|verified| Arc::clone(&verified.files));
     let prefetcher = TarballPrefetcher::new(
         inputs.config,
         inputs.http_client,
         inputs.mem_cache,
         inputs.auth_override,
         inputs.requester,
+        verified_files,
     )
     .await;
     let fetched = match scope {
@@ -68,6 +73,7 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
                 inputs.lockfile,
                 inputs.config,
                 inputs.supported_architectures,
+                inputs.verified.as_ref().map(|verified| &*verified.rows),
             )
             .await
         }
