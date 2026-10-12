@@ -284,6 +284,29 @@ ExitCode::from(match self {
 })
 ```
 
+### `map_or` and `map_or_else`
+
+Prefer a `match`, or `.map(..)` followed by `.unwrap_or(..)` / `.unwrap_or_else(..)`, over `map_or` and `map_or_else`.
+
+Both name the fallback before the value it is a fallback for, so reading one means holding the default in mind while looking past it for what the expression produces. A `match` states the two cases as cases; the chain states them in the order they evaluate.
+
+```rust
+// Prefer
+let label = match lookup(key) {
+    Some(found) => found.name(),
+    None => DEFAULT_LABEL,
+};
+let count = entries.as_ref().map(Vec::len).unwrap_or(0);
+
+// Over
+let label = lookup(key).map_or_else(|| DEFAULT_LABEL, Entry::name);
+let count = entries.as_ref().map_or(0, Vec::len);
+```
+
+No lint enforces this, and two would undo it: [`clippy::map_unwrap_or`](https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or) rewrites the chain into `map_or_else`, and [`clippy::option_if_let_else`](https://rust-lang.github.io/rust-clippy/master/index.html#option_if_let_else) rewrites the `match` into it. Both are set to `allow` in `[workspace.lints.clippy]` in the root `Cargo.toml` for that reason.
+
+A shorter spelling beats both. `is_some_and`, `is_none_or`, `is_ok_and`, `ok()` and `unwrap_or_default` carry the same meaning with fewer moving parts, and [`clippy::unnecessary_map_or`](https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_map_or) already rejects the boolean cases.
+
 ### Using `pipe-trait`
 
 This codebase uses the [`pipe-trait`](https://docs.rs/pipe-trait) crate. The `Pipe` trait enables method-chaining through unary functions, keeping code in a natural left-to-right reading order. Import it as `use pipe_trait::Pipe;`.
