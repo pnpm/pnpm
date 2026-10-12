@@ -632,15 +632,19 @@ fn a_shim_without_a_readable_target_fails() {
 
 /// `pnpm setup` links the `pnpm` shim and the bin of the global `pnpm`
 /// package from one executable, so both are hard links of the same file.
-#[cfg(unix)]
 #[test]
 fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
     let root = tempfile::tempdir().unwrap();
     let cwd = root.path().join("outside");
     fs::create_dir_all(&cwd).unwrap();
-    let target = root.path().join("global/node_modules/pnpm/pnpm");
+    let target = root
+        .path()
+        .join(format!("global/node_modules/pnpm/pnpm{}", std::env::consts::EXE_SUFFIX));
     fs::create_dir_all(target.parent().unwrap()).unwrap();
+    #[cfg(unix)]
     let mut command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
+    #[cfg(windows)]
+    let mut command = windows_shim_command(&root, &cwd, "pnpm", &target);
     fs::hard_link(command.get_program(), &target).unwrap();
 
     let output = command

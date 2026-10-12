@@ -378,6 +378,11 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
 /// sidecar and runs the CLI. pnpm's own shim and the `pnpm` bin of its
 /// global package are often hard links of one file.
 fn is_shim_path(target: &Path, shim: &Path) -> bool {
+    // The file identity check is the cheap filter on the launch path; only
+    // the same file can be the shim.
+    if !same_file::is_same_file(target, shim).unwrap_or(false) {
+        return false;
+    }
     match (dunce::canonicalize(target), dunce::canonicalize(shim)) {
         (Ok(target), Ok(shim)) => target == shim,
         _ => false,
