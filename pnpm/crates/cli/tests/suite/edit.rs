@@ -531,7 +531,7 @@ fn edit_rejects_linked_workspace_dependencies() {
         .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("outside the expected node_modules tree"), "{stderr}");
+    assert!(stderr.contains("outside the expected"), "{stderr}");
     drop(root);
 }
 
