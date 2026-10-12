@@ -237,3 +237,83 @@ fn an_unshadowed_dependency_is_compared_and_recorded_as_no_peer() {
         "an unshadowed dependency must still satisfy its own spec",
     );
 }
+
+/// Check a directory dependency whose own manifest declares `is-positive`
+/// under `manifest_key`, against a lockfile whose snapshot of it resolved
+/// nothing. `allow_unresolved` is the allowance only `--frozen-lockfile`
+/// makes, so this goes through the caller that chooses it per group.
+fn check_dep_with_an_unresolved_entry(
+    manifest_key: &str,
+    allow_unresolved: bool,
+) -> Result<(), FreshnessCheckError> {
+    let dep_dir = PathBuf::from("/ws/lib");
+    let mut manifest_value = serde_json::json!({ "name": "lib" });
+    manifest_value[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
+    let local_manifest = PackageManifest::from_value(dep_dir.join("package.json"), manifest_value);
+    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
+        "resolution": { "type": "directory", "directory": "lib" },
+    }))
+    .expect("parse local package metadata");
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({})).expect("parse an empty snapshot");
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
+    let config = pnpm_config::Config::new();
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
+    let catalogs = Catalogs::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: Path::new("/ws"),
+        manifest: &local_manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs: &catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            allow_unresolved,
+        },
+        parsed_overrides: None,
+    };
+    let dep = LocalDepContext {
+        name: "lib",
+        rel_path: "lib",
+        dir: &dep_dir,
+        dirs: SpecDirs {
+            workspace_root: Path::new("/ws"),
+            lockfile_dir: Path::new("/ws"),
+            manifests_by_dir: &HashMap::new(),
+        },
+        catalogs: &catalogs,
+    };
+    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
+}
+
+#[test]
+fn a_directory_dependency_whose_dependency_went_unresolved_is_outdated() {
+    assert!(
+        check_dep_with_an_unresolved_entry("dependencies", false).is_err(),
+        "a dependency the lockfile never resolved leaves the local dependency stale",
+    );
+    assert!(
+        check_dep_with_an_unresolved_entry("dependencies", true).is_err(),
+        "the frozen-install allowance covers optional dependencies only",
+    );
+}
+
+#[test]
+fn an_unresolved_optional_of_a_directory_dependency_is_satisfied_only_when_frozen() {
+    assert!(
+        check_dep_with_an_unresolved_entry("optionalDependencies", false).is_err(),
+        "a resolving install retries the optional dependency",
+    );
+    let frozen = check_dep_with_an_unresolved_entry("optionalDependencies", true);
+    assert!(
+        frozen.is_ok(),
+        "a frozen install keeps what the lockfile could not resolve: {frozen:?}",
+    );
+}
