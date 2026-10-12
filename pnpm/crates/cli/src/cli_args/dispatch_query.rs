@@ -4,8 +4,8 @@ pub(super) use maintenance::{
     store, tasks, with,
 };
 pub(super) use registry::{
-    access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team, token,
-    undeprecate, unpublish, unstar, view, whoami,
+    access, deprecate, dist_tag, login, logout, owner, ping, profile, search, star, stars, team,
+    token, undeprecate, unpublish, unstar, view, whoami,
 };
 
 use super::{
@@ -39,6 +39,7 @@ use super::{
     peers::{PeersArgs, PeersOutcome},
     ping::PingArgs,
     prefix::PrefixArgs,
+    profile::ProfileArgs,
     publish::PublishArgs,
     repo::RepoArgs,
     reporter::ReporterType,

@@ -141,6 +141,7 @@ fn talks_only_to_the_registry(command: &CliCommand) -> bool {
             | CliCommand::Logout(_)
             | CliCommand::Owner(_)
             | CliCommand::Ping(_)
+            | CliCommand::Profile(_)
             | CliCommand::Repo(_)
             | CliCommand::Search(_)
             | CliCommand::Star(_)
