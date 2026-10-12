@@ -51,7 +51,6 @@ pub(crate) mod listed_projects;
 pub mod lockfile_dir;
 pub mod login;
 pub mod logout;
-pub mod not_implemented;
 pub mod outdated;
 pub(crate) mod override_version_references;
 pub mod owner;

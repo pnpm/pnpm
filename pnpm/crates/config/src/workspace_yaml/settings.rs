@@ -87,6 +87,8 @@ pub struct WorkspaceSettings {
     pub loglevel: Option<crate::LogLevel>,
     pub reporter: Option<crate::ReporterType>,
     pub embed_readme: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub editor: Option<Option<String>>,
     pub ignore_workspace_root_check: Option<bool>,
     pub optional: Option<bool>,
     pub package_lock: Option<bool>,

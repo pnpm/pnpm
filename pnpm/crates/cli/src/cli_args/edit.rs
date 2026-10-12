@@ -9,7 +9,9 @@ use std::{
 };
 
 #[cfg(unix)]
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::os::unix::fs::MetadataExt;
+#[cfg(all(unix, not(target_os = "wasi")))]
+use std::os::unix::fs::PermissionsExt;
 
 /// Opens an installed package's folder in the default text editor.
 #[derive(Debug, Args)]
@@ -31,6 +33,11 @@ impl EditArgs {
         let real_pkg_path =
             resolve_package_dir(&modules_dir, &parts, state.config.virtual_store_dir())?;
 
+        let package_name = installed_package_name(&real_pkg_path)?;
+        let editor = self.pick_editor(&state);
+        let project_root =
+            state.config.workspace_dir.as_deref().unwrap_or_else(|| state.project_dir());
+        let mut command = resolve_editor_command(&editor, project_root, &real_pkg_path)?;
         de_hardlink_dir(&real_pkg_path)
             .into_diagnostic()
             .wrap_err_with(|| {
@@ -40,10 +47,6 @@ impl EditArgs {
                 )
             })?;
 
-        let editor = self.pick_editor(&state);
-        let project_root =
-            state.config.workspace_dir.as_deref().unwrap_or_else(|| state.project_dir());
-        let mut command = resolve_editor_command(&editor, project_root, &real_pkg_path)?;
         let status = command
             .status()
             .into_diagnostic()
@@ -53,9 +56,7 @@ impl EditArgs {
             return Err(miette!("Editor command exited with failure status"));
         }
 
-        if let Some(pkg_to_rebuild) = parts.last() {
-            rebuild_package::<ReporterType>(&state, pkg_to_rebuild).await?;
-        }
+        rebuild_package::<ReporterType>(&state, &package_name).await?;
 
         Ok(())
     }
@@ -68,6 +69,22 @@ impl EditArgs {
             .or_else(|| env::var("VISUAL").ok())
             .unwrap_or_else(|| if cfg!(windows) { "notepad".to_owned() } else { "vi".to_owned() })
     }
+}
+
+fn installed_package_name(package_dir: &Path) -> miette::Result<String> {
+    let manifest_path = package_dir.join("package.json");
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
+        .wrap_err_with(|| format!("Reading '{}'", manifest_path.display()))?;
+    manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            let path = manifest_path.display();
+            miette!("Missing package name in '{path}'")
+        })
 }
 
 async fn rebuild_package<ReporterType: Reporter + 'static>(
@@ -128,7 +145,8 @@ fn resolve_editor_command(
     project_root: &Path,
     real_pkg_path: &Path,
 ) -> miette::Result<Command> {
-    let editor_parts = split_shell_args(editor);
+    let editor_parts =
+        shell_words::split(editor).into_diagnostic().wrap_err("Invalid editor command")?;
     let Some((program, args)) = editor_parts.split_first() else {
         return Err(miette!("No editor command specified"));
     };
@@ -153,66 +171,6 @@ fn find_safe_program_path(
         })
         .map(std::path::PathBuf::into_os_string)
         .ok_or_else(|| miette!("Failed to execute editor command '{program}': no executable outside the project was found"))
-}
-
-fn split_shell_args(input: &str) -> Vec<String> {
-    let mut args = Vec::new();
-    let mut current = String::new();
-    let mut in_double_quote = false;
-    let mut in_single_quote = false;
-    let mut chars = input.chars().peekable();
-
-    while let Some(character) = chars.next() {
-        process_shell_char(
-            character,
-            &mut chars,
-            &mut in_double_quote,
-            &mut in_single_quote,
-            &mut current,
-            &mut args,
-        );
-    }
-    finish_shell_arg(&mut current, &mut args);
-    args
-}
-
-fn process_shell_char(
-    character: char,
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    in_double_quote: &mut bool,
-    in_single_quote: &mut bool,
-    current: &mut String,
-    args: &mut Vec<String>,
-) {
-    if character == '\\' && !*in_single_quote {
-        push_shell_escape(character, chars, current);
-    } else if character == '"' && !*in_single_quote {
-        *in_double_quote = !*in_double_quote;
-    } else if character == '\'' && !*in_double_quote {
-        *in_single_quote = !*in_single_quote;
-    } else if character.is_whitespace() && !*in_double_quote && !*in_single_quote {
-        finish_shell_arg(current, args);
-    } else {
-        current.push(character);
-    }
-}
-
-fn finish_shell_arg(current: &mut String, args: &mut Vec<String>) {
-    if !current.is_empty() {
-        args.push(std::mem::take(current));
-    }
-}
-
-fn push_shell_escape(
-    character: char,
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    current: &mut String,
-) {
-    if let Some('\\' | '"' | '\'' | ' ' | '\t') = chars.peek() {
-        current.push(chars.next().expect("peeked escape character"));
-    } else {
-        current.push(character);
-    }
 }
 
 fn parse_package_path(raw: &str) -> miette::Result<Vec<String>> {
@@ -267,19 +225,12 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     if !is_file_hardlinked(metadata) {
         return Ok(());
     }
-    let parent_dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(parent_dir)?;
-    {
-        let mut src = fs::File::open(path)?;
-        std::io::copy(&mut src, &mut tmp)?;
-    }
-    tmp.as_file().sync_all()?;
-    #[cfg(unix)]
-    tmp.as_file()
-        .set_permissions(fs::Permissions::from_mode(metadata.permissions().mode() | 0o200))?;
-    std::fs::remove_file(path)?;
-    tmp.persist(path).map_err(|err| err.error)?;
-    Ok(())
+    let permissions = pnpm_fs::copy_permissions(path)?;
+    #[cfg(all(unix, not(target_os = "wasi")))]
+    let permissions = fs::Permissions::from_mode(permissions.mode() | 0o200);
+    #[cfg(target_os = "wasi")]
+    let permissions = permissions | 0o200;
+    pnpm_fs::copy_file_atomic_with_permissions(path, path, &permissions)
 }
 
 fn is_file_hardlinked(metadata: &fs::Metadata) -> bool {
