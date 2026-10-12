@@ -598,18 +598,15 @@ fn recursive_run_reads_reverse_from_workspace_config() {
     drop(root);
 }
 
-/// The run ending is what proves the bail terminated the two projects
-/// still in flight: their scripts hold until something stops them, and
-/// pnpm waits for the scripts it started, so a run that cancelled nothing
-/// could not return. The summary's `running` entries prove both projects
-/// were in flight when the bail hit.
 fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
-    // `HOLD_MS` outlasts `wait_for_child`'s deadline, so a run that cancels
-    // nothing trips that deadline instead of ending on its own. Nothing
-    // asserts on the hold elapsing: the timer only keeps a test that stops
-    // pnpm from leaving node behind.
+    // The run ending is the proof: these two scripts stop only when
+    // something stops them, and pnpm waits for the scripts it started.
+    // `HOLD_MS` outlasts `wait_for_child`'s deadline, so a run that
+    // cancels nothing trips that deadline instead of ending on its own.
+    // Nothing asserts on the hold elapsing: the timer only keeps a test
+    // that stops pnpm from leaving node behind.
     let hold_ms = (CHILD_DEADLINE * 2).as_millis();
     let hold_until_cancelled = r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))""#;
     write_workspace(

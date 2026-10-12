@@ -619,11 +619,6 @@ fn recursive_exec_report_summary_records_every_package_status() {
     drop(root);
 }
 
-/// The exec ending is what proves the bail terminated the two projects
-/// still in flight: their commands hold until something stops them, and
-/// pnpm waits for the commands it started, so an exec that cancelled
-/// nothing could not return. The summary's `running` entries prove both
-/// projects were in flight when the bail hit.
 #[test]
 fn recursive_exec_bail_cancels_in_flight_processes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -656,6 +651,8 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
+    // The exec ending is the proof: the two slow probes stop only when
+    // something stops them, and pnpm waits for the commands it started.
     // `HOLD_MS` outlasts `wait_for_child`'s deadline, so an exec that
     // cancels nothing trips that deadline instead of ending on its own.
     // Nothing asserts on the hold elapsing: the timer only keeps a test
