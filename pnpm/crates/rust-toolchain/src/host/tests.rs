@@ -1,19 +1,19 @@
-use super::windows_abi;
+use super::{WindowsBuild, windows_abi};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn a_mingw_build_installs_the_mingw_toolchain() {
-    assert_eq!(windows_abi(true, false), "gnu");
+    assert_eq!(windows_abi(WindowsBuild { gnu: true, llvm: false }), "gnu");
 }
 
 #[test]
 fn an_llvm_mingw_build_installs_the_llvm_mingw_toolchain() {
-    assert_eq!(windows_abi(true, true), "gnullvm");
+    assert_eq!(windows_abi(WindowsBuild { gnu: true, llvm: true }), "gnullvm");
 }
 
 #[test]
 fn any_other_build_installs_the_msvc_toolchain() {
-    assert_eq!(windows_abi(false, false), "msvc");
+    assert_eq!(windows_abi(WindowsBuild { gnu: false, llvm: false }), "msvc");
 }
 
 #[cfg(all(windows, target_env = "msvc"))]

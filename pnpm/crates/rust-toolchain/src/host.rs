@@ -33,19 +33,29 @@ pub(crate) fn host_triple() -> Option<String> {
                 "x86" => "i686",
                 _ => return None,
             };
-            let abi = windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
+            let abi = windows_abi(WindowsBuild {
+                gnu: cfg!(target_env = "gnu"),
+                llvm: cfg!(target_abi = "llvm"),
+            });
             format!("{architecture}-pc-windows-{abi}")
         }
         _ => return None,
     })
 }
 
+/// How pnpm itself was built, as `cfg!` reports it.
+#[derive(Clone, Copy)]
+struct WindowsBuild {
+    gnu: bool,
+    llvm: bool,
+}
+
 /// The ABI of the Windows toolchain to install: the one pnpm itself was
 /// built for, as rustup takes its default host from its own build. A pnpm
 /// built for MinGW, as MSYS2 builds it, installs a toolchain that links
 /// against MinGW rather than MSVC.
-fn windows_abi(gnu: bool, llvm: bool) -> &'static str {
-    match (gnu, llvm) {
+fn windows_abi(build: WindowsBuild) -> &'static str {
+    match (build.gnu, build.llvm) {
         (true, true) => "gnullvm",
         (true, false) => "gnu",
         (false, _) => "msvc",
