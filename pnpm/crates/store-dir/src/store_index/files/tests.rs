@@ -40,10 +40,10 @@ fn rows_round_trip_without_an_sqlite_database() {
     );
     assert_eq!(
         index
-            .get_many(&[react.clone()])
+            .get_many(std::slice::from_ref(&react))
             .unwrap()
             .len(),
-        1
+        1,
     );
     assert_eq!(index.get_by_pkg_id("react@18.0.0").unwrap(), Some(sample_index()));
     let mut keys = index.keys().unwrap();
@@ -51,7 +51,7 @@ fn rows_round_trip_without_an_sqlite_database() {
     assert_eq!(keys, [lodash.clone(), react.clone()]);
 
     index
-        .delete_many(&[lodash.clone()])
+        .delete_many(std::slice::from_ref(&lodash))
         .unwrap();
     assert_eq!(index.get(&lodash).unwrap(), None);
     assert_eq!(index.keys().unwrap(), [react]);
@@ -74,7 +74,7 @@ fn a_store_with_a_per_file_index_is_read_as_one_by_every_open() {
             .unwrap()
             .get(&key)
             .unwrap(),
-        Some(sample_index())
+        Some(sample_index()),
     );
     assert_eq!(
         StoreIndex::open_readonly(root)
@@ -98,7 +98,7 @@ fn a_store_with_a_per_file_index_is_read_as_one_by_every_open() {
             .unwrap()
             .get(&key)
             .unwrap(),
-        Some(sample_index())
+        Some(sample_index()),
     );
     assert!(!root.join("index.db").exists());
 }
@@ -118,19 +118,19 @@ async fn the_writer_switches_a_new_store_to_the_requested_format() {
         store_dir
             .root()
             .join(PACKAGE_INDEX_DIR)
-            .is_dir()
+            .is_dir(),
     );
     assert!(
         !store_dir
             .root()
             .join("index.db")
-            .exists()
+            .exists(),
     );
     assert!(
         files_index(store_dir.root())
             .get(&key)
             .unwrap()
-            .is_some()
+            .is_some(),
     );
 }
 
@@ -152,14 +152,14 @@ async fn a_writer_keeps_the_format_the_store_has() {
         !store_dir
             .root()
             .join("index.db")
-            .exists()
+            .exists(),
     );
     assert_eq!(
         StoreIndex::open(store_dir.root())
             .unwrap()
             .get(&key)
             .unwrap(),
-        Some(sample_index())
+        Some(sample_index()),
     );
 }
 

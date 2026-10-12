@@ -148,26 +148,35 @@ impl FilesIndex {
     where
         VisitError: From<StoreIndexError>,
     {
-        for shard in read_dir_paths(&self.dir)? {
-            if !shard.is_dir() {
-                continue;
-            }
-            for path in read_dir_paths(&shard)? {
-                let is_temp = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_none_or(|name| name.starts_with(TEMP_FILE_PREFIX));
-                if is_temp {
-                    continue;
-                }
-                let Some(bytes) = read_entry_file(&path)? else { continue };
-                if let Some((key, value)) = decode_entry(&bytes) {
-                    visit(key.to_string(), value.to_vec())?;
-                }
+        for path in self.entry_paths()? {
+            let Some(bytes) = read_entry_file(&path)? else { continue };
+            if let Some((key, value)) = decode_entry(&bytes) {
+                visit(key.to_string(), value.to_vec())?;
             }
         }
         Ok(())
     }
+
+    /// The files of every entry, leaving out temporary files.
+    fn entry_paths(&self) -> Result<Vec<PathBuf>, StoreIndexError> {
+        let mut paths = Vec::new();
+        for shard in read_dir_paths(&self.dir)? {
+            if shard.is_dir() {
+                paths.extend(
+                    read_dir_paths(&shard)?
+                        .into_iter()
+                        .filter(|path| !is_temp_file(path)),
+                );
+            }
+        }
+        Ok(paths)
+    }
+}
+
+fn is_temp_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_none_or(|name| name.starts_with(TEMP_FILE_PREFIX))
 }
 
 fn read_entry_file(path: &Path) -> Result<Option<Vec<u8>>, StoreIndexError> {

@@ -1,14 +1,14 @@
+pub use error::StoreIndexError;
 pub use files::PACKAGE_INDEX_DIR;
+pub use format::StoreIndexFormat;
 pub use writer::StoreIndexWriter;
 
 use crate::StoreDir;
-use derive_more::{Display, Error};
-use miette::Diagnostic;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -44,143 +44,12 @@ enum Backend {
     Files(files::FilesIndex),
 }
 
-/// How a store keeps its package index: the `storeIndexFormat` setting.
-///
-/// The setting only decides the format of a store that has no per-file
-/// index yet. A store that has one keeps using it (see [`StoreIndex`]).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum StoreIndexFormat {
-    /// One `SQLite` database, `index.db`.
-    #[default]
-    Sqlite,
-    /// One file per package under [`PACKAGE_INDEX_DIR`].
-    Files,
-}
-
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
 /// sent across blocking tasks. `SQLite`'s `Connection` is `Send` but not
 /// `Sync`, so the `Mutex` gates concurrent reads to a single query at a time
 /// — fine for our workload where every caller serializes one short query and
 /// then hands off to per-file work without holding the lock.
 pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
-
-/// Error type of [`StoreIndex`].
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum StoreIndexError {
-    #[cfg(target_os = "wasi")]
-    #[display("Failed to coordinate access to index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_INDEX_LEASE))]
-    Lease {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Store-index writer is unavailable")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITER_UNAVAILABLE))]
-    WriterUnavailable,
-
-    #[display("Failed to create directory for index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_DIR))]
-    CreateDir {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to create index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_FILE))]
-    CreateFile {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to create a store-index entry: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_ENTRY))]
-    CreateEntry {
-        #[error(source)]
-        source: pnpm_fs::EnsureFileError,
-    },
-
-    #[display("Failed to write the store-index entry at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE_ENTRY))]
-    WriteEntry {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to read the store index at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_READ_ENTRY))]
-    ReadEntry {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to open index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_OPEN))]
-    Open {
-        path: PathBuf,
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    /// The store path could not be turned into the `file:` URI that the
-    /// immutable open requires (see [`StoreIndex::open_immutable`]).
-    #[display("Failed to build a file: URI for index.db at {path:?}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_FILE_URI))]
-    FileUri {
-        path: PathBuf,
-        #[error(source)]
-        source: Option<std::io::Error>,
-    },
-
-    #[display("Failed to initialize index.db schema: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_INIT_SCHEMA))]
-    InitSchema {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to read from index.db: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_READ))]
-    Read {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to write to index.db: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE))]
-    Write {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to encode PackageFilesIndex as msgpackr records: {source}")]
-    #[diagnostic(transparent)]
-    Encode {
-        #[error(source)]
-        source: crate::msgpackr_records::EncodeError,
-    },
-
-    #[display("Failed to decode PackageFilesIndex from msgpack: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_DECODE))]
-    Decode {
-        #[error(source)]
-        source: rmp_serde::decode::Error,
-    },
-
-    #[display("Failed to transcode msgpackr-records payload to plain msgpack: {source}")]
-    #[diagnostic(transparent)]
-    Transcode {
-        #[error(source)]
-        source: crate::msgpackr_records::DecodeError,
-    },
-}
 
 impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
@@ -239,28 +108,6 @@ impl StoreIndex {
                 #[cfg(target_os = "wasi")]
                 _lease: lease,
             },
-        }
-    }
-
-    fn detect_files(store_dir: &Path) -> Option<Self> {
-        files::FilesIndex::detect(store_dir)
-            .map(|index| StoreIndex { backend: Backend::Files(index) })
-    }
-
-    /// Whether the store at `store_dir` has an index to read, in either
-    /// format.
-    #[must_use]
-    pub fn exists(store_dir: &Path) -> bool {
-        store_dir.join("index.db").exists() || store_dir.join(PACKAGE_INDEX_DIR).is_dir()
-    }
-
-    /// Give the store at `store_dir` a per-file index if `format` asks for
-    /// one and the store has none yet. An existing per-file index is kept
-    /// whatever `format` says.
-    pub fn apply_format(store_dir: &Path, format: StoreIndexFormat) -> Result<(), StoreIndexError> {
-        match format {
-            StoreIndexFormat::Files => files::FilesIndex::create(store_dir),
-            StoreIndexFormat::Sqlite => Ok(()),
         }
     }
 
@@ -660,7 +507,11 @@ mod writer;
 
 mod queries;
 
+mod error;
+
 mod files;
+
+mod format;
 
 #[cfg(target_os = "wasi")]
 mod wasi_lease;
