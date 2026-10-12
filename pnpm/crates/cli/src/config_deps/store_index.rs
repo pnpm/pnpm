@@ -1,3 +1,4 @@
+use pnpm_config::Config;
 use pnpm_env_installer::ConfigDepsInstallOptions;
 use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
 use std::sync::Arc;
@@ -11,10 +12,11 @@ impl StoreIndexSession {
     pub(super) async fn attach(
         options: &mut ConfigDepsInstallOptions<'_>,
         store_dir: &'static StoreDir,
-        frozen_store: bool,
+        config: &Config,
     ) -> Self {
-        options.store_index = StoreIndex::open_shared(store_dir, frozen_store).await;
-        let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, frozen_store);
+        options.store_index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
+        let (writer, writer_task) =
+            StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
         options.store_index_writer = Some(Arc::clone(&writer));
         Self { writer, writer_task }
     }

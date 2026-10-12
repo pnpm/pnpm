@@ -123,8 +123,11 @@ async fn add_packages<Reporter: self::Reporter>(
     // Both halves honour `frozenStore`, so a read-only store root gains
     // neither an `index.db` write nor its WAL / SHM sidecars.
     let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
-    let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+        &config.store_dir,
+        config.frozen_store,
+        config.store_index_format,
+    );
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let requester = dir.display().to_string();
 

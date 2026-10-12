@@ -93,7 +93,7 @@ use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
-use pnpm_store_dir::StoreDir;
+use pnpm_store_dir::{StoreDir, StoreIndexFormat};
 use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;

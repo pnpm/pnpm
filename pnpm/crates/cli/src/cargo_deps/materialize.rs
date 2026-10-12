@@ -38,7 +38,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     let store_dir = &config.store_dir;
     let store_index = StoreIndex::shared_for(store_dir, config.frozen_store);
     let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
+        StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
 
     let (registry_config, auth_headers) =
         registry_download_config(config, &options.http_client).await?;

@@ -6379,6 +6379,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-shared-artifact-protocol",
  "pretty_assertions",
+ "rayon",
  "rmp-serde",
  "rusqlite",
  "serde",

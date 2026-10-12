@@ -114,7 +114,7 @@ fn find_modified(
     frozen_store: bool,
     packages: &[PackageToCheck],
 ) -> Result<Vec<String>, StoreIndexError> {
-    if !store_dir.join("index.db").exists() {
+    if !StoreIndex::exists(store_dir) {
         return Ok(Vec::new());
     }
     let store_index = if frozen_store {

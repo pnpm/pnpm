@@ -36,7 +36,7 @@ use package_configs::PackageConfigsSetting;
 use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_store_dir::StoreDir;
+use pnpm_store_dir::{StoreDir, StoreIndexFormat};
 use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
 use serde::{Deserialize, Deserializer, de::IgnoredAny};
@@ -239,7 +239,7 @@ macro_rules! identically_named_settings {
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db, add_missing_peer_types,
             resolve_peers_from_workspace_root, verify_store_integrity,
-            strict_store_pkg_content_check, frozen_store,
+            strict_store_pkg_content_check, frozen_store, store_index_format,
             include_workspace_root, fail_if_no_match,
             ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,

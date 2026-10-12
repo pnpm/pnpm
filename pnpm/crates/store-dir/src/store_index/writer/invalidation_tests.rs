@@ -22,8 +22,14 @@ fn symlink_upload_with_diff_reports_sqlite_read_failure() {
 
 fn check_read_failure(with_diff: bool) {
     let (_root, package, store_dir, index) = fixture();
-    index.conn.execute_batch("PRAGMA journal_mode=DELETE").unwrap();
-    index.conn.busy_timeout(Duration::ZERO).unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch("PRAGMA journal_mode=DELETE")
+        .unwrap();
+    index
+        .sqlite_conn()
+        .busy_timeout(Duration::ZERO)
+        .unwrap();
     let lock = rusqlite::Connection::open(store_dir.root().join("index.db")).unwrap();
     lock.execute_batch("BEGIN EXCLUSIVE").unwrap();
     let error = index.get(KEY).unwrap_err();
@@ -56,7 +62,8 @@ fn symlink_upload_with_diff_reports_sqlite_flush_failure() {
 
 fn check_flush_failure(with_diff: bool) {
     let (_root, package, store_dir, index) = fixture();
-    index.conn
+    index
+        .sqlite_conn()
         .execute_batch(
             "CREATE TRIGGER fail_write BEFORE INSERT ON package_index
          BEGIN SELECT RAISE(FAIL, 'injected write failure'); END",
@@ -64,7 +71,10 @@ fn check_flush_failure(with_diff: bool) {
         .unwrap();
     assert!(index.get(KEY).unwrap().is_some());
     let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
-    index.conn.execute_batch("DROP TRIGGER fail_write").unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch("DROP TRIGGER fail_write")
+        .unwrap();
     assert!(
         index
             .get(KEY)
@@ -81,15 +91,19 @@ fn check_flush_failure(with_diff: bool) {
 fn symlink_upload_missing_row_is_a_noop() {
     for with_diff in [false, true] {
         let (_root, package, store_dir, index) = fixture();
-        index.conn
+        index
+            .sqlite_conn()
             .execute("DELETE FROM package_index WHERE key = ?", [KEY])
             .unwrap();
-        index.conn.execute_batch("PRAGMA query_only=ON").unwrap();
-        let writes = index.conn.total_changes();
+        index
+            .sqlite_conn()
+            .execute_batch("PRAGMA query_only=ON")
+            .unwrap();
+        let writes = index.sqlite_conn().total_changes();
         let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
         result.unwrap();
         assert!(index.get(KEY).unwrap().is_none());
-        assert_eq!(index.conn.total_changes(), writes);
+        assert_eq!(index.sqlite_conn().total_changes(), writes);
     }
 }
 
@@ -108,12 +122,15 @@ fn symlink_upload_unchanged_row_needs_no_write() {
             .unwrap()
             .insert("other-engine".to_string(), diff);
         index.set(KEY, &row).unwrap();
-        index.conn.execute_batch("PRAGMA query_only=ON").unwrap();
-        let writes = index.conn.total_changes();
+        index
+            .sqlite_conn()
+            .execute_batch("PRAGMA query_only=ON")
+            .unwrap();
+        let writes = index.sqlite_conn().total_changes();
         let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
         result.unwrap();
         assert_eq!(index.get(KEY).unwrap().unwrap(), row);
-        assert_eq!(index.conn.total_changes(), writes);
+        assert_eq!(index.sqlite_conn().total_changes(), writes);
     }
 }
 
@@ -141,12 +158,18 @@ fn failed_invalidation_keeps_pending_writes_for_the_batch() {
         (KEY.to_string(), replacement),
         ("other-package".to_string(), sample_index()),
     ]);
-    index.conn.execute_batch("PRAGMA query_only=ON").unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch("PRAGMA query_only=ON")
+        .unwrap();
     assert!(matches!(apply_invalidation(&index, &mut pending), Err(StoreIndexError::Write { .. })));
     assert_eq!(pending.len(), 2);
     assert_eq!(pending[KEY].requires_build, Some(true));
     assert!(pending[KEY].side_effects.is_none());
-    index.conn.execute_batch("PRAGMA query_only=OFF").unwrap();
+    index
+        .sqlite_conn()
+        .execute_batch("PRAGMA query_only=OFF")
+        .unwrap();
     index.set_many(pending.drain()).unwrap();
     assert_eq!(
         index

@@ -23,6 +23,7 @@ derive_more = { workspace = true }
 dunce = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+rayon = { workspace = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }

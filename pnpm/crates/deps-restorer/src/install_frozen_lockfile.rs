@@ -363,8 +363,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
+        let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
 
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
@@ -545,4 +544,12 @@ fn injected_deps(
         skipped,
         ctx.is_hoisted().then_some(hoisted_locations),
     )
+}
+
+/// The store-index writer for `config`'s store, honouring `frozenStore` and
+/// `storeIndexFormat`.
+fn spawn_store_index_writer(
+    config: &Config,
+) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+    StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store, config.store_index_format)
 }
