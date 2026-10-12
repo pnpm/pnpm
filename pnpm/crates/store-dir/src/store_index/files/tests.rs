@@ -184,6 +184,13 @@ fn leftover_temporary_and_foreign_entries_read_as_missing() {
     fs::write(short, [1u8]).unwrap();
 
     assert_eq!(index.get(&key).unwrap(), None);
+    assert!(!index.contains_key(&key).unwrap());
+    assert!(
+        index
+            .contains_many(std::slice::from_ref(&key))
+            .unwrap()
+            .is_empty(),
+    );
     assert_eq!(index.keys().unwrap(), [other]);
 }
 

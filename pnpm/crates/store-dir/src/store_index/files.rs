@@ -8,7 +8,7 @@
 //! the later rename wins.
 
 use super::StoreIndexError;
-use pnpm_fs::{create_exclusive_temp_file, ensure_parent_dir, rename_with_retry};
+use pnpm_fs::{EnsureFileError, create_exclusive_temp_file, ensure_parent_dir, rename_with_retry};
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use std::{
@@ -83,10 +83,32 @@ impl FilesIndex {
             .collect()
     }
 
+    /// Whether [`Self::get`] finds an entry for `key`.
     pub(super) fn contains(&self, key: &str) -> Result<bool, StoreIndexError> {
-        let path = self.entry_path(key);
-        path.try_exists()
-            .map_err(|source| StoreIndexError::ReadEntry { path, source })
+        Ok(self.get(key)?.is_some())
+    }
+
+    /// The value of the entry with the smallest key that `matches`. Every
+    /// entry is read, in parallel.
+    pub(super) fn first_matching(
+        &self,
+        matches: impl Fn(&str) -> bool + Sync,
+    ) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        let found: Vec<(String, Vec<u8>)> = self
+            .entry_paths()?
+            .par_iter()
+            .filter_map(|path| match read_entry_file(path) {
+                Ok(bytes) => {
+                    let (key, value) = decode_entry(bytes.as_deref()?)?;
+                    matches(key).then(|| Ok((key.to_string(), value.to_vec())))
+                }
+                Err(error) => Some(Err(error)),
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(found
+            .into_iter()
+            .min_by(|(left, _), (right, _)| left.cmp(right))
+            .map(|(_, value)| value))
     }
 
     pub(super) fn contains_many(&self, keys: &[String]) -> Result<Vec<String>, StoreIndexError> {
@@ -104,9 +126,7 @@ impl FilesIndex {
     pub(super) fn set(&self, key: &str, value: &[u8]) -> Result<(), StoreIndexError> {
         let path = self.entry_path(key);
         let shard = path.parent().expect("an entry path has a shard directory");
-        ensure_parent_dir(shard).map_err(|source| StoreIndexError::CreateEntry { source })?;
-        let (temp_path, mut file) = create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None)
-            .map_err(|source| StoreIndexError::CreateEntry { source })?;
+        let (temp_path, mut file) = create_temp_file_in_shard(shard)?;
         let written = file.write_all(&encode_entry(key, value));
         drop(file);
         if let Err(source) = written.and_then(|()| rename_with_retry(&temp_path, &path)) {
@@ -177,6 +197,21 @@ fn is_temp_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .is_none_or(|name| name.starts_with(TEMP_FILE_PREFIX))
+}
+
+/// Create a temporary file in `shard`, creating the shard only when it is
+/// missing: on a network filesystem every directory check is a round trip.
+fn create_temp_file_in_shard(shard: &Path) -> Result<(PathBuf, fs::File), StoreIndexError> {
+    let to_error = |source| StoreIndexError::CreateEntry { source };
+    match create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None) {
+        Err(EnsureFileError::CreateFile { error, .. })
+            if error.kind() == io::ErrorKind::NotFound =>
+        {
+            ensure_parent_dir(shard).map_err(to_error)?;
+            create_exclusive_temp_file(shard, TEMP_FILE_PREFIX, None).map_err(to_error)
+        }
+        result => result.map_err(to_error),
+    }
 }
 
 fn read_entry_file(path: &Path) -> Result<Option<Vec<u8>>, StoreIndexError> {

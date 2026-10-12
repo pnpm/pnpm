@@ -55,7 +55,7 @@ impl StoreIndex {
     /// This is for read-only inspection commands that only know the local
     /// package id and must not resolve against a registry to recover the
     /// integrity half of the key. A per-file index has no key order to
-    /// search, so it is scanned whole.
+    /// search, so every entry is read.
     pub fn get_by_pkg_id(
         &self,
         pkg_id: &str,
@@ -64,17 +64,7 @@ impl StoreIndex {
             Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id)?,
             Backend::Files(files) => {
                 let suffix = format!("\t{pkg_id}");
-                let mut first: Option<(String, Vec<u8>)> = None;
-                files.for_each(|key, data| {
-                    let precedes = first
-                        .as_ref()
-                        .is_none_or(|(first_key, _)| key < *first_key);
-                    if key.ends_with(&suffix) && precedes {
-                        first = Some((key, data));
-                    }
-                    Ok::<(), StoreIndexError>(())
-                })?;
-                first.map(|(_, data)| data)
+                files.first_matching(|key| key.ends_with(&suffix))?
             }
         };
         let Some(bytes) = row else { return Ok(None) };
