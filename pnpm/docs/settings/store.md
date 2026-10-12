@@ -122,9 +122,9 @@ Added in: v12.13.0
 How the store records which files each package has.
 
 * `sqlite` — one SQLite database, `index.db`. SQLite's locking only works between processes on one machine, so this format is for a store on a local disk.
-* `files` — one file per package in the `package-index` directory of the store. Use it for a store on a network filesystem that several machines use at once, such as a store shared by CI jobs. Each entry is written to a temporary file and renamed into place, so concurrent jobs need no locks.
+* `files` — one file per package in the `index` directory of the store. Use it for a store on a network filesystem that several machines use at once, such as a store shared by CI jobs. Each entry is written to a temporary file and renamed into place, so concurrent jobs need no locks.
 
-The format belongs to the store. pnpm creates the `package-index` directory the first time it writes to a store with `storeIndexFormat: files`, and from then on every pnpm process uses that directory for the store, whatever its own `storeIndexFormat` says. The packages recorded in an existing `index.db` are not carried over, so the first installs after switching download them again. To switch a store back to `sqlite`, delete its `package-index` directory.
+The format belongs to the store. pnpm creates the `index` directory the first time it writes to a store with `storeIndexFormat: files`, and from then on every pnpm process uses that directory for the store, whatever its own `storeIndexFormat` says. The packages recorded in an existing `index.db` are not carried over, so the first installs after switching download them again. To switch a store back to `sqlite`, delete its `index` directory.
 
 ```yaml title="~/.config/pnpm/config.yaml"
 storeDir: /mnt/shared/pnpm-store
