@@ -102,8 +102,10 @@ impl SearchArgs {
         }
 
         let registries = resolve_registries_with_override(config, self.registry.as_deref());
-        let default_registry =
-            registries.get("default").map_or(config.registry.as_str(), String::as_str);
+        let default_registry = registries
+            .get("default")
+            .map(String::as_str)
+            .unwrap_or(config.registry.as_str());
         let search_url = self.search_url(default_registry, &query_string)?;
 
         let auth_header = config.auth_headers.for_url(default_registry);

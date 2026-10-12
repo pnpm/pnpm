@@ -193,11 +193,17 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
     let filename_name = match server_type {
         Some(RegistryServerType::Artifactory) => name,
         Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
-            Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
+            Some(scoped) => scoped
+                .split_once('/')
+                .map(|(_, bare)| bare)
+                .unwrap_or(name),
             None => name,
         },
     };
-    let version = version.split_once('+').map_or(version, |(base, _)| base);
+    let version = version
+        .split_once('+')
+        .map(|(base, _)| base)
+        .unwrap_or(version);
     format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 
@@ -256,7 +262,8 @@ pub fn registry_for_package<'a>(
     scope
         .and_then(|scope| registries.get(scope))
         .or_else(|| registries.get("default"))
-        .map_or("", String::as_str)
+        .map(String::as_str)
+        .unwrap_or("")
 }
 
 fn scope_of(name: &str) -> Option<&str> {

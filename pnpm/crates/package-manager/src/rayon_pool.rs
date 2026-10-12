@@ -32,7 +32,7 @@ pub fn configure_rayon_pool() {
             return;
         }
         let parallelism =
-            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+            std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
         let built = rayon::ThreadPoolBuilder::new()
             .num_threads(rayon_pool_size(parallelism, RAYON_THREADS_PER_CORE))
             .build_global();

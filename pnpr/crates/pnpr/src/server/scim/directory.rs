@@ -48,7 +48,7 @@ impl Directory {
     /// counting this write if it makes the user inactive.
     pub(super) fn store(&mut self, username: &str, mut user: ScimUser) -> ScimUser {
         let previous = self.users.get(username);
-        user.deprovisions = previous.map_or(0, |previous| previous.deprovisions);
+        user.deprovisions = previous.map(|previous| previous.deprovisions).unwrap_or(0);
         if !user.active && previous.is_none_or(|previous| previous.active) {
             user.deprovisions += 1;
         }

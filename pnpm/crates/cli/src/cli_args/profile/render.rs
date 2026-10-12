@@ -23,7 +23,8 @@ pub(super) fn render_selected_properties(cleaned: &[(String, String)], props: &[
             cleaned
                 .iter()
                 .find(|(key, _)| key == prop)
-                .map_or("", |(_, value)| value.as_str())
+                .map(|(_, value)| value.as_str())
+                .unwrap_or("")
         })
         .collect::<Vec<_>>()
         .join("\t")
@@ -63,7 +64,10 @@ fn format_profile_field(key: &str, info: &Value) -> String {
         "two-factor auth" => format_tfa_field(info),
         other => match info.get(other) {
             Some(v) if v.is_null() => String::new(),
-            Some(v) => v.as_str().map_or_else(|| v.to_string(), ToString::to_string),
+            Some(v) => v
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| v.to_string()),
             None => String::new(),
         },
     }

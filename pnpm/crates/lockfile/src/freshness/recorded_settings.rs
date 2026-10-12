@@ -106,7 +106,7 @@ fn check_resolution_settings(
 ) -> Result<(), StalenessReason> {
     let Some(expected) = expected else { return Ok(()) };
     let unrecorded = ResolutionSettings::default();
-    let recorded = settings.map_or(&unrecorded, |settings| &settings.resolution);
+    let recorded = settings.map(|settings| &settings.resolution).unwrap_or(&unrecorded);
     match recorded.first_difference(expected) {
         None => Ok(()),
         Some(difference) => Err(StalenessReason::ResolutionSettingChanged {
@@ -118,7 +118,7 @@ fn check_resolution_settings(
 }
 
 fn describe_setting_value(value: Option<&serde_json::Value>) -> String {
-    value.map_or_else(|| "unset".to_string(), ToString::to_string)
+    value.map(ToString::to_string).unwrap_or_else(|| "unset".to_string())
 }
 
 fn check_pnpmfile_checksum(

@@ -126,7 +126,8 @@ fn if_match(headers: &HeaderMap) -> Result<Option<Vec<String>>, RegistryError> {
     for tag in value.split(',').map(str::trim) {
         let (weak, quoted) = tag
             .strip_prefix("W/")
-            .map_or((false, tag), |quoted| (true, quoted));
+            .map(|quoted| (true, quoted))
+            .unwrap_or((false, tag));
         let version = quoted
             .strip_prefix('"')
             .and_then(|rest| rest.strip_suffix('"'))

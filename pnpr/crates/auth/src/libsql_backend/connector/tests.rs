@@ -207,7 +207,8 @@ fn answer(mut stream: TcpStream, body: &str) -> String {
                 .strip_prefix("content-length:")
                 .map(str::to_owned)
         })
-        .map_or(0, |value| value.trim().parse().unwrap());
+        .map(|value| value.trim().parse().unwrap())
+        .unwrap_or(0);
     reader
         .read_exact(&mut vec![0; content_length])
         .unwrap();

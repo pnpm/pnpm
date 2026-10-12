@@ -67,7 +67,7 @@ async fn send(
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let body = body.map_or_else(Body::empty, |body| Body::from(body.to_string()));
+    let body = body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -210,7 +210,7 @@ async fn send_if_match(
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {token}"))
         .header("if-match", format!(r#""{version}""#))
-        .body(body.map_or_else(Body::empty, |body| Body::from(body.to_string())))
+        .body(body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty))
         .unwrap();
     let response = app
         .clone()
