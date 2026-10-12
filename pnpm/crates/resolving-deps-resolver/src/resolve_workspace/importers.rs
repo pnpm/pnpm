@@ -63,8 +63,8 @@ pub(super) struct InitializedImporters {
     pub(super) optional_direct: Vec<broken_optional::OptionalDirect>,
 }
 
-/// Resolve every importer's initial wave, one importer at a time,
-/// before any hoist round runs.
+/// One importer's wave at a time: overlapping them would make the
+/// occurrence nodes depend on the interleaving.
 pub(super) async fn init_importers<Chain>(
     resolver: &Chain,
     sorted: SortedImporters<'_, '_>,

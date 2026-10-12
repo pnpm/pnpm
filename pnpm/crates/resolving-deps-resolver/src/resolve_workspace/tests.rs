@@ -311,18 +311,13 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
     }
 }
 
-/// Drive [`fn@resolve_workspace`] through the transient-walk
-/// arrangement of <https://github.com/pnpm/pnpm/issues/13567>.
-///
-/// Both importers depend on `shared@1.0.0`, whose children context the
-/// root importer owns (same depth, lower importer order). The root's
-/// wave runs first, so its fresh walk resolves `dep@^1.0.0` to whatever
-/// `dep_results` maps it to. `pkg-b` then reuses its locked `shared`
-/// subtree, a transient walk that brings the pinned
-/// `dep@<pinned_dep_version>` into the shared maps and loses the
-/// children-context claim. The pinned version is unreachable, so the
-/// peer-hoist pickers deciding `host`'s missing `dep` peer must never
-/// see it; each caller asserts that for its peer shape.
+/// Drive [`fn@resolve_workspace`] through the arrangement of
+/// <https://github.com/pnpm/pnpm/issues/13567>: `pkg-b`'s reuse of a
+/// locked `shared` subtree brings `dep@<pinned_dep_version>` into the
+/// shared maps, while the walk that owns `shared@1.0.0`'s children
+/// resolves `dep@^1.0.0` through `dep_results` instead. The pinned
+/// version ends up unreachable, and each caller asserts that the
+/// peer-hoist pickers deciding `host`'s missing `dep` peer never see it.
 async fn resolve_with_transient_shared_walk(
     host_manifest: serde_json::Value,
     pinned_dep_version: &str,
