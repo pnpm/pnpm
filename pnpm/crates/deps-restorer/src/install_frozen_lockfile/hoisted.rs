@@ -10,8 +10,10 @@ pub use hoist_plan::{
 mod direct_links;
 mod hoist_plan;
 mod package_root_links;
+mod stale_links;
 mod workspace_links;
 
+use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::link_hoisted_workspace_dependencies;
 
 use super::{
@@ -362,39 +364,6 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
         inputs, lockfile, skipped,
     );
     Ok(hoisted_dependencies)
-}
-
-/// Runs before the linker writes the tree, so no package is imported at
-/// a path that is still a project's link.
-fn unlink_prior_workspace_hoists(
-    inputs: &HoistedLinkerInputs<'_>,
-) -> Result<(), HoistedLinkerError> {
-    let modules_dir = &inputs.config.modules_dir;
-    crate::prune_stale_modules::prune_workspace_hoists(
-        &crate::prune_stale_modules::WorkspaceHoistDirs {
-            workspace_root: inputs.projects.walker_lockfile_dir,
-            private: modules_dir,
-            public: modules_dir,
-        },
-        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
-        inputs.prior.hoisted_dependencies,
-        None,
-    )
-    .map_err(HoistedLinkerError::PruneStaleLinks)
-}
-
-/// Runs before the linker writes the tree, so a package that replaces a
-/// removed `link:` dependency is not imported through the old link.
-fn unlink_stale_direct_links(inputs: &HoistedLinkerInputs<'_>) -> Result<(), HoistedLinkerError> {
-    let Some(current_lockfile) = inputs.prior.current_lockfile else { return Ok(()) };
-    crate::prune_stale_modules::prune_stale_hoisted_direct_links(
-        inputs.projects.symlink_workspace_root,
-        inputs.config.modules_dir_name(),
-        inputs.graph.lockfile,
-        current_lockfile,
-        inputs.projects.dependency_groups,
-    )
-    .map_err(HoistedLinkerError::PruneStaleLinks)
 }
 
 /// `hoist-workspace-packages` under this linker: every package lives in
