@@ -43,7 +43,7 @@ jobs:
           ref: f5c920521d391d229912b7363ccaa629f671a846 # pnpm.io documentation importer
           path: website
           persist-credentials: false
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
