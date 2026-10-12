@@ -169,7 +169,8 @@ impl TarballPrefetcher {
                 }
             }
         };
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+        let (store_index_writer, writer_task) =
+            StoreIndexWriter::spawn_in_format(store_dir, config.store_index_format);
         TarballPrefetcher {
             mem_cache: Arc::clone(mem_cache),
             writer_task,

@@ -131,6 +131,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("sort", false),
     ("state-dir", false),
     ("store-dir", false),
+    ("store-index-format", false),
     ("stream", false),
     ("strict-dep-builds", false),
     ("strict-store-pkg-content-check", false),

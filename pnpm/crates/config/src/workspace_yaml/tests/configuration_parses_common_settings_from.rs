@@ -1,8 +1,8 @@
 use super::{
     AuditLevel, BTreeMap, CASE, ColorMode, Config, ConfigDependency, ConfigDependencyDetail,
     EnvVar, LoadWorkspaceYamlError, LogLevel, NAMED_UNRECOGNIZED_SETTINGS, NodeLinker,
-    NodePackageMapType, Path, ReporterType, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, assert_eq, fs,
+    NodePackageMapMode, NodePackageMapSettings, NodePackageMapType, Path, ReporterType, StoreDir,
+    TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
 use std::fmt::Write as _;
 
@@ -19,6 +19,9 @@ preferWorkspacePackages: true
 nodeLinker: hoisted
 nodeExperimentalPackageMap: true
 nodePackageMapType: loose
+nodePackageMap:
+  mode: write-only
+  type: loose
 packages:
   - packages/*
 ";
@@ -32,6 +35,13 @@ packages:
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted.into()));
     assert_eq!(settings.node_experimental_package_map, Some(true));
+    assert_eq!(
+        settings.node_package_map,
+        Some(NodePackageMapSettings {
+            mode: Some(NodePackageMapMode::WriteOnly),
+            map_type: Some(NodePackageMapType::Loose),
+        }),
+    );
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }
 

@@ -131,6 +131,32 @@ async fn a_non_string_range_from_read_package_fails_the_call() {
     );
 }
 
+/// A pipe end pnpm leaves inheritable while the worker spawns must not stay
+/// open in the worker, or reading the pipe to EOF waits until pnpm exits.
+#[cfg(target_vendor = "apple")]
+#[tokio::test]
+async fn the_worker_does_not_hold_an_inheritable_pipe_open() {
+    use std::{io::Read, os::fd::AsRawFd};
+
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }\n").expect("write pnpmfile");
+    let (mut read_end, write_end) = std::io::pipe().expect("create the pipe");
+    // SAFETY: `write_end` owns the descriptor for the duration of the call.
+    let cleared = unsafe { libc::fcntl(write_end.as_raw_fd(), libc::F_SETFD, 0) };
+    assert_eq!(cleared, 0, "make the write end inheritable");
+
+    let worker = NodeWorker::spawn(&pnpmfile_path).await.expect("spawn worker");
+    assert!(worker.has_hooks().await, "the worker should be running");
+    drop(write_end);
+
+    let read_to_eof = tokio::task::spawn_blocking(move || read_end.read_to_end(&mut Vec::new()));
+    timeout(Duration::from_secs(10), read_to_eof).await
+        .expect("the worker must not hold the write end open")
+        .expect("join the read")
+        .expect("read the pipe");
+}
+
 /// Every call must succeed; the value returned is the highest `peak` the
 /// hook reported back.
 async fn call_read_package_concurrently(worker: &Arc<NodeWorker>, count: usize) -> usize {

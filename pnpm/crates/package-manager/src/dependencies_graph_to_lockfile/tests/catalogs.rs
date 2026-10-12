@@ -1,7 +1,7 @@
 use super::{
     super::{GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, dependencies_graph_to_lockfile, make_node,
-    write_manifest,
+    EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, NPM_REGISTRIES, dependencies_graph_to_lockfile,
+    make_node, write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_deps_resolver::{DependenciesGraph, UpdateReuseScope};
@@ -59,7 +59,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
-            registry: "https://registry.npmjs.org",
+            registries: &NPM_REGISTRIES,
             lockfile_include_tarball_url: false,
             previous_packages: None,
         },

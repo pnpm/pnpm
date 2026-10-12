@@ -1,9 +1,11 @@
 use super::{
-    dependencies_graph_to_lockfile, make_named_registry_node, make_node, make_node_with_optional,
-    make_resolve_result, single_importer_opts, write_manifest,
+    FAKE_INTEGRITY, dependencies_graph_to_lockfile, make_named_registry_node, make_node,
+    make_node_with_optional, make_resolve_result, single_importer_opts, write_manifest,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{ImporterDepVersion, LockfileResolution, PackageKey, PkgName};
+use pnpm_lockfile::{
+    ImporterDepVersion, LockfileResolution, PackageKey, PkgName, TarballResolution,
+};
 use pnpm_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
     PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedPackageInput, ResolvedTree,
@@ -11,7 +13,8 @@ use pnpm_resolving_deps_resolver::{
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::json;
-use std::{collections::BTreeMap, sync::Arc};
+use ssri::Integrity;
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 #[test]
 fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
@@ -378,6 +381,69 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
     match &metadata.resolution {
         LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
         other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
+    }
+}
+
+/// A scoped package is written against the registry its scope routes to,
+/// the one an install rebuilds the URL from.
+/// See <https://github.com/pnpm/pnpm/issues/16866>.
+#[test]
+fn a_scoped_package_tarball_url_is_tested_against_its_scope_registry() {
+    let lockfile_resolution = |tarball: &str| {
+        let (_tmp, manifest) = write_manifest(json!({
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": { "@types/ms": "0.7.34" },
+        }));
+        let mut node = make_node(
+            "@types/ms",
+            "0.7.34",
+            json!({ "name": "@types/ms", "version": "0.7.34" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut resolve_result = make_resolve_result(
+            "@types/ms",
+            "0.7.34",
+            json!({ "name": "@types/ms", "version": "0.7.34" }),
+        );
+        resolve_result.resolution = LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.to_string(),
+            integrity: Some(Integrity::from_str(FAKE_INTEGRITY).unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
+        node.resolve_result = Arc::new(resolve_result);
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct = BTreeMap::from([(
+            "@types/ms".to_string(),
+            DepPath::from("@types/ms@0.7.34".to_string()),
+        )]);
+        let registries = std::collections::HashMap::from([
+            ("default".to_string(), "https://registry.npmjs.org/".to_string()),
+            ("@types".to_string(), "https://registry.npmmirror.com/".to_string()),
+        ]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.metadata_sources.registries = &registries;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "@types/ms@0.7.34".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].resolution.clone()
+    };
+
+    let from_scope_registry =
+        lockfile_resolution("https://registry.npmmirror.com/@types/ms/-/ms-0.7.34.tgz");
+    assert!(
+        matches!(from_scope_registry, LockfileResolution::Registry(_)),
+        "a URL the scope registry rebuilds is dropped: {from_scope_registry:?}",
+    );
+
+    let tarball = "https://registry.npmjs.org/@types/ms/-/ms-0.7.34.tgz";
+    match lockfile_resolution(tarball) {
+        LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
+        other => panic!("a URL only the default registry rebuilds is kept, got {other:?}"),
     }
 }
 

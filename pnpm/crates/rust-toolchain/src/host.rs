@@ -27,11 +27,30 @@ pub(crate) fn host_triple() -> Option<String> {
             "x86_64" | "aarch64" => format!("{architecture}-apple-darwin"),
             _ => return None,
         },
-        "windows" | "win32" => match architecture {
-            "x86_64" | "aarch64" => format!("{architecture}-pc-windows-msvc"),
-            "x86" => "i686-pc-windows-msvc".to_string(),
-            _ => return None,
-        },
+        "windows" | "win32" => {
+            let architecture = match architecture {
+                "x86_64" | "aarch64" => architecture,
+                "x86" => "i686",
+                _ => return None,
+            };
+            let abi = windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
+            format!("{architecture}-pc-windows-{abi}")
+        }
         _ => return None,
     })
 }
+
+/// The ABI of the Windows toolchain to install: the one pnpm itself was
+/// built for, as rustup takes its default host from its own build. A pnpm
+/// built for MinGW, as MSYS2 builds it, installs a toolchain that links
+/// against MinGW rather than MSVC.
+fn windows_abi(gnu: bool, llvm: bool) -> &'static str {
+    match (gnu, llvm) {
+        (true, true) => "gnullvm",
+        (true, false) => "gnu",
+        (false, _) => "msvc",
+    }
+}
+
+#[cfg(test)]
+mod tests;

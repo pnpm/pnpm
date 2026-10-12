@@ -3,6 +3,7 @@ use super::{
     Path, StoreDir, default_state_dir, lexical_normalize, resolve_child_concurrency, setting_value,
     verify_deps_env_is_set,
 };
+use pnpm_config::NodePackageMapMode;
 use pnpm_network::normalize_registry_url;
 
 pub(crate) fn apply_store_dir_override<Sys>(
@@ -240,11 +241,19 @@ impl ConfigOverrides {
             config,
             lockfile_include_tarball_url => "lockfileIncludeTarballUrl",
             merge_git_branch_lockfiles => "mergeGitBranchLockfiles",
-            node_experimental_package_map => "nodeExperimentalPackageMap",
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
         );
+        // `--config.node-package-map-mode` reaches the config through
+        // `Config::current` before these overrides run, so the deprecated
+        // flag must not overwrite it.
+        if let Some(value) = self.node_experimental_package_map
+            && !self.unported.contains_key("node-package-map-mode")
+        {
+            config.node_package_map_mode = NodePackageMapMode::from_experimental_flag(value);
+            config.explicit_settings.insert("nodeExperimentalPackageMap".to_string(), value.into());
+        }
         record_enum_overrides!(self, config, save_workspace_protocol => "saveWorkspaceProtocol");
         record_overrides!(self, config, verify_store_integrity => "verifyStoreIntegrity");
     }

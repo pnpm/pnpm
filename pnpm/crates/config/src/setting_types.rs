@@ -114,6 +114,39 @@ pub enum NodeLinker {
     Loaded,
 }
 
+/// What an install does with `node_modules/.package-map.json`
+/// (`nodePackageMap.mode`).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodePackageMapMode {
+    /// No map is written, and an install removes one an earlier install left.
+    #[default]
+    Off,
+    /// The map is written for other tools; Node does not load it.
+    WriteOnly,
+    /// The map is written and Node loads it in pnpm-managed scripts through
+    /// `--experimental-package-map`.
+    Load,
+}
+
+impl NodePackageMapMode {
+    /// The mode the deprecated boolean `nodeExperimentalPackageMap` selects.
+    #[must_use]
+    pub fn from_experimental_flag(enabled: bool) -> Self {
+        if enabled { Self::Load } else { Self::Off }
+    }
+
+    #[must_use]
+    pub fn writes(self) -> bool {
+        !matches!(self, Self::Off)
+    }
+
+    #[must_use]
+    pub fn loads(self) -> bool {
+        matches!(self, Self::Load)
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodePackageMapType {

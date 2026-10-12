@@ -1,9 +1,11 @@
-use super::super::{
-    DependencyGroup, ResolveImporterOptions, SortedImporters, WorkspaceImporter, WorkspaceTreeCtx,
+use super::super::{importers::SortedImporters, options::WorkspaceImporter};
+use crate::{
+    resolve_dependency_tree::{WorkspaceTreeCtx, importer_direct_wanted_specs},
+    resolve_importer::ResolveImporterOptions,
 };
-use crate::resolve_dependency_tree::importer_direct_wanted_specs;
 use node_semver::{Range, Version};
 use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
     VersionSelectorWithWeight,

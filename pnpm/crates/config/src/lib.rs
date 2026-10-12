@@ -34,9 +34,10 @@ pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
-    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
+    PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
 pub use shim_policy::{
@@ -45,12 +46,12 @@ pub use shim_policy::{
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, GLOBAL_CONFIG_YAML_FILENAME,
-    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS, PackageExtension,
-    PackagePermissions, PeerDependencyMeta, PeerDependencyRules, PermissionCapability,
-    PnpmfileSetting, PythonSettings, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    SkillsSettings, TaskSettings, Tool, ToolSettings, UnrecognizedSettings, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds, decided_permissions,
+    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS,
+    NodePackageMapSettings, PackageExtension, PackagePermissions, PeerDependencyMeta,
+    PeerDependencyRules, PermissionCapability, PnpmfileSetting, PythonSettings,
+    RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsSettings, TaskSettings, Tool,
+    ToolSettings, UnrecognizedSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds, decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
@@ -92,7 +93,7 @@ use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
-use pnpm_store_dir::StoreDir;
+use pnpm_store_dir::{StoreDir, StoreIndexFormat};
 use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
@@ -167,6 +168,22 @@ impl PackageManagerBootstrap {
 /// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
 /// setting, so a source that sets either one decides both, or `pnpm config
 /// get` would answer one of the two with the value the install did not use.
+/// `nodePackageMap` supersedes the deprecated spellings; mirror it there so
+/// `config get` answers for them as well.
+fn mirror_node_package_map(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    section: NodePackageMapSettings,
+) {
+    if let Some(mode) = section.mode {
+        target.insert("nodeExperimentalPackageMap".to_string(), mode.loads().into());
+    }
+    if let Some(map_type) = section.map_type
+        && let Ok(map_type) = serde_json::to_value(map_type)
+    {
+        target.insert("nodePackageMapType".to_string(), map_type);
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -190,6 +207,9 @@ fn collect_explicit_settings(
             "enableGlobalVirtualStore".to_string(),
             serde_json::Value::Bool(virtual_store_type.is_global()),
         );
+    }
+    if let Some(section) = settings.node_package_map {
+        mirror_node_package_map(target, section);
     }
     // `audit.level` supersedes the deprecated `auditLevel` spelling; mirror it
     // there so `config get audit-level` answers the way pnpm does.

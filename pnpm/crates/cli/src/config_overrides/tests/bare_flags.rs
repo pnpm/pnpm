@@ -1,6 +1,6 @@
 use super::{
-    Config, ConfigOverrides, OsString, PackageImportMethod, Path, PmOnFail, RuntimeOnFail,
-    TrustPolicy, argv, assert_eq,
+    Config, ConfigOverrides, NodePackageMapMode, OsString, PackageImportMethod, Path, PmOnFail,
+    RuntimeOnFail, TrustPolicy, argv, assert_eq,
 };
 
 #[test]
@@ -150,7 +150,7 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
     assert!(config.frozen_store);
     assert!(config.lockfile_include_tarball_url);
     assert!(config.merge_git_branch_lockfiles);
-    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_mode, NodePackageMapMode::Load);
     assert!(config.offline);
     assert!(config.prefer_frozen_lockfile);
     assert!(config.prefer_offline);
@@ -364,4 +364,20 @@ fn a_numeric_setting_claims_a_negative_value() {
             "{tokens:?}",
         );
     }
+}
+
+/// The deprecated `--node-experimental-package-map` flag yields to the mode
+/// the same command line sets, which config loading has already applied.
+#[test]
+fn the_node_package_map_mode_wins_over_the_deprecated_flag() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--node-experimental-package-map",
+        "--config.node-package-map-mode=write-only",
+    ]));
+    let mut config =
+        Config { node_package_map_mode: NodePackageMapMode::WriteOnly, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.node_package_map_mode, NodePackageMapMode::WriteOnly);
 }
