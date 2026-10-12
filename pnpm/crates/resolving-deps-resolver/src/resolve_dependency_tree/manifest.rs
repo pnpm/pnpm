@@ -220,34 +220,31 @@ fn collect_deps(
     let Some(map) = manifest.get::<&str>(group.into()).and_then(Value::as_object) else {
         return Ok(());
     };
-    let optional = declares_optional_dependencies(group);
-    for (name, range) in map {
-        if let Some(range_str) = range.as_str() {
-            if !crate::is_valid_dependency_alias(name) {
-                return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                    parent: parent.to_string(),
-                    alias: name.clone(),
-                });
-            }
-            if bundled.contains(name.as_str()) {
-                continue;
-            }
-            out.push(DependencySpec {
-                alias: name.clone(),
-                bare_specifier: range_str.to_string(),
-                optional,
-                injected: dependency_is_injected(manifest, name),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn declares_optional_dependencies(group: DependencyGroup) -> bool {
-    match group {
+    let optional = match group {
         DependencyGroup::Optional => true,
         DependencyGroup::Prod | DependencyGroup::Dev | DependencyGroup::Peer => false,
+    };
+    for (name, range) in map {
+        let Some(range_str) = range.as_str() else {
+            continue;
+        };
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                parent: parent.to_string(),
+                alias: name.clone(),
+            });
+        }
+        if bundled.contains(name.as_str()) {
+            continue;
+        }
+        out.push(DependencySpec {
+            alias: name.clone(),
+            bare_specifier: range_str.to_string(),
+            optional,
+            injected: dependency_is_injected(manifest, name),
+        });
     }
+    Ok(())
 }
 
 fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String {
