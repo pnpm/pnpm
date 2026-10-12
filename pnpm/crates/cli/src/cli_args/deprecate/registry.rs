@@ -1,9 +1,14 @@
 use super::{
-    BTreeMap, Config, Context, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT,
-    DeprecateContext, DeprecateError, Deserialize, IntoDiagnostic, LimitedBody, Response,
-    Serialize, StatusCode, ThrottledClient, encode_uri_component, parse_wanted_dependency,
-    pick_registry_for_package, read_limited_body, redact_url_credentials, retry_async, sanitize,
-    send_with_retry,
+    BTreeMap, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext,
+    DeprecateError, Deserialize, LimitedBody, Response, Serialize, StatusCode, read_limited_body,
+    redact_url_credentials, retry_async, sanitize, send_with_retry,
+};
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{
+        apply_auth_and_otp, auth_header_for_package, package_endpoint_url,
+        resolve_target_registry_for_package,
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,12 +63,8 @@ async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
 ) -> Result<Meta, FetchError> {
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
             // Need full metadata for put update.
-            builder
+            apply_auth_and_otp(client.get(url), auth_header, None)
         })
         .await
         .map_err(FetchError::Request)?;
@@ -124,17 +125,11 @@ pub(super) async fn put_package_meta(
     let body = serde_json::to_string(package_meta).expect("a struct serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client
+            let builder = client
                 .put(url)
                 .header("content-type", "application/json")
                 .body(body.clone());
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            if let Some(otp) = otp {
-                builder = builder.header("npm-otp", otp);
-            }
-            builder
+            apply_auth_and_otp(builder, auth_header, otp)
         })
         .await
         .map_err(|source| {
@@ -201,7 +196,12 @@ where
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {
-    pick_registry_for_package(&context.registries, package_name, None)
+    resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    )
 }
 
 pub(crate) fn auth_header_for_registry(
@@ -209,44 +209,17 @@ pub(crate) fn auth_header_for_registry(
     registry_url: &str,
     package_name: &str,
 ) -> Option<String> {
-    context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
-}
-
-pub(crate) fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for deprecate")
+    auth_header_for_package(context.config, registry_url, package_name)
 }
 
 pub(crate) fn package_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
     let package_name = package_name_for_url(package_name)?;
-    registry_endpoint_url(registry_url, &escaped_package_name(&package_name))
-}
-
-pub(crate) fn package_name_for_url(package_name: &str) -> Result<String, DeprecateError> {
-    parse_wanted_dependency(package_name).alias
-        .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: package_name.to_string() })
-}
-
-pub(crate) fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
+    package_endpoint_url(registry_url, &package_name)
         .map_err(|source| registry_operation_error("build registry URL", source))
 }
 
-pub(crate) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-pub(crate) fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
+pub(crate) fn package_name_for_url(package_name: &str) -> Result<String, DeprecateError> {
+    PackageSpec::parse(package_name)
+        .map(|spec| spec.name)
+        .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: package_name.to_string() })
 }

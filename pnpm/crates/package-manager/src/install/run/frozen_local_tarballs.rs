@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
-use super::{super::map_frozen_lockfile_error, InstallError, dispatch::Settled};
+use super::{super::map_frozen_lockfile_error, InstallError, settled::Settled};
 
 async fn detect_host(
     settled: &Settled<'_, '_>,

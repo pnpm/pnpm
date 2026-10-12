@@ -3,7 +3,7 @@ pub(crate) use apply::{
 };
 pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
 
-use apply::normalize_registry_url;
+use pnpm_network::normalize_registry_url;
 
 use pnpm_config::{
     ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
@@ -304,7 +304,7 @@ impl ConfigOverrides {
             self.unported.insert(name, value.to_owned());
         }
         if let Some(scope) = scoped_registry_key(key) {
-            self.registries.insert(scope.to_owned(), normalize_registry_url(value));
+            self.registries.insert(scope.to_owned(), normalize_registry_url(value).into_owned());
         }
     }
 }

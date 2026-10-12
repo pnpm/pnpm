@@ -35,21 +35,46 @@ pub fn walk_reqwest_chain(error: &reqwest::Error) -> String {
 /// [`GuardedDnsResolver`](crate::GuardedDnsResolver) refused the address.
 #[must_use]
 pub fn is_permanent_error(error: &reqwest::Error) -> bool {
-    let mut source = std::error::Error::source(error);
-    while let Some(error) = source {
-        if matches!(
-            error.downcast_ref::<rustls::Error>(),
-            Some(rustls::Error::InvalidCertificate(_)),
-        ) || error.is::<BlockedAddress>()
-        {
-            return true;
-        }
-        // `io::Error::source()` skips its boxed error itself, which is
-        // where the TLS stream keeps the rustls error.
-        source = match error.downcast_ref::<std::io::Error>().and_then(std::io::Error::get_ref) {
-            Some(inner) => Some(inner),
+    error_sources(error)
+        .any(|error| {
+            matches!(
+                error.downcast_ref::<rustls::Error>(),
+                Some(rustls::Error::InvalidCertificate(_)),
+            ) || error.is::<BlockedAddress>()
+        })
+}
+
+/// Whether `error` is the peer closing the TLS connection without a
+/// `close_notify` alert. rustls reports it as an [`std::io::Error`] of kind
+/// [`std::io::ErrorKind::UnexpectedEof`] carrying only this message.
+pub(crate) fn is_unclean_tls_close(error: &reqwest::Error) -> bool {
+    const RUSTLS_UNEXPECTED_EOF_MESSAGE: &str =
+        "peer closed connection without sending TLS close_notify";
+    error_sources(error)
+        .any(|error| {
+            error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| {
+                    error.kind() == std::io::ErrorKind::UnexpectedEof
+                        && error
+                            .get_ref()
+                            .is_some_and(|inner| {
+                                inner.to_string().starts_with(RUSTLS_UNEXPECTED_EOF_MESSAGE)
+                            })
+                })
+        })
+}
+
+/// Every error under `error`, including the boxed error of each
+/// [`std::io::Error`]: `io::Error::source()` skips it, and that is where
+/// the TLS stream keeps the rustls error.
+fn error_sources<'a>(
+    error: &'a reqwest::Error,
+) -> impl Iterator<Item = &'a (dyn std::error::Error + 'static)> {
+    std::iter::successors(std::error::Error::source(error), |error| {
+        match error.downcast_ref::<std::io::Error>().and_then(std::io::Error::get_ref) {
+            Some(inner) => Some(inner as &(dyn std::error::Error + 'static)),
             None => error.source(),
-        };
-    }
-    false
+        }
+    })
 }

@@ -10,7 +10,7 @@
 
 pub use build_settings::{
     LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,
-    set_allow_builds_clearing_legacy,
+    set_allow_builds_clearing_legacy, set_permissions,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
@@ -475,7 +475,7 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         .unwrap_or_else(|| Path::new("."));
     let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
-    tmp.as_file().sync_all()?;
+    pnpm_fs::sync_file(tmp.as_file())?;
     tmp.persist(path).map_err(|err| err.error)?;
     Ok(())
 }

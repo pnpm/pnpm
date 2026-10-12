@@ -156,10 +156,13 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>> {
-        let row = sqlx::query("SELECT username FROM tokens WHERE token_hash = ?")
-            .bind(token_hash)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
+             WHERE t.token_hash = ?",
+        )
+        .bind(token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
         row.map(|row| row.try_get(0))
             .transpose()
             .map_err(RegistryError::from)
@@ -169,6 +172,17 @@ impl AuthSqlBackend for MysqlDatabase {
         let row = sqlx::query(
             "SELECT username, created_at, last_used_at, readonly, cidr_whitelist
              FROM tokens WHERE token_hash = ?",
+        )
+        .bind(token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+    }
+
+    async fn find_owned_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+        let row = sqlx::query(
+            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist
+             FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = ?",
         )
         .bind(token_hash)
         .fetch_optional(&self.pool)
@@ -195,6 +209,37 @@ impl AuthSqlBackend for MysqlDatabase {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar("SELECT username FROM users ORDER BY username").fetch_all(&self.pool)
+            .await?)
+    }
+
+    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool> {
+        let updated = sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE username = ?")
+            .bind(bcrypt_hash)
+            .bind(username)
+            .execute(&self.pool)
+            .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let removed = sqlx::query("DELETE FROM users WHERE username = ?")
+            .bind(username)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+        if removed > 0 {
+            sqlx::query("UPDATE auth_counters SET value = value - 1 WHERE name = ? AND value > 0")
+                .bind("users")
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(removed > 0)
     }
 }
 

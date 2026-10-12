@@ -1,4 +1,5 @@
-use super::{BTreeMap, BTreeSet};
+use super::{BTreeMap, BTreeSet, reuse::real_package_name_of};
+use pnpm_resolving_resolver_base::WantedDependency;
 
 /// Which dependencies `pacquet update` excludes from lockfile-resolution
 /// reuse. An excluded package re-resolves to highest-in-range, and its
@@ -54,28 +55,54 @@ impl VersionLine {
 }
 
 /// The packages a `pacquet update` targets, each mapped to the version
-/// lines its selectors scoped it to -- or to `None` when a selector named
-/// no single version, which targets the package at every version. See
-/// [`VersionLine`].
+/// lines its selectors scoped it to or the exact versions its caller named
+/// -- or to `None` when a selector named no single version, which targets
+/// the package at every version. See [`VersionLine`].
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<VersionLine>>>);
+pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<TargetedVersions>>>);
+
+/// The versions of a package that one target reaches.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum TargetedVersions {
+    Line(VersionLine),
+    Exact(node_semver::Version),
+}
+
+impl TargetedVersions {
+    fn covers(&self, version: &node_semver::Version) -> bool {
+        match self {
+            TargetedVersions::Line(line) => line.covers(version),
+            TargetedVersions::Exact(exact) => exact == version,
+        }
+    }
+}
 
 impl UpdateTargets {
     /// Add `name` as a target. `line` scopes it to one version line; `None`
     /// widens the target to every version, and never narrows one already
     /// recorded.
     pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
-        let lines = self.0
+        self.insert_targeted(name, line.map(TargetedVersions::Line));
+    }
+
+    /// Add `name` as a target at `version` alone. A target that already
+    /// covers every version of `name` stays that wide.
+    pub fn insert_version(&mut self, name: String, version: node_semver::Version) {
+        self.insert_targeted(name, Some(TargetedVersions::Exact(version)));
+    }
+
+    fn insert_targeted(&mut self, name: String, versions: Option<TargetedVersions>) {
+        let targeted = self.0
             .entry(name)
             .or_insert_with(|| Some(BTreeSet::new()));
-        match line {
+        match versions {
             // pnpm evaluates every selector that matches a dependency, so
             // one selector targeting every version makes the narrower ones
             // moot.
-            None => *lines = None,
-            Some(line) => {
-                if let Some(lines) = lines {
-                    lines.insert(line);
+            None => *targeted = None,
+            Some(versions) => {
+                if let Some(targeted) = targeted {
+                    targeted.insert(versions);
                 }
             }
         }
@@ -83,12 +110,12 @@ impl UpdateTargets {
 
     /// Add every target of `other`, with [`Self::insert`]'s widening rule.
     pub fn merge(&mut self, other: Self) {
-        for (name, lines) in other.0 {
-            match lines {
-                None => self.insert(name, None),
-                Some(lines) => {
-                    for line in lines {
-                        self.insert(name.clone(), Some(line));
+        for (name, targeted) in other.0 {
+            match targeted {
+                None => self.insert_targeted(name, None),
+                Some(targeted) => {
+                    for versions in targeted {
+                        self.insert_targeted(name.clone(), Some(versions));
                     }
                 }
             }
@@ -106,11 +133,11 @@ impl UpdateTargets {
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
-        let Some(lines) = self.0.get(name) else { return false };
-        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
-        lines
+        let Some(targeted) = self.0.get(name) else { return false };
+        let (Some(targeted), Some(version)) = (targeted.as_ref(), version) else { return true };
+        targeted
             .iter()
-            .any(|line| line.covers(version))
+            .any(|versions| versions.covers(version))
     }
 }
 
@@ -159,11 +186,89 @@ impl UpdateDepth {
     }
 }
 
-impl super::reuse::UpdateScope<'_> {
+/// The `pacquet update` scope a node is judged against: which names the
+/// update targets, and how deep it reaches.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct UpdateScope<'a> {
+    pub(super) reuse: &'a UpdateReuseScope,
+    pub(super) max_depth: UpdateDepth,
+}
+
+impl UpdateScope<'_> {
     /// Whether the update reopens every edge at every depth, so no locked
     /// version survives it.
     pub(super) fn unpins_every_edge(self) -> bool {
         matches!(self.reuse, UpdateReuseScope::None) && self.max_depth == UpdateDepth::UNLIMITED
+    }
+}
+
+/// `true` when a node named `name`, locked at `version`, is a `pacquet
+/// update` target at `depth`, and so excluded from reuse. A `None` version
+/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
+/// `--depth` ceiling the update no longer reaches, so every node keeps its
+/// locked resolution.
+pub(super) fn update_excludes(
+    scope: UpdateScope<'_>,
+    name: &str,
+    version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All => false,
+        // `None` is handled earlier in `try_reuse_node`; treat it the
+        // same here for completeness.
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(targets) => targets.covers(name, version),
+    }
+}
+
+/// Whether the running `pacquet update` reaches this edge, so its
+/// locked-version pin must not survive — the update exists to move it.
+/// Unlike [`fn@is_update_target`], an update-everything scope
+/// ([`UpdateReuseScope::None`]) unpins every edge the depth ceiling
+/// reaches.
+pub(super) fn update_unpins_edge(
+    scope: UpdateScope<'_>,
+    wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All => false,
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
+        }
+    }
+}
+
+/// Whether `wanted` is one of the packages the user asked to update,
+/// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
+/// `ResolveOptions::update_requested` flag, which gates the npm
+/// picker's held-back-update warning.
+#[inline]
+pub(super) fn is_update_target(
+    scope: UpdateScope<'_>,
+    wanted: &WantedDependency,
+    locked_version: Option<&node_semver::Version>,
+    depth: i32,
+) -> bool {
+    if !scope.max_depth.reaches(depth) {
+        return false;
+    }
+    match scope.reuse {
+        UpdateReuseScope::All | UpdateReuseScope::None => false,
+        UpdateReuseScope::Except(_) => {
+            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
+                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
+        }
     }
 }
 

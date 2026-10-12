@@ -109,7 +109,8 @@ fn create_target(
             Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
     } else if manifest.catalogs.named.is_some() {
         // `catalogs:` exists but lacks this name — add a named sub-block.
-        let new_text = write_named_subblock(manifest, catalog_name, dep, &value);
+        let new_text =
+            write_named_subblock(manifest.document.text(), "catalogs", catalog_name, dep, &value);
         manifest.document.set_text(new_text);
         manifest.catalogs.named
             .as_mut()
@@ -271,15 +272,20 @@ pub(super) fn write_rendered_entry_at(
     splice(text, offset, &line)
 }
 
-/// Write a new named catalog (`<name>:` + its first entry) into an existing
-/// top-level `catalogs:` block, at the position the reorder pass would choose.
-fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str) -> String {
-    let text = manifest.document.text();
-    if let Inline::Flow(collection) = locate_mapping(text, &["catalogs"]) {
+/// Write a new named mapping (`<name>:` + its first entry) into an existing
+/// top-level `block`, at the position the reorder pass would choose.
+pub(super) fn write_named_subblock(
+    text: &str,
+    block: &str,
+    name: &str,
+    dep: &str,
+    value: &str,
+) -> String {
+    if let Inline::Flow(collection) = locate_mapping(text, &[block]) {
         let entry = format!("{{ {}: {value} }}", render::render_value(dep));
         return flow::upsert(text, &collection, name, &entry);
     }
-    let catalogs = locate(text, &["catalogs"]).expect("catalogs block exists");
+    let catalogs = locate(text, &[block]).expect("top-level block exists");
     let existing: Vec<String> = catalogs.entries
         .iter()
         .map(|entry| entry.key.clone())
@@ -303,7 +309,7 @@ fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str)
         catalogs.entries
             .iter()
             .find(|entry| &entry.key == predecessor)
-            .expect("predecessor named catalog exists")
+            .expect("predecessor entry exists")
             .block_end
     };
     splice(text, offset, &block)

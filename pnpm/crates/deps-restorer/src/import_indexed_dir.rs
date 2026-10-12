@@ -1,11 +1,15 @@
 pub use placement::marker_present;
 
+mod hardlinks;
 mod placement;
 
 use placement::{all_files_match, file_matches_store_entry, populate_dir};
 
 mod staging;
 use staging::stage_and_swap;
+
+#[cfg(windows)]
+mod windows_filenames;
 
 use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
 use derive_more::{Display, Error};
@@ -34,6 +38,8 @@ pub struct ImportIndexedDirOpts {
     /// existing directory short-circuits this function (matches
     /// pnpm's pre-existence check in `importIndexedPackage`).
     pub force: bool,
+    /// Reuse an unchanged mutable directory when every imported file is still hardlinked.
+    pub reuse_hardlinks: bool,
     /// When `true` (only meaningful with `force`), preserve
     /// `dir_path/node_modules/` across the re-import so nested
     /// dependencies survive the rebuild. Required by the hoisted
@@ -179,8 +185,65 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    let existing_kind = existing_dirent_kind(dir_path)?;
+    let result = import_indexed_dir_once::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        opts,
+        false,
+    );
+    #[cfg(windows)]
+    if let Err(error) = &result
+        && is_import_not_found(error)
+        && let Some(sanitized) = windows_filenames::sanitize_filenames(cas_paths)
+    {
+        let relative_dir = std::env::current_dir()
+            .map_or_else(|_| dir_path.to_path_buf(), |cwd| pnpm_fs::relative_path(&cwd, dir_path));
+        let renamed: Vec<_> = sanitized.renamed
+            .iter()
+            .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))
+            .collect();
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
+            pnpm_text_sanitize::sanitize_inline(&relative_dir.to_string_lossy()),
+            renamed.join(", "),
+        ));
+        return import_indexed_dir_once::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            &sanitized.paths,
+            opts,
+            true,
+        );
+    }
+    result
+}
 
+#[cfg(windows)]
+fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
+    match error {
+        ImportIndexedDirError::CreateDir { error, .. }
+        | ImportIndexedDirError::InspectTarget { error, .. }
+        | ImportIndexedDirError::PlaceFile { error, .. }
+        | ImportIndexedDirError::ClearBlockingDirEntry { error, .. }
+        | ImportIndexedDirError::LinkFile(LinkFileError::Import { error, .. }) => {
+            pnpm_fs::is_not_found(error)
+        }
+        _ => false,
+    }
+}
+
+fn import_indexed_dir_once<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
+) -> Result<(), ImportIndexedDirError> {
+    let existing_kind = existing_dirent_kind(dir_path)?;
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
@@ -208,13 +271,13 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // work, so an existing dirent is this package's file and is
         // adopted, while a shared one may hold a file an importer died
         // halfway through writing, which only a replacement heals.
-        (Some(file_type), false) if file_type.is_dir() => repair_incomplete_dir::<Reporter>(
+        (Some(file_type), false) if file_type.is_dir() => repair_existing_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            opts.safe_to_skip,
-            opts.preserve_symlinks,
+            opts,
+            repair_sanitized,
         ),
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
@@ -247,6 +310,16 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             file_type,
             opts.preserve_symlinks,
         );
+    }
+    if opts.reuse_hardlinks
+        && import_method == PackageImportMethod::Hardlink
+        && hardlinks::directory_matches(dir_path, cas_paths, opts.keep_modules_dir)
+    {
+        crate::link_file::log_method_once::<Reporter>(
+            logged_methods,
+            pnpm_reporter::PackageImportMethod::Hardlink,
+        );
+        return Ok(());
     }
     if opts.safe_to_skip {
         return import_into_shared_dir::<Reporter>(
@@ -368,15 +441,16 @@ fn import_absent_dir<Reporter: self::Reporter>(
 }
 
 // A marker-less target is a partial import. Shared targets must replace potentially torn files.
-fn repair_incomplete_dir<Reporter: self::Reporter>(
+fn repair_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    if marker_present(dir_path, cas_paths) {
+    // The first import may have left files that do not match the sanitized map.
+    if !repair_sanitized && marker_present(dir_path, cas_paths) {
         Ok(())
     } else {
         populate_dir::<Reporter>(
@@ -384,8 +458,8 @@ fn repair_incomplete_dir<Reporter: self::Reporter>(
             import_method,
             dir_path,
             cas_paths,
-            Placement::for_target(safe_to_skip),
-            preserve_symlinks.then_some(dir_path),
+            Placement::for_target(opts.safe_to_skip || repair_sanitized),
+            opts.preserve_symlinks.then_some(dir_path),
         )
         .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
     }

@@ -1,8 +1,9 @@
 use super::{
-    ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HeaderMap, HostedConfig,
-    HostedStoreConfig, IndexMap, LogConfig, OciConfig, OsvConfig, PathBuf, PipelineFeature,
-    Registries, Registry, RegistryFeature, ResolverFeature, RoutePolicy, SocketAddr, Teams,
-    UpstreamConfig, default_cache_dir, random_secret, registry_mock_graph, registry_mock_rules,
+    ArtifactsFeature, AuthConfig, BTreeSet, BackendConfig, Config, CorsConfig, HeaderMap,
+    HostedConfig, HostedStoreConfig, IndexMap, LogConfig, OciConfig, OsvConfig, PathBuf,
+    PipelineFeature, Registries, Registry, RegistryFeature, ResolverFeature, RoutePolicy,
+    SocketAddr, UiConfig, UpstreamConfig, default_cache_dir, random_secret, registry_mock_graph,
+    registry_mock_rules,
 };
 
 impl Config {
@@ -54,14 +55,7 @@ impl Config {
         // authenticated unpublish). Programmatic configs may split the
         // namespace (graph) from the rules like this; YAML derives both from
         // one `packages:` map.
-        hosted.insert(
-            "local".to_string(),
-            HostedConfig {
-                org: String::new(),
-                rules: registry_mock_rules(),
-                teams: Teams::default(),
-            },
-        );
+        hosted.insert("local".to_string(), HostedConfig::new(String::new(), registry_mock_rules()));
         let graph = [
             ("local".to_string(), Registry::Hosted { patterns: Vec::new() }),
             ("main".to_string(), Registry::Router { sources: vec!["local".to_string()] }),
@@ -88,6 +82,7 @@ impl Config {
                 listen,
                 public_url: format!("http://{listen}"),
                 cors: CorsConfig::default(),
+                ui: UiConfig::default(),
                 oci: OciConfig::default(),
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             },
@@ -99,6 +94,7 @@ impl Config {
             identity: super::IdentityConfig {
                 auth: AuthConfig::default(),
                 backend: BackendConfig::Local,
+                admins: BTreeSet::new(),
             },
             features: super::Features {
                 registry: RegistryFeature::default(),

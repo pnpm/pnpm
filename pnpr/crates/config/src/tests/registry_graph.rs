@@ -238,10 +238,12 @@ fn rules_are_derived_from_the_registry_packages_map() {
         "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
     );
     let rules = &config.routing.hosted["local"].rules;
-    let secret = rules.for_package("@secret/thing");
+    let table = rules.snapshot();
+    let secret = table.for_package("@secret/thing");
     assert!(!secret.access.allows(&Identity::Anonymous));
     assert!(secret.access.allows(&user("alice")));
-    let public = rules.for_package("lodash");
+    let table = rules.snapshot();
+    let public = table.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
     assert!(!secret.unpublish.allows(&user("alice")));

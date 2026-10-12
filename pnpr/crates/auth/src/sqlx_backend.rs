@@ -97,10 +97,24 @@ trait AuthSqlBackend: Send + Sync {
         max_users: MaxUsers,
     ) -> Result<InsertUser>;
     async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()>;
+    /// The owner of a token whose owner is a stored user. See
+    /// [`TokenBackend::lookup`].
     async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>>;
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
+    /// [`Self::find_token`] for a token whose owner is a stored user. The
+    /// databases answer it in one joined query; this default takes two.
+    async fn find_owned_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+        let Some(record) = self.find_token(token_hash).await? else {
+            return Ok(None);
+        };
+        Ok(self.stored_user(&record.username).await?.map(|_| record))
+    }
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
+    async fn list_usernames(&self) -> Result<Vec<String>>;
+    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
+    /// Remove the user and take one off the `users` counter in one transaction.
+    async fn delete_user(&self, username: &str) -> Result<bool>;
 }
 
 #[derive(Clone)]
@@ -148,6 +162,33 @@ where
             },
         }
     }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        with_auth_timeout(self.timeout, self.db.list_usernames()).await
+    }
+
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
+        Ok(stored.map(|stored| stored.bcrypt_hash))
+    }
+
+    /// Inserts as an uncapped store would, so the `users` counter still
+    /// counts the new user.
+    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+        validate_username(username)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        let inserted = self.db.insert_user(username, &hash, MaxUsers::Unlimited).await?;
+        Ok(matches!(inserted, InsertUser::Created))
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.db.update_password_hash(username, &hash).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        self.db.delete_user(username).await
+    }
 }
 
 #[async_trait]
@@ -174,6 +215,11 @@ where
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {

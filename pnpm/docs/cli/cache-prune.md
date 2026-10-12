@@ -23,7 +23,7 @@ A later version moved the metadata cache from `v11/` to `v12/`, because the cach
 
 Each removed directory is printed as the metadata root followed by the directory name:
 
-```
+```text
 v11/metadata/https%3A+registry.npmjs.org
 v11/metadata/registry.npmjs.org
 v11/metadata-full/npm.example.com

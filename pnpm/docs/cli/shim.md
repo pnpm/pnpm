@@ -25,7 +25,7 @@ Links a shim for every bin of each package into the global bin directory (`pnpm 
 pnpm shim add yarn
 ```
 
-The [package managers pnpm provisions](../package-managers.md) — `npm`, `yarn`, `bun` — need no lookup: their bins are known up front, aliases included (`yarn` and `yarnpkg`, `npm` and `npx`). For any other package, the bins are read from the package's published manifest; a package that publishes no bin fails with `ERR_PNPM_SHIM_NO_BINS`.
+The [package managers pnpm provisions](../package-managers.md) — `npm`, `yarn`, `bun` — need no lookup: their bins are known up front, aliases included (`yarn` and `yarnpkg`, `npm` and `npx`). Since v12.11.0, `pnpm shim add rust` adds shims for the tools of a [Rust toolchain](../cargo.md#rust-toolchain): `cargo`, `cargo-clippy`, `cargo-fmt`, `clippy-driver`, `rustc`, `rustdoc`, and `rustfmt`. For any other package, the bins are read from the package's published manifest; a package that publishes no bin fails with `ERR_PNPM_SHIM_NO_BINS`.
 
 A bin that is already in the global bin directory belongs to something else — a globally installed package, or another package's shim — so the command refuses with `ERR_PNPM_SHIM_BIN_CONFLICT` rather than taking a working command away.
 
@@ -60,6 +60,7 @@ yarn (auto): yarn, yarnpkg
 A shim resolves the project you are standing in, walking up from the current working directory:
 
 * For a **package manager**, the project's [`packageManager`](../package_json.md) or [`devEngines.packageManager`](../package_json.md#devenginespackagemanager) pin decides the version, and pnpm provisions it. The pin outranks a copy of that package manager installed globally, because it is the project's own statement of what installs it.
+* For the **Rust tools**, the nearest `rust-toolchain.toml` (or `rust-toolchain`) decides the toolchain, read the way rustup reads it. pnpm installs that toolchain into the store on first use and runs the tool with the toolchain's `bin` directory first on `PATH`. It also sets `RUSTUP_TOOLCHAIN` to the toolchain, so a rustup proxy that Cargo runs, such as `cargo-clippy` in `~/.cargo/bin`, runs the same toolchain. A toolchain is a release the Rust project signed, so it runs without the confirmation prompt. Where no toolchain file applies, the toolchain [`pnpm add -g rust`](./add.md#adding-the-rust-toolchain) installed runs, and without one the next command of the same name on `PATH`, such as rustup's. Where the nearest toolchain file is one pnpm leaves to rustup, the next command on `PATH` runs. So does a command that picks its toolchain the rustup way: a `+<toolchain>` argument, `RUSTUP_TOOLCHAIN`, or a `rustup override set` directory override at or below the toolchain file. A Rust shim switched off, through `globalShims` or `PNPM_SHIM_BYPASS`, also runs the next command on `PATH`.
 * For **any other package**, the project's `node_modules/.bin/<name>` is used.
 
 If nothing in the project provides the command, the globally installed version runs — a shim never makes a command fail merely because dispatch did not apply.

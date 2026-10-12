@@ -505,6 +505,10 @@ registries:
 
 The two shapes cannot be mixed in one map.
 
+pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. Credentials configured for either hostname at the registry root apply to the canonical registry. HTTP URLs, custom ports, and registry subpaths are unchanged.
+
+For URL-scoped environment credentials, an explicit `registry.npmjs.org` entry takes precedence over a `registry.npmjs.com` entry.
+
 Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries
@@ -567,7 +571,7 @@ The built-in URLs are also the prefixes that a tarball URL recorded in the lockf
 
 #### Reserved alias names
 
-Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
+Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Since v12.13.0, `tool` is reserved for [provisioned tools](../package-sources.md#provisioned-tools). Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
 
 #### Named registries in the lockfile
 

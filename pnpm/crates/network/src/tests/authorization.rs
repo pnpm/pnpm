@@ -514,7 +514,7 @@ fn a_blank_scoped_cert_shadows_the_top_level_identity() {
 fn blocked_redirect_error_redacts_token() {
     let url = Url::parse("https://cdn.example:8443/asset.tgz?X-Amz-Signature=topsecret#frag")
         .expect("valid url");
-    let message = crate::client_builder::BlockedRedirect(url).to_string();
+    let message = crate::redirect_guard::BlockedRedirect(url).to_string();
     assert!(message.contains("https://cdn.example:8443"), "got: {message}");
     assert!(!message.contains("topsecret"), "token leaked: {message}");
     assert!(!message.contains("asset.tgz"), "path leaked: {message}");

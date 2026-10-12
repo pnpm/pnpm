@@ -182,8 +182,10 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [modulesDir](./settings/node-modules.md#modulesdir)
 * [nodeLinker](./settings/node-modules.md#nodelinker)
 * [nodeLinker.excluded](./settings/node-modules.md#nodelinkerexcluded)
+* [nodePackageMap.mode](./settings/node-modules.md#nodepackagemapmode)
+* [nodePackageMap.type](./settings/node-modules.md#nodepackagemaptype)
 * [nodeExperimentalPackageMap](./settings/node-modules.md#nodeexperimentalpackagemap)
-* [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype)
+* [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype-1)
 * [symlink](./settings/node-modules.md#symlink)
 * [enableModulesDir](./settings/node-modules.md#enablemodulesdir)
 * [virtualStoreDir](./settings/node-modules.md#virtualstoredir)
@@ -215,6 +217,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
+* [storeIndexFormat](./settings/store.md#storeindexformat)
 
 ### Lockfile Settings
 
@@ -263,6 +266,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
   * [Conflict Resolution](./settings/peer-dependencies.md#conflict-resolution)
 * [dedupePeerDependents](./settings/peer-dependencies.md#dedupepeerdependents)
 * [dedupePeers](./settings/peer-dependencies.md#dedupepeers)
+* [addMissingPeerTypes](./settings/peer-dependencies.md#addmissingpeertypes)
 * [strictPeerDependencies](./settings/peer-dependencies.md#strictpeerdependencies)
 * [resolvePeersFromWorkspaceRoot](./settings/peer-dependencies.md#resolvepeersfromworkspaceroot)
 * [peerDependencyRules](./settings/peer-dependencies.md#peerdependencyrules)
@@ -302,11 +306,14 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [sideEffectsCache](./settings/build.md#sideeffectscache)
 * [sideEffectsCacheReadonly](./settings/build.md#sideeffectscachereadonly)
 * [sideEffectsCache.remote](./settings/build.md#sideeffectscacheremote)
+* [remoteCache](./settings/build.md#remotecache)
 * [unsafePerm](./settings/build.md#unsafeperm)
 * [nodeOptions](./settings/build.md#nodeoptions)
 * [verifyDepsBeforeRun](./settings/build.md#verifydepsbeforerun)
 * [strictDepBuilds](./settings/build.md#strictdepbuilds)
 * [allowBuilds](./settings/build.md#allowbuilds)
+* [permissions](./settings/build.md#permissions)
+* [skills.dirs](./settings/build.md#skillsdirs)
 * [dangerouslyAllowAllBuilds](./settings/build.md#dangerouslyallowallbuilds)
 
 ### Versioning Settings

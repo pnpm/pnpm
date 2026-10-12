@@ -108,6 +108,7 @@ pub struct ResolvedConfig {
 
 #[napi(js_name = "readConfig")]
 pub fn read_config(options: ReadConfigOptions) -> napi::Result<ResolvedConfig> {
+    pnpm_package_manager::configure_rayon_pool();
     let dir = std::path::PathBuf::from(options.dir);
     let config =
         resolve_config(&dir, &ConfigOverlay::default()).map_err(|error| to_napi_error(&error))?;

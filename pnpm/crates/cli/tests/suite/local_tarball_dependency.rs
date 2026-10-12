@@ -22,6 +22,55 @@ fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value
     fs::write(workspace.join(file_name), tarball_with_manifest(manifest)).expect("write tarball");
 }
 
+#[cfg(windows)]
+#[test]
+fn local_tarball_with_invalid_windows_filename_installs() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("fixture.tgz"),
+        tarball_entries(&[
+            ("package/package.json", br#"{"name":"filename-fixture","version":"1.0.0"}"#),
+            ("package/assets/icon.svg?as=metadata.d.ts", b"export default 42;"),
+        ]),
+    )
+    .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "filename-fixture": "file:./fixture.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let installed = workspace.join("node_modules/filename-fixture/assets/icon.svgas=metadata.d.ts");
+    assert_eq!(fs::read(&installed).unwrap(), b"export default 42;");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read(installed).unwrap(), b"export default 42;");
+    drop((root, mock_instance));
+}
+
 #[test]
 fn local_tarball_dependency_is_recorded_and_installed() {
     let CommandTempCwd {

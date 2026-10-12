@@ -1,28 +1,25 @@
 mod registry;
+#[cfg(test)]
+mod tests;
 
-use super::sanitize;
+use super::{package_spec::PackageSpec, sanitize};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::{
     RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
     retry_async, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_reporter::Reporter;
 use registry::{
-    DeleteDistTagRequest, SetDistTagRequest, auth_header_for_registry, build_http_client,
-    delete_dist_tag, fetch_dist_tags, normalize_registry_url, package_name_for_url,
-    registry_for_package, set_dist_tag,
+    DeleteDistTagRequest, SetDistTagRequest, auth_header_for_registry, delete_dist_tag,
+    fetch_dist_tags, package_name_for_url, registry_for_package, set_dist_tag,
 };
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DIST_TAGS_BODY_LIMIT: usize = 1024 * 1024;
 const DIST_TAG_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -174,56 +171,57 @@ struct DistTagContext<'a> {
     http_client: ThrottledClient,
     retry_opts: RetryOpts,
     registries: HashMap<String, String>,
+    registry_override: Option<&'a str>,
     otp: Option<String>,
 }
 
-struct PackageSpec {
-    name: String,
-    version: Option<String>,
-}
-
 impl DistTagArgs {
-    pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        config: &Config,
+    ) -> miette::Result<Option<String>> {
         let context = self.context(config)?;
         let Some(subcommand) = self.params.first().map(String::as_str) else {
-            return dist_tag_ls(&context, &[]).await.map(Some);
+            return dist_tag_ls::<Reporter>(&context, &[]).await.map(Some);
         };
         match subcommand {
-            "add" => dist_tag_add(&context, &self.params[1..]).await.map(Some),
-            "rm" => dist_tag_rm(&context, &self.params[1..]).await.map(Some),
-            "ls" | "list" => dist_tag_ls(&context, &self.params[1..]).await.map(Some),
-            _ => dist_tag_ls(&context, &self.params).await.map(Some),
+            "add" => dist_tag_add::<Reporter>(&context, &self.params[1..]).await.map(Some),
+            "rm" => dist_tag_rm::<Reporter>(&context, &self.params[1..]).await.map(Some),
+            "ls" | "list" => {
+                dist_tag_ls::<Reporter>(&context, &self.params[1..]).await.map(Some)
+            }
+            _ => dist_tag_ls::<Reporter>(&context, &self.params).await.map(Some),
         }
     }
 
-    fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry));
-        }
+    fn context<'config>(
+        &'config self,
+        config: &'config Config,
+    ) -> miette::Result<DistTagContext<'config>> {
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
         Ok(DistTagContext {
             config,
-            http_client: build_http_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            http_client: crate::cli_args::registry_client::build_registry_client(config)?,
+            retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
         })
     }
 }
 
-async fn dist_tag_ls(context: &DistTagContext<'_>, params: &[String]) -> miette::Result<String> {
+async fn dist_tag_ls<Reporter: self::Reporter>(
+    context: &DistTagContext<'_>,
+    params: &[String],
+) -> miette::Result<String> {
     let package_name = params.first().ok_or(DistTagError::LsPackageRequired)?;
     let package_name = package_name_for_url(package_name)?;
     let registry_url = registry_for_package(context, &package_name);
-    let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
+    let auth_header =
+        auth_header_for_registry::<Reporter>(context, &registry_url, &package_name).await?;
     let dist_tags =
         fetch_dist_tags(context, &package_name, &registry_url, auth_header.as_deref()).await?;
     let mut lines = Vec::with_capacity(dist_tags.len());
@@ -233,7 +231,10 @@ async fn dist_tag_ls(context: &DistTagContext<'_>, params: &[String]) -> miette:
     Ok(lines.join("\n"))
 }
 
-async fn dist_tag_add(context: &DistTagContext<'_>, params: &[String]) -> miette::Result<String> {
+async fn dist_tag_add<Reporter: self::Reporter>(
+    context: &DistTagContext<'_>,
+    params: &[String],
+) -> miette::Result<String> {
     let spec = params.first().ok_or(DistTagError::AddSpecRequired)?;
     let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
     let raw_version = version.ok_or(DistTagError::AddVersionRequired)?;
@@ -242,7 +243,8 @@ async fn dist_tag_add(context: &DistTagContext<'_>, params: &[String]) -> miette
     };
     let tag = params.get(1).map_or("latest", String::as_str);
     let registry_url = registry_for_package(context, &package_name);
-    let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
+    let auth_header =
+        auth_header_for_registry::<Reporter>(context, &registry_url, &package_name).await?;
     let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
     set_dist_tag(
         context,
@@ -260,7 +262,10 @@ async fn dist_tag_add(context: &DistTagContext<'_>, params: &[String]) -> miette
     Ok(format!("+{tag}: {package_name}@{version}"))
 }
 
-async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette::Result<String> {
+async fn dist_tag_rm<Reporter: self::Reporter>(
+    context: &DistTagContext<'_>,
+    params: &[String],
+) -> miette::Result<String> {
     if params.len() < 2 {
         return Err(DistTagError::RmArgsRequired.into());
     }
@@ -270,7 +275,8 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
         return Err(DistTagError::RmLatest.into());
     }
     let registry_url = registry_for_package(context, &package_name);
-    let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
+    let auth_header =
+        auth_header_for_registry::<Reporter>(context, &registry_url, &package_name).await?;
     let dist_tags =
         fetch_dist_tags(context, &package_name, &registry_url, auth_header.as_deref()).await?;
     let version = dist_tags
@@ -296,11 +302,8 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
 }
 
 fn parse_package_spec(spec: &str) -> Result<PackageSpec, DistTagError> {
-    let parsed = parse_wanted_dependency(spec);
-    let name =
-        parsed.alias.ok_or_else(|| DistTagError::InvalidPackageSpec { spec: spec.to_string() })?;
-    let version = parsed.bare_specifier.filter(|version| !version.is_empty());
-    Ok(PackageSpec { name, version })
+    PackageSpec::parse(spec)
+        .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: spec.to_string() })
 }
 
 fn normalize_exact_semver(version: &str) -> Option<String> {

@@ -42,6 +42,9 @@ impl RegistryError {
             RegistryError::Unauthenticated { .. } => "unauthenticated",
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
+            RegistryError::RulesConfigManaged => "rules_config_managed",
+            RegistryError::PreconditionFailed { .. } => "precondition_failed",
+            RegistryError::AdminConflict { .. } => "admin_conflict",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
@@ -162,11 +165,14 @@ impl RegistryError {
             | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::StagedApprovalInFlight { .. }
             | RegistryError::RevisionReferenceLimit { .. }
-            | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
+            | RegistryError::RevisionReferenceWriteConflict { .. }
+            | RegistryError::AdminConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,
+            RegistryError::PreconditionFailed { .. } => StatusCode::PRECONDITION_FAILED,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. }
             | RegistryError::TeamsConfigManaged { .. }
+            | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,

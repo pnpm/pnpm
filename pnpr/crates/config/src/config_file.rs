@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig, LogFormat,
-    LogLevel, OciConfig, PackageAccess, RegistryError, S3Settings, SystemEnv, UpstreamAuthFile,
-    default_storage_string, env_replace_lossy, oidc,
+    LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings, ScimConfig,
+    SystemEnv, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -58,6 +58,14 @@ pub(super) struct HostedFile {
     /// registries (YAML anchors cover a shared roster in one file).
     #[serde(default)]
     pub(super) teams: IndexMap<String, AccessSpec>,
+    /// Whether `teams:` is the roster or only the seed of one the team API
+    /// edits. Omitted ⇒ `config`.
+    #[serde(default, rename = "teamsManagedBy")]
+    pub(super) teams_managed_by: Management,
+    /// Whether the `packages:` rules and `access:` are fixed, or a starting
+    /// point the admin API may change. Omitted ⇒ `config`.
+    #[serde(default, rename = "rulesManagedBy")]
+    pub(super) rules_managed_by: Management,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
@@ -177,6 +185,9 @@ pub(super) struct ConfigFile {
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]
     pub(super) cors: CorsFile,
+    /// pnpr-only web UI settings.
+    #[serde(default)]
+    pub(super) ui: UiFile,
     #[serde(default)]
     pub(super) oci: OciConfig,
     /// pnpr-only block: store the hosted (published) packages in an
@@ -251,6 +262,19 @@ pub(super) struct CorsFile {
     pub(super) allowed_origins: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct UiFile {
+    pub(super) enabled: bool,
+    pub(super) dir: Option<String>,
+}
+
+impl Default for UiFile {
+    fn default() -> Self {
+        Self { enabled: true, dir: None }
+    }
+}
+
 /// Marker for a present top-level `packages:` key, whatever its value.
 #[derive(Debug, Default)]
 pub(super) struct RemovedPackagesBlock;
@@ -292,11 +316,15 @@ pub(super) fn default_log_type() -> String {
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct AuthFile {
     #[serde(default)]
+    pub(super) admins: Vec<String>,
+    #[serde(default)]
     pub(super) oidc: Vec<oidc::OidcProvider>,
     #[serde(default)]
     pub(super) htpasswd: HtpasswdFile,
     #[serde(default)]
     pub(super) tokens: TokensFile,
+    #[serde(default)]
+    pub(super) scim: Option<ScimConfig>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -373,8 +401,19 @@ impl Default for FeatureFile {
 pub(super) struct ArtifactsFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
-    #[serde(default, rename = "compilerCaches")]
-    pub(super) compiler_caches: IndexMap<String, StorageAccessFile>,
+    #[serde(default)]
+    pub(super) orgs: IndexMap<String, StorageAccessFile>,
+    #[serde(default)]
+    pub(super) quota: ArtifactQuotaFile,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ArtifactQuotaFile {
+    #[serde(rename = "ownerGiB")]
+    pub(super) owner_gib: Option<u64>,
+    #[serde(rename = "totalGiB")]
+    pub(super) total_gib: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -389,8 +428,6 @@ pub(super) struct StorageAccessFile {
 pub(super) struct PipelineFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
-    #[serde(default)]
-    pub(super) workspaces: IndexMap<String, StorageAccessFile>,
 }
 
 pub(super) fn default_true() -> bool {

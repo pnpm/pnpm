@@ -1,6 +1,6 @@
 use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg, PnprBenchmarkRegistryOverride};
 use crate::cli_args::install::pnpr_request::{
-    BenchmarkRegistryRewrite, rewrite_resolution_registry,
+    BenchmarkRegistryRewrite, check_pnpr_applied_settings, rewrite_resolution_registry,
 };
 use clap::Parser;
 use pnpm_config::NodeLinker;
@@ -320,6 +320,24 @@ fn pnpr_benchmark_override_keeps_resolve_registry_separate_from_tarball_rewrite(
         override_.client_tarball_url("http://server-registry.test/foo/-/foo-1.0.0.tgz"),
         "http://client-registry.test/foo/-/foo-1.0.0.tgz",
     );
+}
+
+#[test]
+fn pnpr_lockfile_resolved_without_add_missing_peer_types_is_rejected() {
+    let enabled =
+        pnpm_config::Config { add_missing_peer_types: true, ..pnpm_config::Config::default() };
+    let applied = pnpm_lockfile::LockfileSettings {
+        add_missing_peer_types: Some(true),
+        ..pnpm_lockfile::LockfileSettings::default()
+    };
+
+    assert!(check_pnpr_applied_settings(&enabled, None).is_err());
+    assert!(
+        check_pnpr_applied_settings(&enabled, Some(&pnpm_lockfile::LockfileSettings::default()))
+            .is_err(),
+    );
+    assert!(check_pnpr_applied_settings(&enabled, Some(&applied)).is_ok());
+    assert!(check_pnpr_applied_settings(&pnpm_config::Config::default(), None).is_ok());
 }
 
 #[test]

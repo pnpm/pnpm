@@ -4,9 +4,10 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
-    claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
+    ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
+    RecordedChildrenContext, claim_children_owner, claim_children_warmup, insert_tree_node,
+    is_current_children_owner, make_non_owner_nodes_lazy, record_children, recorded_children_match,
+    register_peer_dep_names,
 };
 
 pub(super) use cache_keys::{

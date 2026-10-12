@@ -968,3 +968,5 @@ fn stderr(output: &Output) -> String {
 mod signatures;
 
 mod fixes;
+
+mod fix_update;

@@ -412,6 +412,29 @@ fn convert_dependencies_runtime_writes_devengines_runtime() {
 }
 
 #[test]
+fn convert_dependencies_tool_writes_devengines_runtime() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "bun": "tool:1.3.0",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "bun",
+                "version": "1.3.0",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
 fn convert_dependencies_runtime_trims_runtime_selector() {
     let mut manifest = json!({
         "devDependencies": {

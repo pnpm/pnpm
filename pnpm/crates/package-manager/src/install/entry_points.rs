@@ -1,5 +1,6 @@
 use super::{
-    Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
+    Install, InstallRunOptions, InstallSaveOptions, ProjectMutation, WorkspaceInstallSelection,
+    errors::InstallError,
 };
 use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
 use pnpm_config::Config;
@@ -243,11 +244,7 @@ where
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
         assert!(self.lockfile_policy.frozen, "run_rebuild requires frozen_lockfile = true");
-        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            rebuild: Some(rebuild),
-            ..Default::default()
-        }))
-        .await
+        Box::pin(self.run_inner::<Reporter>(rebuild_run_options(rebuild))).await
     }
 
     /// Execute a forced rebuild limited to the selected workspace importers.
@@ -261,9 +258,8 @@ where
             "run_selected_rebuild requires frozen_lockfile = true",
         );
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            rebuild: Some(rebuild),
             selection: Some(selection),
-            ..Default::default()
+            ..rebuild_run_options(rebuild)
         }))
         .await
     }
@@ -339,5 +335,19 @@ pub(super) fn inject_deploy_dependencies_meta(
             }
             value => *value = serde_json::json!({ "injected": true }),
         }
+    }
+}
+
+/// A rebuild runs the build scripts over the tree as the last install left
+/// it, so it does not record itself as an install: the workspace state keeps
+/// describing the install whose layout the tree has, as in the TypeScript
+/// CLI, where only the install commands write it.
+fn rebuild_run_options<'install, 'selection>(
+    rebuild: RebuildOptions,
+) -> InstallRunOptions<'install, 'selection> {
+    InstallRunOptions {
+        rebuild: Some(rebuild),
+        save: InstallSaveOptions { lockfile: true, workspace_state: false },
+        ..Default::default()
     }
 }

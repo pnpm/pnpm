@@ -4,6 +4,7 @@ use super::{
     Value, access_rule, body_bytes, body_json, config_for, fs, header, hosted_with_access, json,
     router, router_with_auth, seed_hosted, seed_hosted_with_maintainer, to_bytes,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn search_paginates_visible_results_and_filters_by_maintainer() {
@@ -105,7 +106,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let response = app

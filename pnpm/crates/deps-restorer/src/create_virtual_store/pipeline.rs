@@ -169,6 +169,7 @@ impl<'a> CreateVirtualStore<'a> {
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
             side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
+            side_effects_by_snapshot: partition.side_effects_by_snapshot,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             materialized_snapshots: plan.materialized_keys(),
             fetch_failed,

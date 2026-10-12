@@ -1,9 +1,10 @@
 use super::{
-    Config, LockfileSetting, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting,
-    StoreDir, UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar,
-    normalize_registry_url, overlay, overlay_some, overlay_tools, registries, resolve,
-    resolve_child_concurrency, warn_deprecated_pairing,
+    Config, LockfileSetting, NodePackageMapMode, Path, PnpmfileSetting, ProxyKeys, ProxyValue,
+    SideEffectsCacheSetting, StoreDir, UpdateConfig, WorkspaceSettings, no_proxy_scalar, overlay,
+    overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
+    warn_deprecated_pairing,
 };
+use pnpm_network::normalize_registry_url;
 
 impl WorkspaceSettings {
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -52,6 +53,8 @@ impl WorkspaceSettings {
         identically_named_settings!(apply);
         self.apply_lockfile(config);
 
+        self.apply_node_package_map(config);
+
         if let Some(macos_backup) = self.macos_backup.take() {
             overlay(&mut config.macos_backup.exclude_modules_dir, macos_backup.exclude_modules_dir);
             overlay(&mut config.macos_backup.exclude_store_dir, macos_backup.exclude_store_dir);
@@ -84,6 +87,19 @@ impl WorkspaceSettings {
         self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
     }
 
+    /// The `nodePackageMap` section is applied after its deprecated
+    /// spellings so it wins when one source carries both.
+    fn apply_node_package_map(&mut self, config: &mut Config) {
+        if let Some(enabled) = self.node_experimental_package_map.take() {
+            config.node_package_map_mode = NodePackageMapMode::from_experimental_flag(enabled);
+        }
+        overlay(&mut config.node_package_map_type, self.node_package_map_type.take());
+        if let Some(section) = self.node_package_map.take() {
+            overlay(&mut config.node_package_map_mode, section.mode);
+            overlay(&mut config.node_package_map_type, section.map_type);
+        }
+    }
+
     pub(super) fn apply_update_settings(
         &mut self,
         config: &mut Config,
@@ -110,6 +126,7 @@ impl WorkspaceSettings {
 
     pub(super) fn apply_optional_settings(&mut self, config: &mut Config) {
         overlay_some(&mut config.frozen_lockfile, self.frozen_lockfile.take());
+        overlay_some(&mut config.provenance, self.provenance.take());
         overlay_some(
             &mut config.prefer_symlinked_executables,
             self.prefer_symlinked_executables.take(),
@@ -170,7 +187,7 @@ impl WorkspaceSettings {
     pub(super) fn apply_registry_settings(&mut self, config: &mut Config) {
         let declared_prefixes = self.apply_registry_declarations(config);
         if let Some(v) = self.registry.take() {
-            config.registry = normalize_registry_url(&v);
+            config.registry = normalize_registry_url(&v).into_owned();
         }
         overlay_some(&mut config.scope, self.scope.take());
         overlay_some(&mut config.pnpr_server, self.pnpr_server.take());
@@ -179,6 +196,9 @@ impl WorkspaceSettings {
         overlay_tools(&mut config.tools, self.tools.take());
         if let Some(v) = self.remote_side_effects_cache.take() {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
+        }
+        if let Some(remote) = self.remote_cache.take() {
+            config.remote_cache.get_or_insert_default().overlay(remote);
         }
         self.apply_side_effects_cache(config);
         self.apply_named_registries(config, declared_prefixes);
@@ -295,9 +315,7 @@ impl WorkspaceSettings {
             );
         }
         overlay_some(&mut config.config_dependencies, self.config_dependencies.take());
-        if let Some(v) = self.allow_builds.take() {
-            config.allow_builds = decided_allow_builds(v);
-        }
+        self.apply_permissions(config);
         overlay(&mut config.dangerously_allow_all_builds, self.dangerously_allow_all_builds.take());
         overlay(&mut config.strict_dep_builds, self.strict_dep_builds.take());
         overlay(&mut config.ignore_scripts, self.ignore_scripts.take());

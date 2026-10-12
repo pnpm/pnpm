@@ -107,6 +107,10 @@ pub struct WorkspaceState {
 pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, serde_json::Value>>,
+    /// The `skills` decisions of `permissions`, recorded only when there
+    /// are any. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_skills: Option<BTreeMap<String, bool>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -138,6 +142,10 @@ pub struct WorkspaceStateSettings {
     pub hoist_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// `addMissingPeerTypes`, recorded only while it is on. pnpm v11 has no
+    /// such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add_missing_peer_types: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -183,6 +191,9 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skills_dirs: Option<Vec<String>>,
     /// The `supportedArchitectures` the install ran with, as pnpm's
     /// config JSON (`{ os, cpu, libc }`). A change must invalidate the
     /// repeat-install fast path so previously skipped platform packages

@@ -5,12 +5,11 @@
 
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]
@@ -41,13 +40,7 @@ impl LogoutArgs {
             return Err(LogoutCliError::NoConfigDir.into());
         };
 
-        let http_client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .into_diagnostic()?;
+        let http_client = crate::cli_args::registry_client::build_registry_client(config)?;
 
         // Reconstruct the subset of pnpm's `config.authConfig` the command
         // reads: `<nerf-darted-uri>:_authToken` -> raw token.
@@ -56,12 +49,7 @@ impl LogoutArgs {
             .map(|(uri, token)| (format!("{uri}:_authToken"), token.clone()))
             .collect();
 
-        let retry = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry = config.retry_opts();
 
         let message = logout::<AuthHost, Reporter>(
             &http_client,

@@ -79,7 +79,7 @@ export async function publishPackedPkg (
     globalInfo(`✅ ${isStage ? 'Staged' : 'Published'} package ${name}@${version}`)
     return summary
   }
-  throw await createFailedToPublishError(packResult, response)
+  throw await createFailedToPublishError(packResult, response, isStage)
 }
 
 /**

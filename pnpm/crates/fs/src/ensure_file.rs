@@ -174,6 +174,21 @@ pub fn ensure_cas_file(
     ensure(file_path, content, mode, Repair::InPlace)
 }
 
+/// [`ensure_file`] for a file other programs read as-is: a new file is
+/// published through a temp file and `rename` as well, so no reader ever
+/// sees it partly written, even on its first creation. A file that already
+/// holds `content` is left untouched.
+pub fn ensure_file_atomically(
+    file_path: &Path,
+    content: &[u8],
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
+) -> Result<(), EnsureFileError> {
+    let lock = cas_write_lock(file_path);
+    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    verify_or_rewrite(file_path, content, mode, Repair::Rename)
+}
+
 /// How [`ensure`] repairs an existing file whose bytes mismatch.
 #[derive(Clone, Copy)]
 enum Repair {

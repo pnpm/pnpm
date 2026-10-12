@@ -2,8 +2,8 @@ pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
 pub(crate) mod slots;
 pub use allow_build_policy::{
-    AllowBuildPolicy, allow_build_key_from_ignored_build, normalize_build_dep_path,
-    parse_allow_build_selector,
+    AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
+    normalize_build_dep_path, parse_allow_build_selector,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
@@ -158,9 +158,10 @@ pub enum BuildModulesError {
 /// Effect on [`BuildModules`]: a selected package is built even when the
 /// side-effects cache reports it already built (an explicit rebuild always
 /// re-runs the scripts). The allow-policy gate is unchanged — a rebuild
-/// never builds a disallowed package — and non-selected packages keep
-/// their normal install gating so a partial rebuild does not drop the
-/// ignored-builds record for the packages it did not touch.
+/// never builds a disallowed package. A package outside the selection is
+/// neither inspected nor built, as under pnpm's `rebuild <pkg>`; the
+/// ignored-builds record keeps the entries of the packages a partial
+/// rebuild did not touch.
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
     /// Allow-build keys (the package name for registry deps, the full
@@ -191,6 +192,12 @@ pub struct RebuildOptions {
     /// just installed or restored, which may have been resolved with other
     /// `readPackage` hooks or settings.
     pub check_lockfile_patches_only: bool,
+
+    /// Keep the side-effects `is_built` gate for the selected packages, so
+    /// one the side-effects cache already holds a build of is restored
+    /// from it instead of running its scripts again. pnpm v11's
+    /// `skipIfHasSideEffectsCache`; the `@pnpm/napi` rebuild exposes it.
+    pub skip_if_has_side_effects_cache: bool,
 }
 
 impl RebuildOptions {
@@ -225,6 +232,13 @@ impl RebuildOptions {
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
+
+    /// Whether the snapshot installed under `key` is in the rebuild
+    /// selection, by its package name or its allow-build key.
+    #[must_use]
+    pub fn selects_snapshot(&self, key: &PackageKey) -> bool {
+        self.selected_names.is_none() || self.settles_dependency(&key.to_string())
+    }
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -250,9 +264,9 @@ pub struct BuildModules<'a> {
     /// Forced-rebuild selection. `None` for a normal install — every
     /// package follows the standard `requires_build` + allow-policy +
     /// side-effects-cache gates. `Some` (a `pacquet rebuild` /
-    /// `approve-builds`) restricts the build to the selected names and
-    /// forces them past the side-effects `is_built` gate. See
-    /// [`RebuildOptions`].
+    /// `approve-builds`) restricts the inspection and the build to the
+    /// selected names and forces them past the side-effects `is_built`
+    /// gate. See [`RebuildOptions`].
     pub rebuild: Option<&'a RebuildOptions>,
 }
 
@@ -346,10 +360,22 @@ impl BuildModules<'_> {
         );
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
+            deferred_builds: self.deferred_builds(&requires_build_map),
             mutated_slots: !mutated_snapshot_keys.is_empty(),
             mutated_snapshot_keys,
         })
+    }
+
+    /// See [`BuildModulesOutput::deferred_builds`].
+    fn deferred_builds(&self, requires_build_map: &HashMap<PackageKey, bool>) -> Vec<String> {
+        deferred_builds(
+            requires_build_map
+                .iter()
+                .filter(|(snapshot_key, _)| {
+                    crate::build_scope::in_build_scope(self.graph.build_scope, snapshot_key)
+                }),
+            self.scripts.ignore,
+        )
     }
 
     fn requires_build_map(
@@ -365,6 +391,7 @@ impl BuildModules<'_> {
             },
             prefetched: self.graph.requires_build_by_snapshot,
             patches: self.graph.patches,
+            rebuild: self.rebuild,
         })
     }
 
@@ -429,6 +456,7 @@ impl BuildModules<'_> {
                 patches: self.graph.patches,
                 requires_build_map,
                 importers: self.graph.importers,
+                build_scope: self.graph.build_scope,
             },
             progress: crate::BuildProgress {
                 dep_graph: dep_states.graph.as_ref(),
@@ -475,7 +503,11 @@ impl BuildModules<'_> {
             can_write_store: self.cache.store_index_writer.is_some()
                 && self.cache.store_dir.is_some(),
             has_packages: self.graph.packages.is_some(),
-            has_cache_rows: self.cache.maps_by_snapshot.is_some_and(|map| !map.is_empty()),
+            // A rebuild that skips cached builds also reads the empty rows
+            // the overlays leave out.
+            has_cache_rows: self.cache.side_effects.has_overlays()
+                || (self.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
+                    && self.cache.side_effects.has_rows()),
         });
         let graph = cache_gate_active.then(|| {
             // Every requires-build snapshot is a root, including the ones

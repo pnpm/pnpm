@@ -19,7 +19,9 @@ use std::{
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
+use pnpm_network::{
+    ThrottledClientGuard, read_self_delimiting_text, redact_url_credentials, retry_async,
+};
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode};
 
@@ -83,7 +85,8 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    if !meta.versions.check_mirror_fragments() {
+    meta.versions.read_every_mirror_fragment();
+    if !meta.versions.corrupt_mirror_fragment_found() {
         return Ok(meta);
     }
     refetch_damaged_mirror(pkg_name, opts).await
@@ -102,7 +105,7 @@ pub(crate) async fn fetch_full_metadata_projected<Projection>(
 ) -> Result<Projection, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
     let projection = project(&meta);
-    if !meta.versions.has_corrupt_mirror_fragment() {
+    if !meta.versions.corrupt_mirror_fragment_found() {
         return Ok(projection);
     }
     drop(meta);
@@ -210,9 +213,7 @@ impl FetchAttempt<'_> {
             })?;
 
         let decode = self.decoder(&response, client.acquired_at());
-        let raw_body = response
-            .text()
-            .await
+        let raw_body = read_self_delimiting_text(response).await
             .inspect_err(|error| opts.http.http_client.downscale_on_timeout(self.url, error))
             .map_err(|error| FetchMetadataError::BodyRead {
                 url: redact_url_credentials(self.url),

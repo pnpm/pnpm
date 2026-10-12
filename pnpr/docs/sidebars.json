@@ -11,12 +11,14 @@
         "configuration",
         "storage",
         "auth-backends",
-        "oidc"
+        "oidc",
+        "scim"
       ]
     },
     "ecosystems",
     "container-images",
     "discovery",
+    "web-ui",
     "install-acceleration",
     "shared-side-effects-cache",
     "compiler-cache",

@@ -4,6 +4,7 @@ use super::{
     drain_resolve_response, git_resolve_request, header, json, router, router_with_auth,
     spawn_counting_server, spawn_git_probe, stream, verify_lockfile_request,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn anonymous_resolve_cannot_trigger_git_egress() {
@@ -79,7 +80,7 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let (repo_url, request_count) = spawn_git_probe().await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
     let mut request = git_resolve_request(&repo_url, Some(&format!("Bearer {token}")));
     request
@@ -157,7 +158,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     // A git dependency's host must be on the fetch allowlist for the resolver
     // to reach it; an off-allowlist URL dependency is rejected at the request
@@ -488,7 +489,7 @@ async fn transitive_dependency_egress(transitive: impl FnOnce(&str) -> String) -
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for(&upstream.url(), tmp.path().to_path_buf()), auth);
     let body = json!({
         "dependencies": { "carrier": "1.0.0" },
@@ -547,7 +548,7 @@ async fn allowlisted_registry_egress(
     let registry = format!("http://{host}:{port}/");
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(registry.clone()),
@@ -619,7 +620,7 @@ async fn git_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback()
     let repo_url = format!("http://localhost:{port}/repo.git");
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(format!("http://localhost:{port}/")),

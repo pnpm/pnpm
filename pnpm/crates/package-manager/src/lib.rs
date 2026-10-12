@@ -1,6 +1,10 @@
 #![cfg_attr(target_family = "wasm", recursion_limit = "256")]
 
 pub use add::*;
+pub use agent_skills::{
+    AGENT_SKILL_LINK_PREFIX, AgentSkillsError, AgentSkillsState, ResyncAgentSkillsError,
+    SyncAgentSkills, agent_skills_dir_from_env, resync_installed_agent_skills, sync_agent_skills,
+};
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
 pub use catalog_cleanup::{WriteWorkspaceCatalogsError, prune_against_project_lockfiles};
@@ -24,7 +28,9 @@ pub use pnpm_deps_restorer::*;
 pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
+pub use prefetch_downloads::{DownloadOutcome, PrefetchDownloads};
 pub use prefetching_resolver::*;
+pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;
 pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
@@ -39,6 +45,7 @@ pub use workspace_cycles::{
 };
 
 mod add;
+mod agent_skills;
 mod build_resolution_verifiers;
 mod build_snapshot;
 mod catalog_cleanup;
@@ -65,19 +72,23 @@ mod linked_peer_dependencies;
 mod lockfile_diff;
 mod manifest_spec_bumps;
 mod minimum_release_age;
+mod missing_peer_types;
 mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
 mod peer_dependency_issues;
+mod prefetch_downloads;
 mod prefetching_resolver;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
+mod rayon_pool;
 mod remove;
 mod resolution_observer;
 mod resolution_policy;
 mod resolve_latest;
 mod runtime_specifier;
+mod store_fetch;
 mod tarball_prefetch;
 mod update;
 mod update_project_manifest;

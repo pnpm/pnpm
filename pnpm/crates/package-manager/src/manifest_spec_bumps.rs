@@ -1,8 +1,7 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
 use crate::{
-    OverriddenDependencyMatcher, VersionsOverrider,
-    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+    OverriddenDependencyMatcher, VersionsOverrider, runtime_specifier::node_runtime_version_spec,
 };
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
@@ -18,6 +17,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_tool_protocol::RUNTIME_PROTOCOL;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},

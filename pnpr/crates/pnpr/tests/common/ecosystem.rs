@@ -5,7 +5,7 @@
 use axum::body::{Body, to_bytes};
 use pnpr::{
     AccessList, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules, Registries,
-    Registry, Teams, UpstreamConfig,
+    Registry, UpstreamConfig,
 };
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
@@ -44,11 +44,10 @@ pub fn mixed_router_config(
     config.http.packument_ttl = Duration::from_mins(1);
     config.routing.hosted.insert(
         hosted.name.to_string(),
-        HostedConfig {
-            org: hosted.org.to_string(),
-            rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access]))),
-            teams: Teams::default(),
-        },
+        HostedConfig::new(
+            hosted.org,
+            PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted.access]))),
+        ),
     );
     config.routing.upstreams.insert(
         upstream.0.to_string(),

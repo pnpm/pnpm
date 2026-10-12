@@ -1,10 +1,18 @@
 use super::{
-    AuthType, BTreeMap, Config, Context, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT,
-    Deserialize, DistTagContext, DistTagError, IntoDiagnostic, RequestBuilder, Response,
-    StatusCode, ThrottledClient, encode_uri_component, parse_wanted_dependency,
-    pick_registry_for_package, read_limited_body, redact_url_credentials, retry_async, sanitize,
-    send_with_retry,
+    AuthType, BTreeMap, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT, Deserialize,
+    DistTagContext, DistTagError, RequestBuilder, Response, StatusCode, encode_uri_component,
+    read_limited_body, redact_url_credentials, retry_async, sanitize, send_with_retry,
 };
+use crate::cli_args::{
+    package_spec::PackageSpec,
+    registry_client::{
+        apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
+        resolve_target_registry_for_package,
+    },
+};
+use pnpm_network::escaped_package_name;
+use pnpm_publish::{Host, OidcHttpOptions, fetch_token_and_provenance_by_oidc};
+use pnpm_reporter::Reporter;
 
 pub(super) struct SetDistTagRequest<'a> {
     pub(super) package_name: &'a str,
@@ -81,19 +89,13 @@ pub(super) async fn delete_dist_tag(
 }
 
 fn apply_dist_tag_mutation_headers(
-    mut builder: RequestBuilder,
+    builder: RequestBuilder,
     auth_header: Option<&str>,
     auth_type: AuthType,
     otp: Option<&str>,
 ) -> RequestBuilder {
-    builder = builder.header("npm-auth-type", auth_type.header_value());
-    if let Some(auth_header) = auth_header {
-        builder = builder.header("authorization", auth_header);
-    }
-    if let Some(otp) = otp {
-        builder = builder.header("npm-otp", otp);
-    }
-    builder
+    let builder = builder.header("npm-auth-type", auth_type.header_value());
+    apply_auth_and_otp(builder, auth_header, otp)
 }
 
 pub(super) async fn fetch_dist_tags(
@@ -117,11 +119,7 @@ async fn fetch_dist_tags_once(
 ) -> Result<BTreeMap<String, String>, DistTagsFetchError> {
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder = client.get(url);
-            if let Some(auth_header) = auth_header {
-                builder = builder.header("authorization", auth_header);
-            }
-            builder
+            apply_auth_and_otp(client.get(url), auth_header, None)
         })
         .await
         .map_err(DistTagsFetchError::Request)?;
@@ -261,26 +259,38 @@ fn display_safe_web_otp_url(value: &str) -> Option<String> {
 }
 
 pub(super) fn registry_for_package(context: &DistTagContext<'_>, package_name: &str) -> String {
-    pick_registry_for_package(&context.registries, package_name, None)
+    resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    )
 }
 
-pub(super) fn auth_header_for_registry(
+pub(super) async fn auth_header_for_registry<Reporter: self::Reporter>(
     context: &DistTagContext<'_>,
     registry_url: &str,
     package_name: &str,
-) -> Option<String> {
-    context.config.auth_headers.for_url_with_package(registry_url, Some(package_name))
-}
-
-pub(super) fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
+) -> miette::Result<Option<String>> {
+    let config = context.config;
+    let http = OidcHttpOptions {
+        fetch_retries: Some(config.fetch_retries),
+        fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),
+        fetch_retry_maxtimeout: Some(config.fetch_retry_maxtimeout),
+        fetch_retry_mintimeout: Some(config.fetch_retry_mintimeout),
+        fetch_timeout: Some(config.fetch_timeout),
+    };
+    // Dist-tag requests need only the token, so skip the publish provenance probe.
+    let oidc = fetch_token_and_provenance_by_oidc::<Host, Reporter>(
+        package_name,
+        registry_url,
+        Some(false),
+        &http,
     )
-    .into_diagnostic()
-    .wrap_err("create the network client for dist-tag")
+    .await?;
+    Ok(oidc
+        .map(|token| format!("Bearer {}", token.auth_token))
+        .or_else(|| auth_header_for_package(config, registry_url, package_name)))
 }
 
 fn dist_tags_url(package_name: &str, registry_url: &str) -> miette::Result<String> {
@@ -304,24 +314,12 @@ fn dist_tag_url(package_name: &str, registry_url: &str, tag: &str) -> miette::Re
 }
 
 pub(super) fn package_name_for_url(package_name: &str) -> Result<String, DistTagError> {
-    parse_wanted_dependency(package_name).alias
+    PackageSpec::parse(package_name)
+        .map(|spec| spec.name)
         .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: package_name.to_string() })
 }
 
 fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
-    reqwest::Url::parse(&normalize_registry_url(registry_url))
-        .and_then(|url| url.join(path))
-        .map(|url| url.to_string())
+    join_registry_endpoint(registry_url, path)
         .map_err(|source| registry_operation_error("build registry dist-tag URL", source))
-}
-
-pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
-}
-
-fn escaped_package_name(package_name: &str) -> String {
-    match package_name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
-        None => encode_uri_component(package_name),
-    }
 }

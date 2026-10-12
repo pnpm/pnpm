@@ -51,7 +51,7 @@ pnpm why --find-by=react17
 
 Output:
 
-```
+```text
 @apollo/client 4.0.4
 ├── @graphql-typed-document-node/core 3.2.0
 └── graphql-tag 2.12.6
@@ -77,7 +77,7 @@ export const finders = {
 
 Output:
 
-```
+```text
 @apollo/client 4.0.4
 ├── @graphql-typed-document-node/core 3.2.0
 │   license: MIT

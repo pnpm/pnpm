@@ -41,7 +41,7 @@ impl PickState<'_> {
             };
 
             let (meta, picked_meta, picked) = self.upgrade_and_pick(ctx, spec, opts, meta).await?;
-            if !picked_meta.versions.has_corrupt_mirror_fragment() {
+            if !picked_meta.versions.corrupt_mirror_fragment_found() {
                 self.cache_picked_meta(ctx, opts, &meta);
                 return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
             }
@@ -132,7 +132,7 @@ impl PickState<'_> {
             "metadata fetch failed; falling back to on-disk mirror",
         );
         let (meta, picked) = pick_from_meta(&self.picker_opts, spec, disk, opts.blocked_versions)?;
-        if !meta.versions.has_corrupt_mirror_fragment() {
+        if !meta.versions.corrupt_mirror_fragment_found() {
             return Ok(PickPackageResult { meta, picked_package: picked });
         }
         Err(error.into())

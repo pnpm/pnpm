@@ -10,6 +10,7 @@ use super::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
+    parse_depth_limit,
     remove::RemoveArgs,
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
@@ -823,6 +824,37 @@ fn npm_command_name_reports_the_command_the_way_pnpm_11_does() {
     ] {
         assert_eq!(command(argv).npm_command_name(), expected, "argv: {argv:?}");
     }
+}
+
+#[test]
+fn depth_limit_accepts_infinity() {
+    assert_eq!(parse_depth_limit("Infinity"), Ok(usize::MAX));
+    assert_eq!(parse_depth_limit("infinity"), Ok(usize::MAX));
+    assert_eq!(parse_depth_limit("0"), Ok(0));
+    assert_eq!(parse_depth_limit("3"), Ok(3));
+    assert!(parse_depth_limit("-1").is_err());
+    assert!(parse_depth_limit("many").is_err());
+}
+
+#[test]
+fn update_and_why_accept_depth_infinity() {
+    let CliCommand::Update(update) =
+        CliArgs::try_parse_from(["pacquet", "update", "--depth", "Infinity"])
+            .expect("parses update --depth Infinity")
+            .command
+    else {
+        panic!("expected update command");
+    };
+    assert_eq!(update.selection.depth, Some(usize::MAX));
+
+    let CliCommand::Why(why) =
+        CliArgs::try_parse_from(["pacquet", "why", "--depth=Infinity", "ms"])
+            .expect("parses why --depth=Infinity")
+            .command
+    else {
+        panic!("expected why command");
+    };
+    assert_eq!(why.depth, Some(usize::MAX));
 }
 
 mod global_options;

@@ -229,10 +229,15 @@ fn tarball_under_unrelated_prefix_does_not_match() {
 
 #[test]
 fn merge_rejects_reserved_alias() {
-    let mut user = HashMap::new();
-    user.insert("file".to_string(), "https://npm.work.example.com/".to_string());
-    let err = merge_named_registries(&user).expect_err("reserved alias must error");
-    assert!(matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }), "got {err:?}");
+    for alias in ["file", "tool"] {
+        let mut user = HashMap::new();
+        user.insert(alias.to_string(), "https://npm.work.example.com/".to_string());
+        let err = merge_named_registries(&user).expect_err("reserved alias must error");
+        assert!(
+            matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }),
+            "{alias}: got {err:?}",
+        );
+    }
 }
 
 #[test]

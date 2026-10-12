@@ -58,6 +58,7 @@ packages:
   - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpm/wasm
   - pnpr/npm/pnpr
+  - pnpr/npm/pnpr-ui
   - '!vendor/**'
   - '!bench-work-env/**'
   - '!**/example/**'
@@ -140,8 +141,12 @@ tasks:
     concurrencyGroup: cargo
   ci:rust-clippy:
     concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS]
   ci:rust-doc:
     concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS, RUSTDOCFLAGS]
   ci:rust-dylint:
     concurrencyGroup: cargo
   ci:rust-test:
@@ -170,11 +175,13 @@ versioning:
     - '@pnpm/logger'
   # Groups that always release together at one shared version:
   #   - the Rust CLI wrapper and its NAPI addon;
+  #   - the pnpr wrapper and the web UI it serves;
   #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
   #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
   #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
+    - [ '@pnpm/pnpr', '@pnpm/pnpr-ui' ]
     - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
   # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
   # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
@@ -191,6 +198,7 @@ versioning:
         - '!./pnpm11/pnpm/artifacts/**'
   lanes:
     '@pnpm/pnpr': alpha
+    '@pnpm/pnpr-ui': alpha
 
 allowBuilds:
   '@parcel/watcher': false
@@ -263,7 +271,7 @@ catalog:
   '@rushstack/worker-pool': 0.7.30
   '@stylistic/eslint-plugin': ^5.10.0
   '@tybys/wasm-util': 0.10.4
-  '@types/adm-zip': ^0.5.8
+  '@types/adm-zip': ^0.6.0
   '@types/archy': 0.0.36
   '@types/cross-spawn': ^6.0.6
   '@types/fs-extra': ^11.0.4
@@ -364,7 +372,7 @@ catalog:
   escape-string-regexp: ^5.0.0
   eslint: ^10.12.0
   eslint-plugin-import-x: ^4.17.1
-  eslint-plugin-jest: ^29.16.6
+  eslint-plugin-jest: ^29.16.11
   eslint-plugin-n: ^18.4.1
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
@@ -401,7 +409,7 @@ catalog:
   human-id: ^4.2.2
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
-  keyv: 6.0.0-rc.1
+  keyv: 6.1.0
   lcov-result-merger: ^6.0.0
   # libnpmpublish 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
@@ -449,7 +457,7 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
-  playwright-core: ^1.63.0
+  playwright-core: ^1.64.0
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
   pretty-ms: ^9.3.1
@@ -588,12 +596,8 @@ minimumReleaseAgeExclude:
   - write-yaml-file
   - http-proxy-middleware@3.0.7
 
-# lockfile.includeResolutionSettings is off until devEngines pins a pnpm
-# release with pnpm/pnpm#16674: with it on, `pnpm deploy` in
-# pnpm/wasm/stage.mjs fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-# Restore it as:
-#   lockfile:
-#     includeResolutionSettings: true
+lockfile:
+  includeResolutionSettings: true
 
 minimumReleaseAgeExcludePrune: true
 
@@ -738,6 +742,6 @@ virtualStoreType: global
 autoDedupe: true
 
 registries:
-  https://registry.npmjs.com/:
+  https://registry.npmjs.org/:
     scopes:
       - '@pnpm'

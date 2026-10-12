@@ -1,6 +1,7 @@
 use super::{
-    AuthFile, BackendFile, Deserialize, Duration, Interval, Path, PathBuf, RegistryError,
-    SqlBackendFile, default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
+    AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, Path, PathBuf,
+    RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
+    parse_interval, resolve_relative,
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
@@ -89,6 +90,8 @@ pub struct AuthConfig {
     pub oidc: Vec<oidc::OidcProvider>,
     pub htpasswd: HtpasswdConfig,
     pub tokens: TokensConfig,
+    /// The SCIM endpoints, off when `None`.
+    pub scim: Option<ScimConfig>,
 }
 
 /// Where the htpasswd users file lives and how many users may sign
@@ -147,6 +150,47 @@ impl MaxUsers {
 /// `auth.tokens.file` is not, tokens default to a `tokens.db`
 /// sibling of the htpasswd file — keeping credentials co-located in
 /// one directory the operator can lock down (`chmod 600`).
+#[derive(Debug, Clone)]
+pub struct IdentityConfig {
+    /// Where to read/write the htpasswd-format user file and the
+    /// token database. Both stores are in-memory when their paths
+    /// are `None`.
+    pub auth: AuthConfig,
+    /// Which record store backs the auth state (users + tokens).
+    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
+    /// plus `SQLite` token database. The YAML `backend:` block can
+    /// switch both stores to one shared SQL database so several
+    /// stateless pnpr replicas see a consistent set of accounts.
+    pub backend: BackendConfig,
+    /// Usernames from `auth.admins`, who may administer every registry.
+    pub admins: BTreeSet<String>,
+}
+
+impl IdentityConfig {
+    #[must_use]
+    pub fn is_admin(&self, identity: &Identity) -> bool {
+        match identity {
+            Identity::User { username, .. } => self.admins.contains(username),
+            Identity::Anonymous => false,
+        }
+    }
+}
+
+pub(super) fn build_identity_config(
+    file: &AuthFile,
+    base_dir: &Path,
+    backend: BackendConfig,
+) -> Result<IdentityConfig, RegistryError> {
+    if let Some(scim) = &file.scim {
+        scim.validate()?;
+    }
+    Ok(IdentityConfig {
+        admins: build_admins(&file.admins)?,
+        auth: build_auth_config(file, base_dir),
+        backend,
+    })
+}
+
 pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
     let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
     let tokens_file = file.tokens.file
@@ -160,6 +204,7 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
+        scim: file.scim.clone(),
     }
 }
 

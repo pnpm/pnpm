@@ -41,7 +41,7 @@ const VISIBILITY_PATH = `/-/package/${ESCAPED_PACKAGE_NAME}/visibility`
 // JWT shape expected by `determineProvenance`: `header.payload.sig` where the payload is
 // base64url-encoded JSON. `project_visibility: 'public'` triggers the GitLab branch of the
 // visibility check (combined with our mocked `ciInfo.GITLAB` and `SIGSTORE_ID_TOKEN` env).
-const FAKE_JWT = `header.${Buffer.from(JSON.stringify({ project_visibility: 'public' })).toString('base64url')}.sig`
+const FAKE_JWT = `header.${Buffer.from(JSON.stringify({ aud: 'npm:registry.npmjs.org', project_visibility: 'public' })).toString('base64url')}.sig`
 
 const baseOptions = {
   configByUri: {},

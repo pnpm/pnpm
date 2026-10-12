@@ -33,6 +33,7 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
             auto_install_peers: true,
             dedupe_peers: false,
             exclude_links_from_lockfile: false,
+            add_missing_peer_types: false,
             inject_workspace_packages: false,
             peers_suffix_max_length: crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
             pnpmfile_checksum: PnpmfileChecksumCheck::Current(None),

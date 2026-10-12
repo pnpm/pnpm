@@ -1,7 +1,7 @@
 use super::{
     super::{
-        BuildModulesError, PackageKey, Path, Reporter, materialize_side_effects,
-        store_index_key_for_resolution,
+        BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, Path, Reporter,
+        materialize_side_effects, store_index_key_for_resolution,
     },
     BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
 };
@@ -54,20 +54,21 @@ pub(super) fn side_effects_cache_key(
 /// snapshot would otherwise run its scripts — but if the prefetch
 /// surfaced a matching side-effects-cache entry, the build is already
 /// represented on disk (seeded on a previous install) and can be
-/// skipped. An explicit `pacquet rebuild` (`force_rebuild`) always
-/// re-runs the scripts, so it bypasses this gate.
+/// skipped. An explicit `pacquet rebuild` (`force_rebuild`) re-runs the
+/// scripts, so it bypasses this gate unless
+/// [`RebuildOptions::skip_if_has_side_effects_cache`] is set.
+///
+/// [`RebuildOptions::skip_if_has_side_effects_cache`]: crate::RebuildOptions::skip_if_has_side_effects_cache
 pub(super) fn already_built<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     cache_key: Option<&str>,
 ) -> Result<bool, BuildModulesError> {
-    if !candidate.force_rebuild
+    if !bypasses_side_effects_cache(context, candidate)
         && context.cache.read
-        && let Some(maps_by_snapshot) = context.cache.maps_by_snapshot
-        && let Some(maps) = maps_by_snapshot.get(snapshot_key)
         && let Some(key) = cache_key
-        && let Some(overlay) = maps.get(key)
+        && let Some(overlay) = context.cache.side_effects.overlay(snapshot_key, key)
     {
         return satisfy_from_side_effects_cache::<Reporter>(
             context,
@@ -76,7 +77,47 @@ pub(super) fn already_built<Reporter: self::Reporter>(
             (&candidate.name, &candidate.version),
         );
     }
-    Ok(false)
+    Ok(rebuild_found_empty_row(context, snapshot_key, cache_key))
+}
+/// A rebuild with [`RebuildOptions::skip_if_has_side_effects_cache`]
+/// skips a package whose side-effects row for this cache key is empty.
+/// The build ran before and changed nothing inside the package, so there
+/// is nothing to restore, and running it again would only repeat that.
+/// pnpm v11's `rebuild` takes any row as a hit the same way, unless the
+/// package directory carries [`NEEDS_BUILD_MARKER`]: that slot has not
+/// been built yet. An install still runs such a build, because its effect
+/// may lie outside the package directory (pnpm/pnpm#14717).
+///
+/// [`RebuildOptions::skip_if_has_side_effects_cache`]: crate::RebuildOptions::skip_if_has_side_effects_cache
+fn rebuild_found_empty_row(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    cache_key: Option<&str>,
+) -> bool {
+    let hit = context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
+        && context.cache.read
+        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key))
+        && !context
+            .pkg_roots()
+            .all_recorded(snapshot_key)
+            .iter()
+            .any(|pkg_dir| pkg_dir.join(NEEDS_BUILD_MARKER).exists());
+    if hit {
+        tracing::debug!(
+            target: "pacquet::build",
+            ?snapshot_key,
+            cache_key,
+            "side-effects cache holds an empty build; skipping the rebuild",
+        );
+    }
+    hit
+}
+fn bypasses_side_effects_cache(
+    context: &BuildOneSnapshot<'_>,
+    candidate: &BuildCandidate<'_>,
+) -> bool {
+    candidate.force_rebuild
+        && !context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
 }
 /// Whether a side-effects-cache hit already put this snapshot's build output
 /// on disk, so the build can be skipped.

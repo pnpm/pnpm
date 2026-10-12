@@ -179,6 +179,7 @@ where
 async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
     state: &State,
     added: &BTreeMap<String, String>,
+    range_spec_style: RangeSpecStyle,
 ) -> miette::Result<()> {
     let root_dir = state.config.workspace_dir
         .clone()
@@ -188,7 +189,13 @@ async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
                 .parent()
                 .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
         });
-    config_deps::add_config_dependencies::<Reporter>(state.config, &root_dir, added).await
+    config_deps::add_config_dependencies::<Reporter>(
+        state.config,
+        &root_dir,
+        added,
+        range_spec_style,
+    )
+    .await
 }
 
 impl AddArgs {
@@ -220,10 +227,12 @@ impl AddArgs {
     ) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path
         // instead of the regular `package.json` add: resolve + install
-        // into `.pnpm-config`, then record the clean specifiers in
+        // into `.pnpm-config`, then record the saved specifiers in
         // `pnpm-workspace.yaml`.
         if let Some(added) = config_dependencies {
-            return add_workspace_config_dependencies::<Reporter>(&state, &added).await;
+            let range_spec_style = self.range_spec_style(state.config);
+            return add_workspace_config_dependencies::<Reporter>(&state, &added, range_spec_style)
+                .await;
         }
 
         let supported_architectures =

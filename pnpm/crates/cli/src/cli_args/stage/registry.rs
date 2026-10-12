@@ -5,6 +5,7 @@ use super::{
     WebAuthFetchOptions, WebAuthHost, WithOtpError, body_display_string, read_limited_body,
     redact_url_credentials, send_with_retry,
 };
+use crate::cli_args::registry_client::apply_auth_and_otp;
 
 /// A failed `-/stage` registry response
 /// (`ERR_PNPM_STAGE_REGISTRY_ERROR`), with the same message shape as the
@@ -259,17 +260,11 @@ async fn stage_send<'client>(
     otp: Option<&str>,
 ) -> Result<(pnpm_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-        let mut builder = client
+        let builder = client
             .request(method.clone(), url)
             .header("npm-auth-type", "web")
             .header("npm-command", "stage");
-        if let Some(auth_header) = &context.auth_header {
-            builder = builder.header("authorization", auth_header);
-        }
-        if let Some(otp) = otp {
-            builder = builder.header("npm-otp", otp);
-        }
-        builder
+        apply_auth_and_otp(builder, context.auth_header.as_deref(), otp)
     })
     .await
 }
@@ -279,15 +274,9 @@ async fn registry_error_from_response(
     response: reqwest::Response,
     action: &str,
 ) -> StageRegistryError {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_owned();
-    let body = match read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await {
-        Ok(body) => body_display_string(&body),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        crate::cli_args::sanitize::read_sanitized_error_body(response, STAGE_ERROR_BODY_LIMIT)
+            .await;
     StageRegistryError::new(action, status.as_u16(), &status_text, &body)
 }
 

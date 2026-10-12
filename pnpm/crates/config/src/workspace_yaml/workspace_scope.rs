@@ -122,6 +122,7 @@ impl WorkspaceSettings {
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
         self.ignore_compatibility_db = None;
+        self.add_missing_peer_types = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
@@ -133,6 +134,7 @@ impl WorkspaceSettings {
         self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
+        self.permissions = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;

@@ -16,6 +16,7 @@ async fn artifact_blob_download_rejects_bytes_that_do_not_match_the_integrity() 
     let error = PnprClient::new(server.url())
         .download_artifact_blob(
             &ArtifactBlobRequest { owner: OwnerScope::organization("acme"), integrity },
+            b"expected blob".len() as u64,
             None,
         )
         .await

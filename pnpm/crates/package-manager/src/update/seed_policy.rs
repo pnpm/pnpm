@@ -35,7 +35,7 @@ pub(super) struct UpdateScope<'a> {
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) config: &'a Config,
     pub(super) version: super::UpdateVersionOptions,
-    pub(super) depth: usize,
+    pub(super) selection: super::UpdateSelection<'a>,
     pub(super) updates_all_groups: bool,
 }
 
@@ -184,6 +184,12 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
         )
         .await?;
     }
+    if let Some(targets) = scope.selection.targets {
+        return Ok(UpdateSeedPolicy::DropOnly {
+            targets: targets.clone(),
+            max_depth: scope.max_depth(),
+        });
+    }
     if scope.updates_all_groups && ignore_patterns.is_empty() {
         // A bare, ungated update re-resolves the whole graph.
         return Ok(UpdateSeedPolicy::DropAll { max_depth: scope.max_depth() });
@@ -298,7 +304,7 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         // An unmatched `--latest` selector is a no-op. Deeper versioned
         // selectors can still target lockfile names but cannot force that
         // version.
-        if scope.depth == 0 || scope.version.latest {
+        if scope.selection.depth == 0 || scope.version.latest {
             return Ok(None);
         }
         widen_drop_targets_by_selectors(scope.lockfile, plan, &expanded);
@@ -364,7 +370,7 @@ pub(super) fn importer_seed_policy(
 
 impl UpdateScope<'_> {
     pub(super) fn max_depth(&self) -> UpdateDepth {
-        UpdateDepth::new(self.depth)
+        UpdateDepth::new(self.selection.depth)
     }
 
     pub(super) fn range_spec_style(&self) -> RangeSpecStyle {
@@ -374,7 +380,7 @@ impl UpdateScope<'_> {
     fn use_name_matcher(&self) -> bool {
         !self.selectors.is_empty()
             && self.selectors.iter().all(|selector| selector.version.is_none())
-            && self.depth > 0
+            && self.selection.depth > 0
             && !self.version.latest
     }
 }

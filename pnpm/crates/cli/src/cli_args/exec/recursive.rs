@@ -129,7 +129,7 @@ impl ExecStateInputs {
             extra_bin_paths: &config.extra_bin_paths,
             extra_env: &extra_env,
             modules_dir: &config.modules_dir,
-            node_experimental_package_map: config.node_experimental_package_map,
+            node_experimental_package_map: config.node_package_map_mode.loads(),
             node_options: config.node_options.as_deref(),
             user_agent: &config.user_agent,
         });

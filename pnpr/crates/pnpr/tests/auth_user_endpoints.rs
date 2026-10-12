@@ -39,6 +39,7 @@ fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) ->
         oidc: Vec::new(),
         htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
+        scim: None,
     };
     config
 }
@@ -119,6 +120,26 @@ impl UserBackend for CanonicalUserBackend {
     ) -> pnpr::Result<(UpsertOutcome, String)> {
         assert_eq!(username, "alice");
         Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
+    }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        Ok(vec!["Alice".to_string()])
+    }
+
+    async fn password_hash(&self, username: &str) -> pnpr::Result<Option<String>> {
+        Ok(username.eq_ignore_ascii_case("alice").then(|| "hash".to_string()))
+    }
+
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
+        Ok(false)
+    }
+
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
+        Ok(false)
     }
 }
 

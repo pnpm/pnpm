@@ -1,7 +1,7 @@
 use super::{
     super::{DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput},
     EMPTY_CATALOGS, EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, GIT_TARBALL_URL,
-    dependencies_graph_to_lockfile, error_from_single_node_graph, git_hosted_node,
+    NPM_REGISTRIES, dependencies_graph_to_lockfile, error_from_single_node_graph, git_hosted_node,
     injected_link_fixture, make_link_node, make_node, make_node_with_optional,
     previous_importers_with_link, single_importer_opts, write_manifest,
 };
@@ -530,6 +530,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
+            add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
@@ -537,7 +538,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
-            registry: "https://registry.npmjs.org",
+            registries: &NPM_REGISTRIES,
             lockfile_include_tarball_url: false,
             previous_packages: None,
         },
@@ -622,6 +623,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
+            add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
@@ -629,7 +631,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
-            registry: "https://registry.npmjs.org",
+            registries: &NPM_REGISTRIES,
             lockfile_include_tarball_url: false,
             previous_packages: None,
         },

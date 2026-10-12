@@ -8,7 +8,7 @@ use serde::Deserialize;
 use pnpr_error::RegistryError;
 use pnpr_policy::{AccessList, PackageRules};
 
-use super::{AccessSpec, Teams};
+use super::{AccessSpec, TeamDirectory};
 
 /// Runtime upstream declaration: the upstream `url`, the request headers
 /// pnpr attaches to every fetch it makes to that upstream, and the
@@ -272,7 +272,7 @@ impl TokenEnv {
 pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     name: &str,
     file: UpstreamConfigFile,
-    teams: &Teams,
+    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     let headers = upstream_headers::<Sys>(name, &file)?;
 

@@ -84,7 +84,8 @@ pub(super) async fn open_store_index_handles(
     caches: StoreCaches,
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
-    let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
+    let (writer, writer_task) =
+        StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
     StoreIndexHandles { index, writer, writer_task, caches }
 }
 
@@ -265,7 +266,7 @@ impl PackumentCaches {
 
 impl ResolverChainInputs<'_> {
     fn retry_opts(&self) -> pnpm_network::RetryOpts {
-        crate::retry_config::retry_opts_from_config(self.config)
+        self.config.retry_opts()
     }
 
     fn npm_resolver(&self, caches: &PackumentCaches) -> Arc<dyn Resolver> {
@@ -468,6 +469,7 @@ impl ResolverChainInputs<'_> {
             policy: crate::PrefetchPolicy {
                 downloads: self.fetching.prefetch && custom_fetcher_session.is_none(),
                 custom_session: custom_fetcher_session,
+                tracked: self.fetching.tracked,
             },
         }
     }

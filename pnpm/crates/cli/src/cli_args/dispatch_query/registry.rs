@@ -1,18 +1,21 @@
 use super::{
     AccessArgs, CommandFuture, Config, DeprecateArgs, DistTagArgs, LoginArgs, LogoutArgs,
-    OwnerArgs, PingArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs, UndeprecateArgs,
-    UnpublishArgs, UnstarArgs, ViewArgs,
+    OwnerArgs, PingArgs, ProfileArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs, TokenArgs,
+    UndeprecateArgs, UnpublishArgs, UnstarArgs, ViewArgs, WhoamiArgs,
 };
 use crate::cli_args::reporter::CliReporter;
 
-// `whoami` is a read-only registry query: it resolves the default registry's
+// `whoami` is a read-only registry query: it resolves the target registry's
 // auth header from config and GETs `-/whoami`, with no lockfile or install
 // pipeline. It needs an async future for the request and no reporter, so it
 // dispatches off `config()` like the other read-only commands.
-pub(in super::super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+pub(in super::super) fn whoami<'a>(
+    ctx: &RunCtx<'a>,
+    args: WhoamiArgs,
+) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
-        let username = super::super::whoami::whoami(cfg).await?;
+        let username = args.run(cfg).await?;
         println!("{}", super::super::sanitize::sanitize(&username));
         Ok(())
     }))
@@ -72,7 +75,7 @@ pub(in super::super) fn dist_tag<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
+        if let Some(output) = args.run::<CliReporter>(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
             if output.is_empty() {
                 return Ok(());
@@ -171,6 +174,23 @@ pub(in super::super) fn owner<'a>(
     }))
 }
 
+pub(in super::super) fn profile<'a>(
+    ctx: &RunCtx<'a>,
+    args: ProfileArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.loaders.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
 // `ping` is a read-only connectivity check: it resolves the registry (and any
 // auth header) from config and GETs `-/ping`, with no lockfile or install
 // pipeline, so it dispatches off `config()` like the other read-only registry
@@ -247,6 +267,23 @@ pub(in super::super) fn search<'a>(
     Ok(Box::pin(async move {
         let output = args.run(cfg).await?;
         if !output.is_empty() {
+            println!("{output}");
+        }
+        Ok(())
+    }))
+}
+
+pub(in super::super) fn token<'a>(
+    ctx: &RunCtx<'a>,
+    args: TokenArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.loaders.config)()?;
+    Ok(Box::pin(async move {
+        if let Some(output) = args.run(cfg).await? {
+            let output = super::super::sanitize::sanitize(&output);
+            if output.is_empty() {
+                return Ok(());
+            }
             println!("{output}");
         }
         Ok(())

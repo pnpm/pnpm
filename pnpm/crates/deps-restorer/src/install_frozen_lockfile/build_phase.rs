@@ -297,7 +297,7 @@ fn build_modules<'a>(
     let config = inputs.policy.config;
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(inputs.cache.maps_by_snapshot),
+            side_effects: inputs.cache.side_effects(),
             engine_name: inputs.cache.engine_name,
             read: config.side_effects_cache_read()
                 || config.remote_side_effects_cache.is_some(),
@@ -324,6 +324,7 @@ fn build_modules<'a>(
             requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
             importers: inputs.graph.importers,
             dependency_groups: Some(inputs.graph.dependency_groups),
+            build_scope: inputs.graph.build_scope,
         },
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
 

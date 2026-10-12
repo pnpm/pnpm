@@ -322,8 +322,22 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
     for packages in [scope_then_catch_all, catch_all_then_scope] {
         let config = hosted_rules_config(packages);
         let rules = &config.routing.hosted["local"].rules;
-        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
-        assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
+        assert!(
+            !rules
+                .snapshot()
+                .for_package("@secret/x")
+                .access
+                .allows(&Identity::Anonymous),
+            "{packages}",
+        );
+        assert!(
+            rules
+                .snapshot()
+                .for_package("anything")
+                .access
+                .allows(&Identity::Anonymous),
+            "{packages}",
+        );
     }
 }
 
@@ -332,7 +346,8 @@ fn empty_and_null_map_values_mean_default_rules() {
     for value in ["{}", "", "~"] {
         let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
         let rules = &config.routing.hosted["local"].rules;
-        let effective = rules.for_package("lodash");
+        let table = rules.snapshot();
+        let effective = table.for_package("lodash");
         assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
         assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
         assert!(effective.publish.allows(&user("alice")), "value {value:?}");
@@ -343,7 +358,8 @@ fn empty_and_null_map_values_mean_default_rules() {
 #[test]
 fn rule_missing_unpublish_denies_destructive_writes() {
     let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
-    let team = config.routing.hosted["local"].rules.for_package("@team/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let team = table.for_package("@team/x");
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
     assert!(!team.unpublish.allows(&user("alice")));
@@ -357,7 +373,8 @@ fn rule_empty_unpublish_denies_destructive_writes() {
         "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
     for packages in [as_null, as_empty_sequence] {
         let config = hosted_rules_config(packages);
-        let team = config.routing.hosted["local"].rules.for_package("@team/x");
+        let table = config.routing.hosted["local"].rules.snapshot();
+        let team = table.for_package("@team/x");
         assert!(team.publish.allows(&user("alice")), "{packages}");
         assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
         assert!(!team.unpublish.allows(&user("alice")), "{packages}");
@@ -382,7 +399,8 @@ fn rule_empty_string_value_is_a_config_error() {
 #[test]
 fn rule_anonymous_token_is_wired() {
     let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
-    let anon = config.routing.hosted["local"].rules.for_package("@anon/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let anon = table.for_package("@anon/x");
     assert!(anon.access.allows(&Identity::Anonymous));
     assert!(!anon.access.allows(&user("alice")));
 }
@@ -520,11 +538,19 @@ fn bundled_default_config_enforces_its_protections() {
     let rules = &config.routing.hosted["local"].rules;
     // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
     // specificity (both are declared, in either order).
-    let needs_auth = rules.for_package("@pnpm.e2e/needs-auth");
+    let table = rules.snapshot();
+    let needs_auth = table.for_package("@pnpm.e2e/needs-auth");
     assert!(!needs_auth.access.allows(&Identity::Anonymous));
     assert!(needs_auth.access.allows(&user("alice")));
-    assert!(!rules.for_package("@private/foo").access.allows(&Identity::Anonymous));
-    let public = rules.for_package("@pnpm.e2e/no-deps");
+    assert!(
+        !rules
+            .snapshot()
+            .for_package("@private/foo")
+            .access
+            .allows(&Identity::Anonymous),
+    );
+    let table = rules.snapshot();
+    let public = table.for_package("@pnpm.e2e/no-deps");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
     // The registry-mock contract: any authenticated user may unpublish.

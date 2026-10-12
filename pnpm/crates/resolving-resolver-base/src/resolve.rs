@@ -422,6 +422,24 @@ impl ResolutionRefreshOptions {
     pub fn refreshes_metadata(&self) -> bool {
         self.update != UpdateBehavior::Off || self.update_requested
     }
+
+    /// The locked runtime a runtime resolver returns as it is: a
+    /// [`LockfileResolution::Variations`] entry with a version, when no update
+    /// or checksum refresh runs and the walk did not reopen this edge.
+    #[must_use]
+    pub fn kept_runtime(&self) -> Option<(&CurrentPkg, &str)> {
+        if self.update != UpdateBehavior::Off
+            || self.update_checksums
+            || self.repick_current_version
+        {
+            return None;
+        }
+        let current = self.current_pkg.as_ref()?;
+        if !matches!(current.resolution, LockfileResolution::Variations(_)) {
+            return None;
+        }
+        Some((current, current.version.as_deref()?))
+    }
 }
 
 #[derive(Debug, Default, Clone)]

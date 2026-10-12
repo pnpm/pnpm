@@ -5,7 +5,7 @@ use std::fmt::Write;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
 
-/// The registry returned a non-OK response for a publish
+/// The registry returned a non-OK response for a publish or a stage publish
 /// (`ERR_PNPM_FAILED_TO_PUBLISH`).
 ///
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
@@ -24,8 +24,21 @@ impl FailedToPublishError {
     /// a multi-line response body rendered as an indented `Details:` block and
     /// a single-line body appended inline.
     #[must_use]
-    pub fn new(name: &str, version: &str, status: u16, status_text: String, text: String) -> Self {
-        Self::from_response(&format!("package {name}@{version}"), status, status_text, text)
+    pub fn new(
+        name: &str,
+        version: &str,
+        is_stage: bool,
+        status: u16,
+        status_text: String,
+        text: String,
+    ) -> Self {
+        let action = if is_stage { "stage" } else { "publish" };
+        Self::from_response(
+            &format!("{action} package {name}@{version}"),
+            status,
+            status_text,
+            text,
+        )
     }
 
     /// Build the error for one rejected batch request.
@@ -38,14 +51,14 @@ impl FailedToPublishError {
         text: String,
     ) -> Self {
         Self::from_response(
-            &format!("{package_count} packages to {registry}"),
+            &format!("publish {package_count} packages to {registry}"),
             status,
             status_text,
             text,
         )
     }
 
-    fn from_response(subject: &str, status: u16, status_text: String, text: String) -> Self {
+    fn from_response(attempt: &str, status: u16, status_text: String, text: String) -> Self {
         let status_display = if status_text.is_empty() {
             status.to_string()
         } else {
@@ -53,7 +66,7 @@ impl FailedToPublishError {
         };
 
         let trimmed = text.trim();
-        let mut message = format!("Failed to publish {subject} (status {status_display})");
+        let mut message = format!("Failed to {attempt} (status {status_display})");
         if trimmed.contains('\n') {
             message.push_str("\nDetails:\n");
             for line in text.trim_end().split('\n') {

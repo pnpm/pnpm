@@ -1,8 +1,10 @@
 //! Reuse of the prior lockfile's resolutions: which edges may reuse at
-//! all ([`ReuseSource`], the `pacquet update` [`UpdateScope`]), whether
-//! a whole subtree is reproducible from the snapshot graph, and the
-//! snapshot-driven walk a reused node's children take
-//! ([`fn@resolve_reused_node`]).
+//! all ([`ReuseSource`]), whether a whole subtree is reproducible from
+//! the snapshot graph, and the snapshot-driven walk a reused node's
+//! children take ([`fn@resolve_reused_node`]).
+//!
+//! What a `pacquet update` reaches, and so excludes from reuse, is
+//! [`super::update_scope`].
 
 pub(crate) use direct_versions::record_changed_direct_deps;
 
@@ -35,25 +37,19 @@ use crate::{
 };
 
 use super::{
-    ResolveDependencyTreeError, UpdateDepth, UpdateReuseScope, WantedSpec, lock_recoverable,
+    ResolveDependencyTreeError, UpdateReuseScope, WantedSpec, lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
     tree_ctx::TreeCtx,
+    update_scope::update_excludes,
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
-        ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
-        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
+        claim_children_owner, insert_tree_node, is_current_children_owner,
+        make_non_owner_nodes_lazy, record_children,
     },
 };
-
-/// The `pacquet update` scope a node is judged against: which names the
-/// update targets, and how deep it reaches.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct UpdateScope<'a> {
-    pub(super) reuse: &'a UpdateReuseScope,
-    pub(super) max_depth: UpdateDepth,
-}
 
 /// How the current [`fn@resolve_node`] call may reuse the prior
 /// lockfile's resolution instead of re-resolving from the registry.
@@ -152,29 +148,6 @@ pub(super) fn try_reuse_node(
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
     Some(ReusedNode { key: key.clone(), result })
-}
-
-/// `true` when a node named `name`, locked at `version`, is a `pacquet
-/// update` target at `depth`, and so excluded from reuse. A `None` version
-/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
-/// `--depth` ceiling the update no longer reaches, so every node keeps its
-/// locked resolution.
-fn update_excludes(
-    scope: UpdateScope<'_>,
-    name: &str,
-    version: Option<&node_semver::Version>,
-    depth: i32,
-) -> bool {
-    if !scope.max_depth.reaches(depth) {
-        return false;
-    }
-    match scope.reuse {
-        UpdateReuseScope::All => false,
-        // `None` is handled earlier in `try_reuse_node`; treat it the
-        // same here for completeness.
-        UpdateReuseScope::None => true,
-        UpdateReuseScope::Except(targets) => targets.covers(name, version),
-    }
 }
 
 /// Whether the wanted lockfile already holds a package entry that
@@ -286,53 +259,6 @@ pub fn real_package_name_of<'edge>(
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
     alias.map(Cow::Borrowed)
-}
-
-/// Whether the running `pacquet update` reaches this edge, so its
-/// locked-version pin must not survive — the update exists to move it.
-/// Unlike [`fn@is_update_target`], an update-everything scope
-/// ([`UpdateReuseScope::None`]) unpins every edge the depth ceiling
-/// reaches.
-pub(super) fn update_unpins_edge(
-    scope: UpdateScope<'_>,
-    wanted: &WantedDependency,
-    locked_version: Option<&node_semver::Version>,
-    depth: i32,
-) -> bool {
-    if !scope.max_depth.reaches(depth) {
-        return false;
-    }
-    match scope.reuse {
-        UpdateReuseScope::All => false,
-        UpdateReuseScope::None => true,
-        UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
-                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
-        }
-    }
-}
-
-/// Whether `wanted` is one of the packages the user asked to update,
-/// given the install's [`UpdateReuseScope`]. Feeds the per-resolve
-/// `ResolveOptions::update_requested` flag, which gates the npm
-/// picker's held-back-update warning.
-#[inline]
-pub(super) fn is_update_target(
-    scope: UpdateScope<'_>,
-    wanted: &WantedDependency,
-    locked_version: Option<&node_semver::Version>,
-    depth: i32,
-) -> bool {
-    if !scope.max_depth.reaches(depth) {
-        return false;
-    }
-    match scope.reuse {
-        UpdateReuseScope::All | UpdateReuseScope::None => false,
-        UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
-                .is_some_and(|name| update_excludes(scope, name.as_ref(), locked_version, depth))
-        }
-    }
 }
 
 /// `true` when `key` and its entire transitive subtree can be
@@ -536,10 +462,11 @@ where
     let reused_id = reused.id;
     let children_owner =
         claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
-    let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
+    let (children, recording) = reused_children(ctx, resolver, &children_owner, reused).await?;
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
-        && (others_stale || !children_owner.children_context_unchanged)
+        && (recording == ChildrenRecording::PublishedOverStale
+            || !children_owner.children_context_unchanged)
         && is_current_children_owner(ctx, reused_id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, reused_id, node_id);

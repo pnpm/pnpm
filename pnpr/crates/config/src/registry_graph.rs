@@ -8,7 +8,7 @@ mod namespace;
 use super::{
     AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
     IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
-    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, Teams,
+    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, TeamDirectory,
     UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, registry_mock_rules,
     resolve_upstream_config,
 };
@@ -232,12 +232,18 @@ pub(super) fn build_hosted_entry(
         return Err(org_collision_error(name, &org, other));
     }
     let ecosystem = registry.ecosystem.unwrap_or_default();
-    let teams = build_teams(name, &registry.teams)?;
+    let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
     let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
     let patterns = rules.patterns();
-    Ok((HostedConfig { org, rules, teams }, ecosystem, patterns))
+    let (teams_managed_by, rules_managed_by) =
+        (registry.teams_managed_by, registry.rules_managed_by);
+    Ok((
+        HostedConfig { org, rules, teams, teams_managed_by, rules_managed_by },
+        ecosystem,
+        patterns,
+    ))
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one
@@ -254,7 +260,7 @@ pub(super) fn build_upstream_entry(
     let ecosystem = upstream.ecosystem.unwrap_or_default();
     // The registry-level default the rules fall back to: the upstream's
     // `access:` gate, or `$all` for a public origin.
-    let teams = build_teams(name, &upstream.teams)?;
+    let teams = TeamDirectory::new(build_teams(name, &upstream.teams)?);
     let access = registry_access_list(name, upstream.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, upstream.packages.clone())?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
@@ -280,7 +286,7 @@ pub(super) fn build_upstream_entry(
 pub(super) fn registry_access_list(
     name: &str,
     spec: Option<&AccessSpec>,
-    teams: &Teams,
+    teams: &TeamDirectory,
 ) -> Result<Option<AccessList>, RegistryError> {
     spec.map(|spec| spec.to_access_list(teams))
         .transpose()
@@ -302,7 +308,7 @@ pub(super) fn build_rules(
     ecosystem: Ecosystem,
     packages: &IndexMap<String, Option<PackageAccess>>,
     default_access: Option<AccessList>,
-    teams: &Teams,
+    teams: &TeamDirectory,
 ) -> Result<PackageRules, RegistryError> {
     let rules = packages
         .iter()
@@ -339,7 +345,7 @@ pub(super) fn build_rules(
 pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
-    teams: &Teams,
+    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
     let access = if file.public { None } else { file.access };
@@ -362,10 +368,7 @@ pub(super) fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registri
     let rules = registry_mock_rules();
     let local_patterns = rules.patterns();
     let mut hosted = IndexMap::new();
-    hosted.insert(
-        "local".to_string(),
-        HostedConfig { org: String::new(), rules, teams: Teams::default() },
-    );
+    hosted.insert("local".to_string(), HostedConfig::new(String::new(), rules));
     let graph = [
         ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
         ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),

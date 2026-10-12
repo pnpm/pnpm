@@ -58,7 +58,7 @@ Show the pending change intents and the release plan they produce.
 pnpm change status
 ```
 
-```
+```text
 Pending change intents:
   .changeset/calm-cats-resolve.md
 

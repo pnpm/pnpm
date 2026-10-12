@@ -61,6 +61,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     materialized_snapshots: phase.linked.build_snapshots(
                         &phase.fetched.materialized_snapshots,
                     ),
+                    build_scope: phase.linked.build_scope.as_ref(),
                 },
                 policy: install.build_policy(ctx.allow_build_policy),
 

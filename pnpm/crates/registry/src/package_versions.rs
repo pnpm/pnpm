@@ -19,7 +19,7 @@
 //! all: the index vouched for the span, and the mirror stores registry
 //! fragments verbatim, so such bytes mean the local file is damaged
 //! rather than that the version is missing. Those are recorded in
-//! [`PackageVersions::has_corrupt_mirror_fragment`], which the resolver
+//! [`PackageVersions::corrupt_mirror_fragment_found`], which the resolver
 //! reads to treat the whole mirror as unreadable — silently resolving a
 //! different version off damaged local data would be worse than the
 //! refetch, and the etag lives in the intact headers record, so nothing
@@ -253,7 +253,7 @@ impl PackageVersions {
     /// on: a corrupt fragment nobody touched goes unnoticed, exactly as
     /// its version going unpicked means nothing was resolved from it.
     #[must_use]
-    pub fn has_corrupt_mirror_fragment(&self) -> bool {
+    pub fn corrupt_mirror_fragment_found(&self) -> bool {
         self.corrupt_mirror_fragment.load(Ordering::Relaxed)
     }
 

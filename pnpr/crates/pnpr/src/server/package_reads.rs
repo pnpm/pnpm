@@ -202,7 +202,11 @@ pub(super) fn resolves_to_private_source(
         RegistrySource::Hosted(source) => state.inner.config.routing.hosted
             .get(&source)
             .is_some_and(|hosted| {
-                !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
+                !hosted.rules
+                    .snapshot()
+                    .for_package(package)
+                    .access
+                    .allows(&Identity::Anonymous)
             }),
         // A private upstream (registry-level `access:`) is caller-gated for
         // *every* name — unlike a hosted registry, its registry-level gate is
@@ -216,7 +220,11 @@ pub(super) fn resolves_to_private_source(
             .get(&source)
             .is_some_and(|upstream| {
                 upstream.access.is_some()
-                    || !upstream.rules.for_package(package).access.allows(&Identity::Anonymous)
+                    || !upstream.rules
+                        .snapshot()
+                        .for_package(package)
+                        .access
+                        .allows(&Identity::Anonymous)
             }),
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
@@ -340,7 +348,8 @@ pub(super) fn hosted_gate(
     let Some(hosted) = state.inner.config.routing.hosted.get(source) else {
         return HostedGate::MaskNotFound;
     };
-    let effective = hosted.rules.for_package(package);
+    let rules = hosted.rules.snapshot();
+    let effective = rules.for_package(package);
     if effective.access.allows(identity) {
         return HostedGate::Allowed(hosted.org.clone());
     }
@@ -349,7 +358,7 @@ pub(super) fn hosted_gate(
     // caller to the registry itself. When the default denies them too, the
     // mask below wins — an explicit rule on a blanket-private registry must
     // not become an existence probe.
-    if effective.access_is_explicit && hosted.rules.default_access().allows(identity) {
+    if effective.access_is_explicit && rules.default_access().allows(identity) {
         return HostedGate::Denied(match identity {
             Identity::Anonymous => {
                 RegistryError::Unauthenticated { resource: format!("package {package:?}") }

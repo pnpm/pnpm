@@ -1,4 +1,4 @@
-//! Resolves `bun@runtime:<spec>` dependencies.
+//! Resolves `bun@tool:<spec>` (alias `bun@runtime:<spec>`) dependencies.
 
 use std::sync::Arc;
 
@@ -8,14 +8,15 @@ use pnpm_lockfile::{LockfileResolution, VariationsResolution};
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency, resolve_package_version,
+    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    resolve_package_version,
 };
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
 use crate::read_bun_assets::{ReadBunAssetsError, read_bun_assets};
 
 const RESOLVED_VIA: &str = "github.com/oven-sh/bun";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`BunResolver`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -79,12 +80,21 @@ impl BunResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "bun") else {
             return Ok(None);
         };
         let version_spec = normalize_runtime_spec(version_spec);
+        if let Some((current, version)) = opts.refresh.kept_runtime() {
+            return Ok(Some(bun_resolve_result(
+                wanted_dependency,
+                current.id.clone(),
+                current.resolution.clone(),
+                version,
+                None,
+            )));
+        }
 
         let version = resolve_package_version(
             self.npm_resolver.as_ref(),
@@ -104,24 +114,13 @@ impl BunResolver {
         let variants = read_bun_assets(&self.http_client, self.mirror.as_deref(), &version)
             .await
             .map_err(|err| Box::new(BunResolverError::ReadAssets(err)) as ResolveError)?;
-        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
-        let manifest = serde_json::json!({
-            "name": "bun",
-            "version": version,
-            "bin": bun_bin_for_current_os(current_platform()),
-        });
-        Ok(Some(ResolveResult {
-            id: format!("bun@runtime:{version}").into(),
-            resolution,
-            resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
-            alias: wanted_dependency.alias.clone(),
-            policy_violation: None,
-            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                manifest: Some(std::sync::Arc::new(manifest)),
-                ..Default::default()
-            },
-        }))
+        Ok(Some(bun_resolve_result(
+            wanted_dependency,
+            format!("bun@runtime:{version}").into(),
+            LockfileResolution::Variations(VariationsResolution { variants }),
+            &version,
+            Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
+        )))
     }
 
     async fn resolve_latest_impl(
@@ -169,13 +168,40 @@ impl BunResolver {
     }
 }
 
+fn bun_resolve_result(
+    wanted_dependency: &WantedDependency,
+    id: PkgResolutionId,
+    resolution: LockfileResolution,
+    version: &str,
+    normalized_bare_specifier: Option<String>,
+) -> ResolveResult {
+    let manifest = serde_json::json!({
+        "name": "bun",
+        "version": version,
+        "bin": bun_bin_for_current_os(current_platform()),
+    });
+    ResolveResult {
+        id,
+        resolution,
+        resolved_via: RESOLVED_VIA.to_string(),
+        normalized_bare_specifier,
+        alias: wanted_dependency.alias.clone(),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            manifest: Some(std::sync::Arc::new(manifest)),
+            ..Default::default()
+        },
+    }
+}
+
+/// The version selector of a `tool:` / `runtime:` `(alias, bareSpecifier)`
+/// pair naming `expected_alias`. `None` (defer to the next resolver) for any
+/// other shape.
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {

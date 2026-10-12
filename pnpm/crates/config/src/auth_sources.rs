@@ -181,7 +181,8 @@ impl Config {
         let env_json_source = self.keep_warnings_on_error(
             env_json_auth_source::<Sys>(global_settings),
             [&mut user_source, &mut auth_ini_source, &mut project_source, &mut env_scoped_source],
-        )?;
+        );
+        let env_json_source = self.skip_if_unreadable(env_json_source, || None)?;
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
@@ -212,8 +213,14 @@ impl Config {
         let trusted_auth = merge_auth_sources(trusted_sources);
 
         // A `tokenHelper` names an executable, so it is honored only from a
-        // trusted, non-repo source.
-        crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
+        // trusted, non-repo source. Leaving out the unreadable leaves out the
+        // project `.npmrc` that names one, keeping the trusted sources.
+        let trusted = crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth);
+        if trusted.is_err() && self.skip_unreadable_settings {
+            npmrc_auth = trusted_auth.clone();
+        } else {
+            trusted?;
+        }
 
         Ok(AuthSources { npmrc_auth, trusted_auth })
     }

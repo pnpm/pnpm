@@ -315,7 +315,9 @@ pub fn stream_file(file: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> 
             Err(err) => Some((Err(err), None)),
         }
     });
-    Body::from_stream(stream)
+    // Fused: `unfold` panics when polled after it ends, and a compression
+    // layer polls its inner body once more.
+    Body::from_stream(stream.fuse())
 }
 
 pub fn stream_file_and_remove(file: File, path: PathBuf) -> Body {
@@ -332,7 +334,8 @@ pub fn stream_file_and_remove(file: File, path: PathBuf) -> Body {
             Err(err) => Some((Err(err), None)),
         }
     });
-    Body::from_stream(stream)
+    // Fused for the reason in `stream_file`.
+    Body::from_stream(stream.fuse())
 }
 
 struct RemoveOnDropFile {

@@ -87,12 +87,12 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let manifest_dir = check.manifest.path().parent()?;
     let workspace_dir_opt =
         configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_root = workspace_dir_opt.as_deref().unwrap_or(manifest_dir);
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
     let ignored_directories = check.config.managed_directories();
     let workspace_projects =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref(), &ignored_directories)
+        load_workspace_projects(workspace_root, workspace_manifest.as_ref(), &ignored_directories)
             .ok()?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
@@ -101,9 +101,10 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     // from the discovered workspace root. The workspace *state* keeps its
     // own root, which only a pin moves — `state_root` below.
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
-    let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    let state_root =
+        check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.to_path_buf());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
-    if strict_dep_builds_blocks_fast_path(check.config) {
+    if local_state_blocks_fast_path(check.config, &lockfile_root) {
         return None;
     }
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
@@ -118,7 +119,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
             included: super::included_dependencies(&check.dependency_groups),
             supported_architectures: check.supported_architectures.as_ref(),
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;
@@ -138,8 +139,8 @@ fn fast_path_workspace_context(
         .transpose()
         .ok()?
         .flatten();
-    let catalogs = match config.catalogs.clone() {
-        Some(catalogs) => catalogs,
+    let catalogs = match &config.catalogs {
+        Some(catalogs) => catalogs.clone(),
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
     };
     Some((workspace_manifest, catalogs))
@@ -175,8 +176,8 @@ pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
-    match config.workspace_dir.clone() {
-        Some(workspace_dir) => Ok(Some(workspace_dir)),
+    match &config.workspace_dir {
+        Some(workspace_dir) => Ok(Some(workspace_dir.clone())),
         None if config.workspace_search_skipped => Ok(None),
         None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }
@@ -199,8 +200,8 @@ pub(crate) fn lockfile_root_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<PathBuf, pnpm_workspace::FindWorkspaceDirError> {
-    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
-        return Ok(lockfile_dir);
+    if let Some(lockfile_dir) = &config.lockfile_dir {
+        return Ok(lockfile_dir.clone());
     }
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
@@ -216,8 +217,8 @@ pub(super) fn lockfile_root_for(
     workspace_dir: Option<&Path>,
     manifest_dir: &Path,
 ) -> PathBuf {
-    if let Some(lockfile_dir) = config.lockfile_dir.clone() {
-        return lockfile_dir;
+    if let Some(lockfile_dir) = &config.lockfile_dir {
+        return lockfile_dir.clone();
     }
     if !config.shared_workspace_lockfile {
         return manifest_dir.to_path_buf();
@@ -253,12 +254,24 @@ pub fn build_workspace_packages_map(
     Some(map)
 }
 
+/// [`build_workspace_packages_map`] over `(root_dir, manifest)` pairs, with
+/// the projects' dependency manifests (see
+/// [`super::dependency_manifests_by_dir`]) in place of their importer
+/// manifests where they have one.
 pub(crate) fn build_workspace_packages_map_from_manifests(
     projects: &[(PathBuf, &PackageManifest)],
+    dependency_manifests: Option<&super::ProjectManifestsByDir<'_>>,
 ) -> pnpm_resolving_resolver_base::WorkspacePackages {
     let mut map = std::collections::BTreeMap::new();
     for (root_dir, manifest) in projects {
-        insert_workspace_package(&mut map, root_dir, manifest, manifest);
+        let dependency_manifest = dependency_manifests
+            .and_then(|by_dir| {
+                by_dir
+                    .get(&pnpm_fs::lexical_normalize(root_dir))
+                    .copied()
+            })
+            .unwrap_or(manifest);
+        insert_workspace_package(&mut map, root_dir, manifest, dependency_manifest);
     }
     map
 }
@@ -267,11 +280,12 @@ pub(crate) fn workspace_packages_for_freshness(
     config: &Config,
     is_workspace_install: bool,
     projects: &[(PathBuf, &PackageManifest)],
+    dependency_manifests: Option<&super::ProjectManifestsByDir<'_>>,
 ) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
     (is_workspace_install
         && config.exclude_links_from_lockfile
         && config.link_workspace_packages.enabled_at_depth(0))
-    .then(|| build_workspace_packages_map_from_manifests(projects))
+    .then(|| build_workspace_packages_map_from_manifests(projects, dependency_manifests))
 }
 
 fn insert_workspace_package(
@@ -419,6 +433,11 @@ fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
     } else {
         LazyLockfile::disabled()
     }
+}
+
+fn local_state_blocks_fast_path(config: &Config, lockfile_root: &Path) -> bool {
+    strict_dep_builds_blocks_fast_path(config)
+        || crate::agent_skills::agent_skill_targets_changed(config, lockfile_root)
 }
 
 /// Under `strictDepBuilds`, a recorded-and-still-unapproved ignored build must

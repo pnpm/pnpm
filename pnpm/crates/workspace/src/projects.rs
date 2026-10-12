@@ -131,6 +131,7 @@ pub fn find_workspace_projects_no_check(
     };
 
     let (include_patterns, user_negation_globs) = split_include_and_negation(patterns)?;
+    let subtree_negations = subtree_negations(patterns)?;
 
     let dot_pruning_ignore_template = dot_pruning_ignore_template()?;
     let user_negations = compile_user_negations(&user_negation_globs)?;
@@ -145,6 +146,7 @@ pub fn find_workspace_projects_no_check(
         workspace_root,
         dot_pruning_ignore_template: &dot_pruning_ignore_template,
         user_negations: &user_negations,
+        subtree_negations: &subtree_negations,
         ignored_directories: &ignored_directories,
     })?;
 
@@ -195,8 +197,7 @@ fn compile_walk_ignores(
 
 /// User negations are written relative to the workspace root, while a
 /// parent-relative include walks from an ancestor of it, so they are
-/// matched against the path each entry has *from the workspace root*
-/// rather than handed to `Walk::not` alongside the built-in ignores.
+/// matched against the path each entry has *from the workspace root*.
 fn compile_user_negations(globs: &[String]) -> Result<wax::Any<'_>, FindWorkspaceProjectsError> {
     wax::any(globs.iter().map(String::as_str))
         .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
@@ -296,6 +297,7 @@ struct MergePatterns<'a> {
     workspace_root: &'a Path,
     dot_pruning_ignore_template: &'a wax::Any<'a>,
     user_negations: &'a wax::Any<'a>,
+    subtree_negations: &'a [String],
     ignored_directories: &'a [PathBuf],
 }
 
@@ -313,23 +315,15 @@ fn merge_pattern_manifests(
     let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge
         .include_patterns
         .par_iter()
-        .map(|pattern| {
-            match collect_pattern_manifests(
-                pattern,
-                merge.workspace_root,
-                merge.dot_pruning_ignore_template,
-                merge.user_negations,
-                merge.ignored_directories,
-            ) {
-                Ok(set) => {
-                    merged
-                        .lock()
-                        .expect("merge lock never poisoned")
-                        .extend(set);
-                    None
-                }
-                Err(error) => Some(error),
+        .map(|pattern| match collect_pattern_manifests(pattern, merge) {
+            Ok(set) => {
+                merged
+                    .lock()
+                    .expect("merge lock never poisoned")
+                    .extend(set);
+                None
             }
+            Err(error) => Some(error),
         })
         .collect();
     if let Some(error) = pattern_errors
@@ -379,29 +373,26 @@ fn group_manifests_by_root(
 /// Expand one include pattern into the manifest paths it matches.
 fn collect_pattern_manifests(
     pattern: &WorkspacePattern<'_>,
-    workspace_root: &Path,
-    dot_pruning_ignore_template: &wax::Any<'_>,
-    user_negations: &wax::Any<'_>,
-    ignored_directories: &[PathBuf],
+    merge: &MergePatterns<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     match specialized_pattern(&pattern.normalized) {
         Some(SpecializedPattern::ChildrenOf(parent)) => {
             collect_manifests_in_children(
-                &workspace_root.join(parent),
-                workspace_root,
-                user_negations,
-                ignored_directories,
+                &merge.workspace_root.join(parent),
+                merge.workspace_root,
+                merge.user_negations,
+                merge.ignored_directories,
                 &mut manifest_paths,
             )?;
             return Ok(manifest_paths);
         }
         Some(SpecializedPattern::Literal(directory)) => {
             collect_literal_manifests_in(
-                &workspace_root.join(directory),
-                workspace_root,
-                user_negations,
-                ignored_directories,
+                &merge.workspace_root.join(directory),
+                merge.workspace_root,
+                merge.user_negations,
+                merge.ignored_directories,
                 &mut manifest_paths,
             );
             return Ok(manifest_paths);
@@ -409,48 +400,39 @@ fn collect_pattern_manifests(
         None => {}
     }
 
-    collect_glob_manifests(
-        pattern,
-        workspace_root,
-        dot_pruning_ignore_template,
-        user_negations,
-        ignored_directories,
-        &mut manifest_paths,
-    )?;
+    collect_glob_manifests(pattern, merge, &mut manifest_paths)?;
 
     Ok(manifest_paths)
 }
 
 fn collect_glob_manifests(
     pattern: &WorkspacePattern<'_>,
-    workspace_root: &Path,
-    dot_pruning_ignore_template: &wax::Any<'_>,
-    user_negations: &wax::Any<'_>,
-    ignored_directories: &[PathBuf],
+    merge: &MergePatterns<'_>,
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for normalized in normalize_manifest_patterns(&pattern.normalized) {
-        let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
+        let Some((walk_root, normalized)) = split_parent_prefix(merge.workspace_root, &normalized)
+        else {
             continue;
         };
         if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
             continue;
         }
-        let glob = Glob::new(normalized)
-            .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.source.to_string(),
-                message: err.to_string(),
-            })?;
-
         let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
             pattern: pattern.source.to_string(),
             message: err.to_string(),
         };
+        let glob = Glob::new(normalized).map_err(invalid_glob)?;
+        let mut directory_ignores = managed_directory_ignores(walk_root, merge.ignored_directories);
+        directory_ignores.extend(rebase_subtree_negations(
+            merge.subtree_negations,
+            merge.workspace_root,
+            walk_root,
+        ));
         let ignores = manifest_walk_ignores(
             normalized,
-            dot_pruning_ignore_template,
-            walk_root,
-            ignored_directories,
+            merge.dot_pruning_ignore_template,
+            &directory_ignores,
         )
         .map_err(invalid_glob)?;
         collect_walk_manifests(
@@ -458,9 +440,9 @@ fn collect_glob_manifests(
                 .not(ignores)
                 .map_err(invalid_glob)?,
             walk_root,
-            workspace_root,
-            user_negations,
-            ignored_directories,
+            merge.workspace_root,
+            merge.user_negations,
+            merge.ignored_directories,
             manifest_paths,
         )?;
     }
@@ -470,15 +452,13 @@ fn collect_glob_manifests(
 fn manifest_walk_ignores<'a>(
     normalized: &str,
     dot_pruning_ignore_template: &wax::Any<'a>,
-    walk_root: &Path,
-    ignored_directories: &[PathBuf],
+    directory_ignores: &[String],
 ) -> Result<wax::Any<'a>, wax::BuildError> {
-    let managed_ignores = managed_directory_ignores(walk_root, ignored_directories);
     let dot_ignores = positional_dot_ignores(normalized);
-    if dot_ignores.is_none() && managed_ignores.is_empty() {
+    if dot_ignores.is_none() && directory_ignores.is_empty() {
         return Ok(dot_pruning_ignore_template.clone());
     }
-    compile_walk_ignores(dot_ignores.as_deref(), &managed_ignores)
+    compile_walk_ignores(dot_ignores.as_deref(), directory_ignores)
 }
 
 /// Read `root_dir`'s project from the first readable candidate.
@@ -528,6 +508,8 @@ mod managed;
 use managed::{managed_directory_ignores, resolve_ignored_directories};
 
 mod membership;
+mod negations;
+use negations::{rebase_subtree_negations, subtree_negations};
 
 #[cfg(test)]
 mod tests;

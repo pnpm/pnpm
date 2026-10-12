@@ -71,11 +71,16 @@ pub struct InstallOptions {
     pub peers_suffix_max_length: Option<u32>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub add_missing_peer_types: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub inject_workspace_packages: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
+    /// `false` writes nothing under `node_modules`. The install still
+    /// resolves, writes the lockfile, and fetches the registry packages the
+    /// host can install into the store, for a `node_modules` that something
+    /// else mounts from the store; `lockfileOnly` and a dry run fetch nothing.
     pub enable_modules_dir: Option<bool>,
     /// Install from the lockfile alone, ignoring the project manifests —
     /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import
@@ -121,7 +126,8 @@ pub struct InstallOptions {
     pub return_list_of_deps_requiring_build: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`.
     pub allow_builds: Option<HashMap<String, bool>>,
-    /// Allow every dependency's build scripts to run.
+    /// Allow every dependency's build scripts to run, except the ones
+    /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
     /// `peerDependencyRules` — how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,
@@ -143,6 +149,10 @@ pub struct InstallOptions {
     /// changes. Without it the engine cannot tell whether the hook
     /// changed, so every install resolves again.
     pub read_package_hook_checksum: Option<String>,
+    /// Read by [`rebuild`](fn@crate::rebuild) only: skip the build of a
+    /// package the side-effects cache already holds a build of, restoring
+    /// that build instead.
+    pub skip_if_has_side_effects_cache: Option<bool>,
 }
 
 /// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues).

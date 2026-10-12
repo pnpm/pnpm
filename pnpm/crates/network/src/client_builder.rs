@@ -2,14 +2,15 @@
 use super::Addrs;
 use super::{
     AppliedTls, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap,
-    HeaderValue, LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy, Resolve,
-    Resolving, Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls, bundled_root_certs,
-    parse_proxy_url, strip_userinfo,
+    HeaderValue, LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy,
+    RedirectGuard, Resolve, Resolving, Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls,
+    bundled_root_certs, parse_proxy_url, strip_userinfo,
 };
+use crate::redirect_guard::{BlockedRedirect, MAX_REDIRECT_HOPS};
 
-/// Shared builder with the install-time defaults
-/// ([`ThrottledClient::new_for_installs`](crate::ThrottledClient::new_for_installs) documents the why behind each
-/// setting). Both `new_for_installs` and [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs)
+/// Everything a client build shares across the per-registry variants.
+///
+/// Both `new_for_installs` and [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs)
 /// route through this helper so a single source of truth governs
 /// timeouts, HTTP-version, resolver, and the User-Agent header.
 ///
@@ -17,45 +18,6 @@ use super::{
 /// connect timeout, bounding how long a request may make no progress.
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
-/// A redirect-hop validator: returns `true` to follow a redirect to `url`,
-/// `false` to block it. See
-/// [`ThrottledClient::new_for_installs_with_redirect_guard`](crate::ThrottledClient::new_for_installs_with_redirect_guard).
-pub type RedirectGuard = Arc<dyn Fn(&reqwest::Url) -> bool + Send + Sync>;
-
-/// Cap on redirect hops, matching reqwest's default `Policy::default()` limit
-/// so the guarded client doesn't follow a redirect chain further than the
-/// unguarded one would.
-pub(super) const MAX_REDIRECT_HOPS: usize = 10;
-
-/// A redirect target the [`RedirectGuard`] rejected. Surfaced as the request
-/// error so a blocked redirect fails loudly rather than silently fetching.
-#[derive(Debug)]
-pub(super) struct BlockedRedirect(pub(super) reqwest::Url);
-
-impl std::fmt::Display for BlockedRedirect {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Surface only `scheme://host[:port]` — never the path, query,
-        // fragment, or userinfo, where a presigned-URL signature/token could
-        // live. This error string can reach a client, so it must not leak the
-        // very credential the redirect was carrying.
-        write!(
-            f,
-            "redirect to {}://{}",
-            self.0.scheme(),
-            self.0.host_str().unwrap_or("<unknown>"),
-        )?;
-        if let Some(port) = self.0.port() {
-            write!(f, ":{port}")?;
-        }
-        write!(f, " is not allowed by the fetch allowlist")
-    }
-}
-
-impl std::error::Error for BlockedRedirect {}
-
-/// Validate every redirect before either following it or returning it to a
-/// manual redirect loop. Rejected targets fail with [`BlockedRedirect`].
-/// Everything a client build shares across the per-registry variants.
 #[derive(Clone)]
 pub(super) struct ClientBuildInputs<'a> {
     pub(super) settings: &'a NetworkSettings,

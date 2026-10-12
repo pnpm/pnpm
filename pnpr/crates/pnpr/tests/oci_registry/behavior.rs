@@ -472,3 +472,48 @@ async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_rev
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn scoped_bearer_credentials_stop_with_their_owners_account() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.http.oci.bearer_auth = true;
+    let auth_state = AuthState::in_memory();
+    let app = router_with_auth(config, auth_state.clone());
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "latest").await;
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/token?service=pnpr&scope=repository:acme/app:pull")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let scoped = format!("Bearer {}", payload["token"].as_str().unwrap());
+    let pull = || {
+        Request::get("/v2/acme/app/manifests/latest")
+            .header(header::AUTHORIZATION, &scoped)
+            .body(Body::empty())
+            .unwrap()
+    };
+    assert_eq!(
+        app.clone()
+            .oneshot(pull())
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK,
+    );
+
+    auth_state.users.delete_user("alice").await.unwrap();
+    assert_eq!(
+        app.oneshot(pull()).await
+            .unwrap()
+            .status(),
+        StatusCode::UNAUTHORIZED,
+    );
+}

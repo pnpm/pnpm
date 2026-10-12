@@ -3091,6 +3091,31 @@
   dir: pnpm/npm/napi
   intents:
     - napi-rebuild-checks-only-patches
+"@pnpm/napi@12.11.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-rebuild-skip-if-has-side-effects-cache
+    - rebuild-inspects-selected-only
+    - rebuild-keeps-modules-dir
+    - size-napi-rayon-pool
+"@pnpm/napi@12.11.1":
+  dir: pnpm/npm/napi
+  intents:
+    - enable-modules-dir-fetches-into-store
+"@pnpm/napi@12.11.2":
+  dir: pnpm/npm/napi
+  intents:
+    - enable-modules-dir-fetches-reused-packages
+"@pnpm/napi@12.12.0":
+  dir: pnpm/npm/napi
+  intents:
+    - deny-builds-over-allow-all
+    - injected-dependency-manifest-freshness
+    - napi-add-missing-peer-types
+"@pnpm/napi@12.12.1":
+  dir: pnpm/npm/napi
+  intents:
+    - rebuild-skips-empty-side-effects
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -3352,6 +3377,10 @@
   dir: pnpm11/pkg-manifest/utils
   intents:
     - fix-manifest-utils-prototype-pollution
+"@pnpm/pnpr-ui@0.1.0-alpha.15":
+  dir: pnpr/npm/pnpr-ui
+  intents:
+    - pnpr-web-ui
 "@pnpm/pnpr.client@1.3.5":
   dir: pnpr/client
   intents:
@@ -3461,6 +3490,21 @@
     - cargo-index-incremental-discovery
     - pnpr-resolver-connect-guard
     - pnpr-workspace-publish-directory
+"@pnpm/pnpr@0.1.0-alpha.15":
+  dir: pnpr/npm/pnpr
+  intents:
+    - calm-tarballs-compute
+    - pnpr-admin-rule-management
+    - pnpr-admin-team-management
+    - pnpr-admin-user-management
+    - pnpr-npm-access-grant
+    - pnpr-oidc-group-teams
+    - pnpr-quay-layer-cdn
+    - pnpr-rules-if-match
+    - pnpr-scim-deprovisioning
+    - pnpr-tokens-need-an-account
+    - pnpr-ui-sign-in
+    - pnpr-web-ui
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -5890,6 +5934,95 @@ pacquet@12.10.1:
     - loaded-linker-node-runtime
     - skip-nested-checkouts-in-ecosystem-install
     - slow-request-warning-excludes-queue
+pacquet@12.11.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - access-command-registry-resolution
+    - agent-skills-in-dependencies
+    - audit-fix-update-only-vulnerable
+    - auto-installed-peer-not-optional
+    - bootstrap-download-reads-npmrc
+    - cargo-optional-sources-include
+    - catalog-prune-remove-partial-workspace
+    - cli-registry-flags-and-endpoints
+    - config-dependency-release-age
+    - crlf-patches-apply
+    - deploy-resolution-settings
+    - deploy-sorted-dependencies
+    - fix-qemu-io-driver-panic
+    - fix-windows-hoist-junction-race
+    - hardlink-group-writable-store
+    - injected-copy-files-field-dedicated-lockfiles
+    - injected-sync-half-written-manifest
+    - install-rust-toolchain
+    - keep-built-slots-on-repeat-install
+    - keep-colors-of-streamed-script-output
+    - keep-locked-runtime-on-add
+    - lifecycle-failure-in-live-output
+    - loaded-linker-unsupported-node
+    - lockfile-verification-memory
+    - npmignore-extglob-negations
+    - outdated-applies-overrides
+    - pack-readme-prefix
+    - patch-file-mode-changes
+    - permissions-setting
+    - publish-provenance-false
+    - rebuild-inspects-selected-only
+    - rebuild-keeps-modules-dir
+    - registry-endpoints-access-search
+    - registry-endpoints-and-retries
+    - registry-url-normalization-and-cli-resolution
+    - removal-override-meta-only-optional-peer
+    - repo-parallel-lookups-and-registry-override
+    - rust-global-install
+    - rust-toolchain-shims
+    - standardize-package-commands-registry-override
+    - store-prune-vacuum-index
+    - switch-past-unreadable-workspace-settings
+    - tls-unclean-close-metadata
+    - whoami-registry-option
+    - windows-invalid-package-filenames
+    - workspace-optional-peer
+pacquet@12.11.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - agent-skills-environment-variables
+    - dlx-rust-release
+    - enable-modules-dir-fetches-into-store
+    - npm-registry-alias
+    - pack-excludes-ignore-files
+    - package-manager-pin-unpublished-running-version
+    - shared-node-modules-bin-chmod
+    - stage-publish-failure-message
+pacquet@12.11.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - enable-modules-dir-fetches-reused-packages
+    - update-config-hook-filter
+    - workspace-concurrency-infinity
+pacquet@12.12.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-config-saves-a-range
+    - add-missing-peer-types
+    - auth-unknown-fields
+    - deny-builds-over-allow-all
+    - deploy-workspace-protocol-peer
+    - depth-infinity-in-update-and-why
+    - injected-dependency-manifest-freshness
+    - legacy-deploy-workspace-peer
+    - prune-excluded-workspace-subtrees
+    - remote-cache
+    - reuse-injected-hardlinks
+    - switch-past-unreadable-config
+    - update-config-dependencies
+pacquet@12.12.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - dist-tag-oidc
+    - quiet-audience-checks
+    - rebuild-skips-empty-side-effects
+    - tool-protocol
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:

@@ -116,3 +116,17 @@ fn cli_proxy_reaches_the_package_manager_bootstrap() {
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8080"));
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
+
+#[test]
+fn cli_node_package_map_mode_wins_over_the_deprecated_yaml_setting() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "nodeExperimentalPackageMap: true\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let config = config_with_cli_settings(&[("node-package-map-mode", "write-only")])
+        .current::<HostNoHome>(project.path())
+        .expect("loads");
+
+    assert_eq!(config.node_package_map_mode, crate::NodePackageMapMode::WriteOnly);
+    assert_eq!(config.explicit_settings.get("nodeExperimentalPackageMap"), Some(&false.into()));
+}

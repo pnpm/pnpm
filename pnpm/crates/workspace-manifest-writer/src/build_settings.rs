@@ -1,3 +1,5 @@
+use pnpm_config::PermissionCapability;
+
 use super::{
     Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
     has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
@@ -94,6 +96,96 @@ where
     }
 
     write_or_remove_manifest(&path, manifest)
+}
+
+/// Record `permissions` decisions in `dir`'s `pnpm-workspace.yaml`,
+/// deleting the [`LEGACY_BUILD_SETTINGS`] in the same write.
+///
+/// A [`PermissionCapability::Build`] decision lands in `permissions` only
+/// when the file already has a `permissions` block, and the package's
+/// `allowBuilds` entry is then removed. Otherwise it lands in
+/// `allowBuilds`, which pnpm versions without `permissions` read too. Every
+/// other capability exists only in `permissions`.
+pub fn set_permissions<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, PermissionCapability, bool)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+    let mut manifest = read_manifest(&path)?;
+    let entries: Vec<(&str, PermissionCapability, bool)> = entries.into_iter().collect();
+    validate_permission_entries(&manifest, &path, &entries)?;
+
+    let mut changed = record_permissions(&mut manifest, entries);
+    for key in LEGACY_BUILD_SETTINGS {
+        changed |= edit::remove_top_level_field(&mut manifest, key);
+    }
+    if !changed {
+        return Ok(());
+    }
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// `path` parsed, or an empty document when there is no file.
+fn read_manifest(path: &Path) -> Result<Manifest, UpdateWorkspaceManifestError> {
+    let original = match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
+    Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source })
+}
+
+/// Refuse a write the line-based splices cannot make safely.
+fn validate_permission_entries(
+    manifest: &Manifest,
+    path: &Path,
+    entries: &[(&str, PermissionCapability, bool)],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if !entries.is_empty()
+        && let Some(key) =
+            unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"], &["permissions"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.to_path_buf(),
+            key,
+        });
+    }
+    match entries.iter().find(|(name, _, _)| has_control_char(name)) {
+        Some((name, _, _)) => Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path: path.to_path_buf(),
+            value: (*name).to_string(),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Upsert `entries`, sending build decisions to `allowBuilds` unless the
+/// document already has `permissions`. Returns whether anything changed.
+fn record_permissions(
+    manifest: &mut Manifest,
+    entries: Vec<(&str, PermissionCapability, bool)>,
+) -> bool {
+    let builds_in_permissions = manifest.document.keys
+        .iter()
+        .any(|key| key == "permissions");
+    let mut changed = false;
+    for (name, capability, value) in entries {
+        if capability == PermissionCapability::Build && !builds_in_permissions {
+            changed |= edit::add_allow_build(manifest, name, value);
+            continue;
+        }
+        changed |= edit::set_permission(manifest, name, capability.as_str(), value);
+        if capability == PermissionCapability::Build {
+            changed |= edit::remove_allow_build(manifest, name);
+        }
+    }
+    changed
 }
 
 /// The value an install writes for a package whose build it ignored. Not a

@@ -1,15 +1,16 @@
 use super::{
     Config, EnvVar, EnvVarOs, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, Host, HostNoHome,
-    LinkProbe, NPM_DEFAULT_REGISTRY, NodeLinker, NodePackageMapType, OsString, PackageImportMethod,
-    Path, PathBuf, assert_eq, config_from_workspace_yaml, default_state_dir, default_store_dir, fs,
-    io, load_with_project_and_user, repo_on_branch, safe_host_var, tempdir, write_file,
+    LinkProbe, NPM_DEFAULT_REGISTRY, NodeLinker, NodePackageMapMode, NodePackageMapType, OsString,
+    PackageImportMethod, Path, PathBuf, assert_eq, config_from_workspace_yaml, default_state_dir,
+    default_store_dir, fs, io, load_with_project_and_user, repo_on_branch, safe_host_var, tempdir,
+    write_file,
 };
 
 #[test]
 pub fn have_default_values() {
     let value = Config::new();
     assert_eq!(value.node_linker, NodeLinker::default());
-    assert!(!value.node_experimental_package_map);
+    assert_eq!(value.node_package_map_mode, NodePackageMapMode::Off);
     assert_eq!(value.node_package_map_type, NodePackageMapType::Standard);
     assert_eq!(value.package_import_method, PackageImportMethod::default());
     assert!(value.prefer_frozen_lockfile);

@@ -47,6 +47,7 @@ pub(super) struct MutationLocks {
 pub(super) struct IdentityServices {
     pub(super) auth: AuthState,
     pub(super) oidc: pnpr_auth::oidc::OidcState,
+    pub(super) managed: super::managed_state::ManagedState,
 }
 
 impl AppInner {
@@ -105,9 +106,10 @@ impl ProxyState {
 impl IdentityServices {
     fn new(config: &Config, auth: AuthState) -> pnpr_error::Result<Self> {
         super::oidc::validate_workloads(config)?;
+        super::oidc_groups::validate_group_grants(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self { auth, oidc })
+        Ok(Self { auth, oidc, managed: super::managed_state::ManagedState::new(config) })
     }
 }
 
@@ -143,6 +145,7 @@ fn artifact_store(
                 &config.storage.hosted_backend,
                 &config.storage.cache_dir,
             )
+            .map(|store| store.with_quota(config.features.artifacts.quota))
         })
         .transpose()
 }

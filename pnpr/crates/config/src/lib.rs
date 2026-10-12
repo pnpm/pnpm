@@ -6,13 +6,20 @@ pub mod oidc;
 pub use logging::{LogConfig, LogFormat, LogLevel};
 
 pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
-    TokensConfig,
+    AuthConfig, BackendConfig, HtpasswdConfig, IdentityConfig, LibsqlSettings, MaxUsers,
+    SqlBackendSettings, TokensConfig,
 };
 
-pub use access::{AccessSpec, PackageAccess, Teams};
+pub use access::{
+    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
+};
+pub use hosted::{HostedConfig, Management};
+pub use pnpr_policy::{TeamDirectory, Teams};
 
+pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
+pub use scim::ScimConfig;
+pub use web_ui::UiConfig;
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
@@ -24,7 +31,7 @@ mod logging;
 use logging::build_log_config;
 
 mod backend_config;
-use backend_config::{build_auth_config, build_backend_config};
+use backend_config::{build_backend_config, build_identity_config};
 
 mod loading;
 
@@ -32,11 +39,14 @@ mod validation;
 
 mod presets;
 
+mod artifacts;
+use artifacts::{parse_artifact_quota, parse_storage_access};
+
 mod config_file;
 use config_file::{
-    ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
+    DefaultRegistryFile, FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile,
+    RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
     parse_config_file, reject_removed_blocks,
 };
 
@@ -47,9 +57,14 @@ use registry_graph::{
 };
 
 mod access;
-use access::build_teams;
+mod hosted;
+use access::{build_admins, build_teams};
 
 mod s3;
+mod scim;
+
+mod web_ui;
+use web_ui::build_ui_config;
 
 mod upstream;
 
@@ -64,7 +79,7 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
@@ -143,6 +158,7 @@ pub struct HttpConfig {
     /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
     /// response headers unless an operator explicitly names trusted origins.
     pub cors: CorsConfig,
+    pub ui: UiConfig,
     /// OCI authentication and size limits.
     pub oci: OciConfig,
     /// How long a cached packument is considered fresh before it is
@@ -169,20 +185,6 @@ pub struct StorageConfig {
     /// directory. The YAML `s3:` block switches it to an S3-compatible
     /// object store (S3, Cloudflare R2, `MinIO`, ...).
     pub hosted_backend: HostedStoreConfig,
-}
-
-#[derive(Debug, Clone)]
-pub struct IdentityConfig {
-    /// Where to read/write the htpasswd-format user file and the
-    /// token database. Both stores are in-memory when their paths
-    /// are `None`.
-    pub auth: AuthConfig,
-    /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus `SQLite` token database. The YAML `backend:` block can
-    /// switch both stores to one shared SQL database so several
-    /// stateless pnpr replicas see a consistent set of accounts.
-    pub backend: BackendConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -227,27 +229,6 @@ impl Default for OciConfig {
             max_manifest_bytes: 4 * 1024 * 1024,
         }
     }
-}
-
-/// A resolved hosted registry: the `org` namespace it serves and its
-/// `packages:` rules — the namespace it claims plus the per-package
-/// `access` / `publish` / `unpublish` policies, with the registry-level
-/// `access:` as the default an entry's omitted fields fall back to.
-#[derive(Debug, Clone)]
-pub struct HostedConfig {
-    /// The storage/serving namespace, so two hosted registries holding the same
-    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
-    pub org: String,
-    /// The registry's `packages:` map: namespace and per-package rules in one
-    /// declaration, selected by specificity. The effective `access` gates
-    /// reads *and* the write routing (publish, dist-tag, unpublish), with a
-    /// denied caller masked as not-found either way.
-    pub rules: PackageRules,
-    /// The registry's declared `teams:` map, retained so the npm team API
-    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`) can
-    /// list them. Membership is config-declared: the API serves reads only,
-    /// and team mutations are rejected.
-    pub teams: Teams,
 }
 
 /// Exact browser origins allowed to call pnpr across origins.
@@ -338,29 +319,13 @@ impl Default for ResolverFeature {
     }
 }
 
-/// Toggle for the shared-artifact surface. Off by default while the
-/// protocol is a proof of concept.
-#[derive(Debug, Default, Clone)]
-pub struct ArtifactsFeature {
-    /// Master switch for artifact and compiler-cache endpoints.
-    pub enabled: bool,
-    /// Named compiler caches with independent read and publication policies.
-    pub compiler_caches: IndexMap<String, StorageAccess>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StorageAccess {
-    pub access: AccessList,
-    pub publish: AccessList,
-}
-
 /// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
-/// Off by default while the surface is a proof of concept.
+/// Off by default while the surface is a proof of concept. Who may read and
+/// publish runs is [`ArtifactsFeature::orgs`].
 #[derive(Debug, Default, Clone)]
 pub struct PipelineFeature {
     /// Master switch for the run submission, listing, and viewer endpoints.
     pub enabled: bool,
-    pub workspaces: IndexMap<String, StorageAccess>,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -391,7 +356,7 @@ pub struct OsvConfig {
 /// fixture-scope subset of the bundled `config.yaml` `local` registry — the
 /// YAML additionally claims the exact names the TS test suite publishes,
 /// which pacquet's in-process registry never sees. The fixture packages
-/// living in real, active npm scopes (`@pnpm`, `@zkochan`) are claimed by
+/// living in real, active npm scopes (`@pnpm`, `@types`, `@zkochan`) are claimed by
 /// exact name so the rest of those scopes keeps proxying npm (dependency
 /// trees of proxied packages pull real `@pnpm/*` packages).
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
@@ -412,6 +377,7 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@pnpm/xyz-parent-parent-with-xyz",
     "@pnpm/y",
     "@pnpm/z",
+    "@types/pnpm.e2e__peer-a",
     "@zkochan/test-pnpm-issue219",
     "ajv",
     "ajv-keywords",
@@ -482,12 +448,10 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
+            orgs: parse_storage_access(artifacts_file.orgs)?,
+            quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
-        pipeline: PipelineFeature {
-            enabled: pipeline_file.enabled,
-            workspaces: parse_storage_access(pipeline_file.workspaces)?,
-        },
+        pipeline: PipelineFeature { enabled: pipeline_file.enabled },
     })
 }
 
@@ -618,26 +582,6 @@ pub fn default_cache_dir(storage: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
-
-fn parse_storage_access(
-    policies: IndexMap<String, StorageAccessFile>,
-) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
-    policies
-        .into_iter()
-        .map(|(name, policy)| {
-            validate_registry_name(&name)?;
-            let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&Teams::default())
-                    .map_err(|reason| RegistryError::InvalidConfig {
-                        reason: format!("storage namespace {name:?}: {reason}"),
-                    })
-            };
-            let access =
-                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
-            Ok((name, access))
-        })
-        .collect()
-}
 
 fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBuf) {
     let storage = resolve_relative(&file.storage, base_dir);

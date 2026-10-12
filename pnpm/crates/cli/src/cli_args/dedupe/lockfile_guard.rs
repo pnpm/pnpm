@@ -14,10 +14,7 @@ fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
     tmp.write_all(content)
         .into_diagnostic()
         .wrap_err("writing temp file")?;
-    tmp.as_file()
-        .sync_all()
-        .into_diagnostic()
-        .wrap_err("syncing temp file")?;
+    pnpm_fs::sync_file(tmp.as_file()).into_diagnostic().wrap_err("syncing temp file")?;
     tmp.persist(path)
         .into_diagnostic()
         .wrap_err("renaming temp file into place")?;

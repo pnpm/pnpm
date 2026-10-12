@@ -1,5 +1,5 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS,
+    AllowBuild, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS,
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, UpdateConfig,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
     package_configs::ProjectConfig,
@@ -7,8 +7,9 @@ use super::{
 };
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PmOnFail, ReporterType,
-    ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapSettings,
+    NodePackageMapType, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
+    ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
     api::{EnvVar, GetHomeDir},
 };
 use indexmap::IndexMap;
@@ -87,6 +88,8 @@ mod authorization;
 mod registry_ecosystems;
 
 mod registry_network_concurrency;
+
+mod provenance;
 
 mod publish_wait_timeout;
 

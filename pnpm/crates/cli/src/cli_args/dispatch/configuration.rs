@@ -141,6 +141,7 @@ fn talks_only_to_the_registry(command: &CliCommand) -> bool {
             | CliCommand::Logout(_)
             | CliCommand::Owner(_)
             | CliCommand::Ping(_)
+            | CliCommand::Profile(_)
             | CliCommand::Repo(_)
             | CliCommand::Search(_)
             | CliCommand::Star(_)
@@ -149,7 +150,7 @@ fn talks_only_to_the_registry(command: &CliCommand) -> bool {
             | CliCommand::Undeprecate(_)
             | CliCommand::Unpublish(_)
             | CliCommand::Unstar(_)
-            | CliCommand::Whoami,
+            | CliCommand::Whoami(_),
     )
 }
 
@@ -276,6 +277,12 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
     cfg.recursive = selectors.recursive;
     cfg.filter = selectors.filter.to_vec();
     cfg.filter_prod = selectors.filter_prod.to_vec();
+    if !cfg.filter.is_empty() {
+        cfg.cli_settings.insert("filter".to_string());
+    }
+    if !cfg.filter_prod.is_empty() {
+        cfg.cli_settings.insert("filterProd".to_string());
+    }
     if selectors.recursive_from_command_line {
         cfg.recursive_install = true;
     } else if selectors.recursive_by_default_command

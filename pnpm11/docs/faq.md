@@ -146,7 +146,7 @@ since been resolved such that it works with `pnpm` now.
 
 It used to throw an error:
 
-```console
+```text
 Error: Cannot find module 'babel-traverse'
   at /node_modules/inspectpack@2.2.3/node_modules/inspectpack/lib/actions/parse
 ```

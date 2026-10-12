@@ -19,7 +19,10 @@
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
 use super::token_store::{mint_token, unix_seconds};
+mod connector;
 mod schema;
+mod user_admin;
+use connector::{LibsqlConnector, is_plain_http};
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -34,6 +37,7 @@ use async_trait::async_trait;
 use libsql::{
     Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
 };
+use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use std::{
@@ -45,6 +49,11 @@ use std::{
 /// [`row_to_keyed_record`] can decode any of them the same way.
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
+
+/// [`TOKEN_COLUMNS`] of the `tokens` table aliased `t`, for the reads that
+/// join `users` to require a stored owner.
+const OWNED_TOKEN_COLUMNS: &str =
+    "t.token_hash, t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist";
 
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -90,11 +99,23 @@ impl LibsqlAuth {
     /// primary — always fresh, but a network round-trip on the auth hot
     /// path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
+        if settings.auth_token.is_some()
+            && is_plain_http(&settings.url)
+            && !is_url_secure_for_credentials(&settings.url)
+        {
+            return Err(RegistryError::InvalidConfig {
+                reason: "backend.libsql.authToken requires an https:// or libsql:// url, or \
+                         http:// on a loopback host"
+                    .to_string(),
+            });
+        }
+        let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
             Some(path) => {
                 let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token);
+                    Builder::new_remote_replica(path, settings.url.clone(), auth_token)
+                        .connector(connector);
                 let interval = settings.sync_interval_secs.unwrap_or(
                     LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
                 );
@@ -106,7 +127,11 @@ impl LibsqlAuth {
             None => {
                 with_auth_timeout(
                     DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                    Box::pin(
+                        Builder::new_remote(settings.url.clone(), auth_token)
+                            .connector(connector)
+                            .build(),
+                    ),
                 )
                 .await?
             }
@@ -171,6 +196,26 @@ impl UserBackend for LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let hash = tokio::sync::OnceCell::new();
         retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        self.list_usernames().await
+    }
+
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        self.stored_hash(username).await
+    }
+
+    async fn create_user(&self, username: &str, password: &str) -> Result<bool> {
+        self.insert_user_for_admin(username, password).await
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<bool> {
+        self.update_password(username, password).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<bool> {
+        self.remove_user(username).await
     }
 }
 
@@ -341,12 +386,29 @@ impl TokenBackend for LibsqlAuth {
         let token_hash = sha256_hex(raw.as_bytes());
         with_auth_timeout::<_, RegistryError>(self.timeout, async {
             let mut rows = self.conn.query(
-                "SELECT username FROM tokens WHERE token_hash = ?1",
+                "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
+                 WHERE t.token_hash = ?1",
                 params![token_hash],
             )
             .await?;
             match rows.next().await? {
                 Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let query = format!(
+            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
+             WHERE t.token_hash = ?1",
+        );
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![token_hash]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
                 None => Ok(None),
             }
         })

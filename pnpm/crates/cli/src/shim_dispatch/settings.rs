@@ -173,6 +173,9 @@ pub(super) fn validate_candidate(
             version_spec,
             manifest_hash,
         }),
+        candidate @ Candidate::RustToolchain { .. } => {
+            (package == super::RUST_SHIM_PACKAGE).then_some(candidate)
+        }
     }
 }
 

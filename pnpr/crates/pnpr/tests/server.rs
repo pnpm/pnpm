@@ -34,6 +34,12 @@ mod packuments;
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
 
+#[path = "server/web_ui.rs"]
+mod web_ui;
+
+#[path = "server/sign_in.rs"]
+mod sign_in;
+
 use crate::registry_groups;
 
 use axum::{
@@ -84,12 +90,11 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 /// authenticated user, the registry-mock contract these fixtures always ran
 /// under (the safe per-registry default would deny destructive writes).
 fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
-    HostedConfig {
-        org: org.to_string(),
-        rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
+    HostedConfig::new(
+        org,
+        PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
             .with_default_unpublish(AccessList::from_tokens(["$authenticated"])),
-        teams: pnpr::Teams::default(),
-    }
+    )
 }
 
 /// One `packages:` entry carrying only an `access` rule.

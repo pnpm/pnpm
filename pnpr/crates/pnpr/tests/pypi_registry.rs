@@ -1,8 +1,7 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
-use crate::ecosystem as common;
-
+use crate::{ecosystem as common, tokens::issue_token};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -97,7 +96,7 @@ fn get(path: &str, accept: Option<&str>) -> Request<Body> {
 async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
     let wheel = b"PK\x03\x04 pretend wheel".to_vec();
@@ -244,7 +243,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
 async fn upload_is_authenticated_and_validated() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
     let wheel = b"wheel bytes".to_vec();
@@ -562,7 +561,7 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
         prefix: String::new(),
     };
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let response = app
         .clone()
@@ -684,7 +683,7 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
     tokio::fs::write(package_dir.join(orphan), b"unpublished wheel").await.unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
     let orphan_path = format!("/pypi/files/demo-pkg/{orphan}");
@@ -800,7 +799,7 @@ async fn a_crashed_upload_keeps_what_was_uploaded_while_it_was_down() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let config = pypi_config(storage.clone(), "http://upstream.invalid/");
     let published = "demo_pkg-2.0.0-py3-none-any.whl";
     let response = router_with_auth(config.clone(), auth)

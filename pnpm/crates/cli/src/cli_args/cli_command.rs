@@ -50,10 +50,12 @@ use super::{
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
+    permissions::{ApproveArgs, PermissionsArgs},
     ping::PingArgs,
     pipeline::PipelineArgs,
     pkg::PkgArgs,
     prefix::PrefixArgs,
+    profile::ProfileArgs,
     prune::PruneArgs,
     publish::PublishArgs,
     rebuild::RebuildArgs,
@@ -77,6 +79,7 @@ use super::{
     store::StoreCommand,
     tasks::TasksArgs,
     team::TeamArgs,
+    token::TokenArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
     unpublish::UnpublishArgs,
@@ -84,6 +87,7 @@ use super::{
     update::UpdateArgs,
     version::VersionArgs,
     view::ViewArgs,
+    whoami::WhoamiArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -287,8 +291,13 @@ pub struct WorkspaceOrderingArgs {
     /// Process recursive workspace projects in their normal order.
     #[clap(long = "no-reverse", global = true, hide = true, overrides_with = "reverse")]
     pub no_reverse: bool,
-    /// Maximum number of workspace projects to process in parallel.
-    #[clap(long = "workspace-concurrency", global = true)]
+    /// Maximum number of workspace projects to process in parallel, or
+    /// `Infinity` for no limit.
+    #[clap(
+        long = "workspace-concurrency",
+        global = true,
+        value_parser = parse_workspace_concurrency
+    )]
     #[clap(id = "workspace_concurrency")]
     pub concurrency: Option<i32>,
     /// Run scripts in every selected workspace project concurrently,
@@ -368,6 +377,13 @@ fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str>
         "never" | "false" => Ok(pnpm_config::ColorMode::Never),
         _ => Err("expected one of: auto, always, never"),
     }
+}
+
+fn parse_workspace_concurrency(value: &str) -> Result<i32, std::num::ParseIntError> {
+    if value == "Infinity" {
+        return Ok(i32::MAX);
+    }
+    value.parse()
 }
 
 impl CliArgs {}

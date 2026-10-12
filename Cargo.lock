@@ -4705,11 +4705,13 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-rust-toolchain",
  "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-tool-protocol",
  "pnpm-versioning",
  "pnpm-wasm-host",
  "pnpm-which",
@@ -4852,6 +4854,7 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pgp",
+ "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
  "pnpm-wasm-host",
@@ -4934,6 +4937,7 @@ dependencies = [
  "derive_more",
  "node-semver",
  "pnpm-crypto-hash",
+ "pnpm-tool-protocol",
 ]
 
 [[package]]
@@ -4985,6 +4989,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-text-sanitize",
  "pnpm-workspace",
  "pnpm-workspace-task-scheduler",
  "pretty_assertions",
@@ -5065,6 +5070,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-resolver-base",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5086,6 +5092,7 @@ dependencies = [
  "pnpm-network",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5107,6 +5114,7 @@ dependencies = [
  "pnpm-network",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5129,6 +5137,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-resolver-base",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5151,6 +5160,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-graph-hasher",
  "pnpm-lockfile",
+ "pnpm-lockfile-preferred-versions",
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-package-manager",
@@ -5351,6 +5361,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "derive_more",
+ "libc",
  "pnpm-crypto-hash",
  "pnpm-lockfile",
  "pnpm-process",
@@ -5455,6 +5466,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-patching",
  "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "rayon",
  "serde",
@@ -5627,6 +5639,7 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-workspace",
  "pretty_assertions",
+ "rayon",
  "serde",
  "serde_json",
  "tempfile",
@@ -5640,6 +5653,7 @@ dependencies = [
  "bytes",
  "core-foundation",
  "derive_more",
+ "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
@@ -5812,6 +5826,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-tool-protocol",
  "pnpm-wasm-host",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
@@ -5848,6 +5863,7 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-fs",
+ "pnpm-tool-protocol",
  "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",
@@ -5893,6 +5909,7 @@ dependencies = [
  "p256",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-crypto-hash",
  "pnpm-graph-hasher",
  "pnpm-http",
  "pnpm-lockfile",
@@ -5909,6 +5926,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -6138,6 +6156,7 @@ dependencies = [
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-semver-include-prerelease",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "rustc-hash 2.1.3",
  "serde_json",
@@ -6296,6 +6315,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-rust-toolchain"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "dunce",
+ "flate2",
+ "miette 7.6.0",
+ "mockito",
+ "pnpm-config",
+ "pnpm-crypto-shasums-file",
+ "pnpm-detect-libc",
+ "pnpm-fs",
+ "pnpm-http",
+ "pnpm-network",
+ "pnpm-reporter",
+ "pnpm-store-dir",
+ "pnpm-tarball",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "sha2",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "pnpm-semver-include-prerelease"
 version = "0.0.1"
 dependencies = [
@@ -6332,6 +6380,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-shared-artifact-protocol",
  "pretty_assertions",
+ "rayon",
  "rmp-serde",
  "rusqlite",
  "serde",
@@ -6389,6 +6438,7 @@ name = "pnpm-testing-utils"
 version = "0.0.0"
 dependencies = [
  "assert_cmd",
+ "axum 0.8.9",
  "command-extra",
  "dunce",
  "flate2",
@@ -6412,6 +6462,13 @@ dependencies = [
 [[package]]
 name = "pnpm-text-sanitize"
 version = "0.0.1"
+
+[[package]]
+name = "pnpm-tool-protocol"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
+]
 
 [[package]]
 name = "pnpm-versioning"
@@ -6591,7 +6648,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -6683,20 +6740,27 @@ dependencies = [
  "bcrypt",
  "chrono",
  "getrandom 0.4.3",
+ "http 0.2.12",
+ "hyper 0.14.32",
  "libsql",
  "openidconnect",
  "p256",
  "pnpm-network",
+ "pnpm-testing-utils",
  "pnpr-config",
  "pnpr-error",
  "reqwest",
  "rusqlite",
+ "rustls",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sha2",
  "sqlx",
  "tempfile",
  "tokio",
+ "tokio-rustls",
+ "tower 0.4.13",
  "tower 0.5.3",
  "tracing",
  "url",

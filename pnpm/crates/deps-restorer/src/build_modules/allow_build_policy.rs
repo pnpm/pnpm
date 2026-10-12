@@ -1,7 +1,7 @@
 //! Deciding which packages are allowed to run build scripts.
 
 use super::{
-    Config, Cow, HashSet, VersionPolicyError, expand_package_version_specs,
+    Config, Cow, HashMap, HashSet, VersionPolicyError, expand_package_version_specs,
     get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
     remove_suffix,
 };
@@ -73,9 +73,20 @@ impl AllowBuildPolicy {
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
     /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
+        Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)
+    }
+
+    /// Build the policy from a map of `allowBuilds`-shaped keys to
+    /// decisions. The same keys decide every capability of `permissions`,
+    /// so the policy for agent skills is built here from
+    /// [`Config::allow_skills`].
+    pub fn from_approvals(
+        approvals: &HashMap<String, bool>,
+        dangerously_allow_all: bool,
+    ) -> Result<Self, VersionPolicyError> {
         let mut allowed = BuildKeys::default();
         let mut disallowed = BuildKeys::default();
-        for (spec, &value) in &config.allow_builds {
+        for (spec, &value) in approvals {
             let keys = if value { &mut allowed } else { &mut disallowed };
             keys.add(spec);
         }
@@ -84,7 +95,7 @@ impl AllowBuildPolicy {
             expand_package_version_specs(disallowed.specs)?,
             allowed.dep_paths,
             disallowed.dep_paths,
-            config.dangerously_allow_all_builds,
+            dangerously_allow_all,
         )
         .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
     }
@@ -100,13 +111,15 @@ impl AllowBuildPolicy {
         self
     }
 
-    /// Check whether a package is allowed to run build scripts.
+    /// Check whether a package is allowed to run build scripts. An
+    /// explicit `false` in `allowBuilds` outranks
+    /// `dangerouslyAllowAllBuilds`, so the two together allow every
+    /// build except the denied ones.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<bool> {
-        if self.dangerously_allow_all {
+        if self.dangerously_allow_all && !self.has_denials() {
             return Some(true);
         }
-
         let normalized_dep_path = normalize_build_dep_path(dep_path);
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
@@ -114,6 +127,9 @@ impl AllowBuildPolicy {
         let name_at_version = format!("{name}@{version}");
         if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
+        }
+        if self.dangerously_allow_all {
+            return Some(true);
         }
         if self.allowed_dep_paths.contains(&normalized_dep_path)
             || git_repo_key.is_some_and(|key| self.allowed_git_repos.contains(key))
@@ -134,6 +150,12 @@ impl AllowBuildPolicy {
         }
 
         None
+    }
+
+    fn has_denials(&self) -> bool {
+        !(self.disallowed_dep_paths.is_empty()
+            && self.disallowed_git_repos.is_empty()
+            && self.expanded_disallowed.is_empty())
     }
 
     /// A denial by dep path, git repo, or package name outranks every
@@ -230,6 +252,13 @@ impl<'c> BuildKeys<'c> {
             self.specs.push(spec);
         }
     }
+}
+
+/// Whether `dep_path` is a package installed from a git repository, by
+/// clone or as a git host's tarball.
+#[must_use]
+pub fn is_git_hosted_dep_path(dep_path: &str) -> bool {
+    git_repo_allow_build_key_from_dep_path(dep_path).is_some()
 }
 
 pub(crate) fn is_git_repo_allow_build_key(spec: &str) -> bool {

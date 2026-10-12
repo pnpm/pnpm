@@ -341,9 +341,67 @@ access list names the **user** `platform`, even when a team of that name
 exists. Keeping the two apart means someone who can register a username can
 never inherit a team's grants by choosing its name.
 
-Because teams live in the config, they are served read-only over npm's
-team endpoints, and any attempt to create or modify one through the API is
-refused — see [Team endpoints](endpoints.md#team-endpoints).
+### Managing teams through the API {#managing-teams-through-the-api}
+
+By default the `teams:` map is the roster. npm's team endpoints serve it
+read-only and refuse every change. Set `teamsManagedBy: api` on a hosted
+registry to let the [`auth.admins`](#auth) edit its roster with `pnpm team`:
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+registries:
+  private:
+    type: hosted
+    teamsManagedBy: api
+    teams:
+      platform: [alice]
+    packages:
+      '@corp/*':
+        access: [team:platform]
+```
+
+- pnpr stores the roster in the hosted store, so every replica serves the same
+  one. A replica rereads it at most 10 seconds after another replica changes it.
+- If pnpr cannot read a stored roster, that registry's `team:` grants admit
+  nobody until a read succeeds. Other access rules are not affected.
+- The `teams:` map is used only until the first change is stored. After that,
+  editing `teams:` has no effect.
+- A team that a `packages:` rule names cannot be destroyed.
+- Only hosted registries accept `teamsManagedBy`.
+
+See [Team endpoints](endpoints.md#team-endpoints).
+
+### Changing rules through the API {#changing-rules-through-the-api}
+
+Set `rulesManagedBy: api` on a hosted registry to let the
+[`auth.admins`](#auth) change its rules without a config deploy:
+
+```yaml title="pnpr.yaml"
+registries:
+  private:
+    type: hosted
+    rulesManagedBy: api
+    packages:
+      '@corp/*':
+        access: $authenticated
+```
+
+- An admin can replace the registry-level `access:` and the `access`,
+  `publish`, and `unpublish` lists of every key the `packages:` map declares.
+  The keys themselves stay in the config, because they decide which registry
+  serves a name.
+- A change applies at once on the replica that took it. pnpr stores changes in
+  the hosted store, so other replicas apply them within 10 seconds.
+- Resetting the changes brings back the config's rules.
+- If pnpr cannot read the stored changes, the registry admits nobody until a
+  read succeeds.
+- Only hosted registries accept `rulesManagedBy`.
+- `npm access grant` and `npm access revoke` edit the lists of a package the
+  `packages:` map declares by name.
+
+See [Admin endpoints](endpoints.md#admin-endpoints) and
+[Team package access](endpoints.md#team-package-access).
 
 ## `oci`
 
@@ -371,6 +429,15 @@ cors:
     - https://registry-ui.example.com
 ```
 
+## `ui`
+
+Whether and from where pnpr serves its web UI. See [Web UI](web-ui.md#settings).
+
+```yaml title="pnpr.yaml"
+ui:
+  enabled: true
+```
+
 ## `auth`
 
 By default users are stored in an htpasswd file and tokens in a local SQLite
@@ -396,9 +463,32 @@ the htpasswd file.
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database — see [Auth backends](auth-backends.md).
 
+`auth.admins` lists the usernames that may administer the registry. An admin
+may:
+
+- create and remove accounts, change passwords, and revoke tokens through the
+  [admin endpoints](endpoints.md#admin-endpoints), even while self-registration
+  is disabled;
+- edit the teams of every registry with
+  [`teamsManagedBy: api`](#managing-teams-through-the-api);
+- change the rules of every registry with
+  [`rulesManagedBy: api`](#changing-rules-through-the-api).
+
+The first admin account still has to exist. Let it self-register before you
+set `max_users` to `-1`, or create it in the htpasswd file or the shared
+database.
+
+```yaml title="pnpr.yaml"
+auth:
+  admins: [alice]
+```
+
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI
 publishing alongside the password backend — see
 [OpenID Connect](oidc.md).
+
+`auth.scim` lets an identity provider deprovision accounts — see
+[SCIM deprovisioning](scim.md).
 
 ## `secret`
 
@@ -441,7 +531,7 @@ resolver:
 ```yaml title="pnpr.yaml"
 artifacts:
   enabled: true
-  compilerCaches:
+  orgs:
     acme:
       access: [ci-builder, alice, bob]
       publish: ci-builder
@@ -452,8 +542,34 @@ artifacts:
   artifact-version list. The handshake itself is served when either the resolver
   or artifact surface is enabled, so an artifact-only tier is discoverable.
 
-  `compilerCaches` declares the [Cargo compilation caches](compiler-cache.md)
-  this server hosts and who may read and publish to each.
+  `orgs` declares the organizations this server keeps build output for, and who
+  may read and who may publish what each one owns. An organization owns three
+  things:
+
+  - its signed artifacts: [shared side effects](shared-side-effects-cache.md)
+    and `pnpm pipeline` task results,
+  - its [Cargo compilation cache](compiler-cache.md),
+  - its [pipeline run records](pipeline-runs.md).
+
+  `access` and `publish` list pnpr usernames, or `$authenticated` for every
+  signed-in account. Teams are declared per registry, so `team:` entries are
+  refused here. Publishing also requires `access`. An empty list denies
+  everyone. An organization nobody may read is invisible: requests for it answer
+  as if it did not exist. An undeclared organization is unavailable.
+  `orgs` is read even when `enabled` is false, for a server that only stores
+  pipeline runs.
+
+  `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
+  owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
+  all of them together, defaulting to 10. A `pnpm pipeline` task result can hold
+  release binaries, so a server that stores them usually needs more:
+
+```yaml title="pnpr.yaml"
+artifacts:
+  quota:
+    ownerGiB: 50
+    totalGiB: 200
+```
 
 - The **pipeline run surface** — the endpoints that store and serve
   [`pnpm pipeline` run records](pipeline-runs.md), a peer of the artifact store.
@@ -462,11 +578,9 @@ artifacts:
 ```yaml title="pnpr.yaml"
 pipeline:
   enabled: true
-  workspaces:
-    acme-app:
-      access: [team:platform]
-      publish: ci-builder
 ```
+
+  Who may read and submit runs is decided by [`artifacts.orgs`](#registry-resolver-and-artifact-surfaces).
 
 Something must be served: a config with no registries (or the registry
 surface disabled by flag), the resolver disabled, and artifacts disabled is a

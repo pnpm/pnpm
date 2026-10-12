@@ -84,6 +84,7 @@ macro_rules! static_env_with_vars {
 }
 
 mod behavior;
+mod registry_alias;
 
 mod configuration;
 

@@ -7,6 +7,8 @@ mod catalogs;
 
 mod store;
 
+mod modules_dir_disabled;
+
 mod frozen_policy;
 
 mod frozen_dispatch;

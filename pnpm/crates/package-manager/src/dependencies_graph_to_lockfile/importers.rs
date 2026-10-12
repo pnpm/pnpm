@@ -117,7 +117,7 @@ pub(super) fn build_importer(
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let mut groups = ImporterDependencyGroups::default();
     let mut specifiers: HashMap<String, String> = HashMap::new();
-    let alias_to_group = manifest_alias_to_group(input.manifest);
+    let alias_to_group = manifest_alias_to_group(input.manifest, flags.auto_install_peers);
     let sources = DirectEntrySources {
         manifest: input.manifest,
         graph,
@@ -323,12 +323,20 @@ pub(crate) fn manifest_publish_config(
 /// Map each direct-dep alias to the manifest group it appears in.
 /// `optionalDependencies` wins over `dependencies` wins over
 /// `devDependencies` when an alias is duplicated across groups
-/// (first-write-wins over the dependency fields).
+/// (first-write-wins over the dependency fields). With
+/// `auto_install_peers`, an alias that only `peerDependencies` declares maps
+/// to [`DependencyGroup::Peer`], since the install makes it one of the
+/// project's dependencies.
 pub(super) fn manifest_alias_to_group(
     manifest: &PackageManifest,
+    auto_install_peers: bool,
 ) -> HashMap<String, DependencyGroup> {
     let mut out: HashMap<String, DependencyGroup> = HashMap::new();
-    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
+    let materialized_peers = auto_install_peers.then_some(DependencyGroup::Peer);
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .chain(materialized_peers)
+    {
         for (alias, _) in manifest.dependencies([group]) {
             out.entry(alias.to_string()).or_insert(group);
         }

@@ -291,6 +291,12 @@ pub(crate) fn join_trail(node: &Rc<TrailNode>) -> String {
     parts.join(">")
 }
 
+/// The registry version an audit checks, or `None` for an entry the registry
+/// does not serve. A `runtime:` entry is a Node.js, Deno, or Bun release, not
+/// the npm package of the same name.
 pub(crate) fn package_version(key: &PackageKey) -> Option<String> {
+    if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
+        return None;
+    }
     key.suffix.version_semver().map(ToString::to_string)
 }

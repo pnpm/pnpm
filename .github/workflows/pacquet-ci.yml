@@ -103,6 +103,7 @@ jobs:
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
+              - '.github/actions/remote-cache/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
@@ -118,7 +119,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
       - name: Validate changeset files
@@ -186,7 +187,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -207,7 +208,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: just
 
@@ -226,7 +227,7 @@ jobs:
           just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -344,7 +345,7 @@ jobs:
           EOF
 
       - name: Upload Bencher test duration artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-performance-rust-${{ matrix.os_label }}
           path: .bench/artifact/rust/
@@ -355,6 +356,7 @@ jobs:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
     # job only type-checks it, so Windows gets its own Clippy row. macOS does
     # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
@@ -387,17 +389,26 @@ jobs:
           clippy: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Clippy
-        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-clippy --include-workspace-root --full
 
   doc:
     name: Rust CI / Doc / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # rustdoc resolves intra-doc links only in the code compiled for the
     # target, so a link from shared docs to a `#[cfg(unix)]` item breaks on
     # Windows alone. Windows gets its own row, as it does in Clippy.
@@ -421,14 +432,22 @@ jobs:
           docs: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
+
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
 
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-doc --include-workspace-root --full
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
@@ -460,7 +479,7 @@ jobs:
           restore-cache: false
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -507,7 +526,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
+      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
         with:
           files: pnpm pnpr
 
@@ -541,13 +560,13 @@ jobs:
 
       - name: Install pnpm
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cargo-deny
 
@@ -575,7 +594,7 @@ jobs:
           packages: taplo-cli@0.8.1
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -678,7 +697,7 @@ jobs:
           packages: cargo-dylint@6.0.4 dylint-link@6.0.4
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 

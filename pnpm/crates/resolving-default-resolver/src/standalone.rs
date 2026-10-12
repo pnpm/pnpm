@@ -63,7 +63,7 @@ pub fn build_standalone_chain(
     opts: &StandaloneChainOptions<'_>,
 ) -> Result<DefaultResolver, MergeNamedRegistriesError> {
     let &StandaloneChainOptions { config, http_client, .. } = opts;
-    let retry_opts = chain_retry_opts(config);
+    let retry_opts = config.retry_opts();
     // Shared behind an `Arc` so the deno / bun runtime resolvers (which
     // reuse the npm resolver for their own version picking) and the chain
     // slot below all point at the same instance and its metadata cache.
@@ -91,15 +91,6 @@ pub fn build_standalone_chain(
         Box::new(build_named_registry_resolver(opts, retry_opts)?),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]))
-}
-
-fn chain_retry_opts(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: std::time::Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: std::time::Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
 }
 
 fn build_npm_resolver(

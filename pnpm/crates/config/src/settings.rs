@@ -1,20 +1,21 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
-    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
-    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
-    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, workspace_yaml,
+    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
+    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
+    PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    SmartDefault, StoreDir, StoreIndexFormat, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
+    WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
+    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
+    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
+    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
+    default_hoist_pattern, default_install_state_dir, default_modules_cache_max_age,
+    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
+    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
+    default_unsafe_perm, default_user_agent, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_ci, npmrc_auth, side_effects_cache_remote_env,
+    workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -258,11 +259,15 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
-    /// Leave out each top-level setting of `pnpm-workspace.yaml` that does
-    /// not parse or validate on its own, which a newer pnpm may give a shape
-    /// or a value this one rejects. Only for loading configuration that
-    /// decides whether to switch to the pnpm the project pins.
-    pub skip_unreadable_workspace_settings: bool,
+    /// Leave out what this pnpm cannot read, which a newer pnpm may give a
+    /// shape or a value this one rejects: each top-level setting of the
+    /// global `config.yaml` and `pnpm-workspace.yaml` that does not parse or
+    /// validate on its own, and any source that still fails, such as `_auth`
+    /// or a project `.npmrc` `tokenHelper`. Every other source still applies,
+    /// so a repository that breaks its own files cannot drop the machine's
+    /// settings. Only for loading configuration that decides whether to
+    /// switch to the pnpm the project pins.
+    pub skip_unreadable_settings: bool,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.
@@ -294,10 +299,8 @@ pub struct Config {
     /// Package names excluded from loaded linking; their complete trees use the global virtual store.
     pub node_linker_excluded: Vec<String>,
 
-    /// When true, pacquet writes `node_modules/.package-map.json` for
-    /// Node's `--experimental-package-map` loader flag. Default
-    /// `false`, matching pnpm's opt-in setting.
-    pub node_experimental_package_map: bool,
+    /// `nodePackageMap.mode`, or the deprecated `nodeExperimentalPackageMap`.
+    pub node_package_map_mode: NodePackageMapMode,
 
     /// Selects the package-map dependency surface.
     pub node_package_map_type: NodePackageMapType,
@@ -808,6 +811,11 @@ pub struct Config {
     /// manifests are patched during resolution.
     pub ignore_compatibility_db: bool,
 
+    /// When `true`, every peer dependency `X` of a dependency also makes
+    /// `@types/X` an optional peer of it, unless the package already
+    /// declares `@types/X`. The `addMissingPeerTypes` setting; default `false`.
+    pub add_missing_peer_types: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all
@@ -870,6 +878,10 @@ pub struct Config {
     ///
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
+
+    /// How a store without a package index yet keeps one: the
+    /// `storeIndexFormat` setting. See [`StoreIndexFormat`].
+    pub store_index_format: StoreIndexFormat,
 
     /// pnpm's `--force`. Refetch every package and re-materialize every
     /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
@@ -1017,6 +1029,10 @@ pub struct Config {
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
+    /// `remoteCache`. Boxed so the section does not grow every future that
+    /// holds a `Config`. Read it through [`Config::remote_cache_settings`].
+    pub remote_cache: Option<Box<RemoteCacheSettings>>,
+
     /// `sideEffectsCache.read` and `.write` as declared, which
     /// [`Config::side_effects_cache_read`] and
     /// [`Config::side_effects_cache_write`] prefer over the boolean pair.
@@ -1114,9 +1130,24 @@ pub struct Config {
     /// Default empty.
     pub allow_builds: HashMap<String, bool>,
 
+    /// The `skills` decisions of `permissions` in `pnpm-workspace.yaml`:
+    /// package names (or `name@version`, or a pkgId) mapped to whether
+    /// pnpm links the agent skills the package ships.
+    pub allow_skills: HashMap<String, bool>,
+
+    /// `skills.dirs` from `pnpm-workspace.yaml`: the agent skill
+    /// directories, relative to the workspace root, that replace the
+    /// detected ones. `Some(empty)` turns agent skills off.
+    pub skills_dirs: Option<Vec<String>>,
+
+    /// Set by [`Config::disable_agent_skills`] for an install no project
+    /// agent reads. Unlike `skills.dirs: []`, it is never recorded in the
+    /// workspace state. Default `false`.
+    pub agent_skills_disabled: bool,
+
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
-    /// `true`, every package may run lifecycle scripts regardless of
-    /// `allow_builds`. Default `false` to match pnpm v11.
+    /// `true`, every package may run lifecycle scripts except the ones
+    /// `allow_builds` sets to `false`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
 
     /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
@@ -1156,6 +1187,11 @@ pub struct Config {
     /// Maximum time in milliseconds to wait for published versions and their
     /// tarballs to become available. Zero disables the check.
     pub publish_wait_timeout: u64,
+
+    /// `provenance` (`--provenance` / `--no-provenance`). Whether `pnpm
+    /// publish` attaches a provenance attestation. Unset lets trusted
+    /// publishing decide from the package's visibility.
+    pub provenance: Option<bool>,
 
     /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
     /// version when `pnpm version` creates its git tag, and stripped when
@@ -1277,14 +1313,14 @@ pub struct Config {
 
     /// `--filter` selectors, one raw selector string per entry
     /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
-    /// `pnpm-workspace-projects-filter`. A CLI-only array: not a
-    /// `.npmrc` / `pnpm-workspace.yaml` key, so only the CLI layer
-    /// populates it.
+    /// `pnpm-workspace-projects-filter`. Not a `.npmrc` /
+    /// `pnpm-workspace.yaml` key: only the CLI layer and the
+    /// `updateConfig` hooks populate it.
     pub filter: Vec<String>,
 
     /// `--filter-prod` selectors. Same shape as [`Self::filter`], but
     /// each selector follows production dependencies only when its
-    /// dependency walk runs. A CLI-only array.
+    /// dependency walk runs. Populated the same way.
     pub filter_prod: Vec<String>,
 
     /// `--workspace-root` / `-w`: run the command on the root workspace

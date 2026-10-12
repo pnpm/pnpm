@@ -146,7 +146,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
     async fn run(
         mut self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-        let allow_build_policy = (!self.install.execution.lockfile_only)
+        let allow_build_policy = (!self.install.execution.lockfile_only())
             .then(|| AllowBuildPolicy::from_config(self.install.drivers.config))
             .transpose()
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;

@@ -39,4 +39,5 @@ fn url_shape_drops_name_prefix() {
 fn runtime_entries_keep_name_prefix() {
     assert_eq!(try_get_package_id("node@runtime:22.0.0"), "node@runtime:22.0.0");
     assert_eq!(try_get_package_id("node@runtime:22.0.0(some@peer)"), "node@runtime:22.0.0");
+    assert_eq!(try_get_package_id("node@tool:22.0.0"), "node@tool:22.0.0");
 }

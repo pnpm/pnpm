@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeSet, DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput,
     NoProxySetting, ProxyConfigInput, begin_stats, build_overlay, install_options,
-    install_options_for, network_config, reject_unsupported_install_options, run_install_inner,
-    script_deps_install_options, take_deps_requiring_build, take_stats,
+    install_options_for, is_lockfile_only, network_config, reject_unsupported_install_options,
+    run_install_inner, script_deps_install_options, take_deps_requiring_build, take_stats,
 };
 
 #[test]
@@ -102,6 +102,19 @@ fn newly_supported_install_options_are_accepted() {
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
     assert_eq!(build_overlay(&options, false).expect("overlay").max_sockets, Some(20));
+}
+
+/// `enableModulesDir: false` is the engine's concern (no `node_modules`,
+/// packages fetched into the store); only `lockfileOnly` asks for a
+/// lockfile-only install.
+#[test]
+fn enable_modules_dir_false_is_not_a_lockfile_only_install() {
+    let mut options = install_options();
+    options.enable_modules_dir = Some(false);
+    assert!(!is_lockfile_only(&options, &EngineMode::Install(None), false));
+
+    options.lockfile_only = Some(true);
+    assert!(is_lockfile_only(&options, &EngineMode::Install(None), false));
 }
 
 /// An empty list and an uncomputed one are different answers. The first
@@ -234,4 +247,33 @@ fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
         .expect("install skipping the optional dependency");
 
     assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
+}
+
+/// `enableModulesDir: false` through the addon: no `node_modules`, every
+/// package in the store. The engine reads the option from the config, so
+/// this also proves the overlay carries it there.
+#[test]
+fn enable_modules_dir_false_writes_no_node_modules_and_fills_the_store() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut options = script_deps_install_options(temp_dir.path());
+    options.enable_modules_dir = Some(false);
+
+    begin_stats();
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("install");
+    let _ = take_stats();
+
+    let project_dir = std::path::Path::new(&options.dir);
+    assert!(!project_dir.join("node_modules").exists(), "no node_modules is written");
+    assert!(project_dir.join("pnpm-lock.yaml").exists(), "the lockfile is written");
+    let store_dir = options.store_dir.as_deref().expect("the test options pin a store dir");
+    let store_versions: Vec<_> = std::fs::read_dir(store_dir)
+        .expect("the store directory exists")
+        .map(|entry| entry.expect("store entry").path())
+        .collect();
+    assert!(
+        store_versions
+            .iter()
+            .any(|version| version.join("files").is_dir()),
+        "the packages are fetched into the store: {store_versions:?}",
+    );
 }

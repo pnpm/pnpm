@@ -15,6 +15,7 @@ const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
 pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
 pub(crate) const ERROR_LOCK_VIOLATION: i32 = 33;
+pub(crate) const ERROR_DELETE_PENDING: i32 = 303;
 
 /// Rename a filesystem entry, retrying transient Windows file-lock errors.
 ///
@@ -212,12 +213,12 @@ where
 
 /// Whether `error` is a transient Windows file lock in the sense of
 /// [`rename_with_retry`]: `ERROR_ACCESS_DENIED` (a directory rename blocked
-/// by an open handle below it), a sharing or lock violation (OS errors 32 and
-/// 33, an open or delete refused by another handle's share mode), or
-/// `ERROR_BUSY`. The sharing and lock violations have no
-/// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
-/// Under WSL the same locks surface as `EACCES`/`EPERM` or `EBUSY`. Always
-/// `false` on other Unix systems.
+/// by an open handle below it), a sharing, lock, or delete-pending violation (OS
+/// errors 32, 33, and 303, an open, delete, or inspect refused while another
+/// handle is active or closing), or `ERROR_BUSY`. The sharing, lock, and
+/// delete-pending violations have no [`io::ErrorKind`] of their own, so they
+/// are matched by raw OS error. Under WSL the same locks surface as
+/// `EACCES`/`EPERM` or `EBUSY`. Always `false` on other Unix systems.
 #[must_use]
 pub fn is_transient_file_lock_error(error: &io::Error) -> bool {
     file_locks_are_transient()
@@ -225,7 +226,7 @@ pub fn is_transient_file_lock_error(error: &io::Error) -> bool {
             || (cfg!(windows)
                 && matches!(
                     error.raw_os_error(),
-                    Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION),
+                    Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION | ERROR_DELETE_PENDING),
                 )))
 }
 

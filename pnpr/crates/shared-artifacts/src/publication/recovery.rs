@@ -1,8 +1,8 @@
 use super::{
     ArtifactPayload, BACKFILLED_SCOPE, BTreeSet, CompatibilityScopes, ObjectStoreExt,
     PreparedPublication, RegistryError, Result, ScopeMarker, SharedArtifactStore, UNIVERSAL_SCOPE,
-    blob_id, compatibility_scopes, protocol_error, scope_marker_path, scope_name, scopes_prefix,
-    verify_stored_blob,
+    blob_id, check_stored_blob_size, compatibility_scopes, protocol_error, scope_marker_path,
+    scope_name, scopes_prefix,
 };
 use futures_util::StreamExt as _;
 
@@ -101,7 +101,7 @@ impl SharedArtifactStore {
         for file in &payload.manifest.added {
             let id = blob_id(&file.integrity).map_err(|err| protocol_error(&err))?;
             let path = format!("{owner}/blobs/{id}");
-            let Some(bytes) = self.read_object_bounded(&path, file.size).await? else {
+            let Some(stored) = self.stored_size(&path).await? else {
                 self.store.delete(&self.object_path(variant_path)).await?;
                 return Err(RegistryError::Internal {
                     reason: format!(
@@ -110,7 +110,7 @@ impl SharedArtifactStore {
                     ),
                 });
             };
-            verify_stored_blob(&id, &file.integrity, file.size, &bytes)?;
+            check_stored_blob_size(&id, stored, file.size)?;
         }
         Ok(())
     }

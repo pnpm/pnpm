@@ -273,9 +273,9 @@ jobs:
         with:
           restore-cache: false
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
-          runtime: node@26.10.0
+          runtime: node@26.11.1
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -435,9 +435,9 @@ jobs:
         with:
           restore-cache: false
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
-          runtime: node@26.10.0
+          runtime: node@26.11.1
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
       # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
       # or publish them; a maintainer does that later with interactive 2FA. Keeping
@@ -532,15 +532,13 @@ jobs:
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
       contents: read
-    env:
-      RUSTUP_TOOLCHAIN: nightly-2026-08-27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
@@ -564,7 +562,7 @@ jobs:
         run: tar czf wasm-payload.tar.gz -C pnpm/npm wasm
 
       - name: Upload payload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: wasm-payload
@@ -593,7 +591,7 @@ jobs:
           restore-cache: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
 
@@ -608,7 +606,7 @@ jobs:
         run: tar czf node-gyp-payload.tar.gz -C pnpm/npm/pnpm dist
 
       - name: Upload payload
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: node-gyp-payload
@@ -750,7 +748,7 @@ jobs:
           test "$actual" = "$VERSION"
 
       - name: Download node-gyp payload
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           # Kept out of the workspace root so it can't be swept up by the
@@ -792,7 +790,7 @@ jobs:
           subject-path: pnpm-${{ matrix.code-target }}.*
 
       - name: Upload Binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: binaries-rust-${{ matrix.code-target }}
@@ -925,7 +923,7 @@ jobs:
           subject-path: pnpm-napi.${{ matrix.code-target }}.node
 
       - name: Upload NAPI addon
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           # Downloaded by the same `binaries-rust-*` pattern the CLI archives
@@ -952,13 +950,13 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -999,7 +997,7 @@ jobs:
         # than rebuilt, so the npm packages and the GitHub release archives
         # carry the same bytes. Must land before the packages are generated:
         # the `@pnpm/exe` wrapper copies dist/ too.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           path: node-gyp-payload
@@ -1008,7 +1006,7 @@ jobs:
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Restore @pnpm/wasm package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wasm-payload
           path: wasm-payload
@@ -1124,13 +1122,13 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -1149,7 +1147,7 @@ jobs:
           done
 
       - name: Restore node-gyp payload
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: node-gyp-payload
           path: node-gyp-payload
@@ -1158,7 +1156,7 @@ jobs:
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Restore @pnpm/wasm package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wasm-payload
           path: wasm-payload
@@ -1234,7 +1232,7 @@ jobs:
           fi
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-rust-*
           merge-multiple: true
@@ -1339,7 +1337,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cross
 
@@ -1438,7 +1436,7 @@ jobs:
             pnpr-${{ matrix.code-target }}*
 
       - name: Upload Binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           if-no-files-found: error
           name: binaries-pnpr-${{ matrix.code-target }}
@@ -1446,6 +1444,39 @@ jobs:
             *.zip
             *.tar.gz
             *.sha256
+
+  build-pnpr-ui:
+    name: Build the pnpr web UI
+    needs: plan
+    if: needs.plan.outputs.pnpr == 'true' && !inputs.verify_ts_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Build
+        # pnpr/ui is a workspace of its own: it installs the UI's components
+        # from bit.cloud's registry and writes the bundle into
+        # pnpr/npm/pnpr-ui/dist.
+        run: |
+          pnpm --dir pnpr/ui install --frozen-lockfile
+          pnpm --dir pnpr/ui build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pnpr-ui
+          path: pnpr/npm/pnpr-ui/dist
+          if-no-files-found: error
 
   verify-pnpr-artifacts:
     name: Verify pnpr npm artifacts
@@ -1455,22 +1486,29 @@ jobs:
     needs:
       - plan
       - build-pnpr
+      - build-pnpr-ui
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true
+
+      - name: Download the web UI
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pnpr-ui
+          path: pnpr/npm/pnpr-ui/dist
 
       - name: Unzip
         uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
@@ -1559,6 +1597,20 @@ jobs:
           node "$smoke_dir/node_modules/@pnpm/pnpr/install.js"
           "$smoke_dir/node_modules/@pnpm/pnpr/bin/pnpr" --version
 
+          # pnpr finds the web UI installed next to it and serves it.
+          ui_tarball=$(find "$release_tarballs/pnpr_npm_pnpr-ui" -type f -name '*.tgz' -print -quit)
+          test -n "$ui_tarball"
+          mkdir -p "$smoke_dir/node_modules/@pnpm/pnpr-ui"
+          tar -xzf "$ui_tarball" -C "$smoke_dir/node_modules/@pnpm/pnpr-ui" --strip-components=1
+          (cd "$smoke_dir" && ./node_modules/@pnpm/pnpr/bin/pnpr --listen 127.0.0.1:7690 > pnpr.log 2>&1) &
+          pnpr_pid=$!
+          trap 'kill "$pnpr_pid" 2>/dev/null || true' EXIT
+          curl --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 --output /dev/null http://127.0.0.1:7690/-/ping
+          curl --silent --show-error --fail http://127.0.0.1:7690/-/ui/ | grep -F '<base href="./">' || {
+            cat "$smoke_dir/pnpr.log"
+            exit 1
+          }
+
   publish-pnpr:
     name: Publish @pnpm/pnpr to npm
     runs-on: ubuntu-latest
@@ -1571,6 +1623,7 @@ jobs:
     needs:
       - plan
       - build-pnpr
+      - build-pnpr-ui
       - verify-pnpr-artifacts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1578,16 +1631,22 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true
+
+      - name: Download the web UI
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pnpr-ui
+          path: pnpr/npm/pnpr-ui/dist
 
       - name: Unzip
         uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
@@ -1668,7 +1727,7 @@ jobs:
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Download Linux musl binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-linux-*-musl
           merge-multiple: true
@@ -1756,7 +1815,7 @@ jobs:
           fi
 
       - name: Download Artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: binaries-pnpr-*
           merge-multiple: true

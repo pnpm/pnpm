@@ -1,6 +1,6 @@
 mod purl;
 
-use crate::cli_args::add::AddRequest;
+use crate::{cli_args::add::AddRequest, engine_pm::selector::rust_toolchain_request};
 use miette::Result;
 use percent_encoding::percent_decode_str;
 use purl::{Purl, PurlType};
@@ -16,6 +16,8 @@ const PYTHON_PROTOCOL: &str = "pypi:";
 pub(crate) enum EcosystemPackageSpecifier {
     Cargo(RegistryPackageSpecifier),
     Python(String),
+    /// `rust[@<channel>]`: the project's Rust toolchain.
+    RustToolchain(pnpm_rust_toolchain::Channel),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +43,33 @@ impl PackageSpecifierPlan {
             }
         }
         Ok(Self { node_packages, ecosystem_packages })
+    }
+
+    /// Move the `rust[@<channel>]` requests out of the npm packages: in a
+    /// project they pin its Rust toolchain. A Package URL never names it.
+    pub(crate) fn take_rust_toolchains(&mut self) -> Result<()> {
+        let mut node_packages = Vec::with_capacity(self.node_packages.len());
+        for request in std::mem::take(&mut self.node_packages) {
+            let channel = request
+                .may_name_a_tool()
+                .then(|| rust_toolchain_request(request.selector()))
+                .flatten();
+            match channel {
+                Some(channel) => {
+                    let toolchain = EcosystemPackageSpecifier::RustToolchain(channel?);
+                    self.ecosystem_packages.push(toolchain);
+                }
+                None => node_packages.push(request),
+            }
+        }
+        self.node_packages = node_packages;
+        Ok(())
+    }
+
+    pub(crate) fn has_rust_toolchain(&self) -> bool {
+        self.ecosystem_packages
+            .iter()
+            .any(|specifier| matches!(specifier, EcosystemPackageSpecifier::RustToolchain(_)))
     }
 
     pub(crate) fn has_cargo(&self) -> bool {

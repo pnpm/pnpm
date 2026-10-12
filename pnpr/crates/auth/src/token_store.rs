@@ -1,6 +1,6 @@
 use super::{
-    AtomicU64, Connection, Digest, HashMap, Mutex, Ordering, PathBuf, RegistryError, Result,
-    Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait, token_timestamp_from_sql,
+    AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
+    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait, token_timestamp_from_sql,
     token_timestamp_to_sql,
 };
 use std::fmt::Write as _;
@@ -19,10 +19,57 @@ pub struct TokenStore {
     pub(super) counter: AtomicU64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct TokenInner {
     /// hex-encoded SHA-256 of the raw token → record.
-    pub(super) tokens: HashMap<String, TokenRecord>,
+    tokens: HashMap<String, TokenRecord>,
+    /// username → the keys of its tokens, so work on one user's tokens does
+    /// not scan everyone's while holding the lock lookups need.
+    by_owner: HashMap<String, HashSet<String>>,
+}
+
+impl TokenInner {
+    fn from_tokens(tokens: HashMap<String, TokenRecord>) -> Self {
+        let mut inner = Self::default();
+        for (key, record) in tokens {
+            inner.insert(key, record);
+        }
+        inner
+    }
+
+    pub(super) fn insert(&mut self, key: String, record: TokenRecord) {
+        self.by_owner
+            .entry(record.username.clone())
+            .or_default()
+            .insert(key.clone());
+        self.tokens.insert(key, record);
+    }
+
+    fn remove(&mut self, key: &str) {
+        let Some(record) = self.tokens.remove(key) else {
+            return;
+        };
+        if let Some(keys) = self.by_owner.get_mut(&record.username) {
+            keys.remove(key);
+            if keys.is_empty() {
+                self.by_owner.remove(&record.username);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+
+    fn owned_by(&self, username: &str) -> Vec<(String, TokenRecord)> {
+        self.by_owner
+            .get(username)
+            .into_iter()
+            .flatten()
+            .filter_map(|key| Some((key.clone(), self.tokens.get(key)?.clone())))
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +86,7 @@ impl TokenStore {
     #[must_use]
     pub fn in_memory() -> Self {
         Self {
-            inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
+            inner: Mutex::new(TokenInner::default()),
             persist: None,
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
@@ -60,7 +107,7 @@ impl TokenStore {
         let tokens = load_all_tokens(&conn)?;
         drop(conn);
         Ok(Self {
-            inner: Mutex::new(TokenInner { tokens }),
+            inner: Mutex::new(TokenInner::from_tokens(tokens)),
             persist: Some(path),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
@@ -83,7 +130,7 @@ impl TokenBackend for TokenStore {
         };
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.insert(token_hash.clone(), record.clone());
+            inner.insert(token_hash.clone(), record.clone());
         }
         if let Some(path) = self.persist.clone() {
             let hash_for_db = token_hash.clone();
@@ -97,12 +144,12 @@ impl TokenBackend for TokenStore {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
                     let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
+                    inner.remove(&token_hash);
                     return Err(err);
                 }
                 Err(err) => {
                     let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
+                    inner.remove(&token_hash);
                     return Err(err.into());
                 }
             }
@@ -125,11 +172,7 @@ impl TokenBackend for TokenStore {
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens
-            .iter()
-            .filter(|(_, record)| record.username == username)
-            .map(|(hash, record)| (hash.clone(), record.clone()))
-            .collect())
+        Ok(inner.owned_by(username))
     }
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
@@ -155,7 +198,7 @@ impl TokenBackend for TokenStore {
         }
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.remove(key);
+            inner.remove(key);
         }
         Ok(Some(record))
     }

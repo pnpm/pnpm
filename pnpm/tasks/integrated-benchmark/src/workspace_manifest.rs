@@ -53,6 +53,8 @@ pub struct MinimalWorkspaceManifest {
     /// source tree into the install's project enumeration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dedupe_injected_deps: Option<bool>,
     /// The `enableGlobalVirtualStore` setting. Effective default is
     /// `false` for non-`--global` installs in both pnpm v11 and pacquet
     /// (the `true` value is forced only by the `pnpm install --global`

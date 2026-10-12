@@ -1,7 +1,8 @@
 use super::{
     super::{effective_node_version, included_dependencies},
-    InstallError, InstallOwned, InstallRunOptions, InstallView,
+    InstallError, InstallExecution, InstallOwned, InstallRunOptions, InstallView,
 };
+use crate::install::state_options::ResolveOnly;
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -67,6 +68,37 @@ impl RunMode {
     }
 }
 
+impl RunMode {
+    /// `enableModulesDir: false` without `--lockfile-only` or `--dry-run`:
+    /// the run writes no `node_modules`, like a lockfile-only run, but still
+    /// fetches the registry packages the host can install into the store, as
+    /// pnpm's TypeScript engine
+    /// did. Whoever mounts `node_modules` afterwards (a FUSE daemon, for
+    /// one) serves it from the store instead of downloading each package on
+    /// first access.
+    pub(super) fn fetches_into_store(&self, execution: InstallExecution) -> bool {
+        fetches_into_store(self.lockfile_only, execution)
+    }
+
+    /// Why the run materializes nothing, when it does not.
+    pub(super) fn resolve_only(&self, execution: InstallExecution) -> Option<ResolveOnly> {
+        if !self.resolve_only {
+            None
+        } else if self.fetches_into_store(execution) {
+            Some(ResolveOnly::FetchIntoStore)
+        } else {
+            Some(ResolveOnly::LockfileOnly)
+        }
+    }
+}
+
+/// Whether a run whose `lockfile_only` is [`effective_lockfile_only`] fetches
+/// into the store: only when neither `--lockfile-only` nor `--dry-run` asked
+/// for the lockfile alone, which leaves `enableModulesDir: false`.
+fn fetches_into_store(lockfile_only: bool, execution: InstallExecution) -> bool {
+    lockfile_only && !execution.lockfile_only && !execution.dry_run
+}
+
 /// A prompt only reaches a person on an interactive terminal outside CI.
 fn prompts_are_answerable() -> bool {
     !pnpm_config::is_ci() && std::io::stdin().is_terminal()
@@ -86,9 +118,10 @@ fn reject_lockfile_only_without_lockfile(
 
 /// `enableModulesDir: false` (with the global virtual store off) is "resolve
 /// and write the lockfile, materialize nothing" — the same pipeline
-/// `--lockfile-only` takes, entered from config. It stays outside the
-/// `lockfile: false` conflict (pnpm accepts that combination and simply
-/// writes nothing), and never turns a rebuild — which runs against an
+/// `--lockfile-only` takes, entered from config, except that the packages
+/// are still fetched into the store (`RunMode::fetches_into_store`). It stays
+/// outside the `lockfile: false` conflict (pnpm accepts that combination and
+/// simply writes nothing), and never turns a rebuild — which runs against an
 /// already-materialized `node_modules` — into a silent no-op.
 fn effective_lockfile_only(
     config: &Config,
@@ -154,3 +187,6 @@ impl Drop for WorkspaceManifestRollbackGuard {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

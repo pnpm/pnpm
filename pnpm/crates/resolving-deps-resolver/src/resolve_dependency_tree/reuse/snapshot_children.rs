@@ -1,9 +1,9 @@
 use super::{
-    AncestorPkgIds, Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId,
-    ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext,
-    ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeChildren,
-    TreeCtx, UpdateReuseScope, WantedDependency, future, is_current_children_owner,
-    record_children, resolve_node,
+    AncestorPkgIds, Arc, BTreeMap, ChildrenOwnerClaim, ChildrenRecording, Cow, DirectDep, HashMap,
+    HashSet, NodeId, ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer,
+    RecordedChildrenContext, ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef,
+    SnapshotEntry, TreeChildren, TreeCtx, UpdateReuseScope, WantedDependency, future,
+    is_current_children_owner, record_children, resolve_node,
 };
 
 /// The per-node context [`reused_children`] walks one reused node's snapshot
@@ -51,16 +51,16 @@ pub(super) async fn reused_children<Chain>(
     resolver: &Chain,
     claim: &ChildrenOwnerClaim,
     context: ReusedChildren<'_>,
-) -> Result<(TreeChildren, bool), ResolveDependencyTreeError>
+) -> Result<(TreeChildren, ChildrenRecording), ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     if !claim.owns_children {
-        return Ok((TreeChildren::Lazy, false));
+        return Ok((TreeChildren::Lazy, ChildrenRecording::Declined));
     }
     let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
     if !is_current_children_owner(ctx, context.id, &claim.owner) {
-        return Ok((TreeChildren::Lazy, false));
+        return Ok((TreeChildren::Lazy, ChildrenRecording::Declined));
     }
     Ok(record_reused_children(ctx, claim, &context, child_results))
 }
@@ -127,7 +127,7 @@ pub(super) fn record_reused_children(
     claim: &ChildrenOwnerClaim,
     context: &ReusedChildren<'_>,
     child_results: Vec<Option<DirectDep>>,
-) -> (TreeChildren, bool) {
+) -> (TreeChildren, ChildrenRecording) {
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     let optional_by_alias: HashMap<&str, bool> = context.child_refs
@@ -157,7 +157,7 @@ pub(super) fn record_reused_children(
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         },
     );
-    recording.into_children(realized)
+    (recording.children(realized), recording)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child

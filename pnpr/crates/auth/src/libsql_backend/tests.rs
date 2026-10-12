@@ -260,6 +260,7 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
 #[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.create_user("alice", "x").await.unwrap();
     let token = backend.issue("alice").await.unwrap();
     assert_eq!(
         backend
@@ -444,4 +445,56 @@ async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<lib
             .map_err(RegistryError::from)
     })
     .await
+}
+
+#[tokio::test]
+async fn libsql_supports_the_admin_operations() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::tests::assert_admin_round_trip(&backend).await;
+}
+
+#[tokio::test]
+async fn admin_created_users_count_against_the_registration_cap() {
+    let backend = local_backend(MaxUsers::Limited(1)).await;
+    assert!(backend.create_user("alice", "secret").await.unwrap());
+    let err = backend.add_or_login("bob", "secret").await.unwrap_err();
+    assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
+
+    assert!(backend.delete_user("alice").await.unwrap());
+    assert!(matches!(
+        backend.add_or_login("bob", "secret").await.unwrap(),
+        (UpsertOutcome::Created, _),
+    ));
+}
+
+#[tokio::test]
+async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.create_user("alice", "x").await.unwrap();
+    let token = backend.issue("alice").await.unwrap();
+    backend.delete_user("alice").await.unwrap();
+
+    assert!(
+        backend
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        backend
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let listed = backend.list_for_user("alice").await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert!(
+        backend
+            .revoke_by_key(&listed[0].0)
+            .await
+            .unwrap()
+            .is_some(),
+    );
 }

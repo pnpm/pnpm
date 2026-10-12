@@ -11,7 +11,7 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use super::{bold, red, retry_opts_from_config, sanitize_response_body};
+use super::{bold, red, sanitize_response_body};
 use base64::Engine as _;
 use owo_colors::{OwoColorize, Stream};
 use p256::{

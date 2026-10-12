@@ -28,6 +28,7 @@ pub(crate) use local_file_deps::{
 pub(crate) use manifest_agreement::{
     ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,
 };
+pub use manifest_source::{ManifestFreshness, RepeatInstallManifests};
 pub(crate) use modules_dirs::hoisted_project_modules_dir;
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
@@ -42,6 +43,7 @@ pub(crate) use timestamps::{
 };
 
 mod current_lockfile;
+mod manifest_source;
 mod modules_dirs;
 mod relocation;
 mod settle;
@@ -89,21 +91,6 @@ pub enum Decision {
     Skipped { reason: &'static str },
 }
 
-/// How the check learns whether a project manifest may have changed since
-/// the previous install validated it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ManifestFreshness {
-    /// The manifests are the `package.json` files on disk: one whose mtime
-    /// is no newer than the recorded `lastValidatedTimestamp` is unchanged,
-    /// and only a newer one is content-checked against the lockfile.
-    Mtime,
-    /// The manifests were supplied in memory (the Node-API binding). Nothing
-    /// on disk records when they changed, and a `package.json` may not even
-    /// exist at the project root, so every one is content-checked against
-    /// the wanted lockfile.
-    Content,
-}
-
 /// Inputs to [`check_optimistic_repeat_install`].
 pub struct OptimisticRepeatInstallCheck<'a> {
     /// The root the install recorded its lockfile and workspace state
@@ -147,7 +134,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
     pub layout: RepeatInstallLayout<'a>,
-    pub manifest_freshness: ManifestFreshness,
+    pub manifests: RepeatInstallManifests<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -259,7 +246,7 @@ impl<'a> ManifestDrift<'a> {
         state: &WorkspaceState,
     ) -> Option<Self> {
         let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
-        let stats = match check.manifest_freshness {
+        let stats = match check.manifests.freshness {
             ManifestFreshness::Mtime => stat_manifests(check.project_manifests)?,
             ManifestFreshness::Content => unstatted_manifests(check.project_manifests),
         };

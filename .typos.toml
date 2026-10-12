@@ -10,6 +10,8 @@ extend-exclude = [
   "pnpm/docs/static/img/logos/pnpm-light-no-text.svg",
   "pnpm/docs/static/img/demos/pnpm-install.svg",
   "pnpm/crates/crypto-shasums-file/src/node_release_keys/*.asc",
+  "pnpm/crates/rust-toolchain/src/*.asc",
+  "pnpm/crates/rust-toolchain/src/fixtures/*",
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 

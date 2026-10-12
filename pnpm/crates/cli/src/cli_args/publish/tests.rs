@@ -1,10 +1,16 @@
 use super::{PublishArgs, PublishFlags, run_publish_scripts};
+use crate::{
+    boolean_values::resolve_boolean_values,
+    cli_args::{CliArgs, cli_command::CliCommand},
+};
+use clap::Parser;
 use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_publish::{Access, PublishNetwork};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::ffi::OsString;
 
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
@@ -26,6 +32,7 @@ fn publish_flags() -> PublishFlags {
             tag: None,
             access: None,
             provenance: false,
+            no_provenance: false,
             otp: None,
             publish_wait_timeout: None,
         },
@@ -85,6 +92,53 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     assert_eq!(options.registry.provenance, Some(true));
     assert!(options.dry_run);
     assert_eq!(options.registry.otp, None);
+}
+
+#[test]
+fn publish_options_layers_the_provenance_flags_over_the_config() {
+    let with_flags = |provenance, no_provenance| {
+        publish_args_with(PublishFlags {
+            registry: crate::cli_args::publish::PublishRegistryArgs {
+                provenance,
+                no_provenance,
+                ..publish_flags().registry
+            },
+            ..publish_flags()
+        })
+    };
+    let resolve = |args: &PublishArgs, configured| {
+        let config = Config { provenance: configured, ..Default::default() };
+        args.publish_options(&config, None, false).registry.provenance
+    };
+    let unset = with_flags(false, false);
+    let on = with_flags(true, false);
+    let off = with_flags(false, true);
+    assert_eq!(resolve(&unset, None), None);
+    assert_eq!(resolve(&unset, Some(false)), Some(false));
+    assert_eq!(resolve(&unset, Some(true)), Some(true));
+    assert_eq!(resolve(&off, None), Some(false));
+    assert_eq!(resolve(&off, Some(true)), Some(false));
+    assert_eq!(resolve(&on, Some(false)), Some(true));
+}
+
+#[test]
+fn provenance_false_on_the_command_line_parses_as_no_provenance() {
+    let parse = |parts: &[&str]| {
+        let argv = parts
+            .iter()
+            .map(OsString::from)
+            .collect();
+        match CliArgs::try_parse_from(resolve_boolean_values(argv)).expect("parses").command {
+            CliCommand::Publish(publish) => publish.flags.registry,
+            other => panic!("expected publish, got {other:?}"),
+        }
+    };
+    for spelling in ["--provenance=false", "--no-provenance"] {
+        let flags = parse(&["pnpm", "publish", spelling]);
+        assert!(!flags.provenance && flags.no_provenance, "{spelling}");
+    }
+    let flags = parse(&["pnpm", "publish", "--no-provenance", "--provenance"]);
+    assert!(flags.provenance && !flags.no_provenance);
 }
 
 #[tokio::test]

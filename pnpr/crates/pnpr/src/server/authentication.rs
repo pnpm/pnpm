@@ -91,6 +91,7 @@ pub(super) async fn authenticate(
         Ok(header) => header.map(str::to_owned),
         Err(err) => return err.into_response(),
     };
+    super::managed_state::refresh_managed_state(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
     let peer = request
@@ -101,6 +102,9 @@ pub(super) async fn authenticate(
     if let Some(raw) = header.as_deref().and_then(token_credentials) {
         match bearer_token_identity(&state, &raw, &method, &path, peer).await {
             Ok(Some(identity)) => {
+                if let Err(err) = refuse_deprovisioned(&state, &identity) {
+                    return err.into_response();
+                }
                 request
                     .extensions_mut()
                     .insert(AuthedCaller(identity));
@@ -111,7 +115,11 @@ pub(super) async fn authenticate(
         }
     }
 
-    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
+    let resolved = resolve_caller(&state, header.as_deref(), &method, &path, peer).await;
+    let identity = match resolved.and_then(|identity| {
+        refuse_deprovisioned(&state, &identity)?;
+        Ok(identity)
+    }) {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
@@ -119,6 +127,21 @@ pub(super) async fn authenticate(
         .extensions_mut()
         .insert(AuthedCaller(identity));
     next.run(request).await
+}
+
+/// Refuse the credentials of a user a SCIM client deprovisioned. Its stored
+/// tokens are already revoked, but a browser session on another replica
+/// lives until that replica reloads the directory.
+pub(super) fn refuse_deprovisioned(
+    state: &AppState,
+    identity: &Identity,
+) -> Result<(), RegistryError> {
+    match identity {
+        Identity::User { username, .. } if super::scim::is_deprovisioned(state, username)? => {
+            Err(RegistryError::Unauthenticated { resource: "a deprovisioned account".to_string() })
+        }
+        _ => Ok(()),
+    }
 }
 
 /// The identity an OCI bearer token carries, or `None` when the credential is
@@ -145,7 +168,7 @@ async fn bearer_token_identity(
     let Some(parent) = claims.parent.as_ref() else {
         return Ok(Some(Identity::Anonymous));
     };
-    match state.inner.identity.auth.tokens.find_by_key(parent).await {
+    match owned_parent(state, parent).await {
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, peer)
                 .map_err(axum::response::IntoResponse::into_response)?;
@@ -154,6 +177,18 @@ async fn bearer_token_identity(
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
         Err(err) => Err(err.into_response()),
     }
+}
+
+/// The token an OCI bearer token was issued from, while its owner is still an
+/// account, as [`pnpr_auth::TokenBackend::lookup_record`] requires of a token
+/// sent directly.
+async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>, RegistryError> {
+    let auth = &state.inner.identity.auth;
+    let Some(record) = auth.tokens.find_by_key(key).await? else {
+        return Ok(None);
+    };
+    let owned = auth.users.password_hash(&record.username).await?.is_some();
+    Ok(owned.then_some(record))
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
@@ -175,8 +210,8 @@ async fn resolve_caller(
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
-        if let Some(username) = state.inner.identity.oidc.session(&raw_token)? {
-            return Ok(Identity::user(username));
+        if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
+            return Ok(super::oidc_groups::session_identity(&state.inner.config, user));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -294,7 +329,8 @@ pub(super) fn authorize(
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let effective = source_rules(state, source).for_package(package);
+    let rules = source_rules(state, source).snapshot();
+    let effective = rules.for_package(package);
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,

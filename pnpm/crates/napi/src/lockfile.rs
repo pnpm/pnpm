@@ -77,6 +77,7 @@ pub struct WriteLockfileOptions {
 
 /// Inputs for [`filter_lockfile_by_importers`].
 #[napi(object)]
+#[derive(Default)]
 pub struct FilterLockfileOptions {
     /// Whether the listed importers keep their `dependencies`. Defaults to
     /// `true`.
@@ -105,6 +106,7 @@ pub struct FilterLockfileOptions {
 pub async fn read_lockfile(
     options: ReadLockfileOptions,
 ) -> napi::Result<Option<serde_json::Value>> {
+    pnpm_package_manager::configure_rayon_pool();
     let kind = LockfileKind::parse(options.kind.as_deref())?;
     let path = lockfile_path(&options.dir, options.modules_dir.as_deref(), &kind);
     let loaded = tokio::task::spawn_blocking(move || Lockfile::load_from_path(&path))
@@ -124,6 +126,7 @@ pub async fn read_lockfile(
 /// Write the lockfile, formatted exactly as an install writes it.
 #[napi]
 pub async fn write_lockfile(options: WriteLockfileOptions) -> napi::Result<()> {
+    pnpm_package_manager::configure_rayon_pool();
     let kind = LockfileKind::parse(options.kind.as_deref())?;
     let path = lockfile_path(&options.dir, options.modules_dir.as_deref(), &kind);
     let lockfile: Lockfile = serde_json::from_value(options.lockfile)
@@ -135,6 +138,32 @@ pub async fn write_lockfile(options: WriteLockfileOptions) -> napi::Result<()> {
             napi::Error::from_reason(format!("writeLockfile task panicked: {join_error}"))
         })?
         .map_err(|error| to_napi_error(&error))
+}
+
+fn into_filter_options(options: Option<FilterLockfileOptions>) -> FilterByImportersOptions {
+    let options = options.unwrap_or_default();
+    let skipped: HashSet<PackageKey> = options.skipped
+        .unwrap_or_default()
+        .iter()
+        // An unparsable dep path matches no snapshot key, so skipping it
+        // is a no-op either way; dropping it keeps a stale entry in a
+        // host's skip list from failing the whole call.
+        .filter_map(|dep_path| dep_path.parse().ok())
+        .collect();
+    FilterByImportersOptions {
+        include: IncludedDependencies {
+            dependencies: options.include_dependencies.unwrap_or(true),
+            dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
+            optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
+        },
+        skipped,
+        fail_on_missing_dependencies: options.fail_on_missing_dependencies.unwrap_or(false),
+        peer_edges: PeerEdgeOptions {
+            resolve_peers_from_workspace_root: options
+                .resolve_peers_from_workspace_root
+                .unwrap_or(false),
+        },
+    }
 }
 
 /// The lockfile narrowed to what `importerIds` reaches: those importers
@@ -149,46 +178,14 @@ pub fn filter_lockfile_by_importers(
     importer_ids: Vec<String>,
     options: Option<FilterLockfileOptions>,
 ) -> napi::Result<serde_json::Value> {
+    pnpm_package_manager::configure_rayon_pool();
     let lockfile: Lockfile = serde_json::from_value(lockfile)
         .map_err(|err| {
             napi::Error::from_reason(format!("the lockfile argument is not a lockfile: {err}"))
         })?;
-    let options = options.unwrap_or(FilterLockfileOptions {
-        include_dependencies: None,
-        include_dev_dependencies: None,
-        include_optional_dependencies: None,
-        skipped: None,
-        fail_on_missing_dependencies: None,
-        resolve_peers_from_workspace_root: None,
-    });
-    let skipped: HashSet<PackageKey> = options.skipped
-        .unwrap_or_default()
-        .iter()
-        // An unparsable dep path matches no snapshot key, so skipping it
-        // is a no-op either way; dropping it keeps a stale entry in a
-        // host's skip list from failing the whole call.
-        .filter_map(|dep_path| dep_path.parse().ok())
-        .collect();
+    let filter_options = into_filter_options(options);
     let filtered = lockfile
-        .filter_by_importers(
-            importer_ids,
-            &FilterByImportersOptions {
-                include: IncludedDependencies {
-                    dependencies: options.include_dependencies.unwrap_or(true),
-                    dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
-                    optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
-                },
-                skipped,
-                fail_on_missing_dependencies: options
-                    .fail_on_missing_dependencies
-                    .unwrap_or(false),
-                peer_edges: PeerEdgeOptions {
-                    resolve_peers_from_workspace_root: options
-                        .resolve_peers_from_workspace_root
-                        .unwrap_or(false),
-                },
-            },
-        )
+        .filter_by_importers(importer_ids, &filter_options)
         .map_err(|error| to_napi_error(&error))?;
     serde_json::to_value(filtered)
         .map_err(|err| napi::Error::from_reason(format!("serializing the lockfile: {err}")))

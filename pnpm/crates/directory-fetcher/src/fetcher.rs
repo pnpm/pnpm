@@ -110,6 +110,14 @@ impl DirectoryFetcher {
         Ok(DirectoryFetchOutput { files_map, manifest, requires_build, exists: true })
     }
 
+    /// The `files_map` [`Self::run`] returns, without reading the
+    /// directory's manifest unless packlist mode needs it. For a caller
+    /// that only compares file listings and must not fail on a
+    /// `package.json` another process is still writing.
+    pub fn list_files(&self) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {
+        self.walk_files()
+    }
+
     fn walk_files(&self) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {
         let symlinks = self.symlinks();
         if self.include_only_package_files {

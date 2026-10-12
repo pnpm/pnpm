@@ -14,7 +14,7 @@ use pnpm_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir, StoreIndexFormat};
 use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
@@ -72,14 +72,14 @@ fn create_config(
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         skip_store_dir_resolution: false,
-        skip_unreadable_workspace_settings: false,
+        skip_unreadable_settings: false,
         store_dir_placement_skipped: false,
         store_relocation: None,
         state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
         macos_backup: Default::default(),
         node_linker: Default::default(),
-        node_experimental_package_map: false,
+        node_package_map_mode: Default::default(),
         node_package_map_type: Default::default(),
         symlink: false,
         install_state_dir: virtual_store_dir.to_path_buf(),
@@ -128,6 +128,7 @@ fn create_config(
         cargo: Default::default(),
         python: Default::default(),
         remote_side_effects_cache: None,
+        remote_cache: None,
         registries_by_prefix: Default::default(),
         registry_options_by_url: Default::default(),
         auto_install_peers: false,
@@ -147,6 +148,7 @@ fn create_config(
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
         ignore_compatibility_db: false,
+        add_missing_peer_types: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
@@ -155,6 +157,7 @@ fn create_config(
         disallow_workspace_cycles: false,
         strict_store_pkg_content_check: true,
         frozen_store: false,
+        store_index_format: StoreIndexFormat::Sqlite,
         force: false,
         isolate_local_directory_imports: false,
         side_effects_cache: true,
@@ -182,12 +185,16 @@ fn create_config(
         allow_unused_patches: false,
         config_dependencies: None,
         allow_builds: Default::default(),
+        allow_skills: Default::default(),
+        skills_dirs: Default::default(),
+        agent_skills_disabled: false,
         dangerously_allow_all_builds: false,
         strict_dep_builds: true,
         ignore_scripts: false,
         ignore_pnpmfile: false,
         git_checks: true,
         publish_wait_timeout: 0,
+        provenance: None,
         tag_version_prefix: "v".to_string(),
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,

@@ -65,11 +65,21 @@ Naming a [package manager](../package-managers.md) — `npm`, `yarn` or `bun` �
 pnpm add yarn@4
 ```
 
-writes `"packageManager": "yarn@4.18.0"`, and every other package manager is recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager). Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit `node@runtime:22` spelling already did — `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@runtime:1.3.0`).
+writes `"packageManager": "yarn@4.18.0"`, and every other package manager is recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager). Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit [`node@tool:22`](../package-sources.md#provisioned-tools) spelling does since v12.13.0. `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@tool:1.3.0`).
 
 Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Classic-only `yarn` package, and `pnpm add -g node@22` installs that Node.js release rather than a wrapper that downloads one.
 
 A specifier that locates a package rather than asking for a released version — `pnpm add yarn@npm:yarn@1.22.22`, `pnpm add yarn@yarnpkg/berry` — installs what it names, as an ordinary dependency.
+
+## Adding the Rust toolchain
+
+Added in: v12.11.0
+
+`rust` names the [Rust toolchain](../cargo.md#rust-toolchain), not the npm package of that name. The version is a Rust release channel: a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`. A bare `rust` asks for `stable`.
+
+In a project, `pnpm add rust@1.95` pins the toolchain in the `rust-toolchain.toml` that governs the project, the nearest one at or above it in the workspace. It creates one in the project if there is none, and changes only the `channel`, keeping the rest of the file. With [`cargo.enabled`](../cargo.md#cargoenabled), the toolchain is installed too. Nothing is added to `package.json`.
+
+`pnpm add -g rust@stable` installs the toolchain globally. The `cargo`, `rustc`, and other Rust commands run it outside projects whose `rust-toolchain.toml` names a toolchain of their own. `pnpm update -g rust` installs the newest release of its channel, `pnpm ls -g` lists it, and `pnpm remove -g rust` removes it.
 
 ## Protocol-prefixed selectors
 
@@ -159,6 +169,8 @@ Save the new dependency to the specified [catalog].
 Added in: v10.8.0
 
 Save the dependency to [configDependencies](config-dependencies.md).
+
+Since v12.12.0, the saved range follows the same rules as for a dependency in `package.json`.
 
 ### --ignore-workspace-root-check
 

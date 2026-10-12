@@ -1,6 +1,6 @@
 use super::{
-    MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
+    MAX_USERNAME_CHARS, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
     token_timestamp_to_sql, validate_username,
 };
 use pnpr_config::MaxUsers;
@@ -25,12 +25,7 @@ const INVALID_USERNAMES: &[&str] = &[
 ];
 
 fn test_user_store() -> UserStore {
-    UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Unlimited,
-        bcrypt_cost: TEST_COST,
-    }
+    UserStore::in_memory_with_cost(MaxUsers::Unlimited, TEST_COST)
 }
 
 #[test]
@@ -146,15 +141,10 @@ async fn adduser_rejects_existing_user_with_wrong_password() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn adduser_rejects_same_username_concurrent_registration_with_different_password() {
-    let store = Arc::new(UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Unlimited,
-        // Higher than TEST_COST so hashing lasts long enough for both
-        // tasks to clear the initial missing-user check before either
-        // takes the lock — i.e. to actually exercise the race window.
-        bcrypt_cost: 8,
-    });
+    // Higher than TEST_COST so hashing lasts long enough for both
+    // tasks to clear the initial missing-user check before either
+    // takes the lock — i.e. to actually exercise the race window.
+    let store = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 8));
     let barrier = Arc::new(Barrier::new(3));
 
     let spawn_adduser = |password: &'static str| {
@@ -243,12 +233,7 @@ async fn adduser_writes_bcrypt_2y_format() {
 
 #[tokio::test]
 async fn max_users_minus_one_disables_registration() {
-    let store = UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Disabled,
-        bcrypt_cost: TEST_COST,
-    };
+    let store = UserStore::in_memory_with_cost(MaxUsers::Disabled, TEST_COST);
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
@@ -264,12 +249,7 @@ async fn in_memory_store_honors_the_registration_cap() {
 
 #[tokio::test]
 async fn max_users_caps_new_registrations() {
-    let store = UserStore {
-        users: std::sync::Mutex::new(std::collections::HashMap::new()),
-        path: None,
-        max_users: MaxUsers::Limited(2),
-        bcrypt_cost: TEST_COST,
-    };
+    let store = UserStore::in_memory_with_cost(MaxUsers::Limited(2), TEST_COST);
     store.add_or_login("alice", "x").await.unwrap();
     store.add_or_login("bob", "x").await.unwrap();
     let err = store.add_or_login("carol", "x").await.unwrap_err();
@@ -336,7 +316,6 @@ async fn lookup_record_surfaces_token_restrictions() {
     tokens.inner
         .lock()
         .expect("TokenStore mutex poisoned")
-        .tokens
         .insert(
             sha256_hex(raw.as_bytes()),
             TokenRecord {
@@ -457,7 +436,6 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
         store.inner
             .lock()
             .expect("TokenStore mutex poisoned")
-            .tokens
             .is_empty(),
         "failed persistence must not leave an in-memory bearer token active",
     );
@@ -531,5 +509,191 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     assert!(
         message.contains("token-hash"),
         "the error should name the row, so an operator can find it: {message}",
+    );
+}
+
+/// The admin operations every [`UserBackend`] supports, starting from an
+/// empty store.
+pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
+    assert!(users.create_user("alice", "first").await.unwrap());
+    assert!(!users.create_user("alice", "other").await.unwrap());
+    assert_eq!(users.list_users().await.unwrap(), ["alice"]);
+
+    assert!(users.set_password("alice", "second").await.unwrap());
+    assert!(users.add_or_login("alice", "first").await.is_err());
+    assert!(matches!(
+        users.add_or_login("alice", "second").await.unwrap(),
+        (UpsertOutcome::LoggedIn, _),
+    ));
+    assert!(!users.set_password("bob", "x").await.unwrap());
+
+    assert!(users.delete_user("alice").await.unwrap());
+    assert!(!users.delete_user("alice").await.unwrap());
+    assert!(
+        users
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[tokio::test]
+async fn user_store_supports_the_admin_operations() {
+    assert_admin_round_trip(&test_user_store()).await;
+}
+
+#[tokio::test]
+async fn admin_created_users_bypass_disabled_registration_and_persist() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
+    assert!(store.create_user("alice", "secret").await.unwrap());
+    assert!(store.create_user("bob", "secret").await.unwrap());
+    assert!(store.delete_user("bob").await.unwrap());
+
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_edits_leave_the_file_matching_memory() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store =
+        Arc::new(UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap());
+    let mut edits = tokio::task::JoinSet::new();
+    for index in 0..32 {
+        let store = Arc::clone(&store);
+        edits.spawn(async move {
+            let name = format!("user{index}");
+            store.create_user(&name, "x").await.unwrap();
+            if index % 2 == 0 {
+                store.delete_user(&name).await.unwrap();
+            }
+        });
+    }
+    edits.join_all().await;
+
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), store.list_users().await.unwrap());
+}
+
+#[tokio::test]
+async fn a_failed_write_changes_nothing_and_can_be_repeated() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("htpasswd");
+    let store = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
+    // A directory where the file belongs makes the write's rename fail.
+    std::fs::create_dir(&path).unwrap();
+
+    assert!(store.create_user("alice", "x").await.is_err());
+    assert!(
+        store
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+
+    std::fs::remove_dir(&path).unwrap();
+    assert!(store.create_user("alice", "x").await.unwrap());
+    let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
+    assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
+}
+
+#[tokio::test]
+async fn local_tokens_of_a_removed_owner_stop_authenticating() {
+    let users = Arc::new(test_user_store());
+    let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+    users.create_user("alice", "x").await.unwrap();
+    let token = tokens.issue("alice").await.unwrap();
+    assert_eq!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+
+    users.delete_user("alice").await.unwrap();
+    assert!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        tokens
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        tokens
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+}
+
+#[tokio::test]
+async fn tokens_list_per_owner_across_revocation_and_reload() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tokens.db");
+    let store = TokenStore::open(path.clone()).unwrap();
+    let alice = store.issue("alice").await.unwrap();
+    store.issue("alice").await.unwrap();
+    store.issue("bob").await.unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        2,
+    );
+
+    store
+        .revoke_by_key(&sha256_hex(alice.as_bytes()))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    let reopened = TokenStore::open(path).unwrap();
+    assert_eq!(
+        reopened
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(
+        reopened
+            .list_for_user("bob")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert!(
+        reopened
+            .list_for_user("carol")
+            .await
+            .unwrap()
+            .is_empty(),
     );
 }

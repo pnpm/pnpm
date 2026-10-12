@@ -4,13 +4,13 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::redact_url_credentials;
+use pnpm_network::{escaped_package_name, redact_url_credentials};
 use serde_json::Value;
 use url::Url;
 
 use crate::{
     capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name, is_github_actions, is_gitlab},
+    oidc::{OidcHttpOptions, is_github_actions, is_gitlab},
 };
 
 #[cfg(test)]
@@ -73,7 +73,7 @@ where
     Ok(public.then_some(true))
 }
 
-fn id_token_payload(id_token: &str) -> Result<Value, DetermineProvenanceError> {
+pub(super) fn id_token_payload(id_token: &str) -> Result<Value, DetermineProvenanceError> {
     let mut parts = id_token.split('.');
     let (Some(header_b64), Some(payload_b64)) = (parts.next(), parts.next()) else {
         return Err(ProvenanceError::MalformedIdToken.into());

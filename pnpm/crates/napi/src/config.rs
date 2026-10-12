@@ -101,6 +101,7 @@ pub struct ConfigOverlay {
     pub prefer_frozen_lockfile: Option<bool>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub add_missing_peer_types: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
@@ -132,7 +133,8 @@ pub struct ConfigOverlay {
     // `Debug` output feeds the config intern cache key, so iteration order must
     // be stable.
     pub allow_builds: Option<BTreeMap<String, bool>>,
-    /// Allow every dependency's build scripts to run.
+    /// Allow every dependency's build scripts to run, except the ones
+    /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
     /// When `true`, skip all dependency and project lifecycle scripts.
     pub ignore_scripts: Option<bool>,

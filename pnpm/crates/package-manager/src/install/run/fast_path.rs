@@ -66,6 +66,12 @@ pub(super) fn repeat_install_verdict(
         );
         return Ok(RepeatInstallVerdict::Changed);
     }
+    if crate::agent_skills::agent_skill_targets_changed(
+        check.workspace.config,
+        check.workspace.workspace_root,
+    ) {
+        return Ok(RepeatInstallVerdict::Changed);
+    }
     if check.frozen_lockfile {
         return Ok(RepeatInstallVerdict::UnchangedFrozen);
     }

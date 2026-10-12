@@ -9,6 +9,7 @@ use super::{
     lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
     prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
 };
+use pnpm_tool_protocol::is_tool_specifier;
 
 pub(super) struct DeployFiles {
     pub(super) manifest: Value,
@@ -149,7 +150,7 @@ fn fill_target_dependencies(
                 .filter(|(name, spec)| {
                     included
                         || deployed.peer_only_dependencies.contains(&name.to_string())
-                        || spec.specifier.starts_with("runtime:")
+                        || is_tool_specifier(&spec.specifier)
                 }),
             deployed.ctx,
             &selected_bases,

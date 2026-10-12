@@ -42,7 +42,7 @@ pub(super) fn build_extra_env(
             ),
         );
     }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+    if config.node_package_map_mode.loads() && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = env.get("NODE_OPTIONS").map(String::as_str);
         env.insert(
@@ -255,6 +255,7 @@ impl<'a> OnDiskInputs<'a> {
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
             materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+            build_scope: linked.build_scope.as_ref(),
         }
     }
 

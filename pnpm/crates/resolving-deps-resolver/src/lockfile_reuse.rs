@@ -16,6 +16,10 @@ use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
+mod locked_version;
+
+use locked_version::admits_locked_version;
+
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.
 pub(crate) fn current_pkg_from_lockfile(
@@ -151,20 +155,7 @@ pub(crate) fn reusable_importer_dep(
     {
         return Some(key);
     }
-    let ver_peer = spec.version.ver_peer()?;
-    let satisfied = if let Some((registry_name, version)) = ver_peer.registry_qualified() {
-        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
-            .parse::<Range>()
-            .ok()?;
-        range.satisfies(version)
-    } else {
-        let range = bare_specifier.parse::<Range>().ok()?;
-        range.satisfies(ver_peer.version_semver()?)
-    };
-    if !satisfied {
-        return None;
-    }
-    Some(key)
+    admits_locked_version(spec, &key, bare_specifier)?.then_some(key)
 }
 
 /// The recorded resolution for `name` across the importer's prod /

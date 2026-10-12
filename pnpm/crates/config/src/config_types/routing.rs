@@ -63,6 +63,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "side-effects-cache-readonly",
     "state-dir",
     "store-dir",
+    "store-index-format",
     "strict-dep-builds",
     "trust-lockfile",
     "trust-policy",

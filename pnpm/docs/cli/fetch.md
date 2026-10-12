@@ -15,7 +15,7 @@ app, if you haven't read it yet, you may want to read it first.
 From that guide, we learn to write an optimized Dockerfile for projects using
 pnpm, which looks like
 
-```Dockerfile title="Dockerfile"
+```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12
 
 RUN pnpm runtime set node 22 -g
@@ -50,7 +50,7 @@ tool.
 It's also hard to maintain a Dockerfile that builds a monorepo project, it may
 look like
 
-```Dockerfile title="Dockerfile"
+```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12
 
 RUN pnpm runtime set node 22 -g
@@ -84,7 +84,7 @@ sub-packages.
 `pnpm fetch` solves the above problem perfectly by providing the ability
 to load packages into the virtual store using only information from a lockfile and a configuration file (`pnpm-workspace.yaml`).
 
-```Dockerfile title="Dockerfile"
+```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12
 
 RUN pnpm runtime set node 22 -g

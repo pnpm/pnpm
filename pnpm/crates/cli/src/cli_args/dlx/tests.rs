@@ -670,6 +670,12 @@ fn only_managed_tools_are_provisioned_by_name() {
     assert_eq!(parse_runtime_spec("deno"), Some(("deno", "latest")));
     assert_eq!(parse_runtime_spec("nodemon@3"), None);
     assert_eq!(parse_runtime_spec("node@runtime:22"), Some(("node", "22")));
+    assert_eq!(parse_runtime_spec("node@tool:22"), Some(("node", "22")));
+    assert_eq!(parse_runtime_spec("bun@tool:1.3"), Some(("bun", "1.3")));
+    assert_eq!(parse_package_manager_spec("bun@tool:1.3"), None);
+    assert_eq!(parse_package_manager_spec("yarn@tool:4"), Some((PackageManager::Yarn, "4")));
+    assert_eq!(parse_package_manager_spec("yarn@runtime:6"), Some((PackageManager::Yarn, "6")));
+    assert_eq!(parse_package_manager_spec("npm@tool:11"), None);
 
     // A specifier that locates a package names what to install, whether it
     // spells out a protocol or uses the GitHub shorthand.

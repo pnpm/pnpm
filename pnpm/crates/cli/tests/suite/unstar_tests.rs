@@ -28,6 +28,7 @@ fn nerf(registry: &str) -> String {
 fn configure(root: &Path, workspace: &Path, registry: &str, auth_token: Option<&str>) -> PathBuf {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}\nfetch-retries=0\n"))
         .expect("write project .npmrc");
+    fs::write(workspace.join("package.json"), "{}").expect("write project package.json");
     let auth_file = root.join("auth-npmrc");
     let contents = match auth_token {
         Some(token) => format!("{}:_authToken={token}\n", nerf(registry)),

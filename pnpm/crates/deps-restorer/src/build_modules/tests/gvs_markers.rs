@@ -93,7 +93,7 @@ new file mode 100644
 
         BuildModules {
             cache: crate::BuildCacheContext {
-                maps_by_snapshot: None,
+                side_effects: crate::CachedSideEffects { overlays: None, rows: None },
                 engine_name: None,
                 read: false,
                 write: false,
@@ -119,6 +119,7 @@ new file mode 100644
                 requires_build_by_snapshot: Some(&requires_build),
                 importers: &importers,
                 dependency_groups: None,
+                build_scope: None,
             },
             scripts: crate::BuildScriptOptions {
                 extra_env: &HashMap::new(),

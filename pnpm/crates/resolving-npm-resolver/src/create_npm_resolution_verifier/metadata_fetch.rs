@@ -46,7 +46,7 @@ impl NpmResolutionVerifier {
             if let Some(shared) = self.read_shared_meta(registry, name) {
                 let projection =
                     project_abbreviated_meta(&shared, self.metadata.registry_supports_time_field);
-                if !shared.versions.has_corrupt_mirror_fragment() {
+                if !shared.versions.corrupt_mirror_fragment_found() {
                     return Ok(projection);
                 }
             }
@@ -216,7 +216,7 @@ impl NpmResolutionVerifier {
                 });
             if let Some(cached) = shared {
                 let projection = project_trust_meta(cached.meta.as_ref());
-                if !cached.meta.versions.has_corrupt_mirror_fragment() {
+                if !cached.meta.versions.corrupt_mirror_fragment_found() {
                     return Ok(Arc::new(projection));
                 }
             }

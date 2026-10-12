@@ -21,8 +21,8 @@ use crate::shim::{CmdShimBatch, end_replaced_cmd_shim_batch};
 /// Without [`WindowsShimPolicy::powershell`] there is no `.ps1` sibling, and
 /// one an earlier install left is deleted.
 ///
-/// The chmod step (`set_executable` for the canonical shim and
-/// `ensure_executable_bits` for the target binary) is wired through the
+/// The chmod step (for the canonical shim and the target binary) is wired
+/// through the
 /// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
 /// On Unix the production impls run the actual `chmod`; on Windows
 /// they are no-ops (Windows has no equivalent permission concept), so
@@ -165,7 +165,7 @@ where
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
     }
 
-    chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
+    chmod_tolerating_removal(spec.shim_path, Sys::ensure_executable)?;
     cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())
 }
 

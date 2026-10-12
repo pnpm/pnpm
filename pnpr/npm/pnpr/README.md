@@ -20,6 +20,13 @@ binaries are available for `linux-x64`, `linux-arm64`, `linux-x64-musl`,
 `linux-arm64-musl`, `darwin-x64`, `darwin-arm64`, `win32-x64`, and
 `win32-arm64`.
 
+To browse the server in a web browser, also install the web UI. pnpr serves it
+at `/-/ui/`:
+
+```sh
+pnpm add -g @pnpm/pnpr,@pnpm/pnpr-ui
+```
+
 ## Usage
 
 Start the server with the bundled default config:

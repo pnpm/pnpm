@@ -61,7 +61,7 @@ pub(super) struct MaterializationExecution<'a> {
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    pub(super) resolve_only: bool,
+    pub(super) resolve_only: Option<crate::install::state_options::ResolveOnly>,
     pub(super) can_prompt: bool,
     pub(super) save_lockfile: bool,
     pub(super) prefix: &'a str,
@@ -69,6 +69,8 @@ pub(super) struct MaterializationExecution<'a> {
 
 pub(super) struct MaterializationDownloads {
     pub(super) tarball_mem_cache: Arc<MemCache>,
+    /// See `FreshFetchingInputs::prefetch_downloads`.
+    pub(super) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
     pub(super) http_client_arc: Arc<ThrottledClient>,
     pub(super) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
@@ -214,7 +216,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
                 node_linker: self.install.execution.node_linker,
-                lockfile_only: self.execution.resolve_only,
+                resolve_only: self.execution.resolve_only,
                 skip_runtimes: self.install.execution.skip_runtimes,
                 dry_run: self.install.execution.dry_run,
                 can_prompt: self.execution.can_prompt,
@@ -253,6 +255,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
+                prefetch_downloads: self.downloads.prefetch_downloads,
                 http_client_arc: self.downloads.http_client_arc,
                 meta_cache: self.lockfiles.verification.meta_cache,
                 fetch_caches: self.downloads.fetch_caches,
@@ -287,14 +290,18 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
                 None
             } else {
-                self.lockfiles.wanted.and_then(|loaded_lockfile| {
+                let shared_lockfile = self.lockfiles.wanted_shared
+                    .as_ref()
+                    .map(Arc::clone)
+                    .or_else(|| self.lockfiles.wanted.map(|loaded| Arc::new(loaded.clone())));
+                shared_lockfile.and_then(|loaded_lockfile| {
                     super::LockfileVerificationGate::spawn::<Reporter>(
-                        loaded_lockfile,
+                        Arc::clone(&loaded_lockfile),
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
                         &self.install.context.config.cache_dir,
                         self.resolution.inputs.update_seed_policy.replaced_update_targets(
-                            loaded_lockfile,
+                            &loaded_lockfile,
                             self.workspace.requested_importer_ids,
                         ),
                         matches!(

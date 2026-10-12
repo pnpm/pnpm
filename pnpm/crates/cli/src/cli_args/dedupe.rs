@@ -101,7 +101,10 @@ impl DedupeArgs {
         .wrap_err("deduplicating dependencies")?;
 
         if self.check {
-            check_lockfile::<Reporter>(existing.as_deref(), guard.unwrap(), lockfile_path)
+            let guard = guard.ok_or_else(|| {
+                miette::miette!("Lockfile guard is required when running dedupe in check mode")
+            })?;
+            check_lockfile::<Reporter>(existing.as_deref(), guard, lockfile_path)
         } else {
             Ok(())
         }

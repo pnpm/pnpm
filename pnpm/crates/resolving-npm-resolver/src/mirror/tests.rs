@@ -631,7 +631,7 @@ fn load_meta_past_the_hold_cap_keeps_a_wrong_shape_fragment_absent_not_damaged()
     std::fs::write(&mirror, &contents).expect("write");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read back without a handle");
     assert!(loaded.versions.get("1.0.0").is_none());
-    assert!(!loaded.versions.has_corrupt_mirror_fragment());
+    assert!(!loaded.versions.corrupt_mirror_fragment_found());
 }
 
 #[test]

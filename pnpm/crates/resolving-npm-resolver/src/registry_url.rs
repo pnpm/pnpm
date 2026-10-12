@@ -16,56 +16,14 @@
 //! every other character that `encodeURIComponent` would touch is
 //! percent-encoded.
 
-use std::fmt::Write as _;
+use pnpm_network::{encode_package_name, normalize_registry_url};
 
 /// Compose the metadata-fetch URL: `<registry-with-trailing-slash><encoded-name>`.
 #[must_use]
 pub fn to_registry_url(registry: &str, pkg_name: &str) -> String {
-    let registry =
-        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    let encoded = encode_pkg_name_path(pkg_name);
+    let registry = normalize_registry_url(registry);
+    let encoded = encode_package_name(pkg_name);
     format!("{registry}{encoded}")
-}
-
-/// `encodeURIComponent` clone for the characters npm package names
-/// can carry. For a scoped name the leading `@` is preserved and
-/// the rest of the name is percent-encoded.
-pub(crate) fn encode_pkg_name_path(pkg_name: &str) -> String {
-    let (prefix, rest) = if let Some(stripped) = pkg_name.strip_prefix('@') {
-        ("@", stripped)
-    } else {
-        ("", pkg_name)
-    };
-    let mut out = String::with_capacity(prefix.len() + rest.len());
-    out.push_str(prefix);
-    for byte in rest.bytes() {
-        if is_uri_component_unreserved(byte) {
-            out.push(byte as char);
-        } else {
-            write!(out, "%{byte:02X}").unwrap();
-        }
-    }
-    out
-}
-
-/// Matches JS's `encodeURIComponent` unreserved set:
-/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Anything else gets percent-encoded.
-fn is_uri_component_unreserved(byte: u8) -> bool {
-    matches!(
-        byte,
-        b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'0'..=b'9'
-            | b'-'
-            | b'_'
-            | b'.'
-            | b'!'
-            | b'~'
-            | b'*'
-            | b'\''
-            | b'('
-            | b')',
-    )
 }
 
 #[cfg(test)]

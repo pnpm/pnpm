@@ -44,7 +44,7 @@ async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
     } else {
         package_manager.version
     };
-    config_deps::sync_package_manager_dependencies(
+    config_deps::record_running_package_manager_pin(
         &config,
         &env_root,
         &package_manager.specifier,
@@ -160,7 +160,7 @@ async fn repair_recorded_entries(
     if !force_resync || frozen_lockfile {
         return Ok(());
     }
-    config_deps::sync_package_manager_dependencies(
+    config_deps::record_running_package_manager_pin(
         config,
         env_root,
         spec,

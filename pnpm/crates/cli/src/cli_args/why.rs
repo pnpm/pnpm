@@ -19,6 +19,7 @@ use crate::{
         deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
         install::resolve_bool_override,
         list::print_output,
+        parse_depth_limit,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
@@ -34,8 +35,9 @@ use std::{
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     pub packages: Vec<String>,
-    /// Max display depth of the reverse dependency tree.
-    #[clap(long)]
+    /// Max display depth of the reverse dependency tree. `Infinity`
+    /// renders the whole tree.
+    #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
     /// Exclude peer dependencies. Ignored: `pnpm why` always includes them.
     // The flag is there for parity: pnpm 11's `why` declares it and never

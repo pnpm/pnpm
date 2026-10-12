@@ -9,7 +9,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity};
+use pnpr_policy::{AccessList, Identity, RuleOverride};
 
 fn base_config() -> Config {
     Config::proxy("127.0.0.1:7677".parse::<SocketAddr>().unwrap(), PathBuf::from("/tmp/pnpr-route"))
@@ -493,13 +493,15 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken};
+    use pnpr_policy::{AccessList, AccessToken, TeamDirectory};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
     upstream.access = Some(AccessList::new(vec![AccessToken::Team {
         name: "platform".to_string(),
-        members: ["alice".to_string()].into(),
+        directory: TeamDirectory::new(
+            [("platform".to_string(), ["alice".to_string()].into())].into(),
+        ),
     }]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
@@ -543,6 +545,30 @@ fn hosted_route_follows_package_access_policy() {
         context.classify(&anon(), "https://pnpr.example/lodash", Some("lodash")),
         RouteClass::Public,
     );
+}
+
+#[test]
+fn hosted_route_follows_rules_replaced_after_the_context_was_built() {
+    let mut config = base_config();
+    config.http.public_url = "https://pnpr.example/".to_string();
+    let context = RouteContext::from_config(&config);
+    let url = "https://pnpr.example/@private%2fpkg";
+    let alice_reads = || context.classify(&user("alice"), url, Some("@private/pkg"));
+    assert!(matches!(alice_reads(), RouteClass::Hosted { .. }));
+
+    let rules = &config.routing.hosted["local"].rules;
+    let table = rules.snapshot();
+    let only_bob = table
+        .rules()
+        .iter()
+        .map(|rule| {
+            let access = Some(AccessList::from_tokens(["bob"]));
+            (rule.pattern.clone(), RuleOverride { access, ..RuleOverride::default() })
+        })
+        .collect();
+    rules.replace(table.with_overrides(None, only_bob).unwrap());
+
+    assert_eq!(alice_reads(), RouteClass::Public);
 }
 
 #[test]

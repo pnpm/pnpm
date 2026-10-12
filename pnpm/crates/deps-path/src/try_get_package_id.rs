@@ -10,7 +10,7 @@ use crate::suffix_index::index_of_dep_path_suffix;
 /// 2. When the trimmed result contains a `:`, drop the leading
 ///    `<name>@` prefix so the returned id is the bare resolution id
 ///    (a tarball URL, a git URL, ...). Pnpm keeps the prefix for
-///    `runtime:` engine entries — those carry their name in the
+///    `tool:` / `runtime:` entries — those carry their name in the
 ///    pkgId by design.
 ///
 /// The result is a borrowed slice of `dep_path` when the second
@@ -40,7 +40,7 @@ pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
         return std::borrow::Cow::Borrowed(trimmed);
     };
     let new_pkg_id = &trimmed[at_idx + 1..];
-    if new_pkg_id.starts_with("runtime:")
+    if pnpm_tool_protocol::is_tool_specifier(new_pkg_id)
         || crate::parse_registry_qualified_version(new_pkg_id).is_some()
     {
         return std::borrow::Cow::Borrowed(trimmed);

@@ -148,7 +148,3 @@ pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<O
         *value = substituted;
     }
 }
-
-pub(super) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}

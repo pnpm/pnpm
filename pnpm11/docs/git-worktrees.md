@@ -89,7 +89,7 @@ The first `pnpm install` downloads packages into the global store. Subsequent in
 
 Without the global virtual store, each worktree would have its own `.pnpm` virtual store inside `node_modules`, with hardlinks or copies of every package. With `virtualStoreType: global`, pnpm keeps all package contents in a single shared directory (the global store, which you can find by running `pnpm store path`), and each worktree's `node_modules` contains symlinks pointing there:
 
-```
+```text
 your-monorepo/                      (bare git repo)
 ├── main/                           (worktree: main branch)
 │   ├── packages/

@@ -30,11 +30,11 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     config.features.registry.enabled = false;
     config.features.resolver.enabled = false;
     config.features.pipeline.enabled = true;
-    for (workspace, reader, writer) in
+    for (org, reader, writer) in
         [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
     {
-        config.features.pipeline.workspaces.insert(
-            workspace.to_string(),
+        config.features.artifacts.orgs.insert(
+            org.to_string(),
             pnpr_config::StorageAccess {
                 access: pnpr_policy::AccessList::from_tokens([reader]),
                 publish: pnpr_policy::AccessList::from_tokens([writer]),
@@ -106,7 +106,8 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         .to_string();
 
     let run = json!({
-        "workspace": "demo-abc123",
+        "org": "demo-abc123",
+        "workspace": "app",
         "runId": "100-default",
         "summary": { "pipeline": "default", "tasks": {} },
         "events": [{ "event": "taskStarted", "task": "packages/a#build" }],
@@ -133,29 +134,30 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
     assert!(String::from_utf8_lossy(&body_bytes(replay.into_body()).await).contains("append-only"));
 
-    // A path-shaped workspace never reaches a path join.
+    // A path-shaped organization never reaches a path join.
     let hostile = publish(json!({
-        "workspace": "../escape",
+        "org": "../escape",
+        "workspace": "app",
         "runId": "100-default",
         "summary": {},
     }))
     .await;
     assert_eq!(hostile.status(), StatusCode::NOT_FOUND);
 
-    for (workspace, expected) in [
+    for (org, expected) in [
         ("hidden", StatusCode::NOT_FOUND),
         ("unknown", StatusCode::NOT_FOUND),
         ("read-only", StatusCode::FORBIDDEN),
     ] {
         assert_eq!(
-            publish(json!({"workspace": workspace, "runId": "100-default", "summary": {}}))
+            publish(json!({"org": org, "workspace": "app", "runId": "100-default", "summary": {}}))
                 .await
                 .status(),
             expected,
         );
     }
     for path in
-        ["/-/pnpr/v0/pipeline/runs?workspace=hidden", "/-/pnpr/v0/pipeline/runs/hidden/100-default"]
+        ["/-/pnpr/v0/pipeline/runs?org=hidden", "/-/pnpr/v0/pipeline/runs/hidden/app/100-default"]
     {
         let response = app
             .clone()
@@ -190,7 +192,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     let listed = app
         .clone()
         .oneshot(
-            Request::get("/-/pnpr/v0/pipeline/runs?workspace=demo-abc123")
+            Request::get("/-/pnpr/v0/pipeline/runs?org=demo-abc123&workspace=app")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -206,7 +208,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     let fetched = app
         .clone()
         .oneshot(
-            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/100-default")
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/app/100-default")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -219,7 +221,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
 
     let missing = app
         .oneshot(
-            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/999-missing")
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/app/999-missing")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),

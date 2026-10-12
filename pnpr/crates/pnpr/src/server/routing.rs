@@ -1,7 +1,7 @@
 mod team_handlers;
 use team_handlers::{
-    delete_team, delete_team_user, get_org_package_list, get_team_users, get_teams, put_team,
-    put_team_user,
+    delete_team, delete_team_package, delete_team_user, get_org_package_list, get_team_packages,
+    get_team_users, get_teams, put_team, put_team_package, put_team_user,
 };
 
 mod npm_handlers;
@@ -42,17 +42,21 @@ use serde::Deserialize;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, TargetRegistry, addressed_registry,
-    authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, TargetRegistry,
+    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
     delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
     get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
-    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
-    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_get_pipeline_run,
+    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi, remove_dist_tag,
+    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
+    serve_artifact_blob_size, serve_batch_publish, serve_get_pipeline_run,
     serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
     serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
     serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
+    serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    staged,
+    team_access::{grant_team_access, list_team_packages, revoke_team_access},
+    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -67,16 +71,22 @@ pub(super) fn router_with_auth_and_osv(
         artifacts: config.features.artifacts.enabled,
         pipeline: config.features.pipeline.enabled,
     };
+    let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
     let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
-    finish_router(state, surfaces, cors_origins)
+    finish_router(state, surfaces, cors_origins, ui_dir.as_deref())
 }
 
 fn finish_router(
     state: AppState,
     surfaces: EnabledSurfaces,
     cors_origins: Vec<HeaderValue>,
+    ui_dir: Option<&std::path::Path>,
 ) -> pnpr_error::Result<Router> {
-    let router = surface_routes(&state, surfaces);
+    let mut router = surface_routes(&state, surfaces, ui_dir.is_some());
+    if let Some(dir) = ui_dir {
+        tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
+        router = router.merge(super::web_ui::routes(dir));
+    }
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
@@ -89,8 +99,21 @@ fn finish_router(
         router = router.layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(cors_origins))
-                .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
-                .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
+                .allow_methods([
+                    Method::GET,
+                    Method::HEAD,
+                    Method::OPTIONS,
+                    Method::PUT,
+                    Method::POST,
+                    Method::DELETE,
+                ])
+                .allow_headers([
+                    header::AUTHORIZATION,
+                    header::ACCEPT,
+                    header::CONTENT_TYPE,
+                    header::IF_MATCH,
+                ])
+                .expose_headers([header::ETAG]),
         );
     }
     Ok(with_observability_layers(router).with_state(state))
@@ -176,16 +199,24 @@ struct EnabledSurfaces {
     pipeline: bool,
 }
 
-fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppState> {
+fn surface_routes(
+    state: &AppState,
+    surfaces: EnabledSurfaces,
+    ui_served: bool,
+) -> Router<AppState> {
     // `/-/ping` is a health check and is always served. The two
     // configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router: Router<AppState> = Router::new()
-        .route("/-/ping", get(serve_ping))
-        .route("/-/oidc/{provider}/login", get(super::oidc::login))
-        .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
-    router = router.merge(account_routes());
+    let mut router: Router<AppState> = Router::new().route("/-/ping", get(serve_ping));
+    router = router
+        .merge(super::oidc::routes(ui_served))
+        .merge(account_routes())
+        .merge(super::user_admin::user_admin_routes())
+        .merge(super::rule_admin::rule_admin_routes());
+    if state.inner.config.identity.auth.scim.is_some() {
+        router = router.merge(super::scim::scim_routes());
+    }
     // The install-accelerator and shared-artifact surfaces live under the
     // reserved `/-/pnpr` namespace. The handshake advertises each protocol
     // independently, so either surface can be mounted on its own.
@@ -295,20 +326,13 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        router = staged_routes(router, base)
+        router = team_routes(staged_routes(router, base), base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
                 put(put_package_dist_tag).delete(delete_package_dist_tag),
-            )
-            .route(&path("/-/org/{scope}/team"), get(get_teams).put(put_team))
-            .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
-            .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
-            .route(
-                &path("/-/team/{scope}/{team}/user"),
-                get(get_team_users).put(put_team_user).delete(delete_team_user),
             )
             // Package addresses. npm spells a scoped name either as two
             // literal segments (`/@scope/name`) or as one percent-encoded
@@ -376,9 +400,13 @@ fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Router<AppSta
                     require_artifact_caller,
                 )),
         )
+        // The limit bounds the lookup a `POST` sends. A `PUT` streams its
+        // body past it, and the store holds that to the declared size.
         .route(
             "/-/pnpr/v0/artifacts/blob",
             post(serve_artifact_blob)
+                .put(serve_upload_artifact_blob)
+                .head(serve_artifact_blob_size)
                 .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
@@ -400,7 +428,7 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
                 )),
         )
         .route(
-            "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
+            "/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}",
             get(serve_get_pipeline_run)
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
@@ -439,4 +467,33 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
         .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+/// npm's org and team endpoints. Each write names one team or one user, so
+/// its body is capped far below a publish.
+fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(
+            &path("/-/org/{scope}/team"),
+            get(get_teams)
+                .put(put_team)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
+        .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
+        .route(
+            &path("/-/team/{scope}/{team}/user"),
+            get(get_team_users)
+                .put(put_team_user)
+                .delete(delete_team_user)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(
+            &path("/-/team/{scope}/{team}/package"),
+            get(get_team_packages)
+                .put(put_team_package)
+                .delete(delete_team_package)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
 }

@@ -164,7 +164,7 @@ For example,
 {
   "name": "@example/components",
   "dependencies": {
-    "react": "catalog:react18",
+    "react": "catalog:react18"
   }
 }
 ```
@@ -175,7 +175,7 @@ Will become the following on publish.
 {
   "name": "@example/components",
   "dependencies": {
-    "react": "^18.3.1",
+    "react": "^18.3.1"
   }
 }
 ```

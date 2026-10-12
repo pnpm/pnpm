@@ -10,7 +10,8 @@
 //! 2. A hunk that doesn't match at its recorded position is retried up
 //!    to twenty lines either side of it.
 //!
-//! One more tolerance applies before the patch is parsed; see
+//! Some tolerances apply before the patch is parsed; see
+//! [`strip_cr_from_extended_headers`] and
 //! [`drop_context_no_newline_markers`].
 //!
 //! The file is modeled as `split('\n')` throughout — the same
@@ -50,6 +51,59 @@ pub(super) fn drop_context_no_newline_markers(text: String) -> String {
         // `diffy` reads an empty line inside a hunk as context too.
         follows_context = line.starts_with([' ', '\n']) || line.starts_with("\r\n");
         kept.push_str(line);
+    }
+    kept
+}
+
+/// The git extended headers whose value [`diffy`] matches exactly: the
+/// file modes, the rename and copy paths, and the `diff --git` line the
+/// path fallback reads. No hunk line can begin with one of these, so a
+/// line that matches is a header and not content.
+const VALUE_EXTENDED_HEADERS: [&str; 9] = [
+    "diff --git ",
+    "old mode ",
+    "new mode ",
+    "new file mode ",
+    "deleted file mode ",
+    "rename from ",
+    "rename to ",
+    "copy from ",
+    "copy to ",
+];
+
+/// Drop the carriage return a CRLF patch file leaves on its git extended
+/// header lines.
+///
+/// [`diffy`]'s git-header parser strips only the trailing `\n`, so on a
+/// patch saved with CRLF line endings each of those values keeps its `\r`
+/// and then fails the match it feeds: `invalid file mode: 100644`, an
+/// unparsable rename path, or an invalid `diff --git` fallback. Hunk
+/// lines are left alone — a `\r` there is content both `patch-package` and
+/// [`diffy`] preserve, and an LF patch for a CRLF file relies on it.
+pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
+    if !text.contains('\r') {
+        return text;
+    }
+    let mut kept = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        let (content, newline) = match line.strip_suffix('\n') {
+            Some(content) => (content, "\n"),
+            None => (line, ""),
+        };
+        let header = content
+            .strip_suffix('\r')
+            .filter(|header| {
+                VALUE_EXTENDED_HEADERS
+                    .iter()
+                    .any(|prefix| header.starts_with(prefix))
+            });
+        match header {
+            Some(header) => {
+                kept.push_str(header);
+                kept.push_str(newline);
+            }
+            None => kept.push_str(line),
+        }
     }
     kept
 }

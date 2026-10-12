@@ -36,6 +36,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runtime};
+use rust::run_rust;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -51,7 +52,8 @@ use std::{
 /// runtime (`node`, `deno`, `bun`) is provisioned rather than installed
 /// from the package that shares its name: those npm packages are either a
 /// different line of the tool (`yarn` stops at Classic) or a wrapper that
-/// downloads it.
+/// downloads it. So is a Rust release that `--package=rust@<channel>`
+/// names for one of its tools.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
@@ -284,6 +286,9 @@ async fn run_provisioned<Reporter: self::Reporter + 'static>(
         ProvisionedTool::Runtime { name, version_spec } => {
             run_runtime(&config.state_dir, name, version_spec, bin_command, args, spawn).await
         }
+        ProvisionedTool::Rust(channel) => {
+            run_rust::<Reporter>(config, channel, bin_command, args, spawn).await
+        }
     }
 }
 
@@ -451,3 +456,4 @@ mod cache;
 mod clean;
 
 mod provision;
+mod rust;

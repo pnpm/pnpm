@@ -4,9 +4,10 @@ use super::{
         SummaryLog,
     },
     Dispatched,
-    dispatch::{Decided, Settled, SettledProjects},
+    dispatch::Decided,
     execution::wait_for_workspace_dependencies,
     manifests::installed_project_manifests,
+    settled::{Settled, SettledProjects},
 };
 use crate::{
     WorkspaceInstallSelection,

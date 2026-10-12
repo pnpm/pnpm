@@ -50,6 +50,21 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
             .contains("shared artifacts"),
     );
 
+    for method in ["PUT", "HEAD"] {
+        let blob = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/-/pnpr/v0/artifacts/blob?organization=acme&integrity=sha512-AAAA")
+                    .body(Body::from("blob"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(blob.status(), StatusCode::UNAUTHORIZED, "an anonymous {method}");
+    }
+
     let resolve = app
         .oneshot(
             Request::post("/-/pnpr/v0/resolve")

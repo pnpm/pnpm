@@ -5,7 +5,7 @@ use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, Snap
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_store_dir::StoreIndexWriter;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
@@ -158,6 +158,8 @@ pub struct BuildPhaseGraph<'a> {
     /// `ignoreScripts`, only these can add new `pendingBuilds`; the
     /// install orchestrator separately carries forward existing entries.
     pub materialized_snapshots: &'a [PackageKey],
+    /// See [`crate::BuildGraphInputs::build_scope`].
+    pub build_scope: Option<&'a HashSet<PackageKey>>,
 }
 
 #[derive(Clone, Copy)]
@@ -177,9 +179,19 @@ pub struct BuildPhasePolicy<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseCache<'a> {
     pub maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
+    pub diffs_by_snapshot: &'a crate::SideEffectsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
     pub engine_name: Option<&'a str>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
+}
+
+impl<'a> BuildPhaseCache<'a> {
+    pub(crate) fn side_effects(&self) -> crate::CachedSideEffects<'a> {
+        crate::CachedSideEffects {
+            overlays: Some(self.maps_by_snapshot),
+            rows: Some(self.diffs_by_snapshot),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

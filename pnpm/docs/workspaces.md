@@ -83,7 +83,7 @@ example will become: `"bar": "npm:foo@1.0.0"`.
 
 In a workspace with 2 packages:
 
-```
+```text
 + packages
 	+ foo
 	+ bar

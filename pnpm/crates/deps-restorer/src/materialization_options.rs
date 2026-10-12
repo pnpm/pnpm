@@ -59,8 +59,8 @@ pub struct SlotImportSource<'a> {
     /// (a `file:` / [`pnpm_lockfile::LockfileResolution::Directory`]
     /// resolution) rather than immutable CAS entries. pnpm's `file:` is
     /// a copy taken at install time — unlike `link:`, which symlinks —
-    /// so the slot has to be rebuilt on every install: the source can
-    /// change without the lockfile changing, and the completion-marker
+    /// so each install must refresh or verify the slot's files: the source
+    /// can change without the lockfile changing, and the completion-marker
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub is_mutable: bool,

@@ -4,6 +4,7 @@ use super::{
     hosted_with_access, json, router, router_config, router_with_auth, seed_hosted,
     sha512_integrity, to_bytes,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
@@ -208,7 +209,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         None,
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let authed = |request: axum::http::request::Builder| {
         request.header(header::AUTHORIZATION, format!("Bearer {token}"))
@@ -407,7 +408,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     for path in ["/@acme/widget", "/@acme%2Fwidget/1.0.0", "/-/package/@acme%2Fwidget/dist-tags"] {
@@ -489,7 +490,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         .rules
         .push_rule(access_rule("@acme/widget", "$authenticated"));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -644,7 +645,7 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
     )
     .with_ecosystem("crates", Ecosystem::Cargo);
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
         let mut request = Request::builder().uri("/-/pnpr/v0/registries");

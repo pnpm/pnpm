@@ -30,6 +30,10 @@ fn empty_auth_file(root: &Path) -> PathBuf {
 }
 
 fn run_ping(workspace: &Path, auth_file: &Path, registry: Option<&str>) -> std::process::Output {
+    let pkg_json = workspace.join("package.json");
+    if !pkg_json.exists() {
+        fs::write(pkg_json, "{}").expect("write package.json");
+    }
     let mut command = pacquet_at(workspace)
         .with_arg("--npmrc-auth-file")
         .with_arg(auth_file)
@@ -255,6 +259,7 @@ fn proxy_false_ignores_proxy_environment_variables() {
         .create();
     let auth_file = empty_auth_file(root.path());
     fs::write(workspace.join(".npmrc"), "proxy=false\n").expect("write .npmrc");
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
     let dead_proxy = "http://0.0.0.0:1";
 
     let output = pacquet_at(&workspace)

@@ -18,8 +18,8 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    redact_url_for_display, retry_async, send_with_retry_at_priority,
+    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, read_self_delimiting_text,
+    redact_url_credentials, redact_url_for_display, retry_async, send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
@@ -356,9 +356,7 @@ async fn document_from_response(
         })?;
     let normalize_to_abbreviated =
         !opts.full_metadata && !is_abbreviated_content_type(response.headers());
-    let raw_body = response
-        .text()
-        .await
+    let raw_body = read_self_delimiting_text(response).await
         .inspect_err(|error| opts.http.http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(url),

@@ -88,7 +88,7 @@ mod workspace_key_issues {
         non_camel_case_workspace_keys_warning, refused_workspace_keys_warning,
         report_workspace_key_issues,
     };
-    use pnpm_config::{UnrecognizedTaskSettings, WorkspaceKeyIssues};
+    use pnpm_config::{UnrecognizedSettings, WorkspaceKeyIssues};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -129,7 +129,7 @@ mod workspace_key_issues {
     #[test]
     fn unrecognized_task_settings_error_only_when_strict() {
         let issues = WorkspaceKeyIssues {
-            unrecognized_task_settings: UnrecognizedTaskSettings {
+            unrecognized_task_settings: UnrecognizedSettings {
                 named: vec!["tasks['build'].dependson".to_string()],
                 total: 1,
             },
@@ -150,7 +150,7 @@ mod workspace_key_issues {
     #[test]
     fn a_report_says_how_many_task_settings_it_did_not_name() {
         let issues = WorkspaceKeyIssues {
-            unrecognized_task_settings: UnrecognizedTaskSettings {
+            unrecognized_task_settings: UnrecognizedSettings {
                 named: vec!["tasks['build'].one".to_string()],
                 total: 4,
             },
@@ -173,7 +173,7 @@ mod workspace_key_issues {
     fn an_unrecognized_key_takes_the_error_over_task_settings() {
         let issues = WorkspaceKeyIssues {
             unrecognized: vec!["minimumReleaseAg".to_string()],
-            unrecognized_task_settings: UnrecognizedTaskSettings {
+            unrecognized_task_settings: UnrecognizedSettings {
                 named: vec!["tasks['build'].dependson".to_string()],
                 total: 1,
             },

@@ -156,17 +156,27 @@ impl ListArgs {
                 )
             })?;
 
+        let tools = crate::cli_args::global::rust::global_tools(config);
+        let selects_tool =
+            !crate::cli_args::global::rust::selected_tools(&tools, &self.packages).is_empty();
+        let report_as = self.report_as();
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
-            && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
+            && let Some(output) =
+                self.render_global_tree(config, &global_pkg_dir, selects_tool).await?
         {
-            return Ok(output);
+            return Ok(crate::cli_args::global::rust::with_tools(
+                output,
+                &tools,
+                &self.packages,
+                global_report_as(report_as),
+            ));
         }
 
-        let report_as = self.report_as();
         list_global_packages(
             &global_pkg_dir,
             &self.packages,
+            tools,
             global_report_as(report_as),
             self.output.long,
         )
@@ -177,6 +187,7 @@ impl ListArgs {
         &self,
         config: &Config,
         global_pkg_dir: &Path,
+        selects_tool: bool,
     ) -> miette::Result<Option<String>> {
         let all_install_dirs = find_global_install_dirs(global_pkg_dir, &[]).into_diagnostic()?;
         if all_install_dirs.len() == 1 {
@@ -199,8 +210,10 @@ impl ListArgs {
         // install group.
         let matching_install_dirs =
             find_global_install_dirs(global_pkg_dir, &self.packages).into_diagnostic()?;
+        // Params that select only a tool, such as `rust`, are served by the
+        // flat listing.
         if matching_install_dirs.len() > 1
-            || (matching_install_dirs.is_empty() && !all_install_dirs.is_empty())
+            || (matching_install_dirs.is_empty() && !all_install_dirs.is_empty() && !selects_tool)
         {
             return Err(miette::miette!(
                 code = "ERR_PNPM_GLOBAL_LS_DEPTH_NOT_SUPPORTED",

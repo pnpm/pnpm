@@ -7,9 +7,9 @@ Deploy a package from a workspace. During deployment, the files of the deployed 
 
 :::note
 
-Since v11.26.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile, and the peer dependencies it declares are bound to the deployed graph's own resolution.
+Since v11.26.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile. The peer dependencies it declares are bound the way an injected install binds them: to the version its parent provides. If the parent does not depend on the peer, pnpm looks further up, to the deployed project. A peer that no ancestor provides is bound to the deployed graph's own resolution.
 
-Where a peer resolves to more than one version in that graph, the binding is ambiguous, and the deploy fails with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` naming the package, the peer, and the competing versions. Pin the peer to one version with an [`overrides`](../settings/dependency-resolution.md#overrides) entry, or turn `injectWorkspacePackages` on, which is the setting that decides between the candidates.
+The binding is ambiguous when the ancestors provide more than one package or version, or when no ancestor provides the peer and the deployed graph holds more than one version. The deploy then fails with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER`, naming the package, the peer, and the competing resolutions. Pin the peer to one version with an [`overrides`](../settings/dependency-resolution.md#overrides) entry, or turn `injectWorkspacePackages` on, which is the setting that decides between the candidates.
 
 Before v11.26.0 the command refused every non-injected workspace up front. `--legacy`, or `forceLegacyDeploy: true`, still selects the older implementation.
 
@@ -35,7 +35,7 @@ pnpm --filter=<deployed project name> --prod deploy <target directory>
 
 Usage in a docker image. After building everything in your monorepo, do this in a second image that uses your monorepo base image as a build context or in an additional build stage:
 
-```Dockerfile title="Dockerfile"
+```dockerfile title="Dockerfile"
 # syntax=docker/dockerfile:1.4
 
 FROM workspace as pruned

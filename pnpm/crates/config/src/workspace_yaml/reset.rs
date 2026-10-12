@@ -20,6 +20,23 @@ fn apply_named_reset(
     true
 }
 
+/// `nodePackageMap` and the deprecated spellings that land in the same fields.
+fn reset_node_package_map(config: &mut Config, defaults: &Config, key: &str) -> bool {
+    let (mode, map_type) = match key {
+        "nodePackageMap" => (true, true),
+        "nodeExperimentalPackageMap" => (true, false),
+        "nodePackageMapType" => (false, true),
+        _ => return false,
+    };
+    if mode {
+        config.node_package_map_mode = defaults.node_package_map_mode;
+    }
+    if map_type {
+        config.node_package_map_type = defaults.node_package_map_type;
+    }
+    true
+}
+
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
@@ -127,7 +144,8 @@ impl WorkspaceSettings {
             global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir,
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
-            registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache,
+            provenance,
+            registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache, remote_cache,
             reporter_hide_prefix, loglevel, reporter, max_sockets, patched_dependencies, patches_dir,
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, force_ignores_platform,
@@ -142,7 +160,9 @@ impl WorkspaceSettings {
             save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups,
         });
-        if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
+        if reset_node_package_map(config, defaults, key)
+            || Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir)
+        {
             return true;
         }
         apply_named_reset(config, defaults, (&resets, key))
@@ -206,6 +226,24 @@ impl WorkspaceSettings {
         true
     }
 
+    /// `permissions` decides builds too, so resetting it also resets
+    /// `allowBuilds`.
+    fn reset_permission_setting_to_default(
+        config: &mut Config,
+        defaults: &Config,
+        key: &str,
+    ) -> bool {
+        match key {
+            "permissions" => {
+                config.allow_builds.clone_from(&defaults.allow_builds);
+                config.allow_skills.clone_from(&defaults.allow_skills);
+            }
+            "skills" => config.skills_dirs.clone_from(&defaults.skills_dirs),
+            _ => return false,
+        }
+        true
+    }
+
     pub(super) fn reset_aliased_setting_to_default(
         config: &mut Config,
         defaults: &Config,
@@ -248,7 +286,7 @@ impl WorkspaceSettings {
             | "neverBuiltDependencies"
             | "ignoredBuiltDependencies"
             | "_auth" => {}
-            _ => return false,
+            _ => return Self::reset_permission_setting_to_default(config, defaults, key),
         }
         true
     }

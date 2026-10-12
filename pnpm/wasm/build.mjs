@@ -28,8 +28,8 @@ const flags = [
   ...['mman', 'getpid', 'signal', 'process-clocks'].flatMap(name => ['-l', `static=wasi-emulated-${name}`]),
 ]
 const inherited = process.env.CARGO_ENCODED_RUSTFLAGS?.split('\x1f') ?? process.env.RUSTFLAGS?.split(/\s+/).filter(Boolean) ?? []
-const result = spawnSync('cargo', [
-  '+nightly-2026-08-27', command, '--locked', '--release', '--package', 'pnpm-cli', '--bin', 'pnpm', '--target', 'wasm32-wasip1-threads', ...cargoArguments,
+const result = spawnSync('pnx', [
+  '--package=rust@nightly-2026-08-27', 'cargo', command, '--locked', '--release', '--package', 'pnpm-cli', '--bin', 'pnpm', '--target', 'wasm32-wasip1-threads', ...cargoArguments,
 ], {
   cwd: root,
   stdio: 'inherit',

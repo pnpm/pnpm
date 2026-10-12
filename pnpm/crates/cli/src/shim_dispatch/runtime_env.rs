@@ -113,6 +113,7 @@ pub(super) fn hardened_install_config(
     install_config.strict_dep_builds = false;
     install_config.supported_architectures = None;
     install_config.allow_builds.clear();
+    install_config.disable_agent_skills();
     install_config.overrides = None;
     install_config.package_extensions = None;
     install_config.catalogs = None;

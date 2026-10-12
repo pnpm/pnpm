@@ -76,6 +76,7 @@
             "cli/pnx",
             "cli/create",
             "cli/start",
+            "cli/permissions",
             "cli/approve-builds",
             "cli/ignored-builds"
           ]
@@ -102,11 +103,13 @@
             "cli/login",
             "cli/logout",
             "cli/whoami",
+            "cli/profile",
             "cli/access",
             "cli/owner",
             "cli/team",
             "cli/star",
-            "cli/ping"
+            "cli/ping",
+            "cli/token"
           ]
         },
         {
@@ -211,6 +214,7 @@
         "git_branch_lockfiles",
         "finders",
         "global-packages",
+        "agent-skills",
         "global-virtual-store",
         "package-managers",
         "versioning"

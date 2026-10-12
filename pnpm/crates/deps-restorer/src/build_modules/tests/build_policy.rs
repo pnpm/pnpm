@@ -71,6 +71,15 @@ pub(super) fn dangerously_allow_all_builds() {
     assert_eq!(policy.check("any-package@1.0.0"), Some(true));
     assert_eq!(policy.check("other-package@2.0.0"), Some(true));
 }
+#[test]
+fn explicit_deny_outranks_dangerously_allow_all_builds() {
+    let policy = policy_from_specs([("denied", false), ("pinned@1.0.0", false)], true);
+    assert_eq!(policy.check("denied@1.0.0"), Some(false));
+    assert_eq!(policy.check("denied@1.0.0(peer@2.0.0)"), Some(false));
+    assert_eq!(policy.check("pinned@1.0.0"), Some(false));
+    assert_eq!(policy.check("pinned@2.0.0"), Some(true));
+    assert_eq!(policy.check("other-package@1.0.0"), Some(true));
+}
 /// Wildcards in `allowBuilds` keys are accepted by the parser
 /// (they land as literal strings in the expanded set) but the
 /// `HashSet::contains` lookup means they never match a real
@@ -115,7 +124,7 @@ fn build_modules_collects_ignored_builds() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -144,6 +153,7 @@ fn build_modules_collects_ignored_builds() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -199,7 +209,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -228,6 +238,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -283,7 +294,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -312,6 +323,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -366,7 +378,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -395,6 +407,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -445,7 +458,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -474,6 +487,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
             requires_build_by_snapshot: Some(&requires_build_by_snapshot),
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -539,7 +553,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -568,6 +582,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -630,7 +645,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -659,6 +674,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -810,7 +826,10 @@ fn using_side_effects_cache_skips_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(&side_effects_maps),
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&side_effects_maps),
+                rows: None,
+            },
             engine_name: Some(engine),
             read: true,
             write: false,
@@ -839,6 +858,7 @@ fn using_side_effects_cache_skips_rebuild() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -963,7 +983,10 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: Some(&side_effects_maps),
+            side_effects: crate::CachedSideEffects {
+                overlays: Some(&side_effects_maps),
+                rows: None,
+            },
             engine_name: Some(engine),
             read: true,
             write: false,
@@ -992,6 +1015,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

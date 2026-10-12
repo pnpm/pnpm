@@ -1,4 +1,5 @@
-use super::{inject_alias_subcommand, parse_cli_args, prepare_cli_argv, rayon_pool_size};
+use super::{inject_alias_subcommand, parse_cli_args, prepare_cli_argv};
+use pnpm_package_manager::rayon_pool_size;
 use std::ffi::OsString;
 
 fn argv(parts: &[&str]) -> Vec<OsString> {

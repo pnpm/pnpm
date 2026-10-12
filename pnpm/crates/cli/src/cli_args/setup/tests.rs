@@ -76,6 +76,23 @@ fn standalone_manifest_declares_package_files() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn resolve_executable_follows_a_bin_symlink_into_the_package() {
+    let root = tempfile::tempdir().unwrap();
+    let engine = root.path().join("lib/node_modules/pnpm/pnpm");
+    std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
+    std::fs::write(&engine, b"engine").unwrap();
+    let launcher = root.path().join("bin/pn");
+    std::fs::create_dir_all(launcher.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink("../lib/node_modules/pnpm/pnpm", &launcher).unwrap();
+
+    assert_eq!(
+        super::resolve_executable(&launcher).unwrap(),
+        dunce::canonicalize(&engine).unwrap(),
+    );
+}
+
 #[test]
 fn alias_scripts_are_written_and_executable() {
     let dir = tempfile::tempdir().expect("create temp dir");

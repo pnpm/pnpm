@@ -55,6 +55,7 @@ pub struct PackResult {
 
 #[napi]
 pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result<PackResult> {
+    pnpm_package_manager::configure_rayon_pool();
     // Share the serialization lock with install/rebuild: they all drive the
     // same process-global log sink, so overlapping calls would misroute events.
     let _guard = engine_call_lock().lock().await;

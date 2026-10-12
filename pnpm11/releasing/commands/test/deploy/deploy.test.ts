@@ -444,7 +444,78 @@ test('native deploy binds a linked workspace package peer that falls outside the
   expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
 })
 
+// No ancestor of project-2 depends on its peer, and the deployed graph holds
+// two versions of it, so nothing says which one injecting project-2 would bind.
 test('native deploy refuses a linked workspace package whose peer resolves to more than one version', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        'project-5': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      // Puts a second resolution of the peer into the deployed graph.
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  // The rendered wording is shared with pacquet's ERR_PNPM_DEPLOY_AMBIGUOUS_PEER;
+  // keep the two in step.
+  await expect(
+    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_DEPLOY_AMBIGUOUS_PEER',
+    message: expect.stringMatching(/Workspace package 'project-2' declares a peer dependency on '@pnpm\.e2e\/peer-a'.*more than one version \(1\.0\.0, 1\.0\.1\)/),
+    hint: expect.stringContaining('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry'),
+  })
+})
+
+// project-1 depends on the peer itself, so injecting project-2 would bind
+// project-1's version, whichever other versions the deployed graph holds.
+test('native deploy binds a linked workspace package peer to the version its parent provides', async () => {
   preparePackages([
     {
       location: '.',
@@ -493,15 +564,10 @@ test('native deploy refuses a linked workspace package whose peer resolves to mo
   }
 
   await install.handler(opts)
-  // The rendered wording is shared with pacquet's ERR_PNPM_DEPLOY_AMBIGUOUS_PEER;
-  // keep the two in step.
-  await expect(
-    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
-  ).rejects.toMatchObject({
-    code: 'ERR_PNPM_DEPLOY_AMBIGUOUS_PEER',
-    message: expect.stringMatching(/Workspace package 'project-2' declares a peer dependency on '@pnpm\.e2e\/peer-a'.*more than one version \(1\.0\.0, 1\.0\.1\)/),
-    hint: expect.stringContaining('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry'),
-  })
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  expect(deployedPeerVersion('project-2')).toBe('1.0.0')
+  expect(deployedPeerVersion('project-3')).toBe('1.0.1')
 })
 
 // project-2 lists its peer as a dev dependency too. Its injected resolution
@@ -566,6 +632,409 @@ test('native deploy binds the peer of a deduped injected workspace package to it
   const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
   const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
   expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
+// project-2 declares a workspace: peer and lists the same as a dev dependency,
+// which the lockfile records only in project-2's devDependencies. project-1
+// depends on the workspace project itself, and project-4 brings a registry copy
+// into the deployed graph. project-2 binds to what project-1 provides.
+test('native deploy binds a workspace: peer of a linked workspace package to the workspace project its parent provides (pnpm/pnpm#16807)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-4': 'workspace:*',
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+      devDependencies: {
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+    {
+      location: 'peer-a',
+      package: {
+        name: '@pnpm.e2e/peer-a',
+        version: '2.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  const lockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: false })
+  expect(lockfile?.importers['project-2' as ProjectId].dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+  expect(lockfile?.importers['project-2' as ProjectId].devDependencies?.['@pnpm.e2e/peer-a']).toBe('link:../peer-a')
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  expect(deployedPeerVersion('project-2')).toBe('2.0.0')
+  expect(deployedPeerVersion('project-4')).toBe('1.0.1')
+})
+
+// project-1 provides the peer under the alias project-2 declares it with, so
+// the binding keeps the alias.
+test('native deploy binds an aliased peer of a linked workspace package to what its parent provides', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-4': 'workspace:*',
+        compat: 'workspace:@pnpm.e2e/peer-a@*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        compat: 'workspace:@pnpm.e2e/peer-a@*',
+      },
+      devDependencies: {
+        compat: 'workspace:@pnpm.e2e/peer-a@*',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+    {
+      location: 'peer-a',
+      package: {
+        name: '@pnpm.e2e/peer-a',
+        version: '2.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const project2Dir = fs.realpathSync(path.join(deployDir, 'node_modules', 'project-2'))
+  expect(loadJsonFileSync<{ version: string }>(path.join(path.dirname(project2Dir), 'compat/package.json')).version).toBe('2.0.0')
+})
+
+// project-1 depends on a registry copy of the peer while project-4 brings the
+// workspace project into the deployed graph. project-2's workspace: peer binds
+// to what its parent provides, as a direct dependency overrides the peer.
+test('native deploy binds a workspace: peer of a linked workspace package to the registry copy its parent provides', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-4': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      location: 'peer-a',
+      package: {
+        name: '@pnpm.e2e/peer-a',
+        version: '2.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  expect(deployedPeerVersion('project-2')).toBe('1.0.0')
+  expect(deployedPeerVersion('project-4')).toBe('2.0.0')
+})
+
+// project-3 and project-5 both provide project-2's peer, as two different
+// packages at the same version, so injecting project-2 under each would bind a
+// different one.
+test('native deploy refuses a linked workspace package peer its parents provide as different packages', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'project-5': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': 'npm:@pnpm.e2e/peer-b@1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await expect(
+    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_DEPLOY_AMBIGUOUS_PEER',
+    message: expect.stringContaining('(1.0.0, @pnpm.e2e/peer-b@1.0.0)'),
+  })
+})
+
+// project-6 declares project-2 as a peer, which autoInstallPeers records as one
+// of its dependencies. That does not make project-6 a parent of project-2, so
+// its own copy of project-2's peer does not compete with project-1's.
+test('native deploy does not treat a package consuming a linked workspace package as a peer as its parent', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-6': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      devDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+    {
+      name: 'project-6',
+      version: '1.0.0',
+      peerDependencies: {
+        'project-2': 'workspace:*',
+      },
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: true,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await expect(readWantedLockfile(process.cwd(), { ignoreIncompatible: false })).resolves.toHaveProperty(['importers', 'project-6', 'dependencies', 'project-2'], 'link:../project-2')
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  expect(deployedPeerVersion('project-2')).toBe('1.0.0')
+})
+
+// project-3 does not depend on project-2's peer, so the search continues to
+// project-1, which does.
+test('native deploy binds a linked workspace package peer to what an ancestor provides', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'project-4': 'workspace:*',
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': 'workspace:^',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+    {
+      location: 'peer-a',
+      package: {
+        name: '@pnpm.e2e/peer-a',
+        version: '2.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const project3Dir = fs.realpathSync(path.resolve('deploy/node_modules/project-3'))
+  const project2Dir = fs.realpathSync(path.join(path.dirname(project3Dir), 'project-2'))
+  expect(loadJsonFileSync<{ version: string }>(path.join(path.dirname(project2Dir), '@pnpm.e2e/peer-a/package.json')).version).toBe('2.0.0')
 })
 
 // A peer that the package also declares as an optional dependency is already
@@ -1699,3 +2168,9 @@ test('prod deploy skips the devEngines runtime without failing the frozen lockfi
     node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
   })
 })
+
+/** The version of `@pnpm.e2e/peer-a` that the deployed `dependent` resolves. */
+function deployedPeerVersion (dependent: string): string {
+  const dependentDir = fs.realpathSync(path.resolve('deploy/node_modules', dependent))
+  return loadJsonFileSync<{ version: string }>(path.join(path.dirname(dependentDir), '@pnpm.e2e/peer-a/package.json')).version
+}

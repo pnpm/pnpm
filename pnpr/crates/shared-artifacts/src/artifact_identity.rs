@@ -19,19 +19,53 @@ pub(super) fn scope_name(path: &ObjectPath) -> Option<&str> {
     parent.ends_with("/scopes").then_some(name)
 }
 
-pub(super) fn owner_key(username: &str, owner: &OwnerScope) -> Result<String> {
-    match owner {
-        OwnerScope::Organization { name } if name == username => {
-            Ok(digest_segment(owner.namespace().as_bytes()))
-        }
-        OwnerScope::Organization { .. } | OwnerScope::Publisher { .. } => {
-            Err(RegistryError::Forbidden {
-                user: username.to_string(),
-                action: "access shared artifacts owned by",
-                resource: owner.namespace(),
-            })
-        }
+/// Which organizations' artifacts a caller may read and publish. The server
+/// decides from the organizations it declares; the store asks before every
+/// lookup, download, and publication.
+pub trait OrgAccess: Sync {
+    /// The caller's name, for the error a refused request reports.
+    fn username(&self) -> &str;
+    fn may_read(&self, org: &str) -> bool;
+    fn may_publish(&self, org: &str) -> bool;
+}
+
+/// The storage key of what `org` owns.
+pub(super) fn org_key(org: &str) -> String {
+    digest_segment(OwnerScope::organization(org).namespace().as_bytes())
+}
+
+/// The storage key of `owner`, when `caller` may read what it owns.
+pub(super) fn owner_key(caller: &(impl OrgAccess + ?Sized), owner: &OwnerScope) -> Result<String> {
+    authorized_owner_key(caller, owner, false)
+}
+
+/// The storage key of `owner`, when `caller` may publish what it owns.
+pub(super) fn publisher_owner_key(
+    caller: &(impl OrgAccess + ?Sized),
+    owner: &OwnerScope,
+) -> Result<String> {
+    authorized_owner_key(caller, owner, true)
+}
+
+fn authorized_owner_key(
+    caller: &(impl OrgAccess + ?Sized),
+    owner: &OwnerScope,
+    publish: bool,
+) -> Result<String> {
+    if let OwnerScope::Organization { name } = owner
+        && (if publish { caller.may_publish(name) } else { caller.may_read(name) })
+    {
+        return Ok(org_key(name));
     }
+    Err(RegistryError::Forbidden {
+        user: caller.username().to_string(),
+        action: if publish {
+            "publish shared artifacts owned by"
+        } else {
+            "access shared artifacts owned by"
+        },
+        resource: owner.namespace(),
+    })
 }
 
 pub(super) fn object_name(path: &ObjectPath) -> &str {
@@ -48,6 +82,23 @@ pub(super) fn is_variant_file(name: &str) -> bool {
         && bytes[..64]
             .iter()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+}
+
+/// The record that a blob was uploaded on its own, ahead of the publication
+/// that references it. Empty: only its age matters.
+pub(super) fn staged_record_path(owner: &str, id: &str) -> String {
+    format!("{owner}/staged/{id}")
+}
+
+/// The blob a staged record stands for, when `relative` is one.
+pub(super) fn staged_blob_path(relative: &str) -> Option<String> {
+    let mut segments = relative.split('/');
+    let (Some(owner), Some("staged"), Some(blob), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next())
+    else {
+        return None;
+    };
+    (is_digest_segment(owner) && !blob.is_empty()).then(|| format!("{owner}/blobs/{blob}"))
 }
 
 pub(super) fn is_blob_path(relative: &str) -> bool {

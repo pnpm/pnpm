@@ -2549,6 +2549,29 @@ test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async 
   })).rejects.toThrow('only "authToken" is supported')
 })
 
+test('pnpm_config__auth skips a field under a registry URL that is not a scope', async () => {
+  prepareEmpty()
+
+  // The global config is shared by every pnpm on the machine, so a field a
+  // later version defines must not stop this one. Scope keys stay strict.
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          authToken: 'credential-only',
+          '@': { authToken: 'registry-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('registry-token')
+  expect(warnings).toContain('Ignoring the unknown field "authToken" under https://json-test.example/ in _auth')
+})
+
 test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
   prepareEmpty()
 
@@ -2693,8 +2716,15 @@ test('pnpm_config__auth registry URL with credentials or query aborts the load w
 
 test('pnpm_config__auth invalid scope name aborts the load', async () => {
   prepareEmpty()
-  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  const error = await expectAuthError({ 'https://json-test.example': { '@org/pkg': { authToken: 'token' } } })
   expect(error.message).toContain('scope must be')
+})
+
+test('pnpm_config__auth scope missing its @ aborts the load', async () => {
+  prepareEmpty()
+  // A typo, not a field a later pnpm defines: dropping it would drop the scope's route.
+  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  expect(error.message).toContain('did you mean "@org"?')
 })
 
 test('pnpm_config__auth scope value that is not an auth object aborts the load', async () => {
@@ -3456,6 +3486,34 @@ test('a registry declared in the project .npmrc beats the global _auth file', as
   expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
 })
 
+test('skipping unreadable settings leaves out only the _auth source that fails', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { env: { pnpm_config__auth: '{ not json' }, skipUnreadableSettings: true })
+
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('skipping a workspace file that fails partway does not make minimumReleaseAge strict', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60,
+    catalog: { foo: '1.0.0' },
+    catalogs: { default: { foo: '2.0.0' } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({}, { workspaceDir: process.cwd(), skipUnreadableSettings: true })
+
+  expect(config.minimumReleaseAge).not.toBe(60)
+  expect(config.minimumReleaseAgeStrict).not.toBe(true)
+})
+
 test('a scope declared in the project .npmrc beats the global _auth file', async () => {
   prepareEmpty()
 
@@ -3625,7 +3683,7 @@ test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry
 
 async function getConfigWithGlobalYaml (
   globalConfigYaml: Record<string, unknown>,
-  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string } = {}
+  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string, skipUnreadableSettings?: boolean } = {}
 ) {
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
@@ -3638,6 +3696,7 @@ async function getConfigWithGlobalYaml (
       env: { ...env, ...opts.env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: opts.workspaceDir,
+      skipUnreadableSettings: opts.skipUnreadableSettings,
     })
     return { config, warnings }
   } finally {
