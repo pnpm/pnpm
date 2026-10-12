@@ -157,6 +157,13 @@ pub fn run_pipeline(
     )?;
 
     if selection.requested.is_empty() {
+        if invocation.dry_run {
+            print_dry_run(invocation, &TaskGraph::default(), &[], run.workspace_root)?;
+            if !invocation.json {
+                run.info(empty_selection_message(selection.mode, &base));
+            }
+            return Ok(PipelineOutcome::without_upload());
+        }
         run.info(empty_selection_message(selection.mode, &base));
         return run.conclude(&report, None, 0);
     }
