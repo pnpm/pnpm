@@ -37,6 +37,11 @@ static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<String, pnpm_lockfile:
 
 static EMPTY_NAMED_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
     std::sync::LazyLock::new(std::collections::HashMap::new);
+
+static NPM_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, String>> =
+    std::sync::LazyLock::new(|| {
+        [("default".to_string(), "https://registry.npmjs.org".to_string())].into()
+    });
 use serde_json::json;
 use ssri::Integrity;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
@@ -83,7 +88,7 @@ fn single_importer_opts<'a>(
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
             registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
-            registry: "https://registry.npmjs.org",
+            registries: &NPM_REGISTRIES,
             lockfile_include_tarball_url: false,
             previous_packages: None,
         },

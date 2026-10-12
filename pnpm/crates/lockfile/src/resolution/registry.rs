@@ -239,19 +239,24 @@ pub fn pick_registry_for_package(
     pkg_name: &str,
     bare_specifier: Option<&str>,
 ) -> String {
+    registry_for_package(registries, pkg_name, bare_specifier).to_owned()
+}
+
+/// [`pick_registry_for_package`], borrowing the URL from `registries`.
+#[must_use]
+pub fn registry_for_package<'a>(
+    registries: &'a HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> &'a str {
     let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
         Some(target) => scope_of(target),
         None => scope_of(pkg_name),
     };
-    if let Some(scope) = scope
-        && let Some(url) = registries.get(scope)
-    {
-        return url.clone();
-    }
-    registries
-        .get("default")
-        .cloned()
-        .unwrap_or_default()
+    scope
+        .and_then(|scope| registries.get(scope))
+        .or_else(|| registries.get("default"))
+        .map_or("", String::as_str)
 }
 
 fn scope_of(name: &str) -> Option<&str> {

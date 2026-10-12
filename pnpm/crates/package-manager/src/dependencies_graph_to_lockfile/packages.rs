@@ -6,7 +6,7 @@ use super::{
 use pnpm_lockfile::{
     BundledDependencies, LockfileFormError, LockfileFormOptions, LockfileResolution, PackageKey,
     PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions,
-    SnapshotDepRef, SnapshotEntry, registry_server_type,
+    SnapshotDepRef, SnapshotEntry, registry_for_package, registry_server_type,
 };
 use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use rayon::prelude::*;
@@ -17,7 +17,9 @@ pub(super) type PackagesAndSnapshots =
     (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
 /// Registry configuration and prior package records used to serialize package metadata.
 pub struct PackageMetadataSources<'a> {
-    pub registry: &'a str,
+    /// Registry routes keyed by `@scope`, plus `default`, as
+    /// [`registry_for_package`] takes them.
+    pub registries: &'a HashMap<String, String>,
     pub registries_by_prefix: &'a HashMap<String, String>,
     pub registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
     pub lockfile_include_tarball_url: bool,
@@ -116,25 +118,29 @@ pub(super) fn insert_package_metadata(
 /// The registry a package's metadata is written against, and whether its
 /// tarball URL has to be written out.
 ///
-/// A registry-qualified key names its registry; that registry — not the
-/// scope-routed default — decides whether the tarball URL is canonical and can
-/// be dropped from the entry.
+/// That registry decides whether the tarball URL is canonical and can be
+/// dropped from the entry, so it must be the one an install rebuilds the URL
+/// from:
+///
+/// - a registry-qualified key: the registry it names;
+/// - any other key: the registry its scope routes to.
 ///
 /// Fails closed on an alias that cannot be resolved: testing the URL for
-/// canonicality against the *default* registry could drop a URL that only the
-/// named registry can rebuild, leaving a `work:` entry that no install can
+/// canonicality against the scope-routed registry could drop a URL that only
+/// the named registry can rebuild, leaving a `work:` entry that no install can
 /// fetch. Keeping the URL is always recoverable, so an unknown alias forces it
 /// to be written.
 pub(super) fn metadata_registry<'a>(
     key: &PackageKey,
     sources: &PackageMetadataSources<'a>,
 ) -> (&'a str, bool) {
+    let routed_registry = registry_for_package(sources.registries, &key.name.to_string(), None);
     let Some((registry_name, _)) = key.suffix.registry_qualified() else {
-        return (sources.registry, sources.lockfile_include_tarball_url);
+        return (routed_registry, sources.lockfile_include_tarball_url);
     };
     match sources.registries_by_prefix.get(registry_name) {
         Some(named_registry) => (named_registry.as_str(), sources.lockfile_include_tarball_url),
-        None => (sources.registry, true),
+        None => (routed_registry, true),
     }
 }
 /// `deprecated` is the only registry-mutable field of a published version. An
