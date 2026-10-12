@@ -85,7 +85,8 @@ impl FilesIndex {
 
     /// Whether [`Self::get`] finds an entry for `key`.
     pub(super) fn contains(&self, key: &str) -> Result<bool, StoreIndexError> {
-        Ok(self.get(key)?.is_some())
+        let Some(bytes) = read_entry_file(&self.entry_path(key))? else { return Ok(false) };
+        Ok(decode_entry(&bytes).is_some_and(|(entry_key, _)| entry_key == key))
     }
 
     /// The value of the entry with the smallest key that `matches`. Every
