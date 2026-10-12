@@ -101,3 +101,38 @@ fn falls_back_to_all_groups_when_included_is_empty() {
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
+
+#[test]
+fn pending_without_install_state_does_not_rebuild_every_dependency() {
+    let dir = tempdir().unwrap();
+    let config = config_with_included(dir.path(), None);
+    let selection = super::resolve_selection(&[], true, &config).unwrap();
+    assert_eq!(selection.names, Some(Vec::new()));
+    assert!(selection.projects.is_empty());
+    assert!(selection.snapshots.is_none());
+}
+
+#[test]
+fn pending_selects_dependencies_and_workspace_projects_separately() {
+    let dir = tempdir().unwrap();
+    let config = config_with_included(
+        dir.path(),
+        Some(serde_json::json!({
+            "dependencies": true,
+            "devDependencies": true,
+            "optionalDependencies": true,
+        })),
+    );
+    let project = dir.path().join("app");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join("package.json"), r#"{"name":"app"}"#).unwrap();
+    let manifest_path = config.modules_dir.join(".modules.yaml");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["pendingBuilds"] = serde_json::json!(["dependency@1.0.0", "app"]);
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+    let selection = super::resolve_selection(&[], true, &config).unwrap();
+    assert_eq!(selection.names, Some(vec!["dependency".to_owned()]));
+    assert_eq!(selection.projects, vec!["app".to_owned()]);
+    assert!(selection.snapshots.is_none());
+}
