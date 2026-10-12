@@ -2,7 +2,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::PathBuf;
 
-/// Error type of [`StoreIndex`].
+/// Error type of [`StoreIndex`](super::StoreIndex).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum StoreIndexError {
@@ -67,7 +67,7 @@ pub enum StoreIndexError {
     },
 
     /// The store path could not be turned into the `file:` URI that the
-    /// immutable open requires (see [`StoreIndex::open_immutable`]).
+    /// immutable open requires (see [`StoreIndex::open_immutable`](super::StoreIndex::open_immutable)).
     #[display("Failed to build a file: URI for index.db at {path:?}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_FILE_URI))]
     FileUri {
