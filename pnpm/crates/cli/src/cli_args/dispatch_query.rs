@@ -5,8 +5,7 @@ pub(super) use maintenance::{
 };
 pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, profile, search, star, stars, team,
-    token,
-    undeprecate, unpublish, unstar, view, whoami,
+    token, undeprecate, unpublish, unstar, view, whoami,
 };
 
 use super::{

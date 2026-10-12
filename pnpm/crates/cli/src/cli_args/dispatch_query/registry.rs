@@ -1,7 +1,6 @@
 use super::{
     AccessArgs, CommandFuture, Config, DeprecateArgs, DistTagArgs, LoginArgs, LogoutArgs,
-    OwnerArgs, PingArgs, ProfileArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs,
-    TokenArgs,
+    OwnerArgs, PingArgs, ProfileArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs, TokenArgs,
     UndeprecateArgs, UnpublishArgs, UnstarArgs, ViewArgs, WhoamiArgs,
 };
 use crate::cli_args::reporter::CliReporter;

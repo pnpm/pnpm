@@ -28,9 +28,9 @@ fn the_unimplemented_npm_commands_point_at_the_npm_cli() {
 fn the_unimplemented_commands_swallow_their_arguments() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
     let output = pacquet
-        .with_args(["profile", "set", "foo", "bar"])
+        .with_args(["edit", "foo", "bar"])
         .output()
-        .expect("run pacquet profile set");
+        .expect("run pacquet edit");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
     assert!(!output.status.success());
