@@ -630,6 +630,32 @@ fn a_shim_without_a_readable_target_fails() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("points back at the shim"));
 }
 
+/// `pnpm setup` links the `pnpm` shim and the bin of the global `pnpm`
+/// package from one executable, so both are hard links of the same file.
+#[test]
+fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
+    let root = tempfile::tempdir().unwrap();
+    let cwd = root.path().join("outside");
+    fs::create_dir_all(&cwd).unwrap();
+    let target = root
+        .path()
+        .join(format!("global/node_modules/pnpm/pnpm{}", std::env::consts::EXE_SUFFIX));
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    #[cfg(unix)]
+    let mut command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
+    #[cfg(windows)]
+    let mut command = windows_shim_command(&root, &cwd, "pnpm", &target);
+    fs::hard_link(command.get_program(), &target).unwrap();
+
+    let output = command
+        .arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), pnpm_config::PNPM_VERSION);
+}
+
 #[cfg(windows)]
 fn windows_shim_command(root: &TempDir, cwd: &Path, name: &str, target: &Path) -> Command {
     use std::os::windows::ffi::OsStrExt as _;
