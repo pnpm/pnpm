@@ -6,9 +6,9 @@ use serde_json::Value;
 use std::{collections::BTreeSet, path::Path};
 
 /// Compile the `manifest.files` allowlist into a `Gitignore` matcher
-/// rooted at `pkg_dir`. An allowlist with no usable entry matches
-/// nothing, so only the always-included files ship.
-pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
+/// rooted at `pkg_dir`. An allowlist with no usable entry, or one that
+/// fails to compile, matches nothing, so only the always-included files ship.
+pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Gitignore {
     let mut builder = ignore::gitignore::GitignoreBuilder::new(pkg_dir);
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
@@ -26,17 +26,16 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignor
             );
         }
     }
-    match builder.build() {
-        Ok(gi) => Some(gi),
-        Err(error) => {
+    builder
+        .build()
+        .unwrap_or_else(|error| {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
                 ?error,
-                "failed to build `files`-field matcher; treating field as absent",
+                "failed to build `files`-field matcher; matching nothing",
             );
-            None
-        }
-    }
+            Gitignore::empty()
+        })
 }
 
 /// The `files` entries that name an existing file rather than a glob, as

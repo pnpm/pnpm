@@ -172,8 +172,7 @@ fn collect_own_files(
     workspace_dir: Option<&Path>,
 ) -> Result<BTreeSet<String>, PacklistError> {
     let files_field = manifest.get("files").and_then(Value::as_array);
-    let files_matcher: Option<Gitignore> =
-        files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
+    let files_matcher: Option<Gitignore> = files_field.map(|arr| build_files_matcher(pkg_dir, arr));
     let named_files: BTreeSet<String> =
         files_field.map(|arr| named_file_entries(pkg_dir, arr)).unwrap_or_default();
     let main_path = manifest.get("main").and_then(Value::as_str);
