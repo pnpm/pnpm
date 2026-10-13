@@ -582,23 +582,21 @@ fn client_binary_in_prefers_the_existing_binary() {
 #[test]
 fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
     let scenario = BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore;
-    let dir = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-store-only-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("create store-only test dir");
+    let temp = tempfile::TempDir::new().expect("create store-only test dir");
+    let dir = temp.path();
 
-    create_package_json(&dir, None, scenario);
-    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
-    create_install_script(&dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
-    may_create_lockfile(&dir, scenario, None);
+    create_package_json(dir, None, scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    may_create_lockfile(dir, scenario, None);
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read package.json"))
             .expect("parse package.json");
     let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read workspace");
     let install = fs::read_to_string(dir.join("install.bash")).expect("read install.bash");
-    let seeded = Lockfile::load_wanted_from_dir(&dir)
+    let seeded = Lockfile::load_wanted_from_dir(dir)
         .expect("read the seeded lockfile")
         .expect("a lockfile was seeded");
-    let _ = fs::remove_dir_all(&dir);
     let fixture = Lockfile::parse(crate::fixtures::LOCKFILE, Path::new("pnpm-lock.yaml"))
         .expect("parse the fixture lockfile")
         .expect("the fixture lockfile holds a document");
