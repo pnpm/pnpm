@@ -161,7 +161,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
             scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
-        ("node-experimental-package-map", Bool(cfg.node_experimental_package_map)),
+        ("node-experimental-package-map", Bool(cfg.node_package_map_mode.loads())),
         ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),

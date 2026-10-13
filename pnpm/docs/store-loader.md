@@ -25,7 +25,7 @@ The generated files are machine-local. Reinstall after moving the project. CAS i
 
 The loader is embedded in the pnpm executable and needs no separately installed runtime package. The standalone `@pnpm/esm-loader` API remains available for manual integration. Plain `node app.mjs` outside pnpm needs the explicit preload described below.
 
-`symlink: false` and `nodeExperimentalPackageMap` cannot be combined with this mode. Independent test-runner resolvers and direct filesystem reads can still require additional materialization or resolver integration.
+`symlink: false` and a `nodePackageMap.mode` other than `off` cannot be combined with this mode. Independent test-runner resolvers and direct filesystem reads can still require additional materialization or resolver integration.
 
 ## Running an application
 

@@ -182,8 +182,10 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [modulesDir](./settings/node-modules.md#modulesdir)
 * [nodeLinker](./settings/node-modules.md#nodelinker)
 * [nodeLinker.excluded](./settings/node-modules.md#nodelinkerexcluded)
+* [nodePackageMap.mode](./settings/node-modules.md#nodepackagemapmode)
+* [nodePackageMap.type](./settings/node-modules.md#nodepackagemaptype)
 * [nodeExperimentalPackageMap](./settings/node-modules.md#nodeexperimentalpackagemap)
-* [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype)
+* [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype-1)
 * [symlink](./settings/node-modules.md#symlink)
 * [enableModulesDir](./settings/node-modules.md#enablemodulesdir)
 * [virtualStoreDir](./settings/node-modules.md#virtualstoredir)
@@ -215,6 +217,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
+* [storeIndexFormat](./settings/store.md#storeindexformat)
 
 ### Lockfile Settings
 

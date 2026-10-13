@@ -221,8 +221,11 @@ impl WritePackageForPatch<'_> {
 
         let store_index =
             StoreIndex::open_shared(&self.config.store_dir, self.config.frozen_store).await;
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&self.config.store_dir, self.config.frozen_store);
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+            &self.config.store_dir,
+            self.config.frozen_store,
+            self.config.store_index_format,
+        );
 
         let result = self.import_for_patch::<Reporter>(
             &metadata.resolution,

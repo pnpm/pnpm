@@ -1,7 +1,7 @@
 use super::{
-    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PackagePermissions,
-    PnpmfileSetting, SkillsSettings, WorkspaceSettings, as_set, global_shims_setting, opt_path,
-    path, side_effects_cache_setting,
+    AllowBuild, Config, MacosBackupSettings, NodePackageMapSettings, PackageConfigsSetting,
+    PackagePermissions, PnpmfileSetting, SkillsSettings, WorkspaceSettings, as_set,
+    global_shims_setting, opt_path, path, side_effects_cache_setting,
 };
 use indexmap::IndexMap;
 
@@ -42,6 +42,15 @@ impl WorkspaceSettings {
         let mut settings = identically_named_settings!(read);
 
         settings.node_linker = Some(crate::NodeLinkerSetting::from_resolved(config));
+        // The deprecated spellings are reported too, so a hook written
+        // against them reads the resolved value. Hooks apply only the keys
+        // they change, so either spelling can be changed.
+        settings.node_package_map = Some(NodePackageMapSettings {
+            mode: Some(config.node_package_map_mode),
+            map_type: Some(config.node_package_map_type),
+        });
+        settings.node_experimental_package_map = Some(config.node_package_map_mode.loads());
+        settings.node_package_map_type = Some(config.node_package_map_type);
         settings = settings.with_resolved_paths(config);
         settings = settings.with_resolved_presence(config);
         settings = settings.with_resolved_scripts(config);

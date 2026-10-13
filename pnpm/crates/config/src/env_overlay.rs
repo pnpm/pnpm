@@ -16,9 +16,9 @@
 
 use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
-    NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, StoreIndexFormat,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
@@ -184,9 +184,19 @@ impl WorkspaceSettings {
         tri_array_field!(settings, reader, public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(settings, reader, shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(settings, reader, store_dir, "STORE_DIR");
+        enum_field!(settings, reader, store_index_format, "STORE_INDEX_FORMAT", StoreIndexFormat);
         string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
         enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);
+        json_field!(settings, reader, symlink, "SYMLINK");
+        settings.read_node_package_map_env(reader);
+        settings.read_virtual_store_env(reader);
+    }
+
+    /// `nodePackageMap.type` and the deprecated `nodePackageMapType` share
+    /// the `NODE_PACKAGE_MAP_TYPE` variable.
+    fn read_node_package_map_env(&mut self, reader: &StringReader<'_>) {
+        let settings = self;
         json_field!(
             settings,
             reader,
@@ -200,8 +210,12 @@ impl WorkspaceSettings {
             "NODE_PACKAGE_MAP_TYPE",
             NodePackageMapType
         );
-        json_field!(settings, reader, symlink, "SYMLINK");
-        settings.read_virtual_store_env(reader);
+        if let Some(mode) = reader
+            .value("NODE_PACKAGE_MAP_MODE")
+            .and_then(|value| parse_json_or_string::<NodePackageMapMode>(&value))
+        {
+            settings.node_package_map.get_or_insert_default().mode = Some(mode);
+        }
     }
 
     fn read_virtual_store_env(&mut self, reader: &StringReader<'_>) {

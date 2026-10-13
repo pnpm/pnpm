@@ -65,7 +65,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pacquet is always a native executable (never a `.js` entrypoint), so
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
-    install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    install_cli_globally::<Reporter>(&resolve_executable(&exec_path)?, &pnpm_home_dir, dir)?;
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -154,6 +154,14 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("remove the temporary package.json next to the pnpm executable")?;
     Ok(())
+}
+
+/// On macOS [`std::env::current_exe`] can be a symlink, such as npm's
+/// `<prefix>/bin/pnpm`, whose directory is not the pnpm package.
+fn resolve_executable(exec_path: &Path) -> miette::Result<std::path::PathBuf> {
+    dunce::canonicalize(exec_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve the pnpm executable at {}", exec_path.display()))
 }
 
 /// The manifest `pnpm setup` writes next to a standalone executable that ships

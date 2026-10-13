@@ -3,8 +3,8 @@ use super::{
 };
 use pnpm_config::{
     ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, LinkWorkspacePackages,
-    NodeLinker, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy,
+    NodeLinker, NodePackageMapMode, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings,
+    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;

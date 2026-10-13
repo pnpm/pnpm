@@ -12,7 +12,7 @@ pub(super) fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
         .unwrap_or_else(|| Path::new("."));
     let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
     tmp.write_all(contents)?;
-    tmp.as_file().sync_all()?;
+    pnpm_fs::sync_file(tmp.as_file())?;
     #[cfg(not(target_os = "wasi"))]
     if let Ok(metadata) = fs::metadata(path) {
         tmp.as_file().set_permissions(metadata.permissions())?;

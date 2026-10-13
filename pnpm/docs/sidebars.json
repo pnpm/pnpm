@@ -103,11 +103,13 @@
             "cli/login",
             "cli/logout",
             "cli/whoami",
+            "cli/profile",
             "cli/access",
             "cli/owner",
             "cli/team",
             "cli/star",
-            "cli/ping"
+            "cli/ping",
+            "cli/token"
           ]
         },
         {

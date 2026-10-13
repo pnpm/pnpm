@@ -1,8 +1,14 @@
 use super::{
-    BTreeMap, DateTime, DependencyGroup, Duration, PassSettings, ResolveImporterOptions, Resolver,
-    SortedImporters, Utc, WorkspaceImporter, importer_direct_wanted_specs,
-    parse_packument_timestamp,
+    importers::SortedImporters,
+    options::{PassSettings, WorkspaceImporter},
 };
+use crate::{
+    resolve_dependency_tree::importer_direct_wanted_specs, resolve_importer::ResolveImporterOptions,
+};
+use chrono::{DateTime, Duration, Utc};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_resolver_base::{Resolver, parse_packument_timestamp};
+use std::collections::BTreeMap;
 
 /// The `minimumReleaseAge` cutoff is set uniformly on every importer's
 /// `base_opts.published_by` by the install layer; it is the upper bound

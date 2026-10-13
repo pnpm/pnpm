@@ -1,6 +1,6 @@
 use super::{
-    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes, strip_dash_suffix,
-    temp_path_in,
+    EnsureFileError, create_exclusive_temp_file, ensure_file, ensure_file_atomically,
+    file_equals_bytes, strip_dash_suffix, temp_path_in,
 };
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
@@ -16,6 +16,50 @@ fn writes_a_new_file() {
     ensure_file(&path, b"hello", None).expect("new-file write succeeds");
 
     assert_eq!(fs::read(&path).unwrap(), b"hello");
+}
+
+#[test]
+fn atomic_variant_publishes_a_new_file_without_leaving_temp_files() {
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("published.json");
+
+    ensure_file_atomically(&path, b"{}", None).expect("new-file write succeeds");
+
+    assert_eq!(fs::read(&path).unwrap(), b"{}");
+    let siblings: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(siblings, vec![std::ffi::OsString::from("published.json")]);
+}
+
+#[cfg(unix)]
+#[test]
+fn atomic_variant_keeps_a_file_that_already_matches() {
+    use std::os::unix::fs::MetadataExt as _;
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("published.json");
+    fs::write(&path, b"{}").unwrap();
+    let inode = fs::metadata(&path).unwrap().ino();
+
+    ensure_file_atomically(&path, b"{}", None).expect("matching contents short-circuit");
+
+    assert_eq!(fs::metadata(&path).unwrap().ino(), inode);
+}
+
+#[cfg(unix)]
+#[test]
+fn atomic_variant_replaces_a_mismatched_file_with_a_new_inode() {
+    use std::os::unix::fs::MetadataExt as _;
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("published.json");
+    fs::write(&path, b"{\"old\":true}").unwrap();
+    let inode = fs::metadata(&path).unwrap().ino();
+
+    ensure_file_atomically(&path, b"{}", None).expect("mismatch is replaced");
+
+    assert_eq!(fs::read(&path).unwrap(), b"{}");
+    assert_ne!(fs::metadata(&path).unwrap().ino(), inode, "a reader keeps the old inode's bytes");
 }
 
 #[test]

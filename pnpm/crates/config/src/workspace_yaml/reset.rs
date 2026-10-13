@@ -20,6 +20,23 @@ fn apply_named_reset(
     true
 }
 
+/// `nodePackageMap` and the deprecated spellings that land in the same fields.
+fn reset_node_package_map(config: &mut Config, defaults: &Config, key: &str) -> bool {
+    let (mode, map_type) = match key {
+        "nodePackageMap" => (true, true),
+        "nodeExperimentalPackageMap" => (true, false),
+        "nodePackageMapType" => (false, true),
+        _ => return false,
+    };
+    if mode {
+        config.node_package_map_mode = defaults.node_package_map_mode;
+    }
+    if map_type {
+        config.node_package_map_type = defaults.node_package_map_type;
+    }
+    true
+}
+
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
@@ -143,7 +160,9 @@ impl WorkspaceSettings {
             save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups,
         });
-        if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
+        if reset_node_package_map(config, defaults, key)
+            || Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir)
+        {
             return true;
         }
         apply_named_reset(config, defaults, (&resets, key))

@@ -1,5 +1,5 @@
 use super::{
-    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, interpreter, unapproved,
+    BuildEnvironment, BuiltWheel, PythonPrepare, backend, host, run_hook, unapproved,
     validation::identify_identity,
 };
 use crate::{
@@ -47,10 +47,9 @@ impl PythonPrepare<'_> {
         let output = tempfile::tempdir().into_diagnostic()?;
         let mut request = request;
         request["output"] = serde_json::json!(output.path());
-        let response: BackendMetadata =
-            host::run(&interpreter(environment.path()), "metadata", request)
-                .await
-                .wrap_err_with(|| format!("prepare Python metadata at {}", root.display()))?;
+        let response: BackendMetadata = run_hook(environment.path(), "metadata", request)
+            .await
+            .wrap_err_with(|| format!("prepare Python metadata at {}", root.display()))?;
         validate_metadata(&response.metadata, manifest, root)
             .wrap_err_with(|| format!("validate Python metadata at {}", root.display()))?;
         Ok(response.retain(output, &self.interpreter.executable))

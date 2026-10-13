@@ -2,7 +2,8 @@ pub use git_hosted::is_git_hosted_tarball_url;
 pub use registry::{
     RegistryContext, RegistryOptions, RegistryServerType, TarballUrlOptions,
     integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type, registry_supports_time_field,
+    npm_tarball_url, pick_registry_for_package, registry_for_package, registry_server_type,
+    registry_supports_time_field,
 };
 
 use derive_more::{Display, Error, From, Into, TryInto};

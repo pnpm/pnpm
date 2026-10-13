@@ -1,6 +1,6 @@
 use super::{
     Arc, AtomicBool, CafsFileInfo, HashMap, Ordering, PackageFilesIndex, SideEffectsDiff, StoreDir,
-    StoreIndex, StoreIndexError,
+    StoreIndex, StoreIndexError, StoreIndexFormat,
 };
 
 /// Handle producers use to hand rows off to the batched writer task. Clone
@@ -94,13 +94,24 @@ impl StoreIndexWriter {
     ///
     /// The writer task owns the [`StoreIndex`] connection for its entire
     /// lifetime; on DB open failure the task returns the error and the
-    /// channel closes on the first producer send.
+    /// channel closes on the first producer send. The index keeps the
+    /// format the store already has.
     pub fn spawn(
         store_dir: &StoreDir,
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        StoreIndexWriter::spawn_in_format(store_dir, StoreIndexFormat::Sqlite)
+    }
+
+    /// [`StoreIndexWriter::spawn`], after giving the store the index
+    /// `index_format` asks for (see [`StoreIndex::apply_format`]).
+    pub fn spawn_in_format(
+        store_dir: &StoreDir,
+        index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::task::spawn_blocking(move || -> Result<(), StoreIndexError> {
+            StoreIndex::apply_format(&store_root, index_format)?;
             let mut index = StoreIndex::open(&store_root)?;
             let mut batch: Vec<WriteMsg> = Vec::with_capacity(MAX_BATCH_SIZE);
             while let Some(first) = rx.blocking_recv() {
@@ -120,18 +131,19 @@ impl StoreIndexWriter {
         )
     }
 
-    /// [`StoreIndexWriter::spawn`], or [`StoreIndexWriter::spawn_disabled`]
-    /// under `frozenStore` where the store is read-only and there is
-    /// nothing to write back.
+    /// [`StoreIndexWriter::spawn_in_format`], or
+    /// [`StoreIndexWriter::spawn_disabled`] under `frozenStore` where the
+    /// store is read-only and there is nothing to write back.
     #[must_use]
     pub fn spawn_for(
         store_dir: &StoreDir,
         frozen_store: bool,
+        index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         if frozen_store {
             StoreIndexWriter::spawn_disabled()
         } else {
-            StoreIndexWriter::spawn(store_dir)
+            StoreIndexWriter::spawn_in_format(store_dir, index_format)
         }
     }
 

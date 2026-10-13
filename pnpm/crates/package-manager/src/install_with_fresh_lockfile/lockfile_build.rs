@@ -362,6 +362,10 @@ pub(super) fn build_fresh_lockfile(
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let importers = inputs.importer_entries();
     let registries_by_prefix = registries_by_prefix(inputs.config);
+    let registries: HashMap<String, String> = inputs.config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let config = inputs.config;
     dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
@@ -371,7 +375,7 @@ pub(super) fn build_fresh_lockfile(
         settings: crate::fast_update_settings::lockfile_settings_from_config(config),
         metadata_sources: crate::PackageMetadataSources {
             registry_options_by_url: &config.registry_options_by_url,
-            registry: &config.registry,
+            registries: &registries,
             registries_by_prefix: &registries_by_prefix,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
             previous_packages: inputs.prior.lockfile.and_then(|lockfile| {

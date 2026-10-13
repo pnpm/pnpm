@@ -42,7 +42,7 @@ pub(super) fn build_extra_env(
             ),
         );
     }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+    if config.node_package_map_mode.loads() && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = env.get("NODE_OPTIONS").map(String::as_str);
         env.insert(

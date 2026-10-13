@@ -21,11 +21,11 @@ fn side_effects_invalidation_does_not_queue_unchanged_rows() {
         row.side_effects = side_effects;
         index.set(key, &row).unwrap();
         let mut pending = HashMap::new();
-        let writes = index.conn.total_changes();
+        let writes = index.sqlite_conn().total_changes();
         invalidate_side_effects(&index, &mut pending, key, "test-engine").unwrap();
         dbg!(&row, &pending);
         assert!(pending.is_empty());
-        assert_eq!(index.conn.total_changes(), writes);
+        assert_eq!(index.sqlite_conn().total_changes(), writes);
 
         row.requires_build = Some(true);
         let mut replacement = index.get(key).unwrap().unwrap();
