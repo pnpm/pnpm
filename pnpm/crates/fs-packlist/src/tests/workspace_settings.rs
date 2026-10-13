@@ -190,7 +190,11 @@ fn empty_files_field_ships_only_always_included_files() {
     .unwrap();
     out.sort();
 
-    assert_eq!(out, vec!["package.json".to_string()]);
+    assert_eq!(
+        out,
+        vec!["package.json".to_string()],
+        "an empty `files` array must still override the workspace-root .gitignore",
+    );
 }
 
 #[test]
