@@ -53,3 +53,6 @@ enum Detached<Output> {
     Files(FilesIndex),
     Locked(Option<Output>),
 }
+
+#[cfg(test)]
+mod tests;
