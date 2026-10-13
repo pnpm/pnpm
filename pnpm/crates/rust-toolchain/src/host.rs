@@ -4,8 +4,8 @@ use crate::rustup_settings::rustup_default_host_triple;
 /// Rust release manifests name it. `None` where Rust publishes no host
 /// toolchain pnpm installs.
 ///
-/// On Windows the ABI is that of rustup's default host, or else of the
-/// target pnpm was built for.
+/// On Windows this is rustup's default host, or else pnpm's architecture
+/// with the ABI pnpm was built for.
 pub(crate) fn host_triple() -> Option<String> {
     #[cfg(not(target_family = "wasm"))]
     let (architecture, os) = (std::env::consts::ARCH, std::env::consts::OS);
@@ -33,29 +33,28 @@ pub(crate) fn host_triple() -> Option<String> {
             _ => return None,
         },
         "windows" | "win32" => {
+            if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
+                return Some(triple);
+            }
             let architecture = match architecture {
                 "x86_64" | "aarch64" => architecture,
                 "x86" => "i686",
                 _ => return None,
             };
-            let abi = rustup_default_host_abi(rustup_default_host_triple().as_deref())
-                .unwrap_or_else(|| {
-                    built_windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"))
-                });
+            let abi = built_windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
             format!("{architecture}-pc-windows-{abi}")
         }
         _ => return None,
     })
 }
 
-/// The ABI of the Windows host triple rustup installs toolchains for.
-fn rustup_default_host_abi(triple: Option<&str>) -> Option<&'static str> {
-    match triple?.split_once("-pc-windows-")?.1 {
-        "msvc" => Some("msvc"),
-        "gnu" => Some("gnu"),
-        "gnullvm" => Some("gnullvm"),
-        _ => None,
-    }
+/// The host triple rustup installs toolchains for, when it is a Windows
+/// host Rust publishes a toolchain for.
+fn rustup_default_windows_host(triple: Option<String>) -> Option<String> {
+    let (architecture, abi) = triple.as_deref()?.split_once("-pc-windows-")?;
+    let supported = matches!(architecture, "x86_64" | "aarch64" | "i686")
+        && matches!(abi, "msvc" | "gnu" | "gnullvm");
+    supported.then_some(triple?)
 }
 
 /// The ABI pnpm itself was built for, as rustup takes its default host
