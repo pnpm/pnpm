@@ -847,6 +847,14 @@ fn removing_a_linked_dependency_unlinks_it_under_the_hoisted_linker() {
 
     assert!(fs::symlink_metadata(&link).is_err(), "the link should be removed");
     assert!(local.join("package.json").exists(), "the link target should be left alone");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("@local/pkg"), "the lockfile should drop the dependency");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(fs::symlink_metadata(&link).is_err(), "a frozen install should not relink it");
 
     drop((root, mock_instance));
 }

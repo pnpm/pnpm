@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
+  install,
   mutateModulesInSingleProject,
 } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -111,7 +112,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 })
 
 test('uninstall a linked dependency', async () => {
-  prepareEmpty()
+  const project = prepareEmpty()
   const localPkgDir = path.resolve('..', 'local-pkg')
   fs.mkdirSync(localPkgDir, { recursive: true })
   fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({ name: '@local/pkg', version: '1.0.0' }))
@@ -131,8 +132,12 @@ test('uninstall a linked dependency', async () => {
   }, testDefaults({ nodeLinker: 'hoisted', save: true }))).updatedProject.manifest
 
   expect(manifest.dependencies).toStrictEqual({})
+  expect(project.readLockfile().importers['.'].dependencies).toBeUndefined()
   expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
   expect(fs.existsSync(path.join(localPkgDir, 'package.json'))).toBe(true)
+
+  await install(manifest, testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
+  expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
 })
 
 test('uninstall a linked dependency does not unlink through a symlinked scope directory', async () => {
