@@ -155,6 +155,7 @@ pub(super) fn record_reused_children(
             peer_shadowed: Arc::clone(&claim.peer_shadowed),
             prior_key: Some(context.key.clone()),
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
+            children_scope: Arc::clone(context.ancestry.parent_pkg_aliases),
         },
     );
     (recording.children(realized), recording)

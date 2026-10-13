@@ -3,12 +3,13 @@ use super::{
     ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
     SeededPackage, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
     build_pkg_id_with_patch_hash, catalogs_for_children, current_pkg_from_lockfile,
-    emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
-    is_exotic_resolved_via, is_update_target, keeps_locked_version, lock_recoverable, node_alias,
-    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
-    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, pkg_is_leaf, project_relative_cache_scope,
-    register_peer_dep_names, resolve_reused_node, resolve_wanted_cached,
+    dependencies_named_as_peers, emit_deprecation_if_needed, ensure_same_registry_revision,
+    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, keeps_locked_version,
+    lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
+    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
+    pin_patched_revision, pkg_is_leaf, project_relative_cache_scope, register_peer_dep_names,
+    register_shadowable_dep_names, resolve_reused_node, resolve_wanted_cached,
     resolves_children_through_catalogs, try_reuse_node,
 };
 
@@ -283,6 +284,10 @@ pub(super) fn seed_pending(
     )?;
     if created {
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+        register_shadowable_dep_names(
+            ctx,
+            dependencies_named_as_peers(result.package.manifest.as_deref()).map(|(name, _)| name),
+        );
     }
 
     let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);

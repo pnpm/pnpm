@@ -946,14 +946,15 @@ fn optional_peer_also_in_deps_is_installed_without_auto_install_peers() {
     assert_optional_peer_also_in_deps_is_installed(false);
 }
 
-/// `@pnpm.e2e/has-optional-peer-also-in-deps` is reached through
-/// `…-grandparent > …-parent`, where `@pnpm.e2e/bravo-dep` is not in scope,
-/// and `…-parent` is also an optional peer of another dependency, together
-/// with `@pnpm.e2e/bravo-dep`. Every snapshot must reach `@pnpm.e2e/bravo-dep`,
-/// as a dependency or as a resolved peer.
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` is first reached through
+/// `…-grandparent > …-parent`, where `@pnpm.e2e/bravo-dep` is not in scope.
+/// Hoisting the optional peers of
+/// `@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent` reaches it
+/// again, shallower, with `@pnpm.e2e/bravo-dep` in scope, and that
+/// occurrence decides that `@pnpm.e2e/bravo-dep` is supplied as a peer.
 /// Covers <https://github.com/pnpm/pnpm/issues/16901>.
 #[test]
-fn optional_peer_also_in_deps_is_kept_when_its_parent_is_also_an_optional_peer() {
+fn optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -982,19 +983,23 @@ fn optional_peer_also_in_deps_is_kept_when_its_parent_is_also_an_optional_peer()
         .iter()
         .flatten()
         .filter(|(key, _)| key.to_string().starts_with("@pnpm.e2e/has-optional-peer-also-in-deps@"))
+        .map(|(key, snapshot)| {
+            let optional_dependencies: Vec<String> = snapshot
+                .optional_dependencies
+                .iter()
+                .flatten()
+                .map(|(alias, reference)| format!("{alias} {reference}"))
+                .collect();
+            (key.to_string(), optional_dependencies)
+        })
         .collect();
-    dbg!(&snapshots);
-    assert!(!snapshots.is_empty());
-    for (_, snapshot) in snapshots {
-        let reaches_bravo_dep = [&snapshot.dependencies, &snapshot.optional_dependencies]
-            .into_iter()
-            .flatten()
-            .any(|deps| {
-                deps.keys()
-                    .any(|alias| alias.to_string() == "@pnpm.e2e/bravo-dep")
-            });
-        assert!(reaches_bravo_dep);
-    }
+    assert_eq!(
+        snapshots,
+        [(
+            "@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0(@pnpm.e2e/bravo-dep@1.0.0)".to_string(),
+            vec!["@pnpm.e2e/bravo-dep 1.0.0".to_string()],
+        )],
+    );
 
     drop((root, mock_instance));
 }
