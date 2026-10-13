@@ -10,9 +10,9 @@
 //! The whole check is best-effort: an unreadable state file, an
 //! unreachable registry, or an unwritable state directory leaves the
 //! command's own outcome untouched. Nor does the check hold the command
-//! up: one still waiting on the registry when the command is done gets
-//! [`UPDATE_CHECK_GRACE_PERIOD`], is then abandoned, and counts as the
-//! day's check so a registry that keeps stalling is asked once a day.
+//! up: one still waiting on the registry when the command is done is
+//! dropped, unrecorded, and the next command asks again
+//! ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
 //!
 //! An `install` that finishes through the repeat-install fast path never
 //! reaches this module — that path deliberately returns before the async
@@ -27,44 +27,20 @@ use pnpm_registry::Package;
 use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use serde_json::{Map, Value};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{collections::HashMap, path::Path};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.
 const UPDATE_CHECK_FREQUENCY_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// How long a finished command waits for a check that is still running.
-///
-/// The check starts with the command and normally finishes well before
-/// it does. One that has not is waiting on a registry that is slow or
-/// not answering, and the notice it might bring is not worth holding the
-/// command for: the registry client's timeouts would otherwise add
-/// minutes to an install that had nothing else to do
-/// ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
-const UPDATE_CHECK_GRACE_PERIOD: Duration = Duration::from_secs(1);
-
 const STATE_FILE_NAME: &str = "pnpm-state.json";
 const LAST_UPDATE_CHECK_KEY: &str = "lastUpdateCheck";
 
-/// The running command's update check.
+/// The running command's update check, if one is due.
 ///
 /// [`settle`] disposes of it; dropping it without settling detaches the
 /// task, which would leave the notice racing process exit.
-pub(crate) struct UpdateCheck {
-    handle: JoinHandle<()>,
-    /// Where an abandoned check records itself, so a registry that keeps
-    /// stalling costs the grace period once a day rather than once per
-    /// command.
-    state_file: PathBuf,
-    state: Map<String, Value>,
-}
-
-/// The running command's update check, if one is due.
-pub(crate) type PendingUpdateCheck = Option<UpdateCheck>;
+pub(crate) type PendingUpdateCheck = Option<JoinHandle<()>>;
 
 /// Start the daily update check in the background, or return [`None`] when
 /// the settings turn it off, the run is offline, or today's check already
@@ -83,42 +59,26 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
         return None;
     }
     let config = config.clone();
-    let handle = tokio::spawn({
-        let (state_file, state) = (state_file.clone(), state.clone());
-        async move { check(&config, &state_file, state, emit).await }
-    });
-    Some(UpdateCheck { handle, state_file, state })
+    Some(tokio::spawn(async move { check(&config, &state_file, state, emit).await }))
 }
 
 /// Dispose of the check [`spawn`] started, now that the command it ran
-/// alongside has an outcome.
+/// alongside is done.
 ///
-/// A command that succeeded waits up to [`UPDATE_CHECK_GRACE_PERIOD`], so
-/// a notice the registry has answered reaches the terminal before the
-/// process exits. A check still running after that is aborted and
-/// recorded as the day's check: a registry that keeps stalling then costs
-/// the grace period once a day, not on every command, and tomorrow's
-/// check asks again. A command that failed drops the check at once and
-/// records nothing: the error is what the user needs to read.
-pub(crate) async fn settle<Output: Sync>(
-    pending: PendingUpdateCheck,
-    outcome: &miette::Result<Output>,
-) {
-    let Some(UpdateCheck { handle, state_file, state }) = pending else { return };
-    if outcome.is_err() {
-        handle.abort();
-        return;
-    }
-    let abort = handle.abort_handle();
-    if tokio::time::timeout(UPDATE_CHECK_GRACE_PERIOD, handle).await.is_err() {
-        abort.abort();
+/// The command does not wait for it. A check the registry has answered
+/// has already printed its notice and recorded itself; one still waiting
+/// is aborted and records nothing, so the next command asks again. The
+/// registry client's timeouts, a minute each, would otherwise be the
+/// duration of an install that had nothing else to do.
+pub(crate) fn settle(pending: PendingUpdateCheck) {
+    let Some(handle) = pending else { return };
+    if !handle.is_finished() {
         tracing::debug!(
             target: "pacquet::install",
-            "the update check is still waiting on the registry; the command finishes without it \
-             and the check is not repeated until tomorrow",
+            "the update check has not heard back from the registry; the command does not wait for it",
         );
-        write_state(&state_file, state, Utc::now());
     }
+    handle.abort();
 }
 
 async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, emit: fn(&LogEvent)) {

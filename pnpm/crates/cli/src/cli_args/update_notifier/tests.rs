@@ -1,19 +1,11 @@
-use super::{
-    UPDATE_CHECK_GRACE_PERIOD, UpdateCheck, checked_recently, read_state, settle, to_utc_string,
-    write_state,
-};
+use super::{checked_recently, read_state, settle, to_utc_string, write_state};
 use chrono::{TimeZone, Utc};
 use serde_json::{Map, Value, json};
-use std::{
-    path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Instant,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tempfile::tempdir;
-use tokio::task::JoinHandle;
 
 /// Flips a flag when dropped, so a test can tell an aborted task (its
 /// future is dropped) from one merely detached.
@@ -23,22 +15,6 @@ impl Drop for FlagOnDrop {
     fn drop(&mut self) {
         self.0.store(true, Ordering::SeqCst);
     }
-}
-
-/// A check that never hears back from the registry, with a flag that
-/// flips once the task is aborted.
-fn never_answered_check(state_file: &Path) -> (UpdateCheck, Arc<AtomicBool>) {
-    let aborted = Arc::new(AtomicBool::new(false));
-    let flag = FlagOnDrop(Arc::clone(&aborted));
-    let handle = tokio::spawn(async move {
-        let _flag = flag;
-        std::future::pending::<()>().await;
-    });
-    (pending_check(handle, state_file), aborted)
-}
-
-fn pending_check(handle: JoinHandle<()>, state_file: &Path) -> UpdateCheck {
-    UpdateCheck { handle, state_file: state_file.to_path_buf(), state: Map::new() }
 }
 
 /// Cancellation lands when the runtime next polls the task.
@@ -52,69 +28,39 @@ async fn wait_for_abort(aborted: &AtomicBool) -> bool {
     aborted.load(Ordering::SeqCst)
 }
 
-/// A check still waiting on the registry gets the grace period, not the
-/// registry client's timeouts, is aborted rather than left behind, and
-/// counts as the day's check so the next command does not pay again.
+/// A check still waiting on the registry when the command is done is
+/// aborted rather than waited for or left behind. It records nothing, so
+/// the next command asks again.
 #[tokio::test]
-async fn a_check_still_running_is_abandoned_after_the_grace_period_and_recorded() {
-    let dir = tempdir().unwrap();
-    let state_file = dir.path().join("pnpm-state.json");
-    let (pending, aborted) = never_answered_check(&state_file);
+async fn a_check_still_running_is_dropped_when_the_command_is_done() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let flag = FlagOnDrop(Arc::clone(&aborted));
+    let handle = tokio::spawn(async move {
+        let _flag = flag;
+        std::future::pending::<()>().await;
+    });
 
-    let started = Instant::now();
-    settle(Some(pending), &Ok::<(), miette::Report>(())).await;
-    let waited = started.elapsed();
-    assert!(
-        waited >= UPDATE_CHECK_GRACE_PERIOD,
-        "the check gets the whole grace period, waited {waited:?}",
-    );
+    settle(Some(handle));
 
-    assert!(wait_for_abort(&aborted).await, "the abandoned check must be aborted");
-    assert!(
-        checked_recently(&read_state(&state_file), Utc::now()),
-        "the abandoned check must count as today's check",
-    );
+    assert!(wait_for_abort(&aborted).await, "the unanswered check must be aborted");
 }
 
-/// A check the registry answered in time is waited for, so its notice
-/// reaches the terminal before the process exits; recording it is the
-/// check's own job.
+/// A check the registry answered before the command finished has already
+/// done its work; settling it changes nothing.
 #[tokio::test]
-async fn a_check_that_finishes_in_time_is_waited_for() {
-    let dir = tempdir().unwrap();
-    let state_file = dir.path().join("pnpm-state.json");
+async fn a_check_that_already_finished_is_left_alone() {
     let finished = Arc::new(AtomicBool::new(false));
     let handle = tokio::spawn({
         let finished = Arc::clone(&finished);
-        async move {
-            tokio::task::yield_now().await;
-            finished.store(true, Ordering::SeqCst);
-        }
+        async move { finished.store(true, Ordering::SeqCst) }
     });
+    while !handle.is_finished() {
+        tokio::task::yield_now().await;
+    }
 
-    settle(Some(pending_check(handle, &state_file)), &Ok::<(), miette::Report>(())).await;
+    settle(Some(handle));
 
-    assert!(finished.load(Ordering::SeqCst), "the check must have run to completion");
-    assert!(!state_file.exists(), "settling a finished check records nothing of its own");
-}
-
-/// A failed command does not wait at all and records nothing: the error is
-/// what the user needs to read, and the next command checks again.
-#[tokio::test]
-async fn a_failed_command_drops_the_check_at_once() {
-    let dir = tempdir().unwrap();
-    let state_file = dir.path().join("pnpm-state.json");
-    let (pending, aborted) = never_answered_check(&state_file);
-
-    let started = Instant::now();
-    settle(Some(pending), &Err::<(), miette::Report>(miette::miette!("the install failed"))).await;
-    assert!(
-        started.elapsed() < UPDATE_CHECK_GRACE_PERIOD,
-        "a failed command must not wait out the grace period",
-    );
-
-    assert!(wait_for_abort(&aborted).await, "the check must be aborted");
-    assert!(!state_file.exists(), "a failed command records no check");
+    assert!(finished.load(Ordering::SeqCst), "the check ran to completion on its own");
 }
 
 fn state_with_last_check(value: &Value) -> Map<String, Value> {
