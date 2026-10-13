@@ -1,6 +1,6 @@
 use super::{
-    CliArgs, CliCommand, ConfigLoad, KeyIssueReporting, PackageManagerToSync, PinRoots,
-    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
+    CliArgs, CliCommand, CliNetworkArgs, ConfigLoad, KeyIssueReporting, PackageManagerToSync,
+    PinRoots, PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
     load_pre_command_config, locked_package_manager_to_fetch, pre_command_plan_from_input,
     switch_target,
 };
@@ -157,6 +157,9 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
         "--frozen-lockfile",
         "--lockfile-dir=/tmp/lockfile",
         "--offline",
+        "--registry",
+        "https://mirror.example.com/",
+        "--no-proxy=internal.example.com",
         "-g",
     ]
     .map(OsString::from);
@@ -173,6 +176,8 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
             prefer_offline: None,
         },
     );
+    assert_eq!(input.network.registry.as_deref(), Some("https://mirror.example.com/"));
+    assert_eq!(input.network.no_proxy.as_deref(), Some("internal.example.com"));
     assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
 
     let version_input = SwitchInput::from_version_argv(&argv);
@@ -344,6 +349,35 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
     assert_eq!(
         config.store_dir.root(),
         dir.join("relative-store").join(pnpm_store_dir::STORE_VERSION),
+    );
+}
+
+#[test]
+fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
+    let root = TempDir::new().expect("tmp dir");
+    let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
+    let mut switch = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--registry=https://mirror.example.com/npm"),
+        OsString::from("--https-proxy"),
+        OsString::from("http://proxy.example.com:8080"),
+        OsString::from("--version"),
+    ]);
+    switch.paths.dir = dir.clone();
+    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
+
+    let config =
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::default())
+            .expect("load the pre-command config");
+
+    assert_eq!(config.package_manager_bootstrap.registry, "https://mirror.example.com/npm/");
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://mirror.example.com/npm/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.https_proxy.as_deref(),
+        Some("http://proxy.example.com:8080"),
     );
 }
 
@@ -1015,6 +1049,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
             pin_flags: PinFlags::default(),
             color: None,
             ignore_workspace: false,
+            network: CliNetworkArgs::default(),
         },
         global: false,
         skip_pm_handling: false,
