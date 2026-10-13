@@ -230,7 +230,7 @@ impl InstallArgs {
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        state: State,
+        mut state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -241,15 +241,17 @@ impl InstallArgs {
             return Err(DryRunIncompatibleWithPnpr.into());
         }
         if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-            return Box::pin(install_via_pnpr_inner::<Reporter>(
-                &state,
-                target,
-                selection.as_ref(),
-                link,
-            ))
-            .await;
+            Box::pin(install_via_pnpr_inner::<Reporter>(&state, target, selection.as_ref(), link))
+                .await?;
+        } else {
+            self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
         }
-        self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+        if !self.materialization.dry_run
+            && state.config.workspace_dir.is_none()
+            && !state.manifest.path().exists()
+        {
+            state.manifest.save().wrap_err("saving initialized package.json")?;
+        }
         // Resolution watch senders must close inline; only inert manifest and lockfile data
         // may outlive the command through background destruction.
         pnpm_fs::background_drop((state.lockfile, state.manifest, selection));

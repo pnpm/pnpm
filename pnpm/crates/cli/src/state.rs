@@ -10,7 +10,7 @@ use pnpm_package_manager::{
     WorkspaceDependenciesInstalled,
 };
 use pnpm_package_manifest::{
-    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
+    InitOptions, PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
 use pnpm_tarball::MemCache;
 use std::{
@@ -237,16 +237,8 @@ impl State {
     }
 }
 
-/// `package.json` loads (or is scaffolded) as usual, but when it is
-/// absent an existing alternate manifest base name (`package.yaml`)
-/// must be loaded rather than shadowed by a scaffolded `package.json`
-/// and saved in its original format.
-///
-/// Inside a workspace, a missing root manifest is tolerated rather
-/// than scaffolded: pnpm installs such a workspace with no root
-/// importer and never creates a `package.json` there, so the stand-in
-/// manifest stays in memory only. Commands that save the manifest
-/// (`add`) still persist it through their explicit save.
+/// Load the existing manifest in its original format. A missing manifest stays
+/// in memory until a command explicitly saves it.
 fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
@@ -258,15 +250,18 @@ fn load_or_create_manifest(
         {
             return Ok(apply_runtime_on_fail(manifest, config));
         }
-        if config.workspace_dir.is_some() {
-            return Ok(apply_runtime_on_fail(
-                PackageManifest::from_value(manifest_path, serde_json::json!({})),
-                config,
-            ));
-        }
+        let value = if config.workspace_dir.is_some() {
+            serde_json::json!({})
+        } else {
+            PackageManifest::init_value_for(&manifest_path, InitOptions::default())
+        };
+        return Ok(apply_runtime_on_fail(
+            PackageManifest::from_value(manifest_path, value),
+            config,
+        ));
     }
     manifest_path
-        .pipe(PackageManifest::create_if_needed)
+        .pipe(PackageManifest::from_path)
         .map(|manifest| apply_runtime_on_fail(manifest, config))
         .map_err(InitStateError::Manifest)
 }

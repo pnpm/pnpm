@@ -4,6 +4,7 @@ title: pnpm fetch
 ---
 
 Fetch packages from a lockfile into virtual store, package manifest is ignored.
+If the package manifest is absent, `pnpm fetch` leaves it absent.
 
 ## Usage scenario
 

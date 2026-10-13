@@ -7,6 +7,10 @@ Added in: v11.0.0
 
 Generate a Software Bill of Materials (SBOM) for the project.
 
+A lockfile is required, but a package manifest is optional. Without a manifest,
+the root component uses `unknown` as its name and `0.0.0` as its version, with no
+license. The command does not create a package manifest.
+
 Supported formats:
 
 - **CycloneDX 1.7** (JSON)
