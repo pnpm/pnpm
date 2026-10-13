@@ -73,10 +73,7 @@ impl OfflineStoreView {
         let index = Arc::clone(&self.index);
         let owned_key = key.to_string();
         let present = tokio::task::spawn_blocking(move || {
-            index
-                .lock()
-                .ok()
-                .and_then(|guard| guard.contains_key(&owned_key).ok())
+            StoreIndex::contains_shared(&index, &owned_key).ok()
         })
         .await
         .ok()
