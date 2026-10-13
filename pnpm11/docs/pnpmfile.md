@@ -112,8 +112,9 @@ Since v11.23.0, the registry routing map passed to `updateConfig` is named
 such as `@acme`, and `default` for the main registry.
 
 Returning `registriesByScope` replaces the routing map. Scopes omitted from
-the returned map use its `default` registry, except for routes given on the
-command line. For example, this hook routes all packages to one registry:
+the returned map use its `default` registry, except for the built-in `@jsr`
+route, which remains unless explicitly overridden. Routes given on the
+command line take precedence. This hook changes the fallback registry:
 
 ```js title=".pnpmfile.mjs"
 export const hooks = {
