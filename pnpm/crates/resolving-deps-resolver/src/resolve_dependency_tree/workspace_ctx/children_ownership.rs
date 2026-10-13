@@ -365,6 +365,10 @@ pub(in super::super) fn register_shadowable_dep_names<'name>(
     ctx: &TreeCtx,
     names: impl IntoIterator<Item = &'name String>,
 ) {
+    let mut names = names.into_iter().peekable();
+    if names.peek().is_none() {
+        return;
+    }
     let mut shadowable = lock_recoverable(&ctx.workspace.children.shadowable_dep_names);
     for name in names {
         if !shadowable.contains(name) {

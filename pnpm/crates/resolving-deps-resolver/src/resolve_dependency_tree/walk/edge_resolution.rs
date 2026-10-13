@@ -284,11 +284,13 @@ pub(super) fn seed_pending(
     )?;
     if created {
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
-        register_shadowable_dep_names(
-            ctx,
-            dependencies_named_as_peers(result.package.manifest.as_deref()).map(|(name, _)| name),
-        );
     }
+    // Not only on `created`: a package first registered from the prior
+    // lockfile carries a synthesized manifest without `dependencies`.
+    register_shadowable_dep_names(
+        ctx,
+        dependencies_named_as_peers(result.package.manifest.as_deref()).map(|(name, _)| name),
+    );
 
     let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);
 
