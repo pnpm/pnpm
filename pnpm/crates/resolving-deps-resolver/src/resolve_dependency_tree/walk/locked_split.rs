@@ -1,8 +1,8 @@
 use super::{
-    Arc, HashSet, NodeSeed, ParentPkgAliases, PendingNode, Resolver, TreeCtx, WantedDependency,
-    WantedKey, dependencies_named_as_peers, is_update_target, lock_recoverable,
-    peer_shadowed_dependencies, pinned_children_scope, project_relative_cache_scope,
-    resolve_wanted_cached,
+    Arc, HashMap, HashSet, NodeSeed, ParentPkgAliases, PendingNode, Pipe, PkgNameVerPeer, Resolver,
+    TreeCtx, WantedDependency, WantedKey, dependencies_named_as_peers, future, is_update_target,
+    lock_recoverable, peer_shadowed_dependencies, pinned_children_scope, pinned_specifier,
+    project_relative_cache_scope, resolve_wanted_cached,
 };
 
 /// Marks each children owner in `seeds` that would read children the
@@ -25,22 +25,31 @@ pub(super) async fn mark_changed_locked_splits<Chain>(
 ) where
     Chain: Resolver + ?Sized,
 {
-    for seed in seeds {
-        let NodeSeed::Pending(pending) = seed else { continue };
-        let Some(pinned_scope) = pinned_scope_read_by(ctx, pending) else { continue };
-        let scopes = Scopes { current: Arc::clone(children_pkg_aliases), pinned: pinned_scope };
-        let changes = locked_split_changes(ctx, resolver, &pending.identity.id, scopes).await;
-        if let Some(claim) = pending.claim.as_mut() {
-            claim.changes_locked_split = changes;
-        }
-    }
+    seeds
+        .iter_mut()
+        .filter_map(|seed| match seed {
+            NodeSeed::Pending(pending) => Some(pending),
+            NodeSeed::Done(_) => None,
+        })
+        .filter_map(|pending| {
+            let pinned = pinned_scope_read_by(ctx, pending)?;
+            Some((pending, Scopes { current: Arc::clone(children_pkg_aliases), pinned }))
+        })
+        .map(|(pending, scopes)| async move {
+            let changes = locked_split_changes(ctx, resolver, &pending.identity.id, scopes).await;
+            if let Some(claim) = pending.claim.as_mut() {
+                claim.changes_locked_split = changes;
+            }
+        })
+        .pipe(future::join_all)
+        .await;
 }
 
 /// The scope a package's pinned children were recorded under, when
 /// `pending` owns them and would otherwise read the pins.
 fn pinned_scope_read_by(ctx: &TreeCtx, pending: &PendingNode) -> Option<Arc<ParentPkgAliases>> {
     let reads_pins = pending.claim.as_ref().is_some_and(|claim| claim.owns_children)
-        && (pending.prior_key.is_none() || ctx.update_scope().unpins_every_edge())
+        && pending.prior_key.is_none()
         && matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All);
     if !reads_pins {
         return None;
@@ -72,6 +81,11 @@ impl Scopes {
 /// Whether any package in the recorded subtree of `pkg_id` would split
 /// its dependencies and peers differently when `pkg_id`'s children
 /// resolve under `scopes.current`.
+///
+/// A fresh walk lets a package's shallowest occurrence decide its split,
+/// so the subtree is walked level by level and a package is checked at
+/// every occurrence on the first level that reaches it. Its children are
+/// expanded once, which keeps the walk linear in the subtree's edges.
 async fn locked_split_changes<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -81,9 +95,39 @@ async fn locked_split_changes<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let mut visited: HashSet<Arc<str>> = HashSet::default();
+    let mut first_level: HashMap<Arc<str>, usize> = HashMap::default();
     let mut parents = vec![(Arc::clone(pkg_id), scopes)];
-    while let Some((parent_id, scopes)) = parents.pop() {
+    let mut level = 0;
+    while !parents.is_empty() {
+        level += 1;
+        let (checks, next) = next_level(ctx, parents, &mut first_level, level);
+        let changed = checks
+            .iter()
+            .map(|(child_id, scopes)| split_changes(ctx, resolver, child_id, scopes))
+            .pipe(future::join_all)
+            .await;
+        if changed.into_iter().any(|changes| changes) {
+            return true;
+        }
+        parents = next;
+    }
+    false
+}
+
+type Occurrence = (Arc<str>, Scopes);
+
+/// The occurrences to check on `level`, the children of `parents`, and
+/// the ones whose own children make up the next level.
+fn next_level(
+    ctx: &TreeCtx,
+    parents: Vec<Occurrence>,
+    first_level: &mut HashMap<Arc<str>, usize>,
+    level: usize,
+) -> (Vec<Occurrence>, Vec<Occurrence>) {
+    let mut checks = Vec::new();
+    let mut next = Vec::new();
+    let mut expanded: HashSet<Arc<str>> = HashSet::default();
+    for (parent_id, scopes) in parents {
         let Some(edges) = recorded_edges(ctx, &parent_id) else { continue };
         let grandchildren_scopes = scopes.extend(
             &edges
@@ -92,16 +136,19 @@ where
                 .collect(),
         );
         for edge in edges.iter() {
-            if !visited.insert(Arc::clone(&edge.pkg_id)) {
+            let seen_on = *first_level
+                .entry(Arc::clone(&edge.pkg_id))
+                .or_insert(level);
+            if seen_on != level {
                 continue;
             }
-            if split_changes(ctx, resolver, &edge.pkg_id, &scopes).await {
-                return true;
+            if expanded.insert(Arc::clone(&edge.pkg_id)) {
+                next.push((Arc::clone(&edge.pkg_id), grandchildren_scopes.clone()));
             }
-            parents.push((Arc::clone(&edge.pkg_id), grandchildren_scopes.clone()));
+            checks.push((Arc::clone(&edge.pkg_id), scopes.clone()));
         }
     }
-    false
+    (checks, next)
 }
 
 fn recorded_edges(
@@ -145,7 +192,9 @@ where
 /// split them.
 struct LockedSplit {
     name: String,
-    version: String,
+    /// The specifier that resolves exactly the locked version, from the
+    /// registry it was locked from.
+    specifier: String,
     deps: HashSet<String>,
     /// The peers whose shadowing depends on the scope: optional ones, and
     /// every one when peers are not auto-installed.
@@ -157,14 +206,10 @@ impl LockedSplit {
         let auto_install_peers = ctx.workspace.policy.auto_install_peers;
         let packages = lock_recoverable(&ctx.workspace.tree.packages);
         let pkg = packages.get(pkg_id)?;
-        let result = pkg.result();
-        if result.resolved_via != "npm-registry" {
-            return None;
-        }
-        let name_ver = result.package.name_ver.as_ref()?;
+        let (name, specifier) = locked_specifier(pkg.result())?;
         Some(LockedSplit {
-            name: name_ver.name.to_string(),
-            version: name_ver.suffix.to_string(),
+            name,
+            specifier,
             deps: recorded_edges(ctx, pkg_id)
                 .map(|edges| {
                     edges
@@ -192,6 +237,29 @@ impl LockedSplit {
     }
 }
 
+/// The name and exact specifier of a registry package. `None` for any other
+/// source, whose split the walk never re-reads.
+fn locked_specifier(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Option<(String, String)> {
+    match result.resolved_via.as_str() {
+        "npm-registry" => {
+            let name_ver = result.package.name_ver.as_ref()?;
+            Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
+        }
+        "named-registry" => {
+            let key = result.id
+                .as_str()
+                .parse::<PkgNameVerPeer>()
+                .ok()?;
+            let name = key.name.to_string();
+            let specifier = pinned_specifier(&name, &key);
+            Some((name, specifier))
+        }
+        _ => None,
+    }
+}
+
 /// The manifest of the locked package as a fresh resolve reads it, read-package
 /// hooks applied. `None` when it cannot be resolved; the pins then stand.
 async fn registry_manifest<Chain>(
@@ -204,7 +272,7 @@ where
 {
     let wanted = WantedDependency {
         alias: Some(locked.name.clone()),
-        bare_specifier: Some(locked.version.clone()),
+        bare_specifier: Some(locked.specifier.clone()),
         ..WantedDependency::default()
     };
     let depth = 1;
@@ -223,8 +291,17 @@ where
         is_update_target(ctx.update_scope(), &wanted, None, depth),
         opts.refresh.prefer_current_version,
     ));
-    let result = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key)
-        .await
-        .ok()?;
-    result.package.manifest.clone()
+    match resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await {
+        Ok(result) => result.package.manifest.clone(),
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::resolve",
+                package = %locked.name,
+                specifier = %locked.specifier,
+                %error,
+                "kept the lockfile's dependency and peer split: its metadata could not be read",
+            );
+            None
+        }
+    }
 }

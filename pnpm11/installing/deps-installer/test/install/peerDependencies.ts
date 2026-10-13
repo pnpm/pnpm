@@ -2711,20 +2711,15 @@ test('an optional peer that is also a regular dependency is not dropped when a h
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/16901
-test('an optional peer that is also a regular dependency is split the same way when its parent becomes an optional peer later', async () => {
+test.each([
+  ['@pnpm.e2e/has-optional-peer-also-in-deps-grandparent', '@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent'],
+  ['@pnpm.e2e/split-tie-root', '@pnpm.e2e/peers-of-split-tie-parent'],
+])('an optional peer that is also a regular dependency is split the same way when its parent becomes an optional peer later (%s, then %s)', async (first, added) => {
   await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const { updatedManifest: manifest } = await addDependenciesToPackage(
-    {},
-    ['@pnpm.e2e/has-optional-peer-also-in-deps-grandparent@1.0.0'],
-    testDefaults({ autoInstallPeers: true })
-  )
-  await addDependenciesToPackage(
-    manifest,
-    ['@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent@1.0.0'],
-    testDefaults({ autoInstallPeers: true })
-  )
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`${first}@1.0.0`], testDefaults({ autoInstallPeers: true }))
+  await addDependenciesToPackage(manifest, [`${added}@1.0.0`], testDefaults({ autoInstallPeers: true }))
 
   const { snapshots } = project.readLockfile()
   const keys = Object.keys(snapshots).filter((key) => key.startsWith('@pnpm.e2e/has-optional-peer-also-in-deps@'))

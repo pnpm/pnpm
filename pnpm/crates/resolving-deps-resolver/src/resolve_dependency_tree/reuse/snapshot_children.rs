@@ -108,7 +108,7 @@ where
 /// aliased child (an `npm:` alias, often written by an override) names its
 /// real package, so a child that falls through to a fresh resolve fetches
 /// that package rather than a same-numbered version of `alias`.
-pub(super) fn pinned_specifier(alias: &str, key: &PkgNameVerPeer) -> String {
+pub(in super::super) fn pinned_specifier(alias: &str, key: &PkgNameVerPeer) -> String {
     let version = key.suffix.without_peer();
     if key.name.to_string() == alias {
         return version.to_string();

@@ -992,6 +992,27 @@ fn optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children() 
 /// Covers <https://github.com/pnpm/pnpm/issues/16901>.
 #[test]
 fn optional_peer_also_in_deps_is_resplit_when_a_hoisted_parent_owns_locked_children() {
+    assert_two_step_install_takes_bravo_dep_as_peer(
+        "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent",
+        "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent",
+    );
+}
+
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` is reached at the same depth
+/// through `…-a` and `…-b`. Only `…-b` provides `@pnpm.e2e/bravo-dep`
+/// already, and `…-a` sorts first, so its path decides the split.
+#[test]
+fn optional_peer_also_in_deps_is_resplit_by_its_deciding_path_among_equal_depths() {
+    assert_two_step_install_takes_bravo_dep_as_peer(
+        "@pnpm.e2e/split-tie-root",
+        "@pnpm.e2e/peers-of-split-tie-parent",
+    );
+}
+
+/// Installs `first`, then adds `added`, and checks that the lockfile
+/// gives `@pnpm.e2e/has-optional-peer-also-in-deps` `@pnpm.e2e/bravo-dep`
+/// as a peer, as installing both at once does.
+fn assert_two_step_install_takes_bravo_dep_as_peer(first: &str, added: &str) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -1004,10 +1025,7 @@ fn optional_peer_also_in_deps_is_resplit_when_a_hoisted_parent_owns_locked_child
     let manifest_path = workspace.join("package.json");
     fs::write(
         &manifest_path,
-        serde_json::json!({ "dependencies": {
-            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
-        } })
-        .to_string(),
+        serde_json::json!({ "dependencies": { first: "1.0.0" } }).to_string(),
     )
     .expect("write package.json");
     pacquet
@@ -1017,11 +1035,7 @@ fn optional_peer_also_in_deps_is_resplit_when_a_hoisted_parent_owns_locked_child
 
     fs::write(
         &manifest_path,
-        serde_json::json!({ "dependencies": {
-            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
-            "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent": "1.0.0",
-        } })
-        .to_string(),
+        serde_json::json!({ "dependencies": { first: "1.0.0", added: "1.0.0" } }).to_string(),
     )
     .expect("rewrite package.json");
     bump_mtime(&manifest_path);

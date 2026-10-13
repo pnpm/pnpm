@@ -90,7 +90,7 @@ use super::{
     },
     reuse::{
         ReuseSource, higher_direct_dep_version, node_depends_on_changed_direct_dep,
-        real_package_name_of, resolve_reused_node, try_reuse_node,
+        pinned_specifier, real_package_name_of, resolve_reused_node, try_reuse_node,
         wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
