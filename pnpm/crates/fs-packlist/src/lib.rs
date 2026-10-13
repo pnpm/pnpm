@@ -7,11 +7,11 @@
 //!
 //! The algorithm has four passes:
 //!
-//! 1. **Walk with ignore-file filtering**: a usable `files` allowlist
+//! 1. **Walk with ignore-file filtering**: a `files` allowlist
 //!    disables `.gitignore` and `.npmignore` — the package's own and any
 //!    workspace-inherited ones alike — leaving the allowlist in pass 2
-//!    as the sole gate (a `files` field with no usable entry is treated
-//!    as absent, see [`build_files_matcher`]). Otherwise each
+//!    as the sole gate (one with no usable entry ships only the
+//!    always-included files, see [`build_files_matcher`]). Otherwise each
 //!    directory's `.npmignore` applies, or its `.gitignore` when it has
 //!    no `.npmignore`, matched the way
 //!    [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
@@ -172,8 +172,7 @@ fn collect_own_files(
     workspace_dir: Option<&Path>,
 ) -> Result<BTreeSet<String>, PacklistError> {
     let files_field = manifest.get("files").and_then(Value::as_array);
-    let files_matcher: Option<Gitignore> =
-        files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
+    let files_matcher: Option<Gitignore> = files_field.map(|arr| build_files_matcher(pkg_dir, arr));
     let named_files: BTreeSet<String> =
         files_field.map(|arr| named_file_entries(pkg_dir, arr)).unwrap_or_default();
     let main_path = manifest.get("main").and_then(Value::as_str);

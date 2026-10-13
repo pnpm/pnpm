@@ -73,11 +73,7 @@ pub(super) fn named_in_files(pkg_dir: &Path, files_field: &[Value]) -> impl Fn(&
         .cloned()
         .collect();
     let matcher = build_files_matcher(pkg_dir, &dotenv_entries);
-    move |path| {
-        matcher
-            .as_ref()
-            .is_some_and(|matcher| matcher.matched(path, false).is_ignore())
-    }
+    move |path| matcher.matched(path, false).is_ignore()
 }
 
 fn basename(path: &str) -> &str {
