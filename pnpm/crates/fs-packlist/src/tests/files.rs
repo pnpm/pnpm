@@ -813,3 +813,80 @@ fn npmignore_honors_extglob_negations() {
         ["lib/index.js", "lib/utils/foo.js", "package.json", "settings.yaml", "src/a.ts"],
     );
 }
+
+fn nested_ignore_fixture(root: &std::path::Path) {
+    touch(root, "package.json");
+    touch(root, "src/index.js");
+    touch(root, "src/index.test.js");
+    touch(root, "src/util/format.js");
+    touch(root, "src/util/format.test.js");
+}
+
+#[test]
+fn files_field_keeps_subdirectory_npmignore() {
+    for files in [json!(["src"]), json!(["src/**"])] {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        nested_ignore_fixture(root);
+        fs::write(root.join("src/.npmignore"), "*.test.js\n").unwrap();
+        fs::write(root.join(".npmignore"), "src/index.js\n").unwrap();
+
+        let manifest = json!({ "name": "x", "version": "0.0.0", "files": files });
+        let mut out = packlist(root, &manifest).unwrap();
+        out.sort();
+
+        assert_eq!(
+            out,
+            vec!["package.json".to_string(), "src/index.js".into(), "src/util/format.js".into()],
+            "files: {files}",
+        );
+    }
+}
+
+#[test]
+fn files_field_keeps_subdirectory_gitignore_without_npmignore() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    nested_ignore_fixture(root);
+    fs::write(root.join("src/util/.gitignore"), "*.test.js\n").unwrap();
+
+    let manifest = json!({ "name": "x", "version": "0.0.0", "files": ["src"] });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "package.json".to_string(),
+            "src/index.js".into(),
+            "src/index.test.js".into(),
+            "src/util/format.js".into(),
+        ],
+    );
+}
+
+#[test]
+fn files_field_named_file_survives_a_subdirectory_ignore_file() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    nested_ignore_fixture(root);
+    fs::write(root.join("src/.npmignore"), "*.test.js\nutil/\n").unwrap();
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["src", "src/index.test.js", "src/util/format.test.js"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec![
+            "package.json".to_string(),
+            "src/index.js".into(),
+            "src/index.test.js".into(),
+            "src/util/format.test.js".into(),
+        ],
+    );
+}
