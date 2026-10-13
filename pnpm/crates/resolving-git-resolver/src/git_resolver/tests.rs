@@ -432,14 +432,13 @@ async fn a_specifier_wanted_by_many_projects_runs_ls_remote_once() {
     let runner = Arc::new(runner(&format!("{COMMIT}\trefs/tags/v1.0.0\n")));
     let resolver = GitResolver::new(Arc::new(FakeProbe::new(false)), Arc::clone(&runner));
     let opts = ResolveOptions::default();
-    let first = wanted("foo", "github:foo/bar#v1.0.0");
-    let second = wanted("bar", "github:foo/bar#v1.0.0");
+    let foo = wanted("foo", "github:foo/bar#v1.0.0");
+    let bar = wanted("bar", "github:foo/bar#v1.0.0");
 
-    let (first, second, third) = tokio::join!(
-        resolver.resolve(&first, &opts),
-        resolver.resolve(&second, &opts),
-        resolver.resolve(&first, &opts),
-    );
+    let first = resolver.resolve(&foo, &opts);
+    let second = resolver.resolve(&bar, &opts);
+    let third = resolver.resolve(&foo, &opts);
+    let (first, second, third) = tokio::join!(first, second, third);
     let (first, second, third) = (
         first.unwrap().expect("claimed"),
         second.unwrap().expect("claimed"),
