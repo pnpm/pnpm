@@ -3,9 +3,6 @@ use crate::rustup_settings::rustup_default_host_triple;
 /// The target triple of the toolchain that runs on this machine, as the
 /// Rust release manifests name it. `None` where Rust publishes no host
 /// toolchain pnpm installs.
-///
-/// On Windows this is rustup's default host, or else pnpm's architecture
-/// with the ABI pnpm was built for.
 pub(crate) fn host_triple() -> Option<String> {
     #[cfg(not(target_family = "wasm"))]
     let (architecture, os) = (std::env::consts::ARCH, std::env::consts::OS);
@@ -32,20 +29,24 @@ pub(crate) fn host_triple() -> Option<String> {
             "x86_64" | "aarch64" => format!("{architecture}-apple-darwin"),
             _ => return None,
         },
-        "windows" | "win32" => {
-            if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
-                return Some(triple);
-            }
-            let architecture = match architecture {
-                "x86_64" | "aarch64" => architecture,
-                "x86" => "i686",
-                _ => return None,
-            };
-            let abi = built_windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
-            format!("{architecture}-pc-windows-{abi}")
-        }
+        "windows" | "win32" => return windows_host_triple(architecture),
         _ => return None,
     })
+}
+
+/// rustup's default host, or else pnpm's architecture with the ABI pnpm
+/// was built for.
+fn windows_host_triple(architecture: &str) -> Option<String> {
+    if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
+        return Some(triple);
+    }
+    let architecture = match architecture {
+        "x86_64" | "aarch64" => architecture,
+        "x86" => "i686",
+        _ => return None,
+    };
+    let abi = built_windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
+    Some(format!("{architecture}-pc-windows-{abi}"))
 }
 
 /// The host triple rustup installs toolchains for, when it is a Windows
