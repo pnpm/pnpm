@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -27,7 +28,7 @@ export async function unlinkStaleDirectLinks (
     const staleAliases = Object.entries(mergeDependencies(currentLockfile.importers[id]))
       .filter(([alias, ref]) => wantedDeps[alias] !== ref)
       .map(([alias]) => alias)
-    await Promise.all(staleAliases.map(async (alias) => unlinkDirectLink(safeJoinModulesDir(modulesDir, alias), binsDir)))
+    await Promise.all(staleAliases.map(async (alias) => unlinkDirectLink(modulesDir, alias, binsDir)))
   }))
 }
 
@@ -35,7 +36,10 @@ function mergeDependencies (snapshot: ProjectSnapshot | undefined): Record<strin
   return Object.assign({}, ...DEPENDENCIES_FIELDS.map((depType) => snapshot?.[depType]))
 }
 
-async function unlinkDirectLink (link: string, binsDir: string): Promise<void> {
+async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: string): Promise<void> {
+  const link = safeJoinModulesDir(modulesDir, alias)
+  // A symlinked `@scope` directory would redirect the unlink outside the modules directory.
+  if (alias.startsWith('@') && !await isRealDir(path.dirname(link))) return
   if (!await isSymlink(link)) return
   // Unlinking through a symlinked `.bin` would delete files outside the project.
   if (await isRealDir(binsDir)) {

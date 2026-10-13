@@ -8,6 +8,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
+import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from './../utils/index.js'
 
@@ -132,4 +133,33 @@ test('uninstall a linked dependency', async () => {
   expect(manifest.dependencies).toStrictEqual({})
   expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
   expect(fs.existsSync(path.join(localPkgDir, 'package.json'))).toBe(true)
+})
+
+test('uninstall a linked dependency does not unlink through a symlinked scope directory', async () => {
+  prepareEmpty()
+  const localPkgDir = path.resolve('..', 'local-pkg')
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({ name: '@local/pkg', version: '1.0.0' }))
+
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['link:../local-pkg'],
+    testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+
+  const externalScopeDir = path.resolve('..', 'external-scope')
+  fs.mkdirSync(externalScopeDir)
+  await symlinkDir(localPkgDir, path.join(externalScopeDir, 'pkg'))
+  fs.rmSync('node_modules/@local', { recursive: true })
+  await symlinkDir(externalScopeDir, 'node_modules/@local')
+
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['@local/pkg'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ nodeLinker: 'hoisted', save: true }))).updatedProject.manifest
+
+  expect(manifest.dependencies).toStrictEqual({})
+  expect(fs.lstatSync(path.join(externalScopeDir, 'pkg')).isSymbolicLink()).toBe(true)
 })
