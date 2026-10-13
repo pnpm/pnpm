@@ -946,6 +946,59 @@ fn optional_peer_also_in_deps_is_installed_without_auto_install_peers() {
     assert_optional_peer_also_in_deps_is_installed(false);
 }
 
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` is reached through
+/// `…-grandparent > …-parent`, where `@pnpm.e2e/bravo-dep` is not in scope,
+/// and `…-parent` is also an optional peer of another dependency, together
+/// with `@pnpm.e2e/bravo-dep`. Every snapshot must reach `@pnpm.e2e/bravo-dep`,
+/// as a dependency or as a resolved peer.
+/// Covers <https://github.com/pnpm/pnpm/issues/16901>.
+#[test]
+fn optional_peer_also_in_deps_is_kept_when_its_parent_is_also_an_optional_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
+            "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let snapshots: Vec<_> = lockfile.snapshots
+        .iter()
+        .flatten()
+        .filter(|(key, _)| key.to_string().starts_with("@pnpm.e2e/has-optional-peer-also-in-deps@"))
+        .collect();
+    dbg!(&snapshots);
+    assert!(!snapshots.is_empty());
+    for (_, snapshot) in snapshots {
+        let reaches_bravo_dep = [&snapshot.dependencies, &snapshot.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .any(|deps| {
+                deps.keys()
+                    .any(|alias| alias.to_string() == "@pnpm.e2e/bravo-dep")
+            });
+        assert!(reaches_bravo_dep);
+    }
+
+    drop((root, mock_instance));
+}
+
 /// Older pnpm versions resolved the optional peer of
 /// `@pnpm.e2e/has-optional-peer-range-also-in-deps` to its parent's
 /// `npm:` alias of `@pnpm.e2e/foo@1.2.0`. Changing overrides re-resolves

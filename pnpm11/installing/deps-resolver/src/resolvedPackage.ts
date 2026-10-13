@@ -172,7 +172,7 @@ export function detectRegistryRevisionConflict (
   )
 }
 
-function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
+export function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
     pkg.name,
