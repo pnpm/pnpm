@@ -11,6 +11,7 @@ use super::{
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
+use tracing::Instrument as _;
 
 impl<'a> RunExecution<'a> {
     fn select_scope(&self) -> InstallScope<'a> {
@@ -29,8 +30,16 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let mut scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        scope.project_scripts_current = match self.repeat_install_verdict(&scope).await? {
+        let verdict = self
+            .repeat_install_verdict(&scope)
+            .instrument(tracing::debug_span!(target: "pacquet::install", "check_repeat_install"))
+            .await?;
+        scope.project_scripts_current = match verdict {
             RepeatInstallVerdict::Unchanged => {
+                tracing::debug!(
+                    target: "pacquet::install",
+                    "repeat-install fast path taken; nothing changed since the previous install",
+                );
                 return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
             }
             RepeatInstallVerdict::UnchangedFrozen => true,

@@ -6,6 +6,7 @@ use super::{
     project_names, select_install_family,
 };
 use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
+use tracing::Instrument as _;
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the
@@ -35,6 +36,7 @@ impl InstallPipeline {
             root_config,
             (self.frozen_lockfile, RuntimePolicy::Config(self.args.materialization.no_runtime)),
         )
+        .instrument(tracing::debug_span!(target: "pacquet::install", "prepare_config"))
         .await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
@@ -52,14 +54,19 @@ impl InstallPipeline {
         {
             lockfile.prefetch();
         }
-        let family = select_install_family::<Reporter>(
-            self.cfg,
-            &self.prefix,
-            &self.manifest_path,
-            self.recursive_sort,
-            false,
-            certain_full_install,
-        )?;
+        let family = {
+            let _span =
+                tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects")
+                    .entered();
+            select_install_family::<Reporter>(
+                self.cfg,
+                &self.prefix,
+                &self.manifest_path,
+                self.recursive_sort,
+                false,
+                certain_full_install,
+            )?
+        };
         let installs_node = match &family.plan {
             InstallFamilyPlan::PerProject(projects) => !projects.is_empty(),
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
@@ -82,8 +89,11 @@ impl InstallPipeline {
         family: InstallFamily,
         lockfile: Option<pnpm_lockfile::LazyLockfile>,
     ) -> miette::Result<&'static Config> {
-        let http_client =
-            State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
+        let http_client = {
+            let _span =
+                tracing::debug_span!(target: "pacquet::install", "build_http_client").entered();
+            State::new_http_client(self.cfg).wrap_err("initialize the install network")?
+        };
         if !ecosystem_install::is_enabled(self.cfg) {
             run_node_install::<Reporter>(
                 family.plan,

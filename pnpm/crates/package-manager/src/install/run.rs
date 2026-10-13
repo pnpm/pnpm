@@ -71,12 +71,15 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let store_lock = if self.context.config.frozen_store {
-            self.context.config.store_dir.lock_for_frozen_use()
-        } else {
-            self.context.config.store_dir.lock_for_use()
-        }
-        .map_err(InstallError::StoreLock)?;
+        let store_lock = {
+            let _span = tracing::debug_span!(target: "pacquet::install", "lock_store").entered();
+            if self.context.config.frozen_store {
+                self.context.config.store_dir.lock_for_frozen_use()
+            } else {
+                self.context.config.store_dir.lock_for_use()
+            }
+            .map_err(InstallError::StoreLock)?
+        };
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
