@@ -54,19 +54,7 @@ impl InstallPipeline {
         {
             lockfile.prefetch();
         }
-        let family = {
-            let _span =
-                tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects")
-                    .entered();
-            select_install_family::<Reporter>(
-                self.cfg,
-                &self.prefix,
-                &self.manifest_path,
-                self.recursive_sort,
-                false,
-                certain_full_install,
-            )?
-        };
+        let family = self.select_install_family::<Reporter>(certain_full_install)?;
         let installs_node = match &family.plan {
             InstallFamilyPlan::PerProject(projects) => !projects.is_empty(),
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
@@ -82,6 +70,24 @@ impl InstallPipeline {
         }
 
         self.run_prepared::<Reporter>(family, lockfile).await
+    }
+
+    /// [`select_install_family`] inside the `discover_workspace_projects`
+    /// span.
+    fn select_install_family<Reporter: self::Reporter>(
+        &self,
+        certain_full_install: bool,
+    ) -> miette::Result<InstallFamily> {
+        let _span = tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects")
+            .entered();
+        select_install_family::<Reporter>(
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
+            false,
+            certain_full_install,
+        )
     }
 
     async fn run_prepared<Reporter: self::Reporter + 'static>(
