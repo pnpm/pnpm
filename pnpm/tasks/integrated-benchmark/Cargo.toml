@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 pnpm-fs = { workspace = true }
+pnpm-lockfile = { workspace = true }
 pnpm-registry-mock = { workspace = true }
 
 clap = { workspace = true }
@@ -28,6 +29,9 @@ serde_json = { workspace = true }
 serde-saphyr = { workspace = true }
 tokio = { workspace = true }
 which = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }

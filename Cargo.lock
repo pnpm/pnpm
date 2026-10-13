@@ -5432,11 +5432,13 @@ dependencies = [
  "os_display",
  "pipe-trait",
  "pnpm-fs",
+ "pnpm-lockfile",
  "pnpm-registry-mock",
  "reqwest",
  "serde",
  "serde-saphyr",
  "serde_json",
+ "tempfile",
  "tokio",
  "which 8.0.4",
 ]
