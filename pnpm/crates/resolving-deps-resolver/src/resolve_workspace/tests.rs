@@ -756,7 +756,8 @@ fn table_entry(name: &str, manifest: serde_json::Value) -> ((String, String), Re
 /// barrier lifts.
 struct WarmupProbeResolver {
     table: HashMap<(String, String), ResolveResult>,
-    calls: Mutex<Vec<(String, String)>>,
+    /// `(alias, range, project dir)` of every call, in order.
+    calls: Mutex<Vec<(String, String, std::path::PathBuf)>>,
     /// `(held, release)`: resolving `held` completes only once `release`
     /// has been requested.
     gate: Option<(String, String)>,
@@ -778,8 +779,19 @@ impl WarmupProbeResolver {
             .lock()
             .unwrap()
             .iter()
-            .filter(|(a, r)| a == alias && r == range)
+            .filter(|(a, r, _)| a == alias && r == range)
             .count()
+    }
+
+    /// The project directories of the calls for `alias@range`, in order.
+    fn callers_of(&self, alias: &str, range: &str) -> Vec<std::path::PathBuf> {
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(a, r, _)| a == alias && r == range)
+            .map(|(_, _, dir)| dir.clone())
+            .collect()
     }
 }
 
@@ -787,14 +799,14 @@ impl Resolver for WarmupProbeResolver {
     fn resolve<'a>(
         &'a self,
         wanted: &'a WantedDependency,
-        _opts: &'a ResolveOptions,
+        opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         self.calls
             .lock()
             .unwrap()
-            .push((alias.clone(), range.clone()));
+            .push((alias.clone(), range.clone(), opts.project.project_dir.clone()));
         let result = self.table
             .get(&(alias.clone(), range))
             .cloned();
