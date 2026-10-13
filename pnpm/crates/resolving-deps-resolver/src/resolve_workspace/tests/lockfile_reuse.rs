@@ -683,6 +683,14 @@ async fn warm_up_of_a_cycle_with_reused_children_terminates() {
         .await
         .expect("the warm-up does not go round the cycle forever");
 
-    assert!(resolver.calls_for("a", "^1.0.0") <= 2, "`a` is warmed at most once per importer");
-    assert!(resolver.calls_for("b", "^1.0.0") <= 2, "`b` is warmed at most once per importer");
+    // `(^1.0.0 calls, 1.0.0 calls)`: the ranges come from manifests, the
+    // exact versions from the lockfile the walk follows. Each cycle member
+    // is warmed once (`a` from the root, `b` from `a`) and resolved by the
+    // walk; the side children are never asked for.
+    let calls =
+        |alias: &str| (resolver.calls_for(alias, "^1.0.0"), resolver.calls_for(alias, "1.0.0"));
+    assert_eq!(
+        [calls("a"), calls("b"), calls("side-a"), calls("side-b"), calls("fresh")],
+        [(2, 1), (1, 1), (0, 0), (0, 0), (1, 2)],
+    );
 }
