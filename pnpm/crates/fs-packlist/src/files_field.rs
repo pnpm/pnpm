@@ -6,8 +6,11 @@ use serde_json::Value;
 use std::{collections::BTreeSet, path::Path};
 
 /// Compile the `manifest.files` allowlist into a `Gitignore` matcher
-/// rooted at `pkg_dir`. Returns `None` when no entries compile,
-/// treating the field as absent.
+/// rooted at `pkg_dir`.
+///
+/// An empty `entries` slice is an empty allowlist and matches nothing.
+/// Returns `None` when every entry is unusable, which callers treat as
+/// an absent `files` field.
 pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut builder = ignore::gitignore::GitignoreBuilder::new(pkg_dir);
     let mut added = 0;
@@ -29,7 +32,9 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignor
         }
         added += 1;
     }
-    if added == 0 {
+    // `[]` is an empty allowlist. A non-empty list that compiles nothing
+    // is still an absent field.
+    if added == 0 && !entries.is_empty() {
         return None;
     }
     match builder.build() {

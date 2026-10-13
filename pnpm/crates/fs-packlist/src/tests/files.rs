@@ -16,6 +16,34 @@ fn includes_everything_when_files_field_absent() {
 }
 
 #[test]
+fn empty_files_field_packs_only_always_included_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "README.md");
+    touch(root, "LICENSE");
+    touch(root, "index.js");
+    touch(root, ".env");
+    touch(root, "AGENTS.md");
+    touch(root, "src/extra.js");
+
+    let manifest = json!({
+        "name": "a",
+        "version": "1.0.0",
+        "files": [],
+        "main": "index.js",
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["LICENSE".to_string(), "README.md".into(), "index.js".into(), "package.json".into()],
+        "an empty `files` array is an allowlist, so only always-included files ship",
+    );
+}
+
+#[test]
 fn excludes_cruft_files_at_any_depth() {
     let dir = tempdir().unwrap();
     let root = dir.path();
