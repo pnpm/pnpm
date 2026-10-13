@@ -48,8 +48,7 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, SilentReporter};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter};
 use pnpm_tarball::{
-    IngestTarballToStore, MemCache, PrefetchResult, RetryOpts, SharedReportedProgressKeys,
-    TarballError,
+    IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
 };
 use ssri::Integrity;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
@@ -341,14 +340,14 @@ impl TarballPrefetcher {
     /// run whose resolver already prefetched what it resolved: the packages
     /// it reused from the lockfile never went through the prefetch. Only the
     /// downloads report progress; the rest was reported by the resolution.
-    /// `verified` holds the rows a verification that ran alongside the
-    /// resolution found in place, which are not read again.
+    /// `verified` holds the keys of the rows a verification that ran
+    /// alongside the resolution found in place, which are not read again.
     pub async fn fetch_missing<Reporter: self::Reporter + 'static>(
         &self,
         lockfile: &Lockfile,
         config: &Config,
         supported_architectures: Option<&SupportedArchitectures>,
-        verified: Option<&PrefetchResult>,
+        verified: Option<&crate::store_verification::VerifiedStoreKeys>,
     ) -> Result<(), StoreFetchError> {
         let entries = fetchable_entries(lockfile, config, supported_architectures)
             .map_err(StoreFetchError::Entry)?;

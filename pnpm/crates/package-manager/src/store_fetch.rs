@@ -73,7 +73,7 @@ pub(crate) async fn fetch_lockfile_into_store<Reporter: self::Reporter + 'static
                 inputs.lockfile,
                 inputs.config,
                 inputs.supported_architectures,
-                inputs.verified.as_ref().map(|verified| &*verified.rows),
+                inputs.verified.as_ref().map(|verified| &*verified.keys),
             )
             .await
         }

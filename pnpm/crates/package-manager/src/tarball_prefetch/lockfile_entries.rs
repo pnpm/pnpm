@@ -94,13 +94,13 @@ pub(super) async fn without_verified_store_hits(
 /// ran alongside the resolution found the package in the store with its
 /// files in place.
 pub(super) fn without_verified_rows(
-    verified: Option<&pnpm_tarball::PrefetchResult>,
+    verified: Option<&crate::store_verification::VerifiedStoreKeys>,
     pending: Vec<PendingPrefetch>,
 ) -> Vec<PendingPrefetch> {
     let Some(verified) = verified else { return pending };
     pending
         .into_iter()
-        .filter(|entry| !verified.cas_paths.contains_key(&entry.store_key))
+        .filter(|entry| !verified.contains(&entry.store_key))
         .collect()
 }
 

@@ -246,8 +246,7 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
 fn without_verified_rows_drops_the_entries_the_verification_holds() {
     let verified_entry = pending("@foo/verified@1.0.0", "sha512-aGVsbG8=");
     let other = pending("@foo/other@1.0.0", "sha512-d29ybGQ=");
-    let mut verified = pnpm_tarball::PrefetchResult::default();
-    verified.cas_paths.insert(verified_entry.store_key.clone(), Arc::new(HashMap::new()));
+    let verified = std::collections::HashSet::from([verified_entry.store_key.clone()]);
 
     let kept = without_verified_rows(Some(&verified), vec![verified_entry, other]);
     assert_eq!(kept.len(), 1);
