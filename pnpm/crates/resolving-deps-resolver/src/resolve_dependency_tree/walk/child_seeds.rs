@@ -110,22 +110,32 @@ pub(super) struct ChildSeedScope<'s> {
 
 impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
+        let landed_prior = pending.prior_key
+            .as_ref()
+            .filter(|key| landed_on_prior_entry(key, &pending.identity.id));
+        Self::for_result(ctx, &pending.result, landed_prior)
+    }
+
+    /// The scope of the children of `result`, a node that landed on the
+    /// lockfile entry `landed_prior` when it has one.
+    pub(super) fn for_result(
+        ctx: &'s TreeCtx,
+        result: &pnpm_resolving_resolver_base::ResolveResult,
+        landed_prior: Option<&PkgNameVerPeer>,
+    ) -> Self {
         Self {
-            prior_children_snapshot: pending.prior_key
-                .as_ref()
-                .filter(|key| landed_on_prior_entry(key, &pending.identity.id))
-                .and_then(|key| {
-                    ctx.workspace.reuse.lockfile
-                        .as_ref()?
-                        .snapshots
-                        .as_ref()?
-                        .get(key)
-                }),
+            prior_children_snapshot: landed_prior.and_then(|key| {
+                ctx.workspace.reuse.lockfile
+                    .as_ref()?
+                    .snapshots
+                    .as_ref()?
+                    .get(key)
+            }),
             direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
                 .get(&ctx.importer.id)
                 .map(Arc::clone),
-            declaring_dir: declaring_manifest_dir(ctx, &pending.result),
-            parent_is_workspace: pending.result.resolved_via == "workspace",
+            declaring_dir: declaring_manifest_dir(ctx, result),
+            parent_is_workspace: result.resolved_via == "workspace",
         }
     }
 }

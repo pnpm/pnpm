@@ -1,4 +1,4 @@
-use super::{BENCHMARK_OUTPUT_LOG, BenchId, PREWARM_SCRIPT};
+use super::{BENCHMARK_OUTPUT_LOG, BenchId, PREWARM_SCRIPT, unlocked_deps::unlock_direct_deps};
 use crate::{
     cli_args::{BenchmarkScenario, Cleanup},
     fixtures::LOCKFILE,
@@ -190,6 +190,8 @@ pub(super) fn may_create_lockfile(
             .pipe(Cow::Owned)
     };
     if let Some(lockfile) = scenario.lockfile(load_lockfile) {
+        let lockfile =
+            if scenario.unlocks_direct_deps() { unlock_direct_deps(&lockfile) } else { lockfile };
         // Land the seeded lockfile in a strictly later millisecond than
         // the just-written `package.json`. The kernel's file-timestamp
         // clock ticks coarsely (~1 ms), so back-to-back writes can share

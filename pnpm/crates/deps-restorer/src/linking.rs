@@ -76,9 +76,7 @@ impl From<HoistedLinkerError> for LinkPhaseError {
                 LinkPhaseError::SymlinkDirectDependencies(error)
             }
             HoistedLinkerError::WritePackageMap(error) => LinkPhaseError::WritePackageMap(error),
-            HoistedLinkerError::PruneWorkspaceHoists(error) => {
-                LinkPhaseError::PruneStaleModules(error)
-            }
+            HoistedLinkerError::PruneStaleLinks(error) => LinkPhaseError::PruneStaleModules(error),
             HoistedLinkerError::HoistSymlink(error) => LinkPhaseError::HoistSymlink(error),
             HoistedLinkerError::HoistLinkBins(error) => LinkPhaseError::HoistLinkBins(error),
         }

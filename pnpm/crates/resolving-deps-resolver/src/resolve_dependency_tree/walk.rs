@@ -27,8 +27,9 @@ use workspace_resolution::resolve_wanted_cached;
 
 mod child_seeds;
 use child_seeds::{
-    catalogs_for_children, overlay_lookup_names, resolve_catalog_child_specs,
-    resolves_children_through_catalogs, seed_node_children,
+    ChildSeedScope, catalogs_for_children, child_wanted, landed_on_prior_entry,
+    overlay_lookup_names, resolve_catalog_child_specs, resolves_children_through_catalogs,
+    seed_node_children,
 };
 
 mod level_walk;
@@ -94,8 +95,8 @@ use super::{
     update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{
         ChildrenOwnerClaim, ChildrenRecording, PackageRegistration, RecordedChildrenContext,
-        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
-        claim_children_warmup, insert_tree_node, is_current_children_owner,
+        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, children_warmup_claimed,
+        claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, recorded_children_match,
         register_peer_dep_names,
     },

@@ -25,8 +25,8 @@
 mod metadata;
 mod response;
 use metadata::{
-    CachedDocument, metadata_from_wheel, metadata_url, parse_metadata, parse_page,
-    project_page_url, text, verify_digest,
+    CachedDocument, metadata_from_wheel, parse_metadata, parse_page, project_page_url, text,
+    verify_digest,
 };
 
 use std::{
@@ -44,7 +44,7 @@ use axum::{http::StatusCode, response::Response};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pnpm_python_resolver::{
     IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    parse_requirement, validate_url,
+    metadata_url, parse_requirement, validate_url,
 };
 use pnpr_route::{Footprint, url_has_inline_credentials};
 

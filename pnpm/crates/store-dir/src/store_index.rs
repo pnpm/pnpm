@@ -513,6 +513,8 @@ mod files;
 
 mod format;
 
+mod shared;
+
 #[cfg(target_os = "wasi")]
 mod wasi_lease;
 

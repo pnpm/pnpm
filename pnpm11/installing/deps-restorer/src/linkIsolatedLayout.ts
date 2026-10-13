@@ -2,7 +2,6 @@ import { promises as fs } from 'node:fs'
 
 import { stageLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
-import { isError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
@@ -15,6 +14,7 @@ import { linkAllBins } from './linkAllBins.js'
 import { linkAllModules } from './linkAllModules.js'
 import { linkAllPkgs } from './linkAllPkgs.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
+import { unlinkIfSymlink } from './unlinkIfSymlink.js'
 import { getHoistedWorkspacePackages, workspaceHoistPointsToProject } from './workspaceHoists.js'
 
 export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<LinkedDependencies> {
@@ -122,21 +122,6 @@ async function unlinkFetchFailedChildren (depNodes: HeadlessDepGraph['depNodes']
       .filter(([alias, childDir]) => alias !== depNode.name && fetchFailedDirs.has(childDir))
       .map(async ([alias]) => limitModulesDirReads(async () => unlinkIfSymlink(safeJoinModulesDir(depNode.modules, alias))))
   ))
-}
-
-async function unlinkIfSymlink (link: string): Promise<void> {
-  const stats = await fs.lstat(link).catch((err: unknown) => {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
-    throw err
-  })
-  if (!stats?.isSymbolicLink()) return
-  // A non-recursive unlink: an entry that stopped being a link since the
-  // check is a directory, which unlink refuses to remove.
-  try {
-    await fs.unlink(link)
-  } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-  }
 }
 
 function shouldHoistDependencies ({ opts, skipPostImportLinking }: HeadlessContext): boolean {

@@ -240,9 +240,7 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
     dedupe_against_root: Option<&HashMap<&PkgName, &ImporterDepVersion>>,
 ) -> Result<(), PruneDirectDepsError> {
     for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
-        let still_wanted = wanted_specs
-            .iter()
-            .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
+        let still_wanted = is_still_wanted(alias, current_spec, wanted_specs);
         let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
             root_deps
                 .get(alias)
@@ -265,6 +263,53 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
         }));
     }
     Ok(())
+}
+
+/// The hoisted linker's share of [`PruneStaleModules`]: unlink every
+/// direct-dependency link whose alias the wanted lockfile no longer
+/// records at the same version. Its orphan diff only covers the package
+/// directories it imported, so the `link:` and workspace links it wrote
+/// beside them would otherwise outlive their removal from the manifest.
+/// The link pass reports these removals, so nothing is emitted here.
+pub(crate) fn prune_stale_hoisted_direct_links(
+    workspace_root: &Path,
+    modules_dir_name: &OsStr,
+    wanted_lockfile: &Lockfile,
+    current_lockfile: &Lockfile,
+    included_groups: &[DependencyGroup],
+) -> Result<(), PruneDirectDepsError> {
+    for (importer_id, current_snapshot) in &current_lockfile.importers {
+        let Some(wanted_snapshot) = wanted_lockfile.importers.get(importer_id) else {
+            continue;
+        };
+        if validate_importer_id(importer_id).is_err() {
+            continue;
+        }
+        let importer_dir = importer_root_dir(workspace_root, importer_id);
+        let Some(modules_dir) =
+            confined_modules_dir(&importer_dir.join(modules_dir_name), workspace_root)
+        else {
+            continue;
+        };
+        let wanted_specs = direct_deps_of(wanted_snapshot, included_groups);
+        for (alias, current_spec, _) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
+            if is_still_wanted(alias, current_spec, &wanted_specs) {
+                continue;
+            }
+            remove_direct_dep_link(&modules_dir, &alias.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn is_still_wanted(
+    alias: &PkgName,
+    current_spec: &ResolvedDependencySpec,
+    wanted_specs: &[(&PkgName, &ResolvedDependencySpec, DependencyGroup)],
+) -> bool {
+    wanted_specs
+        .iter()
+        .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version)
 }
 
 /// Diff the snapshot key sets, unlink the hoisted aliases the orphans

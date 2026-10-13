@@ -165,15 +165,7 @@ fn cached_row(
 /// hint anyway — failing over to a fresh download is the more resilient
 /// default than turning every subsequent snapshot into a crash.
 fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<PackageFilesIndex> {
-    let Ok(guard) = index.lock() else {
-        tracing::debug!(
-            target: "pacquet::download",
-            ?cache_key,
-            "store-index mutex poisoned; treating cache lookup as a miss",
-        );
-        return None;
-    };
-    guard.get(cache_key).ok().flatten()
+    pnpm_store_dir::StoreIndex::get_shared(index, cache_key).ok().flatten()
 }
 
 /// Reuse a pre-projection-key runtime row only when its synthesized

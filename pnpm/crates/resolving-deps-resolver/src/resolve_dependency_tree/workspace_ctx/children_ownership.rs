@@ -168,6 +168,12 @@ pub(in super::super) fn claim_children_owner(
     ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
 }
 
+/// Whether a warm-up already took this package's children. See
+/// [`claim_children_warmup`].
+pub(in super::super) fn children_warmup_claimed(ctx: &TreeCtx, pkg_id: &str) -> bool {
+    lock_recoverable(&ctx.workspace.children.warmed_by_id).contains(pkg_id)
+}
+
 /// Whether this occurrence is the first to offer to warm its package's
 /// children, so the speculative resolutions run once per package
 /// rather than once per occurrence of it.
