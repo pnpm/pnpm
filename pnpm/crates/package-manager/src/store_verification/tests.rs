@@ -92,7 +92,7 @@ async fn every_batch_is_verified() {
     assert!(
         present
             .iter()
-            .all(|key| verified.keys.contains(key))
+            .all(|key| verified.keys.contains(key)),
     );
 }
 
@@ -151,6 +151,6 @@ async fn a_second_start_stops_the_first() {
             .expect("the second finishes")
             .keys
             .len(),
-        2
+        2,
     );
 }
