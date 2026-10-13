@@ -858,3 +858,52 @@ fn removing_a_linked_dependency_unlinks_it_under_the_hoisted_linker() {
 
     drop((root, mock_instance));
 }
+
+/// A symlinked `@scope` directory would redirect the stale-link cleanup
+/// outside the modules directory, so the cleanup leaves it alone.
+#[test]
+fn removing_a_linked_dependency_does_not_unlink_through_a_symlinked_scope() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "@local/pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(&workspace, serde_json::json!({ "@local/pkg": "link:./local-pkg" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let external_scope = workspace.join("external-scope");
+    fs::create_dir_all(&external_scope).expect("create the external scope dir");
+    let external_link = external_scope.join("pkg");
+    symlink_dir(&local, &external_link).expect("link the external package");
+    let scope_dir = workspace.join("node_modules/@local");
+    fs_remove_dir_all(&scope_dir);
+    symlink_dir(&external_scope, &scope_dir).expect("link the scope dir outside node_modules");
+
+    pacquet_in(&workspace)
+        .with_args(["remove", "@local/pkg"])
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&external_link).expect("stat the external link"),
+        "the cleanup should not unlink through a symlinked scope dir",
+    );
+
+    drop((root, mock_instance));
+}
