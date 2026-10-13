@@ -85,22 +85,34 @@ impl Walker<'_> {
             .to_string_lossy()
             .into_owned();
         let included = rules.included(&name);
-        let Included { as_file, as_dir } = included;
-        let named = if as_file && as_dir { Named::No } else { self.named(rules, &name) };
-        if !as_file && !as_dir && named == Named::No {
+        let kept = self.kept(rules, &name, included);
+        if !kept.as_file && !kept.as_dir {
             return Ok(());
         }
         let file_type = entry.file_type()?;
         if !file_type.is_dir() {
-            if as_file || named == Named::File {
+            if kept.as_file {
                 (self.on_file)(&entry.path(), file_type);
             }
             return Ok(());
         }
-        if (as_dir || named == Named::Ancestor) && !is_pruned(&name, depth) {
+        if kept.as_dir && !is_pruned(&name, depth) {
             self.walk_child_dir(&entry.path(), rules, name, included, depth)?;
         }
         Ok(())
+    }
+
+    /// What the walk keeps of the entry `name` of the directory `dir`: what
+    /// its rules include, plus a named file and the directories leading to one.
+    fn kept(&self, dir: &DirRules<'_>, name: &str, included: Included) -> Included {
+        if included.as_file && included.as_dir {
+            return included;
+        }
+        let named = self.named(dir, name);
+        Included {
+            as_file: included.as_file || named == Named::File,
+            as_dir: included.as_dir || named == Named::Ancestor,
+        }
     }
 
     /// How `named_files` refers to the entry `name` of the directory `dir`.
