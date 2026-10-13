@@ -9,7 +9,10 @@
 //!
 //! The whole check is best-effort: an unreadable state file, an
 //! unreachable registry, or an unwritable state directory leaves the
-//! command's own outcome untouched.
+//! command's own outcome untouched. Nor does the check hold the command
+//! up: one still waiting on the registry when the command is done is
+//! dropped, unrecorded, and the next command asks again
+//! ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
 //!
 //! An `install` that finishes through the repeat-install fast path never
 //! reaches this module — that path deliberately returns before the async
@@ -56,28 +59,26 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
         return None;
     }
     let config = config.clone();
-    Some(tokio::spawn(async move {
-        check(&config, &state_file, state, emit).await;
-    }))
+    Some(tokio::spawn(async move { check(&config, &state_file, state, emit).await }))
 }
 
 /// Dispose of the check [`spawn`] started, now that the command it ran
-/// alongside has an outcome.
+/// alongside is done.
 ///
-/// A command that succeeded waits, so the notice reaches the terminal
-/// before the process exits. A command that failed drops the check
-/// instead: the error is what the user needs to read, and nothing was
-/// recorded, so the next command checks again.
-pub(crate) async fn settle<Output: Sync>(
-    pending: PendingUpdateCheck,
-    outcome: &miette::Result<Output>,
-) {
+/// The command does not wait for it. A check the registry has answered
+/// has already printed its notice and recorded itself; one still waiting
+/// is aborted and records nothing, so the next command asks again. The
+/// registry client's timeouts, a minute each, would otherwise be the
+/// duration of an install that had nothing else to do.
+pub(crate) fn settle(pending: PendingUpdateCheck) {
     let Some(handle) = pending else { return };
-    if outcome.is_ok() {
-        let _ = handle.await;
-    } else {
-        handle.abort();
+    if !handle.is_finished() {
+        tracing::debug!(
+            target: "pacquet::install",
+            "the update check has not heard back from the registry; the command does not wait for it",
+        );
     }
+    handle.abort();
 }
 
 async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, emit: fn(&LogEvent)) {

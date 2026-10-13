@@ -1,7 +1,67 @@
-use super::{checked_recently, read_state, to_utc_string, write_state};
+use super::{checked_recently, read_state, settle, to_utc_string, write_state};
 use chrono::{TimeZone, Utc};
 use serde_json::{Map, Value, json};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use tempfile::tempdir;
+
+/// Flips a flag when dropped, so a test can tell an aborted task (its
+/// future is dropped) from one merely detached.
+struct FlagOnDrop(Arc<AtomicBool>);
+
+impl Drop for FlagOnDrop {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+/// Cancellation lands when the runtime next polls the task.
+async fn wait_for_abort(aborted: &AtomicBool) -> bool {
+    for _ in 0..100 {
+        if aborted.load(Ordering::SeqCst) {
+            return true;
+        }
+        tokio::task::yield_now().await;
+    }
+    aborted.load(Ordering::SeqCst)
+}
+
+/// A check still waiting on the registry when the command is done is
+/// aborted rather than waited for or left behind. It records nothing, so
+/// the next command asks again.
+#[tokio::test]
+async fn a_check_still_running_is_dropped_when_the_command_is_done() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let flag = FlagOnDrop(Arc::clone(&aborted));
+    let handle = tokio::spawn(async move {
+        let _flag = flag;
+        std::future::pending::<()>().await;
+    });
+
+    settle(Some(handle));
+
+    assert!(wait_for_abort(&aborted).await, "the unanswered check must be aborted");
+}
+
+/// A check the registry answered before the command finished has already
+/// done its work; settling it changes nothing.
+#[tokio::test]
+async fn a_check_that_already_finished_is_left_alone() {
+    let finished = Arc::new(AtomicBool::new(false));
+    let handle = tokio::spawn({
+        let finished = Arc::clone(&finished);
+        async move { finished.store(true, Ordering::SeqCst) }
+    });
+    while !handle.is_finished() {
+        tokio::task::yield_now().await;
+    }
+
+    settle(Some(handle));
+
+    assert!(finished.load(Ordering::SeqCst), "the check ran to completion on its own");
+}
 
 fn state_with_last_check(value: &Value) -> Map<String, Value> {
     let Value::Object(fields) = json!({ "lastUpdateCheck": value }) else {

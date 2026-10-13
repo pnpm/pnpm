@@ -364,11 +364,12 @@ fn allow_build_flag_parses_single_and_multiple() {
 fn allow_build_disqualifies_fast_path() {
     let config = pnpm_config::Config::default();
     let mut args = InstallArgs::default();
-    assert!(args.fast_path_is_eligible(&config), "default args eligible for fast path");
+    assert_eq!(args.fast_path_ineligibility(&config), None, "default args eligible for fast path");
 
     args.materialization.allow_build.push("esbuild".to_string());
-    assert!(
-        !args.fast_path_is_eligible(&config),
+    assert_eq!(
+        args.fast_path_ineligibility(&config),
+        Some("--allow-build"),
         "--allow-build must disqualify fast path so build policy applies",
     );
 }

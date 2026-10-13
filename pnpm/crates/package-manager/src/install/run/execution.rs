@@ -11,6 +11,7 @@ use super::{
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
+use tracing::Instrument as _;
 
 impl<'a> RunExecution<'a> {
     fn select_scope(&self) -> InstallScope<'a> {
@@ -23,13 +24,32 @@ impl<'a> RunExecution<'a> {
         )
     }
 
+    /// [`Self::repeat_install_verdict`] inside the `check_repeat_install`
+    /// span, saying so when the install short-circuits.
+    async fn traced_repeat_install_verdict(
+        &mut self,
+        scope: &InstallScope<'_>,
+    ) -> Result<RepeatInstallVerdict, InstallError> {
+        let verdict = self
+            .repeat_install_verdict(scope)
+            .instrument(tracing::debug_span!(target: "pacquet::install", "check_repeat_install"))
+            .await?;
+        if matches!(verdict, RepeatInstallVerdict::Unchanged) {
+            tracing::debug!(
+                target: "pacquet::install",
+                "repeat-install fast path taken; nothing changed since the previous install",
+            );
+        }
+        Ok(verdict)
+    }
+
     pub(super) async fn run<Reporter: self::Reporter + 'static>(
         mut self,
         time_machine_exclusions: &mut super::super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
         let mut scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        scope.project_scripts_current = match self.repeat_install_verdict(&scope).await? {
+        scope.project_scripts_current = match self.traced_repeat_install_verdict(&scope).await? {
             RepeatInstallVerdict::Unchanged => {
                 return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
             }
