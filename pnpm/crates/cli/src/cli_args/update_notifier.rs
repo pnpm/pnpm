@@ -9,7 +9,9 @@
 //!
 //! The whole check is best-effort: an unreadable state file, an
 //! unreachable registry, or an unwritable state directory leaves the
-//! command's own outcome untouched.
+//! command's own outcome untouched. Nor does the check hold the command
+//! up: one still waiting on the registry when the command is done gets
+//! [`UPDATE_CHECK_GRACE_PERIOD`] and is then abandoned.
 //!
 //! An `install` that finishes through the repeat-install fast path never
 //! reaches this module — that path deliberately returns before the async
@@ -24,11 +26,21 @@ use pnpm_registry::Package;
 use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use serde_json::{Map, Value};
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, time::Duration};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.
 const UPDATE_CHECK_FREQUENCY_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// How long a finished command waits for a check that is still running.
+///
+/// The check starts with the command and normally finishes well before
+/// it does. One that has not is waiting on a registry that is slow or
+/// not answering, and the notice it might bring is not worth holding the
+/// command for: the registry client's timeouts would otherwise add
+/// minutes to an install that had nothing else to do
+/// ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
+const UPDATE_CHECK_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 const STATE_FILE_NAME: &str = "pnpm-state.json";
 const LAST_UPDATE_CHECK_KEY: &str = "lastUpdateCheck";
@@ -64,19 +76,27 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
 /// Dispose of the check [`spawn`] started, now that the command it ran
 /// alongside has an outcome.
 ///
-/// A command that succeeded waits, so the notice reaches the terminal
-/// before the process exits. A command that failed drops the check
-/// instead: the error is what the user needs to read, and nothing was
-/// recorded, so the next command checks again.
+/// A command that succeeded waits up to [`UPDATE_CHECK_GRACE_PERIOD`], so
+/// a notice the registry has answered reaches the terminal before the
+/// process exits. A check still running after that is aborted; nothing
+/// was recorded, so the next command checks again. A command that failed
+/// drops the check at once: the error is what the user needs to read.
 pub(crate) async fn settle<Output: Sync>(
     pending: PendingUpdateCheck,
     outcome: &miette::Result<Output>,
 ) {
     let Some(handle) = pending else { return };
-    if outcome.is_ok() {
-        let _ = handle.await;
-    } else {
+    if outcome.is_err() {
         handle.abort();
+        return;
+    }
+    let abort = handle.abort_handle();
+    if tokio::time::timeout(UPDATE_CHECK_GRACE_PERIOD, handle).await.is_err() {
+        abort.abort();
+        tracing::debug!(
+            target: "pacquet::install",
+            "the update check is still waiting on the registry; the command finishes without it",
+        );
     }
 }
 

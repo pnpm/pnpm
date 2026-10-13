@@ -1,7 +1,100 @@
-use super::{checked_recently, read_state, to_utc_string, write_state};
+use super::{
+    UPDATE_CHECK_GRACE_PERIOD, checked_recently, read_state, settle, to_utc_string, write_state,
+};
 use chrono::{TimeZone, Utc};
 use serde_json::{Map, Value, json};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Instant,
+};
 use tempfile::tempdir;
+
+/// Flips a flag when dropped, so a test can tell an aborted task (its
+/// future is dropped) from one merely detached.
+struct FlagOnDrop(Arc<AtomicBool>);
+
+impl Drop for FlagOnDrop {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+/// A check still waiting on the registry gets the grace period, not the
+/// registry client's timeouts, and is aborted rather than left behind.
+#[tokio::test]
+async fn a_check_still_running_is_abandoned_after_the_grace_period() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let flag = FlagOnDrop(Arc::clone(&aborted));
+    let pending = tokio::spawn(async move {
+        let _flag = flag;
+        std::future::pending::<()>().await;
+    });
+
+    let started = Instant::now();
+    settle(Some(pending), &Ok::<(), miette::Report>(())).await;
+    let waited = started.elapsed();
+    assert!(
+        waited >= UPDATE_CHECK_GRACE_PERIOD,
+        "the check gets the whole grace period, waited {waited:?}",
+    );
+
+    // Cancellation lands when the runtime next polls the task.
+    for _ in 0..100 {
+        if aborted.load(Ordering::SeqCst) {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert!(aborted.load(Ordering::SeqCst), "the abandoned check must be aborted");
+}
+
+/// A check the registry answered in time is waited for, so its notice
+/// reaches the terminal before the process exits.
+#[tokio::test]
+async fn a_check_that_finishes_in_time_is_waited_for() {
+    let finished = Arc::new(AtomicBool::new(false));
+    let pending = tokio::spawn({
+        let finished = Arc::clone(&finished);
+        async move {
+            tokio::task::yield_now().await;
+            finished.store(true, Ordering::SeqCst);
+        }
+    });
+
+    settle(Some(pending), &Ok::<(), miette::Report>(())).await;
+
+    assert!(finished.load(Ordering::SeqCst), "the check must have run to completion");
+}
+
+/// A failed command does not wait at all: the error is what the user
+/// needs to read.
+#[tokio::test]
+async fn a_failed_command_drops_the_check_at_once() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let flag = FlagOnDrop(Arc::clone(&aborted));
+    let pending = tokio::spawn(async move {
+        let _flag = flag;
+        std::future::pending::<()>().await;
+    });
+
+    let started = Instant::now();
+    settle(Some(pending), &Err::<(), miette::Report>(miette::miette!("the install failed"))).await;
+    assert!(
+        started.elapsed() < UPDATE_CHECK_GRACE_PERIOD,
+        "a failed command must not wait out the grace period",
+    );
+
+    for _ in 0..100 {
+        if aborted.load(Ordering::SeqCst) {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert!(aborted.load(Ordering::SeqCst), "the check must be aborted");
+}
 
 fn state_with_last_check(value: &Value) -> Map<String, Value> {
     let Value::Object(fields) = json!({ "lastUpdateCheck": value }) else {
