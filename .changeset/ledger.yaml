@@ -3116,6 +3116,10 @@
   dir: pnpm/npm/napi
   intents:
     - rebuild-skips-empty-side-effects
+"@pnpm/napi@12.13.0":
+  dir: pnpm/npm/napi
+  intents:
+    - store-index-format-files
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -6023,6 +6027,28 @@ pacquet@12.12.1:
     - quiet-audience-checks
     - rebuild-skips-empty-side-effects
     - tool-protocol
+pacquet@12.13.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-profile-command
+    - add-token-command
+    - audit-signatures-skips-runtimes
+    - faster-python-resolution
+    - fix-pnpm-shim-hard-link-target
+    - full-fsync-fallback
+    - hoisted-remove-link-dep
+    - lock-free-files-index-reads
+    - pack-empty-files-field
+    - pipeline-root-only-workspace
+    - pnpmfile-worker-inherited-pipe-hang
+    - python-build-backend-path
+    - rust-toolchain-windows-gnu-host
+    - scoped-registry-tarball-url
+    - setup-through-npm-bin-symlink
+    - store-index-format-files
+    - verify-store-during-resolution
+    - warm-up-skips-reused-subtrees
+    - write-package-map-metadata
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
