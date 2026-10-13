@@ -75,15 +75,23 @@ fn append_to_workspace_yaml(workspace: &Path, line: &str) {
     fs::write(&path, text).expect("write pnpm-workspace.yaml");
 }
 
+/// The command does not wait for the check, so the install has to outlast
+/// the registry's answer: an empty workspace is done in milliseconds, a
+/// dependency to fetch, extract, and link is not.
 #[test]
 fn an_install_announces_a_newer_pnpm_and_records_the_check() {
     let Fixture {
         pacquet,
         state_dir,
+        workspace,
         root,
         npmrc_info,
-        ..
     } = fixture();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
 
     let output = install(pacquet, &state_dir);
 
