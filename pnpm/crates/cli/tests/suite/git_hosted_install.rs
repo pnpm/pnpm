@@ -1107,4 +1107,62 @@ fn assert_packages_prepared_from_their_own_checkout(workspace: &Path, commit: &s
     }
 }
 
+/// <https://github.com/pnpm/pnpm/issues/16899>
+#[cfg(unix)]
+#[test]
+fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
+    use pnpm_testing_utils::git_repo::GitCommandLog;
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let (repo, commit) = simple_repo(root.path(), "tagged", "1.0.0");
+    repo.tag("v1.0.0");
+    let projects = ["a", "b", "c"];
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).unwrap();
+    fs::write(
+        &workspace_yaml,
+        format!(
+            "{yaml}packages:\n  - projects/*\nlinkWorkspacePackages: true\ncatalog:\n  tagged: '{}'\n",
+            repo.git_url_at("v1.0.0"),
+        ),
+    )
+    .unwrap();
+    write_manifest_value(&workspace, &json!({ "name": "root", "private": true }));
+    for project in projects {
+        let dir = workspace.join("projects").join(project);
+        fs::create_dir_all(&dir).unwrap();
+        write_manifest_value(
+            &dir,
+            &json!({ "name": project, "version": "1.0.0", "dependencies": { "tagged": "catalog:" } }),
+        );
+    }
+    pnpm_at(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    // A pnpmfile the lockfile has not recorded makes the next install
+    // resolve every project again.
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n").unwrap();
+    let log = GitCommandLog::new(root.path());
+
+    pnpm_at(&workspace)
+        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(log.ls_remote_calls().len(), 1, "{:?}", log.ls_remote_calls());
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(git_resolution(&lockfile, "tagged").commit, commit);
+    for project in projects {
+        let installed = workspace
+            .join("projects")
+            .join(project)
+            .join("node_modules/tagged");
+        assert_eq!(read_manifest(&installed)["name"], "tagged");
+    }
+
+    drop((root, npmrc_info));
+}
+
 mod builds;
