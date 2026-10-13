@@ -978,6 +978,64 @@ fn optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children() 
         .assert()
         .success();
 
+    assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(&workspace);
+
+    drop((root, mock_instance));
+}
+
+/// The graph of
+/// [`optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children`],
+/// installed in two steps. The first lockfile records
+/// `@pnpm.e2e/bravo-dep` as a dependency of
+/// `@pnpm.e2e/has-optional-peer-also-in-deps`, and the second install
+/// must reach the same lockfile as the one-step install.
+/// Covers <https://github.com/pnpm/pnpm/issues/16901>.
+#[test]
+fn optional_peer_also_in_deps_is_resplit_when_a_hoisted_parent_owns_locked_children() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
+            "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("rewrite package.json");
+    bump_mtime(&manifest_path);
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(&workspace);
+
+    drop((root, mock_instance));
+}
+
+fn assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(workspace: &std::path::Path) {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let snapshots: Vec<_> = lockfile.snapshots
         .iter()
@@ -1000,8 +1058,6 @@ fn optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children() 
             vec!["@pnpm.e2e/bravo-dep 1.0.0".to_string()],
         )],
     );
-
-    drop((root, mock_instance));
 }
 
 /// Older pnpm versions resolved the optional peer of

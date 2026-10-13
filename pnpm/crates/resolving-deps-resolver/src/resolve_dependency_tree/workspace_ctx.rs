@@ -6,8 +6,9 @@
 pub(super) use children_ownership::{
     ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
     RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
-    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
-    recorded_children_match, register_peer_dep_names, register_shadowable_dep_names,
+    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, pinned_children_scope,
+    record_children, recorded_children_match, register_peer_dep_names,
+    register_shadowable_dep_names,
 };
 
 pub(super) use cache_keys::{

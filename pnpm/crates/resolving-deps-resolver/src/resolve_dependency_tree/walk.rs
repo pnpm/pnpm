@@ -35,6 +35,9 @@ use child_seeds::{
 mod level_walk;
 use level_walk::{assign_level_owners, pkgs_info_from_ids, seeded_dep, settle_level, settle_seeds};
 
+mod locked_split;
+use locked_split::mark_changed_locked_splits;
+
 mod locked_versions;
 use locked_versions::{
     ensure_same_registry_revision, keeps_locked_version, overlay_version_view, pin_locked_version,
@@ -99,7 +102,7 @@ use super::{
         ChildSpec, ChildrenOwnerClaim, ChildrenRecording, RecordedChildrenContext,
         SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, children_warmup_claimed,
         claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, record_children, recorded_children_match,
+        make_non_owner_nodes_lazy, pinned_children_scope, record_children, recorded_children_match,
         register_peer_dep_names, register_shadowable_dep_names,
     },
 };
@@ -192,6 +195,10 @@ pub(super) struct PendingNode {
     /// any — threads each child's prior ref through the walk phase
     /// via `ReuseSource::Transitive`.
     pub(super) prior_key: Option<PkgNameVerPeer>,
+    /// Set by [`fn@mark_changed_locked_splits`] when this occurrence
+    /// owns children the prior lockfile pinned, and resolving them
+    /// here would split a package's dependencies and peers differently.
+    changes_locked_split: bool,
     identity: PendingNodeIdentity,
     ancestry: PendingNodeAncestry,
 }
@@ -281,6 +288,7 @@ where
     Chain: Resolver + ?Sized,
 {
     assign_level_owners(ctx, seeds.iter_mut())?;
+    mark_changed_locked_splits(ctx, resolver, &mut seeds, &children_pkg_aliases).await;
     let direct: Vec<DirectDep> = seeds
         .iter()
         .filter_map(seeded_dep)
@@ -295,7 +303,7 @@ where
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
-        frontier = settle_level(ctx, seeded)?;
+        frontier = settle_level(ctx, resolver, seeded).await?;
         level += 1;
         tracing::info!(
             target: "pacquet::install::phase",

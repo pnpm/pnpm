@@ -69,6 +69,10 @@ pub(in super::super) struct RecordedChildrenContext {
     /// The scope the children resolved in. It decides which of each
     /// descendant's dependencies that descendant's own peers shadow.
     pub(in super::super) children_scope: Arc<ParentPkgAliases>,
+    /// Whether the walk resolves children whose dependency and peer
+    /// split differs from the prior lockfile's. See
+    /// `mark_changed_locked_splits`.
+    pub(in super::super) changes_locked_split: bool,
 }
 
 impl RecordedChildrenContext {
@@ -77,13 +81,16 @@ impl RecordedChildrenContext {
     /// avoid, and which leaves the occurrences that realized the
     /// pinned subtree pointing at children the record no longer holds.
     ///
-    /// An update policy is the one thing that re-resolves a pin on
-    /// purpose, so a walk under one is never held to the pins.
+    /// An update policy re-resolves a pin on purpose, so a walk under one
+    /// is never held to the pins. Neither is a walk that splits some
+    /// package's dependencies and peers differently, which the pins do
+    /// not describe.
     pub(in super::super) fn pins_children_over(&self, other: &Self) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key.is_some()
             && other.prior_key.is_none()
             && !other.update_active
+            && !other.changes_locked_split
     }
 
     /// Two contexts produce the same children.
@@ -222,6 +229,18 @@ pub(in super::super) fn recorded_children_match(
                 &lock_recoverable(&ctx.workspace.children.shadowable_dep_names),
             ) || recorded.context.pins_children_over(context)
         })
+}
+
+/// The scope this package's recorded children resolved in, when they are
+/// the ones the prior lockfile pinned.
+pub(in super::super) fn pinned_children_scope(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+) -> Option<Arc<ParentPkgAliases>> {
+    lock_recoverable(&ctx.workspace.children.by_id)
+        .get(pkg_id)
+        .filter(|recorded| recorded.context.prior_key.is_some())
+        .map(|recorded| Arc::clone(&recorded.context.children_scope))
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.

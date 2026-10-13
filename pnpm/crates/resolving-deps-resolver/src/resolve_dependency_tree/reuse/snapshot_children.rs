@@ -156,6 +156,7 @@ pub(super) fn record_reused_children(
             prior_key: Some(context.key.clone()),
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
             children_scope: Arc::clone(context.ancestry.parent_pkg_aliases),
+            changes_locked_split: false,
         },
     );
     (recording.children(realized), recording)
