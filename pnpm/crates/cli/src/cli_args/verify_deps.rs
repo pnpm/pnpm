@@ -303,7 +303,7 @@ fn warn(silent: bool, message: &str) {
     }
     let colors =
         Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
-    eprintln!("{} {message}", colors.warn_label());
+    pnpm_diagnostics::eprintln!("{} {message}", colors.warn_label());
 }
 
 #[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]

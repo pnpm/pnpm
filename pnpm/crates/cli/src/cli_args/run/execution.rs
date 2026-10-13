@@ -500,7 +500,7 @@ fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
             prefix: String::new(),
         })),
         ScriptOutput::Inherit if selected_reporter() == ReporterType::Silent => {}
-        ScriptOutput::Inherit => eprintln!("{message}"),
+        ScriptOutput::Inherit => pnpm_diagnostics::eprintln!("{message}"),
     }
 }
 

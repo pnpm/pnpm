@@ -189,13 +189,16 @@ pub(super) fn run_rust_toolchain(
     let toolchain = match prepare_toolchain(state_dir, request) {
         Ok(toolchain) => toolchain,
         Err(error) => {
-            eprintln!("pnpm: failed to prepare Rust {}: {error:?}", request.channel);
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare Rust {}: {error:?}",
+                request.channel
+            );
             return 1;
         }
     };
     let program = toolchain.executable(name);
     if !program.is_file() {
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "pnpm: Rust {} as installed has no {name}. List the component that provides it under `components` in rust-toolchain.toml.",
             request.channel,
         );
@@ -238,9 +241,10 @@ pub(super) fn run_next_on_path(shim: &ShimInvocation<'_>, args: &[OsString]) -> 
     let path = std::env::var_os("PATH").unwrap_or_default();
     let executable = pnpm_executor::current_executable().unwrap_or_default();
     let Some(program) = next_on_path(shim.name, shim.bin_dir, &executable, &path) else {
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "ERR_PNPM_SHIM_NO_TARGET  No rust-toolchain.toml names a toolchain for {} here, and no other {} is on PATH.",
-            shim.name, shim.name,
+            shim.name,
+            shim.name,
         );
         return 127;
     };
@@ -275,7 +279,7 @@ struct StderrReporter;
 impl Reporter for StderrReporter {
     fn emit(event: &LogEvent) {
         if let LogEvent::Global(log) = event {
-            eprintln!("pnpm: {}", log.message);
+            pnpm_diagnostics::eprintln!("pnpm: {}", log.message);
         }
     }
 }

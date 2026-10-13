@@ -325,7 +325,7 @@ fn try_migrate_legacy_shims(bin_dir: &Path) {
 }
 
 fn report_shim_error(error: &miette::Report) {
-    eprintln!("pnpm: {error:?}");
+    pnpm_diagnostics::eprintln!("pnpm: {error:?}");
 }
 
 /// Split the machine-generated tail of a `--shim` invocation into the bin
@@ -357,14 +357,18 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         Ok(Some(target)) => target,
         Ok(None) => return None,
         Err(error) => {
-            eprintln!("pnpm: cannot read the global target of the {name} shim: {error}");
+            pnpm_diagnostics::eprintln!(
+                "pnpm: cannot read the global target of the {name} shim: {error}"
+            );
             return Some(1);
         }
     };
     if let ShimTarget::Installed(path) = &target
         && is_shim_path(path, &executable)
     {
-        eprintln!("pnpm: the global target of the {name} shim points back at the shim");
+        pnpm_diagnostics::eprintln!(
+            "pnpm: the global target of the {name} shim points back at the shim"
+        );
         return Some(1);
     }
     let settings = trusted_shim_settings();

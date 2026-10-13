@@ -5,6 +5,11 @@
 //! change to the crate. `cargo nextest` runs each test in its own
 //! process.
 
+#![expect(
+    clippy::print_stderr,
+    reason = "test helpers log to stderr; only the pnpm binary must survive a closed stderr"
+)]
+
 mod _utils;
 
 mod add;
