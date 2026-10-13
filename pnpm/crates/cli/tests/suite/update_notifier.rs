@@ -151,7 +151,7 @@ fn a_registry_that_never_answers_does_not_hold_the_install() {
     fs::write(
         &npmrc_info.npmrc_path,
         format!(
-            "registry={silent_registry}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\n"
+            "registry={silent_registry}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\n",
         ),
     )
     .expect("point .npmrc at the silent registry");
