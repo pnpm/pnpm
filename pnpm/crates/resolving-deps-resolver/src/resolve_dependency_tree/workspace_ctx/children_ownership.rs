@@ -1,6 +1,7 @@
 use super::{
-    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
-    PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope, lock_recoverable,
+    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId,
+    ParentPkgAliases, PeerDep, PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope,
+    lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +66,9 @@ pub(in super::super) struct RecordedChildrenContext {
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.
     pub(in super::super) update_active: bool,
+    /// The scope the children resolved in. It decides which of each
+    /// descendant's dependencies that descendant's own peers shadow.
+    pub(in super::super) children_scope: Arc<ParentPkgAliases>,
 }
 
 impl RecordedChildrenContext {
@@ -91,10 +95,25 @@ impl RecordedChildrenContext {
     /// only ever decides which occurrence's versions get *recorded*.
     /// Requiring identical overlays here would mean requiring identical
     /// parents, which the occurrences that race never have.
-    pub(in super::super) fn produces_same_children_as(&self, other: &Self) -> bool {
+    ///
+    /// The two scopes only have to agree on `shadowable_dep_names`.
+    /// Every level below the children adds the same aliases to both, so
+    /// that agreement holds for the whole recorded subtree.
+    pub(in super::super) fn produces_same_children_as(
+        &self,
+        other: &Self,
+        shadowable_dep_names: &HashSet<String>,
+    ) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key == other.prior_key
             && self.update_active == other.update_active
+            && (Arc::ptr_eq(&self.children_scope, &other.children_scope)
+                || shadowable_dep_names
+                    .iter()
+                    .all(|name| {
+                        self.children_scope.contains(name)
+                            == other.children_scope.contains(name)
+                    }))
     }
 }
 
@@ -198,8 +217,10 @@ pub(in super::super) fn recorded_children_match(
     lock_recoverable(&ctx.workspace.children.by_id)
         .get(pkg_id)
         .is_some_and(|recorded| {
-            recorded.context.produces_same_children_as(context)
-                || recorded.context.pins_children_over(context)
+            recorded.context.produces_same_children_as(
+                context,
+                &lock_recoverable(&ctx.workspace.children.shadowable_dep_names),
+            ) || recorded.context.pins_children_over(context)
         })
 }
 
@@ -336,6 +357,22 @@ pub(in super::super) fn register_peer_dep_names(
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
             ctx.workspace.tree.record_peer_dep_name(name);
+        }
+    }
+}
+
+pub(in super::super) fn register_shadowable_dep_names<'name>(
+    ctx: &TreeCtx,
+    names: impl IntoIterator<Item = &'name String>,
+) {
+    let mut names = names.into_iter().peekable();
+    if names.peek().is_none() {
+        return;
+    }
+    let mut shadowable = lock_recoverable(&ctx.workspace.children.shadowable_dep_names);
+    for name in names {
+        if !shadowable.contains(name) {
+            shadowable.insert(name.clone());
         }
     }
 }

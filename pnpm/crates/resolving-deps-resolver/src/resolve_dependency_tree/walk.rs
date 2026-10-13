@@ -68,7 +68,9 @@ use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
 use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
-    parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
+    parent_pkg_aliases::{
+        ParentPkgAliases, dependencies_named_as_peers, peer_shadowed_dependencies,
+    },
     resolved_tree::{
         AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
     },
@@ -98,7 +100,7 @@ use super::{
         SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, children_warmup_claimed,
         claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, recorded_children_match,
-        register_peer_dep_names,
+        register_peer_dep_names, register_shadowable_dep_names,
     },
 };
 
