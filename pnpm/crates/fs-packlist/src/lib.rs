@@ -12,14 +12,17 @@
 //!    way [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
 //!    A `files` allowlist replaces the package root's ignore files and any
 //!    workspace-inherited ones. Subdirectories' still apply within their
-//!    subtree, except to a file the allowlist names.
+//!    subtree, except to a file the allowlist names. Without an allowlist,
+//!    the root then re-includes the paths declared in `main` / `browser` /
+//!    `bin`, which also re-includes the ignored directories holding them,
+//!    as npm-packlist does.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
 //!    `README`, `COPYING`, and `LICEN[SC]E`, with any extension, at
-//!    the root, plus the paths declared in `main` / `bin`. The packed
+//!    the root, plus the paths declared in `main` / `browser` / `bin`. The packed
 //!    package's `package.yaml` / `package.json5` are included too, but
 //!    a bundled dependency's are not. These survive `.npmignore`
 //!    rejection and the `files`-field filter.
@@ -161,7 +164,7 @@ pub fn packlist_with_sources(
 
 /// Collect the forward-slash relative paths for a single package's own
 /// files — the `.npmignore` / `.gitignore` walk, the `files`-field
-/// allowlist, and the always-included / `main` / `bin` force-includes.
+/// allowlist, and the always-included / `main` / `browser` / `bin` force-includes.
 /// This is the per-package packlist with no `bundleDependencies`
 /// traversal; [`collect_bundled_files`] layers the closure on top.
 fn collect_own_files(
@@ -173,36 +176,45 @@ fn collect_own_files(
     let files_matcher: Option<Gitignore> = files_field.map(|arr| build_files_matcher(pkg_dir, arr));
     let named_files: BTreeSet<String> =
         files_field.map(|arr| named_file_entries(pkg_dir, arr)).unwrap_or_default();
-    let main_path = manifest.get("main").and_then(Value::as_str);
-    let bin_paths: Vec<&str> = manifest
-        .get("bin")
-        .map(|bin| match bin {
-            Value::String(s) => vec![s.as_str()],
-            Value::Object(map) => map
-                .values()
-                .filter_map(Value::as_str)
-                .collect(),
-            _ => Vec::new(),
-        })
-        .unwrap_or_default();
+    let required_paths = required_field_paths(manifest);
 
     let mut out: BTreeSet<String> = BTreeSet::new();
 
     let selection = FileSelection {
         files_matcher: files_matcher.as_ref(),
         named_files: &named_files,
-        main_path,
-        bin_paths: &bin_paths,
+        required_paths: &required_paths,
     };
     let ignore_files = if files_matcher.is_some() {
         IgnoreFiles::SubdirectoriesOnly { named_files: &named_files }
     } else {
-        IgnoreFiles::Read { workspace_dir }
+        IgnoreFiles::Read { workspace_dir, required_paths: &required_paths }
     };
     collect_walked_files(pkg_dir, ignore_files, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
-    force_include_main_and_bin(pkg_dir, &selection, &mut out);
+    force_include_required_paths(pkg_dir, &selection, &mut out);
     Ok(out)
+}
+
+/// The [`normalize_field_path`]-ed `main`, `browser`, and `bin` paths that
+/// stay inside the package (see [`is_contained_field_path`]). A non-string
+/// value, such as a `browser` replacement map, is skipped.
+fn required_field_paths(manifest: &Value) -> Vec<String> {
+    let bin_paths = match manifest.get("bin") {
+        Some(Value::String(bin)) => vec![bin.as_str()],
+        Some(Value::Object(map)) => map
+            .values()
+            .filter_map(Value::as_str)
+            .collect(),
+        _ => Vec::new(),
+    };
+    ["main", "browser"]
+        .into_iter()
+        .filter_map(|field| manifest.get(field).and_then(Value::as_str))
+        .chain(bin_paths)
+        .map(normalize_field_path)
+        .filter(|path| is_contained_field_path(path))
+        .collect()
 }
 
 /// What a package's own manifest says should ship, beyond what the walk finds.
@@ -212,8 +224,8 @@ struct FileSelection<'a> {
     /// The `files` entries that name an existing file; they ship even when
     /// another entry excludes the directory holding them.
     named_files: &'a BTreeSet<String>,
-    main_path: Option<&'a str>,
-    bin_paths: &'a [&'a str],
+    /// See [`required_field_paths`].
+    required_paths: &'a [String],
 }
 
 /// Pass 1: every walked file the ignore rules and the `files` allowlist keep.
@@ -256,7 +268,9 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
     }
     !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
-        && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
+        && !selection.required_paths
+            .iter()
+            .any(|path| path == rel)
 }
 
 /// Pass 2: scan the root for always-included names (README, LICENSE, etc.)
@@ -313,30 +327,26 @@ fn collect_root_files_matching(
     Ok(())
 }
 
-/// Pass 3: force-include `main` / `bin` paths, which always ship regardless of
-/// `.npmignore`. (A `files`-field rejection is already overridden in pass 1.)
+/// Pass 3: force-include `main` / `browser` / `bin` paths, which always ship
+/// regardless of `.npmignore`. (A `files`-field rejection is already overridden in pass 1.)
 /// [`should_always_exclude`] is still consulted first so the always-excluded set
 /// wins over manifest fields; npm-packlist does the same and emits no warning,
 /// so this stays silent too — a `tracing::debug!` would be lost in install
 /// logs. An ignore file ships this way only at the package root: npm-packlist
-/// re-applies its default rules in each subdirectory, after the `main` / `bin`
-/// rules the root adds.
-fn force_include_main_and_bin(
+/// re-applies its default rules in each subdirectory, after the rules the root
+/// adds for these paths.
+fn force_include_required_paths(
     pkg_dir: &Path,
     selection: &FileSelection<'_>,
     out: &mut BTreeSet<String>,
 ) {
-    let declared = selection.main_path
-        .into_iter()
-        .chain(selection.bin_paths.iter().copied());
-    for path in declared {
-        let normalized = normalize_field_path(path);
-        if is_contained_field_path(&normalized)
-            && !should_always_exclude(&normalized)
-            && !(is_ignore_file(&normalized) && normalized.contains('/'))
-            && is_regular_file_within(pkg_dir, &pkg_dir.join(&normalized))
+    for path in selection.required_paths {
+        let is_nested_ignore_file = is_ignore_file(path) && path.contains('/');
+        if !should_always_exclude(path)
+            && !is_nested_ignore_file
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(path))
         {
-            out.insert(normalized);
+            out.insert(path.clone());
         }
     }
 }
@@ -365,16 +375,6 @@ fn is_always_included_at_root(rel: &str) -> bool {
                         || (rest.len() >= 2 && rest.starts_with('.') && !rest.ends_with(['~', '$']))
                 })
         })
-}
-
-fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
-    if let Some(main) = main
-        && normalize_field_path(main) == rel
-    {
-        return true;
-    }
-    bins.iter()
-        .any(|bin| normalize_field_path(bin) == rel)
 }
 
 fn should_always_exclude(rel: &str) -> bool {
@@ -410,7 +410,7 @@ fn relative_forward_slash(root: &Path, full: &Path) -> String {
     buf
 }
 
-/// Whether a [`normalize_field_path`]-ed `main` / `bin` value stays inside
+/// Whether a [`normalize_field_path`]-ed `main` / `browser` / `bin` value stays inside
 /// the package: non-empty, only normal path components (no `..`, root, or
 /// drive/UNC prefix), and no backslash (a separator on Windows, where the
 /// git fetcher may import a package). The packlist feeds both `pack` and
