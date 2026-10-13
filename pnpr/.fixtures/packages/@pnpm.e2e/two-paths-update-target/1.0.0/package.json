@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/two-paths-update-target",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/two-paths-peer-consumer": "1.0.0"
+  }
+}

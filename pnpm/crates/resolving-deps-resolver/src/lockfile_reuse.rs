@@ -422,6 +422,12 @@ fn current_resolution(
     Some(resolution)
 }
 
+/// Whether a lockfile entry with `resolution` can stand in for resolving the
+/// package again (see [`reusable_resolution_is_git`]).
+pub(crate) fn is_reusable_resolution(resolution: &LockfileResolution) -> bool {
+    reusable_resolution_is_git(resolution).is_some()
+}
+
 /// Reuse only resolutions whose normal resolver can be skipped. Custom and
 /// incomplete resolutions must pass through their owning resolver.
 fn reusable_resolution_is_git(resolution: &LockfileResolution) -> Option<bool> {

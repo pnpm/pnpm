@@ -1,15 +1,15 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
+    Arc, BTreeMap, ChildEdge, Cow, HashSet, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
     ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
     SeededPackage, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
     build_pkg_id_with_patch_hash, catalogs_for_children, current_pkg_from_lockfile,
     emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
-    is_exotic_resolved_via, is_update_target, keeps_locked_version, lock_recoverable, node_alias,
-    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
-    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, pkg_is_leaf, project_relative_cache_scope,
-    register_peer_dep_names, resolve_reused_node, resolve_wanted_cached,
-    resolves_children_through_catalogs, try_reuse_node,
+    is_exotic_resolved_via, is_reusable_resolution, is_update_target, keeps_locked_version,
+    lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
+    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
+    pin_patched_revision, pkg_is_leaf, project_relative_cache_scope, register_peer_dep_names,
+    resolve_reused_node, resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
 };
 
 #[async_recursion]
@@ -264,11 +264,7 @@ pub(super) fn seed_pending(
 ) -> Result<NodeSeed, ResolveDependencyTreeError> {
     let alias = node_alias(wanted, &result, &resolved.id);
     let identity = NodeIdentity::of(&result, &resolved.id);
-    let peer_shadowed = peer_shadowed_dependencies(
-        result.package.manifest.as_deref(),
-        edge.parent_pkg_aliases,
-        ctx.workspace.policy.auto_install_peers,
-    );
+    let peer_shadowed = peer_shadowed_in_scope(ctx, wanted, &result, edge);
     let (id, created) = register_seeded_package(
         ctx,
         SeededPackage {
@@ -297,6 +293,64 @@ pub(super) fn seed_pending(
         identity: super::PendingNodeIdentity { id, alias, node_id: identity.node_id },
         ancestry,
     })))
+}
+
+/// The `dependencies` of `result` that its own `peerDependencies` shadow in
+/// `edge`'s scope (see [`peer_shadowed_dependencies`]). A package the prior
+/// lockfile records, and that the walk keeps on its locked version, keeps the
+/// split its lockfile entry records: only the peers listed there may shadow.
+fn peer_shadowed_in_scope(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    edge: &ChildEdge<'_>,
+) -> HashSet<String> {
+    let mut shadowed = peer_shadowed_dependencies(
+        result.package.manifest.as_deref(),
+        edge.parent_pkg_aliases,
+        ctx.workspace.policy.auto_install_peers,
+    );
+    // A partial resolution can reach the package through an ancestor scope
+    // the resolution that wrote the entry never walked.
+    if !shadowed.is_empty()
+        && let Some(entry) = locked_package_entry(ctx, wanted, result, edge.depth)
+    {
+        let locked_peers = entry.peer_dependencies.as_ref();
+        shadowed.retain(|name| locked_peers.is_some_and(|peers| peers.contains_key(name)));
+    }
+    shadowed
+}
+
+/// The prior lockfile's `packages` entry for `result`, when it stands for
+/// this resolution: the walk reuses lockfile subtrees, keeps the package on
+/// its locked version, and could reuse the entry instead of resolving it.
+fn locked_package_entry<'l>(
+    ctx: &'l TreeCtx,
+    wanted: &WantedDependency,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    depth: i32,
+) -> Option<&'l pnpm_lockfile::PackageMetadata> {
+    let reuse = &ctx.workspace.reuse;
+    if !reuse.subtrees {
+        return None;
+    }
+    let key = result.id
+        .as_str()
+        .parse::<PkgNameVerPeer>()
+        .ok()?
+        .without_peer();
+    // `install --fix-lockfile` seeds the walk with a copy whose entries drop
+    // their peers. It re-resolves every edge, so this check is what keeps
+    // that copy from emptying every split.
+    if !keeps_locked_version(ctx, wanted, &key, depth) {
+        return None;
+    }
+    let entry = reuse.lockfile
+        .as_ref()?
+        .packages
+        .as_ref()?
+        .get(&key)?;
+    is_reusable_resolution(&entry.resolution).then_some(entry)
 }
 
 /// Leaves (no deps / optional deps / peers / peerDependenciesMeta) reuse

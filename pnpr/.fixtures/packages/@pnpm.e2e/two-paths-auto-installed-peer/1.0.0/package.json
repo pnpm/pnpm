@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/two-paths-auto-installed-peer",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/two-paths-shared-parent": "1.0.0"
+  }
+}

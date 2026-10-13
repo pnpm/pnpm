@@ -22,6 +22,8 @@ const ABC: &str = "@pnpm.e2e/abc";
 const PEER_A: &str = "@pnpm.e2e/peer-a";
 const PEER_C: &str = "@pnpm.e2e/peer-c";
 const HAS_PRERELEASE: &str = "@pnpm.e2e/has-prerelease";
+/// Depends on `@pnpm.e2e/bravo-dep` and also declares it as an optional peer.
+const OPTIONAL_PEER_ALSO_IN_DEPS: &str = "@pnpm.e2e/has-optional-peer-also-in-deps";
 /// Depends on `dep-of-pkg-with-1-dep@^100.0.0`, used to exercise
 /// indirect-dependency update behavior when the direct dep is ignored.
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
@@ -1368,6 +1370,92 @@ fn update_re_keys_an_optional_peer_whose_locked_provider_left_in_one_pass() {
     pacquet(&workspace, ["update", "--lockfile-only"]).assert().success();
     let second_pass = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert_eq!(second_pass, first_pass, "a second update must change nothing");
+    drop((root, anchor));
+}
+
+/// The snapshots the lockfile in `workspace` records for
+/// [`OPTIONAL_PEER_ALSO_IN_DEPS`], each with the names of its `dependencies`.
+fn optional_peer_also_in_deps_snapshots(workspace: &Path) -> Vec<(String, Vec<String>)> {
+    let prefix = format!("{OPTIONAL_PEER_ALSO_IN_DEPS}@");
+    read_lockfile(&workspace.join("pnpm-lock.yaml")).snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, snapshot)| {
+            let dependencies = snapshot.dependencies
+                .iter()
+                .flatten()
+                .map(|(alias, _)| alias.to_string())
+                .collect();
+            (key.to_string(), dependencies)
+        })
+        .filter(|(key, _)| key.starts_with(&prefix))
+        .collect()
+}
+
+/// `@pnpm.e2e/two-paths-shared-parent` reaches [`OPTIONAL_PEER_ALSO_IN_DEPS`]
+/// along two paths: under the updated package, where no ancestor provides
+/// `bravo-dep`, and under the auto-installed
+/// `@pnpm.e2e/two-paths-auto-installed-peer`. That path's scope has
+/// `bravo-dep` as the resolved provider of `@pnpm.e2e/has-bravo-dep-as-peer`'s
+/// peer. Updating the package changes no version, so it must not rewrite the
+/// lockfile.
+#[test]
+fn update_keeps_the_dependency_split_of_a_package_it_did_not_update() {
+    const UPDATE_TARGET: &str = "@pnpm.e2e/two-paths-update-target";
+    let plain_split = vec![(
+        format!("{OPTIONAL_PEER_ALSO_IN_DEPS}@1.0.0"),
+        vec!["@pnpm.e2e/bravo-dep".to_string()],
+    )];
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{UPDATE_TARGET}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
+    assert!(
+        lockfile_package_keys(&workspace)
+            .contains(&"@pnpm.e2e/two-paths-auto-installed-peer@1.0.0".to_string()),
+        "the install must auto-install the peer that reaches the shared parent",
+    );
+    assert_eq!(optional_peer_also_in_deps_snapshots(&workspace), plain_split);
+
+    pacquet(&workspace, ["update", "--latest", "--lockfile-only", UPDATE_TARGET])
+        .assert()
+        .success();
+    assert_eq!(optional_peer_also_in_deps_snapshots(&workspace), plain_split);
+    let updated = fs::read_to_string(&lockfile_path).expect("read updated lockfile");
+    assert_eq!(updated, installed);
+    pacquet(&workspace, ["dedupe", "--check", "--lockfile-only"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// The importer provides `bravo-dep`, so [`OPTIONAL_PEER_ALSO_IN_DEPS`]
+/// resolves it as a peer. `install --fix-lockfile` resolves from a copy of the
+/// lockfile whose entries record no peers, and must keep that split.
+#[test]
+fn fix_lockfile_keeps_a_peer_split_the_scope_provides() {
+    let peer_split = vec![(
+        format!("{OPTIONAL_PEER_ALSO_IN_DEPS}@1.0.0(@pnpm.e2e/bravo-dep@1.0.0)"),
+        Vec::new(),
+    )];
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        &format!(
+            r#"{{ "{OPTIONAL_PEER_ALSO_IN_DEPS}": "1.0.0", "@pnpm.e2e/bravo-dep": "1.0.0" }}"#
+        ),
+    );
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
+    assert_eq!(optional_peer_also_in_deps_snapshots(&workspace), peer_split);
+
+    pacquet(&workspace, ["install", "--fix-lockfile", "--lockfile-only"]).assert().success();
+    assert_eq!(optional_peer_also_in_deps_snapshots(&workspace), peer_split);
+    let fixed = fs::read_to_string(&lockfile_path).expect("read fixed lockfile");
+    assert_eq!(fixed, installed);
+    pacquet(&workspace, ["dedupe", "--check", "--lockfile-only"]).assert().success();
+
     drop((root, anchor));
 }
 

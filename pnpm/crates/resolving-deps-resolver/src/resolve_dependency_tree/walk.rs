@@ -66,7 +66,7 @@ use serde_json::Value;
 use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
 
 use crate::{
-    lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
+    lockfile_reuse::{current_pkg_from_lockfile, is_reusable_resolution, prior_child_key},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
     resolved_tree::{

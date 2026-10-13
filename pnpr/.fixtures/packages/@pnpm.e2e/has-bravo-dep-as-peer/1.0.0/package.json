@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-bravo-dep-as-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/bravo-dep": "^1.0.0"
+  }
+}
