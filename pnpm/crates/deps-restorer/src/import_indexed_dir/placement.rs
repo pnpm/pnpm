@@ -1,7 +1,7 @@
 pub(super) mod symlinks;
 
 use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
-use crate::import_into_fresh_target;
+use crate::{import_into_fresh_target, link_pool::in_link_pool};
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::Host;
 use pnpm_reporter::Reporter;
@@ -29,6 +29,28 @@ use symlinks::{
 /// the value names the directory `dir_path` is finally moved to, which a
 /// staged import writes elsewhere first.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    placement: Placement,
+    symlinks_final_dir: Option<&Path>,
+) -> Result<(), ImportIndexedDirError> {
+    // Creating the directories and placing the marker are metadata writes
+    // like the entries, so the whole import runs on the link pool.
+    in_link_pool(|| {
+        populate_dir_on_current_pool::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            placement,
+            symlinks_final_dir,
+        )
+    })
+}
+
+fn populate_dir_on_current_pool<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
