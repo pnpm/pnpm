@@ -7,11 +7,11 @@
 //!
 //! The algorithm has four passes:
 //!
-//! 1. **Walk with ignore-file filtering**: a usable `files` allowlist
+//! 1. **Walk with ignore-file filtering**: a `files` allowlist
 //!    disables `.gitignore` and `.npmignore` — the package's own and any
 //!    workspace-inherited ones alike — leaving the allowlist in pass 2
-//!    as the sole gate (a `files` field with no usable entry is treated
-//!    as absent, see [`build_files_matcher`]). Otherwise each
+//!    as the sole gate (one with no usable entry ships only the
+//!    always-included files, see [`build_files_matcher`]). Otherwise each
 //!    directory's `.npmignore` applies, or its `.gitignore` when it has
 //!    no `.npmignore`, matched the way
 //!    [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
