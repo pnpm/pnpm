@@ -280,6 +280,7 @@ async fn prefetch_local_lockfile(
         &state.tarball_mem_cache,
         None,
         &local.lockfile_dir.to_string_lossy(),
+        None,
     )
     .await;
     prefetcher.prefetch_lockfile(

@@ -937,3 +937,34 @@ fn symlinked_parent_dir_in_built_package_is_reported_as_modified() {
     index.requires_build = Some(true);
     assert!(!package_dir_matches_index(&package, &index));
 }
+
+/// A row with many files checks them in parallel. The outcome is the
+/// same as the sequential check's: every file is checked, one missing
+/// file fails the row, and the files that passed are cached.
+#[test]
+fn a_large_row_checks_every_file_and_caches_the_ones_that_pass() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let checked_at = Some(now_ms());
+    let mut infos = Vec::new();
+    for n in 0..40u32 {
+        let content = format!("file {n}");
+        let digest = sha512_hex(content.as_bytes());
+        if n != 17 {
+            plant_cafs_file(&store_dir, &digest, 0o644, content.as_bytes());
+        }
+        infos.push((format!("f{n}.js"), info(&digest, content.len() as u64, 0o644, checked_at)));
+    }
+    let entry = index_with(
+        "sha512",
+        infos
+            .iter()
+            .map(|(name, info)| (name.as_str(), info.clone()))
+            .collect(),
+    );
+    let cache = VerifiedFilesCache::default();
+
+    let (_, pending) = defer_pkg_files_integrity(&store_dir, entry);
+    assert!(!pending.verify(&store_dir, &cache), "the missing file fails the row");
+    assert_eq!(cache.len(), 39, "every present file was checked and cached");
+}

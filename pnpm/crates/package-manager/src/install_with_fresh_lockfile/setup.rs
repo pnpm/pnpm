@@ -6,12 +6,15 @@ use super::{
     seed_policy::{UpdateSeedPolicy, update_reuse_scopes},
     start_early_materialization,
 };
+
+mod stores;
 use crate::store_init::init_store_dir_best_effort;
 use pnpm_config::{Config, NodeLinker, TrustPolicy};
 use pnpm_lockfile::Lockfile;
 use pnpm_network::AuthHeaders;
 use pnpm_reporter::Reporter;
 use std::{collections::BTreeMap, path::Path, sync::Arc};
+use stores::open_stores;
 
 /// What the setup phase hands the resolve phase: the registries, the
 /// pick policy, the store handles and the resolver chain, plus what the
@@ -140,12 +143,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(
-        install.drivers.config,
-        store_dir,
-        resolver_setup::StoreCaches::new(progress_reported, owned.fetching.fetch_caches.as_ref()),
-    )
-    .await;
+    let stores = open_stores(install, owned, progress_reported, store_dir).await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,

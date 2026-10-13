@@ -18,10 +18,28 @@ pub use lockfile_entries::StoreFetchError;
 
 mod lockfile_entries;
 
+/// The store-index keys of the registry packages of `lockfile` this host
+/// installs, for a verification of the store ahead of the fetch. An entry
+/// the fetch cannot stage leaves the keys empty: the fetch reports it.
+pub(crate) fn store_keys(
+    lockfile: &Lockfile,
+    config: &Config,
+    supported_architectures: Option<&SupportedArchitectures>,
+) -> Vec<String> {
+    fetchable_entries(lockfile, config, supported_architectures)
+        .map(|entries| {
+            entries
+                .into_iter()
+                .map(|entry| entry.store_key)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 use dashmap::DashSet;
 use lockfile_entries::{
     PendingPrefetch, fetchable_entries, registry_entries, without_prefetched, without_store_hits,
-    without_verified_store_hits,
+    without_verified_rows, without_verified_store_hits,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -144,13 +162,16 @@ impl TarballPrefetcher {
     /// HTTP client. Opens the store index read-only (best-effort: a
     /// missing `index.db` just means every prefetch falls through to a
     /// network fetch) and spawns a batched store-index writer for the
-    /// freshly-downloaded rows.
+    /// freshly-downloaded rows. Store files are verified against
+    /// `verified_files`, the cache of a verification that already ran,
+    /// when the caller has one.
     pub async fn new(
         config: &'static Config,
         http_client: &Arc<ThrottledClient>,
         mem_cache: &Arc<MemCache>,
         auth_override: Option<&Arc<AuthHeaders>>,
         requester: &str,
+        verified_files: Option<SharedVerifiedFilesCache>,
     ) -> Self {
         let store_dir = &config.store_dir;
         let store_index = {
@@ -180,7 +201,7 @@ impl TarballPrefetcher {
                 dir: store_dir,
                 index: store_index,
                 index_writer: Some(store_index_writer),
-                verified_files_cache: SharedVerifiedFilesCache::default(),
+                verified_files_cache: verified_files.unwrap_or_default(),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 prefetched_cas_paths: None,
@@ -319,15 +340,19 @@ impl TarballPrefetcher {
     /// run whose resolver already prefetched what it resolved: the packages
     /// it reused from the lockfile never went through the prefetch. Only the
     /// downloads report progress; the rest was reported by the resolution.
+    /// `verified` holds the keys of the rows a verification that ran
+    /// alongside the resolution found in place, which are not read again.
     pub async fn fetch_missing<Reporter: self::Reporter + 'static>(
         &self,
         lockfile: &Lockfile,
         config: &Config,
         supported_architectures: Option<&SupportedArchitectures>,
+        verified: Option<&crate::store_verification::VerifiedStoreKeys>,
     ) -> Result<(), StoreFetchError> {
         let entries = fetchable_entries(lockfile, config, supported_architectures)
             .map_err(StoreFetchError::Entry)?;
         let entries = without_prefetched(&self.mem_cache, entries);
+        let entries = without_verified_rows(verified, entries);
         let missing =
             without_verified_store_hits(&self.store, config.verify_store_integrity, entries).await;
         self.fetch_all::<Reporter>(missing).await

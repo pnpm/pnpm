@@ -90,6 +90,20 @@ pub(super) async fn without_verified_store_hits(
         .collect()
 }
 
+/// Drop every pending entry whose row `verified` holds: a verification that
+/// ran alongside the resolution found the package in the store with its
+/// files in place.
+pub(super) fn without_verified_rows(
+    verified: Option<&crate::store_verification::VerifiedStoreKeys>,
+    pending: Vec<PendingPrefetch>,
+) -> Vec<PendingPrefetch> {
+    let Some(verified) = verified else { return pending };
+    pending
+        .into_iter()
+        .filter(|entry| !verified.contains(&entry.store_key))
+        .collect()
+}
+
 /// Drop every pending entry the run's tarball cache already holds: the
 /// resolver prefetched it, and that download reported its own status.
 pub(super) fn without_prefetched(
