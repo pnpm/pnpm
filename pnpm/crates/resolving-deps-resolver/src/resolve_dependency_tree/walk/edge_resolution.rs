@@ -301,7 +301,6 @@ pub(super) fn seed_pending(
         peer_shadowed,
         claim: None,
         prior_key: resolved.prior_key,
-        changes_locked_split: false,
         identity: super::PendingNodeIdentity { id, alias, node_id: identity.node_id },
         ancestry,
     })))

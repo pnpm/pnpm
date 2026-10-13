@@ -145,6 +145,11 @@ pub(in super::super) struct ChildrenOwnerClaim {
     /// [`fn@recorded_children_match`], which compares the full
     /// resolution context.
     pub(in super::super) children_context_unchanged: bool,
+    /// The children the prior lockfile pinned for the package would split
+    /// some package's dependencies and peers differently under this
+    /// occurrence's scope, so it resolves them instead of reading the
+    /// pins. Set by `mark_changed_locked_splits`.
+    pub(in super::super) changes_locked_split: bool,
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
@@ -186,12 +191,22 @@ pub(in super::super) fn claim_children_owner(
         }
     };
     if owns_children {
-        let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
-        if first_importer.map().get(&**pkg_id) != Some(&owner.importer_id) {
-            first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
-        }
+        record_first_importer(ctx, pkg_id, &owner);
     }
-    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+    ChildrenOwnerClaim {
+        owner,
+        owns_children,
+        peer_shadowed,
+        children_context_unchanged,
+        changes_locked_split: false,
+    }
+}
+
+fn record_first_importer(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) {
+    let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
+    if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
+        first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
+    }
 }
 
 /// Whether a warm-up already took this package's children. See

@@ -261,7 +261,7 @@ pub(super) fn children_context(
 ) -> RecordedChildrenContext {
     RecordedChildrenContext {
         children_scope: Arc::clone(children_pkg_aliases),
-        changes_locked_split: pending.changes_locked_split,
+        changes_locked_split: claim.changes_locked_split,
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
         prior_key: pending.prior_key
             .clone()

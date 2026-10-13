@@ -29,8 +29,10 @@ pub(super) async fn mark_changed_locked_splits<Chain>(
         let NodeSeed::Pending(pending) = seed else { continue };
         let Some(pinned_scope) = pinned_scope_read_by(ctx, pending) else { continue };
         let scopes = Scopes { current: Arc::clone(children_pkg_aliases), pinned: pinned_scope };
-        pending.changes_locked_split =
-            locked_split_changes(ctx, resolver, &pending.identity.id, scopes).await;
+        let changes = locked_split_changes(ctx, resolver, &pending.identity.id, scopes).await;
+        if let Some(claim) = pending.claim.as_mut() {
+            claim.changes_locked_split = changes;
+        }
     }
 }
 
@@ -38,10 +40,7 @@ pub(super) async fn mark_changed_locked_splits<Chain>(
 /// `pending` owns them and would otherwise read the pins.
 fn pinned_scope_read_by(ctx: &TreeCtx, pending: &PendingNode) -> Option<Arc<ParentPkgAliases>> {
     let reads_pins = pending.claim.as_ref().is_some_and(|claim| claim.owns_children)
-        && pending.prior_key
-            .as_ref()
-            .filter(|_| !ctx.update_scope().unpins_every_edge())
-            .is_none()
+        && (pending.prior_key.is_none() || ctx.update_scope().unpins_every_edge())
         && matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All);
     if !reads_pins {
         return None;
@@ -126,66 +125,86 @@ async fn split_changes<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let locked_deps: HashSet<String> = recorded_edges(ctx, pkg_id)
-        .map(|edges| {
-            edges
-                .iter()
-                .map(|edge| edge.alias.clone())
-                .collect()
-        })
-        .unwrap_or_default();
-    let Some((name, version, scope_dependent_peers)) = ({
-        let packages = lock_recoverable(&ctx.workspace.tree.packages);
-        packages
-            .get(pkg_id)
-            .and_then(|pkg| {
-                let result = pkg.result();
-                if result.resolved_via != "npm-registry" {
-                    return None;
-                }
-                let name_ver = result.package.name_ver.as_ref()?;
-                let peers: Vec<String> = pkg.peer_dependencies
-                    .iter()
-                    .filter(|(_, peer)| peer.optional || !auto_install_peers)
-                    .map(|(peer_name, _)| peer_name.clone())
-                    .collect();
-                Some((name_ver.name.to_string(), name_ver.suffix.to_string(), peers))
-            })
-    }) else {
-        return false;
-    };
-    let may_change = locked_deps
-        .iter()
-        .any(|dep| scopes.differ_on(dep))
-        || scope_dependent_peers
-            .iter()
-            .any(|peer| scopes.differ_on(peer));
-    if !may_change {
+    let Some(locked) = LockedSplit::of(ctx, pkg_id) else { return false };
+    if !locked.may_change(scopes) {
         return false;
     }
-    let Some(manifest) = registry_manifest(ctx, resolver, name, version).await else {
+    let Some(manifest) = registry_manifest(ctx, resolver, &locked).await else {
         return false;
     };
-    let shadowed = peer_shadowed_dependencies(Some(&manifest), &scopes.current, auto_install_peers);
+    let shadowed = peer_shadowed_dependencies(
+        Some(&manifest),
+        &scopes.current,
+        ctx.workspace.policy.auto_install_peers,
+    );
     dependencies_named_as_peers(Some(&manifest))
-        .any(|(dep, _)| locked_deps.contains(dep) == shadowed.contains(dep))
+        .any(|(dep, _)| locked.deps.contains(dep) == shadowed.contains(dep))
 }
 
-/// The manifest of `name@version` as a fresh resolve reads it, read-package
+/// A registry package's dependencies and peers as the prior lockfile
+/// split them.
+struct LockedSplit {
+    name: String,
+    version: String,
+    deps: HashSet<String>,
+    /// The peers whose shadowing depends on the scope: optional ones, and
+    /// every one when peers are not auto-installed.
+    scope_dependent_peers: Vec<String>,
+}
+
+impl LockedSplit {
+    fn of(ctx: &TreeCtx, pkg_id: &str) -> Option<Self> {
+        let auto_install_peers = ctx.workspace.policy.auto_install_peers;
+        let packages = lock_recoverable(&ctx.workspace.tree.packages);
+        let pkg = packages.get(pkg_id)?;
+        let result = pkg.result();
+        if result.resolved_via != "npm-registry" {
+            return None;
+        }
+        let name_ver = result.package.name_ver.as_ref()?;
+        Some(LockedSplit {
+            name: name_ver.name.to_string(),
+            version: name_ver.suffix.to_string(),
+            deps: recorded_edges(ctx, pkg_id)
+                .map(|edges| {
+                    edges
+                        .iter()
+                        .map(|edge| edge.alias.clone())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            scope_dependent_peers: pkg.peer_dependencies
+                .iter()
+                .filter(|(_, peer)| peer.optional || !auto_install_peers)
+                .map(|(peer_name, _)| peer_name.clone())
+                .collect(),
+        })
+    }
+
+    /// Whether a name the split depends on is in only one of the scopes.
+    fn may_change(&self, scopes: &Scopes) -> bool {
+        self.deps
+            .iter()
+            .any(|dep| scopes.differ_on(dep))
+            || self.scope_dependent_peers
+                .iter()
+                .any(|peer| scopes.differ_on(peer))
+    }
+}
+
+/// The manifest of the locked package as a fresh resolve reads it, read-package
 /// hooks applied. `None` when it cannot be resolved; the pins then stand.
 async fn registry_manifest<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    name: String,
-    version: String,
+    locked: &LockedSplit,
 ) -> Option<Arc<serde_json::Value>>
 where
     Chain: Resolver + ?Sized,
 {
     let wanted = WantedDependency {
-        alias: Some(name),
-        bare_specifier: Some(version),
+        alias: Some(locked.name.clone()),
+        bare_specifier: Some(locked.version.clone()),
         ..WantedDependency::default()
     };
     let depth = 1;

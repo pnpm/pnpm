@@ -195,10 +195,6 @@ pub(super) struct PendingNode {
     /// any — threads each child's prior ref through the walk phase
     /// via `ReuseSource::Transitive`.
     pub(super) prior_key: Option<PkgNameVerPeer>,
-    /// Set by [`fn@mark_changed_locked_splits`] when this occurrence
-    /// owns children the prior lockfile pinned, and resolving them
-    /// here would split a package's dependencies and peers differently.
-    changes_locked_split: bool,
     identity: PendingNodeIdentity,
     ancestry: PendingNodeAncestry,
 }
