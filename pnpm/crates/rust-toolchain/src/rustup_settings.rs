@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Where rustup keeps its settings, such as the directory overrides
 /// `rustup override set` records and the default host triple.
@@ -14,7 +14,11 @@ pub fn rustup_settings_file() -> Option<PathBuf> {
 /// The host triple rustup installs toolchains for, as `rustup set
 /// default-host` records it.
 pub(crate) fn rustup_default_host_triple() -> Option<String> {
-    let settings: toml::Table = std::fs::read_to_string(rustup_settings_file()?)
+    default_host_triple_in(&rustup_settings_file()?)
+}
+
+fn default_host_triple_in(settings: &Path) -> Option<String> {
+    let settings: toml::Table = std::fs::read_to_string(settings)
         .ok()?
         .parse()
         .ok()?;
@@ -25,3 +29,6 @@ pub(crate) fn rustup_default_host_triple() -> Option<String> {
             .to_string(),
     )
 }
+
+#[cfg(test)]
+mod tests;
