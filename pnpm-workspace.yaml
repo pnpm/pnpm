@@ -449,7 +449,7 @@ catalog:
   p-every: ^2.0.0
   p-filter: ^4.1.0
   p-limit: ^7.3.3
-  p-queue: ^9.3.3
+  p-queue: ^9.3.5
   parse-json: ^8.3.0
   parse-npm-tarball-url: ^5.0.0
   path-absolute: ^2.0.0
