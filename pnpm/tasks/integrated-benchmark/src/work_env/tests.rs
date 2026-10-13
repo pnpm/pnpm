@@ -3,6 +3,7 @@ use super::{
     PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
     create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
+    may_create_lockfile,
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
@@ -10,7 +11,8 @@ use super::{
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
-use std::{collections::HashMap, fs};
+use pnpm_lockfile::Lockfile;
+use std::{collections::HashMap, fs, path::Path};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
@@ -570,6 +572,70 @@ fn client_binary_in_prefers_the_existing_binary() {
     assert_eq!(WorkEnv::client_binary_in(&root), release.join("pnpm"));
 
     let _ = fs::remove_dir_all(&root);
+}
+
+/// The scenario's contract: the seeded lockfile is out of date in exactly
+/// one way (the direct dependencies with peers are missing from the
+/// importer, with the package graph intact), the install links nothing and
+/// trusts the lockfile, and the next iteration finds the lockfile out of
+/// date again with no metadata cached.
+#[test]
+fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
+    let scenario = BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore;
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-store-only-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create store-only test dir");
+
+    create_package_json(&dir, None, scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_install_script(&dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    may_create_lockfile(&dir, scenario, None);
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read package.json"))
+            .expect("parse package.json");
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read workspace");
+    let install = fs::read_to_string(dir.join("install.bash")).expect("read install.bash");
+    let seeded = Lockfile::load_wanted_from_dir(&dir)
+        .expect("read the seeded lockfile")
+        .expect("a lockfile was seeded");
+    let _ = fs::remove_dir_all(&dir);
+    let fixture = Lockfile::parse(crate::fixtures::LOCKFILE, Path::new("pnpm-lock.yaml"))
+        .expect("parse the fixture lockfile")
+        .expect("the fixture lockfile holds a document");
+
+    let declared: usize = ["dependencies", "devDependencies", "optionalDependencies"]
+        .iter()
+        .map(|group| manifest[group].as_object().map_or(0, serde_json::Map::len))
+        .sum();
+    // The importer's direct dependencies, split into those whose locked
+    // version carries a peer suffix and the rest.
+    let locked = |lockfile: &Lockfile| -> (usize, usize) {
+        let importer = &lockfile.importers["."];
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .flat_map(HashMap::values)
+            .fold((0, 0), |(peered, plain), spec| {
+                if super::unlocked_deps::has_peer_suffix(spec) {
+                    (peered + 1, plain)
+                } else {
+                    (peered, plain + 1)
+                }
+            })
+    };
+    let packages = |lockfile: &Lockfile| lockfile.packages.as_ref().map(HashMap::len);
+    let (peered, plain) = locked(&fixture);
+    assert_eq!(peered + plain, declared, "the fixture lockfile is current");
+    assert!(peered > 0 && plain > 0, "the fixture has direct deps with and without peers");
+    assert_eq!(locked(&seeded), (0, plain), "exactly the peered direct deps are unlocked");
+    assert_eq!(packages(&seeded), packages(&fixture), "the package graph is kept whole");
+    assert!(workspace.contains("enableModulesDir: false"), "workspace = {workspace}");
+    assert!(workspace.contains("storeIndexFormat: files"), "workspace = {workspace}");
+    assert!(workspace.contains("trustLockfile: true"), "workspace = {workspace}");
+    assert!(install.ends_with("exec pnpm install --no-frozen-lockfile\n"), "install = {install}");
+    let cleanup = scenario.cleanup();
+    assert_eq!(cleanup.remove, ["cache-dir"], "the metadata cache is cold, the store is kept");
+    assert_eq!(cleanup.restore, [("pnpm-lock.yaml", ".saved-pnpm-lock.yaml")]);
 }
 
 #[test]

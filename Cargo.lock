@@ -5432,6 +5432,7 @@ dependencies = [
  "os_display",
  "pipe-trait",
  "pnpm-fs",
+ "pnpm-lockfile",
  "pnpm-registry-mock",
  "reqwest",
  "serde",

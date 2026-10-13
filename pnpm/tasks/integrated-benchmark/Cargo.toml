@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 pnpm-fs = { workspace = true }
+pnpm-lockfile = { workspace = true }
 pnpm-registry-mock = { workspace = true }
 
 clap = { workspace = true }

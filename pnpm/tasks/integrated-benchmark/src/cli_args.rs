@@ -266,6 +266,23 @@ pub enum BenchmarkScenario {
     /// Frozen repeat install of a populated injected workspace package with many small files.
     #[value(name = "isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store")]
     IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore,
+    /// Store-only install (`enableModulesDir: false`) against a lockfile
+    /// whose importer lacks the direct dependencies that have peers, cold
+    /// cache + hot store. The shape of `pnpm install` after dependencies
+    /// were added to `package.json` by hand: the missing direct
+    /// dependencies resolve from the registry and land on versions the
+    /// lockfile's package graph still holds, so the walk takes their
+    /// subtrees from the lockfile. With the metadata cache wiped per
+    /// iteration every package the walk does resolve costs a registry
+    /// round trip, which is what makes the subtrees the lockfile spares
+    /// show in the timing; the lockfile is trusted so that its
+    /// supply-chain verification does not fetch every packument first.
+    /// Nothing is linked, so the rest of the timed work is the check that
+    /// the store holds every package's files, read through a per-file
+    /// store index (`storeIndexFormat: files`), the format a store shared
+    /// between machines uses.
+    #[value(name = "store-only.unlocked-direct-deps.cold-cache.hot-store")]
+    StoreOnlyUnlockedDepsColdCacheHotStore,
 }
 
 /// Per-iteration cleanup applied by hyperfine's `--prepare`.
@@ -282,6 +299,13 @@ impl Cleanup {
     /// so there is nothing to restore between iterations.
     const fn removing(remove: &'static [&'static str]) -> Self {
         Cleanup { remove, restore: &[] }
+    }
+
+    const fn new(
+        remove: &'static [&'static str],
+        restore: &'static [(&'static str, &'static str)],
+    ) -> Self {
+        Cleanup { remove, restore }
     }
 }
 
@@ -303,6 +327,11 @@ impl BenchmarkScenario {
                 &["install", "--frozen-lockfile"]
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
+            // Explicit: CI runners set `CI`, where a plain `install` is
+            // frozen and would refuse the out-of-date lockfile.
+            BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore => {
+                &["install", "--no-frozen-lockfile"]
+            }
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
             | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
             | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
@@ -352,7 +381,8 @@ impl BenchmarkScenario {
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore
-            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore => true,
+            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore => true,
         }
     }
 
@@ -382,31 +412,30 @@ impl BenchmarkScenario {
     /// restore) applied via hyperfine's `--prepare`.
     pub fn cleanup(self) -> Cleanup {
         match self {
-            Self::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                // `cache-dir` (the packument-metadata mirror) is wiped
-                // alongside `store-dir` so a direct fresh install pays the
-                // full cold resolution — fetching every packument over the
-                // emulated registry link — which is precisely the cost pnpr
-                // offloads to its warm server. Without this the mirror
-                // stays warm and direct ≈ pnpr.
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            // `cache-dir` (the packument-metadata mirror) is wiped
+            // alongside `store-dir` so a direct fresh install pays the
+            // full cold resolution — fetching every packument over the
+            // emulated registry link — which is precisely the cost pnpr
+            // offloads to its warm server. Without this the mirror
+            // stays warm and direct ≈ pnpr.
+            Self::IsolatedFreshInstallColdCacheColdStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // Same as the frozen cold-cache + cold-store restore, but also wipe
             // the per-revision mock's `cold-mock-storage` so the serving pnpr
             // refetches (and streams) every tarball from the warm origin each
             // iteration. (`cold-mock-storage` only exists under a `pnpr@<rev>`
             // bench dir; it's a harmless no-op for the other ids.)
-            Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
-                restore: &[SAVED_LOCKFILE],
-            },
-            Self::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir"],
-                restore: &[SAVED_LOCKFILE],
-            },
+            Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup::new(
+                &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
+                &[SAVED_LOCKFILE],
+            ),
+            Self::IsolatedFreshRestoreColdCacheColdStore => {
+                Cleanup::new(&["node_modules", "store-dir", "cache-dir"], &[SAVED_LOCKFILE])
+            }
             Self::IsolatedFreshRestoreHotCacheHotStore | Self::GvsFreshRestoreHotCacheHotStore => {
-                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE])
             }
             // A repeat install mutates nothing, so nothing is removed or
             // restored — restoring the lockfile would bump its mtime and
@@ -418,21 +447,26 @@ impl BenchmarkScenario {
                 Cleanup::removing(&[])
             }
             Self::IsolatedRepeatInstallColdCacheHotStore => Cleanup::removing(&["cache-dir"]),
-            Self::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
-                remove: &["node_modules"],
-                restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
-            },
-            Self::IsolatedFreshInstallHotCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            // The install writes the direct dependencies it resolved back
+            // into the lockfile; the next iteration must find them missing
+            // again, and resolve them against a cold metadata cache.
+            // `node_modules` is never created; the warm store stays.
+            Self::StoreOnlyUnlockedDepsColdCacheHotStore => {
+                Cleanup::new(&["cache-dir"], &[SAVED_LOCKFILE])
+            }
+            Self::IsolatedFreshAddDepHotCacheHotStore => {
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON])
+            }
+            Self::IsolatedFreshInstallHotCacheHotStore => {
+                Cleanup::new(&["node_modules", "pnpm-lock.yaml"], &[SAVED_PACKAGE_JSON])
+            }
             // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
             // hot store (keep `store-dir` → no tarball download). Resolution
             // is the only variable cost, so it can't hide behind downloads.
-            Self::IsolatedFreshInstallColdCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            Self::IsolatedFreshInstallColdCacheHotStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // `node_modules` is wiped alongside the lockfile even though
             // `--lockfile-only` never writes it: a populated `node_modules`
             // left by the pre-warm pass lets the install's up-to-date
@@ -513,6 +547,20 @@ impl BenchmarkScenario {
 
     pub fn uses_injected_workspace_fixture(self) -> bool {
         matches!(self, BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore)
+    }
+
+    /// Whether the install fetches into the store and links nothing
+    /// (`enableModulesDir: false`), reading a per-file store index.
+    pub fn store_only(self) -> bool {
+        matches!(self, BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore)
+    }
+
+    /// Whether the seeded lockfile leaves the direct dependencies with
+    /// peers out of its importer, so the install resolves those afresh,
+    /// and whether the lockfile is trusted so that only the resolution
+    /// reads metadata.
+    pub fn unlocks_direct_deps(self) -> bool {
+        matches!(self, BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore)
     }
 
     /// Whether the measured command needs an online pre-warm followed by an
