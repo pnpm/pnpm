@@ -700,8 +700,8 @@ catalogs:
       specifier: ^7.3.3
       version: 7.3.3
     p-queue:
-      specifier: ^9.3.3
-      version: 9.3.3
+      specifier: ^9.3.5
+      version: 9.3.5
     parse-json:
       specifier: ^8.3.0
       version: 8.3.0
@@ -7156,7 +7156,7 @@ importers:
         version: 7.3.3
       p-queue:
         specifier: 'catalog:'
-        version: 9.3.3
+        version: 9.3.5
       promise-share:
         specifier: 'catalog:'
         version: 2.0.1
@@ -15482,8 +15482,8 @@ packages:
     resolution: {integrity: sha512-agE4QfB2Lkp9uICn7BAqoscw4SZP9kTE2hxiFI3jBPmXJfdqiahTbUuKGsMoN2GtqL9AxhYioAcVvgsb1HvRbA==}
     engines: {node: '>= 0.10'}
 
-  ip-address@10.7.3:
-    resolution: {integrity: sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==}
+  ip-address@10.7.4:
+    resolution: {integrity: sha512-DWBMKyeM25D70nrIiTkgQth59/G+naKOTep6huF9j+GmeK3DMD60Zvxg5d5qQnz+38AHgou6ean2LECX+lrKDg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -16746,8 +16746,8 @@ packages:
     resolution: {integrity: sha512-/bjOqmgETBYB5BoEeGVea8dmvHb2m9GLy1E9W43yeyfP6QQCZGFNa+XRceJEuDB6zqr+gKpIAmlLebMpykw/MQ==}
     engines: {node: '>=10'}
 
-  p-map@7.1.0:
-    resolution: {integrity: sha512-HaSJ9hNZOxTUSATfB48Qi7U2+GF1eECjI39nkeLmCWQrSOYr1z4NepR0rpWiZO77pYwUWU2cJ5NIgsmoFCsYDQ==}
+  p-map@7.1.1:
+    resolution: {integrity: sha512-6Lh3jQPLthYujSrlw6ccWXBGZTkoTCz27Hd92g79LH/kjAbgoEu0t442cCCNbegPSJsA0lwDX8z0bcKtkpA32g==}
     engines: {node: '>=18'}
 
   p-memoize@4.0.1:
@@ -16758,8 +16758,8 @@ packages:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
     engines: {node: '>=8'}
 
-  p-queue@9.3.3:
-    resolution: {integrity: sha512-NXAOdnEe5FsZJfT4oK84lE1Y5cFFdWlRuOo5tww8DyNMxyRXwn39fIkUtNLKppcPC+UYU/bXujNCUGDv01y7CA==}
+  p-queue@9.3.5:
+    resolution: {integrity: sha512-Lki/zhXFVmDhesBUn/yHRLW9Bte7mE7xoFHzTR8sIomV7a2z+LxYAPkGvdfidNiu4fKSfjtawixxSHcZci5QcQ==}
     engines: {node: '>=20'}
 
   p-reflect@2.1.0:
@@ -21745,7 +21745,7 @@ snapshots:
       minipass-collect: 2.0.1
       minipass-flush: 1.0.7
       minipass-pipeline: 1.2.4
-      p-map: 7.1.0
+      p-map: 7.1.1
       ssri: 12.0.0
       tar: 7.5.22
       unique-filename: 4.0.0
@@ -21760,7 +21760,7 @@ snapshots:
       minipass-collect: 2.0.1
       minipass-flush: 1.0.7
       minipass-pipeline: 1.2.4
-      p-map: 7.1.0
+      p-map: 7.1.1
       ssri: 13.0.1
 
   cacheable-lookup@5.0.4: {}
@@ -23250,7 +23250,7 @@ snapshots:
 
   interpret@1.4.0: {}
 
-  ip-address@10.7.3: {}
+  ip-address@10.7.4: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -24691,7 +24691,7 @@ snapshots:
 
   p-filter@4.1.0:
     dependencies:
-      p-map: 7.1.0
+      p-map: 7.1.1
 
   p-finally@1.0.0: {}
 
@@ -24731,7 +24731,7 @@ snapshots:
     dependencies:
       aggregate-error: 3.1.0
 
-  p-map@7.1.0: {}
+  p-map@7.1.1: {}
 
   p-memoize@4.0.1:
     dependencies:
@@ -24743,7 +24743,7 @@ snapshots:
       eventemitter3: 4.0.7
       p-timeout: 3.2.0
 
-  p-queue@9.3.3:
+  p-queue@9.3.5:
     dependencies:
       eventemitter3: 5.0.4
       p-timeout: 7.0.2
@@ -25437,7 +25437,7 @@ snapshots:
 
   socks@2.8.10:
     dependencies:
-      ip-address: 10.7.3
+      ip-address: 10.7.4
       smart-buffer: 4.2.0
 
   sort-keys@4.2.0:
