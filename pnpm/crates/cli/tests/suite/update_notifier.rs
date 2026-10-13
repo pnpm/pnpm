@@ -126,7 +126,8 @@ fn update_notifier_off_skips_the_check_entirely() {
 
 /// A registry that accepts the connection and never answers. The check
 /// sits in the registry client's timeouts, a minute each; the install has
-/// nothing else to do and must not wait for it
+/// nothing else to do and must not wait for it, and the next install must
+/// not pay for the same registry again that day
 /// ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
 #[test]
 fn a_registry_that_never_answers_does_not_hold_the_install() {
@@ -167,7 +168,14 @@ fn a_registry_that_never_answers_does_not_hold_the_install() {
         "the install waited {elapsed:?} on a registry that never answered: {text}",
     );
     assert!(!text.contains("Update available!"), "nothing was learned: {text}");
-    assert!(!state_file(&state_dir).exists(), "an unanswered check is not recorded");
+    let state: Value = fs::read_to_string(state_file(&state_dir))
+        .expect("read pnpm-state.json")
+        .parse::<serde_json::Value>()
+        .expect("parse pnpm-state.json");
+    assert!(
+        state["lastUpdateCheck"].is_string(),
+        "an abandoned check counts as today's check: {state}",
+    );
 
     drop((root, npmrc_info));
 }

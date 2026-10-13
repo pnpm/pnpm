@@ -125,8 +125,7 @@ pub fn install_already_up_to_date(
             catalogs: &catalogs,
         },
     )?;
-    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)
-        .ok_or("a global virtual store build marker needs recovery")?;
+    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
     register_fast_path_workspace(check.config, &lockfile_root)?;
     Ok(UpToDateWorkspace {
         root: state_root,
@@ -209,22 +208,32 @@ fn fast_path_workspace_context(
     Some((workspace_manifest, catalogs))
 }
 
+/// `Err` names what stops the fast path: a build marker the full install
+/// has to recover, or a wanted lockfile it cannot read to look for one.
 fn ensure_gvs_builds_complete(
     check: &UpToDateFastPathCheck<'_>,
     lockfile: &pnpm_lockfile::LazyLockfile,
     lockfile_root: &Path,
-) -> Option<()> {
-    if gvs_build_markers_may_require_recovery(check.config)
-        && gvs_build_marker_present(
-            lockfile.get().ok().flatten()?,
-            check.config,
-            lockfile_root,
-            super::effective_node_version(check.config, check.manifest).as_deref(),
-        )
-    {
-        return None;
+) -> Result<(), &'static str> {
+    if !gvs_build_markers_may_require_recovery(check.config) {
+        return Ok(());
     }
-    Some(())
+    let wanted = lockfile
+        .get()
+        .ok()
+        .flatten()
+        .ok_or(
+            "the wanted lockfile cannot be read to look for global virtual store build markers",
+        )?;
+    if gvs_build_marker_present(
+        wanted,
+        check.config,
+        lockfile_root,
+        super::effective_node_version(check.config, check.manifest).as_deref(),
+    ) {
+        return Err("a global virtual store build marker needs recovery");
+    }
+    Ok(())
 }
 
 /// The workspace root the run belongs to: the configured one, else the

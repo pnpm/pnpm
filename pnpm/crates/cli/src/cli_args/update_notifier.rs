@@ -11,7 +11,8 @@
 //! unreachable registry, or an unwritable state directory leaves the
 //! command's own outcome untouched. Nor does the check hold the command
 //! up: one still waiting on the registry when the command is done gets
-//! [`UPDATE_CHECK_GRACE_PERIOD`] and is then abandoned.
+//! [`UPDATE_CHECK_GRACE_PERIOD`], is then abandoned, and counts as the
+//! day's check so a registry that keeps stalling is asked once a day.
 //!
 //! An `install` that finishes through the repeat-install fast path never
 //! reaches this module — that path deliberately returns before the async
@@ -26,7 +27,11 @@ use pnpm_registry::Package;
 use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use serde_json::{Map, Value};
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.
@@ -45,11 +50,21 @@ const UPDATE_CHECK_GRACE_PERIOD: Duration = Duration::from_secs(1);
 const STATE_FILE_NAME: &str = "pnpm-state.json";
 const LAST_UPDATE_CHECK_KEY: &str = "lastUpdateCheck";
 
-/// The running command's update check, if one is due.
+/// The running command's update check.
 ///
 /// [`settle`] disposes of it; dropping it without settling detaches the
 /// task, which would leave the notice racing process exit.
-pub(crate) type PendingUpdateCheck = Option<JoinHandle<()>>;
+pub(crate) struct UpdateCheck {
+    handle: JoinHandle<()>,
+    /// Where an abandoned check records itself, so a registry that keeps
+    /// stalling costs the grace period once a day rather than once per
+    /// command.
+    state_file: PathBuf,
+    state: Map<String, Value>,
+}
+
+/// The running command's update check, if one is due.
+pub(crate) type PendingUpdateCheck = Option<UpdateCheck>;
 
 /// Start the daily update check in the background, or return [`None`] when
 /// the settings turn it off, the run is offline, or today's check already
@@ -68,9 +83,11 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
         return None;
     }
     let config = config.clone();
-    Some(tokio::spawn(async move {
-        check(&config, &state_file, state, emit).await;
-    }))
+    let handle = tokio::spawn({
+        let (state_file, state) = (state_file.clone(), state.clone());
+        async move { check(&config, &state_file, state, emit).await }
+    });
+    Some(UpdateCheck { handle, state_file, state })
 }
 
 /// Dispose of the check [`spawn`] started, now that the command it ran
@@ -78,14 +95,16 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
 ///
 /// A command that succeeded waits up to [`UPDATE_CHECK_GRACE_PERIOD`], so
 /// a notice the registry has answered reaches the terminal before the
-/// process exits. A check still running after that is aborted; nothing
-/// was recorded, so the next command checks again. A command that failed
-/// drops the check at once: the error is what the user needs to read.
+/// process exits. A check still running after that is aborted and
+/// recorded as the day's check: a registry that keeps stalling then costs
+/// the grace period once a day, not on every command, and tomorrow's
+/// check asks again. A command that failed drops the check at once and
+/// records nothing: the error is what the user needs to read.
 pub(crate) async fn settle<Output: Sync>(
     pending: PendingUpdateCheck,
     outcome: &miette::Result<Output>,
 ) {
-    let Some(handle) = pending else { return };
+    let Some(UpdateCheck { handle, state_file, state }) = pending else { return };
     if outcome.is_err() {
         handle.abort();
         return;
@@ -95,8 +114,10 @@ pub(crate) async fn settle<Output: Sync>(
         abort.abort();
         tracing::debug!(
             target: "pacquet::install",
-            "the update check is still waiting on the registry; the command finishes without it",
+            "the update check is still waiting on the registry; the command finishes without it \
+             and the check is not repeated until tomorrow",
         );
+        write_state(&state_file, state, Utc::now());
     }
 }
 
