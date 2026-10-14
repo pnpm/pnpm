@@ -7,14 +7,12 @@
 //!
 //! The algorithm has four passes:
 //!
-//! 1. **Walk with ignore-file filtering**: a `files` allowlist
-//!    disables `.gitignore` and `.npmignore` — the package's own and any
-//!    workspace-inherited ones alike — leaving the allowlist in pass 2
-//!    as the sole gate (one with no usable entry ships only the
-//!    always-included files, see [`build_files_matcher`]). Otherwise each
-//!    directory's `.npmignore` applies, or its `.gitignore` when it has
-//!    no `.npmignore`, matched the way
-//!    [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
+//! 1. **Walk with ignore-file filtering**: each directory's `.npmignore`
+//!    applies, or its `.gitignore` when it has no `.npmignore`, matched the
+//!    way [`ignore-walk`](https://github.com/npm/ignore-walk) matches them.
+//!    A `files` allowlist replaces the package root's ignore files and any
+//!    workspace-inherited ones. Subdirectories' still apply within their
+//!    subtree, except to a file the allowlist names.
 //! 2. **Apply the `files` field allowlist** on top of the walk's
 //!    output: when the manifest sets `files: ["dist/**"]`, drop
 //!    anything outside that set (except the always-included files
@@ -197,7 +195,7 @@ fn collect_own_files(
         bin_paths: &bin_paths,
     };
     let ignore_files = if files_matcher.is_some() {
-        IgnoreFiles::Skip
+        IgnoreFiles::SubdirectoriesOnly { named_files: &named_files }
     } else {
         IgnoreFiles::Read { workspace_dir }
     };
