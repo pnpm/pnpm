@@ -16,6 +16,7 @@
 
 pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
 
+mod missing_projects;
 mod reachability;
 
 use std::{
@@ -25,10 +26,8 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::DependencyGroup;
 
 use crate::SkippedSnapshots;
 
@@ -133,14 +132,15 @@ pub fn merge_filtered_wanted_lockfile(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Result<Lockfile, MergeFilteredWantedLockfileError> {
-    let missing_project_importers = missing_project_importers(previous_wanted, real_importer_ids);
-    retain_catalog_entries(&mut freshly_resolved, previous_wanted, &missing_project_importers);
+    let missing_project_importers = missing_projects::retain_importers(
+        previous_wanted,
+        real_importer_ids,
+        &mut freshly_resolved,
+    );
     let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {
         resolution_inputs_match(previous, &freshly_resolved)
     });
     let mut fresh_importers = std::mem::take(&mut freshly_resolved.importers);
-    let fresh_packages = freshly_resolved.packages.take();
-    let fresh_snapshots = freshly_resolved.snapshots.take();
     let mut importer_ids = real_importer_ids.iter().collect::<Vec<_>>();
     importer_ids.sort();
     freshly_resolved.importers = importer_ids
@@ -163,69 +163,23 @@ pub fn merge_filtered_wanted_lockfile(
             };
             Ok((importer_id.clone(), importer))
         })
-        .collect::<Result<HashMap<_, _>, MergeFilteredWantedLockfileError>>()?;
+        .collect::<Result<_, MergeFilteredWantedLockfileError>>()?;
     freshly_resolved.importers.extend(missing_project_importers);
-    freshly_resolved.packages = overlay_package_maps(
-        previous_wanted.and_then(|lockfile| lockfile.packages.as_ref()),
-        fresh_packages,
-    );
-    freshly_resolved.snapshots = overlay_package_maps(
-        previous_wanted.and_then(|lockfile| lockfile.snapshots.as_ref()),
-        fresh_snapshots,
-    );
+    overlay_previous_packages(&mut freshly_resolved, previous_wanted);
     Ok(full_closure(&freshly_resolved, workspace_root))
 }
 
-fn missing_project_importers(
-    previous_wanted: Option<&Lockfile>,
-    real_importer_ids: &HashSet<String>,
-) -> HashMap<String, ProjectSnapshot> {
-    previous_wanted
-        .map(|previous| {
-            previous.importers
-                .iter()
-                .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
-                .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// Copy the catalog entries `importers` use from `previous_wanted` into
-/// `lockfile`, where the fresh resolution recorded none.
-fn retain_catalog_entries(
-    lockfile: &mut Lockfile,
-    previous_wanted: Option<&Lockfile>,
-    importers: &HashMap<String, ProjectSnapshot>,
-) {
-    let Some(previous_catalogs) =
-        previous_wanted.and_then(|previous| previous.catalogs.as_ref())
-    else {
-        return;
-    };
-    let used_entries = importers
-        .values()
-        .flat_map(|importer| {
-            importer.dependencies_by_groups([
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ])
-        })
-        .filter_map(|(alias, dependency)| {
-            let catalog_name = parse_catalog_protocol(&dependency.specifier)?;
-            let alias = alias.to_string();
-            let entry = previous_catalogs.get(catalog_name)?.get(&alias)?;
-            Some((catalog_name, alias, entry))
-        });
-    for (catalog_name, alias, entry) in used_entries {
-        lockfile.catalogs
-            .get_or_insert_default()
-            .entry(catalog_name.to_string())
-            .or_default()
-            .entry(alias)
-            .or_insert_with(|| entry.clone());
-    }
+/// Fill in the `packages` and `snapshots` entries `previous_wanted` recorded
+/// that `lockfile` lacks. [`full_closure`] then drops the unreachable ones.
+fn overlay_previous_packages(lockfile: &mut Lockfile, previous_wanted: Option<&Lockfile>) {
+    lockfile.packages = overlay_package_maps(
+        previous_wanted.and_then(|previous| previous.packages.as_ref()),
+        lockfile.packages.take(),
+    );
+    lockfile.snapshots = overlay_package_maps(
+        previous_wanted.and_then(|previous| previous.snapshots.as_ref()),
+        lockfile.snapshots.take(),
+    );
 }
 
 // Retaining old importer pins is safe only while the workspace-wide resolution inputs match.
