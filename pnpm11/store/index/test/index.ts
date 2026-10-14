@@ -92,6 +92,32 @@ test('StoreIndex leaves the store directory mtime unchanged when its entries are
   }
 })
 
+test('StoreIndex connections through a store alias share one store directory mtime snapshot', () => {
+  const storeDir = temporaryDirectory()
+  const aliasDir = temporaryDirectory()
+  try {
+    const setup = new StoreIndex(storeDir)
+    setup.set('present', { value: 1 })
+    setup.close()
+    const oldMtime = new Date('2020-09-13T12:26:40Z')
+    fs.utimesSync(storeDir, oldMtime, oldMtime)
+    const alias = path.join(aliasDir, 'store')
+    fs.symlinkSync(storeDir, alias, 'junction')
+
+    const direct = new ReadOnlyStoreIndex(storeDir)
+    expect(direct.get('present')).toEqual({ value: 1 })
+    const aliased = new StoreIndex(alias)
+    aliased.set('added', { value: 2 })
+    direct.close()
+    aliased.close()
+
+    expect(fs.statSync(storeDir).mtime).toEqual(oldMtime)
+  } finally {
+    fs.rmSync(aliasDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
 test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StoreIndex(storeDir)

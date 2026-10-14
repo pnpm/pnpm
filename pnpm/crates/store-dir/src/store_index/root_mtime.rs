@@ -31,14 +31,17 @@ struct RootSnapshot {
 pub(super) fn acquire(root: &Path) -> Arc<RootMtimeGuard> {
     static GUARDS: LazyLock<Mutex<HashMap<PathBuf, Weak<RootMtimeGuard>>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
+    let root = dunce::canonicalize(root)
+        .or_else(|_| std::path::absolute(root))
+        .unwrap_or_else(|_| root.to_path_buf());
     let mut guards = GUARDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     guards.retain(|_, guard| guard.strong_count() > 0);
-    if let Some(guard) = guards.get(root).and_then(Weak::upgrade) {
+    if let Some(guard) = guards.get(&root).and_then(Weak::upgrade) {
         return guard;
     }
-    let guard =
-        Arc::new(RootMtimeGuard { root: root.to_path_buf(), snapshot: take_snapshot(root).ok() });
-    guards.insert(root.to_path_buf(), Arc::downgrade(&guard));
+    let snapshot = take_snapshot(&root).ok();
+    let guard = Arc::new(RootMtimeGuard { root: root.clone(), snapshot });
+    guards.insert(root, Arc::downgrade(&guard));
     guard
 }
 

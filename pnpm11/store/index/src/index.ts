@@ -132,18 +132,17 @@ export class StoreIndex {
   protected stmtAll!: StatementSync
   protected stmtKeys!: StatementSync
   private readonly exitHandler: () => void
-  private readonly storeDir: string
+  private readonly mtimeRoot?: string
 
   constructor (storeDir: string) {
-    this.storeDir = storeDir
-    if (this.createsSidecars) acquireRootMtime(storeDir)
+    if (this.createsSidecars) this.mtimeRoot = acquireRootMtime(storeDir)
     try {
       this.openDatabase(storeDir)
+      this.prepareStatements()
     } catch (err: unknown) {
-      if (this.createsSidecars) releaseRootMtime(storeDir)
+      if (this.mtimeRoot != null) releaseRootMtime(this.mtimeRoot)
       throw err
     }
-    this.prepareStatements()
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
     // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
@@ -402,7 +401,7 @@ export class StoreIndex {
     } catch {
       // The DB may be locked by another connection; the OS will reclaim it on process exit.
     }
-    if (this.createsSidecars) releaseRootMtime(this.storeDir)
+    if (this.mtimeRoot != null) releaseRootMtime(this.mtimeRoot)
   }
 
   /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip database writes. */

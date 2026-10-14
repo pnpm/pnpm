@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 interface RootSnapshot {
   mtimeMs: number
@@ -22,28 +23,39 @@ const roots = new Map<string, RootState>()
  * restores the mtime taken by the first acquire if the directory's entries
  * are unchanged.
  */
-export function acquireRootMtime (storeDir: string): void {
-  let state = roots.get(storeDir)
+export function acquireRootMtime (storeDir: string): string {
+  const root = realpathOrResolve(storeDir)
+  let state = roots.get(root)
   if (state == null) {
-    state = { connections: 0, snapshot: takeSnapshot(storeDir) }
-    roots.set(storeDir, state)
+    state = { connections: 0, snapshot: takeSnapshot(root) }
+    roots.set(root, state)
   }
   state.connections++
+  return root
 }
 
-export function releaseRootMtime (storeDir: string): void {
-  const state = roots.get(storeDir)
+/** Release the root returned by {@link acquireRootMtime}. */
+export function releaseRootMtime (root: string): void {
+  const state = roots.get(root)
   if (state == null) return
   state.connections--
   if (state.connections > 0) return
-  roots.delete(storeDir)
+  roots.delete(root)
   if (state.snapshot == null) return
-  const current = takeSnapshot(storeDir)
+  const current = takeSnapshot(root)
   if (current == null || current.entries !== state.snapshot.entries || current.mtimeMs === state.snapshot.mtimeMs) return
   try {
-    fs.utimesSync(storeDir, fs.statSync(storeDir).atime, state.snapshot.mtimeMs / 1000)
+    fs.utimesSync(root, fs.statSync(root).atime, state.snapshot.mtimeMs / 1000)
   } catch {
     // Restoring the mtime only helps caches; the store is intact either way.
+  }
+}
+
+function realpathOrResolve (storeDir: string): string {
+  try {
+    return fs.realpathSync(storeDir)
+  } catch {
+    return path.resolve(storeDir)
   }
 }
 
