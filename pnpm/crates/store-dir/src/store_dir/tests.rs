@@ -20,6 +20,13 @@ fn tmp() {
     assert_eq!(received, expected);
 }
 
+#[test]
+fn link_concurrency() {
+    let received = StoreDir::new("/home/user/.local/share/pnpm/store").link_concurrency();
+    let expected = Path::new("/home/user/.local/share/pnpm/store/v11/link-concurrency");
+    assert_eq!(received, expected);
+}
+
 /// `StoreDir::from(PathBuf)` appends [`STORE_VERSION`] to any path
 /// that doesn't already end with it. Both the auto-append happy path
 /// and the already-suffixed idempotent path are pinned here so a

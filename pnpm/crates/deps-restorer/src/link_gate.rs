@@ -37,4 +37,4 @@ pub(crate) fn load(_store_dir: &pnpm_store_dir::StoreDir, _destination: &std::pa
 
 /// No gate to record.
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn save(_store_dir: &pnpm_store_dir::StoreDir, _destination: &std::path::Path) {}
+pub(crate) fn save(_config: &pnpm_config::Config, _destination: &std::path::Path) {}

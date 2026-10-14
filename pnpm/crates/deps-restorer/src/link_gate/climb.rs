@@ -23,11 +23,11 @@ const MARGIN: f64 = 0.05;
 /// The rate as a function of the width is unimodal on APFS: it rises
 /// to the knee and falls past it. Each observation compares the rate
 /// at the current width with the rate at the previous one. A higher
-/// rate keeps the direction, a lower one reverses it, and an equal one
-/// moves down, since the narrower of two equally fast widths burns
-/// less CPU in the kernel. The step starts at a quarter of the width
-/// and halves on every reversal, so the climb crosses the measured
-/// range in a few observations and then settles next to the knee.
+/// rate keeps the direction, and a lower or equal one reverses it. The
+/// step starts at a quarter of the width and halves on every reversal,
+/// so the climb crosses the measured range in a few observations and
+/// then settles next to the knee. On a flat stretch, where the width
+/// does not limit the rate, it settles where it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Climb {
     permits: usize,
@@ -79,11 +79,7 @@ impl Climb {
                     .saturating_mul(2)
                     .min(coarse_step(self.permits));
             } else {
-                self.direction = if now < last * (1.0 - MARGIN) {
-                    self.direction.reversed()
-                } else {
-                    Direction::Down
-                };
+                self.direction = self.direction.reversed();
                 self.step = (self.step / 2).max(1);
             }
         }

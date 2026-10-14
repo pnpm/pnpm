@@ -318,6 +318,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         },
     )
     .map_err(HoistedLinkerError::LinkHoistedModules)?;
+    crate::link_gate::save(config, config.virtual_store_dir());
     let hoisted_dependencies = link_post_hierarchy::<Reporter>(
         inputs,
         lockfile,

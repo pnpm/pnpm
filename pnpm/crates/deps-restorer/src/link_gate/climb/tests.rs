@@ -69,3 +69,10 @@ fn stays_within_the_bounds() {
     );
     assert!(*widths.last().unwrap() >= MAX_PERMITS - 2, "{widths:?}");
 }
+
+#[test]
+fn holds_its_width_when_the_rate_is_flat() {
+    let mut climb = Climb::new(INITIAL_PERMITS);
+    let widths = settle(&mut climb, |_| 10_000, 20);
+    assert_near(INITIAL_PERMITS, &widths);
+}

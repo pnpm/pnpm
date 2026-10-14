@@ -1,10 +1,11 @@
 use super::climb::{Climb, INITIAL_PERMITS, MAX_PERMITS, MIN_PERMITS};
+use pnpm_config::Config;
 use pnpm_store_dir::StoreDir;
 use std::{
-    fs, io,
+    fs,
     os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
-    sync::{Condvar, LazyLock, Mutex},
+    sync::{Condvar, LazyLock, Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -12,13 +13,13 @@ use std::{
 /// Unset, `0`, or a value that is not a number leaves the climb on.
 const PINNED_PERMITS_ENV: &str = "PNPM_MACOS_LINK_CONCURRENCY";
 
-/// A window closes once this many calls completed in it and
-/// [`WINDOW_MIN_DURATION`] passed. The count keeps a window above the
-/// noise of a few slow calls; the duration keeps the windows of a
-/// cold install, whose per-file calls complete tens per millisecond,
-/// long enough for a width change to show in the rate.
+/// A window closes once this many calls completed in it and the gate
+/// had calls in flight for [`WINDOW_MIN_BUSY`]. The count keeps a
+/// window above the noise of a few slow calls; the duration keeps the
+/// windows of a cold install, whose per-file calls complete tens per
+/// millisecond, long enough for a width change to show in the rate.
 const WINDOW_CALLS: u64 = 256;
-const WINDOW_MIN_DURATION: Duration = Duration::from_millis(50);
+const WINDOW_MIN_BUSY: Duration = Duration::from_millis(50);
 
 /// An install that completed fewer calls than this did not run the
 /// climb long enough for its width to be worth seeding the next one.
@@ -33,15 +34,39 @@ struct Gate {
 
 struct State {
     climb: Climb,
-    pinned: bool,
+    pinned: Option<usize>,
+    /// The device [`load`] last tuned the climb for.
+    device: Option<u64>,
     in_flight: usize,
-    total_calls: u64,
+    /// Calls completed since the climb was tuned for [`Self::device`].
+    calls_on_device: u64,
     window: Window,
 }
 
+impl State {
+    fn permits(&self) -> usize {
+        self.pinned.unwrap_or_else(|| self.climb.permits())
+    }
+}
+
+/// One measurement of the completion rate.
+///
+/// The rate is taken over the time the gate had calls in flight, so the
+/// planning and fetching between link batches do not count as slow
+/// linking. A window in which no caller waited is not observed: the
+/// width did not limit it.
+#[derive(Default)]
 struct Window {
-    opened: Instant,
     calls: u64,
+    busy: Duration,
+    busy_since: Option<Instant>,
+    waited: bool,
+}
+
+impl Window {
+    fn busy(&self) -> Duration {
+        self.busy + self.busy_since.map_or(Duration::ZERO, |since| since.elapsed())
+    }
 }
 
 impl Gate {
@@ -52,24 +77,29 @@ impl Gate {
             .filter(|permits| *permits > 0);
         Self {
             state: Mutex::new(State {
-                climb: Climb::new(pinned.unwrap_or(INITIAL_PERMITS)),
-                pinned: pinned.is_some(),
+                climb: Climb::new(INITIAL_PERMITS),
+                pinned,
+                device: None,
                 in_flight: 0,
-                total_calls: 0,
-                window: Window { opened: Instant::now(), calls: 0 },
+                calls_on_device: 0,
+                window: Window::default(),
             }),
             released: Condvar::new(),
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    fn lock(&self) -> MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn acquire(&self) {
         let mut state = self.lock();
-        while state.in_flight >= state.climb.permits() {
-            state = self.released.wait(state).unwrap_or_else(std::sync::PoisonError::into_inner);
+        while state.in_flight >= state.permits() {
+            state.window.waited = true;
+            state = self.released.wait(state).unwrap_or_else(PoisonError::into_inner);
+        }
+        if state.in_flight == 0 {
+            state.window.busy_since = Some(Instant::now());
         }
         state.in_flight += 1;
     }
@@ -77,26 +107,51 @@ impl Gate {
     fn release(&self) {
         let mut state = self.lock();
         state.in_flight -= 1;
-        state.total_calls += 1;
+        state.calls_on_device += 1;
         state.window.calls += 1;
-        let elapsed = state.window.opened.elapsed();
-        if state.pinned || state.window.calls < WINDOW_CALLS || elapsed < WINDOW_MIN_DURATION {
-            drop(state);
-            self.released.notify_one();
-            return;
+        if state.in_flight == 0
+            && let Some(since) = state.window.busy_since.take()
+        {
+            state.window.busy += since.elapsed();
         }
-        let calls_per_second = (state.window.calls as f64 / elapsed.as_secs_f64()) as u64;
-        let before = state.climb.permits();
-        let after = state.climb.observe(calls_per_second);
-        state.window = Window { opened: Instant::now(), calls: 0 };
+        let busy = state.window.busy();
+        let widened = state.pinned.is_none()
+            && state.window.calls >= WINDOW_CALLS
+            && busy >= WINDOW_MIN_BUSY
+            && close_window(&mut state, busy);
         drop(state);
         // A wider gate admits waiters beyond the one a single release
         // would wake.
-        if after > before {
+        if widened {
             self.released.notify_all();
         } else {
             self.released.notify_one();
         }
+    }
+}
+
+/// Feed the window's rate to the climb if a caller waited in it, and
+/// start the next window. Returns whether the gate widened.
+fn close_window(state: &mut State, busy: Duration) -> bool {
+    let window = std::mem::take(&mut state.window);
+    if state.in_flight > 0 {
+        state.window.busy_since = Some(Instant::now());
+    }
+    if !window.waited {
+        return false;
+    }
+    let before = state.climb.permits();
+    let calls_per_second = (window.calls as f64 / busy.as_secs_f64()) as u64;
+    state.climb.observe(calls_per_second) > before
+}
+
+/// Releases its permit when dropped, so a panicking call does not shrink
+/// the gate for the rest of the process.
+struct Permit;
+
+impl Drop for Permit {
+    fn drop(&mut self) {
+        GATE.release();
     }
 }
 
@@ -106,54 +161,65 @@ impl Gate {
 /// nested wait could leave every permit waiting on another.
 pub(crate) fn gated<Output>(syscall: impl FnOnce() -> Output) -> Output {
     GATE.acquire();
-    let output = syscall();
-    GATE.release();
-    output
+    let _permit = Permit;
+    syscall()
 }
 
-/// Seed the gate with the width a previous install into the volume
-/// holding `destination` settled on. A pinned gate keeps its pin.
+/// Tune the gate for the volume holding `destination`, starting from the
+/// width a previous install into it settled on. A gate already tuned for
+/// that volume in this process keeps its state, and a pinned gate keeps
+/// its pin.
 pub(crate) fn load(store_dir: &StoreDir, destination: &Path) {
-    let Some(path) = record_path(store_dir, destination) else {
+    let Some(device) = device_of(destination) else {
         return;
     };
-    let Some(permits) = fs::read_to_string(&path)
+    {
+        let state = GATE.lock();
+        if state.pinned.is_some() || state.device == Some(device) {
+            return;
+        }
+    }
+    let climb = fs::read_to_string(record_path(store_dir, device))
         .ok()
         .and_then(|text| text.trim().parse::<usize>().ok())
         .filter(|permits| (MIN_PERMITS..=MAX_PERMITS).contains(permits))
-    else {
-        return;
-    };
+        .map_or_else(|| Climb::new(INITIAL_PERMITS), Climb::seeded);
     let mut state = GATE.lock();
-    if state.pinned || state.total_calls > 0 {
-        return;
-    }
-    state.climb = Climb::seeded(permits);
+    state.climb = climb;
+    state.device = Some(device);
+    state.calls_on_device = 0;
+    state.window =
+        Window { busy_since: (state.in_flight > 0).then(Instant::now), ..Window::default() };
 }
 
 /// Record the width the gate settled on for the volume holding
-/// `destination`, so the next install into it starts there.
-pub(crate) fn save(store_dir: &StoreDir, destination: &Path) {
-    let (permits, total_calls) = {
+/// `destination`, so the next install into it starts there. A frozen
+/// store is left untouched.
+pub(crate) fn save(config: &Config, destination: &Path) {
+    if config.frozen_store {
+        return;
+    }
+    let Some(device) = device_of(destination) else {
+        return;
+    };
+    let (permits, calls) = {
         let state = GATE.lock();
-        if state.pinned {
+        if state.pinned.is_some() || state.device != Some(device) {
             return;
         }
-        (state.climb.permits(), state.total_calls)
+        (state.climb.permits(), state.calls_on_device)
     };
     tracing::debug!(
         target: "pacquet::link_gate",
         permits,
-        calls = total_calls,
+        calls,
         "link gate width after the install",
     );
-    if total_calls < SAVE_MIN_CALLS {
+    if calls < SAVE_MIN_CALLS {
         return;
     }
-    let Some(path) = record_path(store_dir, destination) else {
-        return;
-    };
-    if let Err(error) = write_record(&path, permits) {
+    let path = record_path(&config.store_dir, device);
+    if let Err(error) = pnpm_fs::write_atomic(&path, format!("{permits}\n").as_bytes()) {
         tracing::debug!(
             target: "pacquet::link_gate",
             path = %path.display(),
@@ -163,18 +229,14 @@ pub(crate) fn save(store_dir: &StoreDir, destination: &Path) {
     }
 }
 
-fn write_record(path: &Path, permits: usize) -> io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, format!("{permits}\n"))
+/// The device of `destination`'s nearest existing ancestor. The knee is
+/// the volume's, so records are keyed by it.
+fn device_of(destination: &Path) -> Option<u64> {
+    fs::metadata(crate::dir_clone_cache::deepest_existing_ancestor(destination))
+        .ok()
+        .map(|metadata| metadata.dev())
 }
 
-/// `<store>/link-concurrency/<device>`, keyed by the device the
-/// destination's nearest existing ancestor sits on, since the knee is
-/// the volume's.
-fn record_path(store_dir: &StoreDir, destination: &Path) -> Option<PathBuf> {
-    let device =
-        fs::metadata(crate::dir_clone_cache::deepest_existing_ancestor(destination)).ok()?.dev();
-    Some(store_dir.link_concurrency().join(device.to_string()))
+fn record_path(store_dir: &StoreDir, device: u64) -> PathBuf {
+    store_dir.link_concurrency().join(device.to_string())
 }
