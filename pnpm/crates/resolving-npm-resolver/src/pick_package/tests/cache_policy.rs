@@ -4,7 +4,8 @@
 use super::{
     ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext,
     PickPackageError, PickPackageOptions, RetryOpts, TempDir, ThrottledClient, assert_eq,
-    default_opts, persist_meta_to_mirror, pick_package, range_spec, shared_packument_fetch_locker,
+    default_opts, get_pkg_mirror_path, persist_meta_to_mirror, pick_package, range_spec,
+    shared_packument_fetch_locker,
 };
 
 /// A warm mirror alone does not force a fetch: an online pick may return a
@@ -258,8 +259,9 @@ async fn offline_without_a_mirror_surfaces_no_offline_meta() {
 
 /// `prefer_offline` asks which source to try first. `offline` removes the
 /// registry from the sources altogether, so once it is set the first
-/// question has nothing left to decide: both settings of `prefer_offline`
-/// resolve the same way, from the same mirror, with the registry untouched.
+/// question has nothing left to decide. Both settings must agree on the
+/// answer and on the failure: a warm mirror resolves the same way, an empty
+/// one fails the same way, and the registry stays untouched throughout.
 #[tokio::test]
 async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
     let preloaded: pnpm_registry::Package =
@@ -272,45 +274,241 @@ async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
+    let warm = TempDir::new().expect("tempdir");
+    let empty = TempDir::new().expect("tempdir");
+    persist_meta_to_mirror(warm.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm the mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let mut from_warm_mirror = Vec::new();
+    let mut from_empty_mirror = Vec::new();
+    for prefer_offline in [false, true] {
+        for (cache_dir, outcomes) in
+            [(warm.path(), &mut from_warm_mirror), (empty.path(), &mut from_empty_mirror)]
+        {
+            // A cache per pick, so the mirror decides each one rather than
+            // an earlier pick's in-memory entry.
+            let meta_cache = InMemoryPackageMetaCache::default();
+            let ctx = PickPackageContext {
+                full_metadata: false,
+                needs_full_metadata_for: None,
+                filter_metadata: false,
+                cache_policy: crate::MetadataCachePolicy {
+                    offline: true,
+                    prefer_offline,
+                    ignore_missing_time_field: false,
+                },
+                store_view: None,
+                metadata: crate::MetadataRequestContext {
+                    meta_cache: &meta_cache,
+                    fetch_locker: &fetch_locker,
+                    cache_dir: Some(cache_dir),
+                    http: crate::MetadataHttpClient {
+                        http_client: &http_client,
+                        auth_headers: &auth_headers,
+                        retry_opts: RetryOpts::default(),
+                    },
+                },
+            };
+            let outcome =
+                match pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+                    .await
+                {
+                    Ok(result) => result.picked_package.map_or_else(
+                        || "none".to_string(),
+                        |picked| picked.version.to_string(),
+                    ),
+                    Err(PickPackageError::NoOfflineMeta { .. }) => "no-offline-meta".to_string(),
+                    Err(error) => format!("{error:?}"),
+                };
+            outcomes.push(outcome);
+        }
+    }
+
+    assert_eq!(from_warm_mirror, ["1.1.0", "1.1.0"]);
+    assert_eq!(from_empty_mirror, ["no-offline-meta", "no-offline-meta"]);
+    mock.assert_async().await;
+}
+
+/// An in-memory entry that came from the mirror rather than the registry is
+/// reusable without revalidation only for a pick whose answer fresh metadata
+/// could not change. `include_latest_tag` is not such a pick, so this test
+/// and the next differ in `prefer_offline` alone and count the requests the
+/// second pick makes.
+#[tokio::test]
+async fn prefer_offline_reuses_an_in_memory_entry_the_registry_never_confirmed() {
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(0)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
     let cache_dir = TempDir::new().expect("tempdir");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm the mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
-    let mut picked = Vec::new();
-    for prefer_offline in [false, true] {
-        // A cache per pick, so the mirror answers both rather than the
-        // first pick's in-memory entry answering the second.
-        let meta_cache = InMemoryPackageMetaCache::default();
-        let ctx = PickPackageContext {
-            full_metadata: false,
-            needs_full_metadata_for: None,
-            filter_metadata: false,
-            cache_policy: crate::MetadataCachePolicy {
-                offline: true,
-                prefer_offline,
-                ignore_missing_time_field: false,
+    let build_ctx = |prefer_offline| PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
             },
-            store_view: None,
-            metadata: crate::MetadataRequestContext {
-                meta_cache: &meta_cache,
-                fetch_locker: &fetch_locker,
-                cache_dir: Some(cache_dir.path()),
-                http: crate::MetadataHttpClient {
-                    http_client: &http_client,
-                    auth_headers: &auth_headers,
-                    retry_opts: RetryOpts::default(),
-                },
-            },
-        };
-        let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
-            .await
-            .expect("the mirror answers");
-        picked.push(result.picked_package.expect("picked").version.to_string());
-    }
+        },
+    };
 
-    assert_eq!(picked, ["1.1.0", "1.1.0"]);
+    // A plain online range pick settles from the mirror, leaving an
+    // in-memory entry the registry never confirmed.
+    pick_package(&build_ctx(false), &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("the mirror settles the range");
+
+    let opts = PickPackageOptions { include_latest_tag: true, ..default_opts(&registry) };
+    let result = pick_package(&build_ctx(true), &range_spec("acme", "^1.0.0"), &opts)
+        .await
+        .expect("the pick succeeds");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_online_pick_revalidates_an_in_memory_entry_the_registry_never_confirmed() {
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm the mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let build_ctx = |prefer_offline| PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    // A plain online range pick settles from the mirror, leaving an
+    // in-memory entry the registry never confirmed.
+    pick_package(&build_ctx(false), &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("the mirror settles the range");
+
+    let opts = PickPackageOptions { include_latest_tag: true, ..default_opts(&registry) };
+    let result = pick_package(&build_ctx(false), &range_spec("acme", "^1.0.0"), &opts)
+        .await
+        .expect("the pick succeeds");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
+/// With the mirror gone, the in-memory entry it left behind is the only
+/// offline source, and reusing it without revalidation is what
+/// `prefer_offline` buys. A store prune between two picks of one process
+/// reaches this.
+#[tokio::test]
+async fn prefer_offline_reuses_a_cached_entry_whose_mirror_has_been_pruned() {
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(0)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    let mirror = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("mirror path");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm the mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let build_ctx = |prefer_offline| PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    pick_package(&build_ctx(false), &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("the mirror settles the range");
+    std::fs::remove_file(&mirror).expect("prune the mirror");
+
+    let opts = PickPackageOptions { include_latest_tag: true, ..default_opts(&registry) };
+    let result = pick_package(&build_ctx(true), &range_spec("acme", "^1.0.0"), &opts)
+        .await
+        .expect("the cached entry answers");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
