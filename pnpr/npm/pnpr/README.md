@@ -11,8 +11,11 @@ Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under
 ## Install
 
 ```sh
-pnpm add -g @pnpm/pnpr
+pnpm add -g @pnpm/pnpr@next
 ```
+
+Until the first stable release, every pnpr version is a prerelease published
+under the `next` dist-tag, so install `@pnpm/pnpr@next`.
 
 The wrapper resolves to the native binary published under
 `@pnpm/pnpr.<platform>-<arch>` (e.g. `@pnpm/pnpr.linux-x64`). Prebuilt
@@ -24,7 +27,7 @@ To browse the server in a web browser, also install the web UI. pnpr serves it
 at `/-/ui/`:
 
 ```sh
-pnpm add -g @pnpm/pnpr,@pnpm/pnpr-ui
+pnpm add -g @pnpm/pnpr@next,@pnpm/pnpr-ui@next
 ```
 
 ## Usage

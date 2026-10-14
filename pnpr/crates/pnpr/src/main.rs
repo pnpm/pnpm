@@ -14,8 +14,7 @@ struct Args {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Path to a verdaccio-shaped YAML config (storage, upstreams,
-    /// packages, log). When omitted, the global `config.yaml` in
+    /// Path to the YAML config. When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
     #[arg(short = 'c', long, env = "PNPR_CONFIG")]
@@ -35,7 +34,7 @@ struct Args {
     public_url: Option<String>,
 
     /// Seconds before a cached packument is considered stale and
-    /// refetched. When omitted, the loaded config's value wins.
+    /// refetched. Defaults to 300. A registry's `maxage` overrides it.
     #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
     packument_ttl_secs: Option<u64>,
     #[command(flatten)]

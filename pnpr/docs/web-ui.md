@@ -9,13 +9,13 @@ pnpr serves a web UI at `/-/ui/` for browsing its registries and packages. The
 UI is the separate `@pnpm/pnpr-ui` package. Install it next to pnpr:
 
 ```sh
-pnpm add -g @pnpm/pnpr,@pnpm/pnpr-ui
+pnpm add -g @pnpm/pnpr@next,@pnpm/pnpr-ui@next
 ```
 
 The comma puts both packages in one
 [global install group](https://pnpm.io/global-packages#isolated-installations),
 where pnpr can find the UI. With npm, run
-`npm install -g @pnpm/pnpr @pnpm/pnpr-ui`.
+`npm install -g @pnpm/pnpr@next @pnpm/pnpr-ui@next`.
 
 Start pnpr and open `http://127.0.0.1:7677/-/ui/`. The UI talks to the server
 that serves it, so it needs no [CORS](discovery.md) setting. To see private

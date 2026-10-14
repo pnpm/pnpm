@@ -43,19 +43,17 @@ changes.
 
 ## How it works
 
-1. pnpm checks `GET /-/pnpr` to verify that the server speaks a compatible pnpr
-   resolver protocol version.
-2. pnpm sends `POST /-/pnpr/v0/resolve` with the project's dependencies,
+1. pnpm sends `POST /-/pnpr/v0/resolve` with the project's dependencies,
    registry settings, policy settings, and the existing lockfile when one is
    available. Client upstream credentials are never sent — private registries
    are reached through the server's own credentials (see
    [below](#private-registries)).
-3. The server resolves against the client's registries, verifies the input
+2. The server resolves against the client's registries, verifies the input
    lockfile under the client's policy, and streams an `application/x-ndjson`
    response. `package` frames announce resolved tarballs as the tree walk
    progresses, and a terminal `done` frame carries the resolved lockfile and
    stats. A terminal `violations` or `error` frame aborts the install.
-4. pnpm writes the resolved lockfile and fetches tarballs directly from the
+3. pnpm writes the resolved lockfile and fetches tarballs directly from the
    registries, like a normal install.
 
 For frozen restores with an already-fresh lockfile, pnpm can use
@@ -111,7 +109,7 @@ The resolver only fetches from origins the operator has configured — a
 **default-deny allowlist** made of the configured
 [registries](configuration.md#registries-and-defaultregistry), the declared
 [public routes](configuration.md#routes), the built-in official npm registry,
-and pnpr's own origin. A request whose `registry`/`namedRegistries` — or whose
+and pnpr's own origin. A request whose `registry`/`registries` — or whose
 direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs —
 point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
