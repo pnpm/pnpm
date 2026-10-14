@@ -295,6 +295,45 @@ fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
     drop(root);
 }
 
+/// Whether the script output is streamed or inherited, the silent reporter
+/// prints no lifecycle failure.
+#[test]
+fn silent_reporter_hides_recursive_lifecycle_failure() {
+    for output_flag in ["--stream", "--workspace-concurrency=1"] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let fails = json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": { "build": r#"node -e "process.exit(3)""# },
+        });
+        write_workspace(
+            &workspace,
+            &[("project-1", fails), ("project-2", build_writes_marker("project-2"))],
+        );
+
+        let output = pacquet
+            .with_args([
+                "--reporter=silent",
+                output_flag,
+                "--config.verify-deps-before-run=false",
+                "-r",
+                "run",
+                "build",
+            ])
+            .output()
+            .expect("run build");
+        assert!(!output.status.success(), "the failing script must fail the run");
+        let printed = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(!printed.contains("[ELIFECYCLE]"), "with {output_flag}:\n{printed}");
+
+        drop(root);
+    }
+}
+
 /// Port of upstream's `run --reporter-hide-prefix should hide prefix`
 /// (`pnpm/test/monorepo/index.ts`): only the script's own output loses
 /// the prefix — the command echo and the `Done` line keep theirs.
