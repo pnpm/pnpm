@@ -618,3 +618,93 @@ fn an_aliasing_override_survives_a_re_resolve_of_the_locked_child() {
 
     drop(fixture);
 }
+
+/// Installs `dependencies` with `workspace_yaml_extra` appended to the
+/// workspace manifest, points the registry at a dead port, and adds a local
+/// directory dependency. The new dependency needs a resolution, which then
+/// succeeds only if it reuses the lockfile for the registry dependencies
+/// instead of resolving them again.
+fn assert_adding_a_dependency_reuses_the_lockfile(
+    dependencies: serde_json::Value,
+    workspace_yaml_extra: &str,
+) {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+    let manifest_path = workspace.join("package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut manifest = serde_json::json!({ "dependencies": dependencies });
+    manifest["dependencies"]["@pnpm.e2e/pkg-with-1-dep"] = "100.0.0".into();
+    fs::write(&manifest_path, manifest.to_string()).expect("write package.json");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\n{workspace_yaml_extra}"),
+    )
+    .expect("write the catalog");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert!(wanted.catalogs.is_none(), "no dependency references the catalog");
+
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+    fs::create_dir(workspace.join("local")).expect("create the local dependency");
+    fs::write(workspace.join("local/package.json"), r#"{ "name": "local", "version": "1.0.0" }"#)
+        .expect("write the local dependency's package.json");
+    manifest["dependencies"]["local"] = "file:./local".into();
+    fs::write(&manifest_path, manifest.to_string()).expect("add the local dependency");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// The lockfile records only the catalog entries a dependency references.
+/// A configured entry that nothing references leaves no `catalogs` section,
+/// and that must not keep later installs from reusing the lockfile.
+#[test]
+fn an_unreferenced_catalog_entry_keeps_the_lockfile_reusable() {
+    assert_adding_a_dependency_reuses_the_lockfile(
+        serde_json::json!({}),
+        "catalog:\n  '@pnpm.e2e/bar': 100.0.0\n",
+    );
+}
+
+/// A `catalog:` override on a cataloged package replaces the dependency's
+/// `catalog:` specifier, so the lockfile records no `catalogs` section.
+#[test]
+fn a_catalog_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
+    assert_adding_a_dependency_reuses_the_lockfile(
+        serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
+        "catalog:\n  '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/bar': 'catalog:'\n",
+    );
+}
+
+/// The setup typescript-native-bridge documents for a workspace whose
+/// packages depend on `typescript` through `catalog:`: the catalog and the
+/// override both name the replacement. The override replaces the
+/// dependency's `catalog:` specifier, so the lockfile records no `catalogs`
+/// section.
+#[test]
+fn an_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
+    assert_adding_a_dependency_reuses_the_lockfile(
+        serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
+        "catalog:\n  '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/bar': 100.0.0\n",
+    );
+}

@@ -17,13 +17,11 @@ pub(crate) fn try_fast_update_catalogs(
     if !catalog_references_have_snapshots(lockfile, catalogs) {
         return FastCatalogUpdate::Unsupported;
     }
-    let Some(lockfile_catalogs) = lockfile.catalogs.as_ref() else {
-        return if catalogs.is_empty() {
-            FastCatalogUpdate::Unchanged
-        } else {
-            FastCatalogUpdate::Unsupported
-        };
-    };
+    // The lockfile records only the catalog entries a dependency references,
+    // and the check above found a snapshot for each of those. A lockfile
+    // without catalogs is one whose dependencies reference none.
+    let no_catalogs = LockfileCatalogs::new();
+    let lockfile_catalogs = lockfile.catalogs.as_ref().unwrap_or(&no_catalogs);
 
     let Some((updated_catalogs, changed)) =
         retargeted_catalogs(lockfile, catalogs, lockfile_catalogs)
