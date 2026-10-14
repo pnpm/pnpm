@@ -66,6 +66,7 @@ impl RegistryError {
 
     fn storage_log_kind(&self) -> &'static str {
         match self {
+            RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
             RegistryError::Bcrypt(_) => "bcrypt",
@@ -90,6 +91,7 @@ impl RegistryError {
 
     fn storage_status_code(&self) -> StatusCode {
         match self {
+            RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::Internal { .. }
             | RegistryError::InvalidHtpasswdFile { .. }
             | RegistryError::Bcrypt(_)

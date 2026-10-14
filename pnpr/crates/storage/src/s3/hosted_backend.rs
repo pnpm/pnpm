@@ -18,6 +18,31 @@ impl HostedBackend for S3Store {
         ))
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        fs::create_dir_all(&self.staging_dir).await
+            .map_err(|err| super::RegistryError::StorageUnavailable {
+                reason: format!(
+                    "s3 staging directory '{}' is not accessible: {err}",
+                    self.staging_dir.display(),
+                ),
+            })?;
+        let prefix_path = if self.prefix.is_empty() {
+            None
+        } else {
+            Some(ObjectPath::from(self.prefix.as_str()))
+        };
+        let check = self.store.list_with_delimiter(prefix_path.as_ref());
+        match tokio::time::timeout(std::time::Duration::from_secs(5), check).await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(super::RegistryError::StorageUnavailable {
+                reason: format!("S3 store check failed: {err}"),
+            }),
+            Err(_) => Err(super::RegistryError::StorageUnavailable {
+                reason: "S3 store check timed out after 5s".to_string(),
+            }),
+        }
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         S3Store::read_document(self, name).await
     }

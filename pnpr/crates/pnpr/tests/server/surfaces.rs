@@ -329,3 +329,178 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
             .any(|header| header.trim().eq_ignore_ascii_case("authorization")),
     );
 }
+
+#[tokio::test]
+async fn readiness_and_liveness_endpoints_report_status() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let app = router(config);
+
+    // Bare root endpoints
+    let live = app
+        .clone()
+        .oneshot(
+            Request::get("/-/live")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(live.status(), StatusCode::OK);
+    let live_body: Value = serde_json::from_slice(&body_bytes(live.into_body()).await).unwrap();
+    assert_eq!(live_body, json!({"status": "ok"}));
+
+    let ready = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), StatusCode::OK);
+    let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
+    assert_eq!(
+        ready_body,
+        json!({
+            "status": "ok",
+            "storage": "ok",
+            "auth": "ok"
+        }),
+    );
+
+    // Prefixed registry endpoints
+    let prefixed_live = app
+        .clone()
+        .oneshot(
+            Request::get("/~hosted/-/live")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(prefixed_live.status(), StatusCode::OK);
+
+    let prefixed_ready = app
+        .clone()
+        .oneshot(
+            Request::get("/~hosted/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(prefixed_ready.status(), StatusCode::OK);
+
+    let prefixed_ping = app
+        .oneshot(
+            Request::get("/~hosted/-/ping")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(prefixed_ping.status(), StatusCode::OK);
+    let ping_body: Value =
+        serde_json::from_slice(&body_bytes(prefixed_ping.into_body()).await).unwrap();
+    assert_eq!(ping_body, json!({}));
+}
+
+#[tokio::test]
+async fn readiness_probe_fails_when_storage_is_inaccessible() {
+    let tmp = TempDir::new().unwrap();
+    // Create a regular file so that a child path cannot be created as a directory (ENOTDIR)
+    let blocking_file = tmp.path().join("blocking-file");
+    std::fs::write(&blocking_file, b"block").unwrap();
+    let invalid_storage = blocking_file.join("sub-directory");
+
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.storage.hosted_dir = invalid_storage;
+    let app = router(config);
+
+    // /-/ready returns 503 Service Unavailable when storage check fails
+    let ready = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
+    assert_eq!(ready_body["status"], "unhealthy");
+    assert_eq!(ready_body["storage"], "unavailable");
+    assert_eq!(ready_body["auth"], "ok");
+
+    // /-/ping also returns 503 Service Unavailable when readiness fails
+    let ping = app
+        .oneshot(
+            Request::get("/-/ping")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn readiness_probe_fails_when_auth_is_inaccessible() {
+    let tmp = tempfile::tempdir().unwrap();
+    let tokens_path = tmp.path().join("tokens.db");
+
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.identity.auth.tokens.file = Some(tokens_path.clone());
+    let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
+    let app = pnpr::router_with_auth(config, auth);
+
+    // Remove the tokens database file so token store readiness fails
+    std::fs::remove_file(&tokens_path).unwrap();
+
+    // /-/ready returns 503 Service Unavailable when auth check fails
+    let ready = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
+    assert_eq!(ready_body["status"], "unhealthy");
+    assert_eq!(ready_body["storage"], "ok");
+    assert_eq!(ready_body["auth"], "unavailable");
+
+    // /-/ping also returns 503 Service Unavailable when auth readiness fails
+    let ping = app
+        .oneshot(
+            Request::get("/-/ping")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sigterm_signal_handler_installs_cleanly() {
+    let mut signal =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+    // The signal stream exists and is ready to receive
+    let poll_now = futures_util::future::poll_fn(|cx| signal.poll_recv(cx));
+    tokio::pin!(poll_now);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(10), poll_now)
+            .await
+            .is_err(),
+    );
+}

@@ -213,6 +213,20 @@ impl TokenBackend for TokenStore {
         }
         Ok(Some(record))
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        let Some(path) = self.persist.clone() else {
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE;
+            let conn = Connection::open_with_flags(&path, flags)?;
+            conn.query_row("SELECT EXISTS(SELECT 1 FROM tokens LIMIT 1);", [], |_row| Ok(()))?;
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
 }
 
 impl Default for TokenStore {

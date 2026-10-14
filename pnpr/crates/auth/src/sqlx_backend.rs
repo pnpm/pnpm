@@ -83,6 +83,13 @@ impl<Db> SqlAuth<Db> {
         }
         self.db.reconcile_user_counter_overcount().await
     }
+
+    async fn check_db_readiness(&self) -> Result<()>
+    where
+        Db: AuthSqlBackend,
+    {
+        with_auth_timeout(self.timeout, self.db.check_readiness()).await
+    }
 }
 
 #[async_trait]
@@ -115,6 +122,9 @@ trait AuthSqlBackend: Send + Sync {
     async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
     /// Remove the user and take one off the `users` counter in one transaction.
     async fn delete_user(&self, username: &str) -> Result<bool>;
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -194,6 +204,10 @@ where
     async fn delete_user(&self, username: &str) -> Result<bool> {
         self.db.delete_user(username).await
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
+    }
 }
 
 #[async_trait]
@@ -241,6 +255,10 @@ where
         };
         self.db.delete_token(key).await?;
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 

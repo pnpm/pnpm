@@ -45,13 +45,14 @@ use super::{
     MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, TargetRegistry,
     addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
     delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
-    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
-    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi, remove_dist_tag,
-    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
-    serve_artifact_blob_size, serve_batch_publish, serve_get_pipeline_run,
-    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
-    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
-    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    get_profile, get_team_members, get_token_list, get_whoami,
+    health::{serve_live, serve_ping, serve_ready},
+    loggable_uri, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
+    put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
+    require_resolver_caller, serve_artifact_blob, serve_artifact_blob_size, serve_batch_publish,
+    serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages, serve_packument,
+    serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run,
+    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
     serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
     staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
@@ -204,11 +205,18 @@ fn surface_routes(
     surfaces: EnabledSurfaces,
     ui_served: bool,
 ) -> Router<AppState> {
-    // `/-/ping` is a health check and is always served. The two
-    // configurable surfaces are mounted only when their feature is enabled,
+    // Health and probe endpoints (`/-/ping`, `/-/ready`, `/-/live`) are always served.
+    // The configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router: Router<AppState> = Router::new().route("/-/ping", get(serve_ping));
+    let mut router: Router<AppState> = Router::new();
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            .route(&path("/-/ping"), get(serve_ping))
+            .route(&path("/-/ready"), get(serve_ready))
+            .route(&path("/-/live"), get(serve_live));
+    }
     router = router
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())

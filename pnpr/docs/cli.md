@@ -88,3 +88,7 @@ Run only the pnpr resolver endpoints, without exposing an npm registry surface:
 ```sh
 pnpr --disable-registry
 ```
+
+## Signals and graceful shutdown
+
+pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`. When either signal is received, the server initiates a graceful shutdown, stopping new connections and completing in-flight requests. This ensures clean termination in containerized environments such as Docker and Kubernetes.
