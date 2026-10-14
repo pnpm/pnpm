@@ -28,7 +28,7 @@ pub(super) fn trusted_shim_settings() -> TrustedShimSettings {
     match load_trusted_shim_settings() {
         Ok(settings) => settings,
         Err(error) => {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 "pnpm: project-aware global shims are disabled because trusted configuration could not be loaded: {error}",
             );
             let mut shims = GlobalShims::default();

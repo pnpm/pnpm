@@ -6380,6 +6380,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-crypto-hash",
  "pnpm-deps-path",
+ "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",

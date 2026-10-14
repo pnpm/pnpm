@@ -89,7 +89,7 @@ fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Re
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
             Err(error) if invocation.polling.once => return Err(error),
-            Err(error) => eprintln!("[WARN] poll failed: {error}"),
+            Err(error) => pnpm_diagnostics::eprintln!("[WARN] poll failed: {error}"),
         }
         if invocation.polling.once {
             return Ok(());

@@ -251,7 +251,7 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
             return run_next_on_path(shim, args);
         }
         ShimTarget::Virtual(package) => {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
                 shim.name,
             );
@@ -272,7 +272,7 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
         }
         Ok(_) => exec_program(target, args),
         Err(error) => {
-            eprintln!("pnpm: failed to read {}: {error}", target.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to read {}: {error}", target.display());
             126
         }
     }
@@ -456,7 +456,9 @@ fn run_runtime_from_store(
         }) => run_held_program(&bin, &[], args, vec![private_install]),
         Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+            );
             1
         }
     }
@@ -496,7 +498,10 @@ fn run_package_manager_from_pin(
             }
         }
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {}@{version_spec}: {error:?}",
+                pm.name(),
+            );
             1
         }
     }
