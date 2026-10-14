@@ -68,8 +68,11 @@ pub(super) fn enforce_published_version_immutability(
     name: &CanonicalPackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    // None (no versions to enforce) means "accept", not "error" here.
-    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
+    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return Some(RegistryError::BadRequest {
+            reason: "packument must contain an object-valued versions field".to_string(),
+        });
+    };
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
     let mut restores = PendingRestores::default();
     for (version, manifest) in incoming_versions {

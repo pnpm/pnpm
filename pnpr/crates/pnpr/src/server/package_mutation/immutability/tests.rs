@@ -207,3 +207,62 @@ fn restores_omitted_dist_fields() {
     assert!(enforce_published_version_immutability(&hosted, &pkg, &mut incoming).is_none());
     assert_eq!(incoming["versions"]["1.0.0"]["dist"]["fileCount"], json!(42));
 }
+
+#[test]
+fn rejects_missing_or_non_object_versions() {
+    let pkg = CanonicalPackageName::parse("mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                }
+            }
+        }
+    });
+
+    let mut incoming_empty = json!({});
+    let err = enforce_published_version_immutability(&hosted, &pkg, &mut incoming_empty).unwrap();
+    assert!(matches!(err, RegistryError::BadRequest { .. }));
+
+    let mut incoming_null = json!({ "versions": null });
+    let err = enforce_published_version_immutability(&hosted, &pkg, &mut incoming_null).unwrap();
+    assert!(matches!(err, RegistryError::BadRequest { .. }));
+}
+
+#[test]
+fn rejects_non_string_or_modified_shasum() {
+    let pkg = CanonicalPackageName::parse("mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "shasum": "abcd",
+                }
+            }
+        }
+    });
+
+    let mut incoming_null_shasum = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "shasum": null,
+                }
+            }
+        }
+    });
+    let err =
+        enforce_published_version_immutability(&hosted, &pkg, &mut incoming_null_shasum).unwrap();
+    assert!(matches!(err, RegistryError::BadRequest { .. }));
+}
