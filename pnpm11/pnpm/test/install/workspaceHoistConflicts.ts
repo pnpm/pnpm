@@ -50,10 +50,11 @@ test.each([
 ])('dedupe keeps workspace and auto-installed peer copies separate (node linker: $nodeLinker, public hoist: $publicHoist)', async ({ nodeLinker, publicHoist }) => {
   preparePackages([
     { location: '.', package: { name: 'root', private: true } },
-    { location: 'packages/foo', package: { name: '@pnpm.e2e/foo', version: '100.0.0' } },
+    { location: 'packages/foo', package: { name: '@pnpm.e2e/foo', version: '100.0.0', bin: { 'workspace-foo-only': 'cli.js' } } },
     { location: 'packages/workspace-consumer', package: { name: 'workspace-consumer', dependencies: { '@pnpm.e2e/foo': 'workspace:*' } } },
     { location: 'packages/peer-consumer', package: { name: 'peer-consumer', dependencies: { '@pnpm.e2e/has-foo100-peer': '1.0.0' } } },
   ])
+  fs.writeFileSync('packages/foo/cli.js', '#!/usr/bin/env node\n')
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['packages/*'],
     linkWorkspacePackages: false,
@@ -66,6 +67,8 @@ test.each([
     expect(fs.realpathSync('packages/workspace-consumer/node_modules/@pnpm.e2e/foo')).toBe(path.resolve('packages/foo'))
     if (nodeLinker !== 'hoisted') {
       expect(fs.realpathSync(hoistedFoo)).toBe(path.resolve('packages/foo'))
+    } else {
+      expect(fs.existsSync('node_modules/.bin/workspace-foo-only')).toBe(false)
     }
     const peerConsumerPath = nodeLinker === 'hoisted'
       ? 'node_modules/@pnpm.e2e/has-foo100-peer'

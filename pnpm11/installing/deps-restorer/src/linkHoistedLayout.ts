@@ -96,7 +96,10 @@ async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: Hea
   // Every package of the hoisted layout lives in the root modules
   // directory, so a project matching either hoist pattern is linked there.
   const hoistedDependencies = await hoistWorkspacePackages({
-    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx) : [],
+    // The hoisted tree is already in the root directory when workspace links are selected.
+    directDependencyAliases: opts.hoistWorkspacePackages
+      ? [...getDirectDependencyAliases(ctx), ...Object.keys(depGraph.directDependenciesByImporterId['.'] ?? {})]
+      : [],
     directDepsByImporterId: {
       '.': new Map(Object.entries(depGraph.directDependenciesByImporterId['.'] ?? {})),
     },

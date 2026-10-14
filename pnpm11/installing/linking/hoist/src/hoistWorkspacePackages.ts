@@ -17,7 +17,7 @@ type WorkspaceRollback = (() => Promise<void>) | void
 export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<WorkspaceRollback>
   directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-  /** Non-link aliases from every lockfile importer. */
+  /** Non-link importer aliases and aliases already occupying a shared hoist directory. */
   directDependencyAliases: Iterable<string>
   graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
