@@ -14,6 +14,18 @@ use super::{
 /// conditions that withdraws that shortcut, and then only the registry can
 /// answer. This test and the next differ only in the policy, `Online`
 /// against `PreferCache`.
+/// The pick reduced to a label, so a scenario table can assert on it.
+fn outcome_label(result: Result<crate::PickPackageResult, PickPackageError>) -> String {
+    match result {
+        Ok(result) => result.picked_package.map_or_else(
+            || "none".to_string(),
+            |picked| picked.version.to_string(),
+        ),
+        Err(PickPackageError::NoOfflineMeta { .. }) => "no-offline-meta".to_string(),
+        Err(error) => format!("{error:?}"),
+    }
+}
+
 #[tokio::test]
 async fn an_online_pick_verifies_an_unstable_mirror_pick_against_the_registry() {
     let preloaded: pnpm_registry::Package =
@@ -280,52 +292,39 @@ async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let fetch_locker = shared_packument_fetch_locker();
-    let mut from_warm_mirror = Vec::new();
-    let mut from_empty_mirror = Vec::new();
-    for prefer_offline in [false, true] {
-        for (cache_dir, outcomes) in
-            [(warm.path(), &mut from_warm_mirror), (empty.path(), &mut from_empty_mirror)]
-        {
-            // A cache per pick, so the mirror decides each one rather than
-            // an earlier pick's in-memory entry.
-            let meta_cache = InMemoryPackageMetaCache::default();
-            let ctx = PickPackageContext {
-                full_metadata: false,
-                needs_full_metadata_for: None,
-                filter_metadata: false,
-                cache_policy: crate::MetadataCachePolicy {
-                    network: pnpm_config::NetworkPolicy::from_settings(true, prefer_offline),
-                    ignore_missing_time_field: false,
+    let spec = range_spec("acme", "^1.0.0");
+    let opts = default_opts(&registry);
+    let mut outcomes = Vec::new();
+    for (prefer_offline, cache_dir) in
+        [(false, warm.path()), (true, warm.path()), (false, empty.path()), (true, empty.path())]
+    {
+        // A cache per pick, so the mirror decides each one rather than an
+        // earlier pick's in-memory entry.
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let ctx = PickPackageContext {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            cache_policy: crate::MetadataCachePolicy {
+                network: pnpm_config::NetworkPolicy::from_settings(true, prefer_offline),
+                ignore_missing_time_field: false,
+            },
+            store_view: None,
+            metadata: crate::MetadataRequestContext {
+                meta_cache: &meta_cache,
+                fetch_locker: &fetch_locker,
+                cache_dir: Some(cache_dir),
+                http: crate::MetadataHttpClient {
+                    http_client: &http_client,
+                    auth_headers: &auth_headers,
+                    retry_opts: RetryOpts::default(),
                 },
-                store_view: None,
-                metadata: crate::MetadataRequestContext {
-                    meta_cache: &meta_cache,
-                    fetch_locker: &fetch_locker,
-                    cache_dir: Some(cache_dir),
-                    http: crate::MetadataHttpClient {
-                        http_client: &http_client,
-                        auth_headers: &auth_headers,
-                        retry_opts: RetryOpts::default(),
-                    },
-                },
-            };
-            let outcome =
-                match pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
-                    .await
-                {
-                    Ok(result) => result.picked_package.map_or_else(
-                        || "none".to_string(),
-                        |picked| picked.version.to_string(),
-                    ),
-                    Err(PickPackageError::NoOfflineMeta { .. }) => "no-offline-meta".to_string(),
-                    Err(error) => format!("{error:?}"),
-                };
-            outcomes.push(outcome);
-        }
+            },
+        };
+        outcomes.push(outcome_label(pick_package(&ctx, &spec, &opts).await));
     }
 
-    assert_eq!(from_warm_mirror, ["1.1.0", "1.1.0"]);
-    assert_eq!(from_empty_mirror, ["no-offline-meta", "no-offline-meta"]);
+    assert_eq!(outcomes, ["1.1.0", "1.1.0", "no-offline-meta", "no-offline-meta"]);
     mock.assert_async().await;
 }
 

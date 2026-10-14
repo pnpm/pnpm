@@ -293,10 +293,7 @@ impl ResolverChainInputs<'_> {
                 filter_metadata: self.config.requires_filtered_full_metadata(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::from_settings(
-                    self.config.offline,
-                    self.config.prefer_offline,
-                ),
+                network: self.config.network_policy(),
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
             store_view: self.store.index
@@ -398,10 +395,7 @@ impl ResolverChainInputs<'_> {
                 filter_metadata: self.config.requires_filtered_full_metadata(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-                network: pnpm_config::NetworkPolicy::from_settings(
-                    self.config.offline,
-                    self.config.prefer_offline,
-                ),
+                network: self.config.network_policy(),
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
             store_view: self.store.index
