@@ -980,8 +980,10 @@ test('getOptionsFromPnpmSettings() treats a null httpProxy and httpsProxy as uns
     httpProxy: null as unknown as string,
     httpsProxy: null as unknown as string,
   })
-  expect(options.httpProxy).toBeNull()
-  expect(options.httpsProxy).toBeNull()
+  expect(options.httpProxy).toBeUndefined()
+  expect(options.httpsProxy).toBeUndefined()
+  expect('httpProxy' in options).toBe(false)
+  expect('httpsProxy' in options).toBe(false)
 })
 
 test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () => {

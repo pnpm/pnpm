@@ -94,12 +94,7 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
-  if (settings.httpProxy != null) {
-    assertString(settings.httpProxy, 'httpProxy')
-  }
-  if (settings.httpsProxy != null) {
-    assertString(settings.httpsProxy, 'httpsProxy')
-  }
+  normalizeProxySettings(settings)
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
@@ -109,6 +104,14 @@ export function getOptionsFromPnpmSettings (
   }
 
   return settings
+}
+
+/** A null proxy leaves the key unset, so a proxy from a lower-priority config file still applies. */
+function normalizeProxySettings (settings: OptionsFromRootManifest): void {
+  for (const key of ['httpProxy', 'httpsProxy'] as const) {
+    if (settings[key] == null) delete settings[key]
+    else assertString(settings[key], key)
+  }
 }
 
 function toGetOptionsFromPnpmSettingsOptions (
