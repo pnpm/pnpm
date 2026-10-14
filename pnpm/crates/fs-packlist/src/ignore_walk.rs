@@ -32,8 +32,7 @@ pub(crate) enum IgnoreFiles<'a> {
     Read {
         workspace_dir: Option<&'a Path>,
         /// Package-relative paths that the root re-includes after its ignore
-        /// files, with npm-packlist's strict rules: `!/<path>`. Each path is
-        /// matched literally, not as a glob.
+        /// files, see [`IgnoreRule::reinclude_path`].
         required_paths: &'a [String],
     },
 }
@@ -51,11 +50,7 @@ pub(crate) fn walk_files(
         IgnoreFiles::Read { workspace_dir, required_paths } => {
             let mut rules = inherited_rules(pkg_dir, workspace_dir)?;
             rules.extend(read_dir_rules(pkg_dir)?);
-            rules.extend(
-                required_paths
-                    .iter()
-                    .map(|path| IgnoreRule::parse(&format!("!/{}", escape_glob(path)))),
-            );
+            rules.extend(required_paths.iter().map(|path| IgnoreRule::reinclude_path(path)));
             (rules, None)
         }
     };
@@ -178,18 +173,6 @@ enum Named {
     File,
     /// A directory that holds a named file.
     Ancestor,
-}
-
-/// Escapes every character a rule would read as glob syntax.
-fn escape_glob(path: &str) -> String {
-    let mut escaped = String::with_capacity(path.len());
-    for current in path.chars() {
-        if r"*?[]{}()!+@\".contains(current) {
-            escaped.push('\\');
-        }
-        escaped.push(current);
-    }
-    escaped
 }
 
 fn is_pruned(name: &str, depth: usize) -> bool {
