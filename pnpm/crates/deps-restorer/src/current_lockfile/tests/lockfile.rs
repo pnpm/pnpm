@@ -55,12 +55,16 @@ fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
 fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_change() {
     let selected_id = "packages/selected".to_string();
     let retained_id = "packages/retained".to_string();
-    let removed_id = "packages/removed".to_string();
+    let missing_id = "packages/missing".to_string();
     let new_id = "packages/new".to_string();
 
     let prior_retained = ProjectSnapshot {
         specifiers: Some(HashMap::from([("retained".to_string(), "prior".to_string())])),
         dependencies: Some(importer_map(&[("retained", "1.0.0"), ("shared", "1.0.0")])),
+        ..Default::default()
+    };
+    let prior_missing = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("missing", "1.0.0")])),
         ..Default::default()
     };
     let mut previous = lockfile_with_top_level("prior", 0);
@@ -73,13 +77,7 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
             },
         ),
         (retained_id.clone(), prior_retained),
-        (
-            removed_id.clone(),
-            ProjectSnapshot {
-                dependencies: Some(importer_map(&[("removed", "1.0.0")])),
-                ..Default::default()
-            },
-        ),
+        (missing_id.clone(), prior_missing.clone()),
     ]);
     previous.snapshots = Some(HashMap::from([
         (key("selected-old", "1.0.0"), SnapshotEntry::default()),
@@ -87,7 +85,7 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
         (key("retained-child", "1.0.0"), SnapshotEntry::default()),
         (key("shared", "1.0.0"), snapshot_with_deps(&[("old-child", "1.0.0")])),
         (key("old-child", "1.0.0"), SnapshotEntry::default()),
-        (key("removed", "1.0.0"), SnapshotEntry::default()),
+        (key("missing", "1.0.0"), SnapshotEntry::default()),
     ]));
     previous.packages = Some(
         previous.snapshots
@@ -165,8 +163,9 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     assert_eq!(merged.importers.get(&selected_id), Some(&fresh_selected));
     assert_eq!(merged.importers.get(&retained_id), Some(&fresh_retained));
     assert_eq!(merged.importers.get(&new_id), Some(&fresh_new));
-    assert!(!merged.importers.contains_key(&removed_id));
+    assert_eq!(merged.importers.get(&missing_id), Some(&prior_missing));
     let snapshots = merged.snapshots.as_ref().unwrap();
+    assert!(snapshots.contains_key(&key("missing", "1.0.0")));
     assert!(!snapshots.contains_key(&key("retained", "1.0.0")));
     assert!(!snapshots.contains_key(&key("retained-child", "1.0.0")));
     assert!(snapshots.contains_key(&key("fresh-only", "2.0.0")));

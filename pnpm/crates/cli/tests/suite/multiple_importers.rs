@@ -110,6 +110,72 @@ fn stale_current_lockfile_importers_are_retained_on_subset_install() {
     assert!(has_snapshot(&current, FOOBAR, "100.0.0"));
 }
 
+/// A filtered install keeps the importer of a project that is missing from
+/// disk, as in a sparse checkout, with the packages and catalog entries
+/// only that importer uses. Issue 16931.
+#[test]
+fn filtered_install_keeps_importers_of_projects_missing_from_disk() {
+    assert_filtered_install_keeps_missing_project(&["project-1"]);
+}
+
+/// A `--filter` that selects every project on disk is still a filtered
+/// install. Issue 16931.
+#[test]
+fn filter_selecting_every_project_on_disk_keeps_missing_importers() {
+    assert_filtered_install_keeps_missing_project(&["project-1", "project-2"]);
+}
+
+fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!("catalogs:\n  only-3:\n    '{FOOBAR}': 100.0.0\n"));
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
+    );
+    let project_3 = fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps { prod: &[(FOOBAR, "catalog:only-3")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let before = fixture.wanted();
+    assert!(before.importers.contains_key("packages/project-3"));
+
+    fs::remove_dir_all(&project_3).expect("take project-3 off disk");
+    write_project_manifest(
+        &project_1,
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0"), (QAR, "100.0.0")], ..Default::default() },
+    );
+    let filter_args = filters
+        .iter()
+        .flat_map(|filter| ["--filter", filter]);
+    fixture.run(filter_args.chain(["install", "--lockfile-only", "--no-prefer-frozen-lockfile"]));
+
+    let wanted = fixture.wanted();
+    assert!(has_snapshot(&wanted, QAR, "100.0.0"), "the selected project must be resolved");
+    assert_eq!(
+        wanted.importers.get("packages/project-3"),
+        before.importers.get("packages/project-3"),
+    );
+    assert!(has_snapshot(&wanted, FOOBAR, "100.0.0"));
+    assert_eq!(
+        wanted.catalogs
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("only-3")),
+        before.catalogs
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("only-3")),
+    );
+    assert!(!project_3.exists(), "the install must not recreate the missing project");
+}
+
 /// TS: `current lockfile contains only installed dependencies when
 /// adding a new importer to workspace with shared lockfile`
 /// (`multipleImporters.ts:730`).
