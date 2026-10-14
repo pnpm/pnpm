@@ -150,15 +150,6 @@ fn managed_candidate(file: &Path, project_dir: &Path) -> Option<Candidate> {
     })
 }
 
-/// Where rustup keeps the directory overrides `rustup override set` records.
-pub(super) fn rustup_settings_file() -> Option<PathBuf> {
-    let rustup_home = std::env::var_os("RUSTUP_HOME")
-        .filter(|home| !home.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| pnpm_config::home_dir().map(|home| home.join(".rustup")))?;
-    Some(rustup_home.join("settings.toml"))
-}
-
 /// The nearest directory at or above `cwd` that rustup's `settings` file
 /// records an override for.
 fn rustup_override_dir(cwd: &Path, settings: &Path) -> Option<PathBuf> {
