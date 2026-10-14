@@ -340,4 +340,14 @@ fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
     let rendered_token = format!("{token_url_sql:?}");
     assert!(!rendered_token.contains("TOKEN"));
     assert!(rendered_token.contains("redacted"));
+
+    let punctuated_sql = crate::SqlBackendSettings {
+        url: "postgres://user:p)ass@db.example/pnpr".to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_punctuated = format!("{punctuated_sql:?}");
+    assert!(!rendered_punctuated.contains("p)ass"));
+    assert!(rendered_punctuated.contains("redacted"));
 }
