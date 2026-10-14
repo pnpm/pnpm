@@ -4627,6 +4627,7 @@ dependencies = [
  "console",
  "derive_more",
  "dialoguer",
+ "dotenvy",
  "dunce",
  "flate2",
  "futures-util",
