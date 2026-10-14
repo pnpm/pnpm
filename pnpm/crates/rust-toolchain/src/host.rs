@@ -34,12 +34,16 @@ pub(crate) fn host_triple() -> Option<String> {
     })
 }
 
-/// rustup's default host, or else the MSVC toolchain for pnpm's
+/// rustup's default host, or else the MSVC toolchain for the machine's
 /// architecture, as rustup picks without one.
-fn windows_host_triple(architecture: &str) -> Option<String> {
+fn windows_host_triple(process_architecture: &str) -> Option<String> {
     if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
         return Some(triple);
     }
+    #[cfg(windows)]
+    let architecture = windows_machine::native_architecture().unwrap_or(process_architecture);
+    #[cfg(not(windows))]
+    let architecture = process_architecture;
     let architecture = match architecture {
         "x86_64" | "aarch64" => architecture,
         "x86" => "i686",
@@ -59,3 +63,5 @@ fn rustup_default_windows_host(triple: Option<String>) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(windows)]
+mod windows_machine;
