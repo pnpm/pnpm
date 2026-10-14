@@ -311,19 +311,13 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
     }
 }
 
-/// Drive [`fn@resolve_workspace`] through the adversarial interleaving
-/// of <https://github.com/pnpm/pnpm/issues/13567>.
-///
-/// Both importers depend on `shared@1.0.0`, whose children context is
-/// deterministically owned by the root importer (same depth, lower
-/// importer order). Delaying the root's `shared` resolution lets
-/// `pkg-b` reuse its locked `shared` subtree first — a transient walk
-/// that resolves the pinned `dep@<pinned_dep_version>` before losing
-/// the children context to the root, whose fresh walk resolves
-/// `dep@^1.0.0` to whatever `dep_results` maps it to. The pinned
-/// version is then unreachable, so the peer-hoist pickers deciding
-/// `host`'s missing `dep` peer must never see it; each caller asserts
-/// that for its peer shape.
+/// Drive [`fn@resolve_workspace`] through the arrangement of
+/// <https://github.com/pnpm/pnpm/issues/13567>: `pkg-b`'s reuse of a
+/// locked `shared` subtree brings `dep@<pinned_dep_version>` into the
+/// shared maps, while the walk that owns `shared@1.0.0`'s children
+/// resolves `dep@^1.0.0` through `dep_results` instead. The pinned
+/// version ends up unreachable, and each caller asserts that the
+/// peer-hoist pickers deciding `host`'s missing `dep` peer never see it.
 async fn resolve_with_transient_shared_walk(
     host_manifest: serde_json::Value,
     pinned_dep_version: &str,
@@ -380,7 +374,7 @@ async fn resolve_with_transient_shared_walk(
         importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
     })
     .await
-    .expect("resolve workspace under the adversarial interleaving")
+    .expect("resolve workspace in the transient-walk arrangement")
 }
 
 /// [`RecordingResolver`] with one artificially slow entry: its resolve

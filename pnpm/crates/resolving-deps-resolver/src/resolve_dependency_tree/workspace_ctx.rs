@@ -390,10 +390,8 @@ pub(super) struct RunVersionsCache {
 /// [`WorkspaceTreeCtx::sync_discovery_tree`] can refresh a view by
 /// visiting the writes instead of rescanning every map.
 ///
-/// Only keys are recorded, never values: the sync reads each key's
-/// current value, so a key logged several times, or logged by
-/// concurrently-walking importers in either order, converges on the
-/// same view.
+/// Keys only: the sync reads each key's current value, so logging one
+/// twice, or in either order, converges on the same view.
 #[derive(Default)]
 struct SyncLog {
     packages: Vec<String>,
