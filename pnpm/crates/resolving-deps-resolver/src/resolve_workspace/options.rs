@@ -45,10 +45,7 @@ pub struct WorkspaceResolveOptions {
 #[derive(Default)]
 pub struct WorkspacePeerResolutionOptions {
     pub dedupe_peers: bool,
-    /// The flags that only the workspace-wide peer pass reads, held in
-    /// the shape [`fn@crate::resolve_peers_workspace`] takes so they are
-    /// forwarded rather than copied field by field.
-    pub workspace_pass: WorkspacePeerSettings,
+    pub workspace_wide: WorkspacePeerSettings,
     /// Threaded into [`crate::PeerLinkOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`crate::PeerLinkOptions::modules_dir`] comes from each

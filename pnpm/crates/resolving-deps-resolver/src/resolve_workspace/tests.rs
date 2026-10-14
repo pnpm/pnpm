@@ -280,7 +280,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         allowed_deprecated_versions: BTreeMap::new(),
         peers: crate::WorkspacePeerResolutionOptions {
             dedupe_peers: false,
-            workspace_pass: crate::WorkspacePeerSettings {
+            workspace_wide: crate::WorkspacePeerSettings {
                 dedupe_injected_deps: false,
                 dedupe_peer_dependents: false,
                 resolve_peers_from_workspace_root: false,
@@ -603,7 +603,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     };
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_pass.resolve_peers_from_workspace_root = true;
+    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
     let root_dir = root_tmp.path().to_path_buf();
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {

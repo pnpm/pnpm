@@ -47,7 +47,7 @@ where
             let mut opts = per_importer_options(importer);
             opts.peers.auto_install_peers = settings.peers.auto_install_peers;
             opts.peers.dedupe_peer_dependents =
-                settings.peers.workspace_pass.dedupe_peer_dependents;
+                settings.peers.workspace_wide.dedupe_peer_dependents;
             (importer, opts)
         })
         .collect();

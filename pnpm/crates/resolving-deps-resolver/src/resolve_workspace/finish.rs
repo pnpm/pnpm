@@ -81,7 +81,7 @@ fn resolve_workspace_peers(
         tree,
         &inputs.per_importer,
         &settings.peers.lockfile_dir,
-        settings.peers.workspace_pass,
+        settings.peers.workspace_wide,
         ResolvePeersOptions {
             peers_suffix_max_length: settings.peers.peers_suffix_max_length,
             dedupe_peers: settings.peers.dedupe_peers,

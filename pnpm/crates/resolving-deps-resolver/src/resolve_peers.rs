@@ -159,7 +159,8 @@ impl Default for ResolvePeersOptions {
     }
 }
 
-/// The workspace-wide switches of [`fn@resolve_peers_workspace`].
+/// The workspace-wide settings [`fn@resolve_peers_workspace`] takes as one
+/// parameter.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkspacePeerSettings {
     /// `true` enables the cross-importer dedupe pass:
