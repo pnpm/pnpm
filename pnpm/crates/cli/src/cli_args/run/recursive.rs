@@ -148,7 +148,10 @@ pub fn run_recursive(
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         if !args.json && !silent {
-            println!("{}", no_projects_matched_message(notice_workspace_dir(config, dir)));
+            pnpm_diagnostics::println!(
+                "{}",
+                no_projects_matched_message(notice_workspace_dir(config, dir)),
+            );
         }
         return Ok(RecursiveRunOutcome::Done);
     }

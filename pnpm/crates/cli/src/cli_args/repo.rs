@@ -87,7 +87,7 @@ fn open_repo_url<Sys: OpenUrlAndWait, Rep: Reporter>(url: &str, prefix: &str) {
                 message: format!("Could not open browser: {e}"),
                 prefix: prefix.to_string(),
             }));
-            println!("{redacted}");
+            pnpm_diagnostics::println!("{redacted}");
         }
     }
 }

@@ -105,7 +105,10 @@ pub async fn exec_recursive(
     // An empty `--filter` selection is a no-op (exit 0).
     if selection.selected.is_empty() {
         if !matches!(reporter, ReporterType::Ndjson | ReporterType::Silent) {
-            println!("{}", no_projects_matched_message(notice_workspace_dir(config, dir)));
+            pnpm_diagnostics::println!(
+                "{}",
+                no_projects_matched_message(notice_workspace_dir(config, dir)),
+            );
         }
         return Ok(());
     }

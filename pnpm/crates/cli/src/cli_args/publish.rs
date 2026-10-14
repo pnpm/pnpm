@@ -135,10 +135,16 @@ impl PublishArgs {
         if self.flags.output.json {
             match &published {
                 PublishedPackages::Single(summary) => {
-                    println!("{}", summary.pipe(serde_json::to_string_pretty).into_diagnostic()?);
+                    pnpm_diagnostics::println!(
+                        "{}",
+                        summary.pipe(serde_json::to_string_pretty).into_diagnostic()?,
+                    );
                 }
                 PublishedPackages::Recursive(published) => {
-                    println!("{}", published.pipe(serde_json::to_string_pretty).into_diagnostic()?);
+                    pnpm_diagnostics::println!(
+                        "{}",
+                        published.pipe(serde_json::to_string_pretty).into_diagnostic()?,
+                    );
                 }
             }
         }

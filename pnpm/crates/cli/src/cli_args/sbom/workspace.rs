@@ -260,7 +260,7 @@ pub(super) fn select_importer_ids(
         selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
     if selected.is_empty() {
         let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
-        println!("{}", no_projects_matched_message(workspace_dir));
+        pnpm_diagnostics::println!("{}", no_projects_matched_message(workspace_dir));
         return Ok(None);
     }
     // Selecting through the workspace can name a project the lockfile has

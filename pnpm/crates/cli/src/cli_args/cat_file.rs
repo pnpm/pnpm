@@ -3,7 +3,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_store_dir::StoreDir;
-use std::{fs::File, io::Write as _};
+use std::fs::File;
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {
@@ -51,11 +51,7 @@ impl CatFileArgs {
             .into_diagnostic()
             .wrap_err_with(|| format!("File not found in store: {}", file_path.display()))?;
 
-        let mut stdout = std::io::stdout();
-        std::io::copy(&mut file, &mut stdout)
-            .into_diagnostic()
-            .wrap_err("Failed to write to stdout")?;
-        stdout.flush().into_diagnostic()?;
+        pnpm_diagnostics::stdout::check(std::io::copy(&mut file, &mut std::io::stdout()));
 
         Ok(())
     }

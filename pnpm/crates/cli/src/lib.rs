@@ -75,13 +75,23 @@ pub fn main() -> ExitCode {
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
-    match run_on_big_stack(run_cli) {
+    let result = run_on_big_stack(run_cli);
+    match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             report_fatal_error(&error);
             ExitCode::FAILURE
         }
     }
+}
+
+/// Flush what `print!` left buffered, and fail with the first write to
+/// stdout that did not reach it.
+fn flush_stdout() -> miette::Result<()> {
+    use std::io::Write as _;
+    pnpm_diagnostics::stdout::check(std::io::stdout().flush());
+    pnpm_diagnostics::stdout::take_write_error()
+        .map_or(Ok(()), |error| Err(miette::miette!("failed to write to stdout: {error}")))
 }
 
 #[cfg(target_family = "wasm")]
@@ -242,7 +252,7 @@ fn print_version(
     if pinned_pnpm_printed_the_version(argv, child_argv, config_overrides)? {
         return Ok(());
     }
-    println!("{}", pnpm_config::PNPM_VERSION);
+    pnpm_diagnostics::println!("{}", pnpm_config::PNPM_VERSION);
     Ok(())
 }
 

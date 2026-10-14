@@ -80,12 +80,12 @@ impl PeersArgs {
             let output = serde_json::to_string_pretty(&issues)
                 .into_diagnostic()
                 .wrap_err("serialize issues to JSON")?;
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         } else if no_issues {
-            println!("No peer dependency issues found");
+            pnpm_diagnostics::println!("No peer dependency issues found");
         } else {
-            println!("Issues with peer dependencies found\n");
-            println!("{}", render_peer_issues(&issues));
+            pnpm_diagnostics::println!("Issues with peer dependencies found\n");
+            pnpm_diagnostics::println!("{}", render_peer_issues(&issues));
         }
 
         Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })

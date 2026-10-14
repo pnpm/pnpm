@@ -408,11 +408,11 @@ fn print_command_output(output: &str) {
         return;
     }
     if output.ends_with('\n') {
-        print!("{output}");
+        pnpm_diagnostics::print!("{output}");
     } else {
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
     }
-    let _ = std::io::stdout().flush();
+    pnpm_diagnostics::stdout::check(std::io::stdout().flush());
 }
 
 #[cfg(test)]

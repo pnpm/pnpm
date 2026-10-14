@@ -62,7 +62,7 @@ fn open_url<Sys: OpenUrl>(url: &str) -> miette::Result<()> {
                     },
                 );
             pnpm_diagnostics::eprintln!("Could not open browser: {e}");
-            println!("{redacted}");
+            pnpm_diagnostics::println!("{redacted}");
             Ok(())
         }
     }

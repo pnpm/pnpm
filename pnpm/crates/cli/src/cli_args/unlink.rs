@@ -51,7 +51,7 @@ impl UnlinkArgs {
         recursive_sort: bool,
     ) -> miette::Result<bool> {
         let Some(overrides) = config.overrides.as_mut() else {
-            println!("Nothing to unlink");
+            pnpm_diagnostics::println!("Nothing to unlink");
             return Ok(false);
         };
 

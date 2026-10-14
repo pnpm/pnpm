@@ -183,5 +183,5 @@ fn print_removing(base: &Path, path: &Path) {
     let relative = relative_path(base, path);
     let owned: PathBuf =
         if relative.as_os_str().is_empty() { PathBuf::from(".") } else { relative };
-    println!("Removing {}", owned.display());
+    pnpm_diagnostics::println!("Removing {}", owned.display());
 }

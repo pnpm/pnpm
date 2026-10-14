@@ -70,7 +70,7 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
             .join(repo_basename(&invocation.polling.repo)),
         head_file: agent_dir.join("head"),
     };
-    println!(
+    pnpm_diagnostics::println!(
         "Watching {} ({}) every {}s; checkout: {}",
         invocation.polling.repo,
         invocation.polling.branch,
@@ -84,8 +84,8 @@ fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Re
     loop {
         let result = poll_and_build(invocation, dirs);
         match result {
-            Ok(Some(revision)) => println!("Built {revision}."),
-            Ok(None) => println!("{} is up to date.", invocation.polling.branch),
+            Ok(Some(revision)) => pnpm_diagnostics::println!("Built {revision}."),
+            Ok(None) => pnpm_diagnostics::println!("{} is up to date.", invocation.polling.branch),
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
             Err(error) if invocation.polling.once => return Err(error),
@@ -111,7 +111,7 @@ fn poll_and_build(
         return Ok(None);
     }
     materialize(invocation, dirs, &head)?;
-    println!("New revision {head}; running the pipeline…");
+    pnpm_diagnostics::println!("New revision {head}; running the pipeline…");
     run_pipeline_in_checkout(invocation, dirs, &head, last_built.as_deref())?;
     pnpm_fs::write_atomic(&dirs.head_file, head.as_bytes())
         .map_err(|error| miette::miette!("recording the built revision: {error}"))?;

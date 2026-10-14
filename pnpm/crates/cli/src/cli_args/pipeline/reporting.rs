@@ -42,9 +42,15 @@ pub(super) fn print_dry_run(
 ) -> miette::Result<()> {
     if invocation.json {
         let document = task_graph_to_json(task_graph, workspace_root);
-        println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
+        pnpm_diagnostics::println!(
+            "{}",
+            serde_json::to_string_pretty(&document).into_diagnostic()?,
+        );
     } else {
-        println!("{}", render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root));
+        pnpm_diagnostics::println!(
+            "{}",
+            render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root),
+        );
     }
     Ok(())
 }

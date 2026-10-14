@@ -12,7 +12,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     let global_pkg_dir = base_config.global_pkg_dir.as_ref().ok_or(GlobalError::NoGlobalBinDir)?;
     let (groups, pending) = scan_global_ignored_builds(base_config, global_pkg_dir)?;
     if pending.is_empty() && args.packages.is_empty() {
-        println!("There are no packages awaiting approval");
+        pnpm_diagnostics::println!("There are no packages awaiting approval");
         return Ok(());
     }
     let pending = pending.into_iter().collect::<Vec<_>>();

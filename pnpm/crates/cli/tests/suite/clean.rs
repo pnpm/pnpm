@@ -1,7 +1,7 @@
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{fs, io, path::Path, process::Stdio};
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
 /// looks like an installed package that `clean` must remove.
@@ -41,6 +41,29 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     // node_modules directory itself.
     assert!(node_modules.join(".cache").exists(), ".cache should be preserved");
     assert!(node_modules.exists(), "node_modules directory should remain");
+
+    drop(root);
+}
+
+/// `clean` announces each removal before making it, so a closed stdout
+/// must not stop it halfway (pnpm/tasks#132).
+#[test]
+fn clean_finishes_when_stdout_is_closed() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node_modules = workspace.join("node_modules");
+    seed_package(&node_modules, "lodash");
+    fs::write(workspace.join("pnpm-lock.yaml"), "").expect("write pnpm-lock.yaml");
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet
+        .with_args(["clean", "--lockfile"])
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet clean");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(!node_modules.join("lodash").exists(), "lodash package should be removed");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "the lockfile should be removed");
 
     drop(root);
 }
