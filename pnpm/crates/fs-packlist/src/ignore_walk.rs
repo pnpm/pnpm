@@ -184,7 +184,7 @@ enum Named {
 fn escape_glob(path: &str) -> String {
     let mut escaped = String::with_capacity(path.len());
     for current in path.chars() {
-        if "*?[]{}()!+@\\".contains(current) {
+        if r"*?[]{}()!+@\".contains(current) {
             escaped.push('\\');
         }
         escaped.push(current);
