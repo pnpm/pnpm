@@ -350,7 +350,7 @@ function getHoistOptions (
 ): HoistWorkspacePackagesOpts<DepPath> {
   return {
     graph: context.graph,
-    directDependencyAliases: getDirectDependencyAliases(opts),
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(opts) : [],
     directDepsByImporterId: {
       ...opts.dependenciesByProjectId,
       '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
