@@ -52,3 +52,6 @@ pub(crate) fn in_link_pool<Output: Send>(link: impl FnOnce() -> Output + Send) -
 pub(crate) fn in_link_pool<Output: Send>(link: impl FnOnce() -> Output + Send) -> Output {
     link()
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests;
