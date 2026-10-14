@@ -284,11 +284,9 @@ fn workspace_options() -> WorkspaceResolveOptions {
         allowed_deprecated_versions: BTreeMap::new(),
         peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
             dedupe_peers: true,
-            workspace_wide: pnpm_resolving_deps_resolver::WorkspacePeerSettings {
-                dedupe_injected_deps: true,
-                dedupe_peer_dependents: true,
-                resolve_peers_from_workspace_root: false,
-            },
+            dedupe_injected_deps: true,
+            dedupe_peer_dependents: true,
+            resolve_peers_from_workspace_root: false,
             exclude_links_from_lockfile: false,
             lockfile_dir: PathBuf::from("/workspace"),
             peers_suffix_max_length: 1000,

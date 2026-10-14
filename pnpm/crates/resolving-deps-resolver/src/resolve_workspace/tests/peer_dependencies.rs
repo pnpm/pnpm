@@ -65,7 +65,7 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
         WorkspaceImporter { id: "packages/app".to_string(), manifest: &app_manifest },
     ];
     let mut opts = workspace_opts(false, false);
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
 
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -256,7 +256,7 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
     };
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
@@ -324,7 +324,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     };
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
@@ -458,7 +458,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     };
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
@@ -618,7 +618,7 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
@@ -789,7 +789,7 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
     };
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.workspace_wide.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =

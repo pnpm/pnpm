@@ -278,11 +278,9 @@ impl WorkspaceWalk {
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
             peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
                 dedupe_peers: config.dedupe_peers,
-                workspace_wide: pnpm_resolving_deps_resolver::WorkspacePeerSettings {
-                    dedupe_injected_deps: config.dedupe_injected_deps,
-                    dedupe_peer_dependents: config.dedupe_peer_dependents,
-                    resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-                },
+                dedupe_injected_deps: config.dedupe_injected_deps,
+                dedupe_peer_dependents: config.dedupe_peer_dependents,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
                 lockfile_dir: shared.lockfile_dir.to_path_buf(),
                 peers_suffix_max_length: shared.peers_suffix_max_length(),

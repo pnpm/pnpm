@@ -9,7 +9,7 @@ use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_importer::ResolveImporterError,
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
+        ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings, WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
@@ -81,7 +81,11 @@ fn resolve_workspace_peers(
         tree,
         &inputs.per_importer,
         &settings.peers.lockfile_dir,
-        settings.peers.workspace_wide,
+        WorkspacePeerSettings {
+            dedupe_injected_deps: settings.peers.dedupe_injected_deps,
+            dedupe_peer_dependents: settings.peers.dedupe_peer_dependents,
+            resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
+        },
         ResolvePeersOptions {
             peers_suffix_max_length: settings.peers.peers_suffix_max_length,
             dedupe_peers: settings.peers.dedupe_peers,

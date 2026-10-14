@@ -1,10 +1,7 @@
 //! The options [`fn@super::resolve_workspace`] takes, and the split that
 //! hands most of them to the shared tree context.
 
-use crate::{
-    resolve_dependency_tree::{UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx},
-    resolve_peers::WorkspacePeerSettings,
-};
+use crate::resolve_dependency_tree::{UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx};
 use pnpm_lockfile::RegistryContext;
 use pnpm_package_manifest::PackageManifest;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -45,7 +42,15 @@ pub struct WorkspaceResolveOptions {
 #[derive(Default)]
 pub struct WorkspacePeerResolutionOptions {
     pub dedupe_peers: bool,
-    pub workspace_wide: WorkspacePeerSettings,
+    /// Threaded into [`crate::WorkspacePeerSettings::dedupe_injected_deps`].
+    pub dedupe_injected_deps: bool,
+    /// Threaded into [`crate::WorkspacePeerSettings::dedupe_peer_dependents`],
+    /// and overrides every per-importer
+    /// [`crate::ImporterPeerOptions::dedupe_peer_dependents`].
+    pub dedupe_peer_dependents: bool,
+    /// Threaded into
+    /// [`crate::WorkspacePeerSettings::resolve_peers_from_workspace_root`].
+    pub resolve_peers_from_workspace_root: bool,
     /// Threaded into [`crate::PeerLinkOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`crate::PeerLinkOptions::modules_dir`] comes from each
