@@ -360,10 +360,12 @@ async fn tokens_persist_across_reopen() {
     let path = tmp.path().join("tokens.db");
 
     let store = TokenStore::open(path.clone()).unwrap();
+    store.check_readiness().await.unwrap();
     let raw = store.issue("alice").await.unwrap();
     drop(store);
 
     let reopened = TokenStore::open(path).unwrap();
+    reopened.check_readiness().await.unwrap();
     assert_eq!(
         reopened
             .lookup(&raw)

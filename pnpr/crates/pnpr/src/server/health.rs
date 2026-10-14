@@ -8,8 +8,12 @@ use pnpr_error::RegistryError;
 
 pub(crate) async fn shutdown_signal() {
     let ctrl_c = async {
-        if let Err(err) = tokio::signal::ctrl_c().await {
-            tracing::error!(error = %err, "failed to install SIGINT (ctrl_c) handler");
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {}
+            Err(err) => {
+                tracing::error!(error = %err, "failed to install SIGINT (ctrl_c) handler");
+                std::future::pending::<()>().await;
+            }
         }
     };
 
@@ -21,6 +25,7 @@ pub(crate) async fn shutdown_signal() {
             }
             Err(err) => {
                 tracing::error!(error = %err, "failed to install SIGTERM signal handler");
+                std::future::pending::<()>().await;
             }
         }
     };
@@ -74,12 +79,14 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
             .err()
             .map_or_else(|| "ok".to_string(), RegistryError::log_message);
         tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
+        let storage_status_val = if storage_status.is_ok() { "ok" } else { "unavailable" };
+        let auth_status_val = if auth_status.is_ok() { "ok" } else { "unavailable" };
         (
             StatusCode::SERVICE_UNAVAILABLE,
             axum::Json(serde_json::json!({
                 "status": "unhealthy",
-                "storage": storage_msg,
-                "auth": auth_msg,
+                "storage": storage_status_val,
+                "auth": auth_status_val,
             })),
         )
             .into_response()

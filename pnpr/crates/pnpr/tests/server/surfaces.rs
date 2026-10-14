@@ -432,7 +432,8 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
     assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
     let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
     assert_eq!(ready_body["status"], "unhealthy");
-    assert_ne!(ready_body["storage"], "ok");
+    assert_eq!(ready_body["storage"], "unavailable");
+    assert_eq!(ready_body["auth"], "ok");
 
     // /-/ping also returns 503 Service Unavailable when readiness fails
     let ping = app
