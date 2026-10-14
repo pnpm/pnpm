@@ -385,6 +385,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     InvalidProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
+    #[diagnostic(transparent)]
+    SaveProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+
     /// `disallowWorkspaceCycles` and the projects this install covers
     /// depend on each other in a cycle.
     #[diagnostic(transparent)]

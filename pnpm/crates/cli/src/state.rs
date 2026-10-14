@@ -237,16 +237,19 @@ impl State {
     }
 }
 
-/// `package.json` loads (or is scaffolded) as usual, but when it is
-/// absent an existing alternate manifest base name (`package.yaml`)
-/// must be loaded rather than shadowed by a scaffolded `package.json`
-/// and saved in its original format.
+/// `package.json` loads as usual, but when it is absent an existing
+/// alternate manifest base name (`package.yaml`) must be loaded rather
+/// than shadowed by a scaffolded `package.json` and saved in its
+/// original format.
+///
+/// A missing manifest is never written here: command initialization
+/// precedes argument validation and serves read-only commands, so the
+/// scaffold stays in memory until a command that writes the manifest
+/// (`install`, `add`, `link`) saves it.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
-/// importer and never creates a `package.json` there, so the stand-in
-/// manifest stays in memory only. Commands that save the manifest
-/// (`add`) still persist it through their explicit save.
+/// importer and never creates a `package.json` there.
 fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
@@ -266,7 +269,7 @@ fn load_or_create_manifest(
         }
     }
     manifest_path
-        .pipe(PackageManifest::create_if_needed)
+        .pipe(PackageManifest::load_or_init)
         .map(|manifest| apply_runtime_on_fail(manifest, config))
         .map_err(InitStateError::Manifest)
 }
