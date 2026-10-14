@@ -77,7 +77,10 @@ impl AllowBuildPolicy {
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
     /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)
+        Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)?
+            .with_side_effects_cache_exclude(
+                config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
+            )
     }
 
     /// Build the policy from a map of `allowBuilds`-shaped keys to
@@ -94,17 +97,14 @@ impl AllowBuildPolicy {
             let keys = if value { &mut allowed } else { &mut disallowed };
             keys.add(spec);
         }
-        Self::new_with_dep_paths(
+        Ok(Self::new_with_dep_paths(
             expand_package_version_specs(allowed.specs)?,
             expand_package_version_specs(disallowed.specs)?,
             allowed.dep_paths,
             disallowed.dep_paths,
             dangerously_allow_all,
         )
-        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos)
-        .with_side_effects_cache_exclude(
-            config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
-        )
+        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
     }
 
     /// Add the `sideEffectsCacheExclude` rules [`Self::caches_build`]
@@ -122,16 +122,25 @@ impl AllowBuildPolicy {
     /// restored from, and saved to, the side-effects cache and shared
     /// through a global-virtual-store slot. `false` for a package
     /// `sideEffectsCacheExclude` names.
+    ///
+    /// A bare-name rule covers every resolution of the package, a git or
+    /// tarball URL included. A `name@version` rule names registry
+    /// versions only.
     #[must_use]
     pub fn caches_build(&self, snapshot_key: &PackageKey) -> bool {
         let Some(exclude) = &self.side_effects_cache_exclude else {
             return true;
         };
-        let (name, version) = parse_name_version_from_key(&snapshot_key.without_peer().to_string());
-        match exclude.matches(&name) {
+        match exclude.matches(&snapshot_key.name.to_string()) {
             PolicyMatch::No => true,
             PolicyMatch::AnyVersion => false,
-            PolicyMatch::ExactVersions(versions) => !versions.contains(&version),
+            PolicyMatch::ExactVersions(versions) => !snapshot_key.suffix
+                .version_semver()
+                .is_some_and(|version| {
+                    versions
+                        .iter()
+                        .any(|exact| exact == &version.to_string())
+                }),
         }
     }
 

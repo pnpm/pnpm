@@ -1064,12 +1064,22 @@ fn side_effects_cache_exclude_keeps_the_named_builds_out_of_the_cache() {
     };
     let policy = AllowBuildPolicy::from_config(&config).expect("valid patterns");
 
-    for dep_path in
-        ["java@0.12.2", "java@0.12.2(node-gyp@10.0.0)", "@native/bindings@3.0.0", "sharp@2.0.0"]
-    {
+    for dep_path in [
+        "java@0.12.2",
+        "java@0.12.2(node-gyp@10.0.0)",
+        "java@https://user@example.com/java.tgz",
+        "java@git+ssh://git@github.com/joeferner/node-java.git#0123456789abcdef",
+        "@native/bindings@3.0.0",
+        "sharp@2.0.0",
+    ] {
         assert!(!policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must not be cached");
     }
-    for dep_path in ["javascript@1.0.0", "@other/bindings@3.0.0", "sharp@3.0.0"] {
+    for dep_path in [
+        "javascript@1.0.0",
+        "@other/bindings@3.0.0",
+        "sharp@3.0.0",
+        "sharp@https://user@example.com/sharp.tgz",
+    ] {
         assert!(policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must be cached");
     }
     assert!(AllowBuildPolicy::default().caches_build(&"java@0.12.2".parse().unwrap()));
