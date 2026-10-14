@@ -34,8 +34,8 @@ pub(crate) fn host_triple() -> Option<String> {
     })
 }
 
-/// rustup's default host, or else pnpm's architecture with the ABI pnpm
-/// was built for.
+/// rustup's default host, or else the MSVC toolchain for pnpm's
+/// architecture, as rustup picks without one.
 fn windows_host_triple(architecture: &str) -> Option<String> {
     if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
         return Some(triple);
@@ -45,8 +45,7 @@ fn windows_host_triple(architecture: &str) -> Option<String> {
         "x86" => "i686",
         _ => return None,
     };
-    let abi = built_windows_abi(cfg!(target_env = "gnu"), cfg!(target_abi = "llvm"));
-    Some(format!("{architecture}-pc-windows-{abi}"))
+    Some(format!("{architecture}-pc-windows-msvc"))
 }
 
 /// The host triple rustup installs toolchains for, when it is a Windows
@@ -56,16 +55,6 @@ fn rustup_default_windows_host(triple: Option<String>) -> Option<String> {
     let supported = matches!(architecture, "x86_64" | "aarch64" | "i686")
         && matches!(abi, "msvc" | "gnu" | "gnullvm");
     supported.then_some(triple?)
-}
-
-/// The ABI pnpm itself was built for, as rustup takes its default host
-/// from its own build.
-fn built_windows_abi(gnu: bool, llvm: bool) -> &'static str {
-    match (gnu, llvm) {
-        (true, true) => "gnullvm",
-        (true, false) => "gnu",
-        (false, _) => "msvc",
-    }
 }
 
 #[cfg(test)]
