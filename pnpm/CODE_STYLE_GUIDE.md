@@ -83,14 +83,17 @@ A struct that must match a fixed external configuration, serialized document, or
 A `bool` is the right type for a fact about the data that reads as a predicate wherever it is used: `optional`, `installable`, `is_leaf`. Keep a parameter, field, or return value a `bool` only while all of these hold:
 
 - Every read and write sits next to a name that says what the value means. A call that passes a bare `true` or `false` fails this test. A call that passes a named variable or field passes it.
+- The question it answers has two answers, not a set of named alternatives. A `bool` named for one member of such a set, such as `gnu`, `msvc` or `llvm`, leaves the other members anonymous and has no room for a third. Those alternatives are an enum's variants. Renaming it `is_gnu` only makes the predicate well formed over the wrong model.
 - The value describes the data rather than selecting which of two behaviors the callee performs. A behavior switch becomes an enum whose variants name the behaviors, or two functions.
 - Both values occur. A parameter that every caller passes the same value for is a default. Remove it.
-- No neighboring `bool` in the same signature, struct, or tuple implies or excludes it. Correlated flags become one enum of the valid states.
+- No neighboring `bool` in the same signature, struct, or tuple implies, excludes, or ignores it. A `match` over the group that needs a wildcard arm proves the space is smaller than it looks: `(false, _) => "msvc"` says the second flag is don't-care whenever the first is false.
 - It does not travel in a tuple position, where it has no name. A tuple that crosses a function boundary with a `bool` in it becomes a struct with named fields, or an enum of the outcomes.
 - The producer had no richer information that a consumer needs again later. If it did, pass the richer type.
 - It answers a predicate rather than reporting an outcome with named cases. A function that reports which of two things happened returns an enum, such as `Created` or `Existing`.
 
 When one of these fails, name the cases: a two-variant enum, a struct with named fields, or an existing type that already carries the information, such as a `DependencyGroup` in place of a manifest key paired with an `optional` flag. Do not convert mechanically. `Installable::Yes` reads no better than `true` when every caller passes it.
+
+Ask what each `bool` answers before asking how they relate. Correlated flags collapse into one type with one variant per reachable state, never into one two-variant enum each: a pair of enums admits the same impossible combination the pair of `bool`s did. Two independent axes stay two fields. A second question that is meaningful for only one answer to the first nests inside it, as a variant carrying that choice. `Msvc` and `Gnu(Gcc | Llvm)` model that, while an `abi` field beside a `compiler` field still admits an MSVC build with LLVM.
 
 Branch on the replacement with an exhaustive `match` that names every variant. No wildcard arm, no `matches!`, and no `==` against a variant: each of those keeps compiling when a variant is added and silently lumps the new one in with the old. A `match` makes the addition a compile error at every site that has to decide.
 
