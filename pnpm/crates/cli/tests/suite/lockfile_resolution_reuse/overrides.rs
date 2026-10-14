@@ -625,7 +625,7 @@ fn an_aliasing_override_survives_a_re_resolve_of_the_locked_child() {
 /// succeeds only if it reuses the lockfile for the registry dependencies
 /// instead of resolving them again.
 fn assert_adding_a_dependency_reuses_the_lockfile(
-    dependencies: serde_json::Value,
+    dependencies: &serde_json::Value,
     workspace_yaml_extra: &str,
 ) {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
@@ -681,7 +681,7 @@ fn assert_adding_a_dependency_reuses_the_lockfile(
 #[test]
 fn an_unreferenced_catalog_entry_keeps_the_lockfile_reusable() {
     assert_adding_a_dependency_reuses_the_lockfile(
-        serde_json::json!({}),
+        &serde_json::json!({}),
         "catalog:\n  '@pnpm.e2e/bar': 100.0.0\n",
     );
 }
@@ -691,7 +691,7 @@ fn an_unreferenced_catalog_entry_keeps_the_lockfile_reusable() {
 #[test]
 fn a_catalog_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
     assert_adding_a_dependency_reuses_the_lockfile(
-        serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
+        &serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
         "catalog:\n  '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/bar': 'catalog:'\n",
     );
 }
@@ -704,7 +704,7 @@ fn a_catalog_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
 #[test]
 fn an_override_on_a_cataloged_package_keeps_the_lockfile_reusable() {
     assert_adding_a_dependency_reuses_the_lockfile(
-        serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
+        &serde_json::json!({ "@pnpm.e2e/bar": "catalog:" }),
         "catalog:\n  '@pnpm.e2e/bar': 100.0.0\noverrides:\n  '@pnpm.e2e/bar': 100.0.0\n",
     );
 }
