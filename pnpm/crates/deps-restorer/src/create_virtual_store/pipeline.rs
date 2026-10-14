@@ -68,12 +68,7 @@ impl<'a> CreateVirtualStore<'a> {
             marker_source.as_ref(),
         )
         .await?;
-        if !self.ctx.config.frozen_store {
-            crate::link_gate::save(
-                &self.ctx.config.store_dir,
-                self.ctx.linker.layout.package_store_dir(),
-            );
-        }
+        self.record_link_gate();
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
         let handoff = retained_keys.map(|cache_keys| {
             let mut rows = prefetched;
@@ -221,6 +216,13 @@ impl<'a> CreateVirtualStore<'a> {
                 )
                 .await
             }
+        }
+    }
+
+    fn record_link_gate(&self) {
+        let config = self.ctx.config;
+        if !config.frozen_store {
+            crate::link_gate::save(&config.store_dir, self.ctx.linker.layout.package_store_dir());
         }
     }
 

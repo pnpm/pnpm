@@ -8,7 +8,7 @@
 //! machine peaked at 4 concurrent calls and a 10-core M1 Max at 16, and
 //! each is 35-50% slower at the other's optimum. No fixed count fits,
 //! so macOS measures the knee while linking: the gate admits `permits`
-//! calls at once, counts completions, and [`Climb`] moves `permits`
+//! calls at once, counts completions, and a hill-climb moves `permits`
 //! toward the width that completes the most calls per second. The
 //! width the climb settles on is saved per volume and seeds the next
 //! install.
