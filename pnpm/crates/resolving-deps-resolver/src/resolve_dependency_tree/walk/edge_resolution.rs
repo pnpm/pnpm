@@ -309,11 +309,6 @@ pub(super) fn seed_pending(
 
 /// What a fresh resolve decides about a package before registering it.
 pub(super) struct NodeIdentity {
-    /// Computed before the dedup insert so it can be persisted on
-    /// [`ResolvedPackage::is_leaf`] for the lazy realisation path to
-    /// read back.
-    ///
-    /// [`ResolvedPackage::is_leaf`]: crate::ResolvedPackage::is_leaf
     pub(super) kind: NodeKind,
     pub(super) resolves_children_through_catalogs: bool,
     pub(super) node_id: NodeId,
