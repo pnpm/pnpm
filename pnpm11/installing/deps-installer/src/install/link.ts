@@ -1,11 +1,10 @@
 import { stageLogger } from '@pnpm/core-loggers'
 import type { DepsStateCache } from '@pnpm/deps.graph-hasher'
-import * as dp from '@pnpm/deps.path'
 import type {
   DependenciesGraph,
   LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
-import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { getDirectDependencyAliases, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import {
   hoist,
@@ -373,28 +372,6 @@ function getHoistOptions (
       opts.rootModulesDir
     ),
   }
-}
-
-function getDirectDependencyAliases (opts: LinkPackagesOptions): string[] {
-  return Object.values(opts.wantedLockfile.importers).flatMap((importer) => {
-    const refs = {
-      ...(opts.include.devDependencies ? importer.devDependencies : {}),
-      ...(opts.include.dependencies ? importer.dependencies : {}),
-      ...(opts.include.dependencies && opts.include.optionalDependencies ? importer.optionalDependencies : {}),
-    }
-    return Object.entries(refs)
-      .filter(entry => isHoistableDirectDependencyAlias(entry, opts))
-      .map(([alias]) => alias)
-  })
-}
-
-function isHoistableDirectDependencyAlias (
-  [alias, ref]: [string, string],
-  opts: LinkPackagesOptions
-): boolean {
-  if (opts.skipRuntimes && ref.startsWith('runtime:')) return false
-  const depPath = dp.refToRelative(ref, alias)
-  return depPath != null && !opts.skipped.has(depPath)
 }
 
 function collectHoistedWorkspacePackages (projects: ImporterToUpdate[]): Record<string, HoistedWorkspaceProject> {

@@ -98,7 +98,7 @@ async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: Hea
   const hoistedDependencies = await hoistWorkspacePackages({
     // The hoisted tree is already in the root directory when workspace links are selected.
     directDependencyAliases: opts.hoistWorkspacePackages
-      ? [...getDirectDependencyAliases(ctx), ...Object.keys(depGraph.directDependenciesByImporterId['.'] ?? {})]
+      ? [...getDirectDependencyAliases({ include: opts.include, skipRuntimes: opts.skipRuntimes, skipped: ctx.skipped, wantedLockfile: ctx.wantedLockfile }), ...Object.keys(depGraph.directDependenciesByImporterId['.'] ?? {})]
       : [],
     directDepsByImporterId: {
       '.': new Map(Object.entries(depGraph.directDependenciesByImporterId['.'] ?? {})),

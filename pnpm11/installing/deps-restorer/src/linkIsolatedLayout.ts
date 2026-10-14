@@ -156,7 +156,7 @@ async function hoistIntoModulesDirs (
   return await hoist({
     extraNodePath: opts.extraNodePaths,
     graph: depGraph.graph,
-    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx) : [],
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases({ include: opts.include, skipRuntimes: opts.skipRuntimes, skipped: ctx.skipped, wantedLockfile: ctx.wantedLockfile }) : [],
     directDepsByImporterId: Object.fromEntries(Object.entries(depGraph.directDependenciesByImporterId).map(([projectId, deps]) => [
       projectId,
       new Map(Object.entries(deps)),
