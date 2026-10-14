@@ -84,29 +84,38 @@ pub(super) struct TokenKeyPath {
 /// * unknown user → create + return 201 with `{ ok, token }`.
 /// * existing user, password matches → return 201 with `{ ok, token }`.
 /// * existing user, password wrong → 401.
-pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
-    // axum's `Path` extractor already percent-decodes path segments
-    // (`%2F` → `/`, `%40` → `@`, etc.), so we use `name` verbatim.
-    let body: Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
+fn parse_registration_password(name: &str, body: &[u8]) -> Result<String, RegistryError> {
+    let body: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
     let body_name = body
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or("");
     if body_name != name {
-        return RegistryError::BadRequest {
+        return Err(RegistryError::BadRequest {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
-        }
-        .into_response();
+        });
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
-        return RegistryError::BadRequest { reason: "missing password".to_string() }.into_response(
-        );
+        return Err(RegistryError::BadRequest { reason: "missing password".to_string() });
+    };
+    if password.is_empty() {
+        return Err(RegistryError::BadRequest { reason: "password cannot be empty".to_string() });
+    }
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
+        return Err(RegistryError::BadRequest {
+            reason: format!("password cannot exceed {} bytes", pnpr_auth::MAX_PASSWORD_BYTES),
+        });
+    }
+    Ok(password.to_string())
+}
+
+pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
+    let password = match parse_registration_password(name, body) {
+        Ok(pw) => pw,
+        Err(err) => return err.into_response(),
     };
 
-    let (outcome, username, token) = match log_in(state, name, password).await {
+    let (outcome, username, token) = match log_in(state, name, &password).await {
         Ok(login) => login,
         Err(err) => return err.into_response(),
     };

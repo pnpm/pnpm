@@ -8,8 +8,9 @@ use super::{
     package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
     throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::concurrency_group::{
-    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
+use crate::cli_args::{
+    concurrency_group::{SlotOutcome, acquire_concurrency_group_slot, with_held_group},
+    reporter::selected_reporter,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
@@ -498,7 +499,8 @@ fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
             message: message.to_string(),
             prefix: String::new(),
         })),
-        ScriptOutput::Inherit => eprintln!("{message}"),
+        ScriptOutput::Inherit if selected_reporter() == ReporterType::Silent => {}
+        ScriptOutput::Inherit => pnpm_diagnostics::eprintln!("{message}"),
     }
 }
 

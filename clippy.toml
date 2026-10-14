@@ -1,0 +1,2 @@
+# `print_stderr` guards the shipped binary against a closed stderr. Tests may print freely.
+allow-print-in-tests = true

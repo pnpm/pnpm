@@ -178,11 +178,9 @@ async fn unpublish_partial_writes_modified_packument() {
     assert_eq!(response.status(), StatusCode::CREATED);
 }
 
-/// Deleting a hosted tarball must also drop any proxied copy with the
-/// same filename, so `open_hosted_blob`'s cache fallback can't keep serving
-/// the just-removed version.
+/// Deleting a hosted tarball must not remove cache subsystems or cached package entries.
 #[tokio::test]
-async fn unpublish_tarball_also_clears_the_proxied_copy() {
+async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
@@ -203,11 +201,13 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
         StatusCode::CREATED,
     );
 
-    // Plant a stale proxied copy of the same tarball in the cache root,
-    // as a `proxy:` rule would have left behind.
-    let cached = storage.join(".pnpr-cache").join("blend-pkg");
-    std::fs::create_dir_all(&cached).unwrap();
-    std::fs::write(cached.join("blend-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
+    let cached_package_dir = storage.join(".pnpr-cache").join("blend-pkg");
+    std::fs::create_dir_all(&cached_package_dir).unwrap();
+    std::fs::write(cached_package_dir.join("cached.tgz"), b"cached-tarball").unwrap();
+
+    let cache_subsystem = storage.join(".pnpr-cache").join("osv");
+    std::fs::create_dir_all(&cache_subsystem).unwrap();
+    std::fs::write(cache_subsystem.join("data.txt"), b"cache-data").unwrap();
 
     let request = Request::delete("/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -223,9 +223,15 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
     );
 
     assert!(!storage.join("blend-pkg/blend-pkg-1.0.0.tgz").exists());
-    assert!(!cached.join("blend-pkg-1.0.0.tgz").exists(), "proxied copy must be removed too");
+    assert!(
+        cached_package_dir.join("cached.tgz").exists(),
+        "cached package directory must remain intact",
+    );
+    assert!(
+        cache_subsystem.join("data.txt").exists(),
+        "cache subsystem directory must remain intact",
+    );
 
-    // With both stores cleared and no upstream, the version is gone.
     let response = app
         .oneshot(
             Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz")

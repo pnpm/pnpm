@@ -395,24 +395,14 @@ impl Storage {
         self.hosted.remove_blob(name, filename).await
     }
 
-    /// Remove a single blob from both stores. The
-    /// partial-unpublish flow calls this after PUT'ing the modified
-    /// document back; clearing the proxied mirror too stops
-    /// the proxy cache from serving a stale copy of the just-removed
-    /// version.
+    /// Remove a single blob from the hosted store.
     pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
-        let hosted = self.remove_hosted_blob(name, filename).await?;
-        let cached = self.cached.remove_blob(name, filename).await?;
-        Ok(hosted || cached)
+        self.remove_hosted_blob(name, filename).await
     }
 
-    /// Remove the package from both stores. Unpublish must purge the
-    /// hosted copy *and* any proxied mirror, so a stale cached copy
-    /// can't resurface after the package is gone.
+    /// Remove the package from the hosted store.
     pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let hosted = self.hosted.remove_package(name).await?;
-        let cached = self.cached.remove_package(name).await?;
-        Ok(hosted || cached)
+        self.hosted.remove_package(name).await
     }
 
     // --- Per-upstream private cache (the `/~<name>/` registry endpoint) ----

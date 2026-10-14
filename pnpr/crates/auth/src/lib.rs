@@ -33,9 +33,13 @@ pub use owned_tokens::OwnedTokens;
 pub use token_store::{TokenRecord, TokenStore};
 pub use user_store::UserStore;
 
+/// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
+pub const MAX_PASSWORD_BYTES: usize = 71;
+
 mod htpasswd;
 use htpasswd::{
-    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
+    dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user,
+    write_atomic,
 };
 
 mod token_store;

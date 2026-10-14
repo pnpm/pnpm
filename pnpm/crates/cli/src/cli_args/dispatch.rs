@@ -172,8 +172,11 @@ impl CliArgs {
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        let Some((dir, config)) = self.prepare_fast_path_config(config_overrides, install_args)
-        else {
+        let prepared = {
+            let _span = tracing::debug_span!(target: "pacquet::install", "load_config").entered();
+            self.prepare_fast_path_config(config_overrides, install_args)
+        };
+        let Some((dir, config)) = prepared else {
             return false;
         };
         let emit =

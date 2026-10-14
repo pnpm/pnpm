@@ -206,7 +206,24 @@ pub(super) fn entry_digest(key: &str, subject: &ArtifactSubject) -> String {
     hasher.update(b"pnpm-shared-artifact-entry-v1\0");
     hasher.update(key.as_bytes());
     hasher.update([0]);
-    hasher.update(serde_json::to_vec(subject).expect("artifact subjects serialize"));
+    match subject {
+        ArtifactSubject::DependencySideEffects { package, source_integrity } => {
+            hasher.update(b"dependency-side-effects\0");
+            hasher.update(package.name.as_bytes());
+            hasher.update([0]);
+            hasher.update(package.version.as_bytes());
+            hasher.update([0]);
+            hasher.update(source_integrity.as_bytes());
+            hasher.update([0]);
+        }
+        ArtifactSubject::WorkspaceTask { project, task } => {
+            hasher.update(b"workspace-task\0");
+            hasher.update(project.as_bytes());
+            hasher.update([0]);
+            hasher.update(task.as_bytes());
+            hasher.update([0]);
+        }
+    }
     hex(&hasher.finalize())
 }
 

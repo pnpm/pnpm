@@ -1,7 +1,15 @@
+use crate::rustup_settings::rustup_default_host_triple;
+use std::sync::LazyLock;
+
 /// The target triple of the toolchain that runs on this machine, as the
 /// Rust release manifests name it. `None` where Rust publishes no host
 /// toolchain pnpm installs.
 pub(crate) fn host_triple() -> Option<String> {
+    static HOST_TRIPLE: LazyLock<Option<String>> = LazyLock::new(detect_host_triple);
+    HOST_TRIPLE.clone()
+}
+
+fn detect_host_triple() -> Option<String> {
     #[cfg(not(target_family = "wasm"))]
     let (architecture, os) = (std::env::consts::ARCH, std::env::consts::OS);
     #[cfg(target_family = "wasm")]
@@ -27,40 +35,39 @@ pub(crate) fn host_triple() -> Option<String> {
             "x86_64" | "aarch64" => format!("{architecture}-apple-darwin"),
             _ => return None,
         },
-        "windows" | "win32" => {
-            let architecture = match architecture {
-                "x86_64" | "aarch64" => architecture,
-                "x86" => "i686",
-                _ => return None,
-            };
-            let abi = windows_abi(WindowsBuild {
-                gnu: cfg!(target_env = "gnu"),
-                llvm: cfg!(target_abi = "llvm"),
-            });
-            format!("{architecture}-pc-windows-{abi}")
-        }
+        "windows" | "win32" => return windows_host_triple(architecture),
         _ => return None,
     })
 }
 
-/// How pnpm itself was built, as `cfg!` reports it.
-#[derive(Clone, Copy)]
-struct WindowsBuild {
-    gnu: bool,
-    llvm: bool,
+/// rustup's default host, or else the MSVC toolchain for the machine's
+/// architecture, as rustup picks without one.
+fn windows_host_triple(process_architecture: &str) -> Option<String> {
+    if let Some(triple) = rustup_default_windows_host(rustup_default_host_triple()) {
+        return Some(triple);
+    }
+    #[cfg(windows)]
+    let architecture = windows_machine::native_architecture().unwrap_or(process_architecture);
+    #[cfg(not(windows))]
+    let architecture = process_architecture;
+    let architecture = match architecture {
+        "x86_64" | "aarch64" => architecture,
+        "x86" => "i686",
+        _ => return None,
+    };
+    Some(format!("{architecture}-pc-windows-msvc"))
 }
 
-/// The ABI of the Windows toolchain to install: the one pnpm itself was
-/// built for, as rustup takes its default host from its own build. A pnpm
-/// built for MinGW, as MSYS2 builds it, installs a toolchain that links
-/// against MinGW rather than MSVC.
-fn windows_abi(build: WindowsBuild) -> &'static str {
-    match (build.gnu, build.llvm) {
-        (true, true) => "gnullvm",
-        (true, false) => "gnu",
-        (false, _) => "msvc",
-    }
+/// The host triple rustup installs toolchains for, when it is a Windows
+/// host Rust publishes a toolchain for.
+fn rustup_default_windows_host(triple: Option<String>) -> Option<String> {
+    let (architecture, abi) = triple.as_deref()?.split_once("-pc-windows-")?;
+    let supported = matches!(architecture, "x86_64" | "aarch64" | "i686")
+        && matches!(abi, "msvc" | "gnu" | "gnullvm");
+    supported.then_some(triple?)
 }
 
 #[cfg(test)]
 mod tests;
+#[cfg(windows)]
+mod windows_machine;

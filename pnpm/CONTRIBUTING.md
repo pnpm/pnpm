@@ -151,6 +151,16 @@ Set the `TRACE` environment variable to enable trace-level logging for a given m
 TRACE=pnpm_tarball just cli add fastify
 ```
 
+An install that reports "Already up to date" slowly, or runs in full when
+nothing changed, explains itself under the `pacquet::install` target: why the
+repeat-install fast path was not taken, and how long loading the config,
+discovering the workspace projects, the up-to-date check, and the store
+registration took.
+
+```sh
+TRACE='pacquet::install=debug' just cli install
+```
+
 ## Testing
 
 ```sh

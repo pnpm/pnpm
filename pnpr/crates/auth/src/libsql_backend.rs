@@ -30,8 +30,8 @@ use schema::{
 
 use super::{
     DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, fresh_secret, hash_bcrypt, sha256_hex, token_timestamp_from_sql,
-    validate_username, verify_returning_user, with_auth_timeout,
+    UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, sha256_hex,
+    token_timestamp_from_sql, validate_username, verify_returning_user, with_auth_timeout,
 };
 use async_trait::async_trait;
 use libsql::{
@@ -230,6 +230,11 @@ impl LibsqlAuth {
 
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash

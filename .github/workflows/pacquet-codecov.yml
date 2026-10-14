@@ -138,7 +138,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false PNPM_CONFIG_UPDATE_NOTIFIER=false cargo codecov --lcov --output-path lcov.info
 
       - name: Stop sccache
         if: ${{ !cancelled() }}

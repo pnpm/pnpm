@@ -235,7 +235,7 @@ async fn adduser_writes_bcrypt_2y_format() {
 async fn max_users_minus_one_disables_registration() {
     let store = UserStore::in_memory_with_cost(MaxUsers::Disabled, TEST_COST);
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -244,7 +244,7 @@ async fn in_memory_store_honors_the_registration_cap() {
     // configured cap denied: the in-memory store enforces it too.
     let store = UserStore::in_memory_with_max_users(MaxUsers::Disabled);
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -696,4 +696,68 @@ async fn tokens_list_per_owner_across_revocation_and_reload() {
             .unwrap()
             .is_empty(),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_preserves_file_permissions_and_defaults_to_0600() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("htpasswd");
+
+    super::write_atomic(&file, b"user1:$2y$04$test\n").unwrap();
+    let perms = std::fs::metadata(&file)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(perms, 0o600);
+
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o640)).unwrap();
+    super::write_atomic(&file, b"user1:$2y$04$test\nuser2:$2y$04$test2\n").unwrap();
+    let perms = std::fs::metadata(&file)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(perms, 0o640);
+}
+
+#[cfg(unix)]
+#[test]
+fn token_store_sets_0600_permissions_on_sqlite_file() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tokens.db");
+    let _store = TokenStore::open(path.clone()).unwrap();
+
+    let perms = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(perms, 0o600);
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let _store2 = TokenStore::open(path.clone()).unwrap();
+    let perms2 = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(perms2, 0o640);
+}
+
+#[tokio::test]
+async fn verify_bcrypt_handles_passwords_exceeding_72_bytes() {
+    let password_71 = "a".repeat(71);
+    let hash = super::hash_bcrypt(password_71.clone(), TEST_COST).await.unwrap();
+
+    assert!(super::verify_bcrypt(password_71, hash.clone()).await.unwrap());
+
+    // 72-byte password must safely evaluate to false without error or truncation-match.
+    let password_72 = "a".repeat(72);
+    assert!(!super::verify_bcrypt(password_72, hash).await.unwrap());
 }

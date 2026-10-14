@@ -365,7 +365,7 @@ where
         if new == confirmed {
             return Ok(json!({ "old": current, "new": new }));
         }
-        eprintln!("Passwords do not match, please try again.");
+        pnpm_diagnostics::eprintln!("Passwords do not match, please try again.");
     }
 }
 

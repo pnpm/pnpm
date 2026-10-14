@@ -262,6 +262,7 @@ impl WorkspaceSettings {
                 config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;
                 config.side_effects_cache_write_setting = defaults.side_effects_cache_write_setting;
                 config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
+                config.side_effects_cache_exclude.clone_from(&defaults.side_effects_cache_exclude);
             }
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);

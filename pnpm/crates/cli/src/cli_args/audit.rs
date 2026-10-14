@@ -341,7 +341,7 @@ impl AuditArgs {
         {
             Ok(report) => Ok(Some(report)),
             Err(err) if self.ignore_registry_errors => {
-                eprintln!("{err}");
+                pnpm_diagnostics::eprintln!("{err}");
                 let _ = std::io::stderr().flush();
                 if self.json {
                     let report = empty_audit_report(lockfile, env_lockfile.as_ref(), include);

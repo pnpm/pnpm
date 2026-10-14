@@ -64,7 +64,7 @@ use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 pub fn main() -> ExitCode {
     #[cfg(target_family = "wasm")]
     if let Err(error) = initialize_wasm_paths() {
-        eprintln!("Failed to initialize pnpm host paths: {error}");
+        pnpm_diagnostics::eprintln!("Failed to initialize pnpm host paths: {error}");
         return ExitCode::FAILURE;
     }
     // Runs before anything can print, so the first styled byte already
@@ -101,7 +101,7 @@ fn report_fatal_error(error: &miette::Report) {
             cause.downcast_ref::<pnpm_package_manager::InstallError>()
         {
             if let Some(rendered) = rendered {
-                eprint!("{rendered}");
+                pnpm_diagnostics::eprint!("{rendered}");
             }
             return;
         }
@@ -112,7 +112,7 @@ fn report_fatal_error(error: &miette::Report) {
     if cli_args::reporter::selected_reporter() == cli_args::reporter::ReporterType::Ndjson {
         pnpm_reporter::NdjsonReporter::emit_fatal_error(&fatal_error::error_log(error));
     } else {
-        eprintln!("Error: {error:?}");
+        pnpm_diagnostics::eprintln!("Error: {error:?}");
     }
 }
 

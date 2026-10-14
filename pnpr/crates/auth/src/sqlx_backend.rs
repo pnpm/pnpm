@@ -9,7 +9,7 @@ pub(super) mod mysql;
 
 use super::{
     DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, fresh_secret, hash_bcrypt, sha256_hex,
+    UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, sha256_hex,
     token_store::{mint_token, unix_seconds},
     validate_username, verify_returning_user, with_auth_timeout,
 };
@@ -148,6 +148,11 @@ where
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         self.check_registration_capacity().await?;

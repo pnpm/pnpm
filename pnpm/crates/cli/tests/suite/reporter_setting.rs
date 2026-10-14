@@ -227,3 +227,54 @@ fn workspace_reporter_silences_fresh_and_repeat_installs() {
     } = fixture;
     drop((mock_instance, root));
 }
+
+fn failing_script_fixture(workspace_yaml: &str) -> CommandTempCwd<()> {
+    let fixture = script_fixture(workspace_yaml);
+    fs::write(
+        fixture.workspace.join("package.json"),
+        serde_json::json!({
+            "name": "reporter-test",
+            "version": "1.0.0",
+            "scripts": {
+                "fail": r#"node -e "console.log('script-output'); process.exit(1)""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fixture
+}
+
+#[test]
+fn silent_reporter_hides_the_lifecycle_failure() {
+    for (workspace_yaml, cli_args) in [
+        ("", &["--reporter=silent", "run", "fail"][..]),
+        ("", &["--silent", "fail"][..]),
+        ("", &["--loglevel=silent", "run", "fail"][..]),
+        ("reporter: silent\n", &["run", "fail"][..]),
+    ] {
+        let fixture = failing_script_fixture(workspace_yaml);
+        pnpm(&fixture.workspace)
+            .with_args(cli_args)
+            .assert()
+            .code(1)
+            .stdout("script-output\n")
+            .stderr("");
+    }
+}
+
+#[test]
+fn lifecycle_failure_is_printed_to_stderr_unless_the_reporter_is_silent() {
+    for cli_args in [&["run", "fail"][..], &["--loglevel=error", "run", "fail"][..]] {
+        let fixture = failing_script_fixture("");
+        let assertion = pnpm(&fixture.workspace)
+            .with_args(cli_args)
+            .assert()
+            .code(1);
+        let stderr = String::from_utf8_lossy(&assertion.get_output().stderr).into_owned();
+        assert!(
+            stderr.contains("[ELIFECYCLE] Command failed with exit code 1."),
+            "stderr for {cli_args:?}: {stderr}",
+        );
+    }
+}

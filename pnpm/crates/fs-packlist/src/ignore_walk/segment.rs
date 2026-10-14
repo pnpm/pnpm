@@ -1,5 +1,6 @@
 //! One `/`-free segment of an ignore rule: minimatch's wildcards, character
-//! classes, and extglobs, matched case-insensitively.
+//! classes, and extglobs, matched case-insensitively, or a literal name
+//! matched with exact case.
 
 use std::cell::Cell;
 
@@ -13,6 +14,7 @@ pub(super) struct SegmentPattern {
 #[derive(Debug)]
 enum Node {
     Literal(char),
+    ExactLiteral(char),
     AnyChar,
     AnyRun,
     Class(CharClass),
@@ -70,6 +72,15 @@ impl SegmentPattern {
             .iter()
             .any(|node| matches!(node, Node::Extglob(..)));
         SegmentPattern { nodes, has_extglob }
+    }
+
+    /// Matches `segment` itself, with exact case and no glob syntax.
+    pub(super) fn exact(segment: &str) -> Self {
+        let nodes = segment
+            .chars()
+            .map(Node::ExactLiteral)
+            .collect();
+        SegmentPattern { nodes, has_extglob: false }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -389,6 +400,7 @@ impl Node {
     fn matches_char(&self, current: char) -> bool {
         match self {
             Node::Literal(literal) => chars_eq_ignoring_case(current, *literal),
+            Node::ExactLiteral(literal) => current == *literal,
             Node::AnyChar => true,
             Node::Class(class) => class.matches(current),
             Node::AnyRun | Node::Extglob(..) => false,

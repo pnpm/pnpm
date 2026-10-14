@@ -1,7 +1,8 @@
 //! Deciding which packages are allowed to run build scripts.
 
 use super::{
-    Config, Cow, HashMap, HashSet, VersionPolicyError, expand_package_version_specs,
+    Config, Cow, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch,
+    VersionPolicyError, create_package_version_policy, expand_package_version_specs,
     get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
     remove_suffix,
 };
@@ -24,6 +25,7 @@ pub struct AllowBuildPolicy {
     allowed_git_repos: HashSet<String>,
     disallowed_git_repos: HashSet<String>,
     dangerously_allow_all: bool,
+    side_effects_cache_exclude: Option<PackageVersionPolicy>,
 }
 
 impl AllowBuildPolicy {
@@ -45,6 +47,7 @@ impl AllowBuildPolicy {
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
+            side_effects_cache_exclude: None,
         }
     }
 
@@ -64,6 +67,7 @@ impl AllowBuildPolicy {
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
+            side_effects_cache_exclude: None,
         }
     }
 
@@ -73,7 +77,10 @@ impl AllowBuildPolicy {
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
     /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)
+        Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)?
+            .with_side_effects_cache_exclude(
+                config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
+            )
     }
 
     /// Build the policy from a map of `allowBuilds`-shaped keys to
@@ -98,6 +105,44 @@ impl AllowBuildPolicy {
             dangerously_allow_all,
         )
         .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
+    }
+
+    /// Add the `sideEffectsCache.exclude` rules [`Self::caches_build`]
+    /// reads.
+    pub fn with_side_effects_cache_exclude(
+        mut self,
+        patterns: &[String],
+    ) -> Result<Self, VersionPolicyError> {
+        self.side_effects_cache_exclude =
+            if patterns.is_empty() { None } else { Some(create_package_version_policy(patterns)?) };
+        Ok(self)
+    }
+
+    /// Whether the build of the snapshot at `snapshot_key` may be
+    /// restored from, and saved to, the side-effects cache and shared
+    /// through a global-virtual-store slot. `false` for a package
+    /// `sideEffectsCache.exclude` names.
+    ///
+    /// A bare-name rule covers every resolution of the package, a git or
+    /// tarball URL included. A `name@version` rule names registry
+    /// versions only, from the default registry or a named one.
+    #[must_use]
+    pub fn caches_build(&self, snapshot_key: &PackageKey) -> bool {
+        let Some(exclude) = &self.side_effects_cache_exclude else {
+            return true;
+        };
+        match exclude.matches(&snapshot_key.name.to_string()) {
+            PolicyMatch::No => true,
+            PolicyMatch::AnyVersion => false,
+            PolicyMatch::ExactVersions(versions) => !snapshot_key.suffix
+                .version_semver()
+                .or_else(|| snapshot_key.suffix.registry_qualified().map(|(_, version)| version))
+                .is_some_and(|version| {
+                    versions
+                        .iter()
+                        .any(|exact| exact == &version.to_string())
+                }),
+        }
     }
 
     #[must_use]

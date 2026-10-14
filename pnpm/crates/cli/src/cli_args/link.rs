@@ -82,7 +82,8 @@ impl LinkArgs {
             .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?
             .to_path_buf();
 
-        let mut manifest = PackageManifest::create_if_needed(manifest_path.clone())
+        // A missing manifest is saved only after every link target resolved.
+        let mut manifest = PackageManifest::load_or_init(manifest_path.clone())
             .wrap_err("reading the project package.json")?;
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());

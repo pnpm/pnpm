@@ -2690,6 +2690,43 @@ test.each([true, false])('an optional peer that is also a regular dependency is 
   expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/16901
+test('an optional peer that is also a regular dependency is not dropped when a hoisted parent takes over its children', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    [
+      '@pnpm.e2e/has-optional-peer-also-in-deps-grandparent@1.0.0',
+      '@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent@1.0.0',
+    ],
+    testDefaults({ autoInstallPeers: true })
+  )
+
+  const { snapshots } = project.readLockfile()
+  const keys = Object.keys(snapshots).filter((key) => key.startsWith('@pnpm.e2e/has-optional-peer-also-in-deps@'))
+  expect(keys).toStrictEqual(['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0(@pnpm.e2e/bravo-dep@1.0.0)'])
+  expect(snapshots[keys[0]].optionalDependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/16901
+test.each([
+  ['@pnpm.e2e/has-optional-peer-also-in-deps-grandparent', '@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent'],
+  ['@pnpm.e2e/split-tie-root', '@pnpm.e2e/peers-of-split-tie-parent'],
+])('an optional peer that is also a regular dependency is split the same way when its parent becomes an optional peer later (%s, then %s)', async (first, added) => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`${first}@1.0.0`], testDefaults({ autoInstallPeers: true }))
+  await addDependenciesToPackage(manifest, [`${added}@1.0.0`], testDefaults({ autoInstallPeers: true }))
+
+  const { snapshots } = project.readLockfile()
+  const keys = Object.keys(snapshots).filter((key) => key.startsWith('@pnpm.e2e/has-optional-peer-also-in-deps@'))
+  expect(keys).toStrictEqual(['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0(@pnpm.e2e/bravo-dep@1.0.0)'])
+  expect(snapshots[keys[0]].optionalDependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/16654
 test('changing overrides re-resolves a dependency that the lockfile records as an optional peer aliased to another package', async () => {
   await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })

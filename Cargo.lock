@@ -4546,6 +4546,7 @@ dependencies = [
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "pnpm-wasm-host",
  "pnpm-workspace-manifest-writer",
  "pretty_assertions",
@@ -6345,6 +6346,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6379,6 +6381,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-crypto-hash",
  "pnpm-deps-path",
+ "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6989,6 +6992,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "object_store",
+ "percent-encoding",
  "pnpm-crypto-hash",
  "pnpm-network",
  "pnpr-config",

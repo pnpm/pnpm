@@ -79,21 +79,29 @@ pub struct UpToDateWorkspace {
 /// can take it, after registering the workspace in the store as
 /// [`super::Install::run`] does.
 ///
-/// Failures deliberately collapse to `None`: the caller falls through
-/// to the full install path, which reproduces the failure with its
-/// established error shape.
-#[must_use]
-pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<UpToDateWorkspace> {
-    let manifest_dir = check.manifest.path().parent()?;
-    let workspace_dir_opt =
-        configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
+/// `Err` carries the reason the shortcut was not taken, for the
+/// `pacquet::install` trace. Failures deliberately collapse into it: the
+/// caller falls through to the full install path, which reproduces the
+/// failure with its established error shape.
+///
+/// The phases that read the project tree run inside `pacquet::install`
+/// spans, so a trace of a slow up-to-date install shows which of them took
+/// the time.
+pub fn install_already_up_to_date(
+    check: &UpToDateFastPathCheck<'_>,
+) -> Result<UpToDateWorkspace, &'static str> {
+    let manifest_dir = check.manifest
+        .path()
+        .parent()
+        .ok_or("the manifest has no directory")?;
+    let workspace_dir_opt = configured_or_discovered_workspace_dir(check.config, manifest_dir)
+        .map_err(|_| "the workspace root cannot be located")?;
     let workspace_root = workspace_dir_opt.as_deref().unwrap_or(manifest_dir);
     let (workspace_manifest, catalogs) =
-        fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
-    let ignored_directories = check.config.managed_directories();
+        fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())
+            .ok_or("the workspace manifest or its catalogs cannot be read")?;
     let workspace_projects =
-        load_workspace_projects(workspace_root, workspace_manifest.as_ref(), &ignored_directories)
-            .ok()?;
+        discover_fast_path_projects(check.config, workspace_root, workspace_manifest.as_ref())?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     // The lockfile the install wrote sits at its `lockfileDir`, which
@@ -104,30 +112,84 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let state_root =
         check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.to_path_buf());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
-    if local_state_blocks_fast_path(check.config, &lockfile_root) {
-        return None;
+    if let Some(reason) = local_state_blocks_fast_path(check.config, &lockfile_root) {
+        return Err(reason);
     }
-    if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
-        workspace_root: &state_root,
+    check_fast_path_repeat_install(
+        check,
+        &FastPathInputs {
+            state_root: &state_root,
+            project_manifests: &project_manifests,
+            is_workspace_install: workspace_manifest.is_some(),
+            lockfile: &lockfile,
+            catalogs: &catalogs,
+        },
+    )?;
+    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
+    register_fast_path_workspace(check.config, &lockfile_root)?;
+    Ok(UpToDateWorkspace {
+        root: state_root,
+        project_count: workspace_projects.as_ref().map(Vec::len),
+    })
+}
+
+/// [`load_workspace_projects`] inside the `discover_workspace_projects`
+/// span, skipping the pnpm-managed directories.
+fn discover_fast_path_projects(
+    config: &Config,
+    workspace_root: &Path,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, &'static str> {
+    let _span =
+        tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects").entered();
+    load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+        .map_err(|_| "the workspace projects cannot be listed")
+}
+
+/// What [`install_already_up_to_date`] has established about the project
+/// tree by the time it checks the repeat install.
+struct FastPathInputs<'a> {
+    state_root: &'a Path,
+    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    is_workspace_install: bool,
+    lockfile: &'a LazyLockfile,
+    catalogs: &'a Catalogs,
+}
+
+/// [`check_optimistic_repeat_install`] inside the `check_repeat_install`
+/// span, with a skip surfaced as the fast path's reason.
+fn check_fast_path_repeat_install(
+    check: &UpToDateFastPathCheck<'_>,
+    inputs: &FastPathInputs<'_>,
+) -> Result<(), &'static str> {
+    let _span = tracing::debug_span!(target: "pacquet::install", "check_repeat_install").entered();
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: inputs.state_root,
         config: check.config,
-        project_manifests: &project_manifests,
-        is_workspace_install: workspace_manifest.is_some(),
-        lockfile: MaybeLazyLockfile::Lazy(&lockfile),
-        catalogs: &catalogs,
+        project_manifests: inputs.project_manifests,
+        is_workspace_install: inputs.is_workspace_install,
+        lockfile: MaybeLazyLockfile::Lazy(inputs.lockfile),
+        catalogs: inputs.catalogs,
         layout: crate::RepeatInstallLayout {
             node_linker: check.node_linker,
             included: super::included_dependencies(&check.dependency_groups),
             supported_architectures: check.supported_architectures.as_ref(),
         },
         manifests: crate::RepeatInstallManifests::ON_DISK,
-    }) != OptimisticRepeatInstallDecision::UpToDate
-    {
-        return None;
+    });
+    match decision {
+        OptimisticRepeatInstallDecision::UpToDate => Ok(()),
+        OptimisticRepeatInstallDecision::Skipped { reason } => Err(reason),
     }
-    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
-    super::run::register_workspace_in_store(check.config, &lockfile_root).ok()?;
-    let project_count = workspace_projects.as_ref().map(Vec::len);
-    Some(UpToDateWorkspace { root: state_root, project_count })
+}
+
+/// [`super::run::register_workspace_in_store`] inside the
+/// `register_workspace_in_store` span.
+fn register_fast_path_workspace(config: &Config, lockfile_root: &Path) -> Result<(), &'static str> {
+    let _span =
+        tracing::debug_span!(target: "pacquet::install", "register_workspace_in_store").entered();
+    super::run::register_workspace_in_store(config, lockfile_root)
+        .map_err(|_| "the workspace cannot be registered in the store")
 }
 
 fn fast_path_workspace_context(
@@ -146,22 +208,32 @@ fn fast_path_workspace_context(
     Some((workspace_manifest, catalogs))
 }
 
+/// `Err` names what stops the fast path: a build marker the full install
+/// has to recover, or a wanted lockfile it cannot read to look for one.
 fn ensure_gvs_builds_complete(
     check: &UpToDateFastPathCheck<'_>,
     lockfile: &pnpm_lockfile::LazyLockfile,
     lockfile_root: &Path,
-) -> Option<()> {
-    if gvs_build_markers_may_require_recovery(check.config)
-        && gvs_build_marker_present(
-            lockfile.get().ok().flatten()?,
-            check.config,
-            lockfile_root,
-            super::effective_node_version(check.config, check.manifest).as_deref(),
-        )
-    {
-        return None;
+) -> Result<(), &'static str> {
+    if !gvs_build_markers_may_require_recovery(check.config) {
+        return Ok(());
     }
-    Some(())
+    let wanted = lockfile
+        .get()
+        .ok()
+        .flatten()
+        .ok_or(
+            "the wanted lockfile cannot be read to look for global virtual store build markers",
+        )?;
+    if gvs_build_marker_present(
+        wanted,
+        check.config,
+        lockfile_root,
+        super::effective_node_version(check.config, check.manifest).as_deref(),
+    ) {
+        return Err("a global virtual store build marker needs recovery");
+    }
+    Ok(())
 }
 
 /// The workspace root the run belongs to: the configured one, else the
@@ -435,9 +507,16 @@ fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
     }
 }
 
-fn local_state_blocks_fast_path(config: &Config, lockfile_root: &Path) -> bool {
-    strict_dep_builds_blocks_fast_path(config)
-        || crate::agent_skills::agent_skill_targets_changed(config, lockfile_root)
+/// The first reason the install state beside the lockfile rules the
+/// pre-runtime fast path out.
+fn local_state_blocks_fast_path(config: &Config, lockfile_root: &Path) -> Option<&'static str> {
+    if strict_dep_builds_blocks_fast_path(config) {
+        return Some("strictDepBuilds has to re-check the recorded ignored builds");
+    }
+    if crate::agent_skills::agent_skill_targets_changed(config, lockfile_root) {
+        return Some("an agent skill directory changed");
+    }
+    None
 }
 
 /// Under `strictDepBuilds`, a recorded-and-still-unapproved ignored build must

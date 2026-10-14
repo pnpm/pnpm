@@ -23,6 +23,12 @@ export function runRustTests (args, { spawn = spawnSync, env: parentEnv = proces
     fs.writeFileSync(npmrcPath, '')
     Object.assign(env, {
       PNPM_CONFIG_CI: 'false',
+      // Suites that spawn pnpm without the shared command harness would
+      // otherwise run the daily update check against the un-isolated state
+      // directory: since the command no longer waits for the check, nothing
+      // records it, and every such pnpm asks its mock registry for pnpm's
+      // `latest`. The tests that cover the notifier turn it back on.
+      PNPM_CONFIG_UPDATE_NOTIFIER: 'false',
       PNPM_CONFIG_NPMRC_AUTH_FILE: npmrcPath,
       PNPM_TEST_NPMRC_AUTH_FILE: npmrcPath,
       XDG_CACHE_HOME: cacheDir,

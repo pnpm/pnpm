@@ -381,7 +381,7 @@ impl PruneOutcome {
         self.pruned.sort();
         if dry_run {
             let count = directory_count(self.pruned.len());
-            eprintln!("Dry run: {count} would be deleted.");
+            pnpm_diagnostics::eprintln!("Dry run: {count} would be deleted.");
         }
         if !self.pruned.is_empty() {
             println!("{}", self.pruned.join("\n"));
@@ -390,7 +390,7 @@ impl PruneOutcome {
             return Ok(());
         }
         for failure in &self.failures {
-            eprintln!("{failure}");
+            pnpm_diagnostics::eprintln!("{failure}");
         }
         let count = directory_count(self.failures.len());
         Err(miette::miette!("Failed to reclaim {count}"))

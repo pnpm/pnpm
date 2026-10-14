@@ -54,7 +54,7 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
 async fn max_users_disabled_rejects_registration() {
     let backend = local_backend(MaxUsers::Disabled).await;
     let err = backend.add_or_login("alice", "x").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -377,7 +377,9 @@ async fn registration_transaction_retries_only_remote_lock_conflicts() {
             .with_state((code, Arc::clone(&attempts)));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
         let db = Builder::new_remote(format!("http://{address}"), String::new())
             .connector(tower::service_fn(move |_| tokio::net::TcpStream::connect(address)))
             .build()

@@ -216,7 +216,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 
     assert_eq!(
         install_already_up_to_date(&check).map(|up_to_date| up_to_date.root).as_deref(),
-        Some(&*workspace_root),
+        Ok(&*workspace_root),
     );
     assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
@@ -239,7 +239,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 
     assert_eq!(
         install_already_up_to_date(&per_project_check).map(|up_to_date| up_to_date.root).as_deref(),
-        Some(&*workspace_root),
+        Ok(&*workspace_root),
     );
 }
 /// Regression: a single-project install with NO lockfile anywhere —
