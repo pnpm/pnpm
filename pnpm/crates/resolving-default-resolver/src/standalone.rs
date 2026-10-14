@@ -130,8 +130,10 @@ fn build_npm_resolver(
             filter_metadata,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: config.offline,
-            prefer_offline: config.prefer_offline,
+            network: pnpm_config::NetworkPolicy::from_settings(
+                config.offline,
+                config.prefer_offline,
+            ),
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
         store_view: offline_store_view(config),
@@ -194,8 +196,10 @@ fn build_named_registry_resolver(
             filter_metadata,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: config.offline,
-            prefer_offline: config.prefer_offline,
+            network: pnpm_config::NetworkPolicy::from_settings(
+                config.offline,
+                config.prefer_offline,
+            ),
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
         store_view: offline_store_view(config),

@@ -115,8 +115,7 @@ async fn upgrade_then_revalidate(
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                offline: false,
-                prefer_offline: false,
+                network: pnpm_config::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,

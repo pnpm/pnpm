@@ -128,7 +128,8 @@ fn declined_upgrade<Cache: PackageMetaCache>(
 ///
 /// The early returns are guard rails:
 ///
-/// - `ctx.offline`: no network allowed. Stick with what we have.
+/// - a policy that forbids the registry: no fetch is available, so what
+///   we have stands.
 /// - `opts.published_by.is_none()`: maturity check disabled.
 /// - `meta.time.is_some()`: the packument carries per-version publish
 ///   timestamps. Documents whose `time` could not decide maturity are
@@ -159,7 +160,7 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     cache_key: &str,
     meta: &Arc<Package>,
 ) -> bool {
-    if ctx.cache_policy.offline || full_metadata {
+    if ctx.cache_policy.network.forbids_registry() || full_metadata {
         return false;
     }
     let Some(cutoff) = opts.policy.published_by else { return false };

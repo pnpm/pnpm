@@ -1,5 +1,6 @@
-//! What `offline` and `prefer_offline` decide between, told apart by
-//! whether the registry is contacted at all.
+//! What the three [`pnpm_config::NetworkPolicy`] states decide between,
+//! told apart by whether the registry is contacted at all. The `offline` and
+//! `preferOffline` settings reach the picker only through that policy.
 
 use super::{
     ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext,
@@ -11,7 +12,8 @@ use super::{
 /// A warm mirror alone does not force a fetch: an online pick may return a
 /// range's stable mirror pick unverified. `include_latest_tag` is one of the
 /// conditions that withdraws that shortcut, and then only the registry can
-/// answer. This test and the next differ in `prefer_offline` alone.
+/// answer. This test and the next differ only in the policy, `Online`
+/// against `PreferCache`.
 #[tokio::test]
 async fn an_online_pick_verifies_an_unstable_mirror_pick_against_the_registry() {
     let preloaded: pnpm_registry::Package =
@@ -38,8 +40,7 @@ async fn an_online_pick_verifies_an_unstable_mirror_pick_against_the_registry() 
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -87,8 +88,7 @@ async fn prefer_offline_accepts_the_mirror_pick_the_registry_would_have_verified
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: true,
+            network: pnpm_config::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -136,8 +136,7 @@ async fn prefer_offline_answers_a_plain_range_from_the_mirror() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: true,
+            network: pnpm_config::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -185,8 +184,7 @@ async fn offline_answers_from_the_mirror_without_the_registry() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -230,8 +228,7 @@ async fn offline_without_a_mirror_surfaces_no_offline_meta() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -257,11 +254,12 @@ async fn offline_without_a_mirror_surfaces_no_offline_meta() {
     mock.assert_async().await;
 }
 
-/// `prefer_offline` asks which source to try first. `offline` removes the
-/// registry from the sources altogether, so once it is set the first
-/// question has nothing left to decide. Both settings must agree on the
-/// answer and on the failure: a warm mirror resolves the same way, an empty
-/// one fails the same way, and the registry stays untouched throughout.
+/// The `preferOffline` setting asks which source to try first. `offline`
+/// removes the registry from the sources altogether, so once it is set the
+/// first question has nothing left to decide: both settings resolve to
+/// `Offline` and must agree on the answer and on the failure. A warm mirror
+/// resolves the same way, an empty one fails the same way, and the registry
+/// stays untouched throughout.
 #[tokio::test]
 async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
     let preloaded: pnpm_registry::Package =
@@ -296,8 +294,7 @@ async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
                 needs_full_metadata_for: None,
                 filter_metadata: false,
                 cache_policy: crate::MetadataCachePolicy {
-                    offline: true,
-                    prefer_offline,
+                    network: pnpm_config::NetworkPolicy::from_settings(true, prefer_offline),
                     ignore_missing_time_field: false,
                 },
                 store_view: None,
@@ -335,7 +332,7 @@ async fn prefer_offline_changes_nothing_once_offline_forbids_the_registry() {
 /// An in-memory entry that came from the mirror rather than the registry is
 /// reusable without revalidation only for a pick whose answer fresh metadata
 /// could not change. `include_latest_tag` is not such a pick, so this test
-/// and the next differ in `prefer_offline` alone and count the requests the
+/// and the next differ in the policy alone and count the requests the
 /// second pick makes.
 #[tokio::test]
 async fn prefer_offline_reuses_an_in_memory_entry_the_registry_never_confirmed() {
@@ -363,8 +360,7 @@ async fn prefer_offline_reuses_an_in_memory_entry_the_registry_never_confirmed()
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline,
+            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -420,8 +416,7 @@ async fn an_online_pick_revalidates_an_in_memory_entry_the_registry_never_confir
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline,
+            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -453,7 +448,7 @@ async fn an_online_pick_revalidates_an_in_memory_entry_the_registry_never_confir
 
 /// With the mirror gone, the in-memory entry it left behind is the only
 /// offline source, and reusing it without revalidation is what
-/// `prefer_offline` buys. A store prune between two picks of one process
+/// `PreferCache` buys. A store prune between two picks of one process
 /// reaches this.
 #[tokio::test]
 async fn prefer_offline_reuses_a_cached_entry_whose_mirror_has_been_pruned() {
@@ -483,8 +478,7 @@ async fn prefer_offline_reuses_a_cached_entry_whose_mirror_has_been_pruned() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline,
+            network: pnpm_config::NetworkPolicy::from_settings(false, prefer_offline),
             ignore_missing_time_field: false,
         },
         store_view: None,

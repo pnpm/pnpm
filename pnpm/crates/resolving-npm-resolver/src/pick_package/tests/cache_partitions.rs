@@ -41,8 +41,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -92,8 +91,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -113,8 +111,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         needs_full_metadata_for: None,
         filter_metadata: true,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -179,8 +176,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -263,8 +259,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                offline: false,
-                prefer_offline: false,
+                network: pnpm_config::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -302,8 +297,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                offline: true,
-                prefer_offline: false,
+                network: pnpm_config::NetworkPolicy::Offline,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -341,8 +335,7 @@ async fn cache_fast_paths_record_route_through_hook() {
             needs_full_metadata_for: None,
             filter_metadata: false,
             cache_policy: crate::MetadataCachePolicy {
-                offline: false,
-                prefer_offline: false,
+                network: pnpm_config::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,
@@ -433,8 +426,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -497,8 +489,7 @@ async fn public_scope_falls_back_to_mirror_on_401() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,

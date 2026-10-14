@@ -46,13 +46,11 @@ pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {
 
 #[derive(Default, Clone, Copy)]
 pub struct MetadataCachePolicy {
-    /// `offline=true` forbids any network access; the picker
-    /// surfaces [`super::PickPackageError::NoOfflineMeta`] when the disk
-    /// mirror is also empty.
-    pub offline: bool,
-    /// `prefer_offline=true` reads disk before the network *and*
-    /// returns immediately if disk has a satisfying pick.
-    pub prefer_offline: bool,
+    /// Which sources the picker may read and in which order. With
+    /// [`pnpm_config::NetworkPolicy::Offline`] it surfaces
+    /// [`super::PickPackageError::NoOfflineMeta`] when the disk mirror is
+    /// empty too.
+    pub network: pnpm_config::NetworkPolicy,
     /// When [`true`], a `minimumReleaseAge` check that hits an
     /// abbreviated packument (no per-version `time`) warns once and
     /// falls back to picking without the maturity filter.
