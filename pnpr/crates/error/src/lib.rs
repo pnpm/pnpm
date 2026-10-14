@@ -52,6 +52,13 @@ pub enum RegistryError {
         upstream: String,
     },
 
+    #[display("Storage is temporarily unavailable: {reason}")]
+    #[from(skip)]
+    StorageUnavailable {
+        #[error(not(source))]
+        reason: String,
+    },
+
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
     #[from(skip)]
     TarballIntegrity {

@@ -83,6 +83,8 @@ mod org_access;
 use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
+mod health;
+use health::shutdown_signal;
 mod managed_state;
 mod oci;
 mod oidc;
@@ -422,11 +424,6 @@ pub async fn serve_listener(
     Ok(())
 }
 
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-    tracing::info!("shutdown signal received");
-}
-
 // --------------------------------------------------------------------
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
@@ -593,8 +590,4 @@ struct WriteTarget {
 
 fn not_found() -> Response {
     RegistryError::NotFound.into_response()
-}
-
-async fn serve_ping(State(_state): State<AppState>) -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }

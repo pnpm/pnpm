@@ -213,6 +213,18 @@ impl TokenBackend for TokenStore {
         }
         Ok(Some(record))
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        if let Some(path) = self.persist.clone() {
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                conn.execute("SELECT 1;", [])?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(())
+    }
 }
 
 impl Default for TokenStore {

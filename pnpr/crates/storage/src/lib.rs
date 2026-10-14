@@ -228,6 +228,20 @@ impl Storage {
         self.hosted.rebuild_package_index().await
     }
 
+    /// Check that the hosted backend and the cache directory are reachable
+    /// and accessible for operations.
+    pub async fn check_readiness(&self) -> Result<()> {
+        self.hosted.check_readiness().await?;
+        fs::create_dir_all(&self.cached.root).await
+            .map_err(|err| RegistryError::StorageUnavailable {
+                reason: format!(
+                    "cache root '{}' is not accessible: {err}",
+                    self.cached.root.display(),
+                ),
+            })?;
+        Ok(())
+    }
+
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
     }
@@ -560,11 +574,6 @@ impl Storage {
     // append-only, keyed `<org>/<workspace>/<run id>`.
 }
 
-/// Reserved directory (fs) / key segment (S3) holding staged publishes.
-/// The leading dot keeps it out of the package namespace: a package name
-/// can never start with `.`.
-pub(crate) const STAGED_DIR: &str = ".staged";
-
 /// Reject any identifier that could smuggle a path segment before it reaches
 /// a filesystem path or object key.
 fn validated_record_name(name: &str) -> Result<&str> {
@@ -578,40 +587,6 @@ fn validated_record_name(name: &str) -> Result<&str> {
     } else {
         Err(RegistryError::BadRequest { reason: format!("invalid record name {name:?}") })
     }
-}
-const STAGED_META_SUFFIX: &str = ".json";
-const STAGED_BODY_SUFFIX: &str = ".body.json";
-
-fn staged_meta_object(stage_id: &str) -> Result<String> {
-    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
-}
-
-fn staged_body_object(stage_id: &str) -> Result<String> {
-    Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
-}
-
-/// Reject any stage id that could smuggle a path segment before it reaches a
-/// filesystem path or object key. Handlers validate the UUID shape already;
-/// this is the storage layer's own guard.
-fn validated_stage_id(stage_id: &str) -> Result<&str> {
-    let valid = !stage_id.is_empty()
-        && stage_id
-            .chars()
-            .all(|char| char.is_ascii_hexdigit() || char == '-');
-    if valid {
-        Ok(stage_id)
-    } else {
-        Err(RegistryError::BadRequest { reason: format!("invalid stage id {stage_id:?}") })
-    }
-}
-
-/// The stage id of a metadata object name, or `None` for anything else in
-/// the staged namespace (bodies, tmp files from interrupted writes).
-pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
-    if object.ends_with(STAGED_BODY_SUFFIX) {
-        return None;
-    }
-    object.strip_suffix(STAGED_META_SUFFIX)
 }
 
 #[cfg(test)]
