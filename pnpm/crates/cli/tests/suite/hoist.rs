@@ -18,6 +18,7 @@
 pub use _utils::*;
 
 mod external_virtual_store;
+mod peer_workspace_conflicts;
 
 use crate::_utils;
 

@@ -21,6 +21,7 @@ import { updatePackageMap } from './packageMap.js'
 import { reconcilePendingBuilds, runProjectLifecycleScripts } from './projectLifecycle.js'
 import type { HeadlessOptions, InstallationResult } from './types.js'
 import { writeModulesDirState } from './writeModulesDirState.js'
+export { getDirectDependencyAliases } from './directDependencyAliases.js'
 export { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 export type {
   HeadlessOptions,
