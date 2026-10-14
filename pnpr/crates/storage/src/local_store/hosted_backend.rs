@@ -28,6 +28,14 @@ impl HostedBackend for Store {
         write_atomic(&complete, b"").await
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        fs::create_dir_all(&self.root).await
+            .map_err(|err| super::RegistryError::StorageUnavailable {
+                reason: format!("storage root '{}' is not accessible: {err}", self.root.display()),
+            })?;
+        Ok(())
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         Store::read_document_any_age(self, name).await
     }

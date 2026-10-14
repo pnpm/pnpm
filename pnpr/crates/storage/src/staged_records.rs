@@ -1,7 +1,36 @@
-use super::{
-    DocumentWrite, RegistryError, Result, STAGED_DIR, Storage, staged_body_object,
-    staged_id_of_meta_object, staged_meta_object, validated_record_name,
-};
+use super::{DocumentWrite, RegistryError, Result, Storage, validated_record_name};
+
+/// Reserved directory (fs) / key segment (S3) holding staged publishes.
+pub(crate) const STAGED_DIR: &str = ".staged";
+const STAGED_META_SUFFIX: &str = ".json";
+const STAGED_BODY_SUFFIX: &str = ".body.json";
+
+fn staged_meta_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+fn staged_body_object(stage_id: &str) -> Result<String> {
+    Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
+}
+
+fn validated_stage_id(stage_id: &str) -> Result<&str> {
+    let valid = !stage_id.is_empty()
+        && stage_id
+            .chars()
+            .all(|char| char.is_ascii_hexdigit() || char == '-');
+    if valid {
+        Ok(stage_id)
+    } else {
+        Err(RegistryError::BadRequest { reason: format!("invalid stage id {stage_id:?}") })
+    }
+}
+
+pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
+    if object.ends_with(STAGED_BODY_SUFFIX) {
+        return None;
+    }
+    object.strip_suffix(STAGED_META_SUFFIX)
+}
 
 impl Storage {
     pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {

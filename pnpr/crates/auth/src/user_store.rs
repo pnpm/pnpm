@@ -260,6 +260,19 @@ impl UserBackend for UserStore {
         })
         .await
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        if let Some(path) = &self.path {
+            if path.exists() {
+                tokio::fs::metadata(path).await.map_err(RegistryError::Io)?;
+            } else if let Some(parent) = path.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Default for UserStore {

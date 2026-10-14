@@ -185,6 +185,14 @@ impl LibsqlAuth {
         })
         .await
     }
+
+    async fn check_db_readiness(&self) -> Result<()> {
+        with_auth_timeout::<_, LibsqlError>(self.timeout, async {
+            self.conn.query("SELECT 1;", ()).await?;
+            Ok(())
+        })
+        .await
+    }
 }
 
 #[async_trait]
@@ -216,6 +224,10 @@ impl UserBackend for LibsqlAuth {
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         self.remove_user(username).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 
@@ -451,6 +463,10 @@ impl TokenBackend for LibsqlAuth {
         };
         self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 

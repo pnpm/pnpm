@@ -243,6 +243,11 @@ impl AuthSqlBackend for PostgresDatabase {
         tx.commit().await?;
         Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
+        Ok(())
+    }
 }
 
 impl PostgresDatabase {
