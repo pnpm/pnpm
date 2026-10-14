@@ -5,8 +5,7 @@ use super::{
     pick_registry_for_package, signatures,
 };
 use crate::cli_args::recursive::{
-    no_projects_matched_message, notice_workspace_dir, selected_workspace_importer_ids,
-    selectors_narrow_the_run,
+    print_no_projects_matched, selected_workspace_importer_ids, selectors_narrow_the_run,
 };
 use std::borrow::Cow;
 
@@ -26,8 +25,7 @@ pub(super) fn select_audited_importers<'lockfile>(
     let selected =
         selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
     if selected.is_empty() {
-        let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
-        pnpm_diagnostics::println!("{}", no_projects_matched_message(workspace_dir));
+        print_no_projects_matched(state.config, state.project_dir());
         return Ok(None);
     }
     let mut missing: Vec<&str> = selected

@@ -8,9 +8,8 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
-            notice_workspace_dir, select_recursive_projects, selected_workspace_importer_ids,
-            selectors_narrow_the_run,
+            AutoExcludeRoot, discover_workspace_projects, print_no_projects_matched,
+            select_recursive_projects, selected_workspace_importer_ids, selectors_narrow_the_run,
         },
     },
 };

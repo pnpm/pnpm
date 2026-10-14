@@ -23,9 +23,8 @@ use super::{
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, no_projects_matched_message,
-        notice_workspace_dir, projects_to_verify, select_recursive_projects,
-        write_recursive_summary,
+        filtered_projects_dependencies, find_resume_root, print_no_projects_matched,
+        projects_to_verify, select_recursive_projects, write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit, suppresses_info_output},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -148,10 +147,7 @@ pub fn run_recursive(
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         if !args.json && !silent {
-            pnpm_diagnostics::println!(
-                "{}",
-                no_projects_matched_message(notice_workspace_dir(config, dir)),
-            );
+            print_no_projects_matched(config, dir);
         }
         return Ok(RecursiveRunOutcome::Done);
     }
