@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/split-tie-b",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/split-tie-b-child": "1.0.0",
+    "@pnpm.e2e/bravo-dep": "1.0.0"
+  }
+}

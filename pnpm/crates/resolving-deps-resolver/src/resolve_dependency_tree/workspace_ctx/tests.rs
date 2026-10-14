@@ -522,6 +522,7 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
             prior_key: None,
             update_active: false,
             children_scope: ParentPkgAliases::root(HashSet::default()),
+            changes_locked_split: false,
         },
     }
 }
@@ -546,6 +547,7 @@ fn recorded_children_match_only_under_the_recording_context() {
         prior_key: None,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
+        changes_locked_split: false,
     };
     assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &context()), "nothing recorded yet");
     assert_ne!(
@@ -597,6 +599,7 @@ fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
         prior_key: None,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
+        changes_locked_split: false,
     };
     let pinned = RecordedChildrenContext {
         prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
@@ -634,6 +637,7 @@ fn children_are_published_only_by_the_standing_owner() {
         prior_key: None,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
+        changes_locked_split: false,
     };
     let deep =
         claim_children_owner(&ctx, &Arc::from("pkg@1.0.0"), 5, &Arc::default(), HashSet::default());
@@ -672,6 +676,7 @@ fn re_recording_reports_whether_the_child_edges_moved() {
         prior_key: None,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
+        changes_locked_split: false,
     };
     let edges = |pkg_id: &str| {
         vec![crate::resolved_tree::ChildEdge {

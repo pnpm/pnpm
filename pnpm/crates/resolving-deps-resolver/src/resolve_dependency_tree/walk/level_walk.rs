@@ -1,11 +1,11 @@
 use super::{
     Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, ChildrenRecording, DirectDep, FrontierNode,
     HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
-    RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
+    RecordedChildrenContext, ResolveDependencyTreeError, Resolver, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
     claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
-    lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names,
+    lock_recoverable, make_non_owner_nodes_lazy, mark_changed_locked_splits, record_children,
+    recorded_children_match, register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -142,10 +142,14 @@ pub(super) fn settle_seeds(
 
 /// Record what each occurrence of a seeded level resolved for its
 /// children, and settle that level's own seeds into the next frontier.
-pub(super) fn settle_level(
+pub(super) async fn settle_level<Chain>(
     ctx: &TreeCtx,
+    resolver: &Chain,
     mut seeded: Vec<SeededNode>,
-) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
+) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
     assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
     let mut frontier = Vec::new();
     for node in seeded {
@@ -158,7 +162,7 @@ pub(super) fn settle_level(
                     ..
                 },
             child_specs,
-            seeds,
+            mut seeds,
             grandchild_overlay,
             grandchild_pkg_aliases,
         } = node;
@@ -176,6 +180,7 @@ pub(super) fn settle_level(
         {
             make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
         }
+        mark_changed_locked_splits(ctx, resolver, &mut seeds, &grandchild_pkg_aliases).await;
         frontier.extend(settle_seeds(
             ctx,
             seeds,
@@ -256,6 +261,7 @@ pub(super) fn children_context(
 ) -> RecordedChildrenContext {
     RecordedChildrenContext {
         children_scope: Arc::clone(children_pkg_aliases),
+        changes_locked_split: claim.changes_locked_split,
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
         prior_key: pending.prior_key
             .clone()
