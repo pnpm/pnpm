@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::Value;
-use std::{env, fs};
+use std::{env, fs, process::Command};
 
 fn fixture() -> CommandTempCwd<()> {
     let mut fixture = CommandTempCwd::init();
@@ -173,6 +173,9 @@ const NATIVE_COMMANDS: &[&[&str]] = &[
         "--pnpr-server",
         "http://127.0.0.1:9",
     ],
+    &["update", "--offline"],
+    &["update", "--offline", "--no-save"],
+    &["update", "--offline", "--patches"],
     &["dedupe", "--offline"],
     &["prune"],
 ];
@@ -283,6 +286,11 @@ fn native_build_is_skipped_when_not_materializing() {
     for args in [
         &["install", "--offline", "--dry-run"][..],
         &["install", "--offline", "--lockfile-only"],
+        &["update", "--offline", "--lockfile-only"],
+        &["update", "--offline", "--latest"],
+        &["update", "--offline", "missing"],
+        &["rebuild"],
+        &["rebuild", "--pending"],
         &["dedupe", "--offline", "--lockfile-only"],
         &["dedupe", "--offline", "--check"],
     ] {
@@ -300,5 +308,53 @@ fn native_build_is_skipped_when_not_materializing() {
             assert!(!workspace.join("package.json").exists(), "{args:?} created a manifest");
         }
         drop(root);
+    }
+}
+
+#[test]
+fn pending_native_build_recovers_after_ignored_scripts() {
+    for prepare in ["dedupe", "prune"] {
+        for exit_code in [0, 17] {
+            let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(exit_code);
+            Command::cargo_bin("pnpm")
+                .expect("find pnpm binary")
+                .without_ambient_pnpm_config()
+                .current_dir(&workspace)
+                .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+                .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+                .args([prepare, "--offline", "--ignore-scripts"])
+                .assert()
+                .success();
+            assert!(!workspace.join("package.json").exists(), "{prepare} created a manifest");
+            assert!(!workspace.join("native-marker").exists(), "{prepare} ran a native build");
+            let modules_dir = workspace.join("node_modules");
+            let pending = || {
+                pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir)
+                    .expect("read modules manifest")
+                    .expect("modules manifest exists")
+                    .pending_builds
+            };
+            assert_eq!(pending(), ["."], "{prepare} must record the pending project");
+            let result = pacquet
+                .args(["rebuild", "--pending"])
+                .assert();
+            if exit_code == 0 {
+                result.success();
+                assert_eq!(pending(), Vec::<String>::new());
+            } else {
+                let result = result.failure();
+                let stderr = String::from_utf8_lossy(&result.get_output().stderr);
+                assert!(stderr.contains("ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED"), "{stderr}");
+                assert!(stderr.contains("17"), "{stderr}");
+                assert_eq!(pending(), ["."]);
+            }
+            let marker: Value = serde_json::from_slice(
+                &fs::read(workspace.join("native-marker")).expect("pending native build ran"),
+            )
+            .expect("parse native marker");
+            assert_eq!(marker["args"], serde_json::json!(["rebuild"]));
+            assert_eq!(marker["version"], "1.0.0");
+            drop(root);
+        }
     }
 }

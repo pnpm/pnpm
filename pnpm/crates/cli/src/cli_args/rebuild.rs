@@ -41,10 +41,10 @@ pub struct RebuildArgs {
 impl RebuildArgs {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
-        state: State,
+        mut state: State,
         workspace_selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let selection = resolve_selection(&self.packages, self.pending, state.config)?;
+        let selection = resolve_selection(&self.packages, self.pending, &mut state)?;
         run_rebuild::<Reporter>(&state, selection, workspace_selection).await
     }
 
@@ -159,8 +159,9 @@ pub(crate) struct RebuildSelection {
 fn resolve_selection(
     packages: &[String],
     pending: bool,
-    config: &Config,
+    state: &mut State,
 ) -> miette::Result<RebuildSelection> {
+    let config = state.config;
     if !packages.is_empty() {
         return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
     }
@@ -171,6 +172,9 @@ fn resolve_selection(
     else {
         return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
+    if modules.pending_builds.contains(&state.active_importer_id()) {
+        state.save_manifest_for_native_build().wrap_err("preparing native project manifest")?;
+    }
     let lockfile_dir = config.modules_dir_anchor().unwrap_or(&config.modules_dir);
     // An importer id is always a relative path; a dep path can be
     // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
