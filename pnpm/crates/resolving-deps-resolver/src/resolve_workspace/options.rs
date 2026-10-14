@@ -1,7 +1,10 @@
 //! The options [`fn@super::resolve_workspace`] takes, and the split that
 //! hands most of them to the shared tree context.
 
-use crate::resolve_dependency_tree::{UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx};
+use crate::{
+    resolve_dependency_tree::{UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx},
+    resolve_peers::WorkspacePeerSettings,
+};
 use pnpm_lockfile::RegistryContext;
 use pnpm_package_manifest::PackageManifest;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -42,21 +45,10 @@ pub struct WorkspaceResolveOptions {
 #[derive(Default)]
 pub struct WorkspacePeerResolutionOptions {
     pub dedupe_peers: bool,
-    /// `true` enables [`fn@crate::resolve_peers_workspace`]'s cross-
-    /// importer dedupe pass — `dependenciesMeta[<alias>].injected: true`
-    /// workspace edges collapse back to `link:` when the injected
-    /// snapshot's children are a subset of the target project's own
-    /// direct deps.
-    pub dedupe_injected_deps: bool,
-    /// `true` enables [`fn@crate::resolve_peers_workspace`]'s peer-
-    /// dependent dedupe pass — peer-suffixed variants of one package
-    /// that are a subset of a larger compatible variant collapse into
-    /// it. Maps to the `dedupePeerDependents` setting (default `true`).
-    pub dedupe_peer_dependents: bool,
-    /// When true, non-root importers can resolve peers from the
-    /// workspace root's direct dependencies. Maps to the
-    /// `resolvePeersFromWorkspaceRoot` setting.
-    pub resolve_peers_from_workspace_root: bool,
+    /// The flags that only the workspace-wide peer pass reads, held in
+    /// the shape [`fn@crate::resolve_peers_workspace`] takes so they are
+    /// forwarded rather than copied field by field.
+    pub workspace_pass: WorkspacePeerSettings,
     /// Threaded into [`crate::PeerLinkOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`crate::PeerLinkOptions::modules_dir`] comes from each

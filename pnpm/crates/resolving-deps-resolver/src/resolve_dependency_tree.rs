@@ -437,22 +437,22 @@ where
 {
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
-    let mut wanted = Vec::new();
-    for (name, range) in manifest.dependencies(dependency_groups) {
-        if !crate::is_valid_dependency_alias(name) {
-            return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                parent: "The current package".to_string(),
-                alias: name.to_string(),
-            });
-        }
-        wanted.push(DependencySpec {
-            alias: name.to_string(),
-            bare_specifier: range.to_string(),
-            optional: optional_names.contains(name),
-            injected: injected_names.contains(name),
-        });
-    }
-    Ok(wanted)
+    manifest
+        .dependencies(dependency_groups)
+        .map(|(name, range)| {
+            crate::is_valid_dependency_alias(name)
+                .then(|| DependencySpec {
+                    alias: name.to_string(),
+                    bare_specifier: range.to_string(),
+                    optional: optional_names.contains(name),
+                    injected: injected_names.contains(name),
+                })
+                .ok_or_else(|| ResolveDependencyTreeError::InvalidDependencyName {
+                    parent: "The current package".to_string(),
+                    alias: name.to_string(),
+                })
+        })
+        .collect()
 }
 
 fn dependency_is_injected(manifest: &Value, name: &str) -> bool {

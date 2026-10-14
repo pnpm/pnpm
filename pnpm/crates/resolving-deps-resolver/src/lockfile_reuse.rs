@@ -414,8 +414,8 @@ fn current_resolution(
     Some(resolution)
 }
 
-/// The id, name and version, and `resolved_via` of a reused registry
-/// entry. A registry-qualified entry keeps its qualified id so the rebuilt
+/// The id, name and version, and [`ResolveResult::resolved_via`] of a
+/// reused registry entry. A registry-qualified entry keeps its qualified id so the rebuilt
 /// graph re-emits the same lockfile key.
 fn reused_registry_identity(
     metadata_key: &PkgNameVerPeer,

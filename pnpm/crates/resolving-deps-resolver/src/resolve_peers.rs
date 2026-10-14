@@ -162,8 +162,19 @@ impl Default for ResolvePeersOptions {
 /// The workspace-wide switches of [`fn@resolve_peers_workspace`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkspacePeerSettings {
+    /// `true` enables the cross-importer dedupe pass:
+    /// `dependenciesMeta[<alias>].injected: true` workspace edges collapse
+    /// back to `link:` when the injected snapshot's children are a subset
+    /// of the target project's own direct deps.
     pub dedupe_injected_deps: bool,
+    /// `true` enables the peer-dependent dedupe pass: peer-suffixed
+    /// variants of one package that are a subset of a larger compatible
+    /// variant collapse into it. Maps to the `dedupePeerDependents`
+    /// setting.
     pub dedupe_peer_dependents: bool,
+    /// When true, non-root importers can resolve peers from the workspace
+    /// root's direct dependencies. Maps to the
+    /// `resolvePeersFromWorkspaceRoot` setting.
     pub resolve_peers_from_workspace_root: bool,
 }
 
