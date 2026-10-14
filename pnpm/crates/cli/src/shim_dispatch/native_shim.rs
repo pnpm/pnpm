@@ -358,7 +358,7 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         Ok(None) => return None,
         Err(error) => {
             pnpm_diagnostics::eprintln!(
-                "pnpm: cannot read the global target of the {name} shim: {error}"
+                "pnpm: cannot read the global target of the {name} shim: {error}",
             );
             return Some(1);
         }
@@ -367,7 +367,7 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         && is_shim_path(path, &executable)
     {
         pnpm_diagnostics::eprintln!(
-            "pnpm: the global target of the {name} shim points back at the shim"
+            "pnpm: the global target of the {name} shim points back at the shim",
         );
         return Some(1);
     }

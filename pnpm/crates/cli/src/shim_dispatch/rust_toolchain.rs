@@ -191,7 +191,7 @@ pub(super) fn run_rust_toolchain(
         Err(error) => {
             pnpm_diagnostics::eprintln!(
                 "pnpm: failed to prepare Rust {}: {error:?}",
-                request.channel
+                request.channel,
             );
             return 1;
         }

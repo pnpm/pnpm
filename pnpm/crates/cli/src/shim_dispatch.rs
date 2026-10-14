@@ -457,7 +457,7 @@ fn run_runtime_from_store(
         Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
             pnpm_diagnostics::eprintln!(
-                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}"
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
             );
             1
         }
@@ -500,7 +500,7 @@ fn run_package_manager_from_pin(
         Err(error) => {
             pnpm_diagnostics::eprintln!(
                 "pnpm: failed to prepare {}@{version_spec}: {error:?}",
-                pm.name()
+                pm.name(),
             );
             1
         }
