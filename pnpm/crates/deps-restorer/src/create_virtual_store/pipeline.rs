@@ -112,6 +112,16 @@ impl<'a> CreateVirtualStore<'a> {
         }));
     }
 
+    fn rebuilds<'p>(
+        &'p self,
+        plan: &'p snapshot_plan::SnapshotPlan<'a>,
+    ) -> partition::Rebuilds<'p> {
+        partition::Rebuilds {
+            marker_rebuilds: &plan.marker_rebuilds,
+            allow_build_policy: self.ctx.allow_build_policy,
+        }
+    }
+
     async fn materialize_plan<Reporter: self::Reporter>(
         &self,
         wanted: WantedEntries<'a>,
@@ -124,7 +134,7 @@ impl<'a> CreateVirtualStore<'a> {
             &plan.survivors,
             &plan.skipped_entries,
             prefetched,
-            &plan.marker_rebuilds,
+            &self.rebuilds(&plan),
             self.ctx.linker.kind,
         );
 

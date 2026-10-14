@@ -245,6 +245,7 @@ impl WorkspaceSettings {
                 if let Some(remote) = settings.remote {
                     config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
                 }
+                overlay_some(&mut config.side_effects_cache_exclude, settings.exclude);
             }
             None => {}
         }
