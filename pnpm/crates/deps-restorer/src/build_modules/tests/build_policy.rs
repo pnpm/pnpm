@@ -1071,6 +1071,7 @@ fn side_effects_cache_exclude_keeps_the_named_builds_out_of_the_cache() {
         "java@git+ssh://git@github.com/joeferner/node-java.git#0123456789abcdef",
         "@native/bindings@3.0.0",
         "sharp@2.0.0",
+        "sharp@work:2.0.0",
     ] {
         assert!(!policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must not be cached");
     }
@@ -1078,6 +1079,7 @@ fn side_effects_cache_exclude_keeps_the_named_builds_out_of_the_cache() {
         "javascript@1.0.0",
         "@other/bindings@3.0.0",
         "sharp@3.0.0",
+        "sharp@work:3.0.0",
         "sharp@https://user@example.com/sharp.tgz",
     ] {
         assert!(policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must be cached");

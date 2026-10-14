@@ -125,7 +125,7 @@ impl AllowBuildPolicy {
     ///
     /// A bare-name rule covers every resolution of the package, a git or
     /// tarball URL included. A `name@version` rule names registry
-    /// versions only.
+    /// versions only, from the default registry or a named one.
     #[must_use]
     pub fn caches_build(&self, snapshot_key: &PackageKey) -> bool {
         let Some(exclude) = &self.side_effects_cache_exclude else {
@@ -136,6 +136,7 @@ impl AllowBuildPolicy {
             PolicyMatch::AnyVersion => false,
             PolicyMatch::ExactVersions(versions) => !snapshot_key.suffix
                 .version_semver()
+                .or_else(|| snapshot_key.suffix.registry_qualified().map(|(_, version)| version))
                 .is_some_and(|version| {
                     versions
                         .iter()
