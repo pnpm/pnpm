@@ -128,6 +128,23 @@ fn browser_replacement_map_is_not_a_required_path() {
 }
 
 #[test]
+fn required_paths_match_literally() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "a.txt");
+    touch(root, "dist/[id].js");
+    touch(root, "dist/chunk.js");
+    write(root, ".npmignore", "*.txt\ndist/\n");
+
+    let manifest = json!({ "main": "*.txt", "bin": "dist/[id].js" });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, ["dist/[id].js", "dist/chunk.js", "package.json"]);
+}
+
+#[test]
 fn bin_field_pointing_at_vcs_segment_is_refused() {
     // Uses a basename inside a `.git` segment to hit the dir-segment
     // exclusion path rather than the basename one.
