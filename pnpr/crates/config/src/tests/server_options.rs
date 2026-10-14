@@ -304,3 +304,30 @@ fn the_retired_per_surface_policies_are_refused() {
         assert!(result.is_err(), "accepted {yaml:?}");
     }
 }
+
+#[test]
+fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
+    let sql = crate::SqlBackendSettings {
+        url: "postgres://user:supersecret@localhost:5432/db?password=querysecret&other=val"
+            .to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_sql = format!("{sql:?}");
+    assert!(!rendered_sql.contains("supersecret"));
+    assert!(!rendered_sql.contains("querysecret"));
+    assert!(rendered_sql.contains("redacted"));
+    assert!(rendered_sql.contains("other=val"));
+
+    let libsql = crate::LibsqlSettings {
+        url: "https://libsql.example.com?authToken=mysecrettoken".to_string(),
+        auth_token: Some("secret_auth_token".to_string()),
+        replica_path: None,
+        sync_interval_secs: None,
+    };
+    let rendered_libsql = format!("{libsql:?}");
+    assert!(!rendered_libsql.contains("mysecrettoken"));
+    assert!(!rendered_libsql.contains("secret_auth_token"));
+    assert!(rendered_libsql.contains("redacted"));
+}

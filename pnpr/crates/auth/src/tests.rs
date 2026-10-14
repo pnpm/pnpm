@@ -739,6 +739,15 @@ fn token_store_sets_0600_permissions_on_sqlite_file() {
         .mode()
         & 0o777;
     assert_eq!(perms, 0o600);
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let _store2 = TokenStore::open(path.clone()).unwrap();
+    let perms2 = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(perms2, 0o640);
 }
 
 #[tokio::test]

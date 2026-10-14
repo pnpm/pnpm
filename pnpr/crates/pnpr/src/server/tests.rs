@@ -212,6 +212,10 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(is_write_request(&Method::POST, "/-/stage/123/approve"));
     assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
     assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+
+    let propfind = Method::from_bytes(b"PROPFIND").unwrap();
+    assert!(!is_write_request(&propfind, "/-/pnpr/v0/compiler-cache/default/key"));
+    assert!(is_write_request(&propfind, "/other/path"));
 }
 
 #[test]

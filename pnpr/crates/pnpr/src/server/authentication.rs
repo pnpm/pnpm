@@ -372,6 +372,9 @@ pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
     if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return false;
     }
+    if method.as_str() == "PROPFIND" && path.starts_with("/-/pnpr/v0/compiler-cache/") {
+        return false;
+    }
     if *method == Method::POST && is_read_only_post_path(path) {
         return false;
     }
