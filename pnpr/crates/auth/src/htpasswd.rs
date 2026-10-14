@@ -81,16 +81,24 @@ pub(super) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     }
     let tmp = unique_tmp_path(path);
     {
-        let mut file = std::fs::File::create(&tmp)?;
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
+        let mut file = {
+            use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
             let mode = match std::fs::symlink_metadata(path) {
                 Ok(meta) if !meta.file_type().is_symlink() => meta.permissions().mode(),
                 _ => 0o600,
             };
-            file.set_permissions(std::fs::Permissions::from_mode(mode))?;
-        }
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(mode)
+                .open(&tmp)?
+        };
+        #[cfg(not(unix))]
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
         file.write_all(bytes)?;
         file.sync_all()?;
     }

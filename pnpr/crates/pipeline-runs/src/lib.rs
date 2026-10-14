@@ -43,6 +43,8 @@ pub struct PublishPipelineRun {
     pub summary: Value,
     #[serde(default)]
     pub events: Vec<Value>,
+    #[serde(flatten, default)]
+    pub extra: std::collections::BTreeMap<String, Value>,
 }
 
 /// One row of a run listing: the summary without its event stream.

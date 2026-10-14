@@ -724,15 +724,22 @@ async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
         .await
         .unwrap();
 
-    let hosted = storage.read_hosted_document(&name).await.unwrap();
-    // Since the only version had its blob lost, the document either has no version or was not written
-    if let Some(hosted_bytes) = hosted {
-        let hosted: serde_json::Value = serde_json::from_slice(&hosted_bytes).unwrap();
-        assert!(
-            hosted
-                .get("versions")
-                .and_then(|v| v.get("1.0.0"))
-                .is_none(),
-        );
-    }
+    let hosted_bytes = storage
+        .read_hosted_document(&name)
+        .await
+        .unwrap()
+        .expect("packument was written");
+    let doc: serde_json::Value = serde_json::from_slice(&hosted_bytes).unwrap();
+    assert!(
+        doc.get("versions")
+            .and_then(|v| v.get("1.0.0"))
+            .is_none(),
+    );
+    assert!(
+        storage
+            .open_hosted_blob(&name, "pkg-1.0.0.tgz")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }

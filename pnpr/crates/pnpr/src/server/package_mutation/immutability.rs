@@ -4,7 +4,7 @@ use serde_json::Map;
 #[derive(Default)]
 pub(super) struct PendingRestores {
     fields: Vec<(String, String, Value)>,
-    dist: Vec<(String, &'static str, Value)>,
+    dist: Vec<(String, String, Value)>,
 }
 
 impl PendingRestores {
@@ -25,7 +25,7 @@ impl PendingRestores {
                 .and_then(|manifest| manifest.get_mut("dist"))
                 .and_then(Value::as_object_mut)
             {
-                dist.insert(key.to_string(), value);
+                dist.insert(key, value);
             }
         }
     }
@@ -128,7 +128,7 @@ pub(super) struct PublishedVersion<'a> {
 /// omits it has the stored one put back.
 pub(super) fn check_integrity_immutable(
     entry: &PublishedVersion<'_>,
-    restore: &mut Vec<(String, &'static str, Value)>,
+    restore: &mut Vec<(String, String, Value)>,
 ) -> Option<RegistryError> {
     let version = entry.version;
     // A present dist.integrity must be a string; a non-string would slip past
@@ -157,7 +157,11 @@ pub(super) fn check_integrity_immutable(
         None => {
             let refusal = require_object_dist(entry.manifest, version);
             if refusal.is_none() {
-                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
+                restore.push((
+                    version.clone(),
+                    "integrity".to_string(),
+                    Value::String(stored.to_string()),
+                ));
             }
             refusal
         }
@@ -174,7 +178,7 @@ pub(super) fn check_integrity_immutable(
 pub(super) fn check_tarball_immutable(
     entry: &PublishedVersion<'_>,
     name: &CanonicalPackageName,
-    restore: &mut Vec<(String, &'static str, Value)>,
+    restore: &mut Vec<(String, String, Value)>,
 ) -> Option<RegistryError> {
     let version = entry.version;
     let stored_basename = served_tarball_basename(entry.existing, name)?;
@@ -196,7 +200,7 @@ pub(super) fn check_tarball_immutable(
                     .and_then(|dist| dist.get("tarball"))
                     .cloned()
                     .unwrap_or(Value::Null);
-                restore.push((version.clone(), "tarball", stored));
+                restore.push((version.clone(), "tarball".to_string(), stored));
             }
             refusal
         }
@@ -282,11 +286,11 @@ fn check_no_extra_fields(
     None
 }
 
-fn check_dist_shasum(
+fn check_dist_fields_immutable(
     version: &str,
     existing: &Value,
     manifest: &Value,
-    restore_dist: &mut Vec<(String, &'static str, Value)>,
+    restore_dist: &mut Vec<(String, String, Value)>,
 ) -> Option<RegistryError> {
     let (Some(existing_dist), Some(manifest_dist)) = (
         existing.get("dist").and_then(Value::as_object),
@@ -294,23 +298,52 @@ fn check_dist_shasum(
     ) else {
         return None;
     };
-    let stored_shasum = existing_dist.get("shasum").and_then(Value::as_str)?;
-    match manifest_dist.get("shasum").and_then(Value::as_str) {
-        Some(incoming_shasum) if incoming_shasum != stored_shasum => {
-            Some(RegistryError::BadRequest {
-                reason: format!("dist.shasum for the published version {version:?} is immutable"),
-            })
+    if let Some(err) =
+        check_existing_dist_fields(version, existing_dist, manifest_dist, restore_dist)
+    {
+        return Some(err);
+    }
+    check_no_extra_dist_fields(version, existing_dist, manifest_dist)
+}
+
+fn check_existing_dist_fields(
+    version: &str,
+    existing_dist: &Map<String, Value>,
+    manifest_dist: &Map<String, Value>,
+    restore_dist: &mut Vec<(String, String, Value)>,
+) -> Option<RegistryError> {
+    for (key, stored) in existing_dist {
+        if matches!(key.as_str(), "integrity" | "tarball") {
+            continue;
         }
-        Some(_) => None,
-        None => {
-            restore_dist.push((
-                version.to_string(),
-                "shasum",
-                Value::String(stored_shasum.to_string()),
-            ));
-            None
+        match manifest_dist.get(key) {
+            Some(incoming) if incoming != stored => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!(
+                        "dist.{key} for the published version {version:?} is immutable",
+                    ),
+                });
+            }
+            Some(_) => {}
+            None => restore_dist.push((version.to_string(), key.clone(), stored.clone())),
         }
     }
+    None
+}
+
+fn check_no_extra_dist_fields(
+    version: &str,
+    existing_dist: &Map<String, Value>,
+    manifest_dist: &Map<String, Value>,
+) -> Option<RegistryError> {
+    for key in manifest_dist.keys() {
+        if !existing_dist.contains_key(key) && !matches!(key.as_str(), "integrity" | "tarball") {
+            return Some(RegistryError::BadRequest {
+                reason: format!("dist.{key} for the published version {version:?} is immutable"),
+            });
+        }
+    }
+    None
 }
 
 /// All fields of a published version manifest — other than `deprecated` and
@@ -337,7 +370,7 @@ pub(super) fn check_version_fields_immutable(
     if let Some(err) = check_no_extra_fields(version, existing_obj, manifest_obj) {
         return Some(err);
     }
-    check_dist_shasum(version, entry.existing, entry.manifest, &mut restores.dist)
+    check_dist_fields_immutable(version, entry.existing, entry.manifest, &mut restores.dist)
 }
 
 #[cfg(test)]

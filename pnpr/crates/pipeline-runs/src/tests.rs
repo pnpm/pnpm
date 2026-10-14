@@ -2,7 +2,7 @@ use super::{PipelineRunStore, PublishPipelineRun};
 use pnpr_config::HostedStoreConfig;
 use pnpr_storage::{PipelineRunKey, Storage};
 use serde_json::json;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use tempfile::TempDir;
 
 const ORG: &str = "acme";
@@ -14,6 +14,7 @@ fn run(workspace: &str, run_id: &str) -> PublishPipelineRun {
         run_id: run_id.to_string(),
         summary: json!({ "pipeline": "default", "runId": run_id }),
         events: vec![json!({ "event": "taskStarted", "task": "packages/a#build" })],
+        extra: BTreeMap::default(),
     }
 }
 
@@ -423,4 +424,29 @@ async fn run_with_unknown_fields_does_not_break_listing_or_get() {
         .unwrap()
         .unwrap();
     assert_eq!(loaded.run_id, "100-run");
+    assert_eq!(loaded.extra.get("futureField"), Some(&json!("unrecognized")));
+}
+
+#[tokio::test]
+async fn publish_retains_unknown_fields_on_roundtrip() {
+    let root = TempDir::new().unwrap();
+    let store = local_store(&root);
+
+    let payload = json!({
+        "org": ORG,
+        "workspace": "ws-2",
+        "runId": "200-future",
+        "summary": { "pipeline": "default" },
+        "events": [],
+        "futureField": "preserved",
+    });
+    let run: PublishPipelineRun = serde_json::from_value(payload).unwrap();
+    store.publish(&run).await.unwrap();
+
+    let loaded = store
+        .get(ORG, "ws-2", "200-future")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(loaded.extra.get("futureField"), Some(&json!("preserved")));
 }

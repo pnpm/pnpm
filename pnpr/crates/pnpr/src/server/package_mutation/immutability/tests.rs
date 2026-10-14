@@ -140,3 +140,70 @@ fn restores_omitted_metadata_fields() {
     assert_eq!(incoming["versions"]["1.0.0"]["dist"]["integrity"], json!("sha512-test"));
     assert_eq!(incoming["versions"]["1.0.0"]["dist"]["shasum"], json!("abcd"));
 }
+
+#[test]
+fn rejects_modifying_dist_fields() {
+    let pkg = CanonicalPackageName::parse("mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "fileCount": 42,
+                }
+            }
+        }
+    });
+
+    let mut incoming = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "fileCount": 99,
+                }
+            }
+        }
+    });
+
+    let err = enforce_published_version_immutability(&hosted, &pkg, &mut incoming).unwrap();
+    assert!(matches!(err, RegistryError::BadRequest { .. }));
+}
+
+#[test]
+fn restores_omitted_dist_fields() {
+    let pkg = CanonicalPackageName::parse("mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "fileCount": 42,
+                }
+            }
+        }
+    });
+
+    let mut incoming = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                }
+            }
+        }
+    });
+
+    assert!(enforce_published_version_immutability(&hosted, &pkg, &mut incoming).is_none());
+    assert_eq!(incoming["versions"]["1.0.0"]["dist"]["fileCount"], json!(42));
+}

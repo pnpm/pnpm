@@ -101,9 +101,9 @@ fn parse_registration_password(name: &str, body: &[u8]) -> Result<String, Regist
     if password.is_empty() {
         return Err(RegistryError::BadRequest { reason: "password cannot be empty".to_string() });
     }
-    if password.len() > 71 {
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
         return Err(RegistryError::BadRequest {
-            reason: "password cannot exceed 71 bytes".to_string(),
+            reason: format!("password cannot exceed {} bytes", pnpr_auth::MAX_PASSWORD_BYTES),
         });
     }
     Ok(password.to_string())

@@ -90,11 +90,13 @@ pub struct SqlBackendSettings {
 impl std::fmt::Debug for SqlBackendSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let redacted_url = match url::Url::parse(&self.url) {
-            Ok(mut parsed) if parsed.password().is_some() => {
-                let _ = parsed.set_password(Some("[redacted]"));
+            Ok(mut parsed) => {
+                if parsed.password().is_some() {
+                    let _ = parsed.set_password(Some("[redacted]"));
+                }
                 parsed.to_string()
             }
-            _ => self.url.clone(),
+            Err(_) => "[redacted]".to_string(),
         };
         f.debug_struct("SqlBackendSettings")
             .field("url", &redacted_url)
