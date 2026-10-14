@@ -211,11 +211,19 @@ fn native_fixture(exit_code: i32) -> CommandTempCwd<()> {
     fixture
 }
 
-fn assert_native_build(args: &[&str], exit_code: i32, existing: bool) {
+fn assert_native_build(args: &[&str], exit_code: i32, existing: bool, after_resolution: bool) {
     let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(exit_code);
     if existing {
         fs::write(workspace.join("package.json"), r#"{"version":"2.0.0"}"#)
             .expect("write existing manifest");
+    }
+    if after_resolution {
+        fs::remove_file(workspace.join("binding.gyp")).expect("remove initial native trigger");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "exports.hooks = { afterAllResolved(lockfile) { require('fs').writeFileSync(require('path').join(__dirname, 'binding.gyp'), '{}'); return lockfile; } };",
+        )
+        .expect("write native trigger hook");
     }
     let result = pacquet.args(args).assert();
     if exit_code == 0 {
@@ -238,16 +246,36 @@ fn assert_native_build(args: &[&str], exit_code: i32, existing: bool) {
 #[test]
 fn native_build_runs_with_initialized_manifest_data() {
     for args in NATIVE_COMMANDS {
-        assert_native_build(args, 0, false);
-        assert_native_build(args, 0, true);
+        assert_native_build(args, 0, false, false);
+        assert_native_build(args, 0, true, false);
     }
 }
 
 #[test]
 fn native_build_failure_is_propagated() {
     for args in NATIVE_COMMANDS {
-        assert_native_build(args, 17, false);
-        assert_native_build(args, 17, true);
+        assert_native_build(args, 17, false, false);
+        assert_native_build(args, 17, true, false);
+    }
+}
+
+#[test]
+fn native_build_runs_after_resolution_creates_trigger() {
+    let commands: &[&[&str]] = &[
+        &["install", "--offline", "--no-frozen-lockfile", "--no-prefer-frozen-lockfile"],
+        &["install", "--offline", "--pnpr-server", "http://127.0.0.1:9"],
+        &["update", "--offline"],
+        &["update", "--offline", "--no-save"],
+        &["update", "--offline", "--patches"],
+        &["update", "--offline", "--patches", "--pnpr-server", "http://127.0.0.1:9"],
+        &["dedupe", "--offline"],
+        &["prune", "--offline"],
+    ];
+    for args in commands {
+        for exit_code in [0, 17] {
+            assert_native_build(args, exit_code, false, true);
+            assert_native_build(args, exit_code, true, true);
+        }
     }
 }
 

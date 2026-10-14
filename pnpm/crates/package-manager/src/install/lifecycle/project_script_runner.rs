@@ -9,6 +9,7 @@ use super::{
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_package_manifest::{BINDING_GYP, manifest_opts_out_of_gyp_build, project_manifest_path};
 use std::sync::Mutex;
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
@@ -92,6 +93,7 @@ impl ProjectScriptRunner<'_> {
         } else {
             stages
         };
+        prepare_native_manifest(self.config, project_dir, manifest, stages)?;
         if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
             return Ok(());
         }
@@ -130,6 +132,32 @@ impl ProjectScriptRunner<'_> {
         )
         .map_err(InstallError::ProjectLifecycleScript)
     }
+}
+
+fn prepare_native_manifest(
+    config: &Config,
+    project_dir: &Path,
+    manifest: &PackageManifest,
+    stages: &[&str],
+) -> Result<(), InstallError> {
+    if config.workspace_dir.is_some()
+        || !stages.contains(&"install")
+        || manifest.path().exists()
+        || project_manifest_path(project_dir).exists()
+    {
+        return Ok(());
+    }
+    if matches!(manifest.script("preinstall", true), Ok(None))
+        && matches!(manifest.script("install", true), Ok(None))
+        && !manifest_opts_out_of_gyp_build(manifest.value())
+        && project_dir.join(BINDING_GYP).exists()
+    {
+        manifest
+            .clone()
+            .save()
+            .map_err(InstallError::SaveProjectManifest)?;
+    }
+    Ok(())
 }
 
 /// Every direct dependency name once, in declaration order across the groups.
