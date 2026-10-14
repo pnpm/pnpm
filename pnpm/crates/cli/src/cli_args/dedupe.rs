@@ -65,7 +65,7 @@ impl DedupeArgs {
     /// lockfile mutations made by config-deps as well.
     pub(super) async fn run<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
+        state: State,
         existing: Option<String>,
         guard: Option<LockfileGuard>,
         lockfile_path: &Path,
@@ -73,9 +73,6 @@ impl DedupeArgs {
     ) -> miette::Result<()> {
         let resolution_reporter =
             Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?);
-        if !self.check && !self.lockfile_only {
-            state.save_manifest_for_native_build().wrap_err("preparing native project manifest")?;
-        }
         let install = {
             let mut base_install = state.install([
                 DependencyGroup::Prod,

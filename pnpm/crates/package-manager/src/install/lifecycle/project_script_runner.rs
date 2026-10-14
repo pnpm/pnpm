@@ -1,7 +1,8 @@
 use super::{
     super::{
         Config, DependencyGroup, HashMap, HashSet, InstallError, NodeLinker, PackageManifest, Path,
-        PathBuf, Reporter, RunPostinstallHooks, link_project_bins, run_project_lifecycle_stages,
+        PathBuf, Reporter, RunPostinstallHooks, link_project_bins,
+        project_requires_implicit_gyp_build, run_project_lifecycle_stages,
     },
     project_lifecycle_extra_env,
 };
@@ -9,7 +10,7 @@ use super::{
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
-use pnpm_package_manifest::{BINDING_GYP, manifest_opts_out_of_gyp_build, project_manifest_path};
+use pnpm_package_manifest::project_manifest_path;
 use std::sync::Mutex;
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
@@ -93,7 +94,7 @@ impl ProjectScriptRunner<'_> {
         } else {
             stages
         };
-        prepare_native_manifest(self.config, project_dir, manifest, stages)?;
+        save_manifest_for_implicit_gyp_build(self.config, project_dir, manifest, stages)?;
         if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
             return Ok(());
         }
@@ -134,23 +135,23 @@ impl ProjectScriptRunner<'_> {
     }
 }
 
-fn prepare_native_manifest(
+/// The executor reads the manifest it runs scripts from off disk, so a
+/// standalone project whose scaffold manifest exists only in memory
+/// (see the CLI's state initialization) would lose the implicit
+/// `node-gyp rebuild` its `binding.gyp` calls for. Write the scaffold
+/// first in that one case; any other missing manifest has no scripts
+/// to run and stays missing. A workspace root without a manifest has
+/// no importer and is left alone.
+fn save_manifest_for_implicit_gyp_build(
     config: &Config,
     project_dir: &Path,
     manifest: &PackageManifest,
     stages: &[&str],
 ) -> Result<(), InstallError> {
-    if config.workspace_dir.is_some()
-        || !stages.contains(&"install")
-        || manifest.path().exists()
-        || project_manifest_path(project_dir).exists()
-    {
-        return Ok(());
-    }
-    if matches!(manifest.script("preinstall", true), Ok(None))
-        && matches!(manifest.script("install", true), Ok(None))
-        && !manifest_opts_out_of_gyp_build(manifest.value())
-        && project_dir.join(BINDING_GYP).exists()
+    if config.workspace_dir.is_none()
+        && stages.contains(&"install")
+        && !project_manifest_path(project_dir).exists()
+        && project_requires_implicit_gyp_build(project_dir, manifest)
     {
         manifest
             .clone()

@@ -259,6 +259,17 @@ impl PackageManifest {
             })
     }
 
+    /// The manifest at `path`, or the scaffold [`Self::create_if_needed`]
+    /// would write there. The scaffold stays in memory until the caller
+    /// saves it.
+    pub fn load_or_init(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
+        if !path.exists() {
+            let scaffold = PackageManifest::init_value_for(&path, InitOptions::default());
+            return Ok(PackageManifest::from_value(path, scaffold));
+        }
+        PackageManifest::from_path(path)
+    }
+
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         if !path.exists() {
             let scaffold = PackageManifest::init_value_for(&path, InitOptions::default());

@@ -42,11 +42,7 @@ impl PruneArgs {
             .chain(has_optional.then_some(DependencyGroup::Optional))
     }
 
-    pub async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        mut state: State,
-    ) -> miette::Result<()> {
-        state.save_manifest_for_native_build().wrap_err("preparing native project manifest")?;
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
         let State {
             tarball_mem_cache,

@@ -10,8 +10,7 @@ use pnpm_package_manager::{
     WorkspaceDependenciesInstalled,
 };
 use pnpm_package_manifest::{
-    BINDING_GYP, InitOptions, PackageManifest, PackageManifestError,
-    node_version_from_engines_runtime,
+    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
 use pnpm_tarball::MemCache;
 use std::{
@@ -225,22 +224,6 @@ impl State {
             .expect("manifest path always has a parent dir")
     }
 
-    /// Native lifecycle execution reads the manifest from disk. Materializing
-    /// commands must publish the standalone init value before running that build.
-    pub(crate) fn save_manifest_for_native_build(&mut self) -> Result<(), PackageManifestError> {
-        if self.config.workspace_dir.is_none()
-            && !self.config.ignore_scripts
-            && !self.manifest.path().exists()
-            && self
-                .project_dir()
-                .join(BINDING_GYP)
-                .exists()
-        {
-            self.manifest.save()?;
-        }
-        Ok(())
-    }
-
     pub fn lockfile_dir(&self) -> &Path {
         self.config.lockfile_dir_for(self.project_dir())
     }
@@ -254,8 +237,19 @@ impl State {
     }
 }
 
-/// Load the existing manifest in its original format. A missing manifest stays
-/// in memory until a command explicitly saves it.
+/// `package.json` loads as usual, but when it is absent an existing
+/// alternate manifest base name (`package.yaml`) must be loaded rather
+/// than shadowed by a scaffolded `package.json` and saved in its
+/// original format.
+///
+/// A missing manifest is never written here: command initialization
+/// precedes argument validation and serves read-only commands, so the
+/// scaffold stays in memory until a command that writes the manifest
+/// (`install`, `add`, `link`) saves it.
+///
+/// Inside a workspace, a missing root manifest is tolerated rather
+/// than scaffolded: pnpm installs such a workspace with no root
+/// importer and never creates a `package.json` there.
 fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
@@ -267,18 +261,15 @@ fn load_or_create_manifest(
         {
             return Ok(apply_runtime_on_fail(manifest, config));
         }
-        let value = if config.workspace_dir.is_some() {
-            serde_json::json!({})
-        } else {
-            PackageManifest::init_value_for(&manifest_path, InitOptions::default())
-        };
-        return Ok(apply_runtime_on_fail(
-            PackageManifest::from_value(manifest_path, value),
-            config,
-        ));
+        if config.workspace_dir.is_some() {
+            return Ok(apply_runtime_on_fail(
+                PackageManifest::from_value(manifest_path, serde_json::json!({})),
+                config,
+            ));
+        }
     }
     manifest_path
-        .pipe(PackageManifest::from_path)
+        .pipe(PackageManifest::load_or_init)
         .map(|manifest| apply_runtime_on_fail(manifest, config))
         .map_err(InitStateError::Manifest)
 }

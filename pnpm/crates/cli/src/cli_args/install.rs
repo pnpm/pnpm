@@ -240,9 +240,6 @@ impl InstallArgs {
         if state.config.pnpr_server.is_some() && self.materialization.dry_run {
             return Err(DryRunIncompatibleWithPnpr.into());
         }
-        if !self.materialization.dry_run && !link.lockfile.only {
-            state.save_manifest_for_native_build().wrap_err("preparing native project manifest")?;
-        }
         if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
             Box::pin(install_via_pnpr_inner::<Reporter>(&state, target, selection.as_ref(), link))
                 .await?;

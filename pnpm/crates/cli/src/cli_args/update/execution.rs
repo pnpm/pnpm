@@ -66,14 +66,13 @@ fn update_actions_root(
 impl UpdateArgs {
     pub(super) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
+        state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         self.check_interactive_peer_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
-        self.prepare_native_build(&mut state)?;
         let include_direct = self.dependency_options.include_direct();
         let explicit_groups = self.dependency_options.explicit_groups();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
@@ -105,17 +104,6 @@ impl UpdateArgs {
             },
         )
         .await
-    }
-
-    fn prepare_native_build(&self, state: &mut State) -> miette::Result<()> {
-        if self.packages.is_empty()
-            && !self.selection.latest
-            && !self.selection.interactive
-            && !self.install.lockfile_only
-        {
-            state.save_manifest_for_native_build().wrap_err("preparing native project manifest")?;
-        }
-        Ok(())
     }
 
     async fn run_local<Reporter: self::Reporter + 'static>(

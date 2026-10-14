@@ -532,10 +532,20 @@ pub(super) fn project_requires_lifecycle_scripts(
         .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
     has_lifecycle_script
         || (stages.contains(&"install")
-            && matches!(manifest.script("preinstall", true), Ok(None))
-            && matches!(manifest.script("install", true), Ok(None))
-            && !manifest_opts_out_of_gyp_build(manifest.value())
-            && project_dir.join(BINDING_GYP).exists())
+            && project_requires_implicit_gyp_build(project_dir, manifest))
+}
+
+/// Whether the executor's implicit `node-gyp rebuild` applies to the
+/// project's `install` stage: it ships a `binding.gyp`, declares neither
+/// `install` nor `preinstall`, and does not opt out with `gypfile: false`.
+pub(super) fn project_requires_implicit_gyp_build(
+    project_dir: &Path,
+    manifest: &PackageManifest,
+) -> bool {
+    matches!(manifest.script("preinstall", true), Ok(None))
+        && matches!(manifest.script("install", true), Ok(None))
+        && !manifest_opts_out_of_gyp_build(manifest.value())
+        && project_dir.join(BINDING_GYP).exists()
 }
 
 /// Read a string field off a project manifest, returning `None` when

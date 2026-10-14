@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_package_manager::{Install, ProjectMutation, linked_peer_dependencies_warning};
-use pnpm_package_manifest::{DependencyGroup, InitOptions, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
@@ -69,18 +69,6 @@ fn already_declared(manifest: &PackageManifest, name: &str) -> bool {
         })
 }
 
-fn load_link_manifest(manifest_path: &Path) -> miette::Result<PackageManifest> {
-    if manifest_path.exists() {
-        PackageManifest::from_path(manifest_path.to_path_buf())
-            .wrap_err("reading the project package.json")
-    } else {
-        Ok(PackageManifest::from_value(
-            manifest_path.to_path_buf(),
-            PackageManifest::init_value_for(manifest_path, InitOptions::default()),
-        ))
-    }
-}
-
 impl LinkArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
@@ -94,7 +82,9 @@ impl LinkArgs {
             .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?
             .to_path_buf();
 
-        let mut manifest = load_link_manifest(&manifest_path)?;
+        // A missing manifest is saved only after every link target resolved.
+        let mut manifest = PackageManifest::load_or_init(manifest_path.clone())
+            .wrap_err("reading the project package.json")?;
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
