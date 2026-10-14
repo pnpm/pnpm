@@ -126,26 +126,35 @@ impl HostedBackend for S3Store {
     fn list_blob_files(
         &self,
     ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
-        let prefix = ObjectPath::from(self.prefix.trim_end_matches('/'));
+        let prefix =
+            (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')));
+        let normalized_prefix = prefix
+            .as_ref()
+            .map(|p| format!("{}/", p.as_ref()))
+            .unwrap_or_default();
         self.store
-            .list(Some(&prefix))
-            .filter_map(move |result| async move {
-                let meta = match result {
-                    Ok(meta) => meta,
-                    Err(error) => return Some(Err(error.into())),
-                };
-                let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
-                if path
-                    .split('/')
-                    .any(|part| part.starts_with('.'))
-                {
-                    return None;
+            .list(prefix.as_ref())
+            .filter_map(move |result| {
+                let normalized_prefix = normalized_prefix.clone();
+                async move {
+                    let meta = match result {
+                        Ok(meta) => meta,
+                        Err(error) => return Some(Err(error.into())),
+                    };
+                    let path = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
+                    let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+                    if path
+                        .split('/')
+                        .any(|part| part.starts_with('.'))
+                    {
+                        return None;
+                    }
+                    Some(Ok(crate::HostedBlobFile {
+                        path: path.into_owned(),
+                        modified: meta.last_modified.into(),
+                        size: meta.size,
+                    }))
                 }
-                Some(Ok(crate::HostedBlobFile {
-                    path: path.to_string(),
-                    modified: meta.last_modified.into(),
-                    size: meta.size,
-                }))
             })
             .boxed()
     }

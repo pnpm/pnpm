@@ -675,3 +675,71 @@ async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
             .is_some(),
     );
 }
+
+#[tokio::test]
+async fn recovery_drops_version_when_tmp_blob_and_hosted_blob_are_missing() {
+    let tmp = tempdir().unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
+    // Do not write or promote the blob; remove the tmp file to simulate wiped cache.
+    let _ = fs::remove_file(&slot.tmp_path).await;
+
+    let txn_dir = tmp
+        .path()
+        .join("hosted")
+        .join(JOURNAL_DIR)
+        .join("0000000000000002-1-0");
+    fs::create_dir_all(&txn_dir).await.unwrap();
+    fs::write(
+        txn_dir.join("packument-0.json"),
+        serde_json::to_vec(&json!({
+            "name": "pkg",
+            "versions": { "1.0.0": { "version": "1.0.0" } },
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::write(
+        txn_dir.join(MANIFEST_FILE),
+        serde_json::to_vec(&json!({
+            "packages": [{
+                "name": "pkg",
+                "packument_file": "packument-0.json",
+                "tarballs": [{ "filename": "pkg-1.0.0.tgz", "tmp_path": slot.tmp_path }],
+            }],
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::write(txn_dir.join(super::COMMIT_MARKER), b"").await.unwrap();
+
+    storage
+        .publish_journal()
+        .recover(&storage, &NpmDocuments)
+        .await
+        .unwrap();
+
+    let hosted_bytes = storage
+        .read_hosted_document(&name)
+        .await
+        .unwrap()
+        .expect("packument was written");
+    let doc: serde_json::Value = serde_json::from_slice(&hosted_bytes).unwrap();
+    assert!(
+        doc.get("versions")
+            .and_then(|v| v.get("1.0.0"))
+            .is_none(),
+    );
+    assert!(
+        storage
+            .open_hosted_blob(&name, "pkg-1.0.0.tgz")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}

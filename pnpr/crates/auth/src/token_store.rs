@@ -102,6 +102,17 @@ impl TokenStore {
         {
             std::fs::create_dir_all(parent)?;
         }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            if !path.exists() {
+                let _ = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&path);
+            }
+        }
         let conn = Connection::open(&path)?;
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;

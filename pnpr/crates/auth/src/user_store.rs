@@ -1,6 +1,6 @@
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, UserBackend, hash_bcrypt, parse_htpasswd,
-    serialize_htpasswd, validate_username, verify_returning_user, write_atomic,
+    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, UserBackend, dummy_verify, hash_bcrypt,
+    parse_htpasswd, serialize_htpasswd, validate_username, verify_returning_user, write_atomic,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -176,6 +176,11 @@ impl UserBackend for UserStore {
         let existing_hash = self.snapshot().get(username).cloned();
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, self.bcrypt_cost).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         self.check_registration_capacity()?;

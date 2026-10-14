@@ -546,13 +546,13 @@ async fn promote_blobs<'a>(
 ) -> Result<HashSet<String>> {
     let mut lost_blobs = HashSet::new();
     for blob in &package.blobs {
-        // A missing tmp file was already promoted before the crash, so skip
-        // it. But never read an I/O error as "missing": that would skip
-        // promotion, write the document anyway, and delete the journal entry —
-        // advertising a blob with nothing on disk and no journal state left to
-        // retry from. Propagate it instead so the apply aborts and the entry
-        // survives for a later attempt.
+        // A missing tmp file was either already promoted before the crash or lost.
+        // If the blob is not in the store, record it as lost so the document merge
+        // drops its version rather than advertising a tarball that does not exist.
         if !fs::try_exists(&blob.tmp_path).await? {
+            if target.store.open_hosted_blob(&target.name, &blob.filename).await?.is_none() {
+                lost_blobs.insert(blob.filename.clone());
+            }
             continue;
         }
         let slot =
