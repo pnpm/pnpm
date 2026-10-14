@@ -1,8 +1,8 @@
 use super::{
-    Arc, HashMap, HashSet, NodeSeed, ParentPkgAliases, PendingNode, Pipe, PkgNameVerPeer, Resolver,
-    TreeCtx, WantedDependency, WantedKey, dependencies_named_as_peers, future, is_update_target,
-    lock_recoverable, peer_shadowed_dependencies, pinned_children_scope, pinned_specifier,
-    project_relative_cache_scope, resolve_wanted_cached,
+    AncestorPkgIds, Arc, HashMap, HashSet, NodeSeed, ParentPkgAliases, PendingNode, Pipe,
+    PkgNameVerPeer, Resolver, TreeCtx, WantedDependency, WantedKey, dependencies_named_as_peers,
+    future, is_update_target, lock_recoverable, peer_shadowed_dependencies, pinned_children_scope,
+    pinned_specifier, project_relative_cache_scope, resolve_wanted_cached,
 };
 
 /// Marks each children owner in `seeds` that would read children the
@@ -85,7 +85,9 @@ impl Scopes {
 /// A fresh walk lets a package's shallowest occurrence decide its split,
 /// so the subtree is walked level by level and a package is checked at
 /// every occurrence on the first level that reaches it. Its children are
-/// expanded once, which keeps the walk linear in the subtree's edges.
+/// expanded once, from the occurrence the ownership rule picks among those:
+/// the smallest parent path. That keeps the walk linear in the subtree's
+/// edges.
 async fn locked_split_changes<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -96,7 +98,11 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut first_level: HashMap<Arc<str>, usize> = HashMap::default();
-    let mut parents = vec![(Arc::clone(pkg_id), scopes)];
+    let mut parents = vec![Occurrence {
+        pkg_id: Arc::clone(pkg_id),
+        children_scopes: scopes,
+        parent_path: AncestorPkgIds::default(),
+    }];
     let mut level = 0;
     while !parents.is_empty() {
         level += 1;
@@ -114,41 +120,74 @@ where
     false
 }
 
-type Occurrence = (Arc<str>, Scopes);
+/// A package reached in the pinned subtree, with the scopes its children
+/// resolve in and its ancestors below the subtree's root.
+struct Occurrence {
+    pkg_id: Arc<str>,
+    children_scopes: Scopes,
+    parent_path: AncestorPkgIds,
+}
 
-/// The occurrences to check on `level`, the children of `parents`, and
-/// the ones whose own children make up the next level.
+/// The checks on `level`, one per occurrence of a child of `parents`, and
+/// the occurrences whose children make up the next level.
 fn next_level(
     ctx: &TreeCtx,
     parents: Vec<Occurrence>,
     first_level: &mut HashMap<Arc<str>, usize>,
     level: usize,
-) -> (Vec<Occurrence>, Vec<Occurrence>) {
+) -> (Vec<(Arc<str>, Scopes)>, Vec<Occurrence>) {
     let mut checks = Vec::new();
-    let mut next = Vec::new();
-    let mut expanded: HashSet<Arc<str>> = HashSet::default();
-    for (parent_id, scopes) in parents {
-        let Some(edges) = recorded_edges(ctx, &parent_id) else { continue };
-        let grandchildren_scopes = scopes.extend(
+    let mut owners: HashMap<Arc<str>, Occurrence> = HashMap::default();
+    for parent in parents {
+        let Some(edges) = recorded_edges(ctx, &parent.pkg_id) else { continue };
+        let children_path: AncestorPkgIds = Arc::new(
+            parent.parent_path
+                .iter()
+                .cloned()
+                .chain([Arc::clone(&parent.pkg_id)])
+                .collect(),
+        );
+        let grandchildren_scopes = parent.children_scopes.extend(
             &edges
                 .iter()
                 .map(|edge| edge.alias.clone())
                 .collect(),
         );
         for edge in edges.iter() {
-            let seen_on = *first_level
+            if *first_level
                 .entry(Arc::clone(&edge.pkg_id))
-                .or_insert(level);
-            if seen_on != level {
+                .or_insert(level)
+                != level
+            {
                 continue;
             }
-            if expanded.insert(Arc::clone(&edge.pkg_id)) {
-                next.push((Arc::clone(&edge.pkg_id), grandchildren_scopes.clone()));
-            }
-            checks.push((Arc::clone(&edge.pkg_id), scopes.clone()));
+            checks.push((Arc::clone(&edge.pkg_id), parent.children_scopes.clone()));
+            keep_owner(
+                &mut owners,
+                Occurrence {
+                    pkg_id: Arc::clone(&edge.pkg_id),
+                    children_scopes: grandchildren_scopes.clone(),
+                    parent_path: Arc::clone(&children_path),
+                },
+            );
         }
     }
-    (checks, next)
+    (checks, owners.into_values().collect())
+}
+
+/// Keeps, per package, the occurrence with the smallest parent path: the one
+/// a fresh walk lets own the package's children among equal depths.
+fn keep_owner(owners: &mut HashMap<Arc<str>, Occurrence>, candidate: Occurrence) {
+    match owners.entry(Arc::clone(&candidate.pkg_id)) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(candidate);
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if candidate.parent_path < entry.get().parent_path {
+                entry.insert(candidate);
+            }
+        }
+    }
 }
 
 fn recorded_edges(
@@ -305,3 +344,6 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
