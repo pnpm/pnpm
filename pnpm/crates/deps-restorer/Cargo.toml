@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-matcher = { workspace = true }
 rustc-hash = { workspace = true }
 pnpm-cmd-shim = { workspace = true }

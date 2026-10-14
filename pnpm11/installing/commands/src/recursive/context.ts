@@ -134,6 +134,7 @@ function extendOptionsForInstall (opts: RecursiveOptions, extension: InstallOpti
     peer: opts.savePeer,
     pruneLockfileImporters: opts.pruneLockfileImporters ??
       (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
+        !hasFilter(opts) &&
         extension.selectedProjectCount === extension.allProjects.length),
     saveCatalogName: opts.saveCatalogName,
     skipRuntimes: opts.runtime === false,
@@ -145,6 +146,14 @@ function extendOptionsForInstall (opts: RecursiveOptions, extension: InstallOpti
     workspacePackages: extension.workspacePackages,
     handleResolutionPolicyViolations: extension.policyHandlers?.handleResolutionPolicyViolations,
   }) as InstallOptions
+}
+
+/**
+ * A filter can match every project on disk while the lockfile still records
+ * projects that are missing from disk, such as in a sparse checkout.
+ */
+function hasFilter (opts: Pick<RecursiveOptions, 'filter' | 'filterProd'>): boolean {
+  return Boolean(opts.filter?.length) || Boolean(opts.filterProd?.length)
 }
 
 function getLinkWorkspacePackagesDepth (linkWorkspacePackages: RecursiveOptions['linkWorkspacePackages']): number {

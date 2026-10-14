@@ -25,8 +25,10 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::DependencyGroup;
 
 use crate::SkippedSnapshots;
 
@@ -113,7 +115,9 @@ fn retained_snapshots(
 /// importer in `real_importer_ids` keeps the pins `previous_wanted`
 /// recorded. The wanted lockfile stays workspace-global no matter how
 /// narrow the filter is, so `pnpm install --filter` never truncates the
-/// entries of the projects it did not touch.
+/// entries of the projects it did not touch. An importer `previous_wanted`
+/// records for a project outside `real_importer_ids`, such as one a sparse
+/// checkout leaves off disk, keeps its entry and the catalog entries it uses.
 ///
 /// `freshly_resolved` must contain an entry for every id in
 /// `real_importer_ids`, not just the selected ones: when a global
@@ -129,6 +133,8 @@ pub fn merge_filtered_wanted_lockfile(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Result<Lockfile, MergeFilteredWantedLockfileError> {
+    let missing_project_importers = missing_project_importers(previous_wanted, real_importer_ids);
+    retain_catalog_entries(&mut freshly_resolved, previous_wanted, &missing_project_importers);
     let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {
         resolution_inputs_match(previous, &freshly_resolved)
     });
@@ -157,7 +163,8 @@ pub fn merge_filtered_wanted_lockfile(
             };
             Ok((importer_id.clone(), importer))
         })
-        .collect::<Result<_, MergeFilteredWantedLockfileError>>()?;
+        .collect::<Result<HashMap<_, _>, MergeFilteredWantedLockfileError>>()?;
+    freshly_resolved.importers.extend(missing_project_importers);
     freshly_resolved.packages = overlay_package_maps(
         previous_wanted.and_then(|lockfile| lockfile.packages.as_ref()),
         fresh_packages,
@@ -167,6 +174,58 @@ pub fn merge_filtered_wanted_lockfile(
         fresh_snapshots,
     );
     Ok(full_closure(&freshly_resolved, workspace_root))
+}
+
+fn missing_project_importers(
+    previous_wanted: Option<&Lockfile>,
+    real_importer_ids: &HashSet<String>,
+) -> HashMap<String, ProjectSnapshot> {
+    previous_wanted
+        .map(|previous| {
+            previous.importers
+                .iter()
+                .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
+                .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Copy the catalog entries `importers` use from `previous_wanted` into
+/// `lockfile`, where the fresh resolution recorded none.
+fn retain_catalog_entries(
+    lockfile: &mut Lockfile,
+    previous_wanted: Option<&Lockfile>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) {
+    let Some(previous_catalogs) =
+        previous_wanted.and_then(|previous| previous.catalogs.as_ref())
+    else {
+        return;
+    };
+    let used_entries = importers
+        .values()
+        .flat_map(|importer| {
+            importer.dependencies_by_groups([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ])
+        })
+        .filter_map(|(alias, dependency)| {
+            let catalog_name = parse_catalog_protocol(&dependency.specifier)?;
+            let alias = alias.to_string();
+            let entry = previous_catalogs.get(catalog_name)?.get(&alias)?;
+            Some((catalog_name, alias, entry))
+        });
+    for (catalog_name, alias, entry) in used_entries {
+        lockfile.catalogs
+            .get_or_insert_default()
+            .entry(catalog_name.to_string())
+            .or_default()
+            .entry(alias)
+            .or_insert_with(|| entry.clone());
+    }
 }
 
 // Retaining old importer pins is safe only while the workspace-wide resolution inputs match.
