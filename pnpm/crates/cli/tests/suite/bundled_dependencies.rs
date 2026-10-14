@@ -251,7 +251,7 @@ fn local_tarball_with_bundled_dependencies() {
             .bundled_dependencies,
         Some(BundledDependencies::Names(vec!["@pnpm.e2e/hello-world-js-bin".to_string()])),
     );
-    assert!(!has_package(&lockfile, "@pnpm.e2e/hello-world-js-bin@1.0.0"));
+    assert!(!has_any_version_of(&lockfile, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -287,7 +287,7 @@ fn local_tarball_with_bundle_dependencies_true() {
             .bundled_dependencies,
         Some(BundledDependencies::Boolean(true)),
     );
-    assert!(!has_package(&lockfile, "@pnpm.e2e/hello-world-js-bin@1.0.0"));
+    assert!(!has_any_version_of(&lockfile, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -339,5 +339,15 @@ fn has_package(lockfile: &Lockfile, key: &str) -> bool {
             packages
                 .keys()
                 .any(|candidate| candidate.to_string() == key)
+        })
+}
+
+fn has_any_version_of(lockfile: &Lockfile, name: &str) -> bool {
+    lockfile.packages
+        .as_ref()
+        .is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|candidate| candidate.name.to_string() == name)
         })
 }
