@@ -94,11 +94,15 @@ mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod rate_limit;
+use rate_limit::LoginRateLimiter;
 mod registry_directory;
 mod routing;
 mod rule_admin;
 mod rule_overrides;
 mod scim;
+mod singleflight;
+use singleflight::Singleflight;
 mod staged;
 mod striped_locks;
 mod team_access;
@@ -206,8 +210,8 @@ mod state;
 use state::AppInner;
 
 #[derive(Clone)]
-struct AppState {
-    inner: Arc<AppInner>,
+pub(super) struct AppState {
+    pub(super) inner: Arc<AppInner>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

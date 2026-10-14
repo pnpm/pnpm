@@ -164,6 +164,13 @@ impl std::fmt::Debug for Config {
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "registry HTTP configuration reflects top-level server options"
+    )
+)]
 #[derive(Debug, Clone)]
 pub struct HttpConfig {
     /// Address the HTTP server binds to.
@@ -186,6 +193,14 @@ pub struct HttpConfig {
     pub trusted_proxies: Vec<IpNetwork>,
     /// Which forwarding header to inspect when behind a trusted proxy.
     pub trusted_proxy_header: TrustedProxyHeader,
+    /// Request processing timeout. If a request handler takes longer than
+    /// this duration to process, it is aborted and returns 504 Gateway Timeout.
+    /// `None` or 0 disables request timeouts.
+    pub request_timeout: Option<Duration>,
+}
+
+impl HttpConfig {
+    pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 }
 
 #[derive(Debug, Clone)]

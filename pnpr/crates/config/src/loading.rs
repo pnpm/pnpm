@@ -253,6 +253,20 @@ fn build_http_config(
         Some(raw) => raw.parse::<super::TrustedProxyHeader>()?,
         None => super::TrustedProxyHeader::default(),
     };
+    let request_timeout = match file.request_timeout.as_ref() {
+        Some(interval) => {
+            let duration =
+                super::parse_interval(&interval.0)
+                    .ok_or_else(|| RegistryError::InvalidConfig {
+                        reason: format!(
+                            "http.requestTimeout {:?} is not a valid interval",
+                            interval.0,
+                        ),
+                    })?;
+            (!duration.is_zero()).then_some(duration)
+        }
+        None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+    };
     Ok(super::HttpConfig {
         listen,
         public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
@@ -262,6 +276,7 @@ fn build_http_config(
         packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
         trusted_proxies,
         trusted_proxy_header,
+        request_timeout,
     })
 }
 

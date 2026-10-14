@@ -518,3 +518,41 @@ async fn upstream_404_purges_cached_packument() {
         .unwrap();
     assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
 }
+
+#[tokio::test]
+async fn upstream_packument_concurrent_fetches_are_coalesced_by_singleflight() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "coalesce-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "coalesce-pkg", "version": "1.0.0" } },
+    });
+    // Upstream expects exactly 1 fetch despite 5 concurrent requests from different clients
+    let mock = upstream
+        .mock("GET", "/coalesce-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let app = router(config);
+
+    let tasks = (0..5).map(|_| {
+        let app = app.clone();
+        tokio::spawn(async move {
+            let request = Request::get("/coalesce-pkg")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = body_bytes(response.into_body()).await;
+            assert!(!bytes.is_empty());
+        })
+    });
+
+    futures_util::future::try_join_all(tasks).await.unwrap();
+    mock.assert_async().await;
+}

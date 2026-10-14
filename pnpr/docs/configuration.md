@@ -462,6 +462,29 @@ trustedProxies:
 trustedProxyHeader: x-forwarded-for
 ```
 
+## `requestTimeout`
+
+The maximum duration that pnpr allows for handling an incoming HTTP request before cancelling it and returning `504 Gateway Timeout`.
+
+Defaults to `60s`. Set to `0` or `null` to disable timeouts.
+
+Accepts `requestTimeout` (camelCase) or `request_timeout` (snake_case).
+Can be specified as an integer number of seconds (e.g. `30`) or with a duration suffix (e.g. `30s`, `1m`).
+
+```yaml title="pnpr.yaml"
+requestTimeout: 60s
+```
+
+## Security limits and protections
+
+pnpr includes built-in protections against denial-of-service and brute-force attacks:
+
+- **Pre-buffer authorization**: Package publish and modification endpoints (`PUT /{pkg}`, `PUT /@{scope}/{pkg}`, `PUT /{pkg}/-rev/{rev}`) check caller authentication and write permissions before reading or buffering request payloads (up to 100 MiB). Unauthorized or unauthenticated requests are rejected immediately with `401 Unauthorized` or `403 Forbidden` without consuming server memory or network bandwidth.
+- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username with a `429 Too Many Requests` response and a `Retry-After` header.
+- **Concurrency limits**: Intensive operations are governed by concurrency semaphores to protect against resource exhaustion (limiting concurrent password verifications and concurrent large payload buffering).
+- **Upstream request coalescing (singleflight)**: Concurrent requests for the same uncached upstream packument are coalesced so multiple concurrent requests result in only a single upstream fetch.
+
+
 ## `ui`
 
 Whether and from where pnpr serves its web UI. See [Web UI](web-ui.md#settings).

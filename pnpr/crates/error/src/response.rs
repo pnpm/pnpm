@@ -22,6 +22,7 @@ impl RegistryError {
             | RegistryError::UpstreamBody { .. }
             | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
+            RegistryError::Shared(inner) => inner.is_transient_upstream_error(),
             _ => false,
         }
     }
@@ -60,6 +61,9 @@ impl RegistryError {
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
+            RegistryError::TooManyRequests { .. } => "too_many_requests",
+            RegistryError::RequestTimeout { .. } => "request_timeout",
+            RegistryError::Shared(inner) => inner.log_kind(),
             _ => self.storage_log_kind(),
         }
     }
@@ -116,11 +120,17 @@ impl RegistryError {
 
     #[must_use]
     pub fn log_message(&self) -> String {
+        if let RegistryError::Shared(inner) = self {
+            return inner.log_message();
+        }
         redact_url_credentials(&self.to_string())
     }
 
     #[must_use]
     pub fn public_message(&self) -> String {
+        if let RegistryError::Shared(inner) = self {
+            return inner.public_message();
+        }
         let status = self.status_code();
         if status.is_server_error() {
             return status
@@ -178,6 +188,9 @@ impl RegistryError {
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,
+            RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
+            RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
+            RegistryError::Shared(inner) => inner.status_code(),
             _ => self.storage_status_code(),
         }
     }

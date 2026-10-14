@@ -21,9 +21,9 @@ use std::sync::Arc;
 use axum::{
     Router,
     extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{HeaderMap, HeaderValue, Method, header},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -34,21 +34,21 @@ use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
 use super::{
-    AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, TargetRegistry,
-    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
-    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
-    get_profile, get_team_members, get_token_list, get_whoami,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource,
+    TargetRegistry, addressed_registry, authenticate, authorize, batch, caller_scoped, cargo,
+    compiler_cache, delete_package, delete_session_token, delete_tarball, delete_token_by_key,
+    get_dist_tags, get_org_teams, get_profile, get_team_members, get_token_list, get_whoami,
     health::{serve_live, serve_ping, serve_ready},
-    not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
-    remove_dist_tag, require_artifact_caller, require_pipeline_caller, require_resolver_caller,
-    serve_artifact_blob, serve_artifact_blob_size, serve_batch_publish, serve_get_pipeline_run,
-    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_pipeline_ui,
-    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
-    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
-    staged,
+    not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache, publish_package,
+    put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
+    require_resolver_caller, resolve_write_target, serve_artifact_blob, serve_artifact_blob_size,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
+    serve_packument, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
+    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
+    serve_search, serve_tarball, serve_upload_artifact_blob, serve_verify_lockfile,
+    serve_version_manifest, set_dist_tag, staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
@@ -82,7 +82,7 @@ fn finish_router(
         tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
         router = router.merge(super::web_ui::routes(dir));
     }
-    let mut router = router
+    let router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
         // enforce bearer-token read-only / CIDR restrictions (so a
@@ -90,6 +90,7 @@ fn finish_router(
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -114,6 +115,28 @@ fn finish_router(
     let trusted_proxies = Arc::from(state.inner.config.http.trusted_proxies.clone());
     let trusted_proxy_header = state.inner.config.http.trusted_proxy_header;
     Ok(with_observability_layers(router, trusted_proxies, trusted_proxy_header).with_state(state))
+}
+
+fn apply_request_timeout(
+    router: Router<AppState>,
+    timeout_duration: Option<std::time::Duration>,
+) -> Router<AppState> {
+    let Some(timeout_duration) = timeout_duration else {
+        return router;
+    };
+    router.layer(axum::middleware::from_fn(
+        move |request: axum::extract::Request, next: axum::middleware::Next| async move {
+            match tokio::time::timeout(timeout_duration, next.run(request)).await {
+                Ok(response) => response,
+                Err(_) => (
+                    StatusCode::GATEWAY_TIMEOUT,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    r#"{"error":"request timed out"}"#,
+                )
+                    .into_response(),
+            }
+        },
+    ))
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {

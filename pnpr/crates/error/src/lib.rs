@@ -287,6 +287,26 @@ pub enum RegistryError {
     #[from(skip)]
     TooManyUsers { max: u64 },
 
+    /// The client sent too many requests. Maps to 429 Too Many Requests.
+    #[display("Too many requests: {reason}")]
+    #[from(skip)]
+    TooManyRequests {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Request processing timed out. Maps to 504 Gateway Timeout.
+    #[display("Request timed out: {reason}")]
+    #[from(skip)]
+    RequestTimeout {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// An error wrapped in an `Arc` so multiple concurrent waiters sharing a
+    /// singleflight upstream fetch can clone the failure.
+    Shared(std::sync::Arc<RegistryError>),
+
     #[display("Internal error: {reason}")]
     #[from(skip)]
     Internal {
