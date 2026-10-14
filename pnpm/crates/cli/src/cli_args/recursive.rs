@@ -384,7 +384,7 @@ pub fn no_projects_matched_message(workspace_dir: &Path) -> String {
 pub fn print_no_projects_matched(config: &Config, prefix: &Path) {
     pnpm_diagnostics::println!(
         "{}",
-        no_projects_matched_message(notice_workspace_dir(config, prefix))
+        no_projects_matched_message(notice_workspace_dir(config, prefix)),
     );
 }
 
