@@ -249,7 +249,7 @@ impl AuthSqlBackend for MysqlDatabase {
                 .await?;
         }
         tx.commit().await?;
-        if removed > 0 { Ok(UserRemoval::Removed) } else { Ok(UserRemoval::NoSuchUser) }
+        Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 }
 

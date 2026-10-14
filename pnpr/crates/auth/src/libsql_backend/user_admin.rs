@@ -69,7 +69,7 @@ impl LibsqlAuth {
             .await?)
         })
         .await?;
-        if updated > 0 { Ok(PasswordChange::Changed) } else { Ok(PasswordChange::NoSuchUser) }
+        Ok(if updated > 0 { PasswordChange::Changed } else { PasswordChange::NoSuchUser })
     }
 
     pub(super) async fn remove_user(&self, username: &str) -> Result<UserRemoval> {
@@ -81,7 +81,7 @@ impl LibsqlAuth {
                 tx.execute(COUNT_ONE_LESS, ()).await?;
             }
             tx.commit().await?;
-            if removed > 0 { Ok(UserRemoval::Removed) } else { Ok(UserRemoval::NoSuchUser) }
+            Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
         })
         .await
     }
