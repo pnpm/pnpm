@@ -330,4 +330,14 @@ fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
     assert!(!rendered_libsql.contains("mysecrettoken"));
     assert!(!rendered_libsql.contains("secret_auth_token"));
     assert!(rendered_libsql.contains("redacted"));
+
+    let token_url_sql = crate::SqlBackendSettings {
+        url: "postgres://TOKEN@localhost:5432/db".to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_token = format!("{token_url_sql:?}");
+    assert!(!rendered_token.contains("TOKEN"));
+    assert!(rendered_token.contains("redacted"));
 }

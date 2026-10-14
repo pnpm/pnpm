@@ -56,7 +56,7 @@ pub struct LibsqlSettings {
 impl std::fmt::Debug for LibsqlSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LibsqlSettings")
-            .field("url", &redact_connection_url(&self.url))
+            .field("url", &pnpr_error::redact_url_credentials(&self.url))
             .field("auth_token", &self.auth_token.as_ref().map(|_| "[redacted]"))
             .field("replica_path", &self.replica_path)
             .field("sync_interval_secs", &self.sync_interval_secs)
@@ -90,39 +90,12 @@ pub struct SqlBackendSettings {
 impl std::fmt::Debug for SqlBackendSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SqlBackendSettings")
-            .field("url", &redact_connection_url(&self.url))
+            .field("url", &pnpr_error::redact_url_credentials(&self.url))
             .field("max_connections", &self.max_connections)
             .field("timeout", &self.timeout)
             .field("startup_timeout", &self.startup_timeout)
             .finish()
     }
-}
-
-fn redact_connection_url(raw: &str) -> String {
-    let Ok(mut parsed) = url::Url::parse(raw) else {
-        return "[redacted]".to_string();
-    };
-    if parsed.password().is_some() {
-        let _ = parsed.set_password(Some("[redacted]"));
-    }
-    let query_pairs: Vec<(String, String)> = parsed
-        .query_pairs()
-        .map(|(k, v)| {
-            let k_lower = k.to_ascii_lowercase();
-            if matches!(k_lower.as_str(), "password" | "token" | "authtoken" | "auth_token") {
-                (k.into_owned(), "[redacted]".to_string())
-            } else {
-                (k.into_owned(), v.into_owned())
-            }
-        })
-        .collect();
-    if !query_pairs.is_empty() {
-        parsed
-            .query_pairs_mut()
-            .clear()
-            .extend_pairs(query_pairs);
-    }
-    parsed.to_string()
 }
 
 impl SqlBackendSettings {
