@@ -96,7 +96,7 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 Since v0.1.0-alpha.11, a registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
 A server that serves more than one addresses them through `/npm/`, `/cargo/`,
-and `/pypi/` path prefixes, and registry names can be reused across ecosystems
+`/pypi/`, and `/oci/` path prefixes, and registry names can be reused across ecosystems
 by grouping the entries under an ecosystem key. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
@@ -280,7 +280,7 @@ registry, and is enforced there on every path.
 
 Because source order is load-bearing — a misordered router is the one way a
 mistake could send a private scope to a public origin — pnpr **refuses to
-start** (and fails a config reload) on an invalid router:
+start** on an invalid router:
 
 - a source that is unreachable — everything it claims is already covered by
   earlier sources (including a catch-all that isn't last);

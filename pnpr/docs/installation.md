@@ -7,8 +7,11 @@ pnpr is distributed on npm as [`@pnpm/pnpr`](https://www.npmjs.com/package/@pnpm
 The npm wrapper requires Node.js 18 or newer. Install it globally:
 
 ```sh
-pnpm add -g @pnpm/pnpr
+pnpm add -g @pnpm/pnpr@next
 ```
+
+Until the first stable release, every pnpr version is a prerelease published
+under the `next` dist-tag, so install `@pnpm/pnpr@next`.
 
 The wrapper package resolves to the native binary published under
 `@pnpm/pnpr.<platform>-<arch>` (e.g. `@pnpm/pnpr.linux-x64`). Prebuilt binaries

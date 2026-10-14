@@ -17,7 +17,7 @@ pnpr [OPTIONS] oci-gc --registry <name>
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config — the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. When omitted, the loaded config's value wins. |
+| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. Defaults to `300`. A registry's `maxage` overrides it for that registry. |
 | `--osv` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
