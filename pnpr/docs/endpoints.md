@@ -45,8 +45,10 @@ always available, whichever surfaces are enabled.
 ## Registry bases: `/` and `/~<name>/`
 
 Every [registry](configuration.md#registries-and-defaultregistry) is served as
-a full npm registry at `/~<name>/` — packument and tarball reads, version
-manifests, dist-tags, search, publish, unpublish, and the login/whoami
+a full npm registry at `/~<name>/`. On a server that declares more than one
+ecosystem, the npm bases are `/npm/` and `/npm/~<name>/` instead, and the rest
+of this section applies to them the same way. Packument and tarball reads,
+version manifests, dist-tags, search, publish, unpublish, and the login/whoami
 endpoints all work under a registry prefix. The `~` prefix keeps registry
 names out of the package-name namespace (a package name can never begin with
 `~`).
@@ -64,7 +66,7 @@ Every request routes through the registry graph:
   `404`.
 - A registry's declared namespace is enforced **on every path to it**: a read
   of a name outside the namespace is a definitive `404` answered before
-  storage or the upstream is consulted — through a router, on the path-less
+  storage or the upstream is consulted — through a router, on the default
   base, and at the registry's own `/~<name>/` URL alike — and an off-namespace
   publish is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
@@ -72,8 +74,8 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto the configured `public_url`
-  and stay canonical for the base the client addressed (path-less or
-  `/~<name>/`), so lockfiles don't bake in a registry name.
+  and stay canonical for the base the client addressed (`/`, `/~<name>/`,
+  `/npm/`, or `/npm/~<name>/`), so lockfiles don't bake in a registry name.
 
 ## pnpr protocol endpoints
 
