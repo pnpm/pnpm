@@ -114,9 +114,11 @@ pub(super) struct GvsHasher<'h> {
     /// this is the identical input. Hashing the raw bytes instead would
     /// give the two stacks different slots for the same project.
     project_scope: Option<std::borrow::Cow<'h, str>>,
-    /// The snapshots `sideEffectsCache.exclude` names. Their build must
-    /// not reach another project, so each takes the project's own slot
-    /// just as a local directory snapshot does.
+    /// The snapshots `sideEffectsCache.exclude` names, and every snapshot
+    /// that depends on one. An excluded build must not reach another
+    /// project, so each takes the project's own slot just as a local
+    /// directory snapshot does, and so does a dependent, whose slot links
+    /// to it.
     uncached_builds: HashSet<String>,
     engine: Option<&'h str>,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
@@ -133,7 +135,7 @@ impl<'h> GvsHasher<'h> {
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
         let uncached_builds = allow_build_policy
-            .map(|policy| uncached_build_dep_paths(policy, snapshots))
+            .map(|policy| uncached_build_dep_paths(policy, snapshots, &graph))
             .unwrap_or_default();
         Self {
             graph,
@@ -286,16 +288,18 @@ impl<'h> GvsHasher<'h> {
     }
 }
 /// The dep paths of the snapshots whose build `sideEffectsCache.exclude`
-/// keeps out of every cache.
+/// keeps out of every cache, and of their transitive dependents.
 fn uncached_build_dep_paths(
     policy: &AllowBuildPolicy,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    graph: &HashMap<String, DepsGraphNode<String>>,
 ) -> HashSet<String> {
-    snapshots
+    let excluded = snapshots
         .keys()
         .filter(|snapshot_key| !policy.caches_build(snapshot_key))
         .map(ToString::to_string)
-        .collect()
+        .collect();
+    pnpm_graph_hasher::build_required_dep_paths(graph, &excluded)
 }
 
 /// Hash a set in an order a `HashSet` cannot vary.

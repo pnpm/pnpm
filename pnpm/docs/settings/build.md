@@ -188,9 +188,8 @@ a package name, a `@scope/*` wildcard, or `name@version` with one or more exact
 versions. A bare name covers every resolution of the package, git and tarball
 URLs included. A `name@version` entry covers registry versions only.
 
-Only the listed package gets a project-specific copy under the global virtual
-store. A package that depends on it still shares its copy across projects, and
-that copy links to the listed package as the first project built it.
+A package that depends on a listed package gets a project-specific copy under
+the global virtual store as well, since its copy links to the listed package's.
 
 ### remoteCache
 
