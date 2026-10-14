@@ -437,6 +437,7 @@ async fn shutdown_signal() {
 /// that is not one. A bare `~` names no registry, so it reads as "not a
 /// registry prefix" rather than as an empty name — every caller then treats
 /// it the way it treats `foo`.
+#[allow(dead_code, reason = "helper used across server tiers and in tests")]
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
     segment
         .strip_prefix('~')

@@ -6990,6 +6990,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "object_store",
+ "percent-encoding",
  "pnpm-crypto-hash",
  "pnpm-network",
  "pnpr-config",

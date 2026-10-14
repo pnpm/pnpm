@@ -1,4 +1,49 @@
 use super::{CanonicalPackageName, RegistryError, Value, tarball_basename};
+use serde_json::Map;
+
+#[derive(Default)]
+pub(super) struct PendingRestores {
+    fields: Vec<(String, String, Value)>,
+    dist: Vec<(String, &'static str, Value)>,
+}
+
+impl PendingRestores {
+    fn apply(self, incoming: &mut Value) {
+        for (version, key, value) in self.fields {
+            if let Some(manifest) = incoming
+                .get_mut("versions")
+                .and_then(|versions| versions.get_mut(&version))
+                .and_then(Value::as_object_mut)
+            {
+                manifest.insert(key, value);
+            }
+        }
+        for (version, key, value) in self.dist {
+            if let Some(dist) = incoming
+                .get_mut("versions")
+                .and_then(|versions| versions.get_mut(&version))
+                .and_then(|manifest| manifest.get_mut("dist"))
+                .and_then(Value::as_object_mut)
+            {
+                dist.insert(key.to_string(), value);
+            }
+        }
+    }
+}
+
+fn validate_published_version(
+    entry: &PublishedVersion<'_>,
+    name: &CanonicalPackageName,
+    restores: &mut PendingRestores,
+) -> Option<RegistryError> {
+    if let Some(err) = check_version_fields_immutable(entry, restores) {
+        return Some(err);
+    }
+    if let Some(err) = check_integrity_immutable(entry, &mut restores.dist) {
+        return Some(err);
+    }
+    check_tarball_immutable(entry, name, &mut restores.dist)
+}
 
 /// Hold a published version's security-critical `dist` fields immutable across
 /// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
@@ -26,9 +71,7 @@ pub(super) fn enforce_published_version_immutability(
     // None (no versions to enforce) means "accept", not "error" here.
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
-    // Fields to re-insert after the scan; deferred because the scan borrows
-    // `incoming` and the restore mutates it.
-    let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
+    let mut restores = PendingRestores::default();
     for (version, manifest) in incoming_versions {
         let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
             return Some(RegistryError::BadRequest {
@@ -38,23 +81,11 @@ pub(super) fn enforce_published_version_immutability(
             });
         };
         let entry = PublishedVersion { version, existing, manifest };
-        if let Some(err) = check_integrity_immutable(&entry, &mut restore) {
-            return Some(err);
-        }
-        if let Some(err) = check_tarball_immutable(&entry, name, &mut restore) {
+        if let Some(err) = validate_published_version(&entry, name, &mut restores) {
             return Some(err);
         }
     }
-    for (version, key, value) in restore {
-        if let Some(dist) = incoming
-            .get_mut("versions")
-            .and_then(|versions| versions.get_mut(&version))
-            .and_then(|manifest| manifest.get_mut("dist"))
-            .and_then(Value::as_object_mut)
-        {
-            dist.insert(key.to_string(), value);
-        }
-    }
+    restores.apply(incoming);
     None
 }
 
@@ -202,3 +233,112 @@ pub(super) fn require_object_dist(manifest: &Value, version: &str) -> Option<Reg
         reason: format!("dist for the published version {version:?} must be an object"),
     })
 }
+
+/// All fields of a published version manifest — other than `deprecated` and
+/// `dist` (which has dedicated integrity and tarball checks) — are immutable.
+/// Modifications to `dependencies`, `scripts`, `bin`, or any other metadata
+fn check_existing_fields(
+    version: &str,
+    existing: &Map<String, Value>,
+    manifest: &Map<String, Value>,
+    restore_fields: &mut Vec<(String, String, Value)>,
+) -> Option<RegistryError> {
+    for (key, existing_val) in existing {
+        if key == "deprecated" || key == "dist" {
+            continue;
+        }
+        match manifest.get(key) {
+            Some(incoming_val) if incoming_val != existing_val => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!(
+                        "field {key:?} for the published version {version:?} is immutable",
+                    ),
+                });
+            }
+            Some(_) => {}
+            None => {
+                restore_fields.push((version.to_string(), key.clone(), existing_val.clone()));
+            }
+        }
+    }
+    None
+}
+
+fn check_no_extra_fields(
+    version: &str,
+    existing: &Map<String, Value>,
+    manifest: &Map<String, Value>,
+) -> Option<RegistryError> {
+    for key in manifest.keys() {
+        if key == "deprecated" || key == "dist" {
+            continue;
+        }
+        if !existing.contains_key(key) {
+            return Some(RegistryError::BadRequest {
+                reason: format!("field {key:?} for the published version {version:?} is immutable"),
+            });
+        }
+    }
+    None
+}
+
+fn check_dist_shasum(
+    version: &str,
+    existing: &Value,
+    manifest: &Value,
+    restore_dist: &mut Vec<(String, &'static str, Value)>,
+) -> Option<RegistryError> {
+    let (Some(existing_dist), Some(manifest_dist)) = (
+        existing.get("dist").and_then(Value::as_object),
+        manifest.get("dist").and_then(Value::as_object),
+    ) else {
+        return None;
+    };
+    let stored_shasum = existing_dist.get("shasum").and_then(Value::as_str)?;
+    match manifest_dist.get("shasum").and_then(Value::as_str) {
+        Some(incoming_shasum) if incoming_shasum != stored_shasum => {
+            Some(RegistryError::BadRequest {
+                reason: format!("dist.shasum for the published version {version:?} is immutable"),
+            })
+        }
+        Some(_) => None,
+        None => {
+            restore_dist.push((
+                version.to_string(),
+                "shasum",
+                Value::String(stored_shasum.to_string()),
+            ));
+            None
+        }
+    }
+}
+
+/// All fields of a published version manifest — other than `deprecated` and
+/// `dist` (which has dedicated integrity and tarball checks) — are immutable.
+/// Modifications to `dependencies`, `scripts`, `bin`, or any other metadata
+/// must be rejected.
+pub(super) fn check_version_fields_immutable(
+    entry: &PublishedVersion<'_>,
+    restores: &mut PendingRestores,
+) -> Option<RegistryError> {
+    let version = entry.version;
+    let existing_obj = entry.existing.as_object()?;
+    let Some(manifest_obj) = entry.manifest.as_object() else {
+        return Some(RegistryError::BadRequest {
+            reason: format!("manifest for the published version {version:?} must be an object"),
+        });
+    };
+
+    if let Some(err) =
+        check_existing_fields(version, existing_obj, manifest_obj, &mut restores.fields)
+    {
+        return Some(err);
+    }
+    if let Some(err) = check_no_extra_fields(version, existing_obj, manifest_obj) {
+        return Some(err);
+    }
+    check_dist_shasum(version, entry.existing, entry.manifest, &mut restores.dist)
+}
+
+#[cfg(test)]
+mod tests;

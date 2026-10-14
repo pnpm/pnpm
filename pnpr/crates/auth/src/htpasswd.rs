@@ -82,6 +82,15 @@ pub(super) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = unique_tmp_path(path);
     {
         let mut file = std::fs::File::create(&tmp)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = match std::fs::symlink_metadata(path) {
+                Ok(meta) if !meta.file_type().is_symlink() => meta.permissions().mode(),
+                _ => 0o600,
+            };
+            file.set_permissions(std::fs::Permissions::from_mode(mode))?;
+        }
         file.write_all(bytes)?;
         file.sync_all()?;
     }
@@ -108,12 +117,19 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
 // bcrypt helpers
 // ---------------------------------------------------------------
 
+const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
+
+pub(super) async fn dummy_verify(password: &str, cost: u32) {
+    let dummy_hash = format!("$2y${:02}${DUMMY_BCRYPT_BODY}", cost.clamp(4, 31));
+    let _ = verify_bcrypt(password.to_string(), dummy_hash).await;
+}
+
 /// Hash a password off the reactor — bcrypt at cost 10 takes
 /// ~50–100 ms and stalls every other async task on the same thread
 /// if run inline.
 pub(super) async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
     tokio::task::spawn_blocking(move || {
-        let parts = bcrypt::hash_with_result(&password, cost)?;
+        let parts = bcrypt::non_truncating_hash_with_result(&password, cost)?;
         // Format as $2y$ for maximum cross-tool compatibility —
         // Apache's `htpasswd -B` writes $2y$, GNU coreutils tools
         // accept it, and bcrypt::verify reads any of $2a/$2b/$2y.
@@ -124,8 +140,10 @@ pub(super) async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
 
 /// Whether `password` matches the bcrypt `hash`.
 pub async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
-    tokio::task::spawn_blocking(move || {
-        bcrypt::verify(&password, &hash).map_err(RegistryError::from)
+    tokio::task::spawn_blocking(move || match bcrypt::non_truncating_verify(&password, &hash) {
+        Ok(valid) => Ok(valid),
+        Err(bcrypt::BcryptError::Truncation(_)) => Ok(false),
+        Err(err) => Err(RegistryError::from(err)),
     })
     .await?
 }

@@ -1,6 +1,5 @@
 use super::{AuthState, Config, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace};
 use indexmap::IndexMap;
-use pnpr_registry::Ecosystem;
 use std::sync::Arc;
 
 pub(super) struct AppInner {
@@ -123,12 +122,8 @@ fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String,
     config.routing.upstreams
         .iter()
         .map(|(name, upstream)| {
-            let client = Upstream::new(name, upstream);
-            let client = if config.routing.registries.ecosystem(name) == Some(Ecosystem::Npm) {
-                client
-            } else {
-                client.with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream))
-            };
+            let client = Upstream::new(name, upstream)
+                .with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream));
             (name.clone(), client)
         })
         .collect()

@@ -27,7 +27,7 @@ pub enum BackendConfig {
 /// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
 /// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
 /// keep secrets out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibsqlSettings {
     /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
@@ -53,6 +53,17 @@ pub struct LibsqlSettings {
     pub sync_interval_secs: Option<u64>,
 }
 
+impl std::fmt::Debug for LibsqlSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LibsqlSettings")
+            .field("url", &self.url)
+            .field("auth_token", &self.auth_token.as_ref().map(|_| "[redacted]"))
+            .field("replica_path", &self.replica_path)
+            .field("sync_interval_secs", &self.sync_interval_secs)
+            .finish()
+    }
+}
+
 impl LibsqlSettings {
     /// Default embedded-replica background sync cadence.
     pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
@@ -61,7 +72,7 @@ impl LibsqlSettings {
 /// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlBackendSettings {
     /// Driver connection URL, e.g. `postgres://user:pass@host/db` or
@@ -74,6 +85,24 @@ pub struct SqlBackendSettings {
     pub timeout: Duration,
     /// Deadline for initial auth database connect and schema setup.
     pub startup_timeout: Duration,
+}
+
+impl std::fmt::Debug for SqlBackendSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let redacted_url = match url::Url::parse(&self.url) {
+            Ok(mut parsed) if parsed.password().is_some() => {
+                let _ = parsed.set_password(Some("[redacted]"));
+                parsed.to_string()
+            }
+            _ => self.url.clone(),
+        };
+        f.debug_struct("SqlBackendSettings")
+            .field("url", &redacted_url)
+            .field("max_connections", &self.max_connections)
+            .field("timeout", &self.timeout)
+            .field("startup_timeout", &self.startup_timeout)
+            .finish()
+    }
 }
 
 impl SqlBackendSettings {

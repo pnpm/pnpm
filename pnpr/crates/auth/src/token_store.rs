@@ -103,6 +103,11 @@ impl TokenStore {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(&path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+        }
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;
         drop(conn);

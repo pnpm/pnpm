@@ -125,7 +125,7 @@ pub enum ConfigSource {
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
 /// are set by the binary's CLI flags after the YAML is loaded,
 /// matching verdaccio's CLI overrides.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     /// Format and level for the `tracing-subscriber` the binary
     /// installs at startup. Sourced from the YAML `log:` object
@@ -145,6 +145,21 @@ pub struct Config {
     pub identity: IdentityConfig,
     pub features: Features,
     pub routing: RoutingConfig,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("logs", &self.logs)
+            .field("osv", &self.osv)
+            .field("resolution_cache_secret", &"[redacted]")
+            .field("http", &self.http)
+            .field("storage", &self.storage)
+            .field("identity", &self.identity)
+            .field("features", &self.features)
+            .field("routing", &self.routing)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]

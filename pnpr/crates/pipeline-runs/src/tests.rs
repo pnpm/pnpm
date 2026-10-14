@@ -385,3 +385,42 @@ async fn a_workspace_listing_does_not_read_other_workspaces() {
             .is_err(),
     );
 }
+
+#[tokio::test]
+async fn run_with_unknown_fields_does_not_break_listing_or_get() {
+    let root = TempDir::new().unwrap();
+    let storage = storage_in(&HostedStoreConfig::Fs, &root);
+    let store = PipelineRunStore::new(storage.clone());
+
+    let payload = json!({
+        "org": ORG,
+        "workspace": "ws-1",
+        "runId": "100-run",
+        "summary": { "pipeline": "default" },
+        "events": [],
+        "futureField": "unrecognized",
+        "extraMetadata": { "v": 2 }
+    });
+    let bytes = serde_json::to_vec(&payload).unwrap();
+    storage
+        .create_pipeline_run(
+            &PipelineRunKey { org: ORG, workspace: "ws-1", run_id: "100-run.json" },
+            &bytes,
+        )
+        .await
+        .unwrap();
+
+    let listed = store
+        .list(&[ORG], None, 10)
+        .await
+        .unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].run_id, "100-run");
+
+    let loaded = store
+        .get(ORG, "ws-1", "100-run")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(loaded.run_id, "100-run");
+}

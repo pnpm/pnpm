@@ -361,40 +361,41 @@ pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
 }
 
-/// Whether a request mutates registry state. Every npm and Cargo write
-/// surface (publish, unpublish, dist-tag add/remove, yank, adduser, logout,
-/// token revoke) is a PUT or DELETE; reads and the resolver POSTs are not.
-/// The mutating POSTs are the Python legacy upload API and the start of an
-/// image blob upload, both recognized by their path. A read-only token is
-/// confined to the non-mutating requests.
+/// Whether a request mutates registry state. A read-only token is
+/// confined to non-mutating requests.
+///
+/// This uses an allowlist for reads: `GET`, `HEAD`, and `OPTIONS` are
+/// non-mutating. Safe read `POST` endpoints (resolver queries, lockfile
+/// verification, artifact resolution/blob queries, and OIDC handoffs) are
+/// non-mutating. Every other method or unlisted `POST` is considered a write.
 pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
-    matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
-        || (*method == Method::POST && (is_python_upload_path(path) || is_image_upload_path(path)))
-}
-
-/// `POST <v2 base>/<name>/blobs/uploads/` starts a blob upload. The
-/// repository name is many segments, so the tail is what identifies it.
-fn is_image_upload_path(path: &str) -> bool {
-    let Some(rest) = path.trim_end_matches('/').strip_suffix("/blobs/uploads") else {
-        return false;
-    };
-    rest.split('/')
-        .any(|segment| segment == pnpr_oci::API_SEGMENT)
-}
-
-fn is_python_upload_path(path: &str) -> bool {
-    // `/pypi/legacy` or `/pypi/~<name>/legacy`.
-    let mut segments = path.trim_matches('/').split('/');
-    if segments.next() != Some(pnpr_registry::Ecosystem::Pypi.as_str()) {
+    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return false;
     }
-    match (segments.next(), segments.next(), segments.next()) {
-        (Some(upload), None, None) => upload == pnpr_pypi::UPLOAD_PATH,
-        (Some(registry), Some(upload), None) => {
-            super::tilde_registry(registry).is_some() && upload == pnpr_pypi::UPLOAD_PATH
-        }
-        _ => false,
+    if *method == Method::POST && is_read_only_post_path(path) {
+        return false;
     }
+    true
+}
+
+fn is_read_only_post_path(path: &str) -> bool {
+    let path = path.trim_end_matches('/');
+    matches!(
+        path,
+        "/-/pnpr/v0/resolve"
+            | "/-/pnpr/v1/resolve"
+            | "/-/pnpr/v0/verify-lockfile"
+            | "/-/pnpr/v1/verify-lockfile"
+            | "/-/pnpr/v0/artifacts/resolve"
+            | "/-/pnpr/v1/artifacts/resolve"
+            | "/-/pnpr/v0/shared-artifacts/resolve"
+            | "/-/pnpr/v1/shared-artifacts/resolve"
+            | "/-/pnpr/v0/artifacts/blob"
+            | "/-/pnpr/v1/artifacts/blob"
+            | "/-/pnpr/v0/shared-artifacts/blob"
+            | "/-/pnpr/v1/shared-artifacts/blob"
+            | "/-/oidc/handoff",
+    )
 }
 
 /// Whether `peer` falls inside any range of a token's CIDR whitelist. An

@@ -35,7 +35,8 @@ pub use user_store::UserStore;
 
 mod htpasswd;
 use htpasswd::{
-    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
+    dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user,
+    write_atomic,
 };
 
 mod token_store;

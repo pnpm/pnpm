@@ -106,6 +106,7 @@ async fn delete_user(
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
         let revoked_before = revoke_all_tokens(&state, &path.user).await?;
+        state.inner.identity.oidc.revoke_user_sessions(&path.user);
         let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
         let revoked_after = revoke_all_tokens(&state, &path.user).await?;
         if !removed && revoked_before + revoked_after == 0 {
@@ -176,6 +177,11 @@ fn parse_password(body: &Bytes) -> Result<String, RegistryError> {
         })?;
     if password.is_empty() {
         return Err(RegistryError::BadRequest { reason: "password must not be empty".to_string() });
+    }
+    if password.len() > 71 {
+        return Err(RegistryError::BadRequest {
+            reason: "password cannot exceed 71 bytes".to_string(),
+        });
     }
     Ok(password)
 }

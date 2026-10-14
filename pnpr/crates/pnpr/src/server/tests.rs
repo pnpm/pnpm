@@ -195,20 +195,23 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::GET, "/foo"));
     assert!(!is_write_request(&Method::HEAD, "/foo"));
     assert!(!is_write_request(&Method::OPTIONS, "/foo"));
-    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve")); // resolver reads are POSTs
-    // The Python legacy upload API is the one mutating POST.
+
+    // Known read POSTs are allowed:
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v1/resolve"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/verify-lockfile"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/blob"));
+    assert!(!is_write_request(&Method::POST, "/-/oidc/handoff"));
+
+    // All other POSTs (uploads, staging, approval, etc.) are write requests:
     assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
     assert!(is_write_request(&Method::POST, "/pypi/legacy"));
-    assert!(is_write_request(&Method::POST, "/pypi/~internal/legacy/"));
-    assert!(!is_write_request(&Method::POST, "/legacy/"));
-    assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
-    assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
-    // Starting an image blob upload is the other mutating POST.
+    assert!(is_write_request(&Method::POST, "/legacy/"));
+    assert!(is_write_request(&Method::POST, "/-/stage/package/foo"));
+    assert!(is_write_request(&Method::POST, "/-/stage/123/approve"));
     assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
-    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
-    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
-    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
-    assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
 }
 
 #[test]
