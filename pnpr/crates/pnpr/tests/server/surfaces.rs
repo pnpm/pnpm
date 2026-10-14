@@ -447,6 +447,49 @@ async fn readiness_probe_fails_when_storage_is_inaccessible() {
     assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
+#[tokio::test]
+async fn readiness_probe_fails_when_auth_is_inaccessible() {
+    let tmp = tempfile::tempdir().unwrap();
+    let tokens_path = tmp.path().join("tokens.db");
+
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.identity.auth.tokens.file = Some(tokens_path.clone());
+    let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
+    let app = pnpr::router_with_auth(config, auth);
+
+    // Remove the tokens database file so token store readiness fails
+    std::fs::remove_file(&tokens_path).unwrap();
+
+    // /-/ready returns 503 Service Unavailable when auth check fails
+    let ready = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let ready_body: Value = serde_json::from_slice(&body_bytes(ready.into_body()).await).unwrap();
+    assert_eq!(ready_body["status"], "unhealthy");
+    assert_eq!(ready_body["storage"], "ok");
+    assert_eq!(ready_body["auth"], "unavailable");
+
+    // /-/ping also returns 503 Service Unavailable when auth readiness fails
+    let ping = app
+        .oneshot(
+            Request::get("/-/ping")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ping.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn sigterm_signal_handler_installs_cleanly() {

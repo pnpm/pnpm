@@ -219,8 +219,9 @@ impl TokenBackend for TokenStore {
             return Ok(());
         };
         tokio::task::spawn_blocking(move || -> Result<()> {
-            let conn = Connection::open(&path)?;
-            conn.query_row("SELECT 1;", [], |_row| Ok(()))?;
+            let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE;
+            let conn = Connection::open_with_flags(&path, flags)?;
+            conn.query_row("SELECT COUNT(*) FROM tokens;", [], |_row| Ok(()))?;
             Ok(())
         })
         .await??;

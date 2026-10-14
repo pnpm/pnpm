@@ -364,7 +364,7 @@ async fn tokens_persist_across_reopen() {
     let raw = store.issue("alice").await.unwrap();
     drop(store);
 
-    let reopened = TokenStore::open(path).unwrap();
+    let reopened = TokenStore::open(path.clone()).unwrap();
     reopened.check_readiness().await.unwrap();
     assert_eq!(
         reopened
@@ -375,6 +375,10 @@ async fn tokens_persist_across_reopen() {
         Some("alice"),
         "token issued before restart must still resolve after reload",
     );
+
+    std::fs::remove_file(&path).unwrap();
+    assert!(reopened.check_readiness().await.is_err());
+    assert!(!path.exists(), "check_readiness must not recreate missing database");
 }
 
 #[tokio::test]

@@ -50,7 +50,7 @@ pub(crate) async fn serve_ping(State(state): State<AppState>) -> Response {
         Ok(()) => (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response(),
         Err(err) => {
             tracing::warn!(error = %err.log_message(), "ping readiness check failed");
-            err.into_response()
+            (StatusCode::SERVICE_UNAVAILABLE, err.public_message()).into_response()
         }
     }
 }
