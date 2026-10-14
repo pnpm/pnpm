@@ -10,7 +10,8 @@ use pnpm_package_manager::{
     WorkspaceDependenciesInstalled,
 };
 use pnpm_package_manifest::{
-    InitOptions, PackageManifest, PackageManifestError, node_version_from_engines_runtime,
+    BINDING_GYP, InitOptions, PackageManifest, PackageManifestError,
+    node_version_from_engines_runtime,
 };
 use pnpm_tarball::MemCache;
 use std::{
@@ -222,6 +223,22 @@ impl State {
             .path()
             .parent()
             .expect("manifest path always has a parent dir")
+    }
+
+    /// Native lifecycle execution reads the manifest from disk. Materializing
+    /// commands must publish the standalone init value before running that build.
+    pub(crate) fn save_manifest_for_native_build(&mut self) -> Result<(), PackageManifestError> {
+        if self.config.workspace_dir.is_none()
+            && !self.config.ignore_scripts
+            && !self.manifest.path().exists()
+            && self
+                .project_dir()
+                .join(BINDING_GYP)
+                .exists()
+        {
+            self.manifest.save()?;
+        }
+        Ok(())
     }
 
     pub fn lockfile_dir(&self) -> &Path {
