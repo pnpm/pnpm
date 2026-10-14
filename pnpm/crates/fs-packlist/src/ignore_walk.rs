@@ -29,7 +29,12 @@ pub(crate) enum IgnoreFiles<'a> {
     /// `.npmignore`, the ignore files of the directories from `workspace_dir`
     /// down to the package's parent apply too, matched against paths
     /// relative to the package.
-    Read { workspace_dir: Option<&'a Path> },
+    Read {
+        workspace_dir: Option<&'a Path>,
+        /// Package-relative paths that the root re-includes after its ignore
+        /// files, see [`IgnoreRule::reinclude_path`].
+        required_paths: &'a [String],
+    },
 }
 
 /// Calls `on_file` with every non-directory entry under `pkg_dir` that the
@@ -42,9 +47,10 @@ pub(crate) fn walk_files(
 ) -> io::Result<()> {
     let (root_rules, named_files) = match ignore_files {
         IgnoreFiles::SubdirectoriesOnly { named_files } => (Vec::new(), Some(named_files)),
-        IgnoreFiles::Read { workspace_dir } => {
+        IgnoreFiles::Read { workspace_dir, required_paths } => {
             let mut rules = inherited_rules(pkg_dir, workspace_dir)?;
             rules.extend(read_dir_rules(pkg_dir)?);
+            rules.extend(required_paths.iter().map(|path| IgnoreRule::reinclude_path(path)));
             (rules, None)
         }
     };

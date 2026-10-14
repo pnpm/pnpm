@@ -103,3 +103,20 @@ fn a_wide_brace_group_expands_to_a_bounded_number_of_alternatives() {
     assert!(rule.matches("x", false));
     assert!(!rule.matches("xy", false));
 }
+
+#[test]
+fn reinclude_path_matches_only_the_path_itself() {
+    let rule = IgnoreRule::reinclude_path("dist/[id].js");
+    assert!(rule.negate);
+    let cases = [
+        ("/dist/[id].js", false, true),
+        ("/dist", true, true),
+        ("/Dist", true, false),
+        ("/DIST/[id].js", false, false),
+        ("/dist/i.js", false, false),
+        ("/dist/[ID].js", false, false),
+    ];
+    for (path, partial, expected) in cases {
+        assert_eq!(rule.matches(path, partial), expected, "{path:?} (partial: {partial})");
+    }
+}
