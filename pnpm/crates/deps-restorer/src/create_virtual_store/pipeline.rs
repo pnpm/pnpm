@@ -68,6 +68,12 @@ impl<'a> CreateVirtualStore<'a> {
             marker_source.as_ref(),
         )
         .await?;
+        if !self.ctx.config.frozen_store {
+            crate::link_gate::save(
+                &self.ctx.config.store_dir,
+                self.ctx.linker.layout.package_store_dir(),
+            );
+        }
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
         let handoff = retained_keys.map(|cache_keys| {
             let mut rows = prefetched;
@@ -226,6 +232,7 @@ impl<'a> CreateVirtualStore<'a> {
         if self.fetching.store_context.is_none() {
             init_store_dir_unless_frozen(config, store_dir).await;
         }
+        crate::link_gate::load(store_dir, self.ctx.linker.layout.package_store_dir());
         create_build_marker_source(config, self.ctx.linker.layout, store_dir)
     }
 

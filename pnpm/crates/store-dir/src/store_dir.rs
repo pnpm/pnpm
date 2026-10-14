@@ -166,6 +166,12 @@ impl StoreDir {
         self.root.join("links")
     }
 
+    /// Path to the directory of per-volume link gate records, at
+    /// `<store-dir>/link-concurrency`.
+    pub fn link_concurrency(&self) -> PathBuf {
+        self.root.join("link-concurrency")
+    }
+
     /// Path to the per-store projects registry — a flat directory of
     /// symlinks (`<store>/projects/<short-hash>` → project dir) the
     /// global-virtual-store prune sweep walks when deciding which

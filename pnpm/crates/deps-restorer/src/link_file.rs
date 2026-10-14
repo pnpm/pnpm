@@ -224,10 +224,12 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // are the usual offender) ends up mutating the shared store copy.
     // Current pnpm's indexed-pkg-importer does not guard against this
     // either — postinstall handling lives in the script runner, not the
-    // import layer — so there's nothing to gate on here.
-    try_import::<Reporter, Host>(method, logged, source_file, target_link)
-        .map(|_| ())
-        .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
+    // import layer — so there's nothing to check here.
+    crate::link_gate::gated(|| {
+        try_import::<Reporter, Host>(method, logged, source_file, target_link)
+    })
+    .map(|_| ())
+    .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
 }
 
 /// Resolve an import syscall failure against a target the caller

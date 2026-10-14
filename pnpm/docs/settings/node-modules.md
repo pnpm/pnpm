@@ -274,6 +274,25 @@ different filesystem from `node_modules` cannot be hardlinked from at all —
 the attempt fails with `EXDEV` — so `auto` already falls back to copying on
 its own.
 
+#### How many files macOS writes at once
+
+APFS serializes the creation of files, directories and symlinks across the
+whole volume, so writing `node_modules` with more threads does not make it
+faster past a point, and past a further point makes it slower as the threads
+queue inside the kernel. Where that point lies differs between Macs: a
+12-core machine writes fastest with 4 files in flight, a 10-core M1 Max with
+16, and each is 35-50% slower at the other's optimum.
+
+On macOS pnpm therefore measures the point while it links. It limits how
+many of these writes are in flight at once, counts how many complete per
+second, and moves the limit toward the width that completes the most. The
+width it settles on is saved in the store, per volume, and seeds the next
+install into that volume.
+
+Set the `PNPM_MACOS_LINK_CONCURRENCY` environment variable to a positive
+number to pin the limit and turn the measurement off, for example to compare
+widths on a machine or a volume of your own.
+
 [nodeLinker]: #nodelinker
 
 ### modulesCacheMaxAge

@@ -230,7 +230,7 @@ impl<'install> DirCloneCache<'install> {
         // path.
         if package_key.name.scope.is_some()
             && let Some(parent) = save_path.parent()
-            && let Err(error) = fs::create_dir(parent)
+            && let Err(error) = crate::link_gate::gated(|| fs::create_dir(parent))
             && error.kind() != io::ErrorKind::AlreadyExists
         {
             return false;
@@ -278,7 +278,8 @@ impl<'install> DirCloneCache<'install> {
         canonical: &Path,
         save_path: &Path,
     ) -> bool {
-        let Err(error) = reflink_copy::reflink(canonical, save_path) else {
+        let Err(error) = crate::link_gate::gated(|| reflink_copy::reflink(canonical, save_path))
+        else {
             tracing::trace!(
                 target: "pacquet::dir_clone_cache",
                 package = %package_key,
@@ -341,7 +342,7 @@ fn dir_clone_supported(links_root: &Path, destination: &Path) -> bool {
 
 /// `path`, or the nearest ancestor of it that exists on disk. Falls
 /// back to `.` for a fully relative path with no existing ancestors.
-fn deepest_existing_ancestor(path: &Path) -> &Path {
+pub(crate) fn deepest_existing_ancestor(path: &Path) -> &Path {
     let mut candidate = path;
     while !candidate.exists() {
         match candidate.parent() {

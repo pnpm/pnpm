@@ -62,7 +62,7 @@ pub fn symlink_package(
     // alotta-files fixture) for the common case of a parent that
     // already exists from a prior `import_indexed_dir` populate or
     // sibling symlink.
-    force_symlink_dir(symlink_target, symlink_path)
+    crate::link_gate::gated(|| force_symlink_dir(symlink_target, symlink_path))
         .map_err(|error| SymlinkPackageError::SymlinkDir {
             symlink_target: symlink_target.to_path_buf(),
             symlink_path: symlink_path.to_path_buf(),
