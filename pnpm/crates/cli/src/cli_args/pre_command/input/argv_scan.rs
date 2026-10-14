@@ -1,6 +1,6 @@
 use super::{
-    ArgTable, OsStr, OsString, PathBuf, PinFlags, SwitchInput, SwitchPaths, boolean_flag,
-    long_value,
+    ArgTable, CliNetworkArgs, OsStr, OsString, PathBuf, PinFlags, SwitchInput, SwitchPaths,
+    boolean_flag, long_value,
 };
 use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
 use clap::CommandFactory;
@@ -101,6 +101,7 @@ impl SwitchInput {
             pin_flags: PinFlags::default(),
             color: None,
             ignore_workspace: false,
+            network: CliNetworkArgs::default(),
         }
     }
 

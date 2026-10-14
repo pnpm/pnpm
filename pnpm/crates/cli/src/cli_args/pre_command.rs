@@ -13,7 +13,7 @@ pub(crate) use execute::execute_plan;
 mod system_runtime_version;
 
 use super::{
-    cli_command::{CliArgs, CliCommand},
+    cli_command::{CliArgs, CliCommand, CliNetworkArgs},
     config::{ConfigLocation, ConfigSubcommand},
     install::{InstallArgs, resolve_bool_override},
     lockfile_dir::LockfileDirArg,

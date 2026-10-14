@@ -195,7 +195,7 @@ pub struct CliPathArgs {
     pub workspace_packages: Vec<String>,
 }
 
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Default, Clone, clap::Args)]
 pub struct CliNetworkArgs {
     /// Base URL of the npm registry to resolve and fetch packages from.
     /// Universal rc-option: accepted on every command and layered onto
