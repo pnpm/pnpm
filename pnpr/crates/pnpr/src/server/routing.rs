@@ -13,26 +13,20 @@ use npm_handlers::{
     unpublish_tarball,
 };
 
-use std::{sync::Arc, time::Duration};
+mod observability;
+use observability::with_observability_layers;
+
+use std::sync::Arc;
 
 use axum::{
     Router,
-    body::Body,
-    extract::{DefaultBodyLimit, Path, RawQuery, Request, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{HeaderMap, HeaderValue, Method, header},
     middleware,
     response::Response,
     routing::{any, delete, get, post, put},
 };
-use tower_http::{
-    compression::{
-        CompressionLayer,
-        predicate::{DefaultPredicate, NotForContentType, Predicate as _},
-    },
-    cors::{AllowOrigin, CorsLayer},
-    trace::TraceLayer,
-};
-use tracing::Span;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
@@ -47,12 +41,12 @@ use super::{
     delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
     get_profile, get_team_members, get_token_list, get_whoami,
     health::{serve_live, serve_ping, serve_ready},
-    loggable_uri, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
-    put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_artifact_blob_size, serve_batch_publish,
-    serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages, serve_packument,
-    serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
+    remove_dist_tag, require_artifact_caller, require_pipeline_caller, require_resolver_caller,
+    serve_artifact_blob, serve_artifact_blob_size, serve_batch_publish, serve_get_pipeline_run,
+    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_pipeline_ui,
+    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
+    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
     serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
     staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
@@ -117,7 +111,9 @@ fn finish_router(
                 .expose_headers([header::ETAG]),
         );
     }
-    Ok(with_observability_layers(router).with_state(state))
+    let trusted_proxies = Arc::from(state.inner.config.http.trusted_proxies.clone());
+    let trusted_proxy_header = state.inner.config.http.trusted_proxy_header;
+    Ok(with_observability_layers(router, trusted_proxies, trusted_proxy_header).with_state(state))
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
@@ -133,62 +129,6 @@ fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
                 })
         })
         .collect()
-}
-
-fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
-    router
-        // gzip metadata responses for clients that send `Accept-Encoding:
-        // gzip`, matching how a real (CDN-fronted) registry serves
-        // packuments — pnpr is commonly hit directly with no proxy in
-        // front, so the application is the only layer that can compress.
-        // Scoped to JSON: tarballs (`application/octet-stream`, already
-        // `.tgz`) are excluded so we never re-gzip an already-compressed
-        // payload. The pnpr resolver NDJSON streams
-        // (`application/x-ndjson`) is excluded too: gzip-buffering it
-        // would defeat the point of streaming — frames must flush to the
-        // client as each package resolves, not wait for the encoder.
-        .layer(
-            CompressionLayer::new()
-                .compress_when(
-                    DefaultPredicate::new()
-                        .and(NotForContentType::const_new("application/octet-stream"))
-                        .and(NotForContentType::const_new("application/x-ndjson")),
-                ),
-        )
-        // One structured access record per HTTP request: a span
-        // carrying method + URI plus a single `finished processing
-        // request` event on the response with status and latency.
-        // Both the span and the event use the `pnpr::access`
-        // target so `LogLevel::Http`'s filter directive can scope to
-        // them. `on_request(())` / `on_failure(())` suppress
-        // tower-http's default emissions so each request produces
-        // exactly one record. The format and level are picked up from
-        // the subscriber installed in `main.rs` (driven by the YAML
-        // `log:` block — pretty or NDJSON).
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<Body>| {
-                    tracing::info_span!(
-                        target: "pnpr::access",
-                        "request",
-                        method = %request.method(),
-                        uri = %loggable_uri(request.uri()),
-                        // Filled in by `record_cache_status` for packument
-                        // reads (e.g. `cache=hit`); stays absent otherwise.
-                        cache = tracing::field::Empty,
-                    )
-                })
-                .on_request(())
-                .on_response(|response: &Response<Body>, latency: Duration, _span: &Span| {
-                    tracing::info!(
-                        target: "pnpr::access",
-                        status = response.status().as_u16(),
-                        latency_ms = latency.as_millis() as u64,
-                        "finished processing request",
-                    );
-                })
-                .on_failure(()),
-        )
 }
 
 /// Which of the configurable surfaces this server mounts.

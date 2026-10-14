@@ -351,3 +351,19 @@ fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
     assert!(!rendered_punctuated.contains("p)ass"));
     assert!(rendered_punctuated.contains("redacted"));
 }
+
+#[test]
+fn trusted_proxies_parses_cidrs_and_loopback() {
+    let yaml = "\
+storage: ./s
+trustedProxies:
+  - loopback
+  - 10.0.0.0/8
+  - 192.168.1.1
+trustedProxyHeader: forwarded
+upstreams: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.trusted_proxies.len(), 4);
+    assert_eq!(config.http.trusted_proxy_header, super::super::TrustedProxyHeader::Forwarded);
+}

@@ -85,6 +85,8 @@ impl Config {
                 ui: UiConfig::default(),
                 oci: OciConfig::default(),
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
+                trusted_proxies: Vec::new(),
+                trusted_proxy_header: super::TrustedProxyHeader::default(),
             },
             storage: super::StorageConfig {
                 cache_dir: default_cache_dir(&storage),

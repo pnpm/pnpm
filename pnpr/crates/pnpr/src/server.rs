@@ -1,3 +1,4 @@
+pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -78,6 +79,7 @@ use user_accounts::{
 mod authentication;
 mod batch;
 mod cargo;
+mod client_ip;
 mod compiler_cache;
 mod org_access;
 use org_access::CallerOrgs;
