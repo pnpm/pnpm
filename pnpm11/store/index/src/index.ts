@@ -140,6 +140,7 @@ export class StoreIndex {
       this.openDatabase(storeDir)
       this.prepareStatements()
     } catch (err: unknown) {
+      if (this.db != null) closeSqliteQuietly(this.db)
       if (this.mtimeRoot != null) releaseRootMtime(this.mtimeRoot)
       throw err
     }

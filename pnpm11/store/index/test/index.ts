@@ -118,6 +118,22 @@ test('StoreIndex connections through a store alias share one store directory mti
   }
 })
 
+test('StoreIndex closes the database and keeps the store directory mtime when preparing statements fails', () => {
+  const storeDir = temporaryDirectory()
+  try {
+    new StoreIndex(storeDir).close()
+    const oldMtime = new Date('2020-09-13T12:26:40Z')
+    fs.utimesSync(storeDir, oldMtime, oldMtime)
+
+    expect(() => new FailingPrepareStoreIndex(storeDir)).toThrow('prepare failed')
+
+    expect(fs.existsSync(path.join(storeDir, 'index.db-wal'))).toBe(false)
+    expect(fs.statSync(storeDir).mtime).toEqual(oldMtime)
+  } finally {
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
 test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StoreIndex(storeDir)
@@ -531,6 +547,13 @@ class MissingExecReadOnlyStoreIndex extends ReadOnlyStoreIndex {
     const db = super.openConnection(storeDir)
     ;(db as { exec?: unknown }).exec = undefined
     return db
+  }
+}
+
+class FailingPrepareStoreIndex extends StoreIndex {
+  protected override prepareStatements (): void {
+    super.prepareStatements()
+    throw new Error('prepare failed')
   }
 }
 
