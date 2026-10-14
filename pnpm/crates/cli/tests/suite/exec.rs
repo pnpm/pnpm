@@ -793,6 +793,100 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
     drop(root);
 }
 
+/// Set on the test binary when [`exec_output_ends_while_a_detached_grandchild_runs`]
+/// runs it under `pnpm exec`. The value is the file to write the waiter's PID to.
+#[cfg(target_os = "windows")]
+const WAITER_PID_ENV: &str = "PNPM_TEST_DETACHED_WAITER_PID";
+
+/// A shell reading pnpm's redirected output sees it end when pnpm exits,
+/// even if a detached grandchild is still running (pnpm/pnpm#16930).
+///
+/// The test binary runs itself under `pnpm exec` and starts the grandchild
+/// the way Node.js starts a detached child: its own standard handles are
+/// non-inheritable, and the grandchild inherits every other inheritable
+/// handle. Windows PowerShell and some Node.js versions cannot stand in,
+/// as they pass inheritable copies of their own output along.
+#[cfg(target_os = "windows")]
+#[test]
+fn exec_output_ends_while_a_detached_grandchild_runs() {
+    use std::{io::Read, process::Stdio, sync::mpsc};
+
+    if let Some(waiter_pid_path) = std::env::var_os(WAITER_PID_ENV) {
+        start_detached_waiter(Path::new(&waiter_pid_path));
+        return;
+    }
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let waiter_pid_path = workspace.join("waiter-pid.txt");
+    let test_binary = std::env::current_exe().expect("locate the test binary");
+
+    let mut pacquet_process = pacquet
+        .with_env(WAITER_PID_ENV, &waiter_pid_path)
+        .with_arg("exec")
+        .with_arg(test_binary)
+        .with_args(["exec::exec_output_ends_while_a_detached_grandchild_runs", "--exact"])
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::piped())
+        .with_stderr(Stdio::null())
+        .spawn()
+        .expect("spawn pacquet exec");
+    let mut stdout = pacquet_process.stdout.take().expect("pacquet stdout is piped");
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut output = String::new();
+        let _ = stdout.read_to_string(&mut output);
+        let _ = sender.send(output);
+    });
+    let status = pacquet_process.wait().expect("wait for pacquet exec");
+    let output = receiver.recv_timeout(Duration::from_secs(20));
+
+    if let Ok(pid) = fs::read_to_string(&waiter_pid_path) {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", pid.trim()])
+            .output();
+    }
+    assert_eq!(status.code(), Some(0), "the detached spawn should succeed: {output:?}");
+    assert!(waiter_pid_path.exists(), "the detached waiter should have started");
+    assert!(
+        output.is_ok(),
+        "pnpm's output should end when pnpm exits, not when the detached grandchild does",
+    );
+
+    drop(root);
+}
+
+/// The side of [`exec_output_ends_while_a_detached_grandchild_runs`] that
+/// runs under `pnpm exec`.
+#[cfg(target_os = "windows")]
+fn start_detached_waiter(waiter_pid_path: &Path) {
+    use std::{os::windows::process::CommandExt, process::Stdio};
+    use windows_sys::Win32::{
+        Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation},
+        System::{
+            Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE},
+            Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS},
+        },
+    };
+
+    // SAFETY: `GetStdHandle` returns a borrowed handle, and
+    // `SetHandleInformation` only changes its inherit flag.
+    unsafe {
+        for stream in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+            SetHandleInformation(GetStdHandle(stream), HANDLE_FLAG_INHERIT, 0);
+        }
+    }
+    let waiter_pid = std::process::Command::new("node")
+        .args(["-e", "setTimeout(() => {}, 60000)"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+        .spawn()
+        .expect("spawn the detached waiter")
+        .id();
+    fs::write(waiter_pid_path, waiter_pid.to_string()).expect("write the waiter's PID");
+}
+
 /// The child's non-zero exit code is propagated as pacquet's own exit
 /// code, mirroring pnpm's `{ exitCode }` return.
 ///
