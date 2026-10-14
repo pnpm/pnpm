@@ -41,10 +41,7 @@ reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = [
-  "Win32_System_LibraryLoader",
-  "Win32_System_SystemInformation",
-] }
+windows-sys = { workspace = true, features = ["Win32_System_LibraryLoader", "Win32_System_SystemInformation"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-http = { workspace = true }
