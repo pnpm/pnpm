@@ -47,9 +47,11 @@ changes.
    registry settings, policy settings, and the existing lockfile when one is
    available. Client upstream credentials are never sent — private registries
    are reached through the server's own credentials (see
-   [below](#private-registries)).
-2. The server resolves against the client's registries, verifies the input
-   lockfile under the client's policy, and streams an `application/x-ndjson`
+   [below](#private-registries)). A lockfile-repair request first reads
+   `GET /-/pnpr` to check that the server supports repair. An ordinary resolve
+   is sent directly.
+2. The server verifies the input lockfile under the client's policy, resolves
+   against the client's registries, and streams an `application/x-ndjson`
    response. `package` frames announce resolved tarballs as the tree walk
    progresses, and a terminal `done` frame carries the resolved lockfile and
    stats. A terminal `violations` or `error` frame aborts the install.

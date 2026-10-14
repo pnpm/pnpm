@@ -25,8 +25,9 @@ for the config keys and [CLI reference](cli.md) for the command-line overrides.
 
 The tables below show npm paths on the path-less base. Each is equally available
 under a `/~<name>/` prefix. On a server that declares more than one ecosystem,
-the npm paths move under `/npm/` and only the always-available endpoints stay on
-the path-less base. Cargo, Python, and image endpoints are documented on their
+the npm paths move under `/npm/`. The always-available endpoints, the
+`/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API stay on the
+path-less base. Cargo, Python, and image endpoints are documented on their
 own pages.
 
 ## Always available
