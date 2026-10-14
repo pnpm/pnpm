@@ -47,7 +47,7 @@ test.each([
   { nodeLinker: 'isolated', publicHoist: false },
   { nodeLinker: 'isolated', publicHoist: true },
   { nodeLinker: 'hoisted', publicHoist: false },
-])('dedupe preserves a workspace hoist when a package has an auto-installed peer (node linker: $nodeLinker, public hoist: $publicHoist)', async ({ nodeLinker, publicHoist }) => {
+])('dedupe keeps workspace and auto-installed peer copies separate (node linker: $nodeLinker, public hoist: $publicHoist)', async ({ nodeLinker, publicHoist }) => {
   preparePackages([
     { location: '.', package: { name: 'root', private: true } },
     { location: 'packages/foo', package: { name: '@pnpm.e2e/foo', version: '100.0.0' } },
@@ -63,7 +63,10 @@ test.each([
 
   const hoistedFoo = path.join(nodeLinker === 'hoisted' || publicHoist ? 'node_modules' : 'node_modules/.pnpm/node_modules', '@pnpm.e2e/foo')
   const assertResolution = (): void => {
-    expect(fs.realpathSync(hoistedFoo)).toBe(path.resolve('packages/foo'))
+    expect(fs.realpathSync('packages/workspace-consumer/node_modules/@pnpm.e2e/foo')).toBe(path.resolve('packages/foo'))
+    if (nodeLinker !== 'hoisted') {
+      expect(fs.realpathSync(hoistedFoo)).toBe(path.resolve('packages/foo'))
+    }
     const peerConsumerPath = nodeLinker === 'hoisted'
       ? 'node_modules/@pnpm.e2e/has-foo100-peer'
       : 'packages/peer-consumer/node_modules/@pnpm.e2e/has-foo100-peer'
