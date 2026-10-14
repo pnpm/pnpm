@@ -15,6 +15,7 @@ import {
   isFallbackDatabase,
   isMissingSqliteMethod,
 } from './fallbackDatabase.js'
+import { acquireRootMtime, releaseRootMtime } from './rootMtime.js'
 
 const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
 
@@ -131,9 +132,17 @@ export class StoreIndex {
   protected stmtAll!: StatementSync
   protected stmtKeys!: StatementSync
   private readonly exitHandler: () => void
+  private readonly storeDir: string
 
   constructor (storeDir: string) {
-    this.openDatabase(storeDir)
+    this.storeDir = storeDir
+    if (this.createsSidecars) acquireRootMtime(storeDir)
+    try {
+      this.openDatabase(storeDir)
+    } catch (err: unknown) {
+      if (this.createsSidecars) releaseRootMtime(storeDir)
+      throw err
+    }
     this.prepareStatements()
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
@@ -145,6 +154,11 @@ export class StoreIndex {
     }
     process.on('exit', this.exitHandler)
     openInstances.add(this)
+  }
+
+  /** Whether the connection creates WAL sidecars. Overridden by {@link ImmutableStoreIndex}. */
+  protected get createsSidecars (): boolean {
+    return true
   }
 
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
@@ -388,6 +402,7 @@ export class StoreIndex {
     } catch {
       // The DB may be locked by another connection; the OS will reclaim it on process exit.
     }
+    if (this.createsSidecars) releaseRootMtime(this.storeDir)
   }
 
   /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip database writes. */
@@ -465,6 +480,10 @@ export class ReadOnlyStoreIndex extends StoreIndex {
  * cause incorrect results or SQLITE_CORRUPT errors.
  */
 export class ImmutableStoreIndex extends ReadOnlyStoreIndex {
+  protected override get createsSidecars (): boolean {
+    return false
+  }
+
   protected override openDatabase (storeDir: string): void {
     if (!nodeSupportsImmutableSqliteUri()) {
       throw new PnpmError(
