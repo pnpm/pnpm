@@ -107,7 +107,7 @@ impl AllowBuildPolicy {
         .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
     }
 
-    /// Add the `sideEffectsCacheExclude` rules [`Self::caches_build`]
+    /// Add the `sideEffectsCache.exclude` rules [`Self::caches_build`]
     /// reads.
     pub fn with_side_effects_cache_exclude(
         mut self,
@@ -121,7 +121,7 @@ impl AllowBuildPolicy {
     /// Whether the build of the snapshot at `snapshot_key` may be
     /// restored from, and saved to, the side-effects cache and shared
     /// through a global-virtual-store slot. `false` for a package
-    /// `sideEffectsCacheExclude` names.
+    /// `sideEffectsCache.exclude` names.
     ///
     /// A bare-name rule covers every resolution of the package, a git or
     /// tarball URL included. A `name@version` rule names registry

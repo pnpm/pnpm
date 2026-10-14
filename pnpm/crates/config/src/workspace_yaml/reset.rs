@@ -155,7 +155,6 @@ impl WorkspaceSettings {
             overrides, package_extensions, package_configs, minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
-            side_effects_cache_exclude,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
             init_license, init_version, pm_on_fail, versioning, save_catalog_name,
             save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
@@ -263,6 +262,7 @@ impl WorkspaceSettings {
                 config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;
                 config.side_effects_cache_write_setting = defaults.side_effects_cache_write_setting;
                 config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
+                config.side_effects_cache_exclude.clone_from(&defaults.side_effects_cache_exclude);
             }
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);

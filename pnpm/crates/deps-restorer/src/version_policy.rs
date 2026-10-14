@@ -1,6 +1,6 @@
 //! Re-export of the `pnpm_config::version_policy` parsers for
 //! `build_modules.rs`: `expand_package_version_specs` for `allowBuilds`,
-//! and `create_package_version_policy` for `sideEffectsCacheExclude`.
+//! and `create_package_version_policy` for `sideEffectsCache.exclude`.
 
 pub use pnpm_config::version_policy::{
     PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,

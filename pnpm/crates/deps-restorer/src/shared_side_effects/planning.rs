@@ -37,7 +37,7 @@ pub(super) fn plan_eligible_roots(
 }
 /// The snapshots whose built output the remote cache may supply: an
 /// eligible package with a build to run, an explicit allow-build
-/// verdict, no `sideEffectsCacheExclude` rule, and a materialized base
+/// verdict, no `sideEffectsCache.exclude` rule, and a materialized base
 /// file map to overlay.
 pub(super) fn eligible_roots(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,

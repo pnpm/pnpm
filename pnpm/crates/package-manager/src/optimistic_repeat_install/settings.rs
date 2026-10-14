@@ -179,7 +179,7 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
         return_drift_if!(
             self,
-            "sideEffectsCacheExclude",
+            "sideEffectsCache.exclude",
             recorded.side_effects_cache_exclude != live.side_effects_cache_exclude,
         );
         return_drift_if!(

@@ -262,7 +262,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     );
     assert_eq!(decision, Decision::UpToDate);
 }
-/// Drift in `sideEffectsCacheExclude` invalidates the cached state: it
+/// Drift in `sideEffectsCache.exclude` invalidates the cached state: it
 /// decides which global-virtual-store slots are scoped to the project.
 #[test]
 fn returns_skipped_when_side_effects_cache_exclude_drifts() {

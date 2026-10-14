@@ -942,7 +942,7 @@ pub struct Config {
     /// `name[@version]` patterns of packages whose builds bypass the
     /// side-effects cache: pnpm neither restores them from it nor saves
     /// them to it, locally or remotely, and gives them a project's own
-    /// global-virtual-store slot. The `sideEffectsCacheExclude` setting,
+    /// global-virtual-store slot. The `sideEffectsCache.exclude` setting,
     /// for builds whose output depends on the environment they run in.
     pub side_effects_cache_exclude: Option<Vec<String>>,
 

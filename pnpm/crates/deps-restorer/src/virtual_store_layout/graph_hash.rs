@@ -114,7 +114,7 @@ pub(super) struct GvsHasher<'h> {
     /// this is the identical input. Hashing the raw bytes instead would
     /// give the two stacks different slots for the same project.
     project_scope: Option<std::borrow::Cow<'h, str>>,
-    /// The snapshots `sideEffectsCacheExclude` names. Their build must
+    /// The snapshots `sideEffectsCache.exclude` names. Their build must
     /// not reach another project, so each takes the project's own slot
     /// just as a local directory snapshot does.
     uncached_builds: HashSet<String>,
@@ -285,7 +285,7 @@ impl<'h> GvsHasher<'h> {
         )
     }
 }
-/// The dep paths of the snapshots whose build `sideEffectsCacheExclude`
+/// The dep paths of the snapshots whose build `sideEffectsCache.exclude`
 /// keeps out of every cache.
 fn uncached_build_dep_paths(
     policy: &AllowBuildPolicy,

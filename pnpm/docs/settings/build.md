@@ -60,6 +60,7 @@ sideEffectsCache:
 * `read` — restore a build from the cache when one is present. Default **true**.
 * `write` — save a package's build output to the cache. Default **true**.
 * `remote` — reuse builds across machines; see below.
+* `exclude` — packages whose builds never go through the cache; see below.
 
 `sideEffectsCache: true` is the shorthand for reading and writing, and is what
 the setting meant before it grew a remote tier. Writing without reading
@@ -155,6 +156,41 @@ either way. That is what lets a repository declare the org in
 config under whichever spelling it already used.
 
 :::
+
+### sideEffectsCache.exclude
+
+Added in: v12.14.0
+
+* Default: **undefined**
+* Type: **String[]**
+
+Packages whose build output depends on the environment the build runs in, such
+as a native addon compiled against `JAVA_HOME`. pnpm builds a listed package in
+every project and never restores or saves its build through the side-effects
+cache, locally or on a [`remoteCache`](#remotecache) server. Under the
+[global virtual store](../global-virtual-store.md), each project gets its own
+copy of the package, so one project's build never reaches another.
+
+```yaml title="pnpm-workspace.yaml"
+sideEffectsCache:
+  exclude:
+    - java
+    - '@native/*'
+    - 'sharp@1.0.0 || 2.0.0'
+```
+
+Declaring only `exclude` leaves `read` and `write` at their defaults, so the
+cache keeps working for every other package.
+
+Entries use the same patterns as
+[`minimumReleaseAgeExclude`](./dependency-resolution.md#minimumreleaseageexclude):
+a package name, a `@scope/*` wildcard, or `name@version` with one or more exact
+versions. A bare name covers every resolution of the package, git and tarball
+URLs included. A `name@version` entry covers registry versions only.
+
+Only the listed package gets a project-specific copy under the global virtual
+store. A package that depends on it still shares its copy across projects, and
+that copy links to the listed package as the first project built it.
 
 ### remoteCache
 

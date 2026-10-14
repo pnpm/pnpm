@@ -245,6 +245,7 @@ impl WorkspaceSettings {
                 if let Some(remote) = settings.remote {
                     config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
                 }
+                overlay_some(&mut config.side_effects_cache_exclude, settings.exclude);
             }
             None => {}
         }
@@ -404,10 +405,6 @@ impl WorkspaceSettings {
         self.apply_audit_section(config, audit_level_in_yaml, audit_config_in_yaml);
         overlay(&mut config.versioning, self.versioning.take());
         overlay_some(&mut config.trust_policy_exclude, self.trust_policy_exclude.take());
-        overlay_some(
-            &mut config.side_effects_cache_exclude,
-            self.side_effects_cache_exclude.take(),
-        );
         overlay(&mut config.trust_policy_exclude_prune, self.trust_policy_exclude_prune.take());
         overlay_some(&mut config.trust_policy_ignore_after, self.trust_policy_ignore_after.take());
     }

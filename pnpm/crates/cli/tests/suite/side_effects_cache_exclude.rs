@@ -1,4 +1,4 @@
-//! `sideEffectsCacheExclude`: builds that must run in every project
+//! `sideEffectsCache.exclude`: builds that must run in every project
 //! because their output depends on the environment.
 //!
 //! Regression coverage for <https://github.com/pnpm/pnpm/issues/5271>.
@@ -65,8 +65,8 @@ fn build_flavors(layout: &Layout) -> [String; 2] {
 fn configure(workspace: &Path, layout: &Layout) {
     let mut settings = format!("allowBuilds:\n  '{ENV_WRITER}': true\n");
     if layout.exclude {
-        writeln!(settings, "sideEffectsCacheExclude:\n  - '{ENV_WRITER}'").expect(
-            "format the sideEffectsCacheExclude entry",
+        writeln!(settings, "sideEffectsCache:\n  exclude:\n    - '{ENV_WRITER}'").expect(
+            "format the sideEffectsCache.exclude entry",
         );
     }
     if layout.global_virtual_store {

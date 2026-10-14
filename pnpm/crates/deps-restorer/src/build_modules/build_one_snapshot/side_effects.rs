@@ -14,7 +14,7 @@ use super::{
 /// and write-side keys provably identical.
 ///
 /// `None` when the cache gate can't fire (no engine, no graph, etc.) or
-/// `sideEffectsCacheExclude` names the package; both downstream
+/// `sideEffectsCache.exclude` names the package; both downstream
 /// consumers short-circuit on `None`.
 ///
 /// The `deps_state_cache` is shared across all scheduled nodes via

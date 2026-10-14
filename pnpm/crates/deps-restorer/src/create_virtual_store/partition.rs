@@ -106,7 +106,7 @@ pub(super) struct Rebuilds<'a> {
     /// The slots whose global-virtual-store build marker says they must
     /// be rebuilt.
     pub marker_rebuilds: &'a HashSet<PackageKey>,
-    /// Consulted for the packages `sideEffectsCacheExclude` names.
+    /// Consulted for the packages `sideEffectsCache.exclude` names.
     pub allow_build_policy: &'a AllowBuildPolicy,
 }
 

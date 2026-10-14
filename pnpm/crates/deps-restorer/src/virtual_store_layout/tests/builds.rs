@@ -196,7 +196,7 @@ fn link_hash_matches_the_shared_typescript_fixture() {
     }
 }
 
-/// A package `sideEffectsCacheExclude` names is built in every project,
+/// A package `sideEffectsCache.exclude` names is built in every project,
 /// so its global-virtual-store slot must not carry one project's build
 /// into another.
 #[test]

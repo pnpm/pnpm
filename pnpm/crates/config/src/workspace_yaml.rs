@@ -296,18 +296,22 @@ fn global_shims_setting(config: &Config) -> crate::GlobalShimsSetting {
 }
 
 /// Reads and writes as resolved, in the boolean shorthand when they agree
-/// and no remote cache is configured. That is the shape pnpm reports and
-/// the one a hook is likeliest to assign.
+/// and neither a remote cache nor an exclude list is configured. That is
+/// the shape pnpm reports and the one a hook is likeliest to assign.
 fn side_effects_cache_setting(config: &Config) -> SideEffectsCacheSetting {
     let read = config.side_effects_cache_read();
     let write = config.side_effects_cache_write();
-    if read == write && config.remote_side_effects_cache.is_none() {
+    if read == write
+        && config.remote_side_effects_cache.is_none()
+        && config.side_effects_cache_exclude.is_none()
+    {
         SideEffectsCacheSetting::Enabled(read)
     } else {
         SideEffectsCacheSetting::Settings(Box::new(SideEffectsCacheSettings {
             read: Some(read),
             write: Some(write),
             remote: config.remote_side_effects_cache.clone(),
+            exclude: config.side_effects_cache_exclude.clone(),
         }))
     }
 }
