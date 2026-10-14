@@ -17,8 +17,8 @@ type WorkspaceRollback = (() => Promise<void>) | void
 export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<WorkspaceRollback>
   directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-  /** Non-link direct dependency aliases of every project, including packages omitted from an incremental or filtered graph. */
-  directDependencyAliases?: Iterable<string>
+  /** Non-link aliases from every lockfile importer. */
+  directDependencyAliases: Iterable<string>
   graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
   occupiedAliases?: OccupiedAliases
@@ -64,8 +64,7 @@ function selectWorkspacePlacementCandidates<NodeId extends string> (
   hoistedWorkspacePackages: Record<ProjectId, HoistedWorkspaceProject>
 ): WorkspacePlacementCandidate[] {
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
-  const aliasesTakenByDependencies = collectAliasesTakenByDependencies(opts.graph, opts.directDepsByImporterId)
-  for (const alias of opts.directDependencyAliases ?? []) aliasesTakenByDependencies.add(alias.toLowerCase())
+  const aliasesTakenByDependencies = new Set(Array.from(opts.directDependencyAliases, alias => alias.toLowerCase()))
   const placementCandidates: WorkspacePlacementCandidate[] = []
   for (const [projectId, project] of Object.entries(hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
     const { name } = project
@@ -76,20 +75,6 @@ function selectWorkspacePlacementCandidates<NodeId extends string> (
   }
   const conflictingProjectIds = findConflictingWorkspaceProjectIds(placementCandidates, opts.occupiedAliases)
   return placementCandidates.filter(([projectId]) => !conflictingProjectIds.has(projectId))
-}
-
-function collectAliasesTakenByDependencies<NodeId extends string> (
-  graph: DependenciesGraph<NodeId>,
-  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-): Set<string> {
-  const aliasesTakenByDependencies = new Set<string>()
-  for (const directDeps of Object.values(directDepsByImporterId)) {
-    for (const [alias, nodeId] of directDeps.entries()) {
-      if (graph[nodeId] == null) continue
-      aliasesTakenByDependencies.add(alias.toLowerCase())
-    }
-  }
-  return aliasesTakenByDependencies
 }
 
 async function prepareWorkspacePlacements (
