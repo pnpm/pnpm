@@ -57,7 +57,7 @@ fn stays_within_the_bounds() {
         widths
             .iter()
             .all(|width| (MIN_PERMITS..=MAX_PERMITS).contains(width)),
-        "{widths:?}"
+        "{widths:?}",
     );
     let mut climb = Climb::new(MIN_PERMITS);
     let widths = settle(&mut climb, |permits| permits as u64 * 1000, 20);
@@ -65,7 +65,7 @@ fn stays_within_the_bounds() {
         widths
             .iter()
             .all(|width| (MIN_PERMITS..=MAX_PERMITS).contains(width)),
-        "{widths:?}"
+        "{widths:?}",
     );
     assert!(*widths.last().unwrap() >= MAX_PERMITS - 2, "{widths:?}");
 }
