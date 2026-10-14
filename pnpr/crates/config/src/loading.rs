@@ -207,9 +207,8 @@ impl Config {
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
         let storage = build_storage_config(&mut file, base_dir);
+        let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
-        let cors = build_cors_config(file.cors)?;
-        let ui = build_ui_config(file.ui, base_dir);
         reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
         let features = build_features(
             !file.registries.is_empty(),
@@ -227,14 +226,7 @@ impl Config {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
-            http: super::HttpConfig {
-                listen,
-                public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
-                cors,
-                ui,
-                oci: file.oci,
-                packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            },
+            http,
             storage,
             identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
@@ -246,6 +238,31 @@ impl Config {
             },
         })
     }
+}
+
+fn build_http_config(
+    file: &mut ConfigFile,
+    base_dir: &Path,
+    listen: SocketAddr,
+    public_url: Option<String>,
+) -> Result<super::HttpConfig, RegistryError> {
+    let cors = build_cors_config(std::mem::take(&mut file.cors))?;
+    let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
+    let trusted_proxies = super::parse_trusted_proxies(&file.trusted_proxies)?;
+    let trusted_proxy_header = match file.trusted_proxy_header.as_deref() {
+        Some(raw) => raw.parse::<super::TrustedProxyHeader>()?,
+        None => super::TrustedProxyHeader::default(),
+    };
+    Ok(super::HttpConfig {
+        listen,
+        public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
+        cors,
+        ui,
+        oci: std::mem::take(&mut file.oci),
+        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        trusted_proxies,
+        trusted_proxy_header,
+    })
 }
 
 fn build_storage_config(file: &mut ConfigFile, base_dir: &Path) -> super::StorageConfig {

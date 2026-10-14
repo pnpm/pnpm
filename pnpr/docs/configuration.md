@@ -429,6 +429,39 @@ cors:
     - https://registry-ui.example.com
 ```
 
+## `trustedProxies`
+
+A list of reverse proxy IP addresses or CIDR blocks trusted to forward client IP
+addresses in request forwarding headers.
+
+When configured, pnpr evaluates the trusted forwarding header only if the direct socket
+peer matches one of the trusted entries. In multi-hop proxy chains, hops are traversed
+from right to left, stopping at the first untrusted IP (the real client).
+The resolved client IP is recorded on the `pnpr::access` log span and enforced for
+CIDR-restricted bearer tokens. When omitted or empty, forwarding headers are ignored
+and the socket peer IP is used directly.
+
+Supports exact IPs, CIDR notation (IPv4 and IPv6), and the `"loopback"` keyword.
+Accepts `trustedProxies` (camelCase) or `trusted_proxies` (snake_case).
+
+## `trustedProxyHeader`
+
+The specific request header to inspect when behind a trusted proxy:
+- `x-forwarded-for` (default): standard comma-separated hops.
+- `forwarded`: RFC 7239 `for=...` parameters.
+- `x-real-ip`: single client IP header.
+
+To prevent client spoofing, pnpr only inspects the configured header and does not
+fall back to other headers.
+
+```yaml title="pnpr.yaml"
+trustedProxies:
+  - loopback
+  - 10.0.0.0/8
+  - 192.168.1.100
+trustedProxyHeader: x-forwarded-for
+```
+
 ## `ui`
 
 Whether and from where pnpr serves its web UI. See [Web UI](web-ui.md#settings).
