@@ -1,9 +1,15 @@
 use crate::rustup_settings::rustup_default_host_triple;
+use std::sync::LazyLock;
 
 /// The target triple of the toolchain that runs on this machine, as the
 /// Rust release manifests name it. `None` where Rust publishes no host
 /// toolchain pnpm installs.
 pub(crate) fn host_triple() -> Option<String> {
+    static HOST_TRIPLE: LazyLock<Option<String>> = LazyLock::new(detect_host_triple);
+    HOST_TRIPLE.clone()
+}
+
+fn detect_host_triple() -> Option<String> {
     #[cfg(not(target_family = "wasm"))]
     let (architecture, os) = (std::env::consts::ARCH, std::env::consts::OS);
     #[cfg(target_family = "wasm")]
