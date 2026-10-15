@@ -601,12 +601,8 @@ fn recursive_run_reads_reverse_from_workspace_config() {
 fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
-    // The run ending is the proof: these two scripts stop only when
-    // something stops them, and pnpm waits for the scripts it started.
-    // `HOLD_MS` outlasts `wait_for_child`'s deadline, so a run that
-    // cancels nothing trips that deadline instead of ending on its own.
-    // Nothing asserts on the hold elapsing: the timer only keeps a test
-    // that stops pnpm from leaving node behind.
+    // The run ending is the proof: these scripts stop only when cancelled,
+    // and pnpm waits for the scripts it started.
     let hold_ms = (CHILD_DEADLINE * 2).as_millis();
     let hold_until_cancelled = r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))""#;
     write_workspace(

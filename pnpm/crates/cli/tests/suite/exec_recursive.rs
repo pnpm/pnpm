@@ -649,12 +649,8 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
-    // The exec ending is the proof: the two slow probes stop only when
-    // something stops them, and pnpm waits for the commands it started.
-    // `HOLD_MS` outlasts `wait_for_child`'s deadline, so an exec that
-    // cancels nothing trips that deadline instead of ending on its own.
-    // Nothing asserts on the hold elapsing: the timer only keeps a test
-    // that stops pnpm from leaving node behind.
+    // The exec ending is the proof: these probes stop only when cancelled,
+    // and pnpm waits for the commands it started.
     let hold_ms = (CHILD_DEADLINE * 2).as_millis();
     let stderr_path = workspace.join("exec.stderr");
     let mut run = pacquet

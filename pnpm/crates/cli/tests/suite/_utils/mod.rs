@@ -55,7 +55,9 @@ pub fn pacquet_in(workspace: &Path) -> Command {
 }
 
 /// How long [`wait_for_child`] and [`wait_for_child_output`] give a child
-/// before they stop it and fail the test.
+/// before they stop it and fail the test. A fixture that holds a process
+/// until something cancels it holds for longer than this, so a missed
+/// cancellation fails on this deadline rather than ending the run itself.
 pub const CHILD_DEADLINE: Duration = Duration::from_secs(30);
 
 pub fn wait_for_child(child: &mut Child) -> ExitStatus {
