@@ -19,6 +19,7 @@ mod auth_persistence;
 mod auth_publish;
 mod auth_user_endpoints;
 mod batch_publish;
+mod cache_eviction;
 mod cargo_registry;
 mod cargo_resolve;
 mod cross_ecosystem_publish;

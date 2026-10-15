@@ -14,6 +14,7 @@
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
 
+pub mod cache_maintenance;
 pub mod oci_maintenance;
 
 pub use pnpr_auth::{

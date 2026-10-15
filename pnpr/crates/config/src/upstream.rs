@@ -370,7 +370,8 @@ fn upstream_headers<Sys: EnvVar>(
 /// verdaccio) is read as **seconds**. A trailing number with no suffix
 /// is also seconds. Returns `None` for anything unparsable so the
 /// caller can surface a precise config error.
-pub(super) fn parse_interval(raw: &str) -> Option<Duration> {
+#[must_use]
+pub fn parse_interval(raw: &str) -> Option<Duration> {
     let raw = raw.trim();
     if raw.is_empty() {
         return None;

@@ -107,7 +107,7 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
-pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
+pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
     let url = config.routing.upstreams
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
