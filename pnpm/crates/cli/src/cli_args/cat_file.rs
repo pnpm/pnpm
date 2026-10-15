@@ -59,9 +59,8 @@ impl CatFileArgs {
     }
 }
 
-/// Copy `file` to stdout. A failed read fails with `file_path`; a failed
-/// write goes to [`pnpm_diagnostics::stdout::check`], which `io::copy`
-/// could not tell apart from a failed read.
+/// Copy `file` to stdout. A failed read fails with `file_path`. A failed
+/// write goes to [`pnpm_diagnostics::stdout::check`].
 fn copy_to_stdout(file: File, file_path: &Path) -> miette::Result<()> {
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut stdout = std::io::stdout().lock();

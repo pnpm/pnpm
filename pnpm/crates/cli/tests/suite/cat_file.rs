@@ -1,5 +1,5 @@
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 #[test]
@@ -78,6 +78,8 @@ fn should_fail_on_missing_hash() {
 #[test]
 #[cfg(unix)]
 fn should_fail_on_unreadable_store_file() {
+    use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+
     let CommandTempCwd {
         mut pacquet,
         root: _root,
