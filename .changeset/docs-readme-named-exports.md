@@ -3,7 +3,6 @@
 "@pnpm/bins.resolver": patch
 "@pnpm/config.normalize-registries": patch
 "@pnpm/exec.lifecycle": patch
-"@pnpm/logger": patch
 "@pnpm/store.path": patch
 ---
 

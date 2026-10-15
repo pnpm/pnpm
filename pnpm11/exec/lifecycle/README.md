@@ -15,10 +15,12 @@ pnpm add @pnpm/logger @pnpm/exec.lifecycle
 ## Usage
 
 ```ts
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { runLifecycleHook, runPostinstallHooks } from '@pnpm/exec.lifecycle'
 
 const targetPkgRoot = path.resolve('node_modules/target-pkg')
-const pkg = require(path.join(targetPkgRoot, 'package.json'))
+const pkg = JSON.parse(await readFile(path.join(targetPkgRoot, 'package.json'), 'utf8'))
 
 // Run a specific hook
 await runLifecycleHook('preinstall', pkg, {
