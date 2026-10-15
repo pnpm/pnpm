@@ -78,20 +78,28 @@ async fn pending_startup() -> (JoinHandle<MockInstance>, TcpStream, ChildCleanup
     let (connection, _) = timeout(Duration::from_secs(10), proxy.accept()).await
         .expect("startup must reach its readiness request")
         .unwrap();
-    let system = processes();
     let address = format!("127.0.0.1:{port}");
-    let child = system
-        .processes()
-        .values()
-        .find(|child| {
-            child.parent() == Some(Pid::from_u32(process::id()))
-                && child
-                    .cmd()
-                    .iter()
-                    .any(|arg| arg == OsStr::new(&address))
-        })
-        .expect("startup must have a live registry child");
-    (startup, connection, ChildCleanup(Some(child.pid())))
+    let deadline = Instant::now() + REAP_TIMEOUT;
+    let child_pid = loop {
+        let system = processes();
+        let found = system
+            .processes()
+            .values()
+            .find(|child| {
+                child.parent() == Some(Pid::from_u32(process::id()))
+                    && child
+                        .cmd()
+                        .iter()
+                        .any(|arg| arg == OsStr::new(&address))
+            })
+            .map(sysinfo::Process::pid);
+        if let Some(pid) = found {
+            break pid;
+        }
+        assert!(Instant::now() < deadline, "startup must have a live registry child");
+        sleep(Duration::from_millis(50)).await;
+    };
+    (startup, connection, ChildCleanup(Some(child_pid)))
 }
 
 #[tokio::test]
