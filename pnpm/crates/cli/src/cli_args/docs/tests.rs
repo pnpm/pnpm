@@ -246,7 +246,7 @@ fn failing_browser_redacts_url_and_succeeds() {
     assert!(
         stdout
             .lines()
-            .any(|line| line == "https://example.com/docs")
+            .any(|line| line == "https://example.com/docs"),
     );
     assert!(!stdout.contains("secret"));
     assert!(!stdout.contains("user:pass"));
