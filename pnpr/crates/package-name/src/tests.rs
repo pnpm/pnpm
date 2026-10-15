@@ -151,3 +151,32 @@ fn reports_image_name_errors() {
         r#"Package name "acme//app" is not valid for oci: image name "acme//app" has an empty path component"#,
     );
 }
+
+#[test]
+fn accepts_sigstore_names() {
+    let unscoped = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
+    assert_eq!(unscoped.sigstore_name_for_version("1.0.0"), "foo-1.0.0.sigstore");
+    assert_eq!(
+        unscoped.parse_sigstore_name("foo-1.0.0.sigstore").unwrap(),
+        ("foo-1.0.0.sigstore".to_string(), "1.0.0".to_string()),
+    );
+    assert_eq!(
+        unscoped.parse_sigstore_name("foo-1.0.0.sigstore.json").unwrap(),
+        ("foo-1.0.0.sigstore".to_string(), "1.0.0".to_string()),
+    );
+
+    let scoped = CanonicalPackageName::parse("@scope/bar", Ecosystem::Npm).unwrap();
+    assert_eq!(scoped.sigstore_name_for_version("2.1.0"), "bar-2.1.0.sigstore");
+    assert_eq!(
+        scoped.parse_sigstore_name("@scope/bar-2.1.0.sigstore").unwrap(),
+        ("bar-2.1.0.sigstore".to_string(), "2.1.0".to_string()),
+    );
+    assert_eq!(
+        scoped.parse_sigstore_name("bar-2.1.0.sigstore").unwrap(),
+        ("bar-2.1.0.sigstore".to_string(), "2.1.0".to_string()),
+    );
+
+    assert!(unscoped.parse_sigstore_name("bar-1.0.0.sigstore").is_err());
+    assert!(unscoped.parse_sigstore_name("foo-1.0.0.tgz").is_err());
+    assert!(unscoped.parse_sigstore_name("../foo-1.0.0.sigstore").is_err());
+}

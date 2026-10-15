@@ -13,11 +13,9 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, publish::now_iso};
 
-use pnpr_upstream::tarball_basename;
-
 use super::{
     Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    load_packument_for_read, not_found, resolve_write_target, tarball_basename,
 };
 
 /// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
@@ -161,20 +159,14 @@ pub(super) async fn delete_package(
     if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return err.into_response();
     }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+    ok_created_response()
 }
 
 /// `DELETE /:pkg/-/:filename/-rev/:rev` — remove a single tarball
 /// file from the package directory. The partial-unpublish flow calls
 /// this after PUT'ing the modified packument back. Accept the
 /// libnpmpublish-style scoped filename as well as the canonical one
-/// by going through `canonicalize_tarball_name` first.
+/// by going through `parse_tarball_name` first.
 pub(super) async fn delete_tarball(
     state: &AppState,
     identity: &Identity,
@@ -186,8 +178,8 @@ pub(super) async fn delete_tarball(
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
-    let canonical = match name.canonicalize_tarball_name(filename) {
-        Ok(c) => c,
+    let (canonical, version) = match name.parse_tarball_name(filename) {
+        Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
@@ -210,6 +202,12 @@ pub(super) async fn delete_tarball(
     if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
+    let sigstore_name = name.sigstore_name_for_version(&version);
+    let _ = hosted_storage(state, Some(&org)).remove_blob(&name, &sigstore_name).await;
+    ok_created_response()
+}
+
+fn ok_created_response() -> Response {
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()

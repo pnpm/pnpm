@@ -1,6 +1,7 @@
+pub use abbreviate::abbreviate_packument;
 pub use packument::{
-    abbreviate_packument, extract_upstream_version_manifest, extract_version_manifest,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 
 pub use oci::oci_download_allowed;
@@ -13,11 +14,16 @@ use circuit_breaker::CircuitBreaker;
 
 mod packument;
 
+mod abbreviate;
+
 mod oci;
 
 mod audit;
 
-use chrono::{DateTime, Utc};
+mod attestations;
+
+mod time;
+
 use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,

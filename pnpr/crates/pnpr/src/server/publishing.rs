@@ -24,8 +24,8 @@ use pnpr_storage::{
     HostedDocumentForUpdate, HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
-        PendingAttachment, extract_attachments, merge_manifest, now_iso,
-        stream_decode_verify_and_write,
+        PendingAttachment, extract_attachments, extract_predicate_type, merge_manifest, now_iso,
+        stream_decode_verify_and_write, write_sigstore_bundle,
     },
 };
 

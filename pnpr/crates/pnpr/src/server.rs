@@ -77,6 +77,7 @@ mod restrictions;
 mod tokens;
 mod user_accounts;
 
+mod attestations;
 mod authentication;
 mod batch;
 mod cargo;

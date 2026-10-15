@@ -9,6 +9,9 @@
 //! it inside [`tokio::task::spawn_blocking`] without blocking the
 //! async runtime, and so these helpers stay easy to unit-test.
 
+pub mod sigstore;
+pub use sigstore::{extract_predicate_type, write_sigstore_bundle};
+
 use crate::{
     journal::DocumentMerge,
     streaming::{integrity_checker, parse_integrity},
