@@ -197,6 +197,23 @@ async fn packument_conditional_if_none_match() {
         .unwrap();
     assert_eq!(list_match.status(), StatusCode::NOT_MODIFIED);
 
+    // Multiple If-None-Match headers where a later one matches returns 304
+    let mut multi_req = Request::get("/foo")
+        .body(Body::empty())
+        .unwrap();
+    multi_req
+        .headers_mut()
+        .append(header::IF_NONE_MATCH, header::HeaderValue::from_static(r#""non-matching-etag""#));
+    multi_req
+        .headers_mut()
+        .append(header::IF_NONE_MATCH, header::HeaderValue::from_str(&etag).unwrap());
+    let multi_match = app
+        .clone()
+        .oneshot(multi_req)
+        .await
+        .unwrap();
+    assert_eq!(multi_match.status(), StatusCode::NOT_MODIFIED);
+
     // Non-matching ETag returns 200 OK with body
     let mismatch = app
         .oneshot(
