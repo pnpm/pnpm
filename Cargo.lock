@@ -1501,15 +1501,14 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "6.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
+version = "7.0.0-rc2"
+source = "git+https://github.com/pnpm/dashmap?rev=4401b5c0b2626266dd5d5a9202677bca8b53e57a#4401b5c0b2626266dd5d5a9202677bca8b53e57a"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
- "hashbrown 0.14.5",
+ "equivalent",
+ "hashbrown 0.15.5",
  "lock_api",
- "once_cell",
  "parking_lot_core",
 ]
 
@@ -4641,7 +4640,6 @@ dependencies = [
  "node-semver",
  "owo-colors",
  "p256",
- "parking_lot_core",
  "pathdiff",
  "pep440_rs",
  "percent-encoding",

@@ -114,6 +114,14 @@ home = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
+# `dashmap` parks on `parking_lot_core` once a shard lock is contended. On a wasm
+# target that crate compiles its atomic parker only with its own `nightly`
+# feature on, and otherwise one whose every method panics, which aborts pnpm the
+# first time two threads reach the same shard. Enabling it here covers the whole
+# build: Cargo unifies features, so the single `parking_lot_core` it compiles
+# gets it. The `[patch]` in the root manifest supplies a dashmap that can
+# forward it.
+dashmap = { workspace = true, features = ["nightly"] }
 pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
