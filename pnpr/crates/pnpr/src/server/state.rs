@@ -1,8 +1,11 @@
-use super::{AuthState, Config, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace};
+use super::{
+    AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, Singleflight,
+    Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
+};
 use indexmap::IndexMap;
 use std::sync::Arc;
 
-pub(super) struct AppInner {
+pub(crate) struct AppInner {
     pub(super) storage: Storage,
     pub(super) config: Config,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
@@ -16,6 +19,9 @@ pub(super) struct AppInner {
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
 }
+
+type PackumentSingleflight =
+    Singleflight<(String, CanonicalPackageName), Result<Option<Vec<u8>>, Arc<RegistryError>>>;
 pub(super) struct BuildServices {
     pub(super) artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     pub(super) compiler_cache_uploads: tokio::sync::Semaphore,
@@ -33,6 +39,7 @@ pub(super) struct ProxyState {
     /// per-request path doesn't re-sort and re-hash the upstream's headers on
     /// every packument and tarball served through an upstream registry.
     pub(super) cache_namespaces: IndexMap<String, String>,
+    pub(super) packument_singleflight: PackumentSingleflight,
 }
 
 pub(super) struct MutationLocks {
@@ -41,12 +48,15 @@ pub(super) struct MutationLocks {
     /// lose each other's changes.
     pub(super) packages: StripedLocks,
     pub(super) referrer_migrations: StripedLocks,
+    pub(super) publish_concurrency: tokio::sync::Semaphore,
 }
 
 pub(super) struct IdentityServices {
     pub(super) auth: AuthState,
     pub(super) oidc: pnpr_auth::oidc::OidcState,
     pub(super) managed: super::managed_state::ManagedState,
+    pub(super) login_rate_limiter: LoginRateLimiter,
+    pub(super) login_concurrency: tokio::sync::Semaphore,
 }
 
 impl AppInner {
@@ -73,6 +83,7 @@ impl AppInner {
             locks: MutationLocks {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),
+                publish_concurrency: tokio::sync::Semaphore::new(16),
             },
             identity,
         })
@@ -98,7 +109,11 @@ impl ProxyState {
             .keys()
             .map(|name| (name.clone(), compute_upstream_cache_namespace(config, name)))
             .collect();
-        Self { upstreams, cache_namespaces: upstream_cache_namespaces }
+        Self {
+            upstreams,
+            cache_namespaces: upstream_cache_namespaces,
+            packument_singleflight: Singleflight::new(),
+        }
     }
 }
 
@@ -108,7 +123,13 @@ impl IdentityServices {
         super::oidc_groups::validate_group_grants(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self { auth, oidc, managed: super::managed_state::ManagedState::new(config) })
+        Ok(Self {
+            auth,
+            oidc,
+            managed: super::managed_state::ManagedState::new(config),
+            login_rate_limiter: LoginRateLimiter::default(),
+            login_concurrency: tokio::sync::Semaphore::new(8),
+        })
     }
 }
 

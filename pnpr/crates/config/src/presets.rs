@@ -87,6 +87,7 @@ impl Config {
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
                 trusted_proxies: Vec::new(),
                 trusted_proxy_header: super::TrustedProxyHeader::default(),
+                request_timeout: Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
             },
             storage: super::StorageConfig {
                 cache_dir: default_cache_dir(&storage),
