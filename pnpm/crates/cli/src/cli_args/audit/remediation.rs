@@ -43,7 +43,7 @@ fn report_pruned_ghsas(pruned: &[String]) {
     if pruned.is_empty() {
         return;
     }
-    println!(
+    pnpm_diagnostics::println!(
         "Removed {} unused ignored GHSA{}: {}",
         pruned.len(),
         if pruned.len() == 1 { "" } else { "s" },

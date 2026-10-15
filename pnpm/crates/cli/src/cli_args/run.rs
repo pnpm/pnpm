@@ -209,7 +209,7 @@ impl RunArgs {
         super::verify_deps::verify_deps_before_run(dir, &[dir], config, reporter)?;
         let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
-            println!("{}", render_project_commands(manifest.value(), None));
+            pnpm_diagnostics::println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
         };
         let manifest = match read_project_manifest_only(dir) {

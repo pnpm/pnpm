@@ -16,7 +16,7 @@ pub(in super::super) fn whoami<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let username = args.run(cfg).await?;
-        println!("{}", super::super::sanitize::sanitize(&username));
+        pnpm_diagnostics::println!("{}", super::super::sanitize::sanitize(&username));
         Ok(())
     }))
 }
@@ -46,7 +46,7 @@ pub(in super::super) fn stars<'a>(
         if let Some(output) = args.run(cfg).await?
             && !output.is_empty()
         {
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -63,7 +63,7 @@ pub(in super::super) fn access<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -80,7 +80,7 @@ pub(in super::super) fn dist_tag<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -97,7 +97,7 @@ pub(in super::super) fn deprecate<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -114,7 +114,7 @@ pub(in super::super) fn undeprecate<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -132,7 +132,7 @@ pub(in super::super) fn unpublish<'a>(
         if let Some(output) = args.run::<Reporter>(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
             if !output.is_empty() {
-                println!("{output}");
+                pnpm_diagnostics::println!("{output}");
             }
         }
         Ok(())
@@ -151,7 +151,7 @@ pub(in super::super) fn team<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -168,7 +168,7 @@ pub(in super::super) fn owner<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -185,7 +185,7 @@ pub(in super::super) fn profile<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -202,7 +202,7 @@ pub(in super::super) fn ping<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let report = args.run(cfg).await?;
-        println!("{report}");
+        pnpm_diagnostics::println!("{report}");
         Ok(())
     }))
 }
@@ -226,7 +226,7 @@ pub(in super::super) fn view<'a>(
         // match `pnpm view`, which prints whatever truthy string the handler
         // returns.
         if !output.is_empty() {
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -267,7 +267,7 @@ pub(in super::super) fn search<'a>(
     Ok(Box::pin(async move {
         let output = args.run(cfg).await?;
         if !output.is_empty() {
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -284,7 +284,7 @@ pub(in super::super) fn token<'a>(
             if output.is_empty() {
                 return Ok(());
             }
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))

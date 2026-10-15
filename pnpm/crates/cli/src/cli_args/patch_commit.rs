@@ -160,7 +160,10 @@ impl PatchCommitArgs {
             diff_against_clean::<Reporter>(&state, &patch_dir, &target, &current_lockfile).await?;
 
         if patch_content.is_empty() {
-            println!("No changes were found to the following directory: {}", patch_dir.display());
+            pnpm_diagnostics::println!(
+                "No changes were found to the following directory: {}",
+                patch_dir.display(),
+            );
             return Ok(None);
         }
 

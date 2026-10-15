@@ -192,7 +192,7 @@ impl SelfUpdateArgs {
         if let Some(message) =
             Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir)).await?
         {
-            println!("{message}");
+            pnpm_diagnostics::println!("{message}");
         }
         Ok(())
     }

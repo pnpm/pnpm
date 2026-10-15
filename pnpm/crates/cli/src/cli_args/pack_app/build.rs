@@ -45,7 +45,7 @@ pub(super) fn reject_non_regular_outputs(
 pub(super) fn print_built(results: &[String]) {
     let count = results.len();
     let plural = if count == 1 { "" } else { "s" };
-    println!("Built {count} executable{plural}:\n{}", results.join("\n"));
+    pnpm_diagnostics::println!("Built {count} executable{plural}:\n{}", results.join("\n"));
 }
 
 /// Returns a Node.js binary that supports `--build-sea` and produces a SEA

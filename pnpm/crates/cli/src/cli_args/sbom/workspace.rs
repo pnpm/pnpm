@@ -1,9 +1,8 @@
 use super::{
     AutoExcludeRoot, Config, Display, Entry, Hash, HashMap, HashSet, LazyLockfile, Lockfile,
     PackageKey, Path, PathBuf, SnapshotEntry, State, discover_workspace_projects,
-    importer_root_dir, no_projects_matched_message, notice_workspace_dir,
-    select_recursive_projects, selected_workspace_importer_ids, selectors_narrow_the_run,
-    validate_importer_id,
+    importer_root_dir, print_no_projects_matched, select_recursive_projects,
+    selected_workspace_importer_ids, selectors_narrow_the_run, validate_importer_id,
 };
 
 /// The selected importer ids the lockfile has no entry for, sorted so the
@@ -259,8 +258,7 @@ pub(super) fn select_importer_ids(
     let selected =
         selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
     if selected.is_empty() {
-        let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
-        println!("{}", no_projects_matched_message(workspace_dir));
+        print_no_projects_matched(state.config, state.project_dir());
         return Ok(None);
     }
     // Selecting through the workspace can name a project the lockfile has

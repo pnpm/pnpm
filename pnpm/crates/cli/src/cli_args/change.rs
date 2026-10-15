@@ -121,7 +121,7 @@ impl ChangeArgs {
         let summary = self.change_summary()?;
 
         let id = write_change_intent(&workspace_dir, &releases, &summary)?;
-        println!("Recorded change intent .changeset/{id}.md");
+        pnpm_diagnostics::println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
     fn change_summary(&self) -> miette::Result<String> {
@@ -178,7 +178,7 @@ impl ChangeArgs {
                     config,
                 })
                 .await?;
-                println!("{output}");
+                pnpm_diagnostics::println!("{output}");
             }
             "check" => run_check(workspace_dir, engine_projects, config)?,
             _ => return Ok(false),
@@ -270,7 +270,7 @@ fn prompt_for_packages(
                 .map(|index| ordered[index].reference.clone())
                 .collect());
         }
-        println!("Select at least one package.");
+        pnpm_diagnostics::println!("Select at least one package.");
     }
 }
 

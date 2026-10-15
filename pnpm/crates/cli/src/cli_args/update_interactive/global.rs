@@ -106,7 +106,7 @@ fn matching_global_packages(
     let global_packages = pnpm_global::scan_global_packages(global_pkg_dir)
         .map_err(|err| miette!("failed to scan global packages: {err}"))?;
     if global_packages.is_empty() {
-        println!("No global packages found");
+        pnpm_diagnostics::println!("No global packages found");
         return Ok(None);
     }
     let global_packages: Vec<_> = global_packages
@@ -114,7 +114,9 @@ fn matching_global_packages(
         .filter(|pkg| !has_pnpm_cli_dependency(pkg))
         .collect();
     if global_packages.is_empty() {
-        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
+        pnpm_diagnostics::println!(
+            r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#,
+        );
         return Ok(None);
     }
     if packages.is_empty() {
@@ -129,7 +131,7 @@ fn matching_global_packages(
         })
         .collect::<Vec<_>>();
     if matched.is_empty() {
-        println!("No matching global packages found");
+        pnpm_diagnostics::println!("No matching global packages found");
         return Ok(None);
     }
     Ok(Some(matched))

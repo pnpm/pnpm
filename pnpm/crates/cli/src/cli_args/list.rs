@@ -462,9 +462,9 @@ pub(crate) fn print_output(output: &str) {
         return;
     }
     if output.ends_with('\n') {
-        print!("{output}");
+        pnpm_diagnostics::print!("{output}");
     } else {
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
     }
 }
 

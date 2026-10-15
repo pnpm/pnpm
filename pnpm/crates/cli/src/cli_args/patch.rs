@@ -269,7 +269,7 @@ fn target_from_candidate(
 }
 
 fn print_success(edit_dir: &Path) {
-    print!("{}", render_success(edit_dir, io::stdout().is_terminal()));
+    pnpm_diagnostics::print!("{}", render_success(edit_dir, io::stdout().is_terminal()));
 }
 
 fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {

@@ -330,7 +330,10 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
         // prints a command's output and exit with the failing status.
         #[expect(clippy::exit, reason = "an incomplete approval batch exits 1, mirroring pnpm")]
         {
-            println!("Approved {approved} of {}.", render_package_count(items.len()));
+            pnpm_diagnostics::println!(
+                "Approved {approved} of {}.",
+                render_package_count(items.len()),
+            );
             std::process::exit(1);
         }
     }
