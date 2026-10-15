@@ -297,6 +297,7 @@ async fn packument_conditional_if_modified_since() {
 
     // If-None-Match takes precedence over If-Modified-Since per RFC 9110
     let inm_mismatch_ims_match = app
+        .clone()
         .oneshot(
             Request::get("/foo")
                 .header(header::IF_NONE_MATCH, r#""stale-etag""#)
@@ -307,6 +308,22 @@ async fn packument_conditional_if_modified_since() {
         .await
         .unwrap();
     assert_eq!(inm_mismatch_ims_match.status(), StatusCode::OK);
+
+    // Non-ASCII If-None-Match still takes precedence and ignores If-Modified-Since
+    let non_ascii_inm = app
+        .oneshot(
+            Request::get("/foo")
+                .header(
+                    header::IF_NONE_MATCH,
+                    header::HeaderValue::from_bytes(&[0x80, 0x81]).unwrap(),
+                )
+                .header(header::IF_MODIFIED_SINCE, &last_modified)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(non_ascii_inm.status(), StatusCode::OK);
 }
 
 #[tokio::test]

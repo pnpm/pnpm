@@ -172,11 +172,8 @@ pub(super) fn packument_response(
 }
 
 fn is_not_modified(headers: &HeaderMap, etag: &str, last_modified: Option<&str>) -> bool {
-    if let Some(inm) = headers
-        .get(header::IF_NONE_MATCH)
-        .and_then(|val| val.to_str().ok())
-    {
-        return if_none_match_matches(inm, etag);
+    if let Some(inm) = headers.get(header::IF_NONE_MATCH) {
+        return inm.to_str().is_ok_and(|header_val| if_none_match_matches(header_val, etag));
     }
     if let Some(ims) = headers
         .get(header::IF_MODIFIED_SINCE)
