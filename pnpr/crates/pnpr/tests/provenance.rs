@@ -81,6 +81,14 @@ fn doc_with_sigstore(
     doc
 }
 
+fn put_publish(path: &str, token: &str, doc: &Value) -> Request<Body> {
+    Request::put(path)
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(doc).unwrap()))
+        .unwrap()
+}
+
 #[tokio::test]
 async fn publish_with_provenance_and_serve_attestations() {
     let tmp = TempDir::new().unwrap();
@@ -97,14 +105,9 @@ async fn publish_with_provenance_and_serve_attestations() {
         &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
     );
 
-    let publish = Request::put("/prov-pkg")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&doc).unwrap()))
-        .unwrap();
     let res = app
         .clone()
-        .oneshot(publish)
+        .oneshot(put_publish("/prov-pkg", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -144,17 +147,24 @@ async fn publish_with_provenance_and_serve_attestations() {
     assert_eq!(items[0]["predicateType"], "https://slsa.dev/provenance/v1");
     assert_eq!(items[0]["bundle"]["mediaType"], "application/vnd.dev.sigstore.bundle.v0.3+json");
 
-    let missing = Request::get("/-/npm/v1/attestations/prov-pkg@2.0.0")
-        .body(Body::empty())
-        .unwrap();
-    assert_eq!(
-        app.clone()
-            .oneshot(missing)
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
+    for bad_path in [
+        "/-/npm/v1/attestations/prov-pkg@2.0.0",
+        "/-/npm/v1/attestations/prov-pkg@1.0.0/subpath",
+        "/-/npm/v1/attestations/prov-pkg@",
+        "/-/npm/v1/attestations/@prov-pkg",
+    ] {
+        let req = Request::get(bad_path)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(req)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND,
+        );
+    }
 }
 
 #[tokio::test]
@@ -173,14 +183,9 @@ async fn publish_scoped_package_with_sigstore_json_attachment() {
         &sample_sigstore_bundle("https://slsa.dev/provenance/v0.2"),
     );
 
-    let publish = Request::put("/@scope%2Fprov-pkg")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&doc).unwrap()))
-        .unwrap();
     let res = app
         .clone()
-        .oneshot(publish)
+        .oneshot(put_publish("/@scope%2Fprov-pkg", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -232,19 +237,12 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
     );
 
-    let publish = Request::put("/del-pkg")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&doc).unwrap()))
+    let res = app
+        .clone()
+        .oneshot(put_publish("/del-pkg", &token, &doc))
+        .await
         .unwrap();
-    assert_eq!(
-        app.clone()
-            .oneshot(publish)
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::CREATED,
-    );
+    assert_eq!(res.status(), StatusCode::CREATED);
 
     assert!(storage.join("del-pkg/del-pkg-1.0.0.sigstore").exists());
 
@@ -365,11 +363,35 @@ async fn invalid_sigstore_attachment_is_rejected() {
         "data": "not-valid-json-or-base64-json!!!",
     });
 
-    let publish = Request::put("/bad-sig")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&doc).unwrap()))
+    let res = app
+        .oneshot(put_publish("/bad-sig", &token, &doc))
+        .await
         .unwrap();
-    let res = app.oneshot(publish).await.unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn orphan_sigstore_attachment_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let mut doc = doc_with_sigstore(
+        "orphan-sig",
+        "1.0.0",
+        b"tarball",
+        "orphan-sig-1.0.0.sigstore",
+        &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
+    );
+    doc["_attachments"]
+        .as_object_mut()
+        .unwrap()
+        .remove("orphan-sig-1.0.0.tgz");
+
+    let res = app
+        .oneshot(put_publish("/orphan-sig", &token, &doc))
+        .await
+        .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 }

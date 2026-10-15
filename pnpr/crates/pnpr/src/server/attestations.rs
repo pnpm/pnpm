@@ -69,7 +69,8 @@ async fn serve_attestations(
             {
                 return err.into_response();
             }
-            serve_upstream_attestations(state, identity, source, spec).await
+            let upstream_spec = format!("{}@{version}", name.as_str());
+            serve_upstream_attestations(state, identity, source, &upstream_spec).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
@@ -82,7 +83,7 @@ fn parse_attestation_spec(spec: &str) -> Option<(String, String)> {
     }
     let raw_pkg = &spec[..idx];
     let version = &spec[idx + 1..];
-    if version.is_empty() {
+    if version.is_empty() || version.contains(['/', '\\', '?', '#']) || version.contains("..") {
         return None;
     }
     let decoded_pkg = pnpr_search::percent_decode(raw_pkg);

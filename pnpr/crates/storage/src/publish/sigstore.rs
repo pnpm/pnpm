@@ -20,7 +20,7 @@ pub fn write_sigstore_bundle(
         if !val.is_object() {
             return Err(invalid("sigstore bundle must be a JSON object".to_string()));
         }
-        serde_json::to_vec(&val).map_err(|err| invalid(err.to_string()))?
+        data.as_bytes().to_vec()
     } else {
         let decoded = BASE64
             .decode(data.trim())

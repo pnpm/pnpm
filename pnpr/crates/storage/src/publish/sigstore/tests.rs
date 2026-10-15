@@ -15,6 +15,18 @@ fn writes_raw_json_bundle() {
 }
 
 #[test]
+fn writes_raw_json_with_whitespace() {
+    let tmp = TempDir::new().unwrap();
+    let dest = tmp.path().join("bundle.sigstore");
+    let json_str = "{\n  \"mediaType\": \"application/vnd.dev.sigstore.bundle.v0.3+json\"\n}\n";
+    let written =
+        write_sigstore_bundle("test.sigstore", json_str, Some(json_str.len() as u64), &dest)
+            .unwrap();
+    assert_eq!(written, json_str.len() as u64);
+    assert_eq!(std::fs::read_to_string(&dest).unwrap(), json_str);
+}
+
+#[test]
 fn writes_base64_encoded_bundle() {
     let tmp = TempDir::new().unwrap();
     let dest = tmp.path().join("bundle.sigstore");

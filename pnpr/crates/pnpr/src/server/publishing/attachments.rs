@@ -64,30 +64,20 @@ pub(in super::super) async fn validate_publish_doc(
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
 
-    // Resolve each attachment's canonical disk filename + matching
-    // `versions[v].dist` block. Attachment names that don't match the
-    // package (`bar-1.0.0.tgz` for `foo`) or that try to escape the
-    // package dir (`../../etc/passwd.tgz`) are rejected here, before
-    // any I/O. The canonical name is what we actually persist — for
-    // scoped libnpmpublish bodies the wire form is `@scope/name-version.tgz`
-    // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
-    // matching what `serve_tarball` expects.
-    let mut prepared: Vec<PreparedAttachment> = Vec::with_capacity(attachments.len());
+    // Validate attachment filenames against the package and parse their
+    // canonical storage filename, matching version, and payload kind.
+    let prepared = prepare_attachments(&name, &incoming, attachments)?;
+    Ok((ValidatedPublish { name, incoming, prepared }, target))
+}
+
+fn prepare_attachments(
+    name: &CanonicalPackageName,
+    incoming: &Value,
+    attachments: Vec<PendingAttachment>,
+) -> Result<Vec<PreparedAttachment>, RegistryError> {
+    let mut prepared = Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let (canonical, version, kind) = if attachment.filename.ends_with(".tgz") {
-            let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
-            (canonical, version, AttachmentKind::Tarball)
-        } else if attachment.filename.ends_with(".sigstore")
-            || attachment.filename.ends_with(".sigstore.json")
-        {
-            let (canonical, version) = name.parse_sigstore_name(&attachment.filename)?;
-            (canonical, version, AttachmentKind::Sigstore)
-        } else {
-            return Err(RegistryError::InvalidTarballName {
-                package: name.as_str().to_string(),
-                filename: attachment.filename,
-            });
-        };
+        let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
@@ -96,7 +86,36 @@ pub(in super::super) async fn validate_publish_doc(
             .unwrap_or(Value::Null);
         prepared.push(PreparedAttachment { attachment, canonical, version, dist, kind });
     }
-    Ok((ValidatedPublish { name, incoming, prepared }, target))
+    for att in &prepared {
+        if att.kind == AttachmentKind::Sigstore
+            && !prepared
+                .iter()
+                .any(|other| other.kind == AttachmentKind::Tarball && other.version == att.version)
+        {
+            return Err(RegistryError::BadRequest {
+                reason: format!("sigstore attachment for {} has no tarball", att.version),
+            });
+        }
+    }
+    Ok(prepared)
+}
+
+fn parse_attachment_kind(
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<(String, String, AttachmentKind), RegistryError> {
+    if filename.ends_with(".tgz") {
+        let (canonical, version) = name.parse_tarball_name(filename)?;
+        Ok((canonical, version, AttachmentKind::Tarball))
+    } else if filename.ends_with(".sigstore") || filename.ends_with(".sigstore.json") {
+        let (canonical, version) = name.parse_sigstore_name(filename)?;
+        Ok((canonical, version, AttachmentKind::Sigstore))
+    } else {
+        Err(RegistryError::InvalidTarballName {
+            package: name.as_str().to_string(),
+            filename: filename.to_string(),
+        })
+    }
 }
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
