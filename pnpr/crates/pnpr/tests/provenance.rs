@@ -362,9 +362,12 @@ async fn duplicate_sigstore_attachments_are_rejected() {
         "dup-sig-1.0.0.sigstore",
         &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
     );
+    let second_bytes =
+        serde_json::to_vec(&sample_sigstore_bundle("https://slsa.dev/provenance/v0.2")).unwrap();
     doc["_attachments"]["dup-sig-1.0.0.sigstore.json"] = json!({
         "content_type": "application/json",
-        "data": sample_sigstore_bundle("https://slsa.dev/provenance/v0.2"),
+        "data": BASE64.encode(&second_bytes),
+        "length": second_bytes.len(),
     });
 
     let res = app
@@ -372,4 +375,8 @@ async fn duplicate_sigstore_attachments_are_rejected() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("duplicate attachment for dup-sig-1.0.0.sigstore"),
+    );
 }
