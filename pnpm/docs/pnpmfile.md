@@ -123,15 +123,10 @@ Two entries describe registry routing and credentials:
 
 #### Registry routing
 
-Since v11.23.0, the registry routing map passed to `updateConfig` is named
-`registriesByScope` instead of `registries`. Its keys are package scopes,
-such as `@acme`, and `default` for the main registry.
-
 Returning `registriesByScope` replaces the routing map. Scopes omitted from
 the returned map use its `default` registry, or the previously configured main
 registry if `default` is omitted. The built-in `@jsr` route remains unless
-explicitly overridden. Command-line routes take precedence. This hook changes
-the fallback registry:
+explicitly overridden. This hook changes the fallback registry:
 
 ```js title=".pnpmfile.mjs"
 export const hooks = {
@@ -149,11 +144,11 @@ export const hooks = {
 To preserve existing scope routes while changing one route, spread
 `...config.registriesByScope` into the returned map before the overrides.
 
-The old `registries` name now refers to the [`registries` setting](settings/dependency-resolution.md#registries),
+Hooks written for pnpm before v11.23.0 return the routing map as
+`registries`. That name now refers to the [`registries` setting](settings/dependency-resolution.md#registries),
 which merges per key with existing configuration. Returning
-`registries: { default: ... }` can therefore change the main registry while
-leaving scope routes from `.npmrc` in place. Use `registriesByScope` to
-replace registry routing.
+`registries: { default: ... }` therefore changes the main registry but leaves
+scope routes from `.npmrc` in place.
 
 #### Settings given on the command line
 

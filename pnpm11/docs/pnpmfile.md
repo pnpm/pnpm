@@ -133,8 +133,8 @@ export const hooks = {
 To preserve existing scope routes while changing one route, spread
 `...config.registriesByScope` into the returned map before the overrides.
 
-In pnpm v11, returning the old `registries` field no longer changes registry
-routing. Update existing hooks to return `registriesByScope` instead.
+Returning the old `registries` field no longer changes registry routing.
+Update existing hooks to return `registriesByScope` instead.
 
 #### Settings given on the command line
 
