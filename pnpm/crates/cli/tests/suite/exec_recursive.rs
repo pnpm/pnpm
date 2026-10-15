@@ -6,11 +6,17 @@
 
 #[cfg(unix)]
 use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::{CHILD_DEADLINE, wait_for_child};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -628,14 +634,12 @@ const name = require('path').basename(process.cwd())
 const mark = () => fs.writeFileSync('ran.txt', '')
 if (name === 'a-slow-1' || name === 'c-slow-2') {
   mark()
-  setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)
+  setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))
 } else if (name === 'b-fails') {
-  let waited = 0
   const poll = () => {
     if (fs.existsSync('../a-slow-1/ran.txt') && fs.existsSync('../c-slow-2/ran.txt')) {
       process.exit(1)
     }
-    if ((waited += 1) >= 500) process.exit(2)
     setTimeout(poll, 10)
   }
   poll()
@@ -645,21 +649,29 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
-    let output = pacquet
+    // The exec ending is the proof: these probes stop only when cancelled,
+    // and pnpm waits for the commands it started.
+    let hold_ms = (CHILD_DEADLINE * 2).as_millis();
+    let stderr_path = workspace.join("exec.stderr");
+    let mut run = pacquet
         .with_args(["--workspace-concurrency=3", "--no-sort", "--report-summary", "-r", "exec"])
         .with_args(probe)
-        .output()
+        .env("HOLD_MS", hold_ms.to_string())
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the exec output"))
+        .spawn()
         .expect("spawn pacquet");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let status = wait_for_child(&mut run);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the exec output");
     eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "the failing project should fail the exec");
+    assert!(!status.success(), "the failing project should fail the exec");
     for name in ["a-slow-1", "c-slow-2"] {
         assert!(
-            !workspace
+            workspace
                 .join(name)
-                .join("completed.txt")
+                .join("ran.txt")
                 .exists(),
-            "bail should interrupt {name}'s five-second command",
+            "{name} must have started, or a `running` summary entry proves nothing",
         );
     }
 
