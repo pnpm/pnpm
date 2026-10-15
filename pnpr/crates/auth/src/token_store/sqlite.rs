@@ -20,9 +20,17 @@ pub(crate) const TOKENS_INDEX_SQL: &str =
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
     conn.execute(TOKENS_TABLE_SQL, [])?;
     conn.execute(TOKENS_INDEX_SQL, [])?;
-    let _ = conn.execute("ALTER TABLE tokens ADD COLUMN name VARCHAR(255)", []);
-    let _ = conn.execute("ALTER TABLE tokens ADD COLUMN expires_at BIGINT", []);
+    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)")?;
+    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT")?;
     Ok(())
+}
+
+fn add_column_if_missing(conn: &Connection, sql: &str) -> Result<()> {
+    match conn.execute(sql, []) {
+        Ok(_) => Ok(()),
+        Err(err) if err.to_string().contains("duplicate column name") => Ok(()),
+        Err(err) => Err(err.into()),
+    }
 }
 
 fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
@@ -89,7 +97,7 @@ pub(crate) fn insert_token(
             i64::from(record.readonly),
             cidr_json,
             record.name.as_deref(),
-            record.expires_at.map(|exp| exp as i64),
+            record.expires_at.map(token_timestamp_to_sql),
         ],
     )?;
     Ok(())

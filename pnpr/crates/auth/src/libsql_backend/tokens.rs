@@ -67,12 +67,15 @@ impl TokenBackend for LibsqlAuth {
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
         let sql_now = token_timestamp_to_sql(now);
-        self.conn.execute(
-            "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
-            params![sql_now, key],
-        )
-        .await?;
-        Ok(())
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            self.conn.execute(
+                "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+                params![sql_now, key],
+            )
+            .await?;
+            Ok(())
+        })
+        .await
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {

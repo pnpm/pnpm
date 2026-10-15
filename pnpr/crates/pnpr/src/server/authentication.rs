@@ -1,4 +1,8 @@
-use std::{net::IpAddr, sync::LazyLock};
+use std::{
+    net::IpAddr,
+    sync::LazyLock,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
@@ -215,8 +219,20 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
     let Some(record) = auth.tokens.find_by_key(key).await? else {
         return Ok(None);
     };
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    if record.expires_at.is_some_and(|exp| exp <= now) {
+        return Ok(None);
+    }
     let owned = auth.users.password_hash(&record.username).await?.is_some();
-    Ok(owned.then_some(record))
+    if owned {
+        let _ = auth.tokens.touch_key(key, now).await;
+        Ok(Some(record))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth

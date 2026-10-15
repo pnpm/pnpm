@@ -213,6 +213,7 @@ async fn verify_caller_password(
                 resource: "password required for token creation".to_string(),
             });
         };
+        let _permit = state.inner.identity.login_concurrency.acquire().await;
         let valid = pnpr_auth::verify_bcrypt(password.to_string(), hash).await?;
         if !valid {
             state.inner.identity.login_rate_limiter.record_failure(client_ip, username);

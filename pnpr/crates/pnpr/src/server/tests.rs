@@ -344,6 +344,16 @@ fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
         .unwrap()
 }
 
+fn signed_json(method: Method, path: &str, raw: &str, body: &'static str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::AUTHORIZATION, format!("Bearer {raw}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap()
+}
+
 fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
     request
         .extensions_mut()
@@ -465,13 +475,21 @@ async fn readonly_token_still_reads() {
     // package simply isn't published, so it 404s rather than 403s.
     assert_eq!(status(app.clone(), signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
     // Audit endpoints are read-only queries despite using HTTP POST.
-    assert_ne!(
-        status(app.clone(), signed(Method::POST, "/-/npm/v1/security/advisories/bulk", "ro")).await,
-        StatusCode::FORBIDDEN,
+    assert_eq!(
+        status(
+            app.clone(),
+            signed_json(Method::POST, "/-/npm/v1/security/advisories/bulk", "ro", "{}")
+        )
+        .await,
+        StatusCode::OK,
     );
-    assert_ne!(
-        status(app, signed(Method::POST, "/~npmjs/-/npm/v1/security/advisories/bulk", "ro")).await,
-        StatusCode::FORBIDDEN,
+    assert_eq!(
+        status(
+            app,
+            signed_json(Method::POST, "/~local/-/npm/v1/security/advisories/bulk", "ro", "{}")
+        )
+        .await,
+        StatusCode::OK,
     );
 }
 

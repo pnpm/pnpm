@@ -35,7 +35,12 @@ pub(super) fn account_routes() -> Router<AppState> {
             )
             .route(&path("/-/user/token/{token}"), delete(delete_session_token))
             .route(&path("/-/npm/v1/user"), get(get_profile))
-            .route(&path("/-/npm/v1/tokens"), get(get_token_list).post(post_create_token))
+            .route(
+                &path("/-/npm/v1/tokens"),
+                get(get_token_list)
+                    .post(post_create_token)
+                    .route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+            )
             .route(&path("/-/npm/v1/tokens/token/{key}"), delete(delete_token_by_key));
     }
     router
