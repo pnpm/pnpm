@@ -562,7 +562,8 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
 #[tokio::test]
 async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_none_match() {
     let mut upstream = mockito::Server::new_async().await;
-    let packument = foo_packument(&upstream.url());
+    let mut packument = foo_packument(&upstream.url());
+    packument["time"] = json!({ "modified": "2026-06-21T12:00:00Z" });
     let _mock = upstream
         .mock("GET", "/foo")
         .with_status(200)
@@ -590,8 +591,10 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
     let last_modified = initial
         .headers()
         .get(header::LAST_MODIFIED)
-        .and_then(|header_value| header_value.to_str().ok())
-        .map(ToString::to_string);
+        .expect("Last-Modified header must be present")
+        .to_str()
+        .unwrap()
+        .to_string();
     let etag = initial
         .headers()
         .get(header::ETAG)
@@ -600,20 +603,18 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
         .unwrap()
         .to_string();
 
-    if let Some(lm) = last_modified {
-        let ims = app
-            .clone()
-            .oneshot(
-                Request::get("/foo")
-                    .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
-                    .header(header::IF_MODIFIED_SINCE, &lm)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(ims.status(), StatusCode::OK);
-    }
+    let ims = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                .header(header::IF_MODIFIED_SINCE, &last_modified)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ims.status(), StatusCode::OK);
 
     let inm = app
         .oneshot(
