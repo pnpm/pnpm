@@ -239,3 +239,41 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
     }
     assert_eq!(config.routing.registries.addressed("cargo/internal", Ecosystem::Npm), None);
 }
+
+#[test]
+fn cache_settings_parsed_from_table() {
+    let yaml = "\
+storage: /var/lib/pnpr
+cache:
+  path: /custom/cache
+  maxSize: 10GB
+  maxAge: 30d
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/custom/cache"));
+    assert_eq!(config.storage.cache.max_size, Some(10 * 1024 * 1024 * 1024));
+    assert_eq!(config.storage.cache.max_age, Some(std::time::Duration::from_hours(720)));
+}
+
+#[test]
+fn cache_settings_defaults_path_when_omitted_in_table() {
+    let yaml = "\
+storage: /var/lib/pnpr
+cache:
+  max_size: 500MB
+  max_age: 12h
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
+    assert_eq!(config.storage.cache.max_size, Some(500 * 1024 * 1024));
+    assert_eq!(config.storage.cache.max_age, Some(std::time::Duration::from_hours(12)));
+}
+
+#[test]
+fn cache_rejects_invalid_max_size_or_age() {
+    let bad_size = "storage: /x\ncache:\n  maxSize: not-a-size\n";
+    assert!(Config::from_yaml_str(bad_size, Path::new("/x"), listen(), None).is_err());
+
+    let bad_age = "storage: /x\ncache:\n  maxAge: whenever\n";
+    assert!(Config::from_yaml_str(bad_age, Path::new("/x"), listen(), None).is_err());
+}

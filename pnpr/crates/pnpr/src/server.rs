@@ -1,5 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tcp_listener::PeerAddr;
 
@@ -67,10 +68,9 @@ use upstream_packuments::{
 
 mod request_access;
 use request_access::{
-    authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_admin, require_artifact_caller, require_caller, require_pipeline_caller,
-    require_resolver_caller, revision_registry_is_private, revision_source_registry,
-    single_authorization_header, upstream_cache_namespace,
+    authorized_revision_upstream, authorized_upstream, require_admin, require_artifact_caller,
+    require_caller, require_pipeline_caller, require_resolver_caller, revision_registry_is_private,
+    revision_source_registry, single_authorization_header, upstream_cache_namespace,
 };
 
 mod user_accounts;
@@ -338,6 +338,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         recover_publish_journal(config).await?;
         sweep_abandoned_uploads(config).await?;
+        crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
     AuthState::load(&config.identity.auth, &config.identity.backend).await
 }
@@ -380,6 +381,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
+    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let app = router_with_auth_and_osv(config, auth, osv_index)?;
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");

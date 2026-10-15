@@ -206,7 +206,7 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let storage = build_storage_config(&mut file, base_dir);
+        let storage = build_storage_config(&mut file, base_dir)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
         reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
@@ -280,11 +280,15 @@ fn build_http_config(
     })
 }
 
-fn build_storage_config(file: &mut ConfigFile, base_dir: &Path) -> super::StorageConfig {
-    let (hosted_dir, cache_dir) = resolve_storage_paths(file, base_dir);
-    super::StorageConfig {
+fn build_storage_config(
+    file: &mut ConfigFile,
+    base_dir: &Path,
+) -> Result<super::StorageConfig, RegistryError> {
+    let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
+    Ok(super::StorageConfig {
         hosted_dir,
         cache_dir,
+        cache,
         hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
-    }
+    })
 }

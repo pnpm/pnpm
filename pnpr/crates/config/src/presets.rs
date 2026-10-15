@@ -91,6 +91,7 @@ impl Config {
             },
             storage: super::StorageConfig {
                 cache_dir: default_cache_dir(&storage),
+                cache: super::CacheConfig::default(),
                 hosted_dir: storage,
                 hosted_backend: HostedStoreConfig::Fs,
             },

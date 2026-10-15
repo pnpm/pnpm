@@ -7,6 +7,10 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
+#cache:
+#  path: ./cache
+#  maxSize: 20GB
+#  maxAge: 30d
 # Cross-origin browser access is disabled unless exact origins are listed.
 # This is enough to let a separately hosted registry UI read metadata, search,
 # organization listings, and tarballs without opening pnpr to every website.
