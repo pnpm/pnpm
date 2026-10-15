@@ -4,15 +4,12 @@ use super::{WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, fs};
 fn null_task_entries_are_empty_task_definitions() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path()
-            .join(WORKSPACE_MANIFEST_FILENAME),
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
         "tasks:\n  build:\n  lint: null\n  empty: {}\n  test:\n    dependsOn: ['build']\n",
     )
     .unwrap();
 
-    let settings = WorkspaceSettings::load_at(dir.path())
-        .unwrap()
-        .unwrap();
+    let settings = WorkspaceSettings::load_at(dir.path()).unwrap().unwrap();
     let tasks = settings.tasks.as_ref().unwrap();
     for task in ["build", "lint", "empty"] {
         assert_eq!(tasks[task], crate::workspace_yaml::TaskSettings::default());
