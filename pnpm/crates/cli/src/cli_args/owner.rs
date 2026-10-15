@@ -18,7 +18,7 @@ use reqwest::Response;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-const OWNER_BODY_LIMIT: usize = 1024 * 1024;
+const OWNER_BODY_LIMIT: usize = 50 * 1024 * 1024;
 
 #[derive(Debug, Args)]
 pub struct OwnerArgs {
@@ -113,9 +113,14 @@ pub(super) struct OwnerContext<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+struct PackageOwners {
+    maintainers: Option<Vec<OwnerEntry>>,
+}
+
+#[derive(Debug, Deserialize)]
 struct OwnerEntry {
-    username: String,
-    email: String,
+    name: String,
+    email: Option<String>,
 }
 
 impl OwnerArgs {
@@ -151,11 +156,12 @@ impl OwnerArgs {
 
 async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
     let package_name = params.first().ok_or(OwnerError::LsPackageRequired)?;
-    let endpoint = owners_endpoint(context, package_name);
+    let endpoint = owner_endpoint(context, package_name, &escaped_package_name(package_name));
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
-            apply_auth_and_otp(client.get(&endpoint.url), endpoint.auth_header.as_deref(), None)
+            let builder = client.get(&endpoint.url).header("accept", "application/json");
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), None)
         })
         .await
         .map_err(|source| registry_operation_error("fetching owners", source))?;
@@ -169,13 +175,28 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
 
     let body = read_limited_body(response, OWNER_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading owners response", source))?;
-    let owners: Vec<OwnerEntry> = serde_json::from_slice(&body.bytes)
+    if body.truncated {
+        return Err(registry_operation_error(
+            "reading owners response",
+            format!("registry response exceeded {OWNER_BODY_LIMIT} bytes"),
+        ));
+    }
+    let metadata: PackageOwners = serde_json::from_slice(&body.bytes)
         .into_diagnostic()
         .map_err(|source| registry_operation_error("parsing owners response", source))?;
 
-    Ok(owners
+    Ok(metadata.maintainers
+        .unwrap_or_default()
         .iter()
-        .map(|o| format!("{} <{}>", o.username, o.email))
+        .map(|owner| {
+            match owner.email
+                .as_deref()
+                .filter(|email| !email.is_empty())
+            {
+                Some(email) => format!("{} <{email}>", owner.name),
+                None => owner.name.clone(),
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n"))
 }
@@ -230,7 +251,7 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
 }
 
-/// The package's `owners` route on its registry, with the credential
+/// A package endpoint on its registry, with the credential
 /// configured for that registry.
 pub(super) struct OwnersEndpoint {
     pub(super) url: String,
@@ -238,6 +259,11 @@ pub(super) struct OwnersEndpoint {
 }
 
 pub(super) fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
+    let path = format!("-/package/{}/owners", escaped_package_name(package_name));
+    owner_endpoint(context, package_name, &path)
+}
+
+fn owner_endpoint(context: &OwnerContext<'_>, package_name: &str, path: &str) -> OwnersEndpoint {
     let registry_url = resolve_target_registry_for_package(
         &context.registries,
         context.registry_override,
@@ -245,10 +271,8 @@ pub(super) fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) ->
         None,
     );
     let auth_header = auth_header_for_package(context.config, &registry_url, package_name);
-    let escaped = escaped_package_name(package_name);
-    let path = format!("-/package/{escaped}/owners");
     let normalized = normalize_registry_url(&registry_url);
-    let url = join_registry_endpoint(&registry_url, &path)
+    let url = join_registry_endpoint(&registry_url, path)
         .unwrap_or_else(|_| format!("{normalized}{path}"));
     OwnersEndpoint { url, auth_header }
 }
