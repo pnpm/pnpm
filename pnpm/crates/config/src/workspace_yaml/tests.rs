@@ -144,4 +144,6 @@ mod readable_settings;
 
 mod no_proxy;
 
+mod task_entries;
+
 mod side_effects_cache_exclude;
