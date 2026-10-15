@@ -26,20 +26,24 @@ pub(super) async fn put_login(
     };
     let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(ip_address, name) {
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            [
-                (header::CONTENT_TYPE, "application/json"),
-                (header::RETRY_AFTER, &retry_after.to_string()),
-            ],
-            json!({
-                "error": "too many failed login attempts, please try again later"
-            })
-            .to_string(),
-        )
-            .into_response();
+        return login_throttled_response(retry_after);
     }
     add_user(&state, ip_address, name, &body).await
+}
+
+fn login_throttled_response(retry_after: u64) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::RETRY_AFTER, &retry_after.to_string()),
+        ],
+        json!({
+            "error": "too many failed login attempts, please try again later"
+        })
+        .to_string(),
+    )
+        .into_response()
 }
 
 pub(super) async fn delete_session_token(
@@ -137,6 +141,9 @@ pub(super) async fn add_user(
     };
 
     let _permit = state.inner.identity.login_concurrency.acquire().await;
+    if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, name) {
+        return login_throttled_response(retry_after);
+    }
     let (outcome, username, token) = match log_in(state, name, &password).await {
         Ok(login) => {
             state.inner.identity.login_rate_limiter.record_success(client_ip, name);
@@ -152,6 +159,10 @@ pub(super) async fn add_user(
             return err.into_response();
         }
     };
+    user_upsert_response(outcome, &username, &token)
+}
+
+fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
