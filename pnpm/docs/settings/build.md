@@ -164,8 +164,8 @@ Added in: v12.14.0
 * Default: **undefined**
 * Type: **String[]**
 
-Packages whose build output depends on the environment the build runs in, such
-as a native addon compiled against `JAVA_HOME`. pnpm builds a listed package in
+Packages whose build depends on something pnpm cannot include in the cache key,
+such as the system libraries a native addon links against. pnpm builds a listed package in
 every project and never restores or saves its build through the side-effects
 cache, locally or on a [`remoteCache`](#remotecache) server. Under the
 [global virtual store](../global-virtual-store.md), each project gets its own
