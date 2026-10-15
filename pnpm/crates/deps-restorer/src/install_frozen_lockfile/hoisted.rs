@@ -380,7 +380,7 @@ fn link_hoisted_workspace_packages(
     }
     let workspace_packages = workspace_packages_for_hoist(
         inputs.projects.walker_lockfile_dir,
-        inputs.projects.manifests,
+        inputs.projects.package_map_manifests,
     );
     let root_links = root_dependency_aliases(inputs);
     let hoists = crate::hoist_workspace_packages_to_root(
