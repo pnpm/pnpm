@@ -1,6 +1,6 @@
 ## 11.28.6
 
-This release stops `pnpm publish` from sending a CI identity token to a registry it was not issued for. It also fixes installs that dropped a dependency also declared as an optional peer, and `httpProxy` and `httpsProxy` settings left empty failing since 11.28.5.
+This release stops `pnpm publish` from sending a CI identity token to a registry it was not issued for. It also fixes installs that dropped a dependency also declared as an optional peer, and accepts empty `httpProxy` and `httpsProxy` settings again.
 
 ### Patch Changes
 
