@@ -56,8 +56,22 @@ pnpr keeps two kinds of data:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+
+# Path string:
 #cache: ./cache
+
+# Or settings table with budget and retention policies:
+#cache:
+#  path: ./cache     # defaults to .pnpr-cache in storage
+#  maxSize: 20GB     # enforces LRU eviction when total size exceeds this
+#  maxAge: 30d       # TTL deletion of cached entries older than this
 ```
+
+When `maxSize` or `maxAge` is configured, pnpr evicts stale entries on startup
+and runs periodic eviction in the background. On startup, pnpr also prunes
+orphaned private upstream namespaces left behind by previous process runs using
+ephemeral per-process secrets. Use [`pnpr cache-gc`](cli.md#cache-gc) for
+on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store — see
 [Storage backends](storage.md).

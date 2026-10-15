@@ -6,6 +6,7 @@ title: CLI reference
 ```sh
 pnpr [OPTIONS]
 pnpr [OPTIONS] oci-gc --registry <name>
+pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 ```
 
 ## Options
@@ -54,6 +55,21 @@ the whole run.
 | `--registry <name>` | The concrete hosted OCI registry to collect, by its config name. Required. |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--min-age-secs <n>` | Keep blobs younger than this. Defaults to `86400`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
+
+### cache-gc
+
+Added in: v0.1.0-alpha.16
+
+Reclaims cached upstream tarballs and packuments, prunes orphaned namespaces
+left behind by per-process secrets or changed configurations, and enforces
+cache size and age limits.
+
+| Flag | Description |
+| --- | --- |
+| `--dry-run` | Report the candidates without deleting anything. |
+| `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
+| `--max-age-secs <n>` | Maximum file age in seconds. Entries older than this are deleted. Overrides the config value. |
+| `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
 
 ## Logging
 
