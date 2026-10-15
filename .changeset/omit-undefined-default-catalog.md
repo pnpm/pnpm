@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Do not set an empty default catalog key on the catalogs map when no default catalog is declared.
+The catalogs read from `pnpm-workspace.yaml` no longer include a `default` entry when the workspace declares no default catalog.
