@@ -709,7 +709,10 @@ async fn audit_log_oci_deletion_operations() {
         logs.lock()
             .unwrap()
             .iter()
-            .all(|record| record.action != "oci.delete_blob"),
+            .all(|record| {
+                !(record.action == "oci.delete_blob"
+                    && record.fields.get("digest").map(String::as_str) == Some(nonexistent_digest))
+            }),
         "nonexistent blob deletion must not emit audit event",
     );
 
