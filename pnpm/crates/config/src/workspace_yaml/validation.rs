@@ -49,7 +49,10 @@ impl WorkspaceSettings {
 
     fn validate_no_proxy(&self) -> Result<(), LoadWorkspaceYamlError> {
         let received_type = match self.no_proxy.as_ref() {
-            None | Some(serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Bool(_)) => return Ok(()),
+            None
+            | Some(
+                serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Bool(_),
+            ) => return Ok(()),
             Some(serde_json::Value::Number(_)) => "number",
             Some(serde_json::Value::Array(_)) => "array",
             Some(serde_json::Value::Object(_)) => "object",
