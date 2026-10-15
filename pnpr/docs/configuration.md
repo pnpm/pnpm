@@ -696,6 +696,33 @@ log:
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
 
+### Access logs and request IDs
+
+Every request emits an access log record under the tracing target `pnpr::access` at `info` level:
+
+- `request_id`: incoming `x-request-id` header (if valid printable ASCII, <=128 characters) or a generated RFC 4122 UUID v4. Also echoed in the response `x-request-id` header.
+- `method`: HTTP method.
+- `uri`: request path and query string.
+- `client_ip`: client IP resolved according to [`trustedProxies`](#trustedproxies) and [`trustedProxyHeader`](#trustedproxyheader).
+- `user`: authenticated username, or `"-"` when unauthenticated.
+- `user_agent`: `User-Agent` header value, or `"-"` when omitted.
+- `status`: HTTP response status code.
+- `latency_ms`: request round-trip processing duration in milliseconds.
+- `bytes`: response body size in bytes.
+
+### Prometheus metrics
+
+pnpr serves Prometheus metrics at `GET /-/metrics` (and `GET /metrics` for scrapers) in standard Prometheus text format (`text/plain; version=0.0.4`):
+
+- `pnpr_http_requests_in_flight` (gauge): number of requests currently being handled.
+- `pnpr_http_requests_total` (counter): requests served, labelled by `method` and `status`.
+- `pnpr_http_request_duration_seconds` (histogram): request duration distribution across buckets from 0.005s to 10.0s.
+- `pnpr_http_response_bytes_total` (counter): total response payload bytes sent.
+- `pnpr_cache_hits_total` (counter): packument and tarball cache hits on upstream proxies.
+- `pnpr_cache_misses_total` (counter): packument and tarball cache misses requiring upstream fetches.
+- `pnpr_login_rate_limits_total` (counter): login attempts throttled by rate limiting.
+- `pnpr_build_info` (gauge): server build version info.
+
 ## Environment variable substitution
 
 Any `${ENV_VAR}` in the config is substituted from the environment before

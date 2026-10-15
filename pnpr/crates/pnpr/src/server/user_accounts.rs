@@ -26,12 +26,13 @@ pub(super) async fn put_login(
     };
     let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(ip_address, name) {
-        return login_throttled_response(retry_after);
+        return login_throttled_response(&state, retry_after);
     }
     add_user(&state, ip_address, name, &body).await
 }
 
-fn login_throttled_response(retry_after: u64) -> Response {
+fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
+    state.inner.metrics.record_login_throttled();
     (
         StatusCode::TOO_MANY_REQUESTS,
         [
@@ -142,7 +143,7 @@ pub(super) async fn add_user(
 
     let _permit = state.inner.identity.login_concurrency.acquire().await;
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, name) {
-        return login_throttled_response(retry_after);
+        return login_throttled_response(state, retry_after);
     }
     let (outcome, username, token) = match log_in(state, name, &password).await {
         Ok(login) => {
