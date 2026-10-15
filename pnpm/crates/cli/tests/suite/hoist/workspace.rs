@@ -1031,8 +1031,12 @@ fn hoisted_node_linker_keeps_unselected_projects_linked_into_root() {
         fs::create_dir_all(&lib_dir).expect("mkdir packages/lib");
         fs::write(
             lib_dir.join("package.json"),
-            serde_json::json!({ "name": "lib", "version": "1.0.0", "bin": { "lib-cli": "./cli.js" } })
-                .to_string(),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "bin": { "lib-cli": "./cli.js" },
+            })
+            .to_string(),
         )
         .expect("write packages/lib/package.json");
         fs::write(lib_dir.join("cli.js"), "#!/usr/bin/env node\n")
