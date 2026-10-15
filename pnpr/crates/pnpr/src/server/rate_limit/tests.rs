@@ -46,6 +46,14 @@ fn rate_limiter_throttles_user_after_exceeding_threshold() {
     let check_result = limiter.check(Some(ip_address), "alice");
     assert!(check_result.is_err(), "expected throttling after 3 failures");
 
+    // Failures from IP A must not block the same username from IP B
+    let other_ip = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 20));
+    assert!(
+        limiter
+            .check(Some(other_ip), "alice")
+            .is_ok(),
+    );
+
     // Other user from same IP should still be allowed if under IP threshold
     assert!(
         limiter

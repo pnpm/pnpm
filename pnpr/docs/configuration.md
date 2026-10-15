@@ -464,9 +464,11 @@ trustedProxyHeader: x-forwarded-for
 
 ## `requestTimeout`
 
-The maximum duration that pnpr allows for handling an incoming HTTP request before cancelling it and returning `504 Gateway Timeout`.
+The maximum duration that pnpr allows for handling an incoming HTTP request and constructing the response before cancelling it and returning `504 Gateway Timeout`.
 
-Defaults to `60s`. Set to `0` or `null` to disable timeouts.
+Defaults to `60s`. Set to `0` to disable timeouts.
+
+This timeout bounds request processing, authentication, and response generation. Once response headers are sent and streaming of the response body begins (such as for package tarballs or artifact blobs), active body transfers proceed without being interrupted by the timeout.
 
 Accepts `requestTimeout` (camelCase) or `request_timeout` (snake_case).
 Can be specified as an integer number of seconds (e.g. `30`) or with a duration suffix (e.g. `30s`, `1m`).

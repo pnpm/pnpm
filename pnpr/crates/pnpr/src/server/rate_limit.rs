@@ -20,6 +20,11 @@ struct AttemptRecord {
     first_attempt: Instant,
 }
 
+struct RateLimiterInner {
+    map: HashMap<RateLimitKey, AttemptRecord>,
+    last_eviction: Instant,
+}
+
 /// Tracks failed login attempts to protect against password brute-forcing
 /// and CPU exhaustion from repetitive bcrypt calls.
 pub(crate) struct LoginRateLimiter {
@@ -27,7 +32,7 @@ pub(crate) struct LoginRateLimiter {
     max_ip_user_attempts: u32,
     max_ip_attempts: u32,
     max_user_attempts: u32,
-    records: Mutex<HashMap<RateLimitKey, AttemptRecord>>,
+    records: Mutex<RateLimiterInner>,
 }
 
 impl Default for LoginRateLimiter {
@@ -48,7 +53,10 @@ impl LoginRateLimiter {
             max_ip_user_attempts,
             max_ip_attempts,
             max_user_attempts,
-            records: Mutex::new(HashMap::new()),
+            records: Mutex::new(RateLimiterInner {
+                map: HashMap::new(),
+                last_eviction: Instant::now(),
+            }),
         }
     }
 
@@ -78,25 +86,31 @@ impl LoginRateLimiter {
     /// Returns `Err(retry_after_seconds)` if rate limited.
     pub(crate) fn check(&self, client_ip: Option<IpAddr>, username: &str) -> Result<(), u64> {
         let now = Instant::now();
-        let mut map = self.records.lock().unwrap();
+        let mut inner = self.records.lock().unwrap();
 
-        // Evict expired entries
-        map.retain(|_, record| now.duration_since(record.first_attempt) < self.window);
+        // Evict expired entries periodically or when map exceeds size threshold
+        if now.duration_since(inner.last_eviction) >= Duration::from_secs(30)
+            || inner.map.len() > 1024
+        {
+            inner.map.retain(|_, record| now.duration_since(record.first_attempt) < self.window);
+            inner.last_eviction = now;
+        }
 
-        self.check_key(
-            &map,
-            &RateLimitKey::User(username.to_string()),
-            self.max_user_attempts,
-            now,
-        )?;
         if let Some(ip_address) = client_ip {
             self.check_key(
-                &map,
+                &inner.map,
                 &RateLimitKey::IpUser(ip_address, username.to_string()),
                 self.max_ip_user_attempts,
                 now,
             )?;
-            self.check_key(&map, &RateLimitKey::Ip(ip_address), self.max_ip_attempts, now)?;
+            self.check_key(&inner.map, &RateLimitKey::Ip(ip_address), self.max_ip_attempts, now)?;
+        } else {
+            self.check_key(
+                &inner.map,
+                &RateLimitKey::User(username.to_string()),
+                self.max_user_attempts,
+                now,
+            )?;
         }
 
         Ok(())
@@ -105,16 +119,20 @@ impl LoginRateLimiter {
     /// Record a failed login attempt for `client_ip` and `username`.
     pub(crate) fn record_failure(&self, client_ip: Option<IpAddr>, username: &str) {
         let now = Instant::now();
-        let mut map = self.records.lock().unwrap();
+        let mut inner = self.records.lock().unwrap();
 
-        let mut keys = vec![RateLimitKey::User(username.to_string())];
-        if let Some(ip_address) = client_ip {
-            keys.push(RateLimitKey::IpUser(ip_address, username.to_string()));
-            keys.push(RateLimitKey::Ip(ip_address));
-        }
+        let keys = if let Some(ip_address) = client_ip {
+            vec![
+                RateLimitKey::IpUser(ip_address, username.to_string()),
+                RateLimitKey::Ip(ip_address),
+            ]
+        } else {
+            vec![RateLimitKey::User(username.to_string())]
+        };
 
         for key in keys {
-            map.entry(key)
+            inner.map
+                .entry(key)
                 .and_modify(|record| {
                     if now.duration_since(record.first_attempt) >= self.window {
                         record.count = 1;
@@ -127,12 +145,13 @@ impl LoginRateLimiter {
         }
     }
 
-    /// Clear failure count for `username` and `(client_ip, username)` on successful authentication.
+    /// Clear failure count for `(client_ip, username)` or `username` on successful authentication.
     pub(crate) fn record_success(&self, client_ip: Option<IpAddr>, username: &str) {
-        let mut map = self.records.lock().unwrap();
-        map.remove(&RateLimitKey::User(username.to_string()));
+        let mut inner = self.records.lock().unwrap();
         if let Some(ip_address) = client_ip {
-            map.remove(&RateLimitKey::IpUser(ip_address, username.to_string()));
+            inner.map.remove(&RateLimitKey::IpUser(ip_address, username.to_string()));
+        } else {
+            inner.map.remove(&RateLimitKey::User(username.to_string()));
         }
     }
 }
