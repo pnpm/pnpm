@@ -67,32 +67,33 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
     }
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
-    if max_age.is_none() && max_size.is_none() {
-        return Ok(report);
-    }
-    let evict_report =
-        evict_active_cache(&config.storage.cache_dir, &active, max_age, max_size, options.dry_run)
-            .await?;
-    report.files_evicted += evict_report.files_evicted;
-    report.bytes_reclaimed += evict_report.bytes_reclaimed;
-    if !options.dry_run && evict_report.files_evicted > 0 {
-        prune_empty_dirs(&config.storage.cache_dir, &active).await?;
+    if max_age.is_some() || max_size.is_some() {
+        let ev = evict_active_cache(
+            &config.storage.cache_dir,
+            &active,
+            max_age,
+            max_size,
+            options.dry_run,
+        )
+        .await?;
+        report.files_evicted += ev.files_evicted;
+        report.bytes_reclaimed += ev.bytes_reclaimed;
+        if !options.dry_run && ev.files_evicted > 0 {
+            prune_empty_dirs(&config.storage.cache_dir, &active).await?;
+        }
     }
     Ok(report)
 }
 
 /// Evict cache entries on startup: cleans orphaned namespaces and enforces configured caps.
 pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheReport> {
-    collect_cache(
-        config,
-        &CacheGcOptions {
-            dry_run: false,
-            max_size: config.storage.cache.max_size,
-            max_age: config.storage.cache.max_age,
-            orphans_only: false,
-        },
-    )
-    .await
+    let opts = CacheGcOptions {
+        dry_run: false,
+        max_size: config.storage.cache.max_size,
+        max_age: config.storage.cache.max_age,
+        orphans_only: false,
+    };
+    collect_cache(config, &opts).await
 }
 
 /// Run a periodic eviction pass using configured size and age limits.
@@ -189,19 +190,16 @@ async fn process_count_entry(
     count: &mut usize,
     bytes: &mut u64,
 ) {
-    let Ok(file_type) = entry.file_type().await else {
+    let Ok(ft) = entry.file_type().await else {
         return;
     };
-    if file_type.is_dir() {
+    if ft.is_dir() {
         stack.push(entry.path());
-        return;
-    }
-    if !file_type.is_file() {
-        return;
-    }
-    *count += 1;
-    if let Ok(meta) = entry.metadata().await {
-        *bytes += meta.len();
+    } else if ft.is_file() {
+        *count += 1;
+        if let Ok(meta) = entry.metadata().await {
+            *bytes += meta.len();
+        }
     }
 }
 
@@ -229,20 +227,23 @@ async fn evict_file_if_expired(
     total_size: &mut u64,
     retained: &mut Vec<CachedFile>,
 ) {
-    let is_tmp = is_abandoned_tmp(&file.path, file.age);
-    let is_expired = max_age.is_some_and(|ttl| file.age >= ttl);
-    if is_tmp || is_expired {
-        if dry_run || fs::remove_file(&file.path).await.is_ok() {
+    if is_tmp_file(&file.path) {
+        if is_abandoned_tmp(&file.path, file.age)
+            && (dry_run || fs::remove_file(&file.path).await.is_ok())
+        {
             report.files_evicted += 1;
             report.bytes_reclaimed += file.size;
-        } else {
-            *total_size += file.size;
-            retained.push(file);
         }
-    } else {
-        *total_size += file.size;
-        retained.push(file);
+        return;
     }
+    let is_expired = max_age.is_some_and(|ttl| file.age >= ttl);
+    if is_expired && (dry_run || fs::remove_file(&file.path).await.is_ok()) {
+        report.files_evicted += 1;
+        report.bytes_reclaimed += file.size;
+        return;
+    }
+    *total_size += file.size;
+    retained.push(file);
 }
 
 /// Evict expired files and enforce LRU size caps within active namespaces.
@@ -277,6 +278,23 @@ async fn evict_active_cache(
     Ok(report)
 }
 
+async fn evict_lru_entry(entry: &CachedFile, dry_run: bool, report: &mut CacheReport) -> bool {
+    if !dry_run {
+        if let Ok(meta) = fs::metadata(&entry.path).await {
+            let (current_time, _) = file_effective_time(&meta);
+            if current_time > entry.effective_time {
+                return false;
+            }
+        }
+        if fs::remove_file(&entry.path).await.is_err() {
+            return false;
+        }
+    }
+    report.files_evicted += 1;
+    report.bytes_reclaimed += entry.size;
+    true
+}
+
 /// Enforce LRU eviction down to `limit` bytes.
 async fn evict_lru(
     retained: &mut [CachedFile],
@@ -293,10 +311,8 @@ async fn evict_lru(
         if total_size <= limit {
             break;
         }
-        if dry_run || fs::remove_file(&entry.path).await.is_ok() {
+        if evict_lru_entry(entry, dry_run, report).await {
             total_size = total_size.saturating_sub(entry.size);
-            report.files_evicted += 1;
-            report.bytes_reclaimed += entry.size;
         }
     }
 }
@@ -306,21 +322,17 @@ async fn inspect_inventory_entry(
     stack: &mut Vec<PathBuf>,
     files: &mut Vec<CachedFile>,
 ) {
-    let Ok(file_type) = entry.file_type().await else {
+    let Ok(ft) = entry.file_type().await else {
         return;
     };
-    if file_type.is_dir() {
+    if ft.is_dir() {
         stack.push(entry.path());
-        return;
+    } else if ft.is_file()
+        && let Ok(metadata) = entry.metadata().await
+    {
+        let (effective_time, age) = file_effective_time(&metadata);
+        files.push(CachedFile { path: entry.path(), size: metadata.len(), effective_time, age });
     }
-    if !file_type.is_file() {
-        return;
-    }
-    let Ok(metadata) = entry.metadata().await else {
-        return;
-    };
-    let (effective_time, age) = file_effective_time(&metadata);
-    files.push(CachedFile { path: entry.path(), size: metadata.len(), effective_time, age });
 }
 
 /// Recursively collect all regular files in an active namespace directory.
@@ -363,11 +375,7 @@ async fn prune_empty_dirs(cache_dir: &Path, active: &HashSet<String>) -> Result<
     for ns in active {
         let ns_root = cache_dir.join(ns);
         let mut dirs = collect_subdirs(ns_root).await;
-        dirs.sort_by(|a, b| {
-            b.as_os_str()
-                .len()
-                .cmp(&a.as_os_str().len())
-        });
+        dirs.sort_by_key(|d| std::cmp::Reverse(d.as_os_str().len()));
         for dir in dirs {
             let _ = fs::remove_dir(dir).await;
         }
@@ -383,11 +391,14 @@ fn file_effective_time(metadata: &std::fs::Metadata) -> (SystemTime, Duration) {
     (effective, age)
 }
 
+fn is_tmp_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.starts_with(".tmp"))
+}
+
 fn is_abandoned_tmp(path: &Path, age: Duration) -> bool {
-    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-        return false;
-    };
-    name.starts_with(".tmp") && age > Duration::from_hours(1)
+    is_tmp_file(path) && age > Duration::from_hours(1)
 }
 
 #[cfg(test)]

@@ -273,3 +273,32 @@ registries:
     assert!(!orphan_public.exists());
     assert!(private_ns.exists());
 }
+
+#[tokio::test]
+async fn in_flight_tmp_files_are_preserved_during_eviction() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let active_ns = active_cache_namespaces(&config)
+        .into_iter()
+        .find(|ns| ns.starts_with("~public"))
+        .unwrap();
+    let in_flight_tmp = tmp
+        .path()
+        .join(format!("{active_ns}/pkg/.tmp.download123"));
+    create_file_with_age(&in_flight_tmp, b"partial download", Duration::from_secs(10));
+    let expired_file = tmp
+        .path()
+        .join(format!("{active_ns}/pkg/old.tgz"));
+    create_file_with_age(&expired_file, b"old content", Duration::from_hours(2));
+
+    let options = CacheGcOptions {
+        dry_run: false,
+        max_size: Some(10),
+        max_age: Some(Duration::from_hours(1)),
+        orphans_only: false,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 1);
+    assert!(!expired_file.exists());
+    assert!(in_flight_tmp.exists());
+}
