@@ -204,6 +204,11 @@ async fn bearer_token_identity(
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, client_ip)
                 .map_err(axum::response::IntoResponse::into_response)?;
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let _ = state.inner.identity.auth.tokens.touch_key(parent, now).await;
             Ok(Some(Identity::user(record.username)))
         }
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
@@ -227,12 +232,7 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
         return Ok(None);
     }
     let owned = auth.users.password_hash(&record.username).await?.is_some();
-    if owned {
-        let _ = auth.tokens.touch_key(key, now).await;
-        Ok(Some(record))
-    } else {
-        Ok(None)
-    }
+    Ok(owned.then_some(record))
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
