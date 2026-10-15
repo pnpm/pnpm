@@ -8,11 +8,17 @@
 /// CPU count's: workers past it only queue inside the kernel. Cloning
 /// 40k files into 2k directories on a 12-core Mac ran at 12k files/s
 /// on 1 thread, 21k on 4, 8k on 8 and 5k on 16.
+///
+/// An Endpoint Security client, such as the security software on a
+/// managed Mac, inverts this: it adds latency to every call that only
+/// more calls in flight overlap. On one such Mac the same clone ran at
+/// 2k files/s on 1 to 4 threads and 9.5k on 16.
 #[cfg(target_os = "macos")]
 const MACOS_LINK_THREADS: usize = 4;
 
 /// The environment variable that overrides [`MACOS_LINK_THREADS`], for
-/// volumes whose limit differs from the measured one.
+/// Macs whose limit differs from it, such as ones running an Endpoint
+/// Security client.
 #[cfg(target_os = "macos")]
 const MACOS_LINK_THREADS_ENV: &str = "PNPM_MACOS_LINK_THREADS";
 

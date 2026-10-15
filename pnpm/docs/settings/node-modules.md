@@ -274,6 +274,23 @@ different filesystem from `node_modules` cannot be hardlinked from at all —
 the attempt fails with `EXDEV` — so `auto` already falls back to copying on
 its own.
 
+#### How many files macOS writes at once
+
+On macOS, pnpm writes package files into `node_modules` with 4 threads,
+whatever the number of CPU cores. APFS serializes the creation of files,
+directories and symlinks across the whole volume, so more threads only queue
+inside the kernel.
+
+Security software that monitors file operations through Endpoint Security, as
+on many company-managed Macs, reverses this. It slows every file operation,
+and only more operations in flight hide that delay. On such a Mac, installs
+can be 35-50% faster with more threads. Set the `PNPM_MACOS_LINK_THREADS`
+environment variable to a positive number to use that many threads:
+
+```sh
+PNPM_MACOS_LINK_THREADS=16 pnpm install
+```
+
 [nodeLinker]: #nodelinker
 
 ### modulesCacheMaxAge
