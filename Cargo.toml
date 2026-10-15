@@ -282,6 +282,7 @@ mockito = { version = "1.7.2" }
 tar = { path = "vendor/tar" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
+# See <https://github.com/pnpm/pnpm/pull/16951>.
 dashmap = { git = "https://github.com/pnpm/dashmap", rev = "4401b5c0b2626266dd5d5a9202677bca8b53e57a" }
 
 [workspace.metadata.workspaces]
