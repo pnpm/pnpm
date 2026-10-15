@@ -182,7 +182,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
             .headers()
             .get(header::VARY)
             .unwrap(),
-        "Authorization",
+        "Accept, Authorization",
     );
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     // `dist.tarball` is rewritten back onto the same `/~npmjs/` endpoint, so the

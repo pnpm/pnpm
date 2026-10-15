@@ -4,7 +4,7 @@ use super::{
     ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
     is_osv_vulnerable_packument_version, not_found, packument_bytes_response, packument_response,
     read_source_packument, registry_endpoint, resolve_version_or_tag, revision_source_registry,
-    serve_packument_via_upstream, serve_tarball_via_upstream, tarball_response, wants_abbreviated,
+    serve_packument_via_upstream, serve_tarball_via_upstream, tarball_response,
 };
 use axum::response::IntoResponse;
 
@@ -400,6 +400,7 @@ pub(super) async fn serve_hosted_packument(
         Ok(org) => org,
         Err(err) => return err.into_response(),
     };
+    let max_age = state.inner.config.http.packument_ttl.as_secs();
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
     match state.inner.storage.for_hosted(&org).read_hosted_document(name).await {
@@ -409,7 +410,8 @@ pub(super) async fn serve_hosted_packument(
             tarball_base,
             None,
             state.inner.osv_index.as_ref(),
-            wants_abbreviated(headers),
+            headers,
+            max_age,
         ) {
             Ok(response) => response,
             Err(err) => err.into_response(),

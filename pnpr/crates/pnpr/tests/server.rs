@@ -31,6 +31,9 @@ mod tarball_proxy;
 #[path = "server/packuments.rs"]
 mod packuments;
 
+#[path = "server/packument_caching.rs"]
+mod packument_caching;
+
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
 

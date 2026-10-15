@@ -3,7 +3,6 @@ use super::{
     HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response, Upstream,
     authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_read_namespace,
     not_found, packument_response, resolve_registry_source, timed, upstream_cache_namespace,
-    wants_abbreviated,
 };
 use axum::response::IntoResponse;
 use std::sync::Arc;
@@ -278,6 +277,10 @@ pub(super) async fn serve_packument_via_upstream(
     tarball_base: &str,
     revision_registry: Option<&str>,
 ) -> Response {
+    let ttl = match authorized_upstream(state, identity, upstream) {
+        Ok(upstream) => upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl),
+        Err(err) => return err.into_response(),
+    };
     let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
@@ -289,7 +292,8 @@ pub(super) async fn serve_packument_via_upstream(
         tarball_base,
         revision_registry,
         state.inner.osv_index.as_ref(),
-        wants_abbreviated(headers),
+        headers,
+        ttl.as_secs(),
     ) {
         Ok(response) => response,
         Err(err) => err.into_response(),
