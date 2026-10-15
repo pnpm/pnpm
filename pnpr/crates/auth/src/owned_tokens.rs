@@ -1,4 +1,4 @@
-use super::{Result, TokenBackend, TokenRecord, TokenStore, UserStore};
+use super::{NewToken, Result, TokenBackend, TokenRecord, TokenStore, UserStore};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -25,8 +25,20 @@ impl OwnedTokens {
 
 #[async_trait]
 impl TokenBackend for OwnedTokens {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
+        self.tokens.issue_token(username, new_token).await
+    }
+
     async fn issue(&self, username: &str) -> Result<String> {
         self.tokens.issue(username).await
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        self.tokens.touch_key(key, now).await
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {

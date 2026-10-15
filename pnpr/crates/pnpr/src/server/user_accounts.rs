@@ -1,11 +1,11 @@
 use super::{
     AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
-    StatusCode, TargetRegistry, UpsertOutcome, Value, header, iso_from_unix_millis, json,
-    json_response, not_found, private_no_cache, require_caller,
+    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, not_found,
+    private_no_cache, require_caller,
 };
 use axum::response::IntoResponse;
 
-pub(super) async fn get_whoami(
+pub(crate) async fn get_whoami(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(_): TargetRegistry,
 ) -> Response {
@@ -14,7 +14,7 @@ pub(super) async fn get_whoami(
 
 /// `PUT /-/user/org.couchdb.user:{name}` — adduser / login. Authenticates
 /// from the request body, not the caller's existing identity.
-pub(super) async fn put_login(
+pub(crate) async fn put_login(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
     client_ip: Option<axum::extract::Extension<super::ClientIp>>,
@@ -31,7 +31,7 @@ pub(super) async fn put_login(
     add_user(&state, ip_address, name, &body).await
 }
 
-fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
+pub(crate) fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
     state.inner.metrics.record_login_throttled();
     (
         StatusCode::TOO_MANY_REQUESTS,
@@ -47,37 +47,11 @@ fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
         .into_response()
 }
 
-pub(super) async fn delete_session_token(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(_): TargetRegistry,
-    Path(path): Path<TokenPath>,
-) -> Response {
-    private_no_cache(logout(&state, &identity, &path.token).await)
-}
-
-pub(super) async fn get_profile(
+pub(crate) async fn get_profile(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(_): TargetRegistry,
 ) -> Response {
     private_no_cache(serve_profile(&identity))
-}
-
-pub(super) async fn get_token_list(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(_): TargetRegistry,
-) -> Response {
-    private_no_cache(list_tokens(&state, &identity).await)
-}
-
-pub(super) async fn delete_token_by_key(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(_): TargetRegistry,
-    Path(path): Path<TokenKeyPath>,
-) -> Response {
-    private_no_cache(revoke_token_by_key(&state, &identity, &path.key).await)
 }
 
 /// The account routes capture their own parameter alongside the optional
@@ -87,16 +61,6 @@ pub(super) async fn delete_token_by_key(
 #[derive(Deserialize)]
 pub(super) struct UserPath {
     pub(super) user: String,
-}
-
-#[derive(Deserialize)]
-pub(super) struct TokenPath {
-    pub(super) token: String,
-}
-
-#[derive(Deserialize)]
-pub(super) struct TokenKeyPath {
-    pub(super) key: String,
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's
@@ -296,128 +260,4 @@ pub(super) fn serve_profile(identity: &Identity) -> Response {
             "cidr_whitelist": null,
         }),
     )
-}
-
-/// `GET /-/npm/v1/tokens` — list every bearer token issued to the
-/// authenticated caller. Returns the npm-CLI-compatible wrapper
-/// (`{ objects, urls }`) so `npm token list` parses it cleanly. The
-/// raw token itself is never persisted; the `token` field surfaces
-/// the leading 6 hex characters of the key as a preview, matching
-/// what verdaccio does when it can't reconstruct the original.
-pub(super) async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
-    let username = match require_caller(identity, "token list") {
-        Ok(username) => username,
-        Err(err) => return err.into_response(),
-    };
-    let tokens = match state.inner.identity.auth.tokens.list_for_user(&username).await {
-        Ok(tokens) => tokens,
-        Err(err) => return err.into_response(),
-    };
-    let objects: Vec<Value> = tokens
-        .into_iter()
-        .map(|(key, record)| token_response_object(&key, &record))
-        .collect();
-    json_response(StatusCode::OK, &json!({ "objects": objects, "urls": {} }))
-}
-
-/// `DELETE /-/npm/v1/tokens/token/:key` — revoke a token by its
-/// listing-side key. The caller must be the owner of the token
-/// (anonymous is 401, a different authenticated user is 403); an
-/// unknown key returns 404. `npm token revoke` calls this with the
-/// `key` it pulled from [`list_tokens`].
-pub(super) async fn revoke_token_by_key(
-    state: &AppState,
-    identity: &Identity,
-    key: &str,
-) -> Response {
-    let username = match require_caller(identity, "token revocation") {
-        Ok(username) => username,
-        Err(err) => return err.into_response(),
-    };
-    match state.inner.identity.auth.tokens.find_by_key(key).await {
-        Ok(Some(record)) if record.username != username => RegistryError::Forbidden {
-            user: username,
-            action: "revoke",
-            resource: "this token".to_string(),
-        }
-        .into_response(),
-        Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
-            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
-            Ok(None) => not_found(),
-            Err(err) => err.into_response(),
-        },
-        Ok(None) => not_found(),
-        Err(err) => err.into_response(),
-    }
-}
-
-/// `DELETE /-/user/token/:tok` — npm logout. The path holds the raw
-/// bearer token (npm sends it verbatim alongside an
-/// `Authorization: Bearer <tok>` header). We require authentication
-/// and require that the auth identifies the same user who owns the
-/// token being deleted.
-pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
-    let username = match require_caller(identity, "logout") {
-        Ok(username) => username,
-        Err(err) => return err.into_response(),
-    };
-    match state.inner.identity.oidc.session(raw_token) {
-        Ok(Some(owner)) if owner.username == username => {
-            state.inner.identity.oidc.revoke_session(raw_token);
-            return json_response(StatusCode::OK, &json!({ "ok": true }));
-        }
-        Ok(Some(_)) => {
-            return RegistryError::Forbidden {
-                user: username,
-                action: "revoke",
-                resource: "this session".to_string(),
-            }
-            .into_response();
-        }
-        Err(err) => return err.into_response(),
-        Ok(None) => {}
-    }
-    let target_owner = match state.inner.identity.auth.tokens.lookup(raw_token).await {
-        Ok(Some(owner)) => owner,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    if target_owner != username {
-        return RegistryError::Forbidden {
-            user: username,
-            action: "revoke",
-            resource: "this token".to_string(),
-        }
-        .into_response();
-    }
-    match state.inner.identity.auth.tokens.revoke_by_raw(raw_token).await {
-        Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": true })),
-        Ok(None) => not_found(),
-        Err(err) => err.into_response(),
-    }
-}
-
-pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {
-    let preview: String = key.chars().take(6).collect();
-    let created = token_timestamp_iso(record.created_at);
-    let updated = token_timestamp_iso(record.last_used_at);
-    json!({
-        "key": key,
-        "token": preview,
-        "user": record.username,
-        "cidr_whitelist": record.cidr_whitelist,
-        "readonly": record.readonly,
-        "created": created,
-        "updated": updated,
-    })
-}
-
-pub(super) fn token_timestamp_iso(seconds: u64) -> String {
-    iso_from_unix_millis(token_timestamp_millis(seconds))
-}
-
-pub(super) fn token_timestamp_millis(seconds: u64) -> i64 {
-    const MILLIS_PER_SECOND: u64 = 1000;
-    let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
-    (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
 }

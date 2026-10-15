@@ -1,7 +1,8 @@
 use super::{
-    super::{MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
+    super::{TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
+use crate::validation::MAX_USERNAME_CHARS;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
@@ -56,10 +57,6 @@ impl AuthSqlBackend for CanonicalBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -112,12 +109,8 @@ impl AuthSqlBackend for SlowLookupBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        tokio::time::sleep(Duration::from_mins(1)).await;
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+        tokio::time::sleep(Duration::from_mins(1)).await;
         Ok(None)
     }
 
@@ -168,10 +161,6 @@ impl AuthSqlBackend for SlowWriteBackend {
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(20)).await;
         Ok(())
-    }
-
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
     }
 
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
@@ -228,10 +217,6 @@ impl AuthSqlBackend for CountingLookupBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -283,10 +268,6 @@ impl AuthSqlBackend for CappedBackend {
 
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
         Ok(())
-    }
-
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
     }
 
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {

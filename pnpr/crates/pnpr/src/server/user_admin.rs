@@ -4,7 +4,7 @@
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, json,
     json_response, private_no_cache, require_admin, team_mutations::respond,
-    user_accounts::token_response_object,
+    tokens::token_response_object,
 };
 use axum::{
     Router,

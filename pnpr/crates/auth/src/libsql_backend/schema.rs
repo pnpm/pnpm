@@ -22,6 +22,8 @@ pub(super) async fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute(super::super::USERS_TABLE_SQL, ()).await?;
     conn.execute(super::super::token_store::TOKENS_TABLE_SQL, ()).await?;
     conn.execute(super::super::token_store::TOKENS_INDEX_SQL, ()).await?;
+    let _ = conn.execute("ALTER TABLE tokens ADD COLUMN name VARCHAR(255)", ()).await;
+    let _ = conn.execute("ALTER TABLE tokens ADD COLUMN expires_at BIGINT", ()).await;
     conn.execute(super::super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
     ensure_user_counter(conn).await
 }

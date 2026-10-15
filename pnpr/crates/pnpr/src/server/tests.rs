@@ -2,7 +2,7 @@ use super::{
     revision_tarballs::{
         HostedRevisionDist, HostedRevisionRecord, RevisionField, original_integrity,
     },
-    user_accounts::token_timestamp_millis,
+    tokens::token_timestamp_millis,
 };
 mod compiler_cache;
 mod observability;
@@ -11,10 +11,8 @@ mod web_ui;
 
 use super::{
     PeerAddr,
-    authentication::{
-        bearer_credentials, cidr_contains, cidr_whitelist_allows, is_write_request,
-        token_credentials,
-    },
+    authentication::{bearer_credentials, token_credentials},
+    restrictions::{cidr_contains, cidr_whitelist_allows, is_write_request},
     router_with_auth, tilde_registry,
 };
 use async_trait::async_trait;
@@ -264,6 +262,8 @@ pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
             .iter()
             .map(|entry| (*entry).to_string())
             .collect(),
+        name: None,
+        expires_at: None,
     }
 }
 
@@ -277,6 +277,14 @@ struct OneToken {
 
 #[async_trait]
 impl TokenBackend for OneToken {
+    async fn issue_token(
+        &self,
+        _username: &str,
+        _new_token: pnpr_auth::NewToken,
+    ) -> Result<(String, TokenRecord)> {
+        Err(RegistryError::Internal { reason: "OneToken cannot issue tokens".to_string() })
+    }
+
     async fn issue(&self, _username: &str) -> Result<String> {
         // The restriction tests never issue tokens; surface a clear error
         // rather than a panic if that assumption ever breaks.
@@ -436,11 +444,15 @@ async fn team_tokens_reach_package_authorization() {
 async fn readonly_token_is_refused_for_writes() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "ro", record(true, &[]));
-    // Publish (PUT) and unpublish (DELETE) are rejected before the
-    // handler ever reads the body.
+    // Publish (PUT), unpublish (DELETE), and token creation (POST) are rejected
+    // before the handler ever reads the body.
     assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN);
     assert_eq!(
-        status(app, signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
+        status(app.clone(), signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        status(app, signed(Method::POST, "/-/npm/v1/tokens", "ro")).await,
         StatusCode::FORBIDDEN,
     );
 }
@@ -451,7 +463,16 @@ async fn readonly_token_still_reads() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // A GET is not a write, so the read-only gate lets it through; the
     // package simply isn't published, so it 404s rather than 403s.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status(app.clone(), signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
+    // Audit endpoints are read-only queries despite using HTTP POST.
+    assert_ne!(
+        status(app.clone(), signed(Method::POST, "/-/npm/v1/security/advisories/bulk", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+    assert_ne!(
+        status(app, signed(Method::POST, "/~npmjs/-/npm/v1/security/advisories/bulk", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
 }
 
 #[tokio::test]

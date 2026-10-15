@@ -37,4 +37,5 @@ mod server;
 mod staged_publish;
 mod team_administration;
 mod team_package_access;
+mod token_management;
 mod user_administration;

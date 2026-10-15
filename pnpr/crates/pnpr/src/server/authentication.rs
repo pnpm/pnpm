@@ -12,7 +12,10 @@ use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
 
-use super::{AppState, PeerAddr, RegistrySource, single_authorization_header};
+use super::{
+    AppState, PeerAddr, RegistrySource, restrictions::check_token_restrictions,
+    single_authorization_header,
+};
 
 /// What the caller is trying to do with a package. Drives which
 /// rule from the access policy applies.
@@ -250,6 +253,10 @@ async fn resolve_caller(
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            let _ = state.inner.identity.auth.tokens.touch(&raw_token, now).await;
             return Ok(Identity::user(record.username));
         }
     }
@@ -286,36 +293,6 @@ pub(super) fn token_credentials(header_value: &str) -> Option<String> {
     let decoded = String::from_utf8(decoded).ok()?;
     let (_, password) = decoded.split_once(':')?;
     (!password.is_empty()).then(|| password.to_string())
-}
-
-/// Enforce a bearer token's own restrictions. A read-only token may not
-/// drive a mutating request; a CIDR-pinned token may only be used from a
-/// whitelisted peer (and is refused when the peer address is unavailable,
-/// so the check fails closed).
-fn check_token_restrictions(
-    record: &TokenRecord,
-    method: &Method,
-    path: &str,
-    client_ip: Option<IpAddr>,
-) -> Result<(), RegistryError> {
-    if record.readonly && is_write_request(method, path) {
-        return Err(RegistryError::Forbidden {
-            user: record.username.clone(),
-            action: "write with",
-            resource: "a read-only token".to_string(),
-        });
-    }
-    if !record.cidr_whitelist.is_empty() {
-        let allowed = client_ip.is_some_and(|ip| cidr_whitelist_allows(&record.cidr_whitelist, ip));
-        if !allowed {
-            return Err(RegistryError::Forbidden {
-                user: record.username.clone(),
-                action: "use",
-                resource: "this token from your network address".to_string(),
-            });
-        }
-    }
-    Ok(())
 }
 
 /// The `packages:` rules of the concrete registry a request resolved to.
@@ -382,59 +359,4 @@ pub(super) fn authorize(
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
-}
-
-/// Whether a request mutates registry state. A read-only token is
-/// confined to non-mutating requests.
-///
-/// This uses an allowlist for reads: `GET`, `HEAD`, and `OPTIONS` are
-/// non-mutating. Safe read `POST` endpoints (resolver queries, lockfile
-/// verification, artifact resolution/blob queries, and OIDC handoffs) are
-/// non-mutating. Every other method or unlisted `POST` is considered a write.
-pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
-    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
-        return false;
-    }
-    if method.as_str() == "PROPFIND" && path.starts_with("/-/pnpr/v0/compiler-cache/") {
-        return false;
-    }
-    if *method == Method::POST && is_read_only_post_path(path) {
-        return false;
-    }
-    true
-}
-
-fn is_read_only_post_path(path: &str) -> bool {
-    let path = path.trim_end_matches('/');
-    matches!(
-        path,
-        "/-/pnpr/v0/resolve"
-            | "/-/pnpr/v1/resolve"
-            | "/-/pnpr/v0/verify-lockfile"
-            | "/-/pnpr/v1/verify-lockfile"
-            | "/-/pnpr/v0/artifacts/resolve"
-            | "/-/pnpr/v1/artifacts/resolve"
-            | "/-/pnpr/v0/shared-artifacts/resolve"
-            | "/-/pnpr/v1/shared-artifacts/resolve"
-            | "/-/pnpr/v0/artifacts/blob"
-            | "/-/pnpr/v1/artifacts/blob"
-            | "/-/pnpr/v0/shared-artifacts/blob"
-            | "/-/pnpr/v1/shared-artifacts/blob"
-            | "/-/oidc/handoff",
-    )
-}
-
-/// Whether `client_ip` falls inside any range of a token's CIDR whitelist.
-pub(super) fn cidr_whitelist_allows(whitelist: &[String], client_ip: IpAddr) -> bool {
-    whitelist.iter().any(|entry| cidr_contains(entry, client_ip))
-}
-
-/// Whether `client_ip` is inside one `addr/prefix` (or bare `addr`) whitelist
-/// entry. A bare address matches only itself; a malformed entry (bad
-/// address, or a non-numeric / out-of-range prefix) matches nothing, so
-/// the restriction fails closed rather than open.
-pub(super) fn cidr_contains(entry: &str, client_ip: IpAddr) -> bool {
-    pnpr_config::IpNetwork::parse(entry.trim())
-        .ok()
-        .is_some_and(|net| net.contains(client_ip))
 }

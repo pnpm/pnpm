@@ -22,7 +22,7 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
         .flat_map(|login| &login.users)
         .chain(config.workloads.iter().map(|workload| &workload.identity))
     {
-        super::super::validate_username(&binding.username)
+        crate::validation::validate_username(&binding.username)
             .map_err(|_| invalid_config("invalid OIDC username"))?;
         if binding.subject.is_empty() || !subjects.insert(&binding.subject) {
             return Err(invalid_config(
