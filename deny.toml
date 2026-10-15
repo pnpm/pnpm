@@ -228,7 +228,7 @@ skip-tree = []
 unknown-registry = "warn"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/pnpm/node-semver-rs"]
+allow-git = ["https://github.com/pnpm/node-semver-rs", "https://github.com/pnpm/dashmap"]
 
 [sources.allow-org]
 github = []

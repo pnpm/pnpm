@@ -114,6 +114,9 @@ home = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
+# Without it a contended shard lock panics on wasm instead of parking.
+# See <https://github.com/pnpm/pnpm/pull/16951>.
+dashmap = { workspace = true, features = ["nightly"] }
 pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
