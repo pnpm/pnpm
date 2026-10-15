@@ -47,7 +47,7 @@ impl WorkspaceSettings {
         registries::validate(entries)
     }
 
-    fn validate_no_proxy(&self) -> Result<(), LoadWorkspaceYamlError> {
+    pub(super) fn validate_no_proxy(&self) -> Result<(), LoadWorkspaceYamlError> {
         let received_type = match self.no_proxy.as_ref() {
             None
             | Some(
