@@ -744,7 +744,7 @@ Audit events record the `action`, the `actor` (authenticated username, bearer to
   - `team.destroy`: deleting a team (`actor`, `scope`, `team`).
   - `team.member_add`: adding a user to a team (`actor`, `scope`, `team`, `user`).
   - `team.member_remove`: removing a user from a team (`actor`, `scope`, `team`, `user`).
-  - `team.access_grant`: granting package permissions to a team (`actor`, `scope`, `team`, `package`, `permission`).
+  - `team.access_grant`: granting package permissions to a team (`actor`, `scope`, `team`, `package`, `permissions`).
   - `team.access_revoke`: revoking package permissions from a team (`actor`, `scope`, `team`, `package`).
 - **SCIM provisioning**:
   - `scim.user_create`: provisioning a SCIM user (`actor`, `user`, `active`).
