@@ -1,10 +1,10 @@
 use super::{MockInstance, MockInstanceOptions};
 use crate::{pick_port::pick_unused_port, process_kill::kill_process_by_pid};
 use reqwest::{Client, Proxy};
-use std::{ffi::OsStr, process};
-use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System, UpdateKind};
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 use tokio::{
     net::{TcpListener, TcpStream},
+    sync::oneshot,
     task::JoinHandle,
     time::{Duration, Instant, sleep, timeout},
 };
@@ -22,10 +22,7 @@ fn options(client: &Client, port: u16) -> MockInstanceOptions<'_> {
 }
 
 fn processes() -> System {
-    System::new_with_specifics(
-        RefreshKind::nothing()
-            .with_processes(ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always)),
-    )
+    System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing()))
 }
 
 /// How long [`ChildCleanup::assert_reaped`] waits for the process table to
@@ -74,24 +71,14 @@ async fn pending_startup() -> (JoinHandle<MockInstance>, TcpStream, ChildCleanup
         .build()
         .unwrap();
     let port = pick_unused_port().unwrap();
-    let startup = tokio::spawn(async move { options(&client, port).spawn().await });
+    let (pid_tx, pid_rx) = oneshot::channel();
+    let startup =
+        tokio::spawn(async move { options(&client, port).spawn_recording_pid(Some(pid_tx)).await });
     let (connection, _) = timeout(Duration::from_secs(10), proxy.accept()).await
         .expect("startup must reach its readiness request")
         .unwrap();
-    let system = processes();
-    let address = format!("127.0.0.1:{port}");
-    let child = system
-        .processes()
-        .values()
-        .find(|child| {
-            child.parent() == Some(Pid::from_u32(process::id()))
-                && child
-                    .cmd()
-                    .iter()
-                    .any(|arg| arg == OsStr::new(&address))
-        })
-        .expect("startup must have a live registry child");
-    (startup, connection, ChildCleanup(Some(child.pid())))
+    let child_pid = pid_rx.await.expect("startup must have a live registry child");
+    (startup, connection, ChildCleanup(Some(Pid::from_u32(child_pid))))
 }
 
 #[tokio::test]

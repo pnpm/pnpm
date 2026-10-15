@@ -3,8 +3,8 @@
 //! Resolution reads two things about a project: which versions of a
 //! distribution an index offers ([`candidates_from_page`]), and what each
 //! of those versions requires ([`WheelMetadata`]). Both are gathered by
-//! the caller — the pnpm CLI downloads a wheel and asks the interpreter,
-//! a pnpr server reads the index's own metadata files — and handed to
+//! the caller, from the index's own metadata files or out of the wheel
+//! when an index publishes none, and handed to
 //! [`step`], which runs one pubgrub pass and either solves the project or
 //! names the one thing it still needs.
 //!
@@ -24,7 +24,7 @@ pub use lockfile::{
     Inputs, LockedDirectory, LockedPackage, LockedSdist, LockedVcs, LockedWheel, Lockfile,
     Metadata, Solved, Target, ToolMetadata, environment_marker,
 };
-pub use metadata::WheelMetadata;
+pub use metadata::{WheelMetadata, matches_published_digest, metadata_url};
 pub use packages::{
     Candidate, Excluded, IndexCandidate, NAMED_RELEASES, Offered, Packages, Releases,
 };

@@ -7,8 +7,11 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
 use std::{
     fs,
+    io::{self, BufRead as _, BufReader},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Child, Command, ExitStatus, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
@@ -40,13 +43,10 @@ fn agent_checkout(root: &Path) -> PathBuf {
     state_dir.join("checkout").join("demo")
 }
 
-#[test]
-fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
-    let root = tempfile::Builder::new()
-        .prefix("pacquet-test-")
-        .tempdir()
-        .expect("create temporary directory");
-    let fixture = GitRepoFixture::init(root.path(), "demo");
+/// A `demo` repository whose `main` has one commit with a passing build,
+/// and the hash of that commit.
+fn init_demo_repo(root: &Path) -> (GitRepoFixture, String) {
+    let fixture = GitRepoFixture::init(root, "demo");
     fixture.write_file(".gitignore", "node_modules\nout\n");
     fixture.write_file(
         "pnpm-workspace.yaml",
@@ -60,14 +60,24 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     // The lockfile the checkout's frozen install verifies against.
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
-        .with_current_dir(root.path().join("demo-src"))
+        .with_current_dir(root.join("demo-src"))
         .without_ambient_pnpm_config()
-        .with_env("XDG_CACHE_HOME", root.path().join("xdg-cache"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("XDG_CACHE_HOME", root.join("xdg-cache"))
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
         .with_args(["install"])
         .assert()
         .success();
     let first = fixture.commit("one");
+    (fixture, first)
+}
+
+#[test]
+fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
+    let root = tempfile::Builder::new()
+        .prefix("pacquet-test-")
+        .tempdir()
+        .expect("create temporary directory");
+    let (fixture, first) = init_demo_repo(root.path());
     let repo = root.path().join("demo.git");
     let repo = repo.to_string_lossy();
 
@@ -126,4 +136,71 @@ fn watch_agent_refuses_a_zero_poll_interval() {
         .failure();
     let error = String::from_utf8_lossy(&result.get_output().stderr);
     assert!(error.contains("0 is not in 1.."), "{error}");
+}
+
+/// Spawn a watch agent polling every second that writes to `stdout`.
+fn spawn_agent(root: &Path, repo: &str, stdout: Stdio) -> Child {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root)
+        .without_ambient_pnpm_config()
+        .with_env("XDG_CACHE_HOME", root.join("xdg-cache"))
+        .with_env("XDG_STATE_HOME", root.join("xdg-state"))
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .with_args(["pipeline", "--watch", "--repo", repo, "--branch", "main", "--interval", "1"])
+        .with_stdout(stdout)
+        .spawn()
+        .expect("spawn the watch agent")
+}
+
+fn wait_for_agent_to_stop(mut agent: Child) -> ExitStatus {
+    let deadline = Instant::now() + Duration::from_mins(1);
+    loop {
+        if let Some(status) = agent.try_wait().expect("poll the watch agent") {
+            return status;
+        }
+        if Instant::now() > deadline {
+            agent.kill().expect("kill the watch agent");
+            panic!("the watch agent kept running after its stdout reader closed");
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// `pnpm pipeline --watch | head -0` must not leave the agent polling
+/// for a reader that is gone (pnpm/tasks#132).
+#[test]
+fn watch_agent_stops_when_stdout_is_closed_at_startup() {
+    let root = tempfile::Builder::new()
+        .prefix("pacquet-test-")
+        .tempdir()
+        .expect("create temporary directory");
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let agent = spawn_agent(root.path(), "unused", Stdio::from(stdout_writer));
+    assert_eq!(wait_for_agent_to_stop(agent).code(), Some(0));
+}
+
+/// `pnpm pipeline --watch | head -1` reads the startup line and leaves;
+/// the agent stops at the next tick that writes.
+#[test]
+fn watch_agent_stops_when_stdout_closes_between_ticks() {
+    let root = tempfile::Builder::new()
+        .prefix("pacquet-test-")
+        .tempdir()
+        .expect("create temporary directory");
+    init_demo_repo(root.path());
+    let repo = root.path().join("demo.git");
+    let repo = repo.to_string_lossy();
+    // Build the revision first, so every tick of the watch is a quick
+    // "up to date".
+    agent_tick(root.path(), &repo).success();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+
+    let agent = spawn_agent(root.path(), &repo, Stdio::from(stdout_writer));
+    let mut startup_line = String::new();
+    BufReader::new(stdout_reader).read_line(&mut startup_line).expect("read the startup line");
+    assert!(startup_line.starts_with("Watching "), "{startup_line}");
+    assert_eq!(wait_for_agent_to_stop(agent).code(), Some(0));
 }

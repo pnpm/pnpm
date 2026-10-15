@@ -30,8 +30,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,

@@ -16,6 +16,7 @@ import {
   detectNamedRegistryCollision,
   detectRegistryRevisionConflict,
   getResolvedPackage,
+  peerDependenciesWithoutOwn,
   pkgIsLeaf,
 } from './resolvedPackage.js'
 
@@ -63,7 +64,9 @@ export function addResolvedPackageToGraph (request: DependencyRequest, resolved:
     addNewResolvedPackage(request, resolved, parentIsInstallable)
   } else {
     mergeIntoResolvedPackage(request, pkgResponse)
-    if (!childrenResolution.isOwner) {
+    if (childrenResolution.isOwner) {
+      installOwnerPeerDependencies(request, resolved)
+    } else {
       placeNodeOfResolvedPackage(request, resolved, node)
     }
   }
@@ -102,6 +105,17 @@ function addNewResolvedPackage (
     parentImporterId: options.parentIds[0],
     optional: wantedDependency.optional || options.parentPkg.optional,
   })
+}
+
+/**
+ * Splits the package into children and peers the way its children owner
+ * reads it. Which dependencies the package's own peers shadow depends on the
+ * parent scope, so a package first recorded by one occurrence and owned by
+ * another must take its peers from the owner. Otherwise a dependency that is
+ * also an optional peer can end up as neither.
+ */
+function installOwnerPeerDependencies ({ ctx }: DependencyRequest, { pkg, pkgResponse }: ResolvedPackageSource): void {
+  ctx.resolvedPkgsById[pkgResponse.body.id].peerDependencies = peerDependenciesWithoutOwn(pkg)
 }
 
 // Report deprecated packages only on first occurrence.

@@ -4,9 +4,10 @@ mod argv_scan;
 mod reporter_flags;
 
 use super::{
-    ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
-    InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
-    PathBuf, ReporterFlags, pre_command_emit, resolve_bool_override,
+    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation,
+    ConfigSubcommand, InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString,
+    PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf, ReporterFlags, pre_command_emit,
+    resolve_bool_override,
 };
 
 pub(super) struct PreCommandInput {
@@ -288,6 +289,9 @@ pub(super) struct SwitchInput {
     /// no `pnpm-workspace.yaml` is read at all and the `packageManager`
     /// pin comes from the project's own `package.json`.
     pub(super) ignore_workspace: bool,
+    /// The registry and proxy flags. The pinned pnpm is resolved and
+    /// downloaded through them, as every other package is.
+    pub(super) network: CliNetworkArgs,
 }
 
 impl SwitchInput {
@@ -306,6 +310,7 @@ impl SwitchInput {
                 args.output.presentation.no_color.then_some(ColorMode::Never)
             }),
             ignore_workspace: args.paths.ignore_workspace,
+            network: args.network.clone(),
         }
     }
 
@@ -335,7 +340,30 @@ impl SwitchInput {
             self.ignore_workspace = set;
             return 1;
         }
+        if let Some(width) = self.absorb_network_flag(token, next) {
+            return width;
+        }
         if consumes_next_token(token, global_options) { 2 } else { 1 }
+    }
+}
+
+impl SwitchInput {
+    /// Read one of [`CliNetworkArgs`], returning how many argv tokens it
+    /// consumed, or `None` when the token names none of them.
+    fn absorb_network_flag(&mut self, token: &str, next: Option<&OsStr>) -> Option<usize> {
+        let network = &mut self.network;
+        for (option, slot) in [
+            ("registry", &mut network.registry),
+            ("https-proxy", &mut network.https_proxy),
+            ("http-proxy", &mut network.http_proxy),
+            ("no-proxy", &mut network.no_proxy),
+        ] {
+            if let Some((value, width)) = long_value(token, option, next) {
+                *slot = Some(value.to_string_lossy().into_owned());
+                return Some(width);
+            }
+        }
+        None
     }
 }
 

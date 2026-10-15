@@ -187,3 +187,28 @@ fn oci_gc_requires_a_registry_and_parses_maintenance_options() {
         matches!(args.command, Some(super::Command::OciGc { registry, dry_run: true, min_age_secs: 0 }) if registry == "images"),
     );
 }
+
+#[test]
+fn cache_gc_parses_maintenance_options() {
+    let _env = scrubbed_env();
+    let args = Args::try_parse_from([
+        "pnpr",
+        "cache-gc",
+        "--dry-run",
+        "--max-size",
+        "10GB",
+        "--max-age-secs",
+        "3600",
+        "--orphans-only",
+    ])
+    .unwrap();
+    assert!(matches!(
+        args.command,
+        Some(super::Command::CacheGc {
+            dry_run: true,
+            max_size: Some(ref size),
+            max_age_secs: Some(3600),
+            orphans_only: true,
+        }) if size == "10GB"
+    ));
+}

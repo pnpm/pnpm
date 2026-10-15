@@ -262,7 +262,7 @@ fn updatable_global_packages(
         scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
     if scanned.is_empty() {
         if !rust_updated {
-            println!("No global packages found");
+            pnpm_diagnostics::println!("No global packages found");
         }
         return Ok(None);
     }
@@ -275,7 +275,9 @@ fn updatable_global_packages(
         .filter(|pkg| !has_pnpm_cli_dependency(pkg))
         .collect();
     if all.is_empty() {
-        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
+        pnpm_diagnostics::println!(
+            r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#,
+        );
         return Ok(None);
     }
     Ok(Some(all))

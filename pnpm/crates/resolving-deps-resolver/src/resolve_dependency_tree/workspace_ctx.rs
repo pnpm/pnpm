@@ -5,9 +5,10 @@
 
 pub(super) use children_ownership::{
     ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
-    RecordedChildrenContext, claim_children_owner, claim_children_warmup, insert_tree_node,
-    is_current_children_owner, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names,
+    RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
+    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, pinned_children_scope,
+    record_children, recorded_children_match, register_peer_dep_names,
+    register_shadowable_dep_names,
 };
 
 pub(super) use cache_keys::{
@@ -44,6 +45,7 @@ use std::{
 
 use crate::{
     node_id::NodeId,
+    parent_pkg_aliases::ParentPkgAliases,
     resolve_peers::MissingNames,
     resolved_tree::{
         AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
@@ -136,6 +138,11 @@ pub(crate) struct WorkspaceChildrenState {
     /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
     warmed_by_id: Mutex<HashSet<Arc<str>>>,
     pub(super) by_id: Mutex<HashMap<Arc<str>, RecordedChildren>>,
+    /// Every name a seeded package lists both in `dependencies` and in
+    /// `peerDependencies`. Only these names can change which children a
+    /// walk resolves under a different scope; see
+    /// [`RecordedChildrenContext::produces_same_children_as`].
+    shadowable_dep_names: Mutex<HashSet<String>>,
     owner_by_id: Mutex<HashMap<Arc<str>, ChildrenOwnerEntry>>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
@@ -383,10 +390,8 @@ pub(super) struct RunVersionsCache {
 /// [`WorkspaceTreeCtx::sync_discovery_tree`] can refresh a view by
 /// visiting the writes instead of rescanning every map.
 ///
-/// Only keys are recorded, never values: the sync reads each key's
-/// current value, so a key logged several times, or logged by
-/// concurrently-walking importers in either order, converges on the
-/// same view.
+/// Keys only: the sync reads each key's current value, so logging one
+/// twice, or in either order, converges on the same view.
 #[derive(Default)]
 struct SyncLog {
     packages: Vec<String>,

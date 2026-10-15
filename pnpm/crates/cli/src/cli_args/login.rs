@@ -39,7 +39,7 @@ pub enum LoginCliError {
 impl LoginArgs {
     pub async fn run<Reporter: self::Reporter>(self, config: &Config) -> miette::Result<()> {
         let message = self.execute::<AuthHost, Reporter>(config).await?;
-        println!("{message}");
+        pnpm_diagnostics::println!("{message}");
         Ok(())
     }
 

@@ -312,7 +312,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -325,7 +325,7 @@ async fn missing_max_users_disables_registration_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let body = body_bytes(response.into_body()).await;
     assert!(
         !body

@@ -56,8 +56,22 @@ pnpr keeps two kinds of data:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
+
+# Path string:
 #cache: ./cache
+
+# Or settings table with budget and retention policies:
+#cache:
+#  path: ./cache     # defaults to .pnpr-cache in storage
+#  maxSize: 20GB     # enforces LRU eviction when total size exceeds this
+#  maxAge: 30d       # TTL deletion of cached entries older than this
 ```
+
+When `maxSize` or `maxAge` is configured, pnpr evicts stale entries on startup
+and runs periodic eviction in the background. On startup, pnpr also prunes
+orphaned private upstream namespaces left behind by previous process runs using
+ephemeral per-process secrets. Use [`pnpr cache-gc`](cli.md#cache-gc) for
+on-demand or offline reclamation.
 
 The hosted store can instead live in an S3-compatible object store — see
 [Storage backends](storage.md).
@@ -96,7 +110,7 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 Since v0.1.0-alpha.11, a registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
 A server that serves more than one addresses them through `/npm/`, `/cargo/`,
-and `/pypi/` path prefixes, and registry names can be reused across ecosystems
+`/pypi/`, and `/oci/` path prefixes, and registry names can be reused across ecosystems
 by grouping the entries under an ecosystem key. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
@@ -280,7 +294,7 @@ registry, and is enforced there on every path.
 
 Because source order is load-bearing — a misordered router is the one way a
 mistake could send a private scope to a public origin — pnpr **refuses to
-start** (and fails a config reload) on an invalid router:
+start** on an invalid router:
 
 - a source that is unreachable — everything it claims is already covered by
   earlier sources (including a catch-all that isn't last);
@@ -428,6 +442,64 @@ cors:
   allowedOrigins:
     - https://registry-ui.example.com
 ```
+
+## `trustedProxies`
+
+A list of reverse proxy IP addresses or CIDR blocks trusted to forward client IP
+addresses in request forwarding headers.
+
+When configured, pnpr evaluates the trusted forwarding header only if the direct socket
+peer matches one of the trusted entries. In multi-hop proxy chains, hops are traversed
+from right to left, stopping at the first untrusted IP (the real client).
+The resolved client IP is recorded on the `pnpr::access` log span and enforced for
+CIDR-restricted bearer tokens. When omitted or empty, forwarding headers are ignored
+and the socket peer IP is used directly.
+
+Supports exact IPs, CIDR notation (IPv4 and IPv6), and the `"loopback"` keyword.
+Accepts `trustedProxies` (camelCase) or `trusted_proxies` (snake_case).
+
+## `trustedProxyHeader`
+
+The specific request header to inspect when behind a trusted proxy:
+- `x-forwarded-for` (default): standard comma-separated hops.
+- `forwarded`: RFC 7239 `for=...` parameters.
+- `x-real-ip`: single client IP header.
+
+To prevent client spoofing, pnpr only inspects the configured header and does not
+fall back to other headers.
+
+```yaml title="pnpr.yaml"
+trustedProxies:
+  - loopback
+  - 10.0.0.0/8
+  - 192.168.1.100
+trustedProxyHeader: x-forwarded-for
+```
+
+## `requestTimeout`
+
+The maximum duration that pnpr allows for handling an incoming HTTP request and constructing the response before cancelling it and returning `504 Gateway Timeout`.
+
+Defaults to `60s`. Set to `0` to disable timeouts.
+
+This timeout bounds request processing, authentication, and response generation. Once response headers are sent and streaming of the response body begins (such as for package tarballs or artifact blobs), active body transfers proceed without being interrupted by the timeout.
+
+Accepts `requestTimeout` (camelCase) or `request_timeout` (snake_case).
+Can be specified as an integer number of seconds (e.g. `30`) or with a duration suffix (e.g. `30s`, `1m`).
+
+```yaml title="pnpr.yaml"
+requestTimeout: 60s
+```
+
+## Security limits and protections
+
+pnpr includes built-in protections against denial-of-service and brute-force attacks:
+
+- **Pre-buffer authorization**: Package publish and modification endpoints (`PUT /{pkg}`, `PUT /@{scope}/{pkg}`, `PUT /{pkg}/-rev/{rev}`) check caller authentication and write permissions before reading or buffering request payloads (up to 100 MiB). Unauthorized or unauthenticated requests are rejected immediately with `401 Unauthorized` or `403 Forbidden` without consuming server memory or network bandwidth.
+- **Login rate limiting**: Login attempts (`PUT /-/user/org.couchdb.user:...`) are rate-limited to mitigate password brute-force and CPU exhaustion from bcrypt password verification. Failed login attempts are throttled by client IP and by username with a `429 Too Many Requests` response and a `Retry-After` header.
+- **Concurrency limits**: Intensive operations are governed by concurrency semaphores to protect against resource exhaustion (limiting concurrent password verifications and concurrent large payload buffering).
+- **Upstream request coalescing (singleflight)**: Concurrent requests for the same uncached upstream packument are coalesced so multiple concurrent requests result in only a single upstream fetch.
+
 
 ## `ui`
 
@@ -637,6 +709,33 @@ log:
 
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
+
+### Access logs and request IDs
+
+Every request emits an access log record under the tracing target `pnpr::access` at `info` level:
+
+- `request_id`: incoming `x-request-id` header (if valid printable ASCII, <=128 characters) or a generated RFC 4122 UUID v4. Also echoed in the response `x-request-id` header.
+- `method`: HTTP method.
+- `uri`: request path and query string.
+- `client_ip`: client IP resolved according to [`trustedProxies`](#trustedproxies) and [`trustedProxyHeader`](#trustedproxyheader).
+- `user`: authenticated username, or `"-"` when unauthenticated.
+- `user_agent`: `User-Agent` header value, or `"-"` when omitted.
+- `status`: HTTP response status code.
+- `latency_ms`: request round-trip processing duration in milliseconds.
+- `bytes`: response body size in bytes, derived from `Content-Length` (0 for chunked or streamed responses without length headers).
+
+### Prometheus metrics
+
+pnpr serves Prometheus metrics at `GET /-/metrics` (and `GET /metrics` for scrapers) in standard Prometheus text format (`text/plain; version=0.0.4`). Requests to `GET /metrics` carrying npm packument `Accept` headers receive the `metrics` package packument instead. Like health endpoints (`/-/ping`, `/-/ready`, `/-/live`), the metrics endpoints are intentionally unauthenticated to support telemetry scrapers:
+
+- `pnpr_http_requests_in_flight` (gauge): number of requests currently being handled.
+- `pnpr_http_requests_total` (counter): requests served, labelled by `method` (normalized to standard HTTP methods or `OTHER`) and `status`.
+- `pnpr_http_request_duration_seconds` (histogram): request duration distribution across buckets from 0.005s to 10.0s.
+- `pnpr_http_response_bytes_total` (counter): total response payload bytes sent, derived from `Content-Length`.
+- `pnpr_cache_hits_total` (counter): packument cache hits on upstream proxies.
+- `pnpr_cache_misses_total` (counter): packument cache misses requiring upstream fetches.
+- `pnpr_login_rate_limits_total` (counter): login attempts throttled by rate limiting.
+- `pnpr_build_info` (gauge): server build version info.
 
 ## Environment variable substitution
 

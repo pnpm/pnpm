@@ -1,7 +1,7 @@
 use super::{
-    AccessSpec, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig, LogFormat,
-    LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings, ScimConfig,
-    SystemEnv, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
+    AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig,
+    LogFormat, LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings,
+    ScimConfig, SystemEnv, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -167,6 +167,24 @@ pub(super) enum DefaultRegistryFile {
 /// `#[serde(deny_unknown_fields)]` *not* being set — so the same
 /// `config.yaml` works for both servers.
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(super) enum CacheFile {
+    Path(String),
+    Settings(CacheSettingsFile),
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CacheSettingsFile {
+    #[serde(default)]
+    pub(super) path: Option<String>,
+    #[serde(default, rename = "maxSize", alias = "max_size")]
+    pub(super) max_size: Option<ByteSize>,
+    #[serde(default, rename = "maxAge", alias = "max_age")]
+    pub(super) max_age: Option<Interval>,
+}
+
+#[derive(Debug, Deserialize)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -177,10 +195,19 @@ pub(super) enum DefaultRegistryFile {
 pub(super) struct ConfigFile {
     #[serde(default = "default_storage_string")]
     pub(super) storage: String,
-    /// Disposable proxy-cache root. Not a verdaccio key — when omitted
+    /// Disposable proxy-cache root or settings table. Not a verdaccio key — when omitted
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
-    pub(super) cache: Option<String>,
+    pub(super) cache: Option<CacheFile>,
+    /// Reverse-proxy addresses trusted to supply client IP headers.
+    #[serde(default, rename = "trustedProxies", alias = "trusted_proxies")]
+    pub(super) trusted_proxies: Vec<String>,
+    /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
+    #[serde(default, rename = "trustedProxyHeader", alias = "trusted_proxy_header")]
+    pub(super) trusted_proxy_header: Option<String>,
+    /// Request processing timeout (e.g. `60s`, `1m`).
+    #[serde(default, rename = "requestTimeout", alias = "request_timeout")]
+    pub(super) request_timeout: Option<Interval>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]

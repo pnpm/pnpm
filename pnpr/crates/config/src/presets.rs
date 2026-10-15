@@ -78,6 +78,7 @@ impl Config {
             logs: LogConfig::default(),
             osv: OsvConfig::default(),
             resolution_cache_secret: random_secret(),
+            has_configured_secret: false,
             http: super::HttpConfig {
                 listen,
                 public_url: format!("http://{listen}"),
@@ -85,9 +86,13 @@ impl Config {
                 ui: UiConfig::default(),
                 oci: OciConfig::default(),
                 packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
+                trusted_proxies: Vec::new(),
+                trusted_proxy_header: super::TrustedProxyHeader::default(),
+                request_timeout: Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
             },
             storage: super::StorageConfig {
                 cache_dir: default_cache_dir(&storage),
+                cache: super::CacheConfig::default(),
                 hosted_dir: storage,
                 hosted_backend: HostedStoreConfig::Fs,
             },

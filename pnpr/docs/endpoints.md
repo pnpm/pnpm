@@ -24,15 +24,21 @@ See [Configuration](configuration.md#registry-resolver-and-artifact-surfaces)
 for the config keys and [CLI reference](cli.md) for the command-line overrides.
 
 The tables below show npm paths on the path-less base. Each is equally available
-under a `/~<name>/` prefix and, on a server that declares more than one
-ecosystem, under `/npm/`. Cargo, Python, and image endpoints are documented on
-their own pages.
+under a `/~<name>/` prefix. On a server that declares more than one ecosystem,
+the npm paths move under `/npm/`. The always-available endpoints, the
+`/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API stay on the
+path-less base. Cargo, Python, and image endpoints are documented on their
+own pages.
 
 ## Always available
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/ping` | Health check. Returns `{}`. |
+| `GET` | `/-/ping` | Health check. Returns `{}` on success, or 503 if storage or auth is unavailable. |
+| `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks storage and auth backends, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure. |
+| `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
+| `GET` | `/-/metrics` | Unauthenticated Prometheus metrics endpoint. Emits standard Prometheus text format (`text/plain; version=0.0.4`) exposing request rates, durations, response bytes, in-flight gauges, and cache stats. Unauthenticated access is intentional for cluster monitoring and metrics scrapers. |
+| `GET` | `/metrics` | Unauthenticated Prometheus metrics endpoint for scrapers. When requested with npm packument Accept headers, delegates to packument lookup for package `metrics`. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
 | `POST` | `/-/oidc/handoff?flow=<flow>` | Returns `{"token": ..., "expires": ...}` for the sign-in `flow` that a sign-in with `return=ui` passes to the web UI. The token is released only to the browser that signed in, once, within a minute. |
@@ -43,8 +49,10 @@ always available, whichever surfaces are enabled.
 ## Registry bases: `/` and `/~<name>/`
 
 Every [registry](configuration.md#registries-and-defaultregistry) is served as
-a full npm registry at `/~<name>/` — packument and tarball reads, version
-manifests, dist-tags, search, publish, unpublish, and the login/whoami
+a full npm registry at `/~<name>/`. On a server that declares more than one
+ecosystem, the npm bases are `/npm/` and `/npm/~<name>/` instead, and the rest
+of this section applies to them the same way. Packument and tarball reads,
+version manifests, dist-tags, search, publish, unpublish, and the login/whoami
 endpoints all work under a registry prefix. The `~` prefix keeps registry
 names out of the package-name namespace (a package name can never begin with
 `~`).
@@ -62,7 +70,7 @@ Every request routes through the registry graph:
   `404`.
 - A registry's declared namespace is enforced **on every path to it**: a read
   of a name outside the namespace is a definitive `404` answered before
-  storage or the upstream is consulted — through a router, on the path-less
+  storage or the upstream is consulted — through a router, on the default
   base, and at the registry's own `/~<name>/` URL alike — and an off-namespace
   publish is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
@@ -70,24 +78,24 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto the configured `public_url`
-  and stay canonical for the base the client addressed (path-less or
-  `/~<name>/`), so lockfiles don't bake in a registry name.
+  and stay canonical for the base the client addressed (`/`, `/~<name>/`,
+  `/npm/`, or `/npm/~<name>/`), so lockfiles don't bake in a registry name.
 
 ## pnpr protocol endpoints
 
-The capability handshake is mounted when either `resolver.enabled` or
-`artifacts.enabled` is true. Each protocol advertises its versions
-independently, so resolver-only and artifact-only tiers are both valid. The
-`POST` endpoints require a valid pnpr `Authorization` header.
+The capability handshake is served when any of the four surfaces is enabled.
+Each protocol advertises its versions independently, so resolver-only and
+artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
+`Authorization` header.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, and `artifacts` for shared-artifact protocols. Each is currently `[0]` when its surface is enabled and `[]` otherwise. A 404 means both protocol surfaces are off. |
+| `GET` | `/-/pnpr` | Capability handshake. Returns `versions` for resolver protocols, `fixLockfile` for resolver versions that support lockfile repair, `ecosystems` for the ecosystems the resolver serves, `artifacts` for shared-artifact protocols, `publish` for the cross-ecosystem publish transaction, and `pipeline` for pipeline run records. Each version list is `[0]` when its surface is enabled and `[]` otherwise. A 404 means every surface is off. |
 | `POST` | `/-/pnpr/v0/resolve` | Resolves one project or workspace against the registries and policy sent by the client. Returns `application/x-ndjson` frames. |
 | `POST` | `/-/pnpr/v0/verify-lockfile` | Verifies an existing lockfile under the client's registry and policy settings without resolving again. Returns `application/x-ndjson` frames. |
 
 `POST /-/pnpr/v0/resolve` accepts fields such as `projects`, `dependencies`,
-`devDependencies`, `optionalDependencies`, `registry`, `namedRegistries`,
+`devDependencies`, `optionalDependencies`, `registry`, `registries`,
 `overrides`, `lockfile`, `frozenLockfile`, `preferFrozenLockfile`,
 `ignoreManifestCheck`, `trustLockfile`, `minimumReleaseAge`,
 `minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`,
@@ -97,7 +105,7 @@ lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
 Every registry the request would make pnpr fetch from — the `registry` and
-`namedRegistries` origins, plus any direct `http(s)`/`git` URL in a dependency
+`registries` origins, plus any direct `http(s)`/`git` URL in a dependency
 spec, an override, or an input-lockfile tarball — must be on the server's fetch
 allowlist (the configured registries, declared public routes, the built-in npm
 registry, and pnpr's own origin). An off-allowlist origin is rejected up front,

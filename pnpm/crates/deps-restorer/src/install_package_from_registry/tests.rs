@@ -162,6 +162,7 @@ fn create_config(
         isolate_local_directory_imports: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
+        side_effects_cache_exclude: None,
         side_effects_cache_read_setting: None,
         side_effects_cache_write_setting: None,
         fetch_retries: 2,
@@ -305,8 +306,7 @@ async fn resolve_via_mock(
             filter_metadata: false,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,

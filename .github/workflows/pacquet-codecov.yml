@@ -67,7 +67,7 @@ jobs:
         uses: $/.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-llvm-cov
 
@@ -77,7 +77,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -124,7 +124,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: just
 
@@ -138,7 +138,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false PNPM_CONFIG_UPDATE_NOTIFIER=false cargo codecov --lcov --output-path lcov.info
 
       - name: Stop sccache
         if: ${{ !cancelled() }}

@@ -11,8 +11,10 @@ use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     fs,
+    net::TcpListener,
     path::{Path, PathBuf},
     process::{Command, Output},
+    time::{Duration, Instant},
 };
 
 /// A pnpm the mocked registry can serve as `latest`, far enough ahead that
@@ -73,15 +75,23 @@ fn append_to_workspace_yaml(workspace: &Path, line: &str) {
     fs::write(&path, text).expect("write pnpm-workspace.yaml");
 }
 
+/// The command does not wait for the check, so the install has to outlast
+/// the registry's answer: an empty workspace is done in milliseconds, a
+/// dependency to fetch, extract, and link is not.
 #[test]
 fn an_install_announces_a_newer_pnpm_and_records_the_check() {
     let Fixture {
         pacquet,
         state_dir,
+        workspace,
         root,
         npmrc_info,
-        ..
     } = fixture();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
 
     let output = install(pacquet, &state_dir);
 
@@ -118,6 +128,55 @@ fn update_notifier_off_skips_the_check_entirely() {
     assert!(output.status.success(), "install should succeed: {text}");
     assert!(!text.contains("Update available!"), "the notice should be suppressed: {text}");
     assert!(!state_file(&state_dir).exists(), "no check means nothing to record");
+
+    drop((root, npmrc_info));
+}
+
+/// A registry that accepts the connection and never answers. The check
+/// sits in the registry client's timeouts, a minute each; the install has
+/// nothing else to do and does not wait for it. Nothing was learned, so
+/// nothing is recorded and the next install asks again
+/// ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
+#[test]
+fn a_registry_that_never_answers_does_not_hold_the_install() {
+    let Fixture {
+        pacquet,
+        state_dir,
+        root,
+        npmrc_info,
+        ..
+    } = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind the silent registry");
+    let silent_registry =
+        format!("http://{}/", listener.local_addr().expect("silent registry address"));
+    // Every connection is accepted and held open without an answer; the
+    // thread ends with the test process.
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for connection in listener.incoming() {
+            held.extend(connection.ok());
+        }
+    });
+    fs::write(
+        &npmrc_info.npmrc_path,
+        format!(
+            "registry={silent_registry}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\n",
+        ),
+    )
+    .expect("point .npmrc at the silent registry");
+
+    let started = Instant::now();
+    let output = install(pacquet, &state_dir);
+    let elapsed = started.elapsed();
+
+    let text = output_text(&output);
+    assert!(output.status.success(), "install should succeed: {text}");
+    assert!(
+        elapsed < Duration::from_secs(30),
+        "the install waited {elapsed:?} on a registry that never answered: {text}",
+    );
+    assert!(!text.contains("Update available!"), "nothing was learned: {text}");
+    assert!(!state_file(&state_dir).exists(), "an unanswered check records nothing");
 
     drop((root, npmrc_info));
 }

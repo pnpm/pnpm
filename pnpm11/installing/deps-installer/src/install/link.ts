@@ -4,7 +4,7 @@ import type {
   DependenciesGraph,
   LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
-import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { getDirectDependencyAliases, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import {
   hoist,
@@ -349,6 +349,7 @@ function getHoistOptions (
 ): HoistWorkspacePackagesOpts<DepPath> {
   return {
     graph: context.graph,
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(opts) : [],
     directDepsByImporterId: {
       ...opts.dependenciesByProjectId,
       '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {

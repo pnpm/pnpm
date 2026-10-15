@@ -114,6 +114,12 @@ pub(super) struct GvsHasher<'h> {
     /// this is the identical input. Hashing the raw bytes instead would
     /// give the two stacks different slots for the same project.
     project_scope: Option<std::borrow::Cow<'h, str>>,
+    /// The snapshots `sideEffectsCache.exclude` names, and every snapshot
+    /// that depends on one. An excluded build must not reach another
+    /// project, so each takes the project's own slot just as a local
+    /// directory snapshot does, and so does a dependent, whose slot links
+    /// to it.
+    uncached_builds: HashSet<String>,
     engine: Option<&'h str>,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
 }
@@ -128,11 +134,15 @@ impl<'h> GvsHasher<'h> {
         let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir);
         let build_required_dep_paths =
             allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
+        let uncached_builds = allow_build_policy
+            .map(|policy| uncached_build_dep_paths(policy, snapshots, &graph))
+            .unwrap_or_default();
         Self {
             graph,
             build_required_dep_paths,
             cache: HashMap::new(),
             project_scope: lockfile_dir.map(|dir| dir.to_string_lossy()),
+            uncached_builds,
             engine,
             packages,
         }
@@ -189,6 +199,7 @@ impl<'h> GvsHasher<'h> {
         }
         write_field(&mut hasher, self.project_scope.as_deref().unwrap_or(""));
         self.write_gating_set(&mut hasher);
+        write_sorted(&mut hasher, &self.uncached_builds);
         self.write_graph(&mut hasher);
         self.write_snapshot_extras(&mut hasher, snapshots);
         format!("{:x}", hasher.finalize())
@@ -205,12 +216,7 @@ impl<'h> GvsHasher<'h> {
             return hasher.update([0_u8]);
         };
         hasher.update([1_u8]);
-        let mut sorted: Vec<&str> = paths
-            .iter()
-            .map(String::as_str)
-            .collect();
-        sorted.sort_unstable();
-        write_field(hasher, &sorted.join("\u{0}"));
+        write_sorted(hasher, paths);
     }
 
     /// The dep graph, in an order a `HashMap` cannot vary.
@@ -258,13 +264,21 @@ impl<'h> GvsHasher<'h> {
             find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
         let metadata_key = snapshot_key.without_peer();
         let metadata = self.packages.and_then(|packages| packages.get(&metadata_key));
+        let dep_path = snapshot_key.to_string();
+        let project_scope =
+            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref())
+                .or_else(|| {
+                    self.project_scope
+                        .as_deref()
+                        .filter(|_| self.uncached_builds.contains(&dep_path))
+                });
         let hex_digest = calc_graph_node_hash(
             &self.graph,
             &mut self.cache,
-            &snapshot_key.to_string(),
+            &dep_path,
             own_engine.as_deref().or(self.engine),
             self.build_required_dep_paths.as_ref(),
-            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref()),
+            project_scope,
         );
         format_global_virtual_store_path(
             &metadata_key.name.to_string(),
@@ -273,6 +287,31 @@ impl<'h> GvsHasher<'h> {
         )
     }
 }
+/// The dep paths of the snapshots whose build `sideEffectsCache.exclude`
+/// keeps out of every cache, and of their transitive dependents.
+fn uncached_build_dep_paths(
+    policy: &AllowBuildPolicy,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    graph: &HashMap<String, DepsGraphNode<String>>,
+) -> HashSet<String> {
+    let excluded = snapshots
+        .keys()
+        .filter(|snapshot_key| !policy.caches_build(snapshot_key))
+        .map(ToString::to_string)
+        .collect();
+    pnpm_graph_hasher::build_required_dep_paths(graph, &excluded)
+}
+
+/// Hash a set in an order a `HashSet` cannot vary.
+fn write_sorted(hasher: &mut sha2::Sha256, paths: &HashSet<String>) {
+    let mut sorted: Vec<&str> = paths
+        .iter()
+        .map(String::as_str)
+        .collect();
+    sorted.sort_unstable();
+    write_field(hasher, &sorted.join("\u{0}"));
+}
+
 pub(super) fn engine_gating_dep_paths(
     policy: &AllowBuildPolicy,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,

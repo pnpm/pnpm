@@ -16,6 +16,7 @@
 
 pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
 
+mod missing_projects;
 mod reachability;
 
 use std::{
@@ -113,7 +114,9 @@ fn retained_snapshots(
 /// importer in `real_importer_ids` keeps the pins `previous_wanted`
 /// recorded. The wanted lockfile stays workspace-global no matter how
 /// narrow the filter is, so `pnpm install --filter` never truncates the
-/// entries of the projects it did not touch.
+/// entries of the projects it did not touch. An importer `previous_wanted`
+/// records for a project outside `real_importer_ids`, such as one a sparse
+/// checkout leaves off disk, keeps its entry and the catalog entries it uses.
 ///
 /// `freshly_resolved` must contain an entry for every id in
 /// `real_importer_ids`, not just the selected ones: when a global
@@ -129,12 +132,15 @@ pub fn merge_filtered_wanted_lockfile(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Result<Lockfile, MergeFilteredWantedLockfileError> {
+    let missing_project_importers = missing_projects::retain_importers(
+        previous_wanted,
+        real_importer_ids,
+        &mut freshly_resolved,
+    );
     let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {
         resolution_inputs_match(previous, &freshly_resolved)
     });
     let mut fresh_importers = std::mem::take(&mut freshly_resolved.importers);
-    let fresh_packages = freshly_resolved.packages.take();
-    let fresh_snapshots = freshly_resolved.snapshots.take();
     let mut importer_ids = real_importer_ids.iter().collect::<Vec<_>>();
     importer_ids.sort();
     freshly_resolved.importers = importer_ids
@@ -158,15 +164,22 @@ pub fn merge_filtered_wanted_lockfile(
             Ok((importer_id.clone(), importer))
         })
         .collect::<Result<_, MergeFilteredWantedLockfileError>>()?;
-    freshly_resolved.packages = overlay_package_maps(
-        previous_wanted.and_then(|lockfile| lockfile.packages.as_ref()),
-        fresh_packages,
-    );
-    freshly_resolved.snapshots = overlay_package_maps(
-        previous_wanted.and_then(|lockfile| lockfile.snapshots.as_ref()),
-        fresh_snapshots,
-    );
+    freshly_resolved.importers.extend(missing_project_importers);
+    overlay_previous_packages(&mut freshly_resolved, previous_wanted);
     Ok(full_closure(&freshly_resolved, workspace_root))
+}
+
+/// Fill in the `packages` and `snapshots` entries `previous_wanted` recorded
+/// that `lockfile` lacks. [`full_closure`] then drops the unreachable ones.
+fn overlay_previous_packages(lockfile: &mut Lockfile, previous_wanted: Option<&Lockfile>) {
+    lockfile.packages = overlay_package_maps(
+        previous_wanted.and_then(|previous| previous.packages.as_ref()),
+        lockfile.packages.take(),
+    );
+    lockfile.snapshots = overlay_package_maps(
+        previous_wanted.and_then(|previous| previous.snapshots.as_ref()),
+        lockfile.snapshots.take(),
+    );
 }
 
 // Retaining old importer pins is safe only while the workspace-wide resolution inputs match.

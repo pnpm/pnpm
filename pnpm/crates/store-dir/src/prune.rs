@@ -97,19 +97,19 @@ impl StoreDir {
         self.prune_global_virtual_store(&references.package_roots)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Removed {} file{} ({} bytes)",
             stats.files,
             if stats.files == 1 { "" } else { "s" },
             stats.bytes,
         );
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Removed {} package{}",
             stats.packages,
             if stats.packages == 1 { "" } else { "s" },
         );
         if stats.undecodable_packages > 0 {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 "Kept {} package index entr{} that could not be read",
                 stats.undecodable_packages,
                 if stats.undecodable_packages == 1 { "y" } else { "ies" },
@@ -126,10 +126,10 @@ impl StoreDir {
 
         let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
         if projects.is_empty() {
-            eprintln!("No registered projects for global virtual store");
+            pnpm_diagnostics::eprintln!("No registered projects for global virtual store");
             return Ok(());
         }
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Checking {} registered project(s) for global virtual store usage",
             projects.len(),
         );
@@ -139,18 +139,18 @@ impl StoreDir {
         // from any registered project leaves the slots' users as unknown as
         // an empty registry does.
         if reachable.is_empty() {
-            eprintln!("No registered project uses the global virtual store");
+            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
             return Ok(());
         }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 "Removed {} package{} from global virtual store",
                 removed,
                 if removed == 1 { "" } else { "s" },
             );
         } else {
-            eprintln!("No unused packages found in global virtual store");
+            pnpm_diagnostics::eprintln!("No unused packages found in global virtual store");
         }
         Ok(())
     }

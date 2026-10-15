@@ -7,6 +7,10 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
+#cache:
+#  path: ./cache
+#  maxSize: 20GB
+#  maxAge: 30d
 # Cross-origin browser access is disabled unless exact origins are listed.
 # This is enough to let a separately hosted registry UI read metadata, search,
 # organization listings, and tarballs without opening pnpr to every website.
@@ -14,6 +18,15 @@ storage: ./storage
 #  allowedOrigins:
 #    - https://npmx.dev
 #    - http://localhost:3000
+# Reverse-proxy addresses trusted to supply client IP headers. Accepts bare IPs
+# ("127.0.0.1", "::1"), CIDR networks ("10.0.0.0/8", "172.16.0.0/12"), or "loopback".
+# When empty, client IP is always taken from the direct socket peer.
+#trustedProxies:
+#  - loopback
+#  - 10.0.0.0/8
+# Header inspected when behind a trusted proxy: `x-forwarded-for` (default),
+# `forwarded`, or `x-real-ip`. Only the configured header is inspected.
+#trustedProxyHeader: x-forwarded-for
 # Store the hosted (published) packages and enabled shared artifacts in an
 # S3-compatible object store instead of local directories. Works with AWS S3 (omit
 # `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),

@@ -30,7 +30,7 @@ const RECORD_SUFFIX: &str = ".json";
 /// opaque JSON — their shape belongs to the client, so a client update
 /// does not require a server release.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishPipelineRun {
     /// The organization the run is recorded under, which decides who may
     /// read and publish it.
@@ -43,6 +43,8 @@ pub struct PublishPipelineRun {
     pub summary: Value,
     #[serde(default)]
     pub events: Vec<Value>,
+    #[serde(flatten, default)]
+    pub extra: std::collections::BTreeMap<String, Value>,
 }
 
 /// One row of a run listing: the summary without its event stream.

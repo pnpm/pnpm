@@ -35,7 +35,7 @@ pub struct SetupArgs {
 impl SetupArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, dir: &Path) -> miette::Result<()> {
         let output = handler::<Reporter>(self.force, dir)?;
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
         Ok(())
     }
 }

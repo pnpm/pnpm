@@ -102,6 +102,17 @@ impl TokenStore {
         {
             std::fs::create_dir_all(parent)?;
         }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            if !path.exists() {
+                let _ = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&path);
+            }
+        }
         let conn = Connection::open(&path)?;
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;
@@ -201,6 +212,20 @@ impl TokenBackend for TokenStore {
             inner.remove(key);
         }
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        let Some(path) = self.persist.clone() else {
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE;
+            let conn = Connection::open_with_flags(&path, flags)?;
+            conn.query_row("SELECT EXISTS(SELECT 1 FROM tokens LIMIT 1);", [], |_row| Ok(()))?;
+            Ok(())
+        })
+        .await??;
+        Ok(())
     }
 }
 

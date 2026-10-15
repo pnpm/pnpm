@@ -15,6 +15,7 @@ test('does not link skipped root dependencies into an external virtual store', a
   const depPath = '@types/fixture@1.0.0' as DepPath
   try {
     await hoist({
+      directDependencyAliases: [],
       graph: {
         [depPath]: {
           dir: path.join(virtualStoreDir, '@types+fixture@1.0.0/node_modules/@types/fixture'),
@@ -66,6 +67,7 @@ test.each([
   await symlinkDir(types, path.join(modulesDir, '@types/fixture'))
   try {
     await hoist({
+      directDependencyAliases: [],
       graph: {
         parent: {
           dir: parent,

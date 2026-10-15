@@ -1,3 +1,5 @@
+#![expect(clippy::print_stdout, reason = "developer tool, not part of the pnpm binary")]
+
 mod trust_history;
 mod version_pick;
 mod workspace_resolution;

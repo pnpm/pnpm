@@ -55,12 +55,12 @@ use pnpm_config::{
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_rust_toolchain::ToolchainRequest;
+use pnpm_rust_toolchain::{ToolchainRequest, rustup_settings_file};
 use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use rust_toolchain::{
     RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
-    run_next_on_path, run_rust_toolchain, rustup_settings_file,
+    run_next_on_path, run_rust_toolchain,
 };
 use serde_json::Value;
 use settings::{
@@ -251,7 +251,7 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
             return run_next_on_path(shim, args);
         }
         ShimTarget::Virtual(package) => {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
                 shim.name,
             );
@@ -272,7 +272,7 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
         }
         Ok(_) => exec_program(target, args),
         Err(error) => {
-            eprintln!("pnpm: failed to read {}: {error}", target.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to read {}: {error}", target.display());
             126
         }
     }
@@ -456,7 +456,9 @@ fn run_runtime_from_store(
         }) => run_held_program(&bin, &[], args, vec![private_install]),
         Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+            );
             1
         }
     }
@@ -496,7 +498,10 @@ fn run_package_manager_from_pin(
             }
         }
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {}@{version_spec}: {error:?}",
+                pm.name(),
+            );
             1
         }
     }

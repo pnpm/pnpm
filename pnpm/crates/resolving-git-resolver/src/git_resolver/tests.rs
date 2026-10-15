@@ -416,3 +416,87 @@ async fn an_archive_host_off_the_fetch_allowlist_is_not_probed() {
     assert!(allowlisted.anonymous_head_ok("https://archive.example/foo/bar/0").await);
     assert_eq!(probe.calls.lock().unwrap().as_slice(), ["https://archive.example/foo/bar/0"]);
 }
+
+fn wanted(alias: &str, bare_specifier: &str) -> WantedDependency {
+    WantedDependency {
+        alias: Some(alias.to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/16899>
+#[tokio::test]
+async fn a_specifier_wanted_by_many_projects_runs_ls_remote_once() {
+    const COMMIT: &str = "163360a8d3ae6bee9524541043197ff356f8ed99";
+    let runner = Arc::new(runner(&format!("{COMMIT}\trefs/tags/v1.0.0\n")));
+    let resolver = GitResolver::new(Arc::new(FakeProbe::new(false)), Arc::clone(&runner));
+    let opts = ResolveOptions::default();
+    let foo = wanted("foo", "github:foo/bar#v1.0.0");
+    let bar = wanted("bar", "github:foo/bar#v1.0.0");
+
+    let first = resolver.resolve(&foo, &opts);
+    let second = resolver.resolve(&bar, &opts);
+    let third = resolver.resolve(&foo, &opts);
+    let (first, second, third) = tokio::join!(first, second, third);
+    let (first, second, third) = (
+        first.unwrap().expect("claimed"),
+        second.unwrap().expect("claimed"),
+        third.unwrap().expect("claimed"),
+    );
+
+    assert_eq!(runner.calls.lock().unwrap().len(), 1);
+    assert_eq!(first.alias.as_deref(), Some("foo"));
+    assert_eq!(second.alias.as_deref(), Some("bar"));
+    assert_eq!(third.alias.as_deref(), Some("foo"));
+    assert_eq!(first.id, second.id);
+    assert_eq!(first.id, third.id);
+}
+
+/// Fails its first `ls-remote`, then answers with `stdout`.
+struct FailsOnceRunner {
+    stdout: String,
+    calls: Mutex<usize>,
+}
+
+impl GitCommandRunner for FailsOnceRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        let mut calls = self.calls.lock().unwrap();
+        *calls += 1;
+        let result = if *calls == 1 {
+            Err(GitRunError { message: "connection reset".to_string() })
+        } else {
+            Ok(self.stdout.clone())
+        };
+        Box::pin(async move { result })
+    }
+}
+
+#[tokio::test]
+async fn a_failed_resolution_is_retried_by_the_next_request() {
+    const COMMIT: &str = "163360a8d3ae6bee9524541043197ff356f8ed99";
+    let runner = Arc::new(FailsOnceRunner {
+        stdout: format!("{COMMIT}\trefs/tags/v1.0.0\n"),
+        calls: Mutex::new(0),
+    });
+    let resolver = GitResolver::new(Arc::new(FakeProbe::new(false)), Arc::clone(&runner));
+    let opts = ResolveOptions::default();
+    let wanted = wanted("foo", "github:foo/bar#v1.0.0");
+
+    resolver.resolve(&wanted, &opts).await.expect_err("first ls-remote fails");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("claimed");
+
+    assert_eq!(*runner.calls.lock().unwrap(), 2);
+    let LockfileResolution::Git(git) = &result.resolution else {
+        panic!("expected a git resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(git.commit, COMMIT);
+}

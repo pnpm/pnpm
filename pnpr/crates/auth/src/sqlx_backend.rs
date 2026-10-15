@@ -8,8 +8,8 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex,
+    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, dummy_verify,
+    fresh_secret, hash_bcrypt, sha256_hex,
     token_store::{mint_token, unix_seconds},
     validate_username, verify_returning_user, with_auth_timeout,
 };
@@ -83,6 +83,13 @@ impl<Db> SqlAuth<Db> {
         }
         self.db.reconcile_user_counter_overcount().await
     }
+
+    async fn check_db_readiness(&self) -> Result<()>
+    where
+        Db: AuthSqlBackend,
+    {
+        with_auth_timeout(self.timeout, self.db.check_readiness()).await
+    }
 }
 
 #[async_trait]
@@ -115,6 +122,9 @@ trait AuthSqlBackend: Send + Sync {
     async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
     /// Remove the user and take one off the `users` counter in one transaction.
     async fn delete_user(&self, username: &str) -> Result<bool>;
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -144,6 +154,11 @@ where
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         self.check_registration_capacity().await?;
@@ -188,6 +203,10 @@ where
 
     async fn delete_user(&self, username: &str) -> Result<bool> {
         self.db.delete_user(username).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 
@@ -236,6 +255,10 @@ where
         };
         self.db.delete_token(key).await?;
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 

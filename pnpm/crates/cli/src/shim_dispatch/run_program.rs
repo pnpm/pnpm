@@ -64,7 +64,7 @@ pub(super) fn run_held_program(
     match status {
         Ok(status) => pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status)),
         Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to run {}: {error}", program.display());
             if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
         }
     }
@@ -94,7 +94,7 @@ fn program_command(
         Err(error) => {
             // Rendered as a report so the failure carries the same
             // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
-            eprintln!("pnpm: {:?}", miette::Report::new(error));
+            pnpm_diagnostics::eprintln!("pnpm: {:?}", miette::Report::new(error));
             Err(1)
         }
     }
@@ -104,7 +104,7 @@ fn program_command(
 fn exec_command(program: &Path, mut command: Command) -> i32 {
     use std::os::unix::process::CommandExt as _;
     let error = command.exec();
-    eprintln!("pnpm: failed to exec {}: {error}", program.display());
+    pnpm_diagnostics::eprintln!("pnpm: failed to exec {}: {error}", program.display());
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
 
@@ -117,7 +117,7 @@ fn exec_command(program: &Path, mut command: Command) -> i32 {
     match command.status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to run {}: {error}", program.display());
             if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
         }
     }
@@ -128,7 +128,7 @@ fn exec_command(program: &Path, mut command: Command) -> i32 {
     match pnpm_executor::spawn_child(&mut command, None).and_then(|mut child| child.wait()) {
         Ok(status) => pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status)),
         Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to run {}: {error}", program.display());
             if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
         }
     }

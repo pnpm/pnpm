@@ -171,12 +171,8 @@ fn files_field_overrides_workspace_root_npmignore() {
     );
 }
 
-// A `files` field with no usable entry is treated as absent (see
-// `build_files_matcher`), so it must not disable ignore-file filtering:
-// otherwise nothing would gate the walk at all and every ignored file
-// would ship.
 #[test]
-fn empty_files_field_keeps_workspace_ignores_active() {
+fn empty_files_field_ships_only_always_included_files() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
     let root = dir.path().join("packages").join("pkg");
@@ -196,8 +192,8 @@ fn empty_files_field_keeps_workspace_ignores_active() {
 
     assert_eq!(
         out,
-        vec!["package.json".to_string(), "src/index.js".into()],
-        "an empty `files` array must be treated as absent, keeping ignore files active",
+        vec!["package.json".to_string()],
+        "an empty `files` array must still override the workspace-root .gitignore",
     );
 }
 

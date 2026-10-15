@@ -180,11 +180,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // An online lowest-version pick must not reuse a mirror the registry
     // marked uncacheable. Offline and prefer-offline still may.
     let online_lowest_must_refetch = opts.pick_lowest_version
-        && !ctx.cache_policy.offline
-        && !ctx.cache_policy.prefer_offline
+        && !ctx.cache_policy.network.reads_cache_first()
         && state.mirror_is_uncacheable().await;
     if !online_lowest_must_refetch
-        && (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
+        && (ctx.cache_policy.network.reads_cache_first() || opts.pick_lowest_version)
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);

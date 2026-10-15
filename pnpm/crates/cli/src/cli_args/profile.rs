@@ -320,7 +320,7 @@ where
             )
             .into_owned(),
         })?;
-    println!("{}", authenticator_setup_message(otpauth_url));
+    pnpm_diagnostics::println!("{}", authenticator_setup_message(otpauth_url));
     let otp = Sys::input("And an OTP code from your authenticator: ").await
         .into_diagnostic()
         .wrap_err("reading the one-time password")?
@@ -365,7 +365,7 @@ where
         if new == confirmed {
             return Ok(json!({ "old": current, "new": new }));
         }
-        eprintln!("Passwords do not match, please try again.");
+        pnpm_diagnostics::eprintln!("Passwords do not match, please try again.");
     }
 }
 

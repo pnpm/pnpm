@@ -177,7 +177,7 @@ pub(super) fn print_json_error(error: &miette::Report) {
     // pnpm's `errorHandler` prints the envelope with `JSON.stringify(_, null, 2)`;
     // match its two-space indentation byte-for-byte.
     let output = serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes");
-    println!("{output}");
+    pnpm_diagnostics::println!("{output}");
 }
 
 pub(super) fn json_error_message(error: &miette::Report) -> String {

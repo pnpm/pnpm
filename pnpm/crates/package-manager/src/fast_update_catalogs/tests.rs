@@ -124,12 +124,34 @@ importers:
 }
 
 #[test]
-fn configured_catalogs_require_existing_lockfile_snapshots() {
+fn unreferenced_configured_catalogs_need_no_lockfile_snapshots() {
     let lockfile = lockfile(
         r"
 lockfileVersion: '9.0'
 importers:
   .: {}
+",
+    );
+    let catalogs =
+        Catalogs::from([("default".to_string(), [("foo".to_string(), "^1".to_string())].into())]);
+
+    assert!(matches!(
+        try_fast_update_catalogs(&lockfile, &catalogs, false),
+        FastCatalogUpdate::Unchanged
+    ));
+}
+
+#[test]
+fn a_catalog_reference_without_lockfile_catalogs_requires_a_resolution() {
+    let lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 'catalog:'
+        version: 1.0.0
 ",
     );
     let catalogs =

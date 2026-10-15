@@ -1,4 +1,4 @@
-use super::{Backend, PACKAGE_INDEX_DIR, StoreIndex, StoreIndexError, files::FilesIndex};
+use super::{Backend, INDEX_DIR, StoreIndex, StoreIndexError, files::FilesIndex};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -12,7 +12,7 @@ pub enum StoreIndexFormat {
     /// One `SQLite` database, `index.db`.
     #[default]
     Sqlite,
-    /// One file per package under [`PACKAGE_INDEX_DIR`].
+    /// One file per package under [`INDEX_DIR`].
     Files,
 }
 
@@ -25,7 +25,7 @@ impl StoreIndex {
     /// format.
     #[must_use]
     pub fn exists(store_dir: &Path) -> bool {
-        store_dir.join("index.db").exists() || store_dir.join(PACKAGE_INDEX_DIR).is_dir()
+        store_dir.join("index.db").exists() || store_dir.join(INDEX_DIR).is_dir()
     }
 
     /// Give the store at `store_dir` a per-file index if `format` asks for

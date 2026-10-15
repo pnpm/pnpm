@@ -634,8 +634,7 @@ async fn resolve_registry_fixture(
             filter_metadata: false,
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,

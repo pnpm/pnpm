@@ -46,7 +46,7 @@ async fn default_registration_cannot_mint_a_resolver_credential() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert!(!String::from_utf8_lossy(&body_bytes(response.into_body()).await).contains("token"));
 
     let response = app

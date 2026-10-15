@@ -99,6 +99,7 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
             prefetch_downloads: None,
+            store_verification: None,
             http_client_arc: Arc::clone(&owned.http_client_arc),
             fetch_caches: owned.shared_caches().map(|caches| caches.fetch.clone()),
         }

@@ -42,6 +42,7 @@ pub(super) fn load_pre_command_config(
         })
         .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
+    switch.network.apply(&mut config);
     if let Some(color) = switch.color {
         config.color = color;
     }

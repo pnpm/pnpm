@@ -75,7 +75,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
             ecosystem_packages,
         };
         let added = Box::pin(pipeline.run::<CliReporter>()).await;
-        update_notifier::settle(update_check, &added).await;
+        update_notifier::settle(update_check);
         added
     }))
 }
@@ -132,7 +132,7 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
     let install: CommandFuture<'a> = Box::pin(args.run_global::<CliReporter>(config, dir));
     Ok(Box::pin(async move {
         let installed = install.await;
-        update_notifier::settle(update_check, &installed).await;
+        update_notifier::settle(update_check);
         installed
     }))
 }
@@ -321,7 +321,7 @@ fn install_with_config<'a>(
             frozen_lockfile,
         };
         let installed = Box::pin(pipeline.run_with_config::<CliReporter>()).await;
-        update_notifier::settle(update_check, &installed).await;
+        update_notifier::settle(update_check);
         installed
     }))
 }

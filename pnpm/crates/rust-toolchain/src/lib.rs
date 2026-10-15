@@ -11,6 +11,7 @@
 extern crate pnpm_http as reqwest;
 
 pub use channel::{Channel, ChannelName};
+pub use rustup_settings::rustup_settings_file;
 pub use toolchain_file::{
     Profile, ToolchainRequest, Unmanaged, find_toolchain_file, read_toolchain_file, with_channel,
 };
@@ -19,6 +20,7 @@ mod channel;
 mod host;
 mod install;
 mod manifest;
+mod rustup_settings;
 mod toolchain_file;
 
 use derive_more::{Display, Error};

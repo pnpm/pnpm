@@ -13,11 +13,7 @@ export function getCatalogsFromWorkspaceManifest (
   checkDefaultCatalogIsDefinedOnce(workspaceManifest)
 
   return {
-    // If workspaceManifest.catalog is undefined, intentionally allow the spread
-    // below to overwrite it. The check above ensures only one or the either is
-    // defined.
-    default: workspaceManifest.catalog,
-
+    ...(workspaceManifest.catalog != null ? { default: workspaceManifest.catalog } : {}),
     ...workspaceManifest.catalogs,
   }
 }

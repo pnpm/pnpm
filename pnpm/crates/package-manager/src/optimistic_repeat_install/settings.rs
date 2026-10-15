@@ -179,6 +179,11 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
         return_drift_if!(
             self,
+            "sideEffectsCache.exclude",
+            recorded.side_effects_cache_exclude != live.side_effects_cache_exclude,
+        );
+        return_drift_if!(
+            self,
             "hoistWorkspacePackages",
             recorded.hoist_workspace_packages != live.hoist_workspace_packages,
         );
@@ -367,6 +372,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
+        side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is
         // how pacquet tells its resolved default apart from a real

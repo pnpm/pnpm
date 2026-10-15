@@ -1,6 +1,6 @@
 //! The per-package-file backend of [`StoreIndex`](super::StoreIndex).
 //!
-//! Every row lives in its own file under `<store-root>/package-index/`,
+//! Every row lives in its own file under `<store-root>/index/`,
 //! written to a temporary name and renamed into place. Readers and writers
 //! need no locks, so the index stays consistent on a filesystem that several
 //! machines mount at once, where `SQLite`'s WAL locking does not work. Two
@@ -20,7 +20,7 @@ use std::{
 /// Directory under the store root that holds a per-package-file index. Its
 /// presence is what selects this backend: every process opening the store
 /// sees the same layout, whatever its own configuration says.
-pub const PACKAGE_INDEX_DIR: &str = "package-index";
+pub const INDEX_DIR: &str = "index";
 
 /// Prefix of the temporary files an entry is written to before the rename.
 /// Scans skip it, so a temporary file left by a crashed writer is never
@@ -30,7 +30,8 @@ const TEMP_FILE_PREFIX: &str = ".tmp";
 /// Byte length of the key-length header in front of each entry.
 const KEY_LEN_SIZE: usize = size_of::<u32>();
 
-/// A `package-index/` directory of a store.
+/// An `index/` directory of a store.
+#[derive(Clone)]
 pub(super) struct FilesIndex {
     dir: PathBuf,
 }
@@ -39,14 +40,14 @@ impl FilesIndex {
     /// The index of the store at `store_root`, if the store uses this
     /// backend.
     pub(super) fn detect(store_root: &Path) -> Option<FilesIndex> {
-        let dir = store_root.join(PACKAGE_INDEX_DIR);
+        let dir = store_root.join(INDEX_DIR);
         dir.is_dir()
             .then_some(FilesIndex { dir })
     }
 
     /// Switch the store at `store_root` to this backend.
     pub(super) fn create(store_root: &Path) -> Result<(), StoreIndexError> {
-        let dir = store_root.join(PACKAGE_INDEX_DIR);
+        let dir = store_root.join(INDEX_DIR);
         pnpm_fs::file_mode::create_dir_all_inheriting_mode(&dir)
             .map_err(|source| StoreIndexError::CreateDir { path: dir, source })
     }

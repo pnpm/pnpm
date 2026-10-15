@@ -18,6 +18,31 @@ impl HostedBackend for S3Store {
         ))
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        fs::create_dir_all(&self.staging_dir).await
+            .map_err(|err| super::RegistryError::StorageUnavailable {
+                reason: format!(
+                    "s3 staging directory '{}' is not accessible: {err}",
+                    self.staging_dir.display(),
+                ),
+            })?;
+        let prefix_path = if self.prefix.is_empty() {
+            None
+        } else {
+            Some(ObjectPath::from(self.prefix.as_str()))
+        };
+        let check = self.store.list_with_delimiter(prefix_path.as_ref());
+        match tokio::time::timeout(std::time::Duration::from_secs(5), check).await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(super::RegistryError::StorageUnavailable {
+                reason: format!("S3 store check failed: {err}"),
+            }),
+            Err(_) => Err(super::RegistryError::StorageUnavailable {
+                reason: "S3 store check timed out after 5s".to_string(),
+            }),
+        }
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         S3Store::read_document(self, name).await
     }
@@ -126,26 +151,35 @@ impl HostedBackend for S3Store {
     fn list_blob_files(
         &self,
     ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
-        let prefix = ObjectPath::from(self.prefix.trim_end_matches('/'));
+        let prefix =
+            (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')));
+        let normalized_prefix = prefix
+            .as_ref()
+            .map(|p| format!("{}/", p.as_ref()))
+            .unwrap_or_default();
         self.store
-            .list(Some(&prefix))
-            .filter_map(move |result| async move {
-                let meta = match result {
-                    Ok(meta) => meta,
-                    Err(error) => return Some(Err(error.into())),
-                };
-                let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
-                if path
-                    .split('/')
-                    .any(|part| part.starts_with('.'))
-                {
-                    return None;
+            .list(prefix.as_ref())
+            .filter_map(move |result| {
+                let normalized_prefix = normalized_prefix.clone();
+                async move {
+                    let meta = match result {
+                        Ok(meta) => meta,
+                        Err(error) => return Some(Err(error.into())),
+                    };
+                    let path = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
+                    let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+                    if path
+                        .split('/')
+                        .any(|part| part.starts_with('.'))
+                    {
+                        return None;
+                    }
+                    Some(Ok(crate::HostedBlobFile {
+                        path: path.into_owned(),
+                        modified: meta.last_modified.into(),
+                        size: meta.size,
+                    }))
                 }
-                Some(Ok(crate::HostedBlobFile {
-                    path: path.to_string(),
-                    modified: meta.last_modified.into(),
-                    size: meta.size,
-                }))
             })
             .boxed()
     }

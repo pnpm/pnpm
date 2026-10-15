@@ -106,7 +106,7 @@ impl ApproveArgs {
             .validate()?;
         let pending = pending_permissions(config)?;
         if pending.by_package.is_empty() && self.packages.is_empty() {
-            println!("There are no packages awaiting approval");
+            pnpm_diagnostics::println!("There are no packages awaiting approval");
             return Ok(());
         }
         let Some(decisions) = self.decide::<Reporter>(&pending.by_package)? else {

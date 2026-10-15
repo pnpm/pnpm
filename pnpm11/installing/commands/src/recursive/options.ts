@@ -47,7 +47,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'trustPolicyExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
-> & Pick<ConfigContext,
+> & Partial<Pick<Config, 'filter' | 'filterProd'>> & Pick<ConfigContext,
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'

@@ -11,6 +11,8 @@
 //! `verify_or_rewrite` recovery path that holds the store together when
 //! N processes race on the same blob.
 
+#![expect(clippy::print_stderr, reason = "test-only helper binary")]
+
 use pnpm_fs::ensure_file;
 use std::{fs, path::PathBuf, process::ExitCode};
 

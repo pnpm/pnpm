@@ -146,7 +146,7 @@ impl LicensesArgs {
             LicensedPackages::collect(config, dir, recursive, include)?
         else {
             if self.json {
-                println!("{{}}");
+                pnpm_diagnostics::println!("{{}}");
             }
             return Ok(());
         };
@@ -154,7 +154,7 @@ impl LicensesArgs {
         let results_by_license = group_by_license(&package_dirs, dependencies).await;
 
         if self.json {
-            println!("{}", render_licenses_json(&results_by_license)?);
+            pnpm_diagnostics::println!("{}", render_licenses_json(&results_by_license)?);
             return Ok(());
         }
 
@@ -188,7 +188,7 @@ fn print_license_table(
 
     let mut table = builder.build();
     table.with(Style::modern());
-    println!("{table}");
+    pnpm_diagnostics::println!("{table}");
 }
 
 /// `pnpm licenses` takes exactly one subcommand, `list` (or `ls`).

@@ -102,8 +102,7 @@ impl<'a> LatestPicker<'a> {
         let registry = pick_registry_for_package(&self.registries, package_name, None);
         if self.policy.published_by.is_none()
             && self.policy.published_by_exclude.is_none()
-            && !self.config.offline
-            && !self.config.prefer_offline
+            && !self.config.network_policy().reads_cache_first()
         {
             return PackageVersion::fetch_from_registry(
                 package_name,

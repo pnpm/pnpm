@@ -11,6 +11,7 @@ mod tests;
 use crate::ALWAYS_EXCLUDED_DIR_SEGMENTS;
 use rule::IgnoreRule;
 use std::{
+    collections::BTreeSet,
     fs, io,
     path::{Component, Path},
 };
@@ -18,14 +19,22 @@ use std::{
 /// Which ignore files the walk reads.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum IgnoreFiles<'a> {
-    /// None: a `files` allowlist decides what ships.
-    Skip,
+    /// Each subdirectory's, as for [`Self::Read`], but not the package
+    /// root's or any inherited ones: a `files` allowlist takes their place.
+    /// The walk keeps `named_files`, package-relative paths with `/`
+    /// separators, even where a subdirectory's rules exclude them.
+    SubdirectoriesOnly { named_files: &'a BTreeSet<String> },
     /// Each directory's `.npmignore`, or its `.gitignore` when it has no
     /// `.npmignore`. For a package inside `workspace_dir` that has no
     /// `.npmignore`, the ignore files of the directories from `workspace_dir`
     /// down to the package's parent apply too, matched against paths
     /// relative to the package.
-    Read { workspace_dir: Option<&'a Path> },
+    Read {
+        workspace_dir: Option<&'a Path>,
+        /// Package-relative paths that the root re-includes after its ignore
+        /// files, see [`IgnoreRule::reinclude_path`].
+        required_paths: &'a [String],
+    },
 }
 
 /// Calls `on_file` with every non-directory entry under `pkg_dir` that the
@@ -36,28 +45,30 @@ pub(crate) fn walk_files(
     ignore_files: IgnoreFiles<'_>,
     on_file: &mut dyn FnMut(&Path, fs::FileType),
 ) -> io::Result<()> {
-    let root_rules = match ignore_files {
-        IgnoreFiles::Skip => Vec::new(),
-        IgnoreFiles::Read { workspace_dir } => {
+    let (root_rules, named_files) = match ignore_files {
+        IgnoreFiles::SubdirectoriesOnly { named_files } => (Vec::new(), Some(named_files)),
+        IgnoreFiles::Read { workspace_dir, required_paths } => {
             let mut rules = inherited_rules(pkg_dir, workspace_dir)?;
             rules.extend(read_dir_rules(pkg_dir)?);
-            rules
+            rules.extend(required_paths.iter().map(|path| IgnoreRule::reinclude_path(path)));
+            (rules, None)
         }
     };
     let root = DirRules {
         parent: None,
         name: String::new(),
+        rel_path: String::new(),
+        named_only: false,
         any_rules: !root_rules.is_empty(),
         rules: root_rules,
         exact: false,
     };
-    let mut walker =
-        Walker { read_ignore_files: matches!(ignore_files, IgnoreFiles::Read { .. }), on_file };
+    let mut walker = Walker { named_files: named_files.filter(|named| !named.is_empty()), on_file };
     walker.walk_dir(pkg_dir, &root, 0)
 }
 
 struct Walker<'a> {
-    read_ignore_files: bool,
+    named_files: Option<&'a BTreeSet<String>>,
     on_file: &'a mut dyn FnMut(&Path, fs::FileType),
 }
 
@@ -79,22 +90,50 @@ impl Walker<'_> {
             .file_name()
             .to_string_lossy()
             .into_owned();
-        let as_file = rules.includes(&name, false, None);
-        let as_dir = rules.includes(&name, true, None);
-        if !as_file && !as_dir {
+        let included = rules.included(&name);
+        let kept = self.kept(rules, &name, included);
+        if !kept.as_file && !kept.as_dir {
             return Ok(());
         }
         let file_type = entry.file_type()?;
         if !file_type.is_dir() {
-            if as_file {
+            if kept.as_file {
                 (self.on_file)(&entry.path(), file_type);
             }
             return Ok(());
         }
-        if as_dir && !is_pruned(&name, depth) {
-            self.walk_child_dir(&entry.path(), rules, name, as_file, depth)?;
+        if kept.as_dir && !is_pruned(&name, depth) {
+            self.walk_child_dir(&entry.path(), rules, name, included, depth)?;
         }
         Ok(())
+    }
+
+    /// What the walk keeps of the entry `name` of the directory `dir`: what
+    /// its rules include, plus a named file and the directories leading to one.
+    fn kept(&self, dir: &DirRules<'_>, name: &str, included: Included) -> Included {
+        if included.as_file && included.as_dir {
+            return included;
+        }
+        let named = self.named(dir, name);
+        Included {
+            as_file: included.as_file || named == Named::File,
+            as_dir: included.as_dir || named == Named::Ancestor,
+        }
+    }
+
+    /// How `named_files` refers to the entry `name` of the directory `dir`.
+    fn named(&self, dir: &DirRules<'_>, name: &str) -> Named {
+        let Some(named_files) = self.named_files else { return Named::No };
+        let rel_path = dir.child_rel_path(name);
+        if named_files.contains(&rel_path) {
+            return Named::File;
+        }
+        let dir_prefix = format!("{rel_path}/");
+        let holds_named = named_files
+            .range(dir_prefix.clone()..)
+            .next()
+            .is_some_and(|path| path.starts_with(&dir_prefix));
+        if holds_named { Named::Ancestor } else { Named::No }
     }
 
     fn walk_child_dir(
@@ -102,20 +141,38 @@ impl Walker<'_> {
         path: &Path,
         parent: &DirRules<'_>,
         name: String,
-        included_as_file: bool,
+        included: Included,
         depth: usize,
     ) -> io::Result<()> {
-        let rules = if self.read_ignore_files { read_dir_rules(path)? } else { Vec::new() };
-        let exact = included_as_file || parent.includes(&format!("{name}/"), false, None);
+        let rules = read_dir_rules(path)?;
+        let exact = included.as_file || parent.includes(&format!("{name}/"), false, None);
         let child = DirRules {
             parent: Some(parent),
+            rel_path: parent.child_rel_path(&name),
             name,
             any_rules: parent.any_rules || !rules.is_empty(),
             rules,
             exact,
+            named_only: !included.as_dir,
         };
         self.walk_dir(path, &child, depth + 1)
     }
+}
+
+/// Whether a directory's rules include an entry, as a file and as a
+/// directory that may hold included paths.
+#[derive(Debug, Clone, Copy)]
+struct Included {
+    as_file: bool,
+    as_dir: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Named {
+    No,
+    File,
+    /// A directory that holds a named file.
+    Ancestor,
 }
 
 fn is_pruned(name: &str, depth: usize) -> bool {
@@ -127,6 +184,8 @@ struct DirRules<'a> {
     parent: Option<&'a DirRules<'a>>,
     /// The directory's name in its parent.
     name: String,
+    /// The directory's path relative to the package, `/`-separated.
+    rel_path: String,
     rules: Vec<IgnoreRule>,
     /// Whether the parent includes the directory itself, not only paths
     /// below it. Only then may the directory's own rules re-include an entry
@@ -134,9 +193,30 @@ struct DirRules<'a> {
     exact: bool,
     /// Whether this directory or an ancestor has any rule.
     any_rules: bool,
+    /// Whether the walk entered the directory only for the named files
+    /// below it, which are then the only entries it keeps.
+    named_only: bool,
 }
 
 impl DirRules<'_> {
+    fn included(&self, entry: &str) -> Included {
+        if self.named_only {
+            return Included { as_file: false, as_dir: false };
+        }
+        Included {
+            as_file: self.includes(entry, false, None),
+            as_dir: self.includes(entry, true, None),
+        }
+    }
+
+    fn child_rel_path(&self, name: &str) -> String {
+        if self.rel_path.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}/{name}", self.rel_path)
+        }
+    }
+
     /// ignore-walk's `filterEntry`. `partial` asks whether `entry`, as a
     /// directory, may hold included paths. `entry_basename` is the name of
     /// the entry being walked when `entry` is a path from a descendant.

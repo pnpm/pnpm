@@ -49,5 +49,6 @@ test('drops npm and pnpm configuration from the environment', () => {
   assert.equal(passed.npm_config_registry, undefined)
   assert.equal(passed.PNPM_CONFIG_STORE_DIR, undefined)
   assert.equal(passed.PNPM_CONFIG_CI, 'false')
+  assert.equal(passed.PNPM_CONFIG_UPDATE_NOTIFIER, 'false')
   assert.equal(passed.PATH, '/bin')
 })

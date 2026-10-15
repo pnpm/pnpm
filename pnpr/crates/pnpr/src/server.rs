@@ -1,3 +1,7 @@
+pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use request_access::compute_upstream_cache_namespace;
+pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -64,10 +68,9 @@ use upstream_packuments::{
 
 mod request_access;
 use request_access::{
-    authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_admin, require_artifact_caller, require_caller, require_pipeline_caller,
-    require_resolver_caller, revision_registry_is_private, revision_source_registry,
-    single_authorization_header, upstream_cache_namespace,
+    authorized_revision_upstream, authorized_upstream, require_admin, require_artifact_caller,
+    require_caller, require_pipeline_caller, require_resolver_caller, revision_registry_is_private,
+    revision_source_registry, single_authorization_header, upstream_cache_namespace,
 };
 
 mod user_accounts;
@@ -78,23 +81,33 @@ use user_accounts::{
 mod authentication;
 mod batch;
 mod cargo;
+mod client_ip;
 mod compiler_cache;
 mod org_access;
 use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
+mod health;
+use health::shutdown_signal;
 mod managed_state;
+mod metrics;
 mod oci;
 mod oidc;
 mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod rate_limit;
+use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod request_id;
 mod routing;
 mod rule_admin;
 mod rule_overrides;
 mod scim;
+mod security_audit;
+mod singleflight;
+use singleflight::Singleflight;
 mod staged;
 mod striped_locks;
 mod team_access;
@@ -202,8 +215,8 @@ mod state;
 use state::AppInner;
 
 #[derive(Clone)]
-struct AppState {
-    inner: Arc<AppInner>,
+pub(super) struct AppState {
+    pub(super) inner: Arc<AppInner>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -326,6 +339,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         recover_publish_journal(config).await?;
         sweep_abandoned_uploads(config).await?;
+        crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }
     AuthState::load(&config.identity.auth, &config.identity.backend).await
 }
@@ -368,6 +382,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
+    crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
     let app = router_with_auth_and_osv(config, auth, osv_index)?;
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
@@ -422,11 +437,6 @@ pub async fn serve_listener(
     Ok(())
 }
 
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-    tracing::info!("shutdown signal received");
-}
-
 // --------------------------------------------------------------------
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
@@ -437,6 +447,7 @@ async fn shutdown_signal() {
 /// that is not one. A bare `~` names no registry, so it reads as "not a
 /// registry prefix" rather than as an empty name — every caller then treats
 /// it the way it treats `foo`.
+#[allow(dead_code, reason = "helper used across server tiers and in tests")]
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
     segment
         .strip_prefix('~')
@@ -592,8 +603,4 @@ struct WriteTarget {
 
 fn not_found() -> Response {
     RegistryError::NotFound.into_response()
-}
-
-async fn serve_ping(State(_state): State<AppState>) -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }

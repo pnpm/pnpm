@@ -136,6 +136,21 @@ pub(super) fn hosted_sources(
         .collect()
 }
 
+/// The upstream registries of `ecosystem` a request through `registry` can land on.
+pub(super) fn upstream_sources(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+) -> Vec<String> {
+    let registries = &state.inner.config.routing.registries;
+    registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .filter(|source| matches!(registries.get(source), Some(Registry::Upstream { .. })))
+        .map(str::to_string)
+        .collect()
+}
+
 /// A hosted blob of `key` through `source`'s read gate, as a download
 /// response; a 404 when the blob is absent.
 pub(super) async fn serve_hosted_blob(

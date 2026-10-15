@@ -323,6 +323,10 @@ impl S3Store {
         let scope = (!self.prefix.is_empty()).then(|| {
             ObjectPath::from(self.prefix.trim_end_matches('/').to_string())
         });
+        let normalized_prefix = scope
+            .as_ref()
+            .map(|p| format!("{}/", p.as_ref()))
+            .unwrap_or_default();
         let mut listing = self.store.list(scope.as_ref());
         let mut names = Vec::new();
         while let Some(meta) = listing.next().await {
@@ -331,11 +335,12 @@ impl S3Store {
             // Skip anything that isn't actually under our prefix rather
             // than falling back to the full key, which would synthesize
             // a wrong name. (Empty prefix strips to the whole key.)
-            let Some(rest) = key.strip_prefix(self.prefix.as_str()) else {
+            let Some(rest) = key.strip_prefix(normalized_prefix.as_str()) else {
                 continue;
             };
             if let Some(name) = rest.strip_suffix(&format!("/{DOCUMENT_FILE}")) {
-                names.push(name.to_string());
+                let decoded = percent_encoding::percent_decode_str(name).decode_utf8_lossy();
+                names.push(decoded.into_owned());
             }
         }
         Ok(names)

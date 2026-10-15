@@ -19,8 +19,7 @@ async fn invalid_package_name_errors_synchronously() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -76,8 +75,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -152,8 +150,7 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -211,8 +208,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,
@@ -266,8 +262,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -330,8 +325,7 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             // The post-304 document still has no `time`, so let the picker
             // take its warn-and-skip fallback instead of erroring.
             ignore_missing_time_field: true,
@@ -365,8 +359,7 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,
@@ -420,8 +413,7 @@ async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             // The retained document still has no `time`, so let the picker take
             // its warn-and-skip fallback instead of erroring.
             ignore_missing_time_field: true,
@@ -490,8 +482,7 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             // The upgraded document is still undecidable, so let the picker take
             // its warn-and-skip fallback instead of erroring.
             ignore_missing_time_field: true,
@@ -574,8 +565,7 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,
@@ -668,8 +658,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,

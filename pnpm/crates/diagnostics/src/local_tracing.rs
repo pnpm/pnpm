@@ -12,7 +12,7 @@ pub fn enable_tracing_by_env() {
     // subscriber must degrade to "tracing stays off", not abort the host
     // process.
     let Some(layer) = common_layer(&trace_var) else {
-        eprintln!(
+        crate::eprintln!(
             "ignoring invalid TRACE filter {trace_var:?}; see \
              https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#directives",
         );

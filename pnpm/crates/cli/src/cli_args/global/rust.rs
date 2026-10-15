@@ -115,7 +115,7 @@ pub(super) async fn update_from_params<Reporter: self::Reporter>(
     };
     if rust_named && params.is_empty() {
         if !updated {
-            println!("No global Rust toolchain is installed");
+            pnpm_diagnostics::println!("No global Rust toolchain is installed");
         }
         return Ok((updated, None));
     }
