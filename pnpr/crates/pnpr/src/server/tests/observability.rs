@@ -280,3 +280,14 @@ fn records_request_and_renders_prometheus() {
         )));
     }
 }
+
+#[test]
+fn records_unknown_methods_as_other_to_bound_cardinality() {
+    let metrics = ServerMetrics::new();
+    for i in 0..100 {
+        metrics.record_request(&format!("CUSTOM_{i}"), 405, Duration::from_millis(1), 0);
+    }
+    let output = metrics.render_prometheus();
+    assert!(output.contains(r#"pnpr_http_requests_total{method="OTHER",status="405"} 100"#));
+    assert!(!output.contains("CUSTOM_"));
+}

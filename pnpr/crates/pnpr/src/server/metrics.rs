@@ -58,9 +58,22 @@ impl DurationHistogram {
     }
 }
 
+fn normalize_method(method: &str) -> &'static str {
+    match method {
+        "GET" => "GET",
+        "HEAD" => "HEAD",
+        "POST" => "POST",
+        "PUT" => "PUT",
+        "DELETE" => "DELETE",
+        "PATCH" => "PATCH",
+        "OPTIONS" => "OPTIONS",
+        _ => "OTHER",
+    }
+}
+
 pub(crate) struct ServerMetrics {
     pub(crate) in_flight: AtomicI64,
-    requests_total: DashMap<(String, u16), AtomicU64>,
+    requests_total: DashMap<(&'static str, u16), AtomicU64>,
     duration: DurationHistogram,
     response_bytes_total: AtomicU64,
     cache_hits_total: AtomicU64,
@@ -86,7 +99,7 @@ impl ServerMetrics {
     }
 
     pub(crate) fn record_request(&self, method: &str, status: u16, duration: Duration, bytes: u64) {
-        let key = (method.to_string(), status);
+        let key = (normalize_method(method), status);
         if let Some(counter) = self.requests_total.get(&key) {
             counter.fetch_add(1, Ordering::Relaxed);
         } else {
@@ -151,7 +164,7 @@ impl ServerMetrics {
         writeln!(buffer, "# TYPE pnpr_http_requests_total counter").unwrap();
         let mut entries: Vec<_> = self.requests_total
             .iter()
-            .map(|entry| (entry.key().clone(), entry.value().load(Ordering::Relaxed)))
+            .map(|entry| (*entry.key(), entry.value().load(Ordering::Relaxed)))
             .collect();
         entries.sort_by(|entry_a, entry_b| entry_a.0.cmp(&entry_b.0));
         for ((method, status), count) in entries {
@@ -209,12 +222,18 @@ impl ServerMetrics {
     }
 }
 
+/// Serve Prometheus metrics in standard text format.
+///
+/// Unauthenticated access is intentional to allow telemetry scrapers (such as
+/// Prometheus) to collect server metrics without credentials.
 pub(crate) async fn serve_metrics(State(state): State<AppState>) -> Response {
     let rendered = state.inner.metrics.render_prometheus();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")], rendered)
         .into_response()
 }
 
+/// Serve Prometheus metrics at `/metrics`, or delegate to packument lookup when
+/// requested with npm client accept headers.
 pub(crate) async fn serve_metrics_or_packument(
     state: State<AppState>,
     caller: AuthedCaller,

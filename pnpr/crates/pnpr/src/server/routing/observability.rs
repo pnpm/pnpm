@@ -219,6 +219,9 @@ fn create_access_span(
     span
 }
 
+/// Count response bytes derived from the `Content-Length` header.
+///
+/// Returns 0 when the header is absent or invalid, such as for chunked or streamed responses.
 fn response_bytes_count(response: &Response) -> u64 {
     response
         .headers()
