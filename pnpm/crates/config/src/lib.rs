@@ -30,6 +30,7 @@ pub use crate::{
 };
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
 pub use loading::ConfigLoadFailure;
+pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
@@ -346,6 +347,7 @@ mod registry_options;
 mod layout;
 
 mod loading;
+mod network_policy;
 
 mod derive_layout;
 

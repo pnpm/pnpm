@@ -10,6 +10,7 @@ mod trust_policy;
 
 mod cache_partitions;
 
+mod cache_policy;
 mod cache_read_modes;
 
 mod corrupt_mirror;

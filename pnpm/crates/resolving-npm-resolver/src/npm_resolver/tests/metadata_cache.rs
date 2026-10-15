@@ -83,8 +83,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
                 filter_metadata: false,
             },
             cache_policy: crate::MetadataCachePolicy {
-                offline: false,
-                prefer_offline: false,
+                network: pnpm_config::NetworkPolicy::Online,
                 ignore_missing_time_field: false,
             },
             store_view: None,

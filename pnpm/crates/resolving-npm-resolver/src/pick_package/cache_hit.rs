@@ -103,7 +103,7 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     registry_verified: bool,
     opts: &PickPackageOptions<'_>,
 ) -> Result<Option<PickPackageResult>, PickPackageError> {
-    let (meta, picked) = if ctx.cache_policy.offline {
+    let (meta, picked) = if ctx.cache_policy.network.forbids_registry() {
         pick_from_meta_offline(
             ctx.store_view,
             cache_key,
@@ -121,7 +121,7 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     if meta.versions.corrupt_mirror_fragment_found() {
         return Ok(None);
     }
-    if !ctx.cache_policy.offline
+    if !ctx.cache_policy.network.forbids_registry()
         && !registry_verified
         && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())
     {
