@@ -55,8 +55,13 @@ pub fn active_cache_namespaces(config: &Config) -> HashSet<String> {
 /// Run a complete cache collection pass according to the given options.
 pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<CacheReport> {
     let active = active_cache_namespaces(config);
-    let mut report =
-        prune_orphaned_namespaces(&config.storage.cache_dir, &active, options.dry_run).await?;
+    let mut report = prune_orphaned_namespaces(
+        &config.storage.cache_dir,
+        &active,
+        options.dry_run,
+        config.has_configured_secret,
+    )
+    .await?;
     if options.orphans_only {
         return Ok(report);
     }
@@ -92,16 +97,7 @@ pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheR
 
 /// Run a periodic eviction pass using configured size and age limits.
 pub async fn evict_configured_cache(config: &Config) -> Result<CacheReport> {
-    collect_cache(
-        config,
-        &CacheGcOptions {
-            dry_run: false,
-            max_size: config.storage.cache.max_size,
-            max_age: config.storage.cache.max_age,
-            orphans_only: false,
-        },
-    )
-    .await
+    prune_orphaned_namespaces_startup(config).await
 }
 
 /// Spawns a background task running cache eviction periodically if configured.
@@ -132,7 +128,7 @@ async fn prune_orphan_entry(
     let Ok(file_type) = entry.file_type().await else {
         return Ok(());
     };
-    if !file_type.is_dir() {
+    if !file_type.is_dir() || file_type.is_symlink() {
         return Ok(());
     }
     let ns = format!("{prefix}/{}", entry.file_name().to_string_lossy());
@@ -149,22 +145,41 @@ async fn prune_orphan_entry(
     Ok(())
 }
 
+async fn prune_orphan_prefix(
+    cache_dir: &Path,
+    prefix: &str,
+    active: &HashSet<String>,
+    dry_run: bool,
+    report: &mut CacheReport,
+) {
+    let parent = cache_dir.join(prefix);
+    if let Ok(meta) = fs::symlink_metadata(&parent).await
+        && (meta.file_type().is_symlink() || !meta.is_dir())
+    {
+        return;
+    }
+    let Ok(mut entries) = fs::read_dir(&parent).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        if let Err(err) = prune_orphan_entry(&entry, prefix, active, dry_run, report).await {
+            tracing::warn!(error = %err, path = %entry.path().display(), "orphan cache namespace cleanup failed");
+        }
+    }
+}
+
 /// Prune any namespaces under `~upstreams/` or `~public/` not present in `active`.
 async fn prune_orphaned_namespaces(
     cache_dir: &Path,
     active: &HashSet<String>,
     dry_run: bool,
+    has_configured_secret: bool,
 ) -> Result<CacheReport> {
     let mut report = CacheReport::default();
-    for prefix in ["~upstreams", "~public"] {
-        let parent = cache_dir.join(prefix);
-        let Ok(mut entries) = fs::read_dir(&parent).await else {
-            continue;
-        };
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            prune_orphan_entry(&entry, prefix, active, dry_run, &mut report).await?;
-        }
+    if has_configured_secret {
+        prune_orphan_prefix(cache_dir, "~upstreams", active, dry_run, &mut report).await;
     }
+    prune_orphan_prefix(cache_dir, "~public", active, dry_run, &mut report).await;
     Ok(report)
 }
 
@@ -217,11 +232,13 @@ async fn evict_file_if_expired(
     let is_tmp = is_abandoned_tmp(&file.path, file.age);
     let is_expired = max_age.is_some_and(|ttl| file.age >= ttl);
     if is_tmp || is_expired {
-        if !dry_run {
-            let _ = fs::remove_file(&file.path).await;
+        if dry_run || fs::remove_file(&file.path).await.is_ok() {
+            report.files_evicted += 1;
+            report.bytes_reclaimed += file.size;
+        } else {
+            *total_size += file.size;
+            retained.push(file);
         }
-        report.files_evicted += 1;
-        report.bytes_reclaimed += file.size;
     } else {
         *total_size += file.size;
         retained.push(file);
@@ -276,12 +293,11 @@ async fn evict_lru(
         if total_size <= limit {
             break;
         }
-        if !dry_run {
-            let _ = fs::remove_file(&entry.path).await;
+        if dry_run || fs::remove_file(&entry.path).await.is_ok() {
+            total_size = total_size.saturating_sub(entry.size);
+            report.files_evicted += 1;
+            report.bytes_reclaimed += entry.size;
         }
-        total_size = total_size.saturating_sub(entry.size);
-        report.files_evicted += 1;
-        report.bytes_reclaimed += entry.size;
     }
 }
 

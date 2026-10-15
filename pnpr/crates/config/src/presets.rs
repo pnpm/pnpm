@@ -78,6 +78,7 @@ impl Config {
             logs: LogConfig::default(),
             osv: OsvConfig::default(),
             resolution_cache_secret: random_secret(),
+            has_configured_secret: false,
             http: super::HttpConfig {
                 listen,
                 public_url: format!("http://{listen}"),

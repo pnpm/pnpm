@@ -22,6 +22,7 @@ fn test_config(tmp: &TempDir) -> Config {
         r"
 storage: {storage}
 cache: {cache}
+secret: test-secret-key-32-chars-long-12
 registries:
   public-upstream:
     type: upstream
@@ -231,4 +232,44 @@ async fn ttl_eviction_prunes_empty_scope_directories() {
             .join("@my-scope")
             .exists(),
     );
+}
+
+#[tokio::test]
+async fn unconfigured_secret_preserves_private_namespaces_from_orphan_pruning() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 7677));
+    let config_path = tmp.path().join("config.yaml");
+    let yaml = format!(
+        r"
+storage: {storage}
+cache: {cache}
+registries:
+  public-upstream:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  private-upstream:
+    type: upstream
+    url: https://npm.pkg.github.com/
+    access:
+      - $all
+",
+        storage = tmp.path().display(),
+        cache = tmp.path().display(),
+    );
+    std::fs::write(&config_path, yaml).unwrap();
+    let config = Config::from_yaml(&config_path, listen, None).unwrap();
+    assert!(!config.has_configured_secret);
+
+    let orphan_public = tmp.path().join("~public/stale-public/pkg/package.json");
+    create_file_with_age(&orphan_public, b"{}", Duration::from_secs(10));
+    let private_ns = tmp.path().join("~upstreams/sibling-process-digest/pkg/package.json");
+    create_file_with_age(&private_ns, b"{}", Duration::from_secs(10));
+
+    let options =
+        CacheGcOptions { dry_run: false, max_size: None, max_age: None, orphans_only: true };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.namespaces_removed, 1);
+    assert!(!orphan_public.exists());
+    assert!(private_ns.exists());
 }

@@ -126,6 +126,13 @@ pub enum ConfigSource {
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
 /// are set by the binary's CLI flags after the YAML is loaded,
 /// matching verdaccio's CLI overrides.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "server configuration aggregates all functional subsystems"
+    )
+)]
 #[derive(Clone)]
 pub struct Config {
     /// Format and level for the `tracing-subscriber` the binary
@@ -141,6 +148,8 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
+    /// Whether `secret:` was explicitly provided in configuration rather than generated randomly.
+    pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
     pub identity: IdentityConfig,
@@ -154,6 +163,7 @@ impl std::fmt::Debug for Config {
             .field("logs", &self.logs)
             .field("osv", &self.osv)
             .field("resolution_cache_secret", &"[redacted]")
+            .field("has_configured_secret", &self.has_configured_secret)
             .field("http", &self.http)
             .field("storage", &self.storage)
             .field("identity", &self.identity)

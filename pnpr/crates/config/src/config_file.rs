@@ -174,6 +174,7 @@ pub(super) enum CacheFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct CacheSettingsFile {
     #[serde(default)]
     pub(super) path: Option<String>,

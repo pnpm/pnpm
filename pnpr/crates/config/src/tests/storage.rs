@@ -277,3 +277,9 @@ fn cache_rejects_invalid_max_size_or_age() {
     let bad_age = "storage: /x\ncache:\n  maxAge: whenever\n";
     assert!(Config::from_yaml_str(bad_age, Path::new("/x"), listen(), None).is_err());
 }
+
+#[test]
+fn cache_rejects_unknown_fields() {
+    let yaml = "storage: /x\ncache:\n  unknownField: 123\n";
+    assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
+}

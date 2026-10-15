@@ -226,6 +226,7 @@ impl Config {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
+            has_configured_secret: file.secret.is_some(),
             http,
             storage,
             identity: build_identity_config(&file.auth, base_dir, backend)?,
