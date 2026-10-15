@@ -154,7 +154,6 @@ pub(super) fn packument_response(
         }
         None => rewrite_tarball_urls(&mut doc, name, tarball_base),
     }
-    let last_modified = packument_last_modified(&doc);
     let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
@@ -163,9 +162,12 @@ pub(super) fn packument_response(
         (serde_json::to_vec(&doc)?, "application/json")
     };
     let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
-    let date_validator =
-        if osv_index.is_some() || abbreviated { None } else { last_modified.as_deref() };
-    if is_not_modified(headers, &etag, date_validator) {
+    // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
+    // is dynamically generated or subject to content negotiation (such as OSV
+    // filtering or abbreviation) and can vary independently of modification time.
+    let last_modified =
+        if osv_index.is_some() || abbreviated { None } else { packument_last_modified(&doc) };
+    if is_not_modified(headers, &etag, last_modified.as_deref()) {
         return Ok(packument_not_modified_response(&etag, last_modified, max_age));
     }
     Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))

@@ -605,13 +605,12 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
         .await
         .unwrap();
     assert_eq!(initial.status(), StatusCode::OK);
-    let last_modified = initial
-        .headers()
-        .get(header::LAST_MODIFIED)
-        .expect("Last-Modified header must be present")
-        .to_str()
-        .unwrap()
-        .to_string();
+    assert!(
+        initial
+            .headers()
+            .get(header::LAST_MODIFIED)
+            .is_none(),
+    );
     let etag = initial
         .headers()
         .get(header::ETAG)
@@ -625,13 +624,14 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
         .oneshot(
             Request::get("/foo")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
-                .header(header::IF_MODIFIED_SINCE, &last_modified)
+                .header(header::IF_MODIFIED_SINCE, "Sun, 21 Jun 2026 12:00:00 GMT")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(ims.status(), StatusCode::OK);
+    assert!(!body_bytes(ims.into_body()).await.is_empty());
 
     let inm = app
         .oneshot(
@@ -644,4 +644,10 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
         .await
         .unwrap();
     assert_eq!(inm.status(), StatusCode::NOT_MODIFIED);
+    assert!(
+        inm.headers()
+            .get(header::LAST_MODIFIED)
+            .is_none(),
+    );
+    assert_eq!(body_bytes(inm.into_body()).await.len(), 0);
 }
