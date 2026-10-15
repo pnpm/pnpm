@@ -121,3 +121,70 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
     let response = get(&app, &format!("/v2/token?{query}&scope=repository:other/extra:pull")).await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn oci_bearer_updates_parent_token_last_used_at() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$authenticated");
+    config.http.oci.bearer_auth = true;
+    let auth = AuthState::in_memory();
+    let tokens = std::sync::Arc::clone(&auth.tokens);
+    let app = router_with_auth(config, auth);
+
+    let raw_parent = token(&app).await;
+
+    // Mint an OCI token with pull scope for acme/app
+    let res = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/token?scope=repository:acme/app:pull")
+                .header(header::AUTHORIZATION, basic(&raw_parent))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let oci_res: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
+    let oci_token = oci_res["token"].as_str().unwrap();
+
+    let parent_minted = tokens
+        .lookup_record(&raw_parent)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(parent_minted.last_used_at > 0);
+
+    // Sleep past the second boundary so any subsequent update will advance last_used_at.
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+    // An unauthorized request (not permitted by scope) is rejected and does not update last_used_at.
+    let req = Request::get("/v2/_catalog")
+        .header(header::AUTHORIZATION, format!("Bearer {oci_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    let parent_mid = tokens
+        .lookup_record(&raw_parent)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(parent_mid.last_used_at, parent_minted.last_used_at);
+
+    // An authorized request (permitted by scope and parent) updates last_used_at.
+    let req = Request::get("/v2/acme/app/manifests/latest")
+        .header(header::AUTHORIZATION, format!("Bearer {oci_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+    let parent_after = tokens
+        .lookup_record(&raw_parent)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(parent_after.last_used_at > parent_minted.last_used_at);
+}

@@ -1,7 +1,5 @@
-use super::{
-    AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome,
-    validate_username,
-};
+use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
+use crate::validation::validate_username;
 
 // ---------------------------------------------------------------
 // htpasswd I/O

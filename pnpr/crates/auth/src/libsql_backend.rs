@@ -18,9 +18,9 @@
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
-use super::token_store::{mint_token, unix_seconds};
 mod connector;
 mod schema;
+mod tokens;
 mod user_admin;
 use connector::{LibsqlConnector, is_plain_http};
 use schema::{
@@ -30,9 +30,9 @@ use schema::{
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, dummy_verify,
-    fresh_secret, hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username,
-    verify_returning_user, with_auth_timeout,
+    fresh_secret, hash_bcrypt, verify_returning_user, with_auth_timeout,
 };
+use crate::validation::validate_username;
 use async_trait::async_trait;
 use libsql::{
     Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
@@ -40,20 +40,7 @@ use libsql::{
 use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
-
-/// The `tokens` columns selected (in order) by every token read, so
-/// [`row_to_keyed_record`] can decode any of them the same way.
-const TOKEN_COLUMNS: &str =
-    "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
-
-/// [`TOKEN_COLUMNS`] of the `tokens` table aliased `t`, for the reads that
-/// join `users` to require a stored owner.
-const OWNED_TOKEN_COLUMNS: &str =
-    "t.token_hash, t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist";
+use std::{sync::atomic::AtomicU64, time::Duration};
 
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -69,7 +56,7 @@ const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 pub struct LibsqlAuth {
     _db: Database,
     conn: Connection,
-    /// Per-process secret seeding [`mint_token`]. Need not match other
+    /// Per-process secret seeding [`crate::token_store::mint_token`]. Need not match other
     /// replicas: tokens are looked up by their stored hash, never
     /// re-derived, so each replica minting with its own secret is safe.
     secret: [u8; 32],
@@ -380,119 +367,6 @@ impl LibsqlAuth {
         };
         verify_returning_user(username, password, stored).await
     }
-}
-
-#[async_trait]
-impl TokenBackend for LibsqlAuth {
-    async fn issue(&self, username: &str) -> Result<String> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds() as i64;
-        self.conn.execute(
-            "INSERT INTO tokens
-                 (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-             VALUES (?1, ?2, ?3, ?3, 0, '[]')",
-            params![token_hash, username, now],
-        )
-        .await?;
-        Ok(raw)
-    }
-
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(
-                "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
-                 WHERE t.token_hash = ?1",
-                params![token_hash],
-            )
-            .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let query = format!(
-            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
-             WHERE t.token_hash = ?1",
-        );
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![token_hash]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![username]).await?;
-            let mut out = Vec::new();
-            while let Some(row) = rows.next().await? {
-                out.push(row_to_keyed_record(&row)?);
-            }
-            Ok(out)
-        })
-        .await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.find_by_key(key).await? else {
-            return Ok(None);
-        };
-        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
-        Ok(Some(record))
-    }
-
-    async fn check_readiness(&self) -> Result<()> {
-        self.check_db_readiness().await
-    }
-}
-
-/// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
-/// record)` pair.
-fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
-    let token_hash: String = row.get(0)?;
-    let username: String = row.get(1)?;
-    let created_at: i64 = row.get(2)?;
-    let last_used_at: i64 = row.get(3)?;
-    let readonly: i64 = row.get(4)?;
-    let cidr_json: String = row.get(5)?;
-    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
-        })?;
-    Ok((
-        token_hash,
-        TokenRecord {
-            username,
-            created_at: token_timestamp_from_sql(created_at),
-            last_used_at: token_timestamp_from_sql(last_used_at),
-            readonly: readonly != 0,
-            cidr_whitelist,
-        },
-    ))
 }
 
 #[cfg(test)]

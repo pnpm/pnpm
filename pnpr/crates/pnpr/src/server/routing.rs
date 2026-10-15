@@ -1,3 +1,9 @@
+mod account_handlers;
+use account_handlers::account_routes;
+
+mod protocol_routes;
+use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes};
+
 mod team_handlers;
 use team_handlers::team_routes;
 
@@ -19,7 +25,6 @@ use axum::{
     Router,
     extract::{DefaultBodyLimit, Path, RawQuery, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
-    middleware,
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
@@ -31,21 +36,15 @@ use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
 use super::{
-    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_ARTIFACT_BLOB_BODY_BYTES,
-    MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource,
-    TargetRegistry, addressed_registry, authenticate, authorize, batch, caller_scoped, cargo,
-    compiler_cache, delete_package, delete_session_token, delete_tarball, delete_token_by_key,
-    get_dist_tags, get_org_teams, get_profile, get_team_members, get_token_list, get_whoami,
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
+    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, addressed_registry, authenticate,
+    authorize, batch, caller_scoped, cargo, delete_package, delete_tarball, get_dist_tags,
+    get_org_teams, get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache, publish_package,
-    put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, resolve_write_target, serve_artifact_blob, serve_artifact_blob_size,
-    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_metrics,
-    serve_metrics_or_packument, serve_org_packages, serve_packument, serve_pipeline_ui,
-    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
-    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    pypi, remove_dist_tag, resolve_write_target, serve_batch_publish, serve_metrics,
+    serve_metrics_or_packument, serve_org_packages, serve_packument, serve_pnpr_handshake,
+    serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
     staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
@@ -248,37 +247,6 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     router
 }
 
-/// The account endpoints — adduser/login, whoami, profile, token
-/// listing/revocation, logout. They are pnpr account management, not
-/// npm-registry functionality: they mint and manage the tokens every
-/// authenticated surface demands, so they ride every tier alongside
-/// `/-/ping`. A resolver- or artifacts-only tier can then issue its own
-/// credentials (`pnpm login --registry https://<resolver-host>/`) instead of
-/// depending on a registry-serving replica that shares the auth backend.
-///
-/// Each endpoint also answers under any `/~<name>/`, so a client whose
-/// registry URL is a registry endpoint can log in against it. The identity
-/// endpoints are global and consult no registry state; a registry-table lookup
-/// would gate nothing while turning the 401-vs-404 split into an existence
-/// oracle for private registry names that the content handlers carefully mask.
-fn account_routes() -> Router<AppState> {
-    let mut router = Router::new();
-    for base in ["", "/~{registry}"] {
-        let path = |tail: &str| format!("{base}{tail}");
-        router = router
-            .route(&path("/-/whoami"), get(get_whoami))
-            .route(
-                &path("/-/user/{user}"),
-                put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-            )
-            .route(&path("/-/user/token/{token}"), delete(delete_session_token))
-            .route(&path("/-/npm/v1/user"), get(get_profile))
-            .route(&path("/-/npm/v1/tokens"), get(get_token_list))
-            .route(&path("/-/npm/v1/tokens/token/{key}"), delete(delete_token_by_key));
-    }
-    router
-}
-
 /// The npm-registry surface: every packument/tarball read, publish,
 /// unpublish, dist-tag, and search. Mounted only when the registry feature is
 /// on (registries declared and not `--disable-registry`), so resolver- and
@@ -328,105 +296,6 @@ fn npm_registry_routes() -> Router<AppState> {
             );
     }
     router
-}
-
-fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    router
-        .route(
-            "/-/pnpr/v0/resolve",
-            post(serve_resolve)
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-        )
-        .route(
-            "/-/pnpr/v0/verify-lockfile",
-            post(serve_verify_lockfile)
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-        )
-}
-
-fn artifacts_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    compiler_cache_routes(state, router)
-        .route(
-            "/-/pnpr/v0/artifacts",
-            put(serve_publish_artifact)
-                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_artifact_caller,
-                )),
-        )
-        .route(
-            "/-/pnpr/v0/artifacts/resolve",
-            post(serve_resolve_artifacts)
-                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_artifact_caller,
-                )),
-        )
-        // The limit bounds the lookup a `POST` sends. A `PUT` streams its
-        // body past it, and the store holds that to the declared size.
-        .route(
-            "/-/pnpr/v0/artifacts/blob",
-            post(serve_artifact_blob)
-                .put(serve_upload_artifact_blob)
-                .head(serve_artifact_blob_size)
-                .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_artifact_caller,
-                )),
-        )
-}
-
-fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    router
-        .route(
-            "/-/pnpr/v0/pipeline/runs",
-            put(serve_publish_pipeline_run)
-                .get(serve_list_pipeline_runs)
-                .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_pipeline_caller,
-                )),
-        )
-        .route(
-            "/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}",
-            get(serve_get_pipeline_run)
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_pipeline_caller,
-                )),
-        )
-        // The viewer page is static HTML with no data of its own; the
-        // reads it issues are what authenticate.
-        .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui))
-}
-
-fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    router
-        .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
-        .route(
-            "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
-            get(compiler_cache::read)
-                .head(compiler_cache::head)
-                .put(compiler_cache::write)
-                .fallback(compiler_cache::directory)
-                .route_layer(DefaultBodyLimit::max(
-                    pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
-                ))
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    compiler_cache::authorize_request,
-                )),
-        )
 }
 
 fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
