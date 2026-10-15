@@ -59,6 +59,7 @@ pub struct SelectedShell {
 /// `shellEmulator` selects the built-in shell only when `scriptShell` is
 /// unset. A blank value is unset, the same as the TypeScript runner.
 /// A configured shell is the one that runs the script.
+#[must_use]
 pub fn use_shell_emulator(shell_emulator: bool, script_shell: Option<&Path>) -> bool {
     shell_emulator && configured_script_shell(script_shell).is_none()
 }

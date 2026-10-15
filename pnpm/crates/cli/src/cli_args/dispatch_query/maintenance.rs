@@ -17,8 +17,9 @@ pub(in super::super) fn doctor<'a>(
     args: DoctorArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
+    let dir: &'a std::path::Path = ctx.locations.dir;
     Ok(Box::pin(async move {
-        let result = args.run(cfg).await?;
+        let result = args.run(cfg, dir).await?;
         println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
             #[expect(
