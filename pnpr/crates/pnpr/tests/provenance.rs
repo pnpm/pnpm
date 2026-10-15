@@ -43,6 +43,17 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&bytes).expect("valid JSON")
 }
 
+async fn get_req(app: &axum::Router, path: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::get(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 fn sample_sigstore_bundle(predicate_type: &str) -> Value {
     let statement = json!({
         "_type": "https://in-toto.io/Statement/v0.1",
@@ -112,17 +123,7 @@ async fn publish_with_provenance_and_serve_attestations() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    let get_packument = Request::get("/prov-pkg")
-        .body(Body::empty())
-        .unwrap();
-    let packument = body_json(
-        app.clone()
-            .oneshot(get_packument)
-            .await
-            .unwrap()
-            .into_body(),
-    )
-    .await;
+    let packument = body_json(get_req(&app, "/prov-pkg").await.into_body()).await;
     assert_eq!(
         packument["versions"]["1.0.0"]["dist"]["attestations"]["url"],
         format!("{PUBLIC_URL}/-/npm/v1/attestations/prov-pkg@1.0.0"),
@@ -132,14 +133,7 @@ async fn publish_with_provenance_and_serve_attestations() {
         "https://slsa.dev/provenance/v1",
     );
 
-    let get_attest = Request::get("/-/npm/v1/attestations/prov-pkg@1.0.0")
-        .body(Body::empty())
-        .unwrap();
-    let attest_res = app
-        .clone()
-        .oneshot(get_attest)
-        .await
-        .unwrap();
+    let attest_res = get_req(&app, "/-/npm/v1/attestations/prov-pkg@1.0.0").await;
     assert_eq!(attest_res.status(), StatusCode::OK);
     let payload = body_json(attest_res.into_body()).await;
     let items = payload["attestations"].as_array().expect("array");
@@ -153,17 +147,7 @@ async fn publish_with_provenance_and_serve_attestations() {
         "/-/npm/v1/attestations/prov-pkg@",
         "/-/npm/v1/attestations/@prov-pkg",
     ] {
-        let req = Request::get(bad_path)
-            .body(Body::empty())
-            .unwrap();
-        assert_eq!(
-            app.clone()
-                .oneshot(req)
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::NOT_FOUND,
-        );
+        assert_eq!(get_req(&app, bad_path).await.status(), StatusCode::NOT_FOUND);
     }
 }
 
@@ -190,17 +174,7 @@ async fn publish_scoped_package_with_sigstore_json_attachment() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    let get_packument = Request::get("/@scope%2Fprov-pkg")
-        .body(Body::empty())
-        .unwrap();
-    let packument = body_json(
-        app.clone()
-            .oneshot(get_packument)
-            .await
-            .unwrap()
-            .into_body(),
-    )
-    .await;
+    let packument = body_json(get_req(&app, "/@scope%2Fprov-pkg").await.into_body()).await;
     assert_eq!(
         packument["versions"]["2.0.0"]["dist"]["attestations"]["url"],
         format!("{PUBLIC_URL}/-/npm/v1/attestations/@scope/prov-pkg@2.0.0"),
@@ -211,10 +185,7 @@ async fn publish_scoped_package_with_sigstore_json_attachment() {
         "/-/npm/v1/attestations/@scope%2Fprov-pkg@2.0.0",
         "/-/npm/v1/attestations/@scope/prov-pkg@2.0.0",
     ] {
-        let req = Request::get(path)
-            .body(Body::empty())
-            .unwrap();
-        let res = app.clone().oneshot(req).await.unwrap();
+        let res = get_req(&app, path).await;
         assert_eq!(res.status(), StatusCode::OK);
         let payload = body_json(res.into_body()).await;
         assert_eq!(payload["attestations"][0]["predicateType"], "https://slsa.dev/provenance/v0.2");
@@ -280,10 +251,7 @@ async fn hosted_keys_endpoint_returns_empty_keys() {
     let app = router(static_config(tmp.path().to_path_buf()));
 
     for path in ["/-/npm/v1/keys", "/~local/-/npm/v1/keys"] {
-        let req = Request::get(path)
-            .body(Body::empty())
-            .unwrap();
-        let res = app.clone().oneshot(req).await.unwrap();
+        let res = get_req(&app, path).await;
         assert_eq!(res.status(), StatusCode::OK);
         let payload = body_json(res.into_body()).await;
         assert_eq!(payload, json!({ "keys": [] }));
@@ -316,29 +284,13 @@ async fn upstream_attestations_and_keys_proxy() {
     let app = router(config);
 
     // Keys proxied
-    let keys_res = app
-        .clone()
-        .oneshot(
-            Request::get("/-/npm/v1/keys")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let keys_res = get_req(&app, "/-/npm/v1/keys").await;
     assert_eq!(keys_res.status(), StatusCode::OK);
     let keys_payload = body_json(keys_res.into_body()).await;
     assert_eq!(keys_payload["keys"][0]["keyid"], "sigstore-root");
 
     // Attestations proxied
-    let attest_res = app
-        .clone()
-        .oneshot(
-            Request::get("/-/npm/v1/attestations/proxied-pkg@1.0.0")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let attest_res = get_req(&app, "/-/npm/v1/attestations/proxied-pkg@1.0.0").await;
     assert_eq!(attest_res.status(), StatusCode::OK);
     let attest_payload = body_json(attest_res.into_body()).await;
     assert_eq!(
@@ -394,4 +346,37 @@ async fn orphan_sigstore_attachment_is_rejected() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn duplicate_sigstore_attachments_are_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let mut doc = doc_with_sigstore(
+        "dup-sig",
+        "1.0.0",
+        b"tarball",
+        "dup-sig-1.0.0.sigstore",
+        &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
+    );
+    let second_bytes =
+        serde_json::to_vec(&sample_sigstore_bundle("https://slsa.dev/provenance/v0.2")).unwrap();
+    doc["_attachments"]["dup-sig-1.0.0.sigstore.json"] = json!({
+        "content_type": "application/json",
+        "data": BASE64.encode(&second_bytes),
+        "length": second_bytes.len(),
+    });
+
+    let res = app
+        .oneshot(put_publish("/dup-sig", &token, &doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("duplicate attachment for dup-sig-1.0.0.sigstore"),
+    );
 }

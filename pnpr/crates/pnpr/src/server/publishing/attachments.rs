@@ -48,10 +48,7 @@ pub(in super::super) async fn validate_publish_doc(
     name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
-    // Route the write to its hosted registry first (masking a denied caller
-    // as not-found, rejecting an upstream target), then check that
-    // registry's `publish` rule for this package — so routing failures
-    // surface before any 401/403 that would reveal a masked name exists.
+    // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
     authorize(
         state,
@@ -76,8 +73,19 @@ fn prepare_attachments(
     attachments: Vec<PendingAttachment>,
 ) -> Result<Vec<PreparedAttachment>, RegistryError> {
     let mut prepared = Vec::with_capacity(attachments.len());
+    let mut seen_canonical = HashSet::with_capacity(attachments.len());
+    let mut tarball_versions = HashSet::new();
+
     for attachment in attachments {
         let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
+        if !seen_canonical.insert(canonical.clone()) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("duplicate attachment for {canonical}"),
+            });
+        }
+        if kind == AttachmentKind::Tarball {
+            tarball_versions.insert(version.clone());
+        }
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
@@ -87,11 +95,7 @@ fn prepare_attachments(
         prepared.push(PreparedAttachment { attachment, canonical, version, dist, kind });
     }
     for att in &prepared {
-        if att.kind == AttachmentKind::Sigstore
-            && !prepared
-                .iter()
-                .any(|other| other.kind == AttachmentKind::Tarball && other.version == att.version)
-        {
+        if att.kind == AttachmentKind::Sigstore && !tarball_versions.contains(&att.version) {
             return Err(RegistryError::BadRequest {
                 reason: format!("sigstore attachment for {} has no tarball", att.version),
             });
@@ -316,17 +320,9 @@ fn decode_and_write_attachment(
 
 /// Validate each incoming version against the locally hosted packument. A
 /// hosted packument is served as-is, so anything not in it is genuinely new
-/// here, even if it exists upstream.
-///
-/// * Already hosted — published content is immutable, so a *content*
-///   re-publish is refused with 409 (as npm/verdaccio do): one that carries a
-///   new tarball (an attachment) or changes `dist.integrity` (the content
-///   anchor; the `tarball` URL is rewritten on read, so it is not compared).
-///   A clash that does neither is a metadata-only update (`pnpm deprecate`),
-///   which is allowed — `merge_versions` keeps the hosted `dist`.
-/// * New — it must ship a tarball. A version entry with no attachment would be
-///   advertised with no hosted tarball (installs 404) and would block a later
-///   real publish of it (409), so it is refused with 400.
+/// Validate versions against existing hosted versions. Published content is
+/// immutable, so re-publishes with modified tarballs or integrity are rejected.
+/// New versions must provide a tarball.
 pub(super) fn check_publishable_versions(
     name: &CanonicalPackageName,
     incoming: &Value,
