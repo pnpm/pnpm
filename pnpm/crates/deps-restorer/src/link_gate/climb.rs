@@ -64,7 +64,7 @@ impl Direction {
 
 /// The windows of the probe in progress: the current width's rates in
 /// slots 0 and 3, the candidate's in 1 and 2.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct Probe {
     rates: [u64; 4],
     observed: usize,

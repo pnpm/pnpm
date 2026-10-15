@@ -57,7 +57,7 @@ fn keeps_a_seeded_knee() {
         settled
             .iter()
             .all(|width| (3..=5).contains(width)),
-        "{settled:?}"
+        "{settled:?}",
     );
 }
 
@@ -69,7 +69,7 @@ fn holds_its_width_when_only_the_rate_drifts() {
         settled
             .iter()
             .all(|width| *width == INITIAL_PERMITS),
-        "{settled:?}"
+        "{settled:?}",
     );
 }
 
