@@ -50,7 +50,7 @@ fn create_file_with_age(path: &Path, content: &[u8], age: Duration) {
         .write(true)
         .open(path)
         .unwrap();
-    file.set_times(FileTimes::new().set_modified(mtime))
+    file.set_times(FileTimes::new().set_modified(mtime).set_accessed(mtime))
         .unwrap();
 }
 
