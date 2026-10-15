@@ -6,4 +6,4 @@
 "@pnpm/store.path": patch
 ---
 
-Fixed the README usage examples to import the named exports these packages now provide.
+Fixed the README usage examples to match these packages' current APIs.

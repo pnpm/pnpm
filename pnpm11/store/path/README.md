@@ -18,7 +18,7 @@
 import { getStorePath } from '@pnpm/store.path'
 
 await getStorePath({ pkgRoot: 'F:\\project', storePath: 'pnpm-store', pnpmHomeDir: 'C:\\pnpm-home' })
-//> F:\\project\\pnpm-store\\v11
+//> F:\project\pnpm-store\v11
 ```
 
 ## License
