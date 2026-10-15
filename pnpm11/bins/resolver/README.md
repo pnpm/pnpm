@@ -15,15 +15,17 @@ pnpm add @pnpm/bins.resolver
 ## Usage
 
 ```ts
-import getBinsFromPkg from '@pnpm/bins.resolver'
+import { readFile } from 'node:fs/promises'
+import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 
-await getBinsFromPkg(path.resolve('package.json'), process.cwd())
+const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+await getBinsFromPackageManifest(manifest, process.cwd())
 //> [{name: 'bin-name', path: 'path-to-bin'}]
 ```
 
 ## API
 
-### `getBinsFromPkg(packageJson, pathToPkg): Promise<Array<{name: string, path: string}>>`
+### `getBinsFromPackageManifest(manifest, pkgPath): Promise<Array<{name: string, path: string}>>`
 
 ## License
 

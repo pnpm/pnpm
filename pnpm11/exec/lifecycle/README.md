@@ -15,25 +15,23 @@ pnpm add @pnpm/logger @pnpm/exec.lifecycle
 ## Usage
 
 ```ts
-import runLifecycleHook, {runPostinstallHooks} from '@pnpm/exec.lifecycle'
+import { runLifecycleHook, runPostinstallHooks } from '@pnpm/exec.lifecycle'
 
 const targetPkgRoot = path.resolve('node_modules/target-pkg')
 const pkg = require(path.join(targetPkgRoot, 'package.json'))
 
 // Run a specific hook
 await runLifecycleHook('preinstall', pkg, {
-  pkgId: 'target-pkg/1.0.0',
+  depPath: 'target-pkg@1.0.0',
   pkgRoot: targetPkgRoot,
-  rawConfig: {},
   rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
 
 // Run all install hooks
 await runPostinstallHooks({
-  pkgId: 'target-pkg/1.0.0',
+  depPath: 'target-pkg@1.0.0',
   pkgRoot: targetPkgRoot,
-  rawConfig: {},
   rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
@@ -41,9 +39,9 @@ await runPostinstallHooks({
 
 ## API
 
-### `runLifecycleHook(stage, packageManifest, opts): Promise<void>`
+### `runLifecycleHook(stage, packageManifest, opts): Promise<boolean>`
 
-### `runPostinstallHooks(opts): Promise<void>`
+### `runPostinstallHooks(opts): Promise<boolean>`
 
 ## License
 

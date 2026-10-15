@@ -11,13 +11,13 @@ pnpm add @pnpm/config.normalize-registries
 ## Usage
 
 ```typescript
-import normalizeRegistries from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 
-normalizeRegistries({
+normalizeRegistriesByScope({
   'default': 'https://registry.npmjs.org',
   '@foo': 'https://example.com',
 })
-// will return the same object but the URLs will end with a /
+// returns these registries merged over the defaults, with every URL ending in a /
 ```
 
 ## License
