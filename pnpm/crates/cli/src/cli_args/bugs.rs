@@ -86,7 +86,10 @@ fn resolve_package_target_registry(
     spec: &str,
 ) -> String {
     let parsed = PackageSpec::parse(spec);
-    let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
+    let package_name = parsed
+        .as_ref()
+        .map(|parsed| parsed.name.as_str())
+        .unwrap_or(spec);
     resolve_target_registry_for_package(registries, registry_override, package_name, Some(spec))
 }
 
@@ -111,7 +114,10 @@ async fn get_bugs_url_from_registry(
     auth_headers: &pnpm_network::AuthHeaders,
 ) -> miette::Result<String> {
     let parsed = PackageSpec::parse(spec);
-    let package_name = parsed.as_ref().map_or(spec, |parsed| parsed.name.as_str());
+    let package_name = parsed
+        .as_ref()
+        .map(|parsed| parsed.name.as_str())
+        .unwrap_or(spec);
     let package_tag = match parsed.as_ref().and_then(|parsed| parsed.version.as_deref()) {
         None => PackageTag::Latest,
         Some(tag_str) => tag_str.parse::<PackageTag>().unwrap_or(PackageTag::Latest),
@@ -314,7 +320,7 @@ fn is_http_url(value: &str) -> bool {
 fn open_url<Sys: OpenUrl>(url: &str) {
     let sanitized = crate::cli_args::sanitize::sanitize(url);
     let redacted = pnpm_network::redact_url_credentials(&sanitized);
-    println!("{redacted}");
+    pnpm_diagnostics::println!("{redacted}");
 
     let clean_url_for_browser = if let Ok(mut parsed) = Url::parse(url) {
         if !parsed.username().is_empty() || parsed.password().is_some() {

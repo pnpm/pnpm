@@ -73,6 +73,35 @@ fn should_fail_on_missing_hash() {
     assert!(stderr.contains("File not found in store"));
 }
 
+/// A store file that cannot be read fails the command with the store path,
+/// not as a failed write to stdout.
+#[test]
+#[cfg(unix)]
+fn should_fail_on_unreadable_store_file() {
+    use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
+
+    let CommandTempCwd {
+        mut pacquet,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let hex = "309ecc489c12d6eb4cc40f50c902f2b4d0ed77ee511a7c7a9bcd3ca86d4cd86f989dd35bc5ff499670da34255b45b0cfd830e81f605dcf7dc5542e93ae9cd76f";
+    // A directory opens like a file on Unix, then fails the read.
+    fs::create_dir_all(
+        npmrc_info.store_dir
+            .join("v11/files")
+            .join(&hex[..2])
+            .join(&hex[2..]),
+    )
+    .unwrap();
+
+    let output = pacquet.arg("cat-file").arg("sha512-MJ7MSJwS1utMxA9QyQLytNDtd+5RGnx6m808qG1M2G+YndNbxf9JlnDaNCVbRbDP2DDoH2Bdz33FVC6TrpzXbw==").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert_diagnostic_contains(&stderr, "Failed to read");
+    assert!(!stderr.contains("failed to write to stdout"), "{stderr}");
+}
+
 #[test]
 fn should_fail_on_invalid_hash_format() {
     let CommandTempCwd { mut pacquet, root: _root, .. } =

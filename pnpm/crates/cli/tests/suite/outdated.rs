@@ -5,7 +5,12 @@ use crate::_utils::{
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    fs, io,
+    path::Path,
+    process::{Command, Stdio},
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
@@ -50,6 +55,25 @@ fn outdated_reports_newer_version() {
     assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
     assert!(stdout.contains("100.1.0"), "report should show the current version: {stdout}");
     assert!(stdout.contains("101.0.0"), "report should show the latest version: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// The exit status is the verdict a CI pipeline acts on, so a closed
+/// stdout drops the report and keeps the status (pnpm/tasks#132).
+#[test]
+fn outdated_keeps_its_exit_code_when_stdout_is_closed() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet(&workspace, ["outdated"])
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
 
     drop((root, anchor));
 }

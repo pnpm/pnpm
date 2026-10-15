@@ -260,7 +260,7 @@ fn locate_channel(lines: &[String]) -> ChannelLocation {
             return ChannelLocation::Line(index);
         }
     }
-    header.map_or(ChannelLocation::NoTable, ChannelLocation::Header)
+    header.map(ChannelLocation::Header).unwrap_or(ChannelLocation::NoTable)
 }
 
 fn is_channel_key(line: &str) -> bool {

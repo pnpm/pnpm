@@ -19,7 +19,7 @@ pub(in super::super) fn doctor<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let result = args.run(cfg).await?;
-        println!("{}", result.output);
+        pnpm_diagnostics::println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
             #[expect(
                 clippy::exit,
@@ -89,7 +89,7 @@ pub(in super::super) fn shim<'a>(
     // command happens to run in does not get to steer either.
     let config = (ctx.loaders.global_config)()?;
     Ok(Box::pin(async move {
-        print!("{}", args.run(config).await?);
+        pnpm_diagnostics::print!("{}", args.run(config).await?);
         Ok(())
     }))
 }
@@ -235,7 +235,7 @@ pub(in super::super) fn ignored_builds<'a>(
         ctx.locations.manifest_path,
     );
     let output = super::super::ignored_builds::render_ignored_builds(config)?;
-    print!("{output}");
+    pnpm_diagnostics::print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

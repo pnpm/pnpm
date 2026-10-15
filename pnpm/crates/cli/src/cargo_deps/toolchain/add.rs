@@ -160,7 +160,8 @@ impl PreparedInstall for PinnedToolchain {
                 .map(|target| {
                     link_path
                         .parent()
-                        .map_or_else(|| target.clone(), |parent| parent.join(&target))
+                        .map(|parent| parent.join(&target))
+                        .unwrap_or_else(|| target.clone())
                 }),
         );
         link(dir, &toolchain.dir)

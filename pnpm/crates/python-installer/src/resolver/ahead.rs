@@ -314,7 +314,8 @@ impl<'a> Ahead<'a> {
         let Some(versions) = registry.resolution.packages.candidates.get(name) else { return };
         let specifiers = self.wanted
             .get(name)
-            .map_or(&[][..], |wanted| &wanted.specifiers[..]);
+            .map(|wanted| &wanted.specifiers[..])
+            .unwrap_or(&[][..]);
         let admitted = |version: &&Version| {
             specifiers
                 .iter()

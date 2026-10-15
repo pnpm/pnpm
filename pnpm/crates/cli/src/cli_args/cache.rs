@@ -11,8 +11,10 @@ use pnpm_resolving_npm_resolver::mirror::{
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
+    borrow::Cow,
+    ffi::OsStr,
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 use wax::walk::Entry;
 
@@ -125,7 +127,7 @@ impl CacheCommand {
 
         match self {
             CacheCommand::Path => {
-                println!("{}", Self::cleaned_cache_dir(config).display());
+                pnpm_diagnostics::println!("{}", Self::cleaned_cache_dir(config).display());
             }
             CacheCommand::ListRegistries => {
                 let Ok(entries) = fs::read_dir(&cache_dir) else {
@@ -138,7 +140,7 @@ impl CacheCommand {
                     .collect();
                 registries.sort();
                 if !registries.is_empty() {
-                    println!("{}", registries.join("\n"));
+                    pnpm_diagnostics::println!("{}", registries.join("\n"));
                 }
             }
             CacheCommand::List { packages } => {
@@ -147,7 +149,7 @@ impl CacheCommand {
                 }
                 let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
                 if !meta_files.is_empty() {
-                    println!("{}", meta_files.join("\n"));
+                    pnpm_diagnostics::println!("{}", meta_files.join("\n"));
                 }
             }
             CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
@@ -159,7 +161,7 @@ impl CacheCommand {
     }
     fn view(config: &Config, cache_dir: &Path, package: &str) -> miette::Result<()> {
         if !cache_dir.exists() {
-            println!("{{}}");
+            pnpm_diagnostics::println!("{{}}");
             return Ok(());
         }
         Self::reject_path_traversal(package)?;
@@ -203,7 +205,10 @@ impl CacheCommand {
             );
         }
 
-        println!("{}", serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?);
+        pnpm_diagnostics::println!(
+            "{}",
+            serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?,
+        );
         Ok(())
     }
 
@@ -227,7 +232,7 @@ impl CacheCommand {
         deleted.sort();
         deleted.dedup();
         if !deleted.is_empty() {
-            println!("{}", deleted.join("\n"));
+            pnpm_diagnostics::println!("{}", deleted.join("\n"));
         }
         Ok(())
     }
@@ -384,7 +389,7 @@ impl PruneOutcome {
             pnpm_diagnostics::eprintln!("Dry run: {count} would be deleted.");
         }
         if !self.pruned.is_empty() {
-            println!("{}", self.pruned.join("\n"));
+            pnpm_diagnostics::println!("{}", self.pruned.join("\n"));
         }
         if self.failures.is_empty() {
             return Ok(());
@@ -473,15 +478,10 @@ fn cache_registry_name(file_path: &str) -> String {
     Path::new(file_path)
         .components()
         .next()
-        .map_or_else(
-            || ".".to_string(),
-            |component| {
-                component
-                    .as_os_str()
-                    .to_string_lossy()
-                    .into_owned()
-            },
-        )
+        .map(Component::as_os_str)
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
+        .unwrap_or_else(|| ".".to_string())
 }
 
 /// The metadata file's modification time as an RFC 3339 timestamp.

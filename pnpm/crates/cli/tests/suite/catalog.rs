@@ -85,7 +85,8 @@ fn snapshot_dep_version(workspace: &Path, snapshot_key: &str, name: &str) -> Str
         .and_then(|dependencies| {
             dependencies.get(&PkgName::parse(name).expect("parse the package name"))
         })
-        .map_or_else(|| panic!("{snapshot_key} has no resolved {name}"), ToString::to_string)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| panic!("{snapshot_key} has no resolved {name}"))
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -1439,10 +1440,8 @@ fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String 
         .and_then(|dependencies| {
             dependencies.get(&PkgName::parse(name).expect("parse the package name"))
         })
-        .map_or_else(
-            || panic!("{importer} has no resolved {name}"),
-            |dependency| dependency.version.to_string(),
-        )
+        .map(|dependency| dependency.version.to_string())
+        .unwrap_or_else(|| panic!("{importer} has no resolved {name}"))
 }
 
 /// The same move has to reach a project that keeps its own lockfile, where

@@ -36,7 +36,7 @@ impl BinArgs {
             dir.join(config.modules_dir_name_for(dir, project_name.as_deref()))
                 .join(".bin")
         };
-        println!("{}", bin.display());
+        pnpm_diagnostics::println!("{}", bin.display());
         Ok(())
     }
 }

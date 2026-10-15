@@ -23,7 +23,8 @@ fn addon_entry_point_configures_rayon_pool() {
     .expect("read_config must succeed");
     let _ = config.registries;
     let current_threads = rayon::current_num_threads();
-    let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let parallelism =
+        std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok());

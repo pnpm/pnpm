@@ -4,7 +4,7 @@
 //! about a holder that dies: the OS releases the file lock with the
 //! process, which no thread inside the test can stand in for.
 
-#![expect(clippy::print_stderr, reason = "test-only helper binary")]
+#![expect(clippy::print_stderr, clippy::print_stdout, reason = "test-only helper binary")]
 
 use pnpm_fs::DirLock;
 use std::{

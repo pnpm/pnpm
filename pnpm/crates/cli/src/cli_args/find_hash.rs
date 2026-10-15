@@ -85,7 +85,7 @@ impl FindHashArgs {
         }
 
         for (name, version, index_key) in results {
-            println!(
+            pnpm_diagnostics::println!(
                 "{}@{}  {}",
                 package_info(&name),
                 package_info(&version),

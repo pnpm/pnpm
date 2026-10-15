@@ -233,7 +233,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
             args.run::<CliReporter>(dir, config, recursive, hooks).await?
         };
         if print_output && !output.is_empty() {
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -302,7 +302,7 @@ pub(super) fn stage<'a>(
         if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks).await? {
             let output = super::sanitize::sanitize(&output);
             if !output.is_empty() {
-                println!("{output}");
+                pnpm_diagnostics::println!("{output}");
             }
         }
         Ok(())

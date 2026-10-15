@@ -110,7 +110,7 @@ impl PkgArgs {
             PkgSubcommand::Get(args) => {
                 let output = pkg_get(manifest_path, &args.keys, self.json)?;
                 if !output.is_empty() {
-                    println!("{output}");
+                    pnpm_diagnostics::println!("{output}");
                 }
             }
             PkgSubcommand::Set(args) => {
@@ -222,7 +222,7 @@ fn print_recursive_get<'a>(
     }
     let output = serde_json::to_string_pretty(&Value::Object(entries))
         .map_err(|error| miette::miette!("{error}"))?;
-    println!("{output}");
+    pnpm_diagnostics::println!("{output}");
     Ok(())
 }
 

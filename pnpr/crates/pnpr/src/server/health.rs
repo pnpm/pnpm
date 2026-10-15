@@ -73,11 +73,13 @@ pub(crate) async fn serve_ready(State(state): State<AppState>) -> Response {
         let storage_msg = storage_status
             .as_ref()
             .err()
-            .map_or_else(|| "ok".to_string(), RegistryError::log_message);
+            .map(RegistryError::log_message)
+            .unwrap_or_else(|| "ok".to_string());
         let auth_msg = auth_status
             .as_ref()
             .err()
-            .map_or_else(|| "ok".to_string(), RegistryError::log_message);
+            .map(RegistryError::log_message)
+            .unwrap_or_else(|| "ok".to_string());
         tracing::warn!(storage = %storage_msg, auth = %auth_msg, "readiness probe failed");
         let storage_status_val = if storage_status.is_ok() { "ok" } else { "unavailable" };
         let auth_status_val = if auth_status.is_ok() { "ok" } else { "unavailable" };

@@ -1,10 +1,42 @@
 use super::{
-    AppState, AuthedCaller, Deserialize, Path, Response, State, TargetRegistry, TeamScope,
-    add_team_member, create_team, destroy_team, get_org_teams, get_team_members, grant_team_access,
-    list_team_packages, private_no_cache, remove_team_member, revoke_team_access,
-    serve_org_packages,
+    AppState, AuthedCaller, Deserialize, MAX_TEAM_BODY_BYTES, Path, Response, State,
+    TargetRegistry, TeamScope, add_team_member, create_team, destroy_team, get_org_teams,
+    get_team_members, grant_team_access, list_team_packages, private_no_cache, remove_team_member,
+    revoke_team_access, serve_org_packages,
 };
-use axum::body::Bytes;
+use axum::{
+    Router,
+    body::Bytes,
+    extract::DefaultBodyLimit,
+    routing::{delete, get},
+};
+
+pub(super) fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(
+            &path("/-/org/{scope}/team"),
+            get(get_teams)
+                .put(put_team)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
+        .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
+        .route(
+            &path("/-/team/{scope}/{team}/user"),
+            get(get_team_users)
+                .put(put_team_user)
+                .delete(delete_team_user)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+        .route(
+            &path("/-/team/{scope}/{team}/package"),
+            get(get_team_packages)
+                .put(put_team_package)
+                .delete(delete_team_package)
+                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
+        )
+}
 
 #[derive(Deserialize)]
 pub(super) struct ScopePath {
@@ -23,7 +55,7 @@ pub(super) struct TeamPath {
 
 /// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
 /// `scope`.
-pub(super) async fn get_teams(
+async fn get_teams(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -34,7 +66,7 @@ pub(super) async fn get_teams(
 
 /// `GET {base}/-/org/{scope}/package` — the packages of the registry claiming
 /// `scope`.
-pub(super) async fn get_org_package_list(
+async fn get_org_package_list(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -44,7 +76,7 @@ pub(super) async fn get_org_package_list(
 }
 
 /// `PUT {base}/-/org/{scope}/team`.
-pub(super) async fn put_team(
+async fn put_team(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -56,7 +88,7 @@ pub(super) async fn put_team(
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}`.
-pub(super) async fn delete_team(
+async fn delete_team(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -67,7 +99,7 @@ pub(super) async fn delete_team(
 }
 
 /// `GET {base}/-/team/{scope}/{team}/user`.
-pub(super) async fn get_team_users(
+async fn get_team_users(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -83,7 +115,7 @@ pub(super) async fn get_team_users(
 }
 
 /// `PUT {base}/-/team/{scope}/{team}/user`.
-pub(super) async fn put_team_user(
+async fn put_team_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -95,7 +127,7 @@ pub(super) async fn put_team_user(
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}/user`.
-pub(super) async fn delete_team_user(
+async fn delete_team_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -107,7 +139,7 @@ pub(super) async fn delete_team_user(
 }
 
 /// `GET {base}/-/team/{scope}/{team}/package`.
-pub(super) async fn get_team_packages(
+async fn get_team_packages(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -118,7 +150,7 @@ pub(super) async fn get_team_packages(
 }
 
 /// `PUT {base}/-/team/{scope}/{team}/package`.
-pub(super) async fn put_team_package(
+async fn put_team_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
@@ -130,7 +162,7 @@ pub(super) async fn put_team_package(
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}/package`.
-pub(super) async fn delete_team_package(
+async fn delete_team_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,

@@ -153,7 +153,7 @@ chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 console = { version = "0.16.3" }
 core-foundation = { version = "0.10.1" }
 crossterm = { version = "0.29.0" }
-dashmap = { version = "6.2.1" }
+dashmap = { version = "7.0.0-rc2" }
 deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.12.0", default-features = false }
@@ -281,6 +281,9 @@ mockito = { version = "1.7.2" }
 [patch.crates-io]
 tar = { path = "vendor/tar" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
+# Adds the `nightly` feature. Drop once an upstream release carries it.
+# See <https://github.com/pnpm/pnpm/pull/16951>.
+dashmap = { git = "https://github.com/pnpm/dashmap", rev = "4401b5c0b2626266dd5d5a9202677bca8b53e57a" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"
@@ -326,6 +329,7 @@ similar_names = "allow" # names ported verbatim from pnpm
 items_after_statements = "allow"
 needless_continue = "allow"
 many_single_char_names = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+map_unwrap_or = "allow" # its map_or/map_or_else suggestion puts the fallback before the value; the map/unwrap_or_else chain reads in evaluation order
 
 # nursery-group opt-outs (the group is experimental; these lints are either
 # false positives on this code or fight conventions the project keeps on purpose)
@@ -360,6 +364,7 @@ pathbuf_init_then_push = "warn"
 string_add = "warn"
 verbose_file_reads = "warn"
 print_stderr = "warn" # `eprintln!` panics on a closed stderr; use `pnpm_diagnostics::eprintln!` (pnpm/pnpm#16904)
+print_stdout = "warn" # `println!` panics on a closed stdout; use `pnpm_diagnostics::println!` (pnpm/tasks#132)
 
 # cargo-group lints opted into individually (the cargo group is otherwise off).
 negative_feature_names = "warn"

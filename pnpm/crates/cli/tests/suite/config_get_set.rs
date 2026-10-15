@@ -7,7 +7,10 @@ use pnpm_testing_utils::{
     bin::CommandTempCwd, command_env::CommandTestExt, diagnostics::assert_diagnostic_contains,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, process::Command};
+use std::{
+    fs, io,
+    process::{Command, Stdio},
+};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -89,6 +92,24 @@ fn get_keeps_stdout_to_the_value() {
         .expect("run pacquet get");
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hoisted");
+
+    drop(root);
+}
+
+/// `pnpm config list | head -0` closes stdout before pnpm writes the
+/// list; pnpm exits 0 instead of aborting (pnpm/tasks#132).
+#[test]
+fn config_list_exits_zero_when_stdout_is_closed() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet
+        .with_args(["config", "list"])
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet config list");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
 
     drop(root);
 }

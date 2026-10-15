@@ -67,7 +67,7 @@ impl TurborepoArtifactStore {
         Ok(TurborepoArtifactStore {
             http,
             base_url: url.trim_end_matches('/').to_string(),
-            team_query: team.map_or_else(String::new, team_query),
+            team_query: team.map(team_query).unwrap_or_default(),
             authorization,
         })
     }

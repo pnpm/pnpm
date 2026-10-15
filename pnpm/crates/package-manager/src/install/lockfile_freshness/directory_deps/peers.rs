@@ -99,11 +99,13 @@ impl<'m> PeerShadowing<'m> {
             .and_then(serde_json::Value::as_object);
         let recorded_meta = pkg_meta.peer_dependencies_meta.as_ref();
         let manifest_optional_count = self.optional_peer_names(local_manifest).count();
-        let recorded_optional_count = recorded_meta.map_or(0, |meta| {
-            meta.values()
-                .filter(|m| m.optional)
-                .count()
-        });
+        let recorded_optional_count = recorded_meta
+            .map(|meta| {
+                meta.values()
+                    .filter(|m| m.optional)
+                    .count()
+            })
+            .unwrap_or(0);
         if manifest_optional_count != recorded_optional_count {
             return Err(dep.outdated());
         }
@@ -128,7 +130,10 @@ pub(super) fn check_recorded_peer_specs_match(
     manifest_peers: &HashMap<&str, &str>,
     pkg_meta: &pnpm_lockfile::PackageMetadata,
 ) -> Result<(), FreshnessCheckError> {
-    let recorded_count = pkg_meta.peer_dependencies.as_ref().map_or(0, HashMap::len);
+    let recorded_count = pkg_meta.peer_dependencies
+        .as_ref()
+        .map(HashMap::len)
+        .unwrap_or(0);
     if manifest_peers.len() != recorded_count {
         return Err(dep.outdated());
     }

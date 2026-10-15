@@ -229,10 +229,10 @@ impl ConfigArgs {
                     Some(key) => config_get(config, flags, key)?,
                     None => config_list(config),
                 };
-                println!("{output}");
+                pnpm_diagnostics::println!("{output}");
             }
             ConfigSubcommand::List(_) => {
-                println!("{}", config_list(config));
+                pnpm_diagnostics::println!("{}", config_list(config));
             }
         }
         Ok(())

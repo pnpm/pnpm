@@ -11,7 +11,6 @@ use pnpm_store_dir::{
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    io::Write as _,
     path::{Path, PathBuf},
 };
 
@@ -70,9 +69,7 @@ fn print_sorted_index(pkg_files_index: &PackageFilesIndex) -> Result<()> {
     let json = serde_json::to_string_pretty(&value)
         .into_diagnostic()
         .wrap_err("render package index JSON")?;
-    let mut stdout = std::io::stdout();
-    let _ = writeln!(stdout, "{json}");
-    let _ = stdout.flush();
+    pnpm_diagnostics::println!("{json}");
 
     Ok(())
 }

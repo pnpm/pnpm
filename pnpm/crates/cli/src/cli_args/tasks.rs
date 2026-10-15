@@ -82,9 +82,9 @@ impl TasksStatusArgs {
             }
         }
         if rendered.is_empty() {
-            println!("No concurrency groups are in use.");
+            pnpm_diagnostics::println!("No concurrency groups are in use.");
         } else {
-            println!("{}", rendered.join("\n\n"));
+            pnpm_diagnostics::println!("{}", rendered.join("\n\n"));
         }
         Ok(())
     }

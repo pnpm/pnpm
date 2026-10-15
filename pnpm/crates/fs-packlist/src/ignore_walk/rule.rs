@@ -68,7 +68,8 @@ impl IgnoreRule {
             .iter()
             .rev()
             .find(|segment| !segment.is_empty())
-            .map_or("", |segment| segment);
+            .copied()
+            .unwrap_or("");
         self.alternatives
             .iter()
             .any(|segments| {

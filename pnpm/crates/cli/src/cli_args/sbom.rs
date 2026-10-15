@@ -8,9 +8,8 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, no_projects_matched_message,
-            notice_workspace_dir, select_recursive_projects, selected_workspace_importer_ids,
-            selectors_narrow_the_run,
+            AutoExcludeRoot, discover_workspace_projects, print_no_projects_matched,
+            select_recursive_projects, selected_workspace_importer_ids, selectors_narrow_the_run,
         },
     },
 };
@@ -44,7 +43,6 @@ use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
     fmt::Display,
     hash::Hash,
-    io::Write,
     path::{Path, PathBuf},
 };
 use walk::{
@@ -285,15 +283,13 @@ impl SbomArgs {
     }
 
     fn write_single_sbom(&self, result: &SbomResult, output: &str) -> miette::Result<()> {
-        let mut stdout = std::io::stdout();
         if let Some(out_template) = self.out.as_deref() {
             let file_path = sbom_output_path(out_template, result);
             write_sbom_file(&file_path, output)?;
-            let _ = writeln!(stdout, "{file_path}");
+            pnpm_diagnostics::println!("{file_path}");
         } else {
-            let _ = write!(stdout, "{output}");
+            pnpm_diagnostics::print!("{output}");
         }
-        let _ = stdout.flush();
         Ok(())
     }
 
@@ -398,10 +394,8 @@ impl SbomArgs {
     }
 
     fn print_split_outputs(&self, files: &[String], ndjson_lines: &[String]) {
-        let mut stdout = std::io::stdout();
         if self.out.is_some() {
-            let _ = writeln!(
-                stdout,
+            pnpm_diagnostics::println!(
                 "Generated {} SBOMs:\n{}",
                 files.len(),
                 files
@@ -411,9 +405,8 @@ impl SbomArgs {
                     .join("\n"),
             );
         } else {
-            let _ = write!(stdout, "{}", ndjson_lines.join("\n"));
+            pnpm_diagnostics::print!("{}", ndjson_lines.join("\n"));
         }
-        let _ = stdout.flush();
     }
 }
 

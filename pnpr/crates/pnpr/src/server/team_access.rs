@@ -176,7 +176,8 @@ fn edit_team_lists(
             .unwrap_or_else(|| {
                 declared[index]
                     .as_ref()
-                    .map_or_else(|| defaults[index].clone(), AccessList::token_strings)
+                    .map(AccessList::token_strings)
+                    .unwrap_or_else(|| defaults[index].clone())
             })
     });
     let mut after = before.clone();

@@ -56,8 +56,10 @@ pub enum StarsError {
 impl StarsArgs {
     pub async fn run(&self, config: &Config) -> miette::Result<Option<String>> {
         let registries = resolve_registries_with_override(config, self.registry.as_deref());
-        let default_registry =
-            registries.get("default").map_or(config.registry.as_str(), String::as_str);
+        let default_registry = registries
+            .get("default")
+            .map(String::as_str)
+            .unwrap_or(config.registry.as_str());
         let auth_header = config.auth_headers.for_url(default_registry);
         let http_client = build_registry_client(config)?;
         let retry_opts = config.retry_opts();

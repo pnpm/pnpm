@@ -137,7 +137,9 @@ pub(super) fn find_rust_candidate(cwd: &Path, rustup_settings: Option<&Path>) ->
     if override_dir.is_some_and(|override_dir| override_dir.starts_with(project_dir)) {
         return RustSelection::Rustup;
     }
-    managed_candidate(file, project_dir).map_or(RustSelection::Rustup, RustSelection::Managed)
+    managed_candidate(file, project_dir)
+        .map(RustSelection::Managed)
+        .unwrap_or(RustSelection::Rustup)
 }
 
 fn managed_candidate(file: &Path, project_dir: &Path) -> Option<Candidate> {

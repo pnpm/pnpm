@@ -54,7 +54,8 @@ pub(super) fn write_atomic_with_mode(
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map_or_else(|| String::from("patched"), |name| name.to_string_lossy().into_owned());
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| String::from("patched"));
 
     let mut last_already_exists: Option<io::Error> = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {
@@ -199,7 +200,9 @@ pub(super) fn needs_mode_change(target: &Path, new_mode: Option<&FileMode>) -> b
         return false;
     };
     use std::os::unix::fs::PermissionsExt;
-    fs::metadata(target).map_or(true, |metadata| (metadata.permissions().mode() & 0o777) != bits)
+    fs::metadata(target)
+        .map(|metadata| (metadata.permissions().mode() & 0o777) != bits)
+        .unwrap_or(true)
 }
 
 #[cfg(not(unix))]

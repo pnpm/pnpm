@@ -316,11 +316,14 @@ where
         .filter(|url| url.starts_with("otpauth://"))
         .ok_or_else(|| ProfileError::TfaUnexpectedResponse {
             response: sanitize(
-                &challenge.get("tfa").map_or_else(|| "undefined".to_string(), Value::to_string),
+                &challenge
+                    .get("tfa")
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| "undefined".to_string()),
             )
             .into_owned(),
         })?;
-    println!("{}", authenticator_setup_message(otpauth_url));
+    pnpm_diagnostics::println!("{}", authenticator_setup_message(otpauth_url));
     let otp = Sys::input("And an OTP code from your authenticator: ").await
         .into_diagnostic()
         .wrap_err("reading the one-time password")?
@@ -380,7 +383,10 @@ where
 }
 
 fn display_value(value: &Value) -> String {
-    value.as_str().map_or_else(|| value.to_string(), str::to_string)
+    value
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| value.to_string())
 }
 
 fn to_pretty_json(value: &Value) -> miette::Result<String> {

@@ -300,7 +300,7 @@ fn print_up_to_date(latest: bool) {
     } else {
         "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
     };
-    println!("{message}");
+    pnpm_diagnostics::println!("{message}");
 }
 
 fn prompt_for_packages<Reporter: self::Reporter>(

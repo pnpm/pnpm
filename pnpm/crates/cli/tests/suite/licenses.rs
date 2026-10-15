@@ -923,10 +923,8 @@ snapshots:
         is_positive_paths
             .iter()
             .find(|(listed, _)| listed == version)
-            .map_or_else(
-                || panic!("is-positive@{version} missing from {is_positive_paths:?}"),
-                |(_, path)| path.clone(),
-            )
+            .map(|(_, path)| path.clone())
+            .unwrap_or_else(|| panic!("is-positive@{version} missing from {is_positive_paths:?}"))
     };
     assert_eq!(
         dunce::canonicalize(path_of("3.1.0")).expect("canonicalize reported path"),
