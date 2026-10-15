@@ -551,8 +551,6 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 
 #[tokio::test]
 async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
-    const ZSTD_FRAME_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
-
     let mut upstream = mockito::Server::new_async().await;
     let mock = upstream
         .mock("GET", "/foo")
@@ -583,10 +581,30 @@ async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
             .and_then(|value| value.to_str().ok()),
         Some("zstd"),
     );
-    let compressed = body_bytes(response.into_body()).await;
-    assert_eq!(compressed.get(..4), Some(&ZSTD_FRAME_MAGIC[..]));
+    let body = decode_zstd(&body_bytes(response.into_body()).await).await;
+    assert_eq!(
+        body["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/foo/-/foo-1.0.0.tgz",
+    );
 
     mock.assert_async().await;
+}
+
+/// Decodes through reqwest's zstd support, as the workspace has no standalone
+/// zstd decoder.
+async fn decode_zstd(compressed: &[u8]) -> Value {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/")
+        .with_header("content-encoding", "zstd")
+        .with_body(compressed)
+        .create_async()
+        .await;
+    reqwest::get(server.url()).await
+        .expect("fetch the zstd body")
+        .json()
+        .await
+        .expect("decode the zstd body as JSON")
 }
 
 #[tokio::test]
