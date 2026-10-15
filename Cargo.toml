@@ -281,12 +281,7 @@ mockito = { version = "1.7.2" }
 [patch.crates-io]
 tar = { path = "vendor/tar" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
-# Adds a `nightly` feature that forwards to `parking_lot_core/nightly`. The wasm
-# target table in `pnpm/crates/package-manager/Cargo.toml` says why the
-# WebContainer build needs it. A `[patch]` cannot be scoped to one target, so
-# this applies everywhere; the fork is upstream plus that one opt-in feature, so
-# a target that leaves the feature off compiles what it did before. Drop this
-# once an upstream release carries the feature.
+# Adds the `nightly` feature. Drop once an upstream release carries it.
 dashmap = { git = "https://github.com/pnpm/dashmap", rev = "4401b5c0b2626266dd5d5a9202677bca8b53e57a" }
 
 [workspace.metadata.workspaces]
