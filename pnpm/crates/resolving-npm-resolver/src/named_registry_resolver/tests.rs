@@ -90,8 +90,7 @@ fn build_resolver(
             filter_metadata: false,
         },
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -705,7 +704,7 @@ async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
     let mut user = HashMap::new();
     user.insert("work".to_string(), registry.clone());
     let (mut resolver, tempdir) = build_resolver(user);
-    resolver.cache_policy.offline = true;
+    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
 
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");

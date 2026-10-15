@@ -30,8 +30,7 @@ impl PickState<'_> {
         let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
         // A registry that forbade caching must not be answered from the
         // mirror on an online pick. Offline and prefer-offline still may.
-        if !ctx.cache_policy.offline
-            && !ctx.cache_policy.prefer_offline
+        if !ctx.cache_policy.network.reads_cache_first()
             && headers.as_ref().is_some_and(|headers| headers.uncacheable)
         {
             return None;
@@ -206,8 +205,7 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
     ) -> bool {
         matches!(spec.spec_type, RegistryPackageSpecType::Range)
-            && !ctx.cache_policy.offline
-            && !ctx.cache_policy.prefer_offline
+            && !ctx.cache_policy.network.reads_cache_first()
             && !opts.pick_lowest_version
             && !opts.include_latest_tag
             && !opts.request.update_checksums
@@ -229,7 +227,9 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
-        if ctx.cache_policy.offline && matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+        if ctx.cache_policy.network.forbids_registry()
+            && matches!(spec.spec_type, RegistryPackageSpecType::Range)
+        {
             return None;
         }
         if !opts.policy.release_age_applies_to(&spec.name) {
@@ -285,7 +285,7 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Result<Option<PickPackageResult>, PickPackageError> {
         let meta = self.mirror_meta(disk_meta).await;
-        if ctx.cache_policy.offline {
+        if ctx.cache_policy.network.forbids_registry() {
             let Some(meta) = meta else {
                 return Err(self.no_offline_meta_error(ctx, spec, opts).await);
             };

@@ -171,7 +171,7 @@ impl PickState<'_> {
             cache_dir: ctx.metadata.cache_dir,
             full_metadata: self.full_metadata,
             filter_metadata: self.use_filtered_full_metadata,
-            offline: ctx.cache_policy.offline,
+            offline: ctx.cache_policy.network.forbids_registry(),
             priority: pnpm_network::UNPRIORITIZED,
             http: ctx.metadata.http,
         }

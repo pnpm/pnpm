@@ -460,7 +460,7 @@ catalog:
   playwright-core: ^1.64.0
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
-  pretty-ms: ^9.3.1
+  pretty-ms: ^10.0.0
   promise-share: ^2.0.1
   proxy: ^4.1.0
   proxyquire: ^2.1.3

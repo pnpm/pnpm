@@ -275,7 +275,7 @@ jobs:
       - name: Install pnpm and Node
         uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
-          runtime: node@26.11.1
+          runtime: node@26.12.0
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -437,7 +437,7 @@ jobs:
       - name: Install pnpm and Node
         uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
-          runtime: node@26.11.1
+          runtime: node@26.12.0
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
       # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
       # or publish them; a maintainer does that later with interactive 2FA. Keeping
