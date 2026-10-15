@@ -72,16 +72,17 @@ impl LogLevel {
     /// tracing level, so we expand it to `info` for the framework
     /// plus a `pnpr::access=info` target so the per-request
     /// access log surfaces even when the rest of the crate is
-    /// quieter.
+    /// quieter. Structured audit records (`pnpr::audit=info`) are
+    /// retained across all levels so security events are not lost.
     #[must_use]
     pub fn as_filter_directive(self) -> &'static str {
         match self {
             LogLevel::Trace => "trace",
             LogLevel::Debug => "debug",
-            LogLevel::Http => "info,pnpr::access=info",
-            LogLevel::Info => "info",
-            LogLevel::Warn => "warn",
-            LogLevel::Error => "error",
+            LogLevel::Http => "info,pnpr::access=info,pnpr::audit=info",
+            LogLevel::Info => "info,pnpr::audit=info",
+            LogLevel::Warn => "warn,pnpr::audit=info",
+            LogLevel::Error => "error,pnpr::audit=info",
         }
     }
 }

@@ -80,14 +80,22 @@ async fn put_user(
             // Tokens a removed account left behind must not reach the new one.
             revoke_all_tokens(&state, &path.user).await?;
         }
-        let status = if users.create_user(&path.user, &password).await? {
-            StatusCode::CREATED
+        let (status, action) = if users.create_user(&path.user, &password).await? {
+            (StatusCode::CREATED, "user.create")
         } else if users.set_password(&path.user, &password).await? {
-            StatusCode::OK
+            (StatusCode::OK, "user.password_update")
         } else {
             // Another request removed the user between the two calls.
             return Err(RegistryError::NotFound);
         };
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action,
+            actor = %actor,
+            user = %path.user,
+            "admin action performed on user",
+        );
         Ok(json_response(status, &json!({ "name": path.user })))
     };
     respond(result.await)
@@ -112,6 +120,16 @@ async fn delete_user(
         if !removed && revoked_before + revoked_after == 0 {
             return Err(RegistryError::NotFound);
         }
+        let actor = identity.username().unwrap_or("-");
+        let revoked_total = revoked_before + revoked_after;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "user.delete",
+            actor = %actor,
+            user = %path.user,
+            tokens_revoked = revoked_total,
+            "admin user deleted",
+        );
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)
@@ -162,6 +180,15 @@ async fn revoke_user_token(
         match tokens.find_by_key(&path.key).await? {
             Some(record) if record.username == path.user => {
                 tokens.revoke_by_key(&path.key).await?;
+                let actor = identity.username().unwrap_or("-");
+                tracing::info!(
+                    target: "pnpr::audit",
+                    action = "user.token_revoke",
+                    actor = %actor,
+                    user = %path.user,
+                    token_key = %path.key,
+                    "admin user token revoked",
+                );
                 Ok(StatusCode::NO_CONTENT)
             }
             _ => Err(RegistryError::NotFound),
