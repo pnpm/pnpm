@@ -144,7 +144,7 @@ fn emit_access_log(
     user_agent: Option<&str>,
     entry: &AccessLogEntry<'_>,
 ) {
-    let client_ip_display = client_ip.map_or_else(|| "-".to_string(), |ip| ip.to_string());
+    let client_ip_display = client_ip.map(|ip| ip.to_string()).unwrap_or_else(|| "-".to_string());
     let user_display = entry.user.unwrap_or("-");
     let user_agent_display = user_agent.unwrap_or("-");
 

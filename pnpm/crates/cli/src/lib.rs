@@ -90,8 +90,10 @@ pub fn main() -> ExitCode {
 fn flush_stdout() -> miette::Result<()> {
     use std::io::Write as _;
     pnpm_diagnostics::stdout::check(std::io::stdout().flush());
-    pnpm_diagnostics::stdout::take_write_error()
-        .map_or(Ok(()), |error| Err(miette::miette!("failed to write to stdout: {error}")))
+    match pnpm_diagnostics::stdout::take_write_error() {
+        Some(error) => Err(miette::miette!("failed to write to stdout: {error}")),
+        None => Ok(()),
+    }
 }
 
 #[cfg(target_family = "wasm")]

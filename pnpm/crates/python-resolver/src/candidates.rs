@@ -63,14 +63,15 @@ impl IndexFile {
         Some(
             field
                 .as_object()
-                .map_or_else(BTreeMap::new, |digests| {
+                .map(|digests| {
                     digests
                         .iter()
                         .filter_map(|(name, digest)| {
                             Some((name.clone(), digest.as_str()?.to_string()))
                         })
                         .collect()
-                }),
+                })
+                .unwrap_or_default(),
         )
     }
 }
