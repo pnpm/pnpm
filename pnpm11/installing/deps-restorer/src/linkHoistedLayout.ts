@@ -11,6 +11,7 @@ import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
+import { getDirectDependencyAliases } from './directDependencyAliases.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
@@ -95,6 +96,10 @@ async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: Hea
   // Every package of the hoisted layout lives in the root modules
   // directory, so a project matching either hoist pattern is linked there.
   const hoistedDependencies = await hoistWorkspacePackages({
+    // The hoisted tree is already in the root directory when workspace links are selected.
+    directDependencyAliases: opts.hoistWorkspacePackages
+      ? [...getDirectDependencyAliases({ include: opts.include, skipRuntimes: opts.skipRuntimes, skipped: ctx.skipped, wantedLockfile: ctx.wantedLockfile }), ...Object.keys(depGraph.directDependenciesByImporterId['.'] ?? {})]
+      : [],
     directDepsByImporterId: {
       '.': new Map(Object.entries(depGraph.directDependenciesByImporterId['.'] ?? {})),
     },

@@ -1,3 +1,6 @@
+pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -78,6 +81,7 @@ use user_accounts::{
 mod authentication;
 mod batch;
 mod cargo;
+mod client_ip;
 mod compiler_cache;
 mod org_access;
 use org_access::CallerOrgs;
@@ -86,17 +90,23 @@ mod ecosystem;
 mod health;
 use health::shutdown_signal;
 mod managed_state;
+mod metrics;
 mod oci;
 mod oidc;
 mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod rate_limit;
+use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod request_id;
 mod routing;
 mod rule_admin;
 mod rule_overrides;
 mod scim;
+mod singleflight;
+use singleflight::Singleflight;
 mod staged;
 mod striped_locks;
 mod team_access;
@@ -204,8 +214,8 @@ mod state;
 use state::AppInner;
 
 #[derive(Clone)]
-struct AppState {
-    inner: Arc<AppInner>,
+pub(super) struct AppState {
+    pub(super) inner: Arc<AppInner>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

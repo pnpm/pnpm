@@ -1,7 +1,4 @@
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::LazyLock,
-};
+use std::{net::IpAddr, sync::LazyLock};
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
@@ -43,7 +40,7 @@ impl Action {
 /// once, and the identity a handler sees is the same one the restriction
 /// gate already approved (no second lookup, no policy/identity race).
 #[derive(Clone)]
-pub(super) struct AuthedCaller(pub(super) Identity);
+pub(crate) struct AuthedCaller(pub(super) Identity);
 
 impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     type Rejection = Response;
@@ -94,28 +91,27 @@ pub(super) async fn authenticate(
     super::managed_state::refresh_managed_state(&state).await;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
-    let peer = request
-        .extensions()
-        .get::<ConnectInfo<PeerAddr>>()
-        .map(|info| info.0.0);
+    let client_ip = resolve_and_attach_client_ip(&mut request, &state);
 
     if let Some(raw) = header.as_deref().and_then(token_credentials) {
-        match bearer_token_identity(&state, &raw, &method, &path, peer).await {
+        match bearer_token_identity(&state, &raw, &method, &path, client_ip).await {
             Ok(Some(identity)) => {
                 if let Err(err) = refuse_deprovisioned(&state, &identity) {
                     return err.into_response();
                 }
-                request
-                    .extensions_mut()
-                    .insert(AuthedCaller(identity));
-                return next.run(request).await;
+                let caller = AuthedCaller(identity);
+                record_user_on_span(&caller.0);
+                request.extensions_mut().insert(caller.clone());
+                let mut response = next.run(request).await;
+                response.extensions_mut().insert(caller);
+                return response;
             }
             Ok(None) => {}
             Err(response) => return response,
         }
     }
 
-    let resolved = resolve_caller(&state, header.as_deref(), &method, &path, peer).await;
+    let resolved = resolve_caller(&state, header.as_deref(), &method, &path, client_ip).await;
     let identity = match resolved.and_then(|identity| {
         refuse_deprovisioned(&state, &identity)?;
         Ok(identity)
@@ -123,10 +119,39 @@ pub(super) async fn authenticate(
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
-    request
-        .extensions_mut()
-        .insert(AuthedCaller(identity));
-    next.run(request).await
+    let caller = AuthedCaller(identity);
+    record_user_on_span(&caller.0);
+    request.extensions_mut().insert(caller.clone());
+    let mut response = next.run(request).await;
+    response.extensions_mut().insert(caller);
+    response
+}
+
+fn record_user_on_span(identity: &Identity) {
+    if let Some(username) = identity.username() {
+        tracing::Span::current().record("user", tracing::field::display(username));
+    } else {
+        tracing::Span::current().record("user", "-");
+    }
+}
+
+fn resolve_and_attach_client_ip(request: &mut Request, state: &AppState) -> Option<IpAddr> {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<PeerAddr>>()
+        .map(|info| info.0.0.ip());
+    let client_ip = super::resolve_client_ip(
+        peer,
+        request.headers(),
+        &state.inner.config.http.trusted_proxies,
+        state.inner.config.http.trusted_proxy_header,
+    );
+    if let Some(ip) = client_ip {
+        request
+            .extensions_mut()
+            .insert(super::ClientIp(ip));
+    }
+    client_ip
 }
 
 /// Refuse the credentials of a user a SCIM client deprovisioned. Its stored
@@ -152,7 +177,7 @@ async fn bearer_token_identity(
     raw: &str,
     method: &Method,
     path: &str,
-    peer: Option<SocketAddr>,
+    client_ip: Option<IpAddr>,
 ) -> Result<Option<Identity>, Response> {
     let claims = match super::oci::tokens::decode(state, raw) {
         Ok(Some(claims)) => claims,
@@ -170,7 +195,7 @@ async fn bearer_token_identity(
     };
     match owned_parent(state, parent).await {
         Ok(Some(record)) => {
-            check_token_restrictions(&record, method, path, peer)
+            check_token_restrictions(&record, method, path, client_ip)
                 .map_err(axum::response::IntoResponse::into_response)?;
             Ok(Some(Identity::user(record.username)))
         }
@@ -207,7 +232,7 @@ async fn resolve_caller(
     header: Option<&str>,
     method: &Method,
     path: &str,
-    peer: Option<SocketAddr>,
+    client_ip: Option<IpAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
@@ -224,7 +249,7 @@ async fn resolve_caller(
             return Ok(Identity::user(workload.identity.username));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
-            check_token_restrictions(&record, method, path, peer)?;
+            check_token_restrictions(&record, method, path, client_ip)?;
             return Ok(Identity::user(record.username));
         }
     }
@@ -271,7 +296,7 @@ fn check_token_restrictions(
     record: &TokenRecord,
     method: &Method,
     path: &str,
-    peer: Option<SocketAddr>,
+    client_ip: Option<IpAddr>,
 ) -> Result<(), RegistryError> {
     if record.readonly && is_write_request(method, path) {
         return Err(RegistryError::Forbidden {
@@ -281,9 +306,7 @@ fn check_token_restrictions(
         });
     }
     if !record.cidr_whitelist.is_empty() {
-        // The peer address comes from the accepted socket (`ConnectInfo`),
-        // never a client-supplied forwarding header.
-        let allowed = peer.is_some_and(|addr| cidr_whitelist_allows(&record.cidr_whitelist, addr));
+        let allowed = client_ip.is_some_and(|ip| cidr_whitelist_allows(&record.cidr_whitelist, ip));
         if !allowed {
             return Err(RegistryError::Forbidden {
                 user: record.username.clone(),
@@ -401,72 +424,17 @@ fn is_read_only_post_path(path: &str) -> bool {
     )
 }
 
-/// Whether `peer` falls inside any range of a token's CIDR whitelist. An
-/// IPv4-mapped IPv6 peer is normalized to its IPv4 form first, so a
-/// dual-stack listener still matches plain IPv4 ranges.
-pub(super) fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> bool {
-    let peer = canonical_ip(peer.ip());
-    whitelist.iter().any(|entry| cidr_contains(entry.trim(), peer))
+/// Whether `client_ip` falls inside any range of a token's CIDR whitelist.
+pub(super) fn cidr_whitelist_allows(whitelist: &[String], client_ip: IpAddr) -> bool {
+    whitelist.iter().any(|entry| cidr_contains(entry, client_ip))
 }
 
-pub(super) fn canonical_ip(addr: IpAddr) -> IpAddr {
-    match addr {
-        IpAddr::V6(v6) => v6
-            .to_ipv4_mapped()
-            .map_or(IpAddr::V6(v6), IpAddr::V4),
-        v4 @ IpAddr::V4(_) => v4,
-    }
-}
-
-/// Whether `peer` is inside one `addr/prefix` (or bare `addr`) whitelist
+/// Whether `client_ip` is inside one `addr/prefix` (or bare `addr`) whitelist
 /// entry. A bare address matches only itself; a malformed entry (bad
 /// address, or a non-numeric / out-of-range prefix) matches nothing, so
 /// the restriction fails closed rather than open.
-pub(super) fn cidr_contains(entry: &str, peer: IpAddr) -> bool {
-    let (net, prefix) = match entry.split_once('/') {
-        Some((net, prefix)) => (net.trim(), Some(prefix.trim())),
-        None => (entry, None),
-    };
-    let Ok(net) = net.parse::<IpAddr>() else {
-        return false;
-    };
-    match (net, peer) {
-        (IpAddr::V4(net), IpAddr::V4(peer)) => {
-            let Some(bits) = parse_prefix(prefix, 32) else {
-                return false;
-            };
-            let mask = ipv4_mask(bits);
-            (u32::from(net) & mask) == (u32::from(peer) & mask)
-        }
-        (IpAddr::V6(net), IpAddr::V6(peer)) => {
-            let Some(bits) = parse_prefix(prefix, 128) else {
-                return false;
-            };
-            let mask = ipv6_mask(bits);
-            (u128::from(net) & mask) == (u128::from(peer) & mask)
-        }
-        // Different address families never match.
-        _ => false,
-    }
-}
-
-/// Parse a CIDR prefix length, defaulting to a full-width match (an exact
-/// host) when the entry carried no `/prefix`. `None` for a non-numeric or
-/// too-large value.
-fn parse_prefix(prefix: Option<&str>, max_bits: u8) -> Option<u8> {
-    match prefix {
-        None => Some(max_bits),
-        Some(prefix) => {
-            let bits: u8 = prefix.parse().ok()?;
-            (bits <= max_bits).then_some(bits)
-        }
-    }
-}
-
-fn ipv4_mask(prefix: u8) -> u32 {
-    if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) }
-}
-
-fn ipv6_mask(prefix: u8) -> u128 {
-    if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) }
+pub(super) fn cidr_contains(entry: &str, client_ip: IpAddr) -> bool {
+    pnpr_config::IpNetwork::parse(entry.trim())
+        .ok()
+        .is_some_and(|net| net.contains(client_ip))
 }

@@ -13,26 +13,20 @@ use npm_handlers::{
     unpublish_tarball,
 };
 
-use std::{sync::Arc, time::Duration};
+mod observability;
+use observability::with_observability_layers;
+
+use std::sync::Arc;
 
 use axum::{
     Router,
-    body::Body,
-    extract::{DefaultBodyLimit, Path, RawQuery, Request, State},
-    http::{HeaderMap, HeaderValue, Method, header},
+    extract::{DefaultBodyLimit, Path, RawQuery, State},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
-use tower_http::{
-    compression::{
-        CompressionLayer,
-        predicate::{DefaultPredicate, NotForContentType, Predicate as _},
-    },
-    cors::{AllowOrigin, CorsLayer},
-    trace::TraceLayer,
-};
-use tracing::Span;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
@@ -40,19 +34,20 @@ use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
 use super::{
-    AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, TargetRegistry,
-    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
-    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
-    get_profile, get_team_members, get_token_list, get_whoami,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource,
+    TargetRegistry, addressed_registry, authenticate, authorize, batch, caller_scoped, cargo,
+    compiler_cache, delete_package, delete_session_token, delete_tarball, delete_token_by_key,
+    get_dist_tags, get_org_teams, get_profile, get_team_members, get_token_list, get_whoami,
     health::{serve_live, serve_ping, serve_ready},
-    loggable_uri, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
+    not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache, publish_package,
     put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
-    require_resolver_caller, serve_artifact_blob, serve_artifact_blob_size, serve_batch_publish,
-    serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages, serve_packument,
-    serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    require_resolver_caller, resolve_write_target, serve_artifact_blob, serve_artifact_blob_size,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_metrics,
+    serve_metrics_or_packument, serve_org_packages, serve_packument, serve_pipeline_ui,
+    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
+    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
     serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
     staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
@@ -88,7 +83,7 @@ fn finish_router(
         tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
         router = router.merge(super::web_ui::routes(dir));
     }
-    let mut router = router
+    let router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
         // enforce bearer-token read-only / CIDR restrictions (so a
@@ -96,6 +91,7 @@ fn finish_router(
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -117,7 +113,29 @@ fn finish_router(
                 .expose_headers([header::ETAG]),
         );
     }
-    Ok(with_observability_layers(router).with_state(state))
+    Ok(with_observability_layers(router, state.clone()).with_state(state))
+}
+
+fn apply_request_timeout(
+    router: Router<AppState>,
+    timeout_duration: Option<std::time::Duration>,
+) -> Router<AppState> {
+    let Some(timeout_duration) = timeout_duration else {
+        return router;
+    };
+    router.layer(axum::middleware::from_fn(
+        move |request: axum::extract::Request, next: axum::middleware::Next| async move {
+            match tokio::time::timeout(timeout_duration, next.run(request)).await {
+                Ok(response) => response,
+                Err(_) => (
+                    StatusCode::GATEWAY_TIMEOUT,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    r#"{"error":"request timed out"}"#,
+                )
+                    .into_response(),
+            }
+        },
+    ))
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
@@ -133,62 +151,6 @@ fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
                 })
         })
         .collect()
-}
-
-fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
-    router
-        // gzip metadata responses for clients that send `Accept-Encoding:
-        // gzip`, matching how a real (CDN-fronted) registry serves
-        // packuments — pnpr is commonly hit directly with no proxy in
-        // front, so the application is the only layer that can compress.
-        // Scoped to JSON: tarballs (`application/octet-stream`, already
-        // `.tgz`) are excluded so we never re-gzip an already-compressed
-        // payload. The pnpr resolver NDJSON streams
-        // (`application/x-ndjson`) is excluded too: gzip-buffering it
-        // would defeat the point of streaming — frames must flush to the
-        // client as each package resolves, not wait for the encoder.
-        .layer(
-            CompressionLayer::new()
-                .compress_when(
-                    DefaultPredicate::new()
-                        .and(NotForContentType::const_new("application/octet-stream"))
-                        .and(NotForContentType::const_new("application/x-ndjson")),
-                ),
-        )
-        // One structured access record per HTTP request: a span
-        // carrying method + URI plus a single `finished processing
-        // request` event on the response with status and latency.
-        // Both the span and the event use the `pnpr::access`
-        // target so `LogLevel::Http`'s filter directive can scope to
-        // them. `on_request(())` / `on_failure(())` suppress
-        // tower-http's default emissions so each request produces
-        // exactly one record. The format and level are picked up from
-        // the subscriber installed in `main.rs` (driven by the YAML
-        // `log:` block — pretty or NDJSON).
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<Body>| {
-                    tracing::info_span!(
-                        target: "pnpr::access",
-                        "request",
-                        method = %request.method(),
-                        uri = %loggable_uri(request.uri()),
-                        // Filled in by `record_cache_status` for packument
-                        // reads (e.g. `cache=hit`); stays absent otherwise.
-                        cache = tracing::field::Empty,
-                    )
-                })
-                .on_request(())
-                .on_response(|response: &Response<Body>, latency: Duration, _span: &Span| {
-                    tracing::info!(
-                        target: "pnpr::access",
-                        status = response.status().as_u16(),
-                        latency_ms = latency.as_millis() as u64,
-                        "finished processing request",
-                    );
-                })
-                .on_failure(()),
-        )
 }
 
 /// Which of the configurable surfaces this server mounts.
@@ -215,7 +177,9 @@ fn surface_routes(
         router = router
             .route(&path("/-/ping"), get(serve_ping))
             .route(&path("/-/ready"), get(serve_ready))
-            .route(&path("/-/live"), get(serve_live));
+            .route(&path("/-/live"), get(serve_live))
+            .route(&path("/-/metrics"), get(serve_metrics))
+            .route(&path("/metrics"), get(serve_metrics_or_packument));
     }
     router = router
         .merge(super::oidc::routes(ui_served))

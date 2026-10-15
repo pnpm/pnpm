@@ -1,3 +1,4 @@
+use crate::_utils::{has_pnpm_error_log, ndjson_records};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -277,4 +278,29 @@ fn lifecycle_failure_is_printed_to_stderr_unless_the_reporter_is_silent() {
             "stderr for {cli_args:?}: {stderr}",
         );
     }
+}
+
+#[test]
+fn ndjson_reporter_reports_the_lifecycle_failure_as_a_record() {
+    let fixture = failing_script_fixture("");
+    let output = pnpm(&fixture.workspace)
+        .with_args(["--reporter=ndjson", "run", "fail"])
+        .output()
+        .expect("run fail");
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "script-output\n");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr
+            .lines()
+            .any(|line| line.starts_with("[ELIFECYCLE]")),
+        "stderr:\n{stderr}",
+    );
+    assert!(
+        has_pnpm_error_log(
+            &ndjson_records(&output),
+            "[ELIFECYCLE] Command failed with exit code 1.",
+        ),
+        "stderr:\n{stderr}",
+    );
 }

@@ -15,7 +15,7 @@ import type {
 import semver from 'semver'
 
 import { extendGraph } from './extendGraph.js'
-import { getCatalogSnapshots } from './getCatalogSnapshots.js'
+import { addCatalogEntriesOfImporters, getCatalogSnapshots } from './getCatalogSnapshots.js'
 import { getWantedDependencies, hasAlias, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ResolvedPkgsById } from './resolutionTypes.js'
 import type { DependenciesTree, UpdateMatchingFunction } from './resolveDependencies.js'
@@ -351,6 +351,13 @@ function createNewLockfile (
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolution.resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
+  addCatalogEntriesOfImporters(
+    newLockfile.catalogs,
+    Object.entries(newLockfile.importers)
+      .filter(([projectId]) => resolution.resolvedImporters[projectId] == null)
+      .map(([, importer]) => importer),
+    opts.wantedLockfile.catalogs
+  )
 
   if (
     opts.patchedDependencies &&

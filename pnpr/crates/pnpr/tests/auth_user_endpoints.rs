@@ -661,3 +661,42 @@ async fn revocation_survives_restart() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
+    let storage = TempDir::new().unwrap();
+    let app = router(static_config(storage.path().to_path_buf()));
+    let (app, _) = add_user_and_get_token(app, "alice", "correct-secret").await;
+
+    let login_request = || {
+        let body = json!({
+            "_id": "org.couchdb.user:alice",
+            "name": "alice",
+            "password": "wrong-password",
+            "email": "foo@bar.net",
+            "type": "user",
+            "roles": [],
+        });
+        put_json("/-/user/org.couchdb.user:alice", body)
+    };
+
+    // First 5 attempts fail with 401 Unauthorized
+    for _ in 0..5 {
+        let res = app
+            .clone()
+            .oneshot(login_request())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    // 6th attempt is rate-limited: 429 Too Many Requests with Retry-After header
+    let res = app
+        .oneshot(login_request())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(res.headers().contains_key("retry-after"));
+    let payload = body_json(res.into_body()).await;
+    assert_eq!(payload["error"], "too many failed login attempts, please try again later");
+}

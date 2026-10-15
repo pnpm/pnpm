@@ -9,8 +9,12 @@ pub(super) struct ImporterSelection {
     pub(super) requested_importer_ids: Option<HashSet<String>>,
 }
 impl ImporterSelection {
+    /// A `--filter` selection requests its importers even when it matches
+    /// every project on disk, so the importers of projects missing from disk
+    /// stay in the lockfile.
     pub(super) fn select(
         selection: Option<&crate::WorkspaceInstallSelection<'_>>,
+        has_filter: bool,
         workspace_root: &Path,
         project_manifests: &[(PathBuf, &PackageManifest)],
     ) -> Self {
@@ -23,7 +27,7 @@ impl ImporterSelection {
                 != real_importer_ids
         });
         Self {
-            requested_importer_ids: filtered_install
+            requested_importer_ids: (filtered_install || has_filter)
                 .then_some(selection)
                 .flatten()
                 .map(|selection| {

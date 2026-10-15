@@ -5,13 +5,14 @@ use super::{
     user_accounts::token_timestamp_millis,
 };
 mod compiler_cache;
+mod observability;
 mod oidc_groups;
 mod web_ui;
 
 use super::{
     PeerAddr,
     authentication::{
-        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
+        bearer_credentials, cidr_contains, cidr_whitelist_allows, is_write_request,
         token_credentials,
     },
     router_with_auth, tilde_registry,
@@ -169,18 +170,17 @@ fn cidr_contains_rejects_family_mismatch_and_malformed_entries() {
 #[test]
 fn canonical_ip_unwraps_ipv4_mapped_v6() {
     let mapped = IpAddr::V6("::ffff:203.0.113.7".parse::<Ipv6Addr>().unwrap());
-    assert_eq!(canonical_ip(mapped), ip("203.0.113.7"));
     // A peer arriving as an IPv4-mapped IPv6 address still matches an
     // IPv4 whitelist range.
-    assert!(cidr_whitelist_allows(&["203.0.113.0/24".to_string()], SocketAddr::new(mapped, 443),));
+    assert!(cidr_whitelist_allows(&["203.0.113.0/24".to_string()], mapped));
 }
 
 #[test]
 fn cidr_whitelist_allows_requires_some_entry_to_match() {
     let whitelist = ["10.0.0.0/8".to_string(), "192.168.0.0/16".to_string()];
-    assert!(cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("10.9.9.9"), 1)));
-    assert!(cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("192.168.5.5"), 1)));
-    assert!(!cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("203.0.113.1"), 1)));
+    assert!(cidr_whitelist_allows(&whitelist, ip("10.9.9.9")));
+    assert!(cidr_whitelist_allows(&whitelist, ip("192.168.5.5")));
+    assert!(!cidr_whitelist_allows(&whitelist, ip("203.0.113.1")));
 }
 
 // ---------------------------------------------------------------
@@ -252,8 +252,9 @@ fn bearer_credentials_extracts_only_bearer_tokens() {
 // ---------------------------------------------------------------
 
 const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 40000);
+const PROXY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000);
 
-fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
+pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
     TokenRecord {
         username: "alice".to_string(),
         created_at: 1,
@@ -303,9 +304,21 @@ impl TokenBackend for OneToken {
     }
 }
 
-fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
+pub(super) fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
+}
+
+fn app_with_trusted_proxies_and_token(
+    tmp: &TempDir,
+    trusted_proxies: Vec<pnpr_config::IpNetwork>,
+    raw: &str,
+    record: TokenRecord,
+) -> axum::Router {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.http.trusted_proxies = trusted_proxies;
+    app_with_config_and_token(config, raw, record)
 }
 
 fn app_with_config_and_token(config: Config, raw: &str, record: TokenRecord) -> axum::Router {
@@ -498,6 +511,73 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn trusted_proxy_forwards_client_ip_satisfying_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn trusted_proxy_rejects_client_ip_outside_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn untrusted_peer_cannot_spoof_client_ip() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let untrusted_peer = SocketAddr::new(ip("192.168.1.5"), 40000);
+    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), untrusted_peer);
+    req.headers_mut()
+        .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn client_injected_forwarded_header_is_ignored_when_proxy_uses_x_forwarded_for() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
+    req.headers_mut()
+        .insert("forwarded", "for=10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn malformed_forwarding_header_from_trusted_proxy_does_not_bypass_proxy_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app = app_with_trusted_proxies_and_token(
+        &tmp,
+        trusted,
+        "pinned",
+        record(false, &["127.0.0.1/32"]),
+    );
+    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "bad_client_ip, 127.0.0.1".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
 }
 
 #[test]

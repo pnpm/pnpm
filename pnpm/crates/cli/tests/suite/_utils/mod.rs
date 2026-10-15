@@ -625,6 +625,18 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
         .collect()
 }
 
+/// Whether a `name: "pnpm" / level: "error"` log carries `message`.
+#[must_use]
+pub fn has_pnpm_error_log(records: &[Value], message: &str) -> bool {
+    records
+        .iter()
+        .any(|record| {
+            record.get("name").and_then(Value::as_str) == Some("pnpm")
+                && record.get("level").and_then(Value::as_str) == Some("error")
+                && record.get("message").and_then(Value::as_str) == Some(message)
+        })
+}
+
 /// The `name: "pnpm" / level: "info"` log pnpm's headless installer
 /// emits when it is entered with an up-to-date lockfile.
 #[must_use]

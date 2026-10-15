@@ -1,9 +1,12 @@
+use pnpr_policy::Identity;
+
 use super::{
-    AppState, AuthedCaller, Deserialize, Ecosystem, HeaderMap, Path, RawQuery, Response, State,
-    TargetRegistry, addressed_registry, caller_scoped, delete_package, delete_tarball,
-    get_dist_tags, not_found, private_no_cache, publish_package, remove_dist_tag, serve_packument,
-    serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
-    update_packument,
+    Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
+    IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
+    StatusCode, TargetRegistry, addressed_registry, authorize, caller_scoped, delete_package,
+    delete_tarball, get_dist_tags, not_found, package_mutation, private_no_cache, publish_package,
+    remove_dist_tag, resolve_write_target, serve_packument, serve_revision_tarball, serve_search,
+    serve_tarball, serve_version_manifest, set_dist_tag, update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -163,15 +166,79 @@ pub(super) async fn get_search(
 // Package writes — publish, unpublish, dist-tags.
 // --------------------------------------------------------------------
 
+fn preauthorize_publish(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+) -> Result<CanonicalPackageName, Response> {
+    let name = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {
+        Ok(name) => name,
+        Err(err) => return Err(err.into_response()),
+    };
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(err) => return Err(err.into_response()),
+    };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source),
+        name.as_str(),
+        Action::Publish,
+    ) {
+        return Err(err.into_response());
+    }
+    Ok(name)
+}
+
+fn preauthorize_rewrite(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+) -> Result<CanonicalPackageName, Response> {
+    let name = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {
+        Ok(name) => name,
+        Err(err) => return Err(err.into_response()),
+    };
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(err) => return Err(err.into_response()),
+    };
+    let source = RegistrySource::Hosted(target.source);
+    if let Err(err) = package_mutation::authorize_rewrite(state, identity, &source, name.as_str()) {
+        return Err(err.into_response());
+    }
+    Ok(name)
+}
+
+async fn collect_publish_body(
+    state: &AppState,
+    body: axum::body::Body,
+) -> Result<axum::body::Bytes, Response> {
+    let _permit = state.inner.locks.publish_concurrency.acquire().await;
+    axum::body::to_bytes(body, MAX_PUBLISH_BODY_BYTES).await
+        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE.into_response())
+}
+
 /// `PUT {base}/{pkg}`.
 pub(super) async fn put_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
-    body: axum::body::Bytes,
+    body: axum::body::Body,
 ) -> Response {
-    publish_package(&state, &identity, registry.as_deref(), &path.name, body).await
+    if let Err(rejection) = preauthorize_publish(&state, &identity, registry.as_deref(), &path.name)
+    {
+        return rejection;
+    }
+    let body_bytes = match collect_publish_body(&state, body).await {
+        Ok(bytes) => bytes,
+        Err(response) => return response,
+    };
+    publish_package(&state, &identity, registry.as_deref(), &path.name, body_bytes).await
 }
 
 /// `PUT {base}/@{scope}/{pkg}` — publish a scoped package. A first segment
@@ -181,14 +248,21 @@ pub(super) async fn put_scoped_package(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TwoSegments>,
-    body: axum::body::Bytes,
+    body: axum::body::Body,
 ) -> Response {
     let TwoSegments { first, second } = path;
     if !first.starts_with('@') {
         return not_found();
     }
     let full = format!("{first}/{second}");
-    publish_package(&state, &identity, registry.as_deref(), &full, body).await
+    if let Err(rejection) = preauthorize_publish(&state, &identity, registry.as_deref(), &full) {
+        return rejection;
+    }
+    let body_bytes = match collect_publish_body(&state, body).await {
+        Ok(bytes) => bytes,
+        Err(response) => return response,
+    };
+    publish_package(&state, &identity, registry.as_deref(), &full, body_bytes).await
 }
 
 /// `PUT {base}/{pkg}/-rev/{rev}` — the full mutated packument, which is how
@@ -198,9 +272,17 @@ pub(super) async fn put_packument_revision(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
-    body: axum::body::Bytes,
+    body: axum::body::Body,
 ) -> Response {
-    update_packument(&state, &identity, registry.as_deref(), &path.name, &body).await
+    if let Err(rejection) = preauthorize_rewrite(&state, &identity, registry.as_deref(), &path.name)
+    {
+        return rejection;
+    }
+    let body_bytes = match collect_publish_body(&state, body).await {
+        Ok(bytes) => bytes,
+        Err(response) => return response,
+    };
+    update_packument(&state, &identity, registry.as_deref(), &path.name, &body_bytes).await
 }
 
 /// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package

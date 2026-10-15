@@ -160,11 +160,16 @@ pub(crate) fn selected_reporter() -> ReporterType {
     SELECTED_REPORTER.load(Ordering::Relaxed).into()
 }
 
+/// Whether the selected reporter renders the terminal itself. The other
+/// reporters write one record per event or nothing at all.
+pub(crate) fn default_reporter_selected() -> bool {
+    matches!(selected_reporter(), ReporterType::Default | ReporterType::AppendOnly)
+}
+
 /// Whether a script whose output the reporter republishes should keep its
 /// colors: only a reporter that paints its own output in color shows them.
 pub(crate) fn script_output_colors() -> bool {
-    matches!(selected_reporter(), ReporterType::Default | ReporterType::AppendOnly)
-        && pnpm_default_reporter::output_colors_enabled()
+    default_reporter_selected() && pnpm_default_reporter::output_colors_enabled()
 }
 
 /// The [`Reporter`] the CLI runs commands with: forwards each event to the

@@ -75,3 +75,35 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
         .unwrap();
     assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn request_timeout_returns_504_gateway_timeout() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.http.request_timeout = Some(std::time::Duration::from_millis(50));
+    let app = router(config);
+
+    let stream = futures_util::stream::once(async {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        Ok::<axum::body::Bytes, std::convert::Infallible>(axum::body::Bytes::from("{}"))
+    });
+    let slow_body = Body::from_stream(stream);
+
+    let response = app
+        .oneshot(
+            Request::put("/-/user/org.couchdb.user:alice")
+                .header("content-type", "application/json")
+                .body(slow_body)
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
+    assert_eq!(
+        body_json(response.into_body()).await,
+        json!({
+            "error": "request timed out"
+        }),
+    );
+}

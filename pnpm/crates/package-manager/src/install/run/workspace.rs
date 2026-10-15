@@ -213,11 +213,13 @@ impl<'w> InstallScope<'w> {
         });
         let importers = ImporterSelection::select(
             options.selection.as_ref(),
+            !install.context.config.filter.is_empty()
+                || !install.context.config.filter_prod.is_empty(),
             workspace_root,
             &project_manifests,
         );
         let prune_stale_importers = may_prune_stale_importers(&StaleImporterPrune {
-            filtered_install: importers.filtered_install,
+            filtered_install: importers.requested_importer_ids.is_some(),
             mutation: install.execution.mutation,
             workspace_projects,
             workspace_projects_are_overridden,

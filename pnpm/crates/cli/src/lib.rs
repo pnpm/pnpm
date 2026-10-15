@@ -47,6 +47,7 @@ mod shim_dispatch;
 mod shorthands;
 mod slot_lock;
 mod state;
+mod stdio_inheritance;
 mod virtual_terminal;
 mod with_current;
 
@@ -70,6 +71,7 @@ pub fn main() -> ExitCode {
     // Runs before anything can print, so the first styled byte already
     // reaches a console that understands it; see `virtual_terminal`.
     virtual_terminal::enable();
+    stdio_inheritance::disable();
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();

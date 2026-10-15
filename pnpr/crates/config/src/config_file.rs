@@ -181,6 +181,15 @@ pub(super) struct ConfigFile {
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     pub(super) cache: Option<String>,
+    /// Reverse-proxy addresses trusted to supply client IP headers.
+    #[serde(default, rename = "trustedProxies", alias = "trusted_proxies")]
+    pub(super) trusted_proxies: Vec<String>,
+    /// Header name trusted to supply client IP addresses (`x-forwarded-for`, `forwarded`, `x-real-ip`).
+    #[serde(default, rename = "trustedProxyHeader", alias = "trusted_proxy_header")]
+    pub(super) trusted_proxy_header: Option<String>,
+    /// Request processing timeout (e.g. `60s`, `1m`).
+    #[serde(default, rename = "requestTimeout", alias = "request_timeout")]
+    pub(super) request_timeout: Option<Interval>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]

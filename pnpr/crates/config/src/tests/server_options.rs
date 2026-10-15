@@ -351,3 +351,43 @@ fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
     assert!(!rendered_punctuated.contains("p)ass"));
     assert!(rendered_punctuated.contains("redacted"));
 }
+
+#[test]
+fn trusted_proxies_parses_cidrs_and_loopback() {
+    let yaml = "\
+storage: ./s
+trustedProxies:
+  - loopback
+  - 10.0.0.0/8
+  - 192.168.1.1
+trustedProxyHeader: forwarded
+upstreams: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.trusted_proxies.len(), 4);
+    assert_eq!(config.http.trusted_proxy_header, super::super::TrustedProxyHeader::Forwarded);
+}
+
+#[test]
+fn request_timeout_defaults_and_overrides() {
+    let base_config =
+        Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(base_config.http.request_timeout, Some(crate::HttpConfig::DEFAULT_REQUEST_TIMEOUT));
+
+    let custom_yaml = "storage: ./s\nrequestTimeout: 15s\n";
+    let custom_config =
+        Config::from_yaml_str(custom_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(custom_config.http.request_timeout, Some(std::time::Duration::from_secs(15)));
+
+    let disabled_yaml = "storage: ./s\nrequestTimeout: 0\n";
+    let disabled_config =
+        Config::from_yaml_str(disabled_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(disabled_config.http.request_timeout, None);
+
+    let invalid_yaml = "storage: ./s\nrequestTimeout: invalid_val\n";
+    let err = Config::from_yaml_str(invalid_yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("requestTimeout")),
+        "expected InvalidConfig with requestTimeout, got {err:?}",
+    );
+}

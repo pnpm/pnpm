@@ -330,6 +330,7 @@ async function prepareStaleHoist () {
   await symlinkDir(oldTarget, link)
 
   const opts = {
+    directDependencyAliases: [],
     graph: {
       parent: {
         dir: path.join(virtualStoreDir, 'parent@1.0.0/node_modules/parent'),
