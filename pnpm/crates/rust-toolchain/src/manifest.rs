@@ -207,8 +207,10 @@ impl Manifest {
         component: &str,
         target: &str,
     ) -> Option<Result<Archive, RustToolchainError>> {
-        let name =
-            self.renames.get(component).map_or(component, |rename| rename.to.as_str());
+        let name = self.renames
+            .get(component)
+            .map(|rename| rename.to.as_str())
+            .unwrap_or(component);
         let targets = &self.pkg.get(name)?.target;
         let build = targets
             .get(target)

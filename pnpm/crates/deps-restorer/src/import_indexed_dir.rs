@@ -199,7 +199,8 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         && let Some(sanitized) = windows_filenames::sanitize_filenames(cas_paths)
     {
         let relative_dir = std::env::current_dir()
-            .map_or_else(|_| dir_path.to_path_buf(), |cwd| pnpm_fs::relative_path(&cwd, dir_path));
+            .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
+            .unwrap_or_else(|_| dir_path.to_path_buf());
         let renamed: Vec<_> = sanitized.renamed
             .iter()
             .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))

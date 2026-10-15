@@ -316,7 +316,10 @@ where
         .filter(|url| url.starts_with("otpauth://"))
         .ok_or_else(|| ProfileError::TfaUnexpectedResponse {
             response: sanitize(
-                &challenge.get("tfa").map_or_else(|| "undefined".to_string(), Value::to_string),
+                &challenge
+                    .get("tfa")
+                    .map(Value::to_string)
+                    .unwrap_or_else(|| "undefined".to_string()),
             )
             .into_owned(),
         })?;
@@ -380,7 +383,10 @@ where
 }
 
 fn display_value(value: &Value) -> String {
-    value.as_str().map_or_else(|| value.to_string(), str::to_string)
+    value
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| value.to_string())
 }
 
 fn to_pretty_json(value: &Value) -> miette::Result<String> {

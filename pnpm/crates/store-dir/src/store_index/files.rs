@@ -145,10 +145,10 @@ impl FilesIndex {
             .par_iter()
             .filter_map(|(key, value)| self.set(key, value).err())
             .collect();
-        errors
-            .into_iter()
-            .next()
-            .map_or(Ok(()), Err)
+        match errors.into_iter().next() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     pub(super) fn remove(&self, key: &str) -> Result<(), StoreIndexError> {

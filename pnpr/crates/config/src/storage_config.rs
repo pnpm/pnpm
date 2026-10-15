@@ -64,7 +64,8 @@ pub(crate) fn resolve_storage_paths(
         Some(CacheFile::Settings(settings)) => {
             let cache_dir = settings.path
                 .as_deref()
-                .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
+                .map(|raw| resolve_relative(raw, base_dir))
+                .unwrap_or_else(|| default_cache_dir(&storage));
             let max_size = settings.max_size
                 .as_ref()
                 .map(|ByteSize(raw)| {

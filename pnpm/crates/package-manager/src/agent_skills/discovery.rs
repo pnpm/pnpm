@@ -107,7 +107,8 @@ impl<'a> Locator<'a> {
         // hoisted linker keeps `node_modules` in workspace projects.
         let root_modules_dir = input.config.modules_dir
             .strip_prefix(input.workspace_root)
-            .map_or_else(|_| input.config.modules_dir_name().into(), Path::to_path_buf)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|_| input.config.modules_dir_name().into())
             .to_string_lossy()
             .replace('\\', "/");
         Path::new(importer_id)

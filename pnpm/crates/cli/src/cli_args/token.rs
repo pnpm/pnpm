@@ -129,7 +129,8 @@ fn unique_prefix_len(neighbor_prefix_lens: &[usize], position: usize) -> usize {
     const MIN_TOKEN_ID_LEN: usize = 6;
     let before = position
         .checked_sub(1)
-        .map_or(0, |prev| neighbor_prefix_lens[prev]);
+        .map(|prev| neighbor_prefix_lens[prev])
+        .unwrap_or(0);
     let after = neighbor_prefix_lens
         .get(position)
         .copied()
@@ -153,11 +154,12 @@ fn common_prefix_len(left: &str, right: &str) -> usize {
 fn format_single_token(token: &TokenItem) -> String {
     let created = token.created
         .as_deref()
-        .map_or("", |created_at| {
+        .map(|created_at| {
             created_at
                 .get(..10)
                 .unwrap_or(created_at)
-        });
+        })
+        .unwrap_or("");
     let id = token.id.as_deref().unwrap_or(&token.key);
     let name_part = match &token.name {
         Some(name) if !name.is_empty() => format!(" name {name}"),
@@ -268,7 +270,10 @@ impl TokenArgs {
         let http_client = build_registry_client_with_guard(config, Some(&redirect_guard))?;
         let retry_opts = config.retry_opts();
 
-        let subcmd = self.params.first().map_or("list", String::as_str);
+        let subcmd = self.params
+            .first()
+            .map(String::as_str)
+            .unwrap_or("list");
         match subcmd {
             "list" | "ls" => {
                 self.run_list(&normalized, &http_client, &auth_header, retry_opts).await

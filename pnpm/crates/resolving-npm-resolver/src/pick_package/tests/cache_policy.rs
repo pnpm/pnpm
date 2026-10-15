@@ -17,10 +17,9 @@ use super::{
 /// The pick reduced to a label, so a scenario table can assert on it.
 fn outcome_label(result: Result<crate::PickPackageResult, PickPackageError>) -> String {
     match result {
-        Ok(result) => result.picked_package.map_or_else(
-            || "none".to_string(),
-            |picked| picked.version.to_string(),
-        ),
+        Ok(result) => result.picked_package
+            .map(|picked| picked.version.to_string())
+            .unwrap_or_else(|| "none".to_string()),
         Err(PickPackageError::NoOfflineMeta { .. }) => "no-offline-meta".to_string(),
         Err(error) => format!("{error:?}"),
     }

@@ -603,7 +603,12 @@ fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
 
     let declared: usize = ["dependencies", "devDependencies", "optionalDependencies"]
         .iter()
-        .map(|group| manifest[group].as_object().map_or(0, serde_json::Map::len))
+        .map(|group| {
+            manifest[group]
+                .as_object()
+                .map(serde_json::Map::len)
+                .unwrap_or(0)
+        })
         .sum();
     // The importer's direct dependencies, split into those whose locked
     // version carries a peer suffix and the rest.

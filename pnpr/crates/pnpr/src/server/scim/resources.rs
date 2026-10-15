@@ -46,7 +46,8 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .ok_or_else(|| invalid("userName is required"))?;
     let active = object
         .get("active")
-        .map_or(Ok(true), parse_active)?;
+        .map(parse_active)
+        .unwrap_or(Ok(true))?;
     let attributes = object
         .iter()
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
@@ -106,12 +107,15 @@ fn apply_operation(user: &mut ScimUser, operation: &Value) -> Result<(), Registr
 fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), RegistryError> {
     let path = path
         .strip_prefix(USER_SCHEMA)
-        .map_or(path, |rest| rest.trim_start_matches(':'));
+        .map(|rest| rest.trim_start_matches(':'))
+        .unwrap_or(path);
     if path.contains('[') {
         return Ok(());
     }
     if path.eq_ignore_ascii_case("active") {
-        user.active = value.map_or(Ok(false), parse_active)?;
+        user.active = value
+            .map(parse_active)
+            .unwrap_or(Ok(false))?;
         return Ok(());
     }
     if MANAGED_ATTRIBUTES
