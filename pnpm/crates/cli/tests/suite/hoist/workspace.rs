@@ -999,6 +999,68 @@ fn hoisted_node_linker_links_a_filtered_project_into_root() {
     drop((root, mock_instance));
 }
 
+/// Under `nodeLinker: hoisted`, a filtered install keeps the root links
+/// and bins of the projects it did not select, with or without an
+/// earlier install.
+#[test]
+fn hoisted_node_linker_keeps_unselected_projects_linked_into_root() {
+    for install_first in [true, false] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true }).to_string(),
+        )
+        .expect("write root package.json");
+        write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+        let app_dir = workspace.join("packages/app");
+        fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+        fs::write(
+            app_dir.join("package.json"),
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write packages/app/package.json");
+        let lib_dir = workspace.join("packages/lib");
+        fs::create_dir_all(&lib_dir).expect("mkdir packages/lib");
+        fs::write(
+            lib_dir.join("package.json"),
+            serde_json::json!({ "name": "lib", "version": "1.0.0", "bin": { "lib-cli": "./cli.js" } })
+                .to_string(),
+        )
+        .expect("write packages/lib/package.json");
+        fs::write(lib_dir.join("cli.js"), "#!/usr/bin/env node\n")
+            .expect("write packages/lib/cli.js");
+
+        if install_first {
+            pacquet_in(&workspace)
+                .with_args(["install"])
+                .assert()
+                .success();
+        }
+        pacquet_in(&workspace)
+            .with_args(["--filter", "app", "add", "@foo/no-deps@1.0.0"])
+            .assert()
+            .success();
+
+        let lib_link = workspace.join("node_modules/lib");
+        assert!(lib_link.exists(), "{lib_link:?} is missing (install_first: {install_first})");
+        assert_eq!(fs::canonicalize(&lib_link).unwrap(), fs::canonicalize(&lib_dir).unwrap());
+        assert!(
+            workspace.join("node_modules/.bin/lib-cli").exists(),
+            "the lib-cli bin is missing (install_first: {install_first})",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
 /// Under `nodeLinker: hoisted`, a root `link:` dependency takes its name
 /// after the workspace pass, so a project of that name is not linked or
 /// recorded there, and its bins stay out of the root `.bin`.
