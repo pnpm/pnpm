@@ -2,10 +2,17 @@ use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentForUpdate,
     HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
     PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
-    cleanup_tmp_slots, create_hex_hash, extract_attachments, hosted_storage,
-    integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
-    stream_decode_verify_and_write,
+    cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
+    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
+    stream_decode_verify_and_write, write_sigstore_bundle,
 };
+
+/// What kind of payload an attachment carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum AttachmentKind {
+    Tarball,
+    Sigstore,
+}
 
 /// A publish document that passed every check that can run before
 /// taking the package lock: the caller may publish the package, and
@@ -31,6 +38,7 @@ pub(in super::super) struct PreparedAttachment {
     pub(in super::super) version: String,
     /// The matching `dist` block, or `Value::Null` when absent.
     pub(in super::super) dist: Value,
+    pub(in super::super) kind: AttachmentKind,
 }
 
 pub(in super::super) async fn validate_publish_doc(
@@ -66,14 +74,27 @@ pub(in super::super) async fn validate_publish_doc(
     // matching what `serve_tarball` expects.
     let mut prepared: Vec<PreparedAttachment> = Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
+        let (canonical, version, kind) = if attachment.filename.ends_with(".tgz") {
+            let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
+            (canonical, version, AttachmentKind::Tarball)
+        } else if attachment.filename.ends_with(".sigstore")
+            || attachment.filename.ends_with(".sigstore.json")
+        {
+            let (canonical, version) = name.parse_sigstore_name(&attachment.filename)?;
+            (canonical, version, AttachmentKind::Sigstore)
+        } else {
+            return Err(RegistryError::InvalidTarballName {
+                package: name.as_str().to_string(),
+                filename: attachment.filename,
+            });
+        };
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist, kind });
     }
     Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
@@ -134,10 +155,12 @@ pub(in super::super) async fn stage_publish(
 
     // A hosted registry has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
-    let merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    let mut merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    attach_sigstore_attestations(&mut merged, &name, &prepared);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     let original_refs = prepared
         .iter()
+        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
         .filter_map(|attachment| staged_hosted_original_ref(&name, attachment))
         .collect();
     // `incoming` is no longer needed; drop it so the base64 strings
@@ -159,6 +182,33 @@ pub(in super::super) async fn stage_publish(
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
+}
+
+fn attach_sigstore_attestations(
+    merged: &mut Value,
+    name: &CanonicalPackageName,
+    prepared: &[PreparedAttachment],
+) {
+    for attachment in prepared
+        .iter()
+        .filter(|att| att.kind == AttachmentKind::Sigstore)
+    {
+        if let Some(dist) = merged
+            .get_mut("versions")
+            .and_then(|v| v.get_mut(&attachment.version))
+            .and_then(|m| m.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+        {
+            let predicate_type = extract_predicate_type(&attachment.attachment.data);
+            dist.insert(
+                "attestations".to_string(),
+                json!({
+                    "url": format!("/-/npm/v1/attestations/{}@{}", name.as_str(), attachment.version),
+                    "provenance": { "predicateType": predicate_type },
+                }),
+            );
+        }
+    }
 }
 
 /// The stored packument, parsed, with the version its update must be based
@@ -200,34 +250,49 @@ pub(super) async fn write_attachment_slot(
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
-    let PreparedAttachment {
-        attachment,
-        canonical,
-        version: _,
-        dist,
-    } = prepared;
-    let slot = storage.reserve_hosted_blob(name, &canonical).await?;
-    let PendingAttachment { filename, data, declared_length } = attachment;
+    let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
-    let dist_for_task = (!dist.is_null()).then_some(dist);
     let result = tokio::task::spawn_blocking(move || {
-        stream_decode_verify_and_write(
-            &filename,
-            &data,
-            declared_length,
-            dist_for_task.as_ref(),
-            &tmp_path,
-        )
+        decode_and_write_attachment(&prepared.attachment, prepared.kind, &prepared.dist, &tmp_path)
     })
     .await;
     match result {
-        Ok(Ok(_)) => Ok(slot),
+        Ok(Ok(())) => Ok(slot),
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
             Err(RegistryError::Io(std::io::Error::other(join_err.to_string())))
         }
     }
+}
+
+fn decode_and_write_attachment(
+    attachment: &PendingAttachment,
+    kind: AttachmentKind,
+    dist: &Value,
+    tmp_path: &std::path::Path,
+) -> Result<(), RegistryError> {
+    let dist_ref = (!dist.is_null()).then_some(dist);
+    match kind {
+        AttachmentKind::Tarball => {
+            stream_decode_verify_and_write(
+                &attachment.filename,
+                &attachment.data,
+                attachment.declared_length,
+                dist_ref,
+                tmp_path,
+            )?;
+        }
+        AttachmentKind::Sigstore => {
+            write_sigstore_bundle(
+                &attachment.filename,
+                &attachment.data,
+                attachment.declared_length,
+                tmp_path,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 /// Validate each incoming version against the locally hosted packument. A
@@ -251,6 +316,7 @@ pub(super) fn check_publishable_versions(
 ) -> Result<(), RegistryError> {
     let attachment_versions: HashSet<&str> = prepared
         .iter()
+        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
         .map(|attachment| attachment.version.as_str())
         .collect();
     let hosted_versions = hosted

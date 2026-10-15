@@ -266,6 +266,11 @@ fn npm_registry_routes() -> Router<AppState> {
         let with_teams = team_routes(staged_routes(router, base), base);
         router = super::security_audit::routes(with_teams, base)
             .route(&path("/-/v1/search"), get(get_search))
+            .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
+            .route(
+                &path("/-/npm/v1/attestations/{*spec}"),
+                get(super::attestations::get_attestations),
+            )
             .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
             .route(

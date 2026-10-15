@@ -27,6 +27,7 @@ mod journal_recovery;
 mod multi_replica;
 mod oci_registry;
 mod policy;
+mod provenance;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;

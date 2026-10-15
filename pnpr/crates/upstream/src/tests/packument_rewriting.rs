@@ -9,9 +9,14 @@ fn rewrites_npm_form_tarball() {
         "name": "foo",
         "versions": {
             "1.0.0": {
+                "version": "1.0.0",
                 "dist": {
                     "tarball": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
-                    "shasum": "abc"
+                    "shasum": "abc",
+                    "attestations": {
+                        "url": "https://registry.npmjs.org/-/npm/v1/attestations/foo@1.0.0",
+                        "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+                    }
                 }
             }
         }
@@ -23,6 +28,10 @@ fn rewrites_npm_form_tarball() {
         "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["attestations"]["url"],
+        "http://127.0.0.1:4873/-/npm/v1/attestations/foo@1.0.0",
+    );
 }
 
 #[test]
