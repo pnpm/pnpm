@@ -77,6 +77,9 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
         invocation.polling.interval.as_secs(),
         dirs.checkout.display(),
     );
+    if pnpm_diagnostics::stdout::reader_closed() {
+        return Ok(());
+    }
     watch_revisions(invocation, &dirs)
 }
 
@@ -91,7 +94,9 @@ fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Re
             Err(error) if invocation.polling.once => return Err(error),
             Err(error) => pnpm_diagnostics::eprintln!("[WARN] poll failed: {error}"),
         }
-        if invocation.polling.once {
+        // A daemon whose log reader left, as in `pnpm pipeline --watch | head -1`,
+        // stops the way a SIGPIPE would stop it.
+        if invocation.polling.once || pnpm_diagnostics::stdout::reader_closed() {
             return Ok(());
         }
         std::thread::sleep(invocation.polling.interval);

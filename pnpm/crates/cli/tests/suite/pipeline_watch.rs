@@ -6,9 +6,11 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
@@ -126,4 +128,40 @@ fn watch_agent_refuses_a_zero_poll_interval() {
         .failure();
     let error = String::from_utf8_lossy(&result.get_output().stderr);
     assert!(error.contains("0 is not in 1.."), "{error}");
+}
+
+/// `pnpm pipeline --watch | head -1` must not leave the agent polling
+/// for a reader that is gone (pnpm/tasks#132).
+#[test]
+fn watch_agent_stops_when_stdout_is_closed() {
+    let root = tempfile::Builder::new()
+        .prefix("pacquet-test-")
+        .tempdir()
+        .expect("create temporary directory");
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+    let mut agent = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .without_ambient_pnpm_config()
+        .with_env("XDG_CACHE_HOME", root.path().join("xdg-cache"))
+        .with_env("XDG_STATE_HOME", root.path().join("xdg-state"))
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_args(["pipeline", "--watch", "--repo", "unused", "--interval", "3600"])
+        .with_stdout(Stdio::from(stdout_writer))
+        .spawn()
+        .expect("spawn the watch agent");
+
+    let deadline = Instant::now() + Duration::from_mins(1);
+    let status = loop {
+        if let Some(status) = agent.try_wait().expect("poll the watch agent") {
+            break status;
+        }
+        if Instant::now() > deadline {
+            agent.kill().expect("kill the watch agent");
+            panic!("the watch agent kept running after its stdout reader closed");
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
+    assert_eq!(status.code(), Some(0));
 }
