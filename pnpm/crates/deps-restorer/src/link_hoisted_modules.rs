@@ -204,14 +204,16 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     // installs have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let LinkedLevel { imported: added, bins } = opts.hierarchy
-        .par_iter()
-        .map(|(parent_dir, deps_hierarchy)| {
-            link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
-        })
-        .collect::<Result<Vec<LinkedLevel>, _>>()?
-        .into_iter()
-        .fold(LinkedLevel::default(), LinkedLevel::merge);
+    let LinkedLevel { imported: added, bins } = crate::link_pool::in_link_pool(|| {
+        opts.hierarchy
+            .par_iter()
+            .map(|(parent_dir, deps_hierarchy)| {
+                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
+            })
+            .collect::<Result<Vec<LinkedLevel>, _>>()
+    })?
+    .into_iter()
+    .fold(LinkedLevel::default(), LinkedLevel::merge);
 
     // The hoisted linker owns both of the install's `pnpm:stats`
     // emissions: pnpm emits `removed` from `linkHoistedModules` and the

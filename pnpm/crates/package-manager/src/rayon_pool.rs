@@ -55,7 +55,8 @@ pub fn configure_rayon_pool() {
 /// journal, way more (100+) loses to context switching and per-thread
 /// fixed costs (`user` time scales linearly past 50 without any
 /// wall-time payoff). That knee holds up to the ceiling below. Past 16
-/// threads, 2× no longer pays off.
+/// threads, 2× no longer pays off. On macOS the link phase runs on its
+/// own smaller pool instead (`link_pool` in `pnpm-deps-restorer`).
 ///
 /// **Floor of 4 threads is intentional.** A 1-2-CPU CI runner left
 /// at `2 × parallelism` would be capped to 2-4 rayon threads, and
