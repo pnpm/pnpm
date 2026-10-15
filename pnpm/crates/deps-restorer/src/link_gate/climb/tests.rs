@@ -1,78 +1,85 @@
 use super::{Climb, INITIAL_PERMITS, MAX_PERMITS, MIN_PERMITS};
 
-/// Calls per second on a volume whose knee is `knee`: linear below it,
-/// falling past it the way the measured `clonefile` sweeps did.
-fn volume(knee: usize) -> impl Fn(usize) -> u64 {
+/// Calls per second at `permits` on a volume whose knee is `knee`:
+/// rising linearly below it and falling past it about as gently as the
+/// measured installs did (4 against 16 permits is about 30%).
+fn volume(knee: usize) -> impl Fn(usize) -> f64 {
     move |permits| {
-        let knee = knee as f64;
-        let permits = permits as f64;
-        let rate = if permits <= knee { permits / knee } else { (knee / permits).powf(0.7) };
-        (rate * 10_000.0) as u64
+        let (knee, permits) = (knee as f64, permits as f64);
+        if permits <= knee { permits / knee } else { (knee / permits).powf(0.25) }
     }
 }
 
-fn settle(climb: &mut Climb, rate: impl Fn(usize) -> u64, observations: usize) -> Vec<usize> {
-    (0..observations)
-        .map(|_| climb.observe(rate(climb.permits())))
+/// Run `windows` windows in which the rate also triples from the first
+/// to the last, whatever the width, as the call mix of a real install
+/// does. Returns the settled width after each window.
+fn run(climb: &mut Climb, width_effect: impl Fn(usize) -> f64, windows: usize) -> Vec<usize> {
+    (0..windows)
+        .map(|window| {
+            let drift = 1.0 + 2.0 * window as f64 / windows as f64;
+            climb.observe((width_effect(climb.permits()) * drift * 5000.0) as u64);
+            climb.settled()
+        })
         .collect()
 }
 
 #[track_caller]
-fn assert_near(knee: usize, widths: &[usize]) {
-    eprintln!("knee {knee}: {widths:?}");
-    for width in widths {
-        assert!(
-            (*width as f64) >= knee as f64 * 0.7 && (*width as f64) <= knee as f64 * 1.3,
-            "{width} is not near the knee {knee}",
-        );
-    }
+fn assert_settles_within(settled: &[usize], range: std::ops::RangeInclusive<usize>) {
+    eprintln!("{settled:?}");
+    let last = *settled.last().unwrap();
+    assert!(range.contains(&last), "settled at {last}, outside {range:?}");
 }
 
 #[test]
-fn climbs_down_to_a_knee_of_4() {
+fn finds_a_knee_of_4_despite_a_rising_rate() {
     let mut climb = Climb::new(INITIAL_PERMITS);
-    let widths = settle(&mut climb, volume(4), 30);
-    assert_near(4, &widths[10..]);
+    assert_settles_within(&run(&mut climb, volume(4), 40), 3..=5);
 }
 
 #[test]
-fn climbs_up_to_a_knee_of_16() {
+fn finds_a_knee_of_16_despite_a_rising_rate() {
     let mut climb = Climb::new(INITIAL_PERMITS);
-    let widths = settle(&mut climb, volume(16), 30);
-    assert_near(16, &widths[10..]);
+    assert_settles_within(&run(&mut climb, volume(16), 40), 13..=16);
 }
 
 #[test]
-fn leaves_a_seeded_knee() {
-    let mut climb = Climb::seeded(16);
-    let widths = settle(&mut climb, volume(16), 20);
-    assert_near(16, &widths);
-}
-
-#[test]
-fn stays_within_the_bounds() {
+fn leaves_a_seeded_ceiling_when_the_knee_is_4() {
     let mut climb = Climb::new(MAX_PERMITS);
-    let widths = settle(&mut climb, |_| 1, 20);
-    assert!(
-        widths
-            .iter()
-            .all(|width| (MIN_PERMITS..=MAX_PERMITS).contains(width)),
-        "{widths:?}",
-    );
-    let mut climb = Climb::new(MIN_PERMITS);
-    let widths = settle(&mut climb, |permits| permits as u64 * 1000, 20);
-    assert!(
-        widths
-            .iter()
-            .all(|width| (MIN_PERMITS..=MAX_PERMITS).contains(width)),
-        "{widths:?}",
-    );
-    assert!(*widths.last().unwrap() >= MAX_PERMITS - 2, "{widths:?}");
+    assert_settles_within(&run(&mut climb, volume(4), 80), 3..=5);
 }
 
 #[test]
-fn holds_its_width_when_the_rate_is_flat() {
+fn keeps_a_seeded_knee() {
+    let mut climb = Climb::new(4);
+    let settled = run(&mut climb, volume(4), 40);
+    eprintln!("{settled:?}");
+    assert!(
+        settled
+            .iter()
+            .all(|width| (3..=5).contains(width)),
+        "{settled:?}"
+    );
+}
+
+#[test]
+fn holds_its_width_when_only_the_rate_drifts() {
     let mut climb = Climb::new(INITIAL_PERMITS);
-    let widths = settle(&mut climb, |_| 10_000, 20);
-    assert_near(INITIAL_PERMITS, &widths);
+    let settled = run(&mut climb, |_| 1.0, 40);
+    assert!(
+        settled
+            .iter()
+            .all(|width| *width == INITIAL_PERMITS),
+        "{settled:?}"
+    );
+}
+
+#[test]
+fn probes_stay_within_the_bounds() {
+    for start in [MIN_PERMITS, MAX_PERMITS] {
+        let mut climb = Climb::new(start);
+        for window in 0..40 {
+            climb.observe(window);
+            assert!((MIN_PERMITS..=MAX_PERMITS).contains(&climb.permits()), "{climb:?}");
+        }
+    }
 }

@@ -53,14 +53,12 @@ impl State {
 ///
 /// The rate is taken over the time the gate had calls in flight, so the
 /// planning and fetching between link batches do not count as slow
-/// linking. A window in which no caller waited is not observed: the
-/// width did not limit it.
+/// linking.
 #[derive(Default)]
 struct Window {
     calls: u64,
     busy: Duration,
     busy_since: Option<Instant>,
-    waited: bool,
 }
 
 impl Window {
@@ -95,7 +93,6 @@ impl Gate {
     fn acquire(&self) {
         let mut state = self.lock();
         while state.in_flight >= state.permits() {
-            state.window.waited = true;
             state = self.released.wait(state).unwrap_or_else(PoisonError::into_inner);
         }
         if state.in_flight == 0 {
@@ -130,19 +127,16 @@ impl Gate {
     }
 }
 
-/// Feed the window's rate to the climb if a caller waited in it, and
-/// start the next window. Returns whether the gate widened.
+/// Feed the window's rate to the climb and start the next window.
+/// Returns whether the gate widened.
 fn close_window(state: &mut State, busy: Duration) -> bool {
     let window = std::mem::take(&mut state.window);
     if state.in_flight > 0 {
         state.window.busy_since = Some(Instant::now());
     }
-    if !window.waited {
-        return false;
-    }
     let before = state.climb.permits();
-    let calls_per_second = (window.calls as f64 / busy.as_secs_f64()) as u64;
-    state.climb.observe(calls_per_second) > before
+    state.climb.observe((window.calls as f64 / busy.as_secs_f64()) as u64);
+    state.climb.permits() > before
 }
 
 /// Releases its permit when dropped, so a panicking call does not shrink
@@ -183,7 +177,7 @@ pub(crate) fn load(store_dir: &StoreDir, destination: &Path) {
         .ok()
         .and_then(|text| text.trim().parse::<usize>().ok())
         .filter(|permits| (MIN_PERMITS..=MAX_PERMITS).contains(permits))
-        .map_or_else(|| Climb::new(INITIAL_PERMITS), Climb::seeded);
+        .map_or_else(|| Climb::new(INITIAL_PERMITS), Climb::new);
     let mut state = GATE.lock();
     state.climb = climb;
     state.device = Some(device);
@@ -207,7 +201,7 @@ pub(crate) fn save(config: &Config, destination: &Path) {
         if state.pinned.is_some() || state.device != Some(device) {
             return;
         }
-        (state.climb.permits(), state.calls_on_device)
+        (state.climb.settled(), state.calls_on_device)
     };
     tracing::debug!(
         target: "pacquet::link_gate",
