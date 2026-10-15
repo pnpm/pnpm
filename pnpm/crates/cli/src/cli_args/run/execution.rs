@@ -8,8 +8,9 @@ use super::{
     package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
     throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::concurrency_group::{
-    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
+use crate::cli_args::{
+    concurrency_group::{SlotOutcome, acquire_concurrency_group_slot, with_held_group},
+    reporter::default_reporter_selected,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
@@ -490,16 +491,20 @@ fn lifecycle_failure_message(status: ScriptExit, stage: &str) -> String {
 
 /// A streamed run goes through the reporter, which may be redrawing its
 /// frame in place: a line written past it would shift the rows the frame
-/// moves the cursor over.
+/// moves the cursor over. An inherited run under the default reporter
+/// writes the line to stderr after the script's own output; under any
+/// other reporter it goes through the reporter too, so the ndjson
+/// reporter writes a record and the silent reporter drops it.
 fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
-    match ctx.output {
-        ScriptOutput::Streamed { .. } => (ctx.emit)(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Error,
-            message: message.to_string(),
-            prefix: String::new(),
-        })),
-        ScriptOutput::Inherit => eprintln!("{message}"),
+    if matches!(ctx.output, ScriptOutput::Inherit) && default_reporter_selected() {
+        pnpm_diagnostics::eprintln!("{message}");
+        return;
     }
+    (ctx.emit)(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Error,
+        message: message.to_string(),
+        prefix: String::new(),
+    }));
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(

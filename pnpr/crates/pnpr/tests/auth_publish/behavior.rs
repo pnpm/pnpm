@@ -680,3 +680,73 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .to_string();
     assert_ne!(after_set, after_delete, "dist-tag DELETE should bump time.modified too");
 }
+
+#[tokio::test]
+async fn preauthorize_publish_rejects_unauthenticated_request_without_reading_body() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage));
+
+    let make_pending_body = || {
+        let stream =
+            futures_util::stream::pending::<Result<axum::body::Bytes, std::convert::Infallible>>();
+        Body::from_stream(stream)
+    };
+
+    // 1. Unscoped package publish
+    let unscoped_req = Request::put("/unauthed-pkg")
+        .header("content-type", "application/json")
+        .body(make_pending_body())
+        .unwrap();
+    let unscoped_res = app
+        .clone()
+        .oneshot(unscoped_req)
+        .await
+        .unwrap();
+    assert_eq!(unscoped_res.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Scoped package publish
+    let scoped_req = Request::put("/@scope/unauthed-pkg")
+        .header("content-type", "application/json")
+        .body(make_pending_body())
+        .unwrap();
+    let scoped_res = app
+        .clone()
+        .oneshot(scoped_req)
+        .await
+        .unwrap();
+    assert_eq!(scoped_res.status(), StatusCode::UNAUTHORIZED);
+
+    // 3. Packument revision rewrite
+    let rev_req = Request::put("/unauthed-pkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .body(make_pending_body())
+        .unwrap();
+    let rev_res = app.oneshot(rev_req).await.unwrap();
+    assert_eq!(rev_res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn preauthorize_publish_rejects_unauthorized_package_without_reading_body() {
+    let tmp = TempDir::new().unwrap();
+    let (config, _storage) = super::static_config_with_packages(
+        &tmp,
+        "  'forbidden-pkg':\n    publish: bob\n    access: $all",
+    );
+    let app = router(config);
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let make_pending_body = || {
+        let stream =
+            futures_util::stream::pending::<Result<axum::body::Bytes, std::convert::Infallible>>();
+        Body::from_stream(stream)
+    };
+
+    let publish_req = Request::put("/forbidden-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(make_pending_body())
+        .unwrap();
+    let publish_res = app.oneshot(publish_req).await.unwrap();
+    assert_eq!(publish_res.status(), StatusCode::FORBIDDEN);
+}

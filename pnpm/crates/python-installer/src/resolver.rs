@@ -2,12 +2,15 @@ use super::{
     registry::{Registry, Resolution},
     targets::Environment,
 };
+use ahead::Ahead;
 use miette::{Result, bail};
 use pep440_rs::Version;
 use pep508_rs::{PackageName, Requirement};
 use pnpm_python_resolver::{Solved, Step};
 use pnpm_reporter::Reporter as InstallReporter;
 use std::collections::BTreeMap;
+
+mod ahead;
 
 /// Resolve the project once for every environment it locks for, leaving
 /// the registry answering for the interpreter running the install again.
@@ -40,31 +43,34 @@ pub(super) async fn resolve_all<Reporter: InstallReporter + 'static>(
 }
 
 /// Resolve a project by feeding the resolver what it asks for: an index
-/// page for a distribution it has not seen, or a wheel whose metadata it
-/// needs, until the project is solved.
+/// page for a distribution it has not seen, or the metadata of a version,
+/// until the project is solved.
 pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
     registry: &mut Registry<'_>,
     requirements: &[Requirement],
 ) -> Result<BTreeMap<PackageName, Version>> {
+    let mut ahead = Ahead::new(registry);
+    ahead.read_requirements(registry, requirements, &[]);
     let mut alternatives = Vec::new();
     loop {
         let environment = registry.resolution.target.environment.clone();
         match pnpm_python_resolver::step(&registry.resolution.packages, requirements, &environment)?
         {
             Step::Solved(solution) => return Ok(solution),
-            Step::NeedCandidates(name) => registry.fetch_index(&name).await?,
+            Step::NeedCandidates(name) => ahead.candidates(registry, &name).await?,
             Step::NeedUrl(name, url) => {
                 let mut alternative = registry.resolution.packages.clone();
                 alternative.rejected_sources.insert((name.clone(), url.clone()));
                 alternatives.push(alternative);
-                registry.fetch_source::<Reporter>(&name, &url).await?;
+                ahead.while_reading(registry.fetch_source::<Reporter>(&name, &url)).await?;
             }
             Step::Backtrack(message) => {
                 let Some(alternative) = alternatives.pop() else { bail!("{message}") };
                 registry.resolution.packages = alternative;
+                ahead.backtracked();
             }
             Step::NeedMetadata(name, version) => {
-                registry.fetch_metadata::<Reporter>(&name, &version).await?;
+                ahead.metadata::<Reporter>(registry, &name, &version).await?;
             }
         }
         tokio::task::yield_now().await;

@@ -53,3 +53,19 @@ test('throws if default catalog is defined multiple times', () => {
     },
   })).toThrow(/The 'default' catalog was defined multiple times/)
 })
+
+test('does not add default property when default catalog is not defined', () => {
+  const catalogs = getCatalogsFromWorkspaceManifest({
+    catalogs: {
+      bar: {
+        baz: '^2.0.0',
+      },
+    },
+  })
+  expect(catalogs).toEqual({
+    bar: {
+      baz: '^2.0.0',
+    },
+  })
+  expect(Object.hasOwn(catalogs, 'default')).toBe(false)
+})

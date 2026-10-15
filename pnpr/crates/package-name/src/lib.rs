@@ -91,7 +91,7 @@ pub enum OciNameError {
 /// image repository.
 /// Construction applies the ecosystem's normalization and validation before
 /// the name can be used as a storage or cache key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPackageName {
     raw: String,
     /// The unscoped portion — for `@scope/name` and `namespace/image` this is

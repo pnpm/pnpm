@@ -36,7 +36,7 @@ impl UnmatchedFilters {
         } else {
             no_projects_matched_message(&self.workspace_dir)
         };
-        println!("{message}");
+        pnpm_diagnostics::println!("{message}");
         NoMatchingProjects { message }.into()
     }
 }

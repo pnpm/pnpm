@@ -26,6 +26,11 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
         Ok(())
     }
 
+    /// Check that the hosted store is reachable and ready for operations.
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
         None
     }

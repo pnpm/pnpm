@@ -7,7 +7,7 @@ use pnpm_resolving_resolver_base::{
     CurrentPkg, ResolveError, ResolveOptions, ResolveResult, UpdateBehavior, WantedDependency,
     WorkspacePackages,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 
 use super::{
     NPM_REGISTRY_RESOLVED_VIA, NpmResolver,
@@ -146,13 +146,11 @@ async fn fetch_cached_manifest(
     let integrity = current_pkg.resolution.checkable_integrity()?;
     let key = store_index_key(&integrity.to_string(), current_pkg.id.as_str());
     let index = Arc::clone(store_index);
-    let entry = tokio::task::spawn_blocking(move || {
-        let guard = index.lock().ok()?;
-        guard.get(&key).ok().flatten()
-    })
-    .await
-    .ok()
-    .flatten()?;
+    let entry =
+        tokio::task::spawn_blocking(move || StoreIndex::get_shared(&index, &key).ok().flatten())
+            .await
+            .ok()
+            .flatten()?;
     entry.manifest
 }
 

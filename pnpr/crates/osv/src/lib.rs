@@ -1,11 +1,12 @@
+mod loader;
+use loader::{load_from_directory, load_from_zip};
+
 mod records;
 use records::{ingest_record_bytes, normalized_name};
 
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
-    fs::File,
-    io::Read,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -14,8 +15,7 @@ use node_semver::Version;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
+use serde::{Deserialize, Serialize};
 
 use pnpr_config::Config;
 use pnpr_error::RegistryError;
@@ -46,6 +46,18 @@ const MAX_VERSIONS_PER_AFFECTED: usize = 100_000;
 const MAX_RANGES_PER_AFFECTED: usize = 10_000;
 const MAX_EVENTS_PER_RANGE: usize = 10_000;
 
+/// An advisory payload matching the npm/pnpm bulk advisories endpoint contract.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BulkAdvisory {
+    pub id: u64,
+    pub url: String,
+    pub title: String,
+    pub severity: String,
+    pub vulnerable_versions: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub cwe: Vec<String>,
+}
+
 #[derive(Debug)]
 pub struct OsvIndex {
     packages: HashMap<String, Vec<Advisory>>,
@@ -65,8 +77,6 @@ impl OsvIndex {
             )));
         }
         let index = Self::load_from_path(&path)?;
-        // An enabled-but-empty index would make the guard a no-op and
-        // silently disable enforcement, so treat it as misconfiguration.
         if index.packages.is_empty() {
             return Err(invalid_config(format!(
                 "OSV is enabled but database {} yielded no npm advisories; check that the path points at the npm OSV dump",
@@ -76,14 +86,10 @@ impl OsvIndex {
         Ok(Some(Arc::new(index)))
     }
 
-    pub(crate) fn load_from_path(path: &Path) -> Result<Self, RegistryError> {
+    pub fn load_from_path(path: &Path) -> Result<Self, RegistryError> {
         if path.is_dir() {
             return load_from_directory(path);
         }
-        // Only treat a regular file as a zip. Opening and streaming a
-        // FIFO/socket/device for fingerprinting could block startup
-        // indefinitely (the OSV DB loads before the listen socket binds),
-        // so reject anything that isn't a directory or regular file.
         if path.is_file() {
             return load_from_zip(path);
         }
@@ -125,18 +131,47 @@ impl OsvIndex {
         let Some(advisories) = self.advisories(name) else {
             return Vec::new();
         };
-        // Parse the candidate once and share it across every advisory's
-        // range check; exact-version advisories never need the parse.
         let parsed = Version::parse(version).ok();
         let mut seen = HashSet::new();
         advisories
             .iter()
             .filter(|advisory| advisory.affects(version, parsed.as_ref()))
-            // A single OSV record can list the same package in several
-            // `affected` blocks; dedup so one advisory id isn't repeated.
             .filter(|advisory| seen.insert(advisory.id.as_str()))
             .map(|advisory| advisory.id.clone())
             .collect()
+    }
+
+    /// Query bulk advisories matching requested package names and versions,
+    /// matching the `/-/npm/v1/security/advisories/bulk` endpoint schema.
+    #[must_use]
+    pub fn bulk_advisories(
+        &self,
+        packages: &HashMap<String, Vec<String>>,
+    ) -> HashMap<String, Vec<BulkAdvisory>> {
+        let mut result = HashMap::new();
+        for (package_name, versions) in packages {
+            let Some(advisories) = self.advisories(package_name) else {
+                continue;
+            };
+            let parsed_versions: Vec<(&str, Option<Version>)> = versions
+                .iter()
+                .map(|raw_version| (raw_version.as_str(), Version::parse(raw_version).ok()))
+                .collect();
+            let mut matched = Vec::new();
+            let mut seen_ids = HashSet::new();
+            for advisory in advisories {
+                let affects = parsed_versions
+                    .iter()
+                    .any(|(raw_version, parsed)| advisory.affects(raw_version, parsed.as_ref()));
+                if affects && seen_ids.insert(advisory.bulk.id) {
+                    matched.push(advisory.bulk.clone());
+                }
+            }
+            if !matched.is_empty() {
+                result.insert(package_name.clone(), matched);
+            }
+        }
+        result
     }
 
     fn advisories(&self, name: &str) -> Option<&[Advisory]> {
@@ -170,6 +205,7 @@ struct Advisory {
     id: String,
     versions: HashSet<String>,
     ranges: Vec<SemverRange>,
+    bulk: BulkAdvisory,
 }
 
 impl Advisory {
@@ -221,24 +257,27 @@ impl SemverEvent {
         }
     }
 
-    /// Whether this event decides `version`'s membership, and how. An event
-    /// the version has not reached yet decides nothing.
     fn verdict_at(&self, version: &Version) -> Option<bool> {
         match self {
-            SemverEvent::Introduced(introduced) => (version >= introduced).then_some(true),
-            SemverEvent::Fixed(fixed) => (version >= fixed).then_some(false),
-            SemverEvent::LastAffected(last_affected) => (version > last_affected).then_some(false),
-            SemverEvent::Limit(limit) => (version >= limit).then_some(false),
+            SemverEvent::Introduced(bound) => (version >= bound).then_some(true),
+            SemverEvent::Fixed(bound) => (version >= bound).then_some(false),
+            SemverEvent::LastAffected(bound) => (version > bound).then_some(false),
+            SemverEvent::Limit(bound) => (version >= bound).then_some(false),
         }
     }
 
-    /// At an equal version bound an `introduced` opens the range before a
-    /// closing event shuts it, so it must sort first.
     fn sort_rank(&self) -> u8 {
         match self {
             SemverEvent::Introduced(_) => 0,
             SemverEvent::Fixed(_) | SemverEvent::LastAffected(_) | SemverEvent::Limit(_) => 1,
         }
+    }
+
+    pub(crate) fn cmp_events(&self, other: &Self) -> std::cmp::Ordering {
+        self.bound()
+            .partial_cmp(other.bound())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| self.sort_rank().cmp(&other.sort_rank()))
     }
 }
 
@@ -253,116 +292,6 @@ fn default_osv_path(config: &Config) -> PathBuf {
         .join("all.zip")
 }
 
-fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
-    let file = File::open(path)
-        .map_err(|err| {
-            invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
-        })?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|err| {
-            invalid_config(format!("failed to read OSV zip {}: {err}", path.display()))
-        })?;
-    let mut packages = HashMap::new();
-    // Fingerprint the decompressed record contents while parsing (one
-    // pass over the same handle), not the raw archive bytes: that avoids
-    // a second full read and keeps the fingerprint stable across
-    // recompression/repackaging of identical advisory data.
-    let mut digests = Vec::new();
-    for index in 0..archive.len() {
-        let mut entry = archive
-            .by_index(index)
-            .map_err(|err| {
-                invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
-            })?;
-        if !entry.is_file() || !entry.name().ends_with(".json") {
-            continue;
-        }
-        let (name, bytes) = read_zip_record(&mut entry)?;
-        digests.push(record_digest(&name, &bytes));
-        ingest_record_bytes(&mut packages, &name, &bytes)?;
-    }
-    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
-}
-
-fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
-    let entries = std::fs::read_dir(path)
-        .map_err(|err| {
-            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
-        })?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|err| {
-            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
-        })?;
-
-    let mut packages = HashMap::new();
-    let mut digests = Vec::new();
-    for entry in entries {
-        let entry_path = entry.path();
-        if !entry_path.is_file()
-            || entry_path
-                .extension()
-                .is_none_or(|extension| extension != "json")
-        {
-            continue;
-        }
-        let bytes = read_directory_record(&entry_path)?;
-        let name = entry_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or_default();
-        digests.push(record_digest(name, &bytes));
-        ingest_record_bytes(&mut packages, name, &bytes)?;
-    }
-    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
-}
-
-/// Per-record content digest over a length-prefixed `(name, bytes)` so
-/// the encoding is unambiguous — plain concatenation would let two
-/// different record sets hash to the same input.
-/// Open an OSV record file without blocking on it. On unix `O_NONBLOCK`
-/// keeps `open` from hanging if the path was raced into a FIFO with no
-/// writer; the caller still verifies the handle is a regular file before
-/// reading. A regular file ignores the flag for reads.
-#[cfg(unix)]
-fn open_osv_record(path: &Path) -> std::io::Result<File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK)
-        .open(path)
-}
-
-#[cfg(not(unix))]
-fn open_osv_record(path: &Path) -> std::io::Result<File> {
-    File::open(path)
-}
-
-fn record_digest(name: &str, bytes: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update((name.len() as u64).to_le_bytes());
-    hasher.update(name.as_bytes());
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-    hasher.finalize().into()
-}
-
-/// Combine per-record digests into the database fingerprint. Each digest
-/// already encodes its record's name and bytes, so sorting the digests
-/// makes the fingerprint independent of the order entries happen to
-/// appear in the archive or directory listing (even when two records
-/// share a name) — reordering alone doesn't invalidate cached verdicts.
-fn combine_fingerprint(mut digests: Vec<[u8; 32]>) -> String {
-    digests.sort_unstable();
-    let mut hasher = Sha256::new();
-    for digest in &digests {
-        hasher.update(digest);
-    }
-    format!("sha256:{:x}", hasher.finalize())
-}
-
-/// Join advisory ids for a human-facing reason, capped so a package that
-/// matches a huge number of advisories can't inflate response or log
-/// payloads (which feed NDJSON frames and error messages).
 #[must_use]
 pub fn format_advisory_ids(ids: &[String]) -> String {
     const MAX: usize = 20;
@@ -378,66 +307,3 @@ fn invalid_config(reason: String) -> RegistryError {
 
 #[cfg(test)]
 mod tests;
-
-fn read_zip_record(
-    entry: &mut zip::read::ZipFile<'_, File>,
-) -> Result<(String, Vec<u8>), RegistryError> {
-    // Bound the name before cloning it into errors/fingerprint — a
-    // crafted zip can carry arbitrarily long entry names.
-    if entry.name().len() > MAX_OSV_NAME_BYTES {
-        return Err(invalid_config(format!(
-            "OSV zip entry name is {} bytes, over the {MAX_OSV_NAME_BYTES}-byte limit",
-            entry.name().len(),
-        )));
-    }
-    let name = entry.name().to_string();
-    if entry.size() > MAX_OSV_RECORD_BYTES {
-        return Err(invalid_config(format!(
-            "OSV zip entry {name} is {} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-            entry.size(),
-        )));
-    }
-    // Read one past the cap so an underreported `entry.size()` can't
-    // silently truncate a record into still-valid JSON; reject if it
-    // actually exceeds the limit (matching the directory loader).
-    let mut bytes = Vec::with_capacity(entry.size() as usize);
-    (&mut *entry)
-        .take(MAX_OSV_RECORD_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
-    if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
-        return Err(invalid_config(format!(
-            "OSV zip entry {name} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-        )));
-    }
-    Ok((name, bytes))
-}
-
-/// Open without blocking on a concurrently substituted FIFO, then verify the
-/// opened handle is a regular file before reading a bounded record.
-fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
-    let file = open_osv_record(entry_path)
-        .map_err(|err| {
-            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-        })?;
-    let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
-    if !is_regular_file {
-        return Err(invalid_config(format!(
-            "OSV record {} is not a regular file",
-            entry_path.display(),
-        )));
-    }
-    let mut bytes = Vec::new();
-    file.take(MAX_OSV_RECORD_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|err| {
-            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-        })?;
-    if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
-        return Err(invalid_config(format!(
-            "OSV record {} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
-            entry_path.display(),
-        )));
-    }
-    Ok(bytes)
-}

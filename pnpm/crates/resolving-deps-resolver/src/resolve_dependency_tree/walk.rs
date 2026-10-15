@@ -27,12 +27,16 @@ use workspace_resolution::resolve_wanted_cached;
 
 mod child_seeds;
 use child_seeds::{
-    catalogs_for_children, overlay_lookup_names, resolve_catalog_child_specs,
-    resolves_children_through_catalogs, seed_node_children,
+    ChildSeedScope, catalogs_for_children, child_wanted, landed_on_prior_entry,
+    overlay_lookup_names, resolve_catalog_child_specs, resolves_children_through_catalogs,
+    seed_node_children,
 };
 
 mod level_walk;
 use level_walk::{assign_level_owners, pkgs_info_from_ids, seeded_dep, settle_level, settle_seeds};
+
+mod locked_split;
+use locked_split::mark_changed_locked_splits;
 
 mod locked_versions;
 use locked_versions::{
@@ -67,7 +71,9 @@ use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
 use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
-    parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
+    parent_pkg_aliases::{
+        ParentPkgAliases, dependencies_named_as_peers, peer_shadowed_dependencies,
+    },
     resolved_tree::{
         AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
     },
@@ -84,7 +90,7 @@ use super::{
     },
     reuse::{
         ReuseSource, higher_direct_dep_version, node_depends_on_changed_direct_dep,
-        real_package_name_of, resolve_reused_node, try_reuse_node,
+        pinned_specifier, real_package_name_of, resolve_reused_node, try_reuse_node,
         wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
@@ -94,10 +100,10 @@ use super::{
     update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{
         ChildSpec, ChildrenOwnerClaim, ChildrenRecording, RecordedChildrenContext,
-        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
-        claim_children_warmup, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, record_children, recorded_children_match,
-        register_peer_dep_names,
+        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, children_warmup_claimed,
+        claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
+        make_non_owner_nodes_lazy, pinned_children_scope, record_children, recorded_children_match,
+        register_peer_dep_names, register_shadowable_dep_names,
     },
 };
 
@@ -278,6 +284,7 @@ where
     Chain: Resolver + ?Sized,
 {
     assign_level_owners(ctx, seeds.iter_mut())?;
+    mark_changed_locked_splits(ctx, resolver, &mut seeds, &children_pkg_aliases).await;
     let direct: Vec<DirectDep> = seeds
         .iter()
         .filter_map(seeded_dep)
@@ -292,7 +299,7 @@ where
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
-        frontier = settle_level(ctx, seeded)?;
+        frontier = settle_level(ctx, resolver, seeded).await?;
         level += 1;
         tracing::info!(
             target: "pacquet::install::phase",

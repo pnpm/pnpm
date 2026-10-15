@@ -1,6 +1,6 @@
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, UserBackend, hash_bcrypt, parse_htpasswd,
-    serialize_htpasswd, validate_username, verify_returning_user, write_atomic,
+    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, UserBackend, dummy_verify, hash_bcrypt,
+    parse_htpasswd, serialize_htpasswd, validate_username, verify_returning_user, write_atomic,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
@@ -178,6 +178,11 @@ impl UserBackend for UserStore {
             return verify_returning_user(username, password, stored).await;
         }
 
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, self.bcrypt_cost).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        }
+
         self.check_registration_capacity()?;
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
@@ -253,6 +258,19 @@ impl UserBackend for UserStore {
             None => Ok(Change::Keep(false)),
         })
         .await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        if let Some(path) = &self.path {
+            if path.exists() {
+                tokio::fs::metadata(path).await.map_err(RegistryError::Io)?;
+            } else if let Some(parent) = path.parent()
+                && !parent.as_os_str().is_empty()
+            {
+                tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+            }
+        }
+        Ok(())
     }
 }
 

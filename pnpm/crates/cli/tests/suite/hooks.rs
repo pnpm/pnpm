@@ -581,14 +581,9 @@ fn update_config_applies_to_sbom() {
     assert_runs_update_config_and_succeeds(&["sbom", "--sbom-format", "cyclonedx"]);
 }
 
-/// The mocked registry serves no audit endpoint, so the request `audit`
-/// makes after the hook has run is the first thing that fails.
 #[test]
 fn update_config_applies_to_audit() {
-    let output = run_after_install_with_marker_hook(&["audit"]);
-    assert!(!output.status.success(), "audit should fail without an audit endpoint");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS"), "STDERR:\n{stderr}");
+    assert_runs_update_config_and_succeeds(&["audit"]);
 }
 
 #[test]

@@ -115,22 +115,9 @@ impl WorkspaceTreeCtx {
     /// [`pnpm_resolving_resolver_base::PreferredVersions`] entries the
     /// peer-hoist pickers bias toward.
     ///
-    /// Derived from the settled tree — the recorded roots plus the
-    /// children edges the deterministic children owners recorded — not
-    /// from resolution arrival order. Concurrent importer waves can
-    /// transiently walk (and resolve versions inside) a subtree whose
-    /// children ownership a better-placed occurrence later takes over;
-    /// whether such a walk happens at all depends on thread
-    /// interleaving, so an arrival-ordered fold gives the pickers
-    /// run-to-run varying candidates and reshuffles peer bindings on
-    /// every install. The reachable closure is interleaving-independent
-    /// because both the roots and the surviving children records are.
-    ///
-    /// The closure is cached and extended incrementally: shared-map
-    /// growth (`revision`) only ever hangs new subtrees under new
-    /// roots, so previously visited packages keep their entries; a
-    /// children-ownership rewrite (`children_rewrites`) can restructure
-    /// existing subtrees, so it rebuilds the closure from scratch.
+    /// Reachability is decided by the settled tree, not by the order
+    /// resolutions arrive in, so a package the run resolved but nothing
+    /// reaches any more is not a candidate.
     pub(in super::super) fn run_preferred_versions(&self) -> MutexGuard<'_, RunVersionsCache> {
         let revision = self.tree.revision();
         let children_rewrites = self.tree.children_rewrites();

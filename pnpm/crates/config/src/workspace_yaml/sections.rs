@@ -207,6 +207,8 @@ pub struct SideEffectsCacheSettings {
     /// Save a package's build output to the cache.
     pub write: Option<bool>,
     pub remote: Option<RemoteSideEffectsCacheSettings>,
+    /// See [`Config::side_effects_cache_exclude`](crate::settings::Config::side_effects_cache_exclude).
+    pub exclude: Option<Vec<String>>,
 }
 
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the

@@ -304,3 +304,90 @@ fn the_retired_per_surface_policies_are_refused() {
         assert!(result.is_err(), "accepted {yaml:?}");
     }
 }
+
+#[test]
+fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
+    let sql = crate::SqlBackendSettings {
+        url: "postgres://user:supersecret@localhost:5432/db?password=querysecret&other=val"
+            .to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_sql = format!("{sql:?}");
+    assert!(!rendered_sql.contains("supersecret"));
+    assert!(!rendered_sql.contains("querysecret"));
+    assert!(rendered_sql.contains("redacted"));
+    assert!(rendered_sql.contains("other=val"));
+
+    let libsql = crate::LibsqlSettings {
+        url: "https://libsql.example.com?authToken=mysecrettoken".to_string(),
+        auth_token: Some("secret_auth_token".to_string()),
+        replica_path: None,
+        sync_interval_secs: None,
+    };
+    let rendered_libsql = format!("{libsql:?}");
+    assert!(!rendered_libsql.contains("mysecrettoken"));
+    assert!(!rendered_libsql.contains("secret_auth_token"));
+    assert!(rendered_libsql.contains("redacted"));
+
+    let token_url_sql = crate::SqlBackendSettings {
+        url: "postgres://TOKEN@localhost:5432/db".to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_token = format!("{token_url_sql:?}");
+    assert!(!rendered_token.contains("TOKEN"));
+    assert!(rendered_token.contains("redacted"));
+
+    let punctuated_sql = crate::SqlBackendSettings {
+        url: "postgres://user:p)ass@db.example/pnpr".to_string(),
+        max_connections: None,
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_mins(5),
+    };
+    let rendered_punctuated = format!("{punctuated_sql:?}");
+    assert!(!rendered_punctuated.contains("p)ass"));
+    assert!(rendered_punctuated.contains("redacted"));
+}
+
+#[test]
+fn trusted_proxies_parses_cidrs_and_loopback() {
+    let yaml = "\
+storage: ./s
+trustedProxies:
+  - loopback
+  - 10.0.0.0/8
+  - 192.168.1.1
+trustedProxyHeader: forwarded
+upstreams: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.trusted_proxies.len(), 4);
+    assert_eq!(config.http.trusted_proxy_header, super::super::TrustedProxyHeader::Forwarded);
+}
+
+#[test]
+fn request_timeout_defaults_and_overrides() {
+    let base_config =
+        Config::from_yaml_str("storage: ./s\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(base_config.http.request_timeout, Some(crate::HttpConfig::DEFAULT_REQUEST_TIMEOUT));
+
+    let custom_yaml = "storage: ./s\nrequestTimeout: 15s\n";
+    let custom_config =
+        Config::from_yaml_str(custom_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(custom_config.http.request_timeout, Some(std::time::Duration::from_secs(15)));
+
+    let disabled_yaml = "storage: ./s\nrequestTimeout: 0\n";
+    let disabled_config =
+        Config::from_yaml_str(disabled_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(disabled_config.http.request_timeout, None);
+
+    let invalid_yaml = "storage: ./s\nrequestTimeout: invalid_val\n";
+    let err = Config::from_yaml_str(invalid_yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("requestTimeout")),
+        "expected InvalidConfig with requestTimeout, got {err:?}",
+    );
+}

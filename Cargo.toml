@@ -360,6 +360,8 @@ unused_result_ok = "warn"
 pathbuf_init_then_push = "warn"
 string_add = "warn"
 verbose_file_reads = "warn"
+print_stderr = "warn" # `eprintln!` panics on a closed stderr; use `pnpm_diagnostics::eprintln!` (pnpm/pnpm#16904)
+print_stdout = "warn" # `println!` panics on a closed stdout; use `pnpm_diagnostics::println!` (pnpm/tasks#132)
 
 # cargo-group lints opted into individually (the cargo group is otherwise off).
 negative_feature_names = "warn"

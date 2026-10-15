@@ -5,7 +5,21 @@ use super::super::{
     gvs_build_markers_may_require_recovery, unapproved_recorded_ignored_builds,
 };
 use pnpm_config::Config;
+use pnpm_store_dir::StoreOperationLock;
 use std::path::Path;
+
+/// Take the store lock the install holds for its whole run, inside a
+/// `pacquet::install` span of its own: a lock another process holds is a
+/// wait nothing else reports.
+pub(super) fn lock_store(config: &Config) -> Result<StoreOperationLock, InstallError> {
+    let _span = tracing::debug_span!(target: "pacquet::install", "lock_store").entered();
+    if config.frozen_store {
+        config.store_dir.lock_for_frozen_use()
+    } else {
+        config.store_dir.lock_for_use()
+    }
+    .map_err(InstallError::StoreLock)
+}
 
 /// Everything the optimistic repeat-install short-circuit consults.
 pub(super) struct UpToDateCheck<'a> {

@@ -10,8 +10,10 @@ pub use hoist_plan::{
 mod direct_links;
 mod hoist_plan;
 mod package_root_links;
+mod stale_links;
 mod workspace_links;
 
+use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::link_hoisted_workspace_dependencies;
 
 use super::{
@@ -98,7 +100,7 @@ pub enum HoistedLinkerError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
     #[diagnostic(transparent)]
-    PruneWorkspaceHoists(#[error(source)] crate::PruneDirectDepsError),
+    PruneStaleLinks(#[error(source)] crate::PruneDirectDepsError),
     #[diagnostic(transparent)]
     HoistSymlink(#[error(source)] SymlinkPackageError),
     #[diagnostic(transparent)]
@@ -129,6 +131,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
     unlink_prior_workspace_hoists(inputs)?;
+    unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
@@ -361,25 +364,6 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
         inputs, lockfile, skipped,
     );
     Ok(hoisted_dependencies)
-}
-
-/// Runs before the linker writes the tree, so no package is imported at
-/// a path that is still a project's link.
-fn unlink_prior_workspace_hoists(
-    inputs: &HoistedLinkerInputs<'_>,
-) -> Result<(), HoistedLinkerError> {
-    let modules_dir = &inputs.config.modules_dir;
-    crate::prune_stale_modules::prune_workspace_hoists(
-        &crate::prune_stale_modules::WorkspaceHoistDirs {
-            workspace_root: inputs.projects.walker_lockfile_dir,
-            private: modules_dir,
-            public: modules_dir,
-        },
-        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
-        inputs.prior.hoisted_dependencies,
-        None,
-    )
-    .map_err(HoistedLinkerError::PruneWorkspaceHoists)
 }
 
 /// `hoist-workspace-packages` under this linker: every package lives in

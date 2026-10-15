@@ -97,7 +97,7 @@ async fn rewrite_packument(
 
 /// A packument rewrite adds nothing but may remove anything, so it is held to
 /// both write permissions.
-fn authorize_rewrite(
+pub(super) fn authorize_rewrite(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,

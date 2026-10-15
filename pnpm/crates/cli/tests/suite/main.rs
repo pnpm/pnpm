@@ -5,6 +5,11 @@
 //! change to the crate. `cargo nextest` runs each test in its own
 //! process.
 
+#![expect(
+    clippy::print_stderr,
+    reason = "test helpers log to stderr; only the pnpm binary must survive a closed stderr"
+)]
+
 mod _utils;
 
 mod add;
@@ -99,6 +104,7 @@ mod lockfile_verification;
 mod login;
 mod loglevel;
 mod logout;
+mod manifest_creation;
 mod minimum_release_age;
 mod modules_dir;
 mod modules_dir_with_subdirectory;
@@ -164,6 +170,7 @@ mod self_update;
 mod set_script;
 mod setting_flags;
 mod side_effects_cache;
+mod side_effects_cache_exclude;
 mod stage;
 mod stale_pin_dedupe;
 mod star_tests;

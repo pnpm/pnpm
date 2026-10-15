@@ -4546,6 +4546,7 @@ dependencies = [
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "pnpm-wasm-host",
  "pnpm-workspace-manifest-writer",
  "pretty_assertions",
@@ -4960,6 +4961,7 @@ dependencies = [
  "p256",
  "pathdiff",
  "pipe-trait",
+ "pnpm-catalogs-protocol-parser",
  "pnpm-cmd-shim",
  "pnpm-config",
  "pnpm-deps-path",
@@ -5432,11 +5434,13 @@ dependencies = [
  "os_display",
  "pipe-trait",
  "pnpm-fs",
+ "pnpm-lockfile",
  "pnpm-registry-mock",
  "reqwest",
  "serde",
  "serde-saphyr",
  "serde_json",
+ "tempfile",
  "tokio",
  "which 8.0.4",
 ]
@@ -5862,6 +5866,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-tool-protocol",
  "pnpm-yaml-document-sync",
@@ -6020,6 +6025,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "tracing",
  "url",
  "wax",
  "which 8.0.4",
@@ -6033,6 +6039,7 @@ dependencies = [
  "pep440_rs",
  "pep508_rs",
  "percent-encoding",
+ "pnpm-crypto-hash",
  "pubgrub",
  "serde",
  "serde_json",
@@ -6341,6 +6348,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6375,6 +6383,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-crypto-hash",
  "pnpm-deps-path",
+ "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6985,6 +6994,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "object_store",
+ "percent-encoding",
  "pnpm-crypto-hash",
  "pnpm-network",
  "pnpr-config",
@@ -7718,9 +7728,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.45"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "aws-lc-rs",
  "once_cell",

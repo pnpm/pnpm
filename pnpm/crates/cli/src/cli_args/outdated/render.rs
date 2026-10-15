@@ -3,15 +3,15 @@ pub(super) mod json;
 pub(super) use json::{render_json, render_recursive_json};
 
 use super::{
-    DependencyGroup, IntoDiagnostic, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version,
-    Write, sanitize_inline,
+    DependencyGroup, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version, Write,
+    sanitize_inline,
 };
 use owo_colors::OwoColorize;
 
 pub(super) fn write_output(output: &str) -> miette::Result<()> {
     let mut stdout = std::io::stdout();
-    writeln!(stdout, "{output}").into_diagnostic()?;
-    stdout.flush().into_diagnostic()
+    pnpm_diagnostics::stdout::check(writeln!(stdout, "{output}").and_then(|()| stdout.flush()));
+    Ok(())
 }
 
 /// The kind of semver bump from `current` to `target`. Drives the default

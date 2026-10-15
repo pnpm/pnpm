@@ -37,9 +37,11 @@ pub struct StoreIndex {
 enum Backend {
     Sqlite {
         conn: Connection,
-        // Fields drop in order: close SQLite before releasing its process lease.
+        // Fields drop in order: close SQLite before releasing its process
+        // lease and before restoring the store root's mtime.
         #[cfg(target_os = "wasi")]
         _lease: Arc<wasi_lease::IndexLease>,
+        _root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
     },
     Files(files::FilesIndex),
 }
@@ -58,6 +60,7 @@ impl StoreIndex {
         if let Some(index) = StoreIndex::detect_files(store_dir) {
             return Ok(index);
         }
+        let root_mtime = root_mtime::acquire(store_dir);
         pnpm_fs::file_mode::create_dir_all_inheriting_mode(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
@@ -95,18 +98,21 @@ impl StoreIndex {
             conn,
             #[cfg(target_os = "wasi")]
             lease,
+            Some(root_mtime),
         ))
     }
 
     fn sqlite(
         conn: Connection,
         #[cfg(target_os = "wasi")] lease: Arc<wasi_lease::IndexLease>,
+        root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
     ) -> Self {
         StoreIndex {
             backend: Backend::Sqlite {
                 conn,
                 #[cfg(target_os = "wasi")]
                 _lease: lease,
+                _root_mtime: root_mtime,
             },
         }
     }
@@ -135,6 +141,7 @@ impl StoreIndex {
             return Ok(index);
         }
         let db_path = store_dir.join("index.db");
+        let root_mtime = root_mtime::acquire(store_dir);
         #[cfg(target_os = "wasi")]
         let lease = wasi_lease::acquire(&db_path, true)?;
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
@@ -145,6 +152,7 @@ impl StoreIndex {
             conn,
             #[cfg(target_os = "wasi")]
             lease,
+            Some(root_mtime),
         ))
     }
 
@@ -182,6 +190,7 @@ impl StoreIndex {
             conn,
             #[cfg(target_os = "wasi")]
             lease,
+            None,
         ))
     }
 
@@ -512,6 +521,10 @@ mod error;
 mod files;
 
 mod format;
+
+mod root_mtime;
+
+mod shared;
 
 #[cfg(target_os = "wasi")]
 mod wasi_lease;

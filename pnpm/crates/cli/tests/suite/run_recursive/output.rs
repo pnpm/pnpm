@@ -2,8 +2,9 @@ use super::{
     CommandExtra, CommandTempCwd, Value, build_writes_marker, echoes_ok, fs, json, sorted_lines,
     summary_statuses, write_marker_script, write_workspace,
 };
-use crate::_utils::without_colors;
+use crate::_utils::{has_pnpm_error_log, ndjson_records, without_colors};
 use assert_cmd::assert::OutputAssertExt;
+use std::process::Output;
 
 /// `pacquet -r run` with no script name surfaces the
 /// `ERR_PNPM_SCRIPT_NAME_IS_REQUIRED` typed error variant.
@@ -267,10 +268,9 @@ fn streamed_scripts_get_force_color_when_pnpm_output_is_colored() {
     }
 }
 
-/// A streamed run's lifecycle failure goes through the reporter, so a frame
-/// it redraws in place accounts for the line.
-#[test]
-fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
+/// `pnpm -r run build` with `args` ahead of the command, over a project
+/// whose build exits with code 3 and one that builds.
+fn run_failing_build(args: &[&str]) -> Output {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let fails = json!({
         "name": "project-1",
@@ -283,16 +283,66 @@ fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
     );
 
     let output = pacquet
-        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "build"])
+        .with_args(args)
+        .with_args(["--config.verify-deps-before-run=false", "-r", "run", "build"])
         .output()
         .expect("run build");
     assert!(!output.status.success(), "the failing script must fail the run");
+    drop(root);
+    output
+}
+
+/// A streamed run's lifecycle failure goes through the reporter, so a frame
+/// it redraws in place accounts for the line.
+#[test]
+fn streamed_lifecycle_failure_is_reported_through_the_reporter() {
+    let output = run_failing_build(&["--stream"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stdout.contains("[ELIFECYCLE] Command failed with exit code 3."), "stdout:\n{stdout}");
     assert!(!stderr.contains("[ELIFECYCLE]"), "stderr:\n{stderr}");
+}
 
-    drop(root);
+/// Whether the script output is streamed or inherited, the silent reporter
+/// prints no lifecycle failure.
+#[test]
+fn silent_reporter_hides_recursive_lifecycle_failure() {
+    for output_flag in ["--stream", "--workspace-concurrency=1"] {
+        let output = run_failing_build(&["--reporter=silent", output_flag]);
+        let printed = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(!printed.contains("[ELIFECYCLE]"), "with {output_flag}:\n{printed}");
+    }
+}
+
+/// Whether the script output is streamed or inherited, the ndjson reporter
+/// writes the lifecycle failure as a record.
+#[test]
+fn ndjson_reporter_reports_recursive_lifecycle_failure_as_a_record() {
+    for output_flag in ["--stream", "--workspace-concurrency=1"] {
+        let output = run_failing_build(&["--reporter=ndjson", output_flag]);
+        let printed = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(
+            !printed
+                .lines()
+                .any(|line| line.starts_with("[ELIFECYCLE]")),
+            "with {output_flag}:\n{printed}",
+        );
+        assert!(
+            has_pnpm_error_log(
+                &ndjson_records(&output),
+                "[ELIFECYCLE] Command failed with exit code 3.",
+            ),
+            "with {output_flag}:\n{printed}",
+        );
+    }
 }
 
 /// Port of upstream's `run --reporter-hide-prefix should hide prefix`

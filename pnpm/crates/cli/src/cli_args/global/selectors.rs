@@ -95,7 +95,7 @@ pub(super) fn groups_matching_params(
         })
         .collect();
     if filtered.is_empty() {
-        println!("No matching global packages found");
+        pnpm_diagnostics::println!("No matching global packages found");
         return None;
     }
     Some(filtered)

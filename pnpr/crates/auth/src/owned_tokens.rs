@@ -50,4 +50,8 @@ impl TokenBackend for OwnedTokens {
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         self.tokens.revoke_by_key(key).await
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.tokens.check_readiness().await
+    }
 }

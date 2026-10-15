@@ -230,3 +230,29 @@ fn concurrent_writers_leave_every_row_readable() {
     assert_eq!(keys.len(), 8 * 50 + 1);
     assert_eq!(index.get_many(&keys).unwrap().len(), keys.len());
 }
+
+#[test]
+fn shared_lookups_read_both_formats() {
+    let key = store_index_key("sha512-a", "lodash@4.17.21");
+    for format in [StoreIndexFormat::Sqlite, StoreIndexFormat::Files] {
+        let dir = tempdir().unwrap();
+        let store_dir = StoreDir::new(dir.path());
+        StoreIndex::apply_format(store_dir.root(), format).unwrap();
+        StoreIndex::open(store_dir.root())
+            .unwrap()
+            .set(&key, &sample_index())
+            .unwrap();
+        let shared = StoreIndex::shared_readonly_in(&store_dir).unwrap();
+
+        assert_eq!(
+            StoreIndex::get_shared(&shared, &key).unwrap(),
+            Some(sample_index()),
+            "{format:?}",
+        );
+        assert!(StoreIndex::contains_shared(&shared, &key).unwrap(), "{format:?}");
+        assert!(
+            !StoreIndex::contains_shared(&shared, "sha512-b\tmissing@1.0.0").unwrap(),
+            "{format:?}",
+        );
+    }
+}

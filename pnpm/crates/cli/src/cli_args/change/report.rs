@@ -89,8 +89,10 @@ pub(super) fn run_check(
     let violations =
         check_versioning_invariants(projects, workspace_dir, Some(&config.versioning))?;
     if violations.is_empty() {
-        println!("{}", describe_checked_intents(intents.len()));
-        println!("All package versions satisfy the configured versioning invariants.");
+        pnpm_diagnostics::println!("{}", describe_checked_intents(intents.len()));
+        pnpm_diagnostics::println!(
+            "All package versions satisfy the configured versioning invariants.",
+        );
         return Ok(());
     }
     use std::fmt::Write as _;

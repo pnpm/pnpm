@@ -2,7 +2,8 @@ pub(super) use fast_path::register_workspace_in_store;
 
 mod fast_path;
 use fast_path::{
-    RepeatInstallVerdict, UpToDateCheck, repeat_install_verdict, report_already_up_to_date,
+    RepeatInstallVerdict, UpToDateCheck, lock_store, repeat_install_verdict,
+    report_already_up_to_date,
 };
 
 mod dispatch;
@@ -71,12 +72,7 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let store_lock = if self.context.config.frozen_store {
-            self.context.config.store_dir.lock_for_frozen_use()
-        } else {
-            self.context.config.store_dir.lock_for_use()
-        }
-        .map_err(InstallError::StoreLock)?;
+        let store_lock = lock_store(self.context.config)?;
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
@@ -200,13 +196,13 @@ where
         };
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
         let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
+        let fetches_into_store = mode.fetches_into_store(install.execution);
         let outcome = Box::pin(
             RunExecution {
                 install,
                 owned,
-                prefetch_downloads: mode
-                    .fetches_into_store(install.execution)
-                    .then(|| Arc::new(crate::PrefetchDownloads::default())),
+                prefetch_downloads: fetches_into_store.then(Default::default),
+                store_verification: fetches_into_store.then(Default::default),
                 mode,
                 workspace,
                 options,
@@ -229,6 +225,8 @@ struct RunExecution<'a> {
     /// See [`crate::PrefetchDownloads`]; `Some` for a run that fetches into
     /// the store.
     prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
+    /// See [`crate::StoreVerification`]; `Some` for a run that fetches into the store.
+    store_verification: Option<Arc<crate::StoreVerification>>,
     workspace: InstallWorkspace<'a>,
     options: InstallRunOptions<'a, 'a>,
     loaded_workspace_projects: Option<&'a [pnpm_workspace::Project]>,

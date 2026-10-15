@@ -17,6 +17,7 @@ pub(super) struct StoreFetchRun<'a> {
     pub(super) owned: &'a InstallOwned,
     pub(super) requester: &'a str,
     pub(super) prefetch_downloads: Option<&'a Arc<crate::PrefetchDownloads>>,
+    pub(super) store_verification: Option<&'a Arc<crate::StoreVerification>>,
 }
 
 /// The frozen half: the wanted lockfile is the resolution, so its packages
@@ -29,7 +30,7 @@ pub(super) async fn fetch_wanted_lockfile<Reporter: self::Reporter + 'static>(
         return Ok(());
     }
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::WholeLockfile).await
+    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::WholeLockfile, None).await
 }
 
 /// Wait for the downloads the resolver prefetched, then fetch the packages it
@@ -44,17 +45,23 @@ pub(super) async fn finish_fresh_fetch<Reporter: self::Reporter + 'static>(
     if !run.mode.fetches_into_store(run.install.execution) {
         return Ok(());
     }
-    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::NotPrefetched).await
+    let verified = match run.store_verification {
+        Some(verification) => verification.finish().await,
+        None => None,
+    };
+    fetch_lockfile::<Reporter>(run, lockfile, StoreFetchScope::NotPrefetched, verified).await
 }
 
 async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
     run: StoreFetchRun<'_>,
     lockfile: &Lockfile,
     scope: StoreFetchScope,
+    verified: Option<crate::store_verification::StoreVerified>,
 ) -> Result<(), InstallError> {
     crate::store_fetch::fetch_lockfile_into_store::<Reporter>(
         crate::store_fetch::StoreFetchInputs {
             lockfile,
+            verified,
             config: run.install.context.config,
             http_client: &run.owned.http_client_arc,
             mem_cache: &run.owned.tarball_mem_cache,

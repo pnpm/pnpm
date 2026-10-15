@@ -36,3 +36,27 @@ fn rejects_what_is_not_a_network() {
         assert!(IpNetwork::parse(raw).is_err(), "accepted {raw:?}");
     }
 }
+
+fn contains(networks: &[super::IpNetwork], ip: &str) -> bool {
+    networks
+        .iter()
+        .any(|net| net.contains(address(ip)))
+}
+
+#[test]
+fn parse_trusted_proxies_expands_loopback_and_cidrs() {
+    let list = ["loopback", "10.0.0.0/8", "192.168.1.1"];
+    let networks = super::parse_trusted_proxies(list).unwrap();
+    assert_eq!(networks.len(), 4);
+    assert!(contains(&networks, "127.0.0.1"));
+    assert!(contains(&networks, "::1"));
+    assert!(contains(&networks, "10.5.0.1"));
+    assert!(contains(&networks, "192.168.1.1"));
+    assert!(!contains(&networks, "192.168.1.2"));
+}
+
+#[test]
+fn parse_trusted_proxies_rejects_invalid_entries() {
+    assert!(super::parse_trusted_proxies(["not-an-ip"]).is_err());
+    assert!(super::parse_trusted_proxies(["10.0.0.0/33"]).is_err());
+}

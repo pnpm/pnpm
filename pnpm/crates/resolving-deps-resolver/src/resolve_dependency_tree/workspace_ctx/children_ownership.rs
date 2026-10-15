@@ -1,6 +1,7 @@
 use super::{
-    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
-    PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope, lock_recoverable,
+    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId,
+    ParentPkgAliases, PeerDep, PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope,
+    lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +66,13 @@ pub(in super::super) struct RecordedChildrenContext {
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.
     pub(in super::super) update_active: bool,
+    /// The scope the children resolved in. It decides which of each
+    /// descendant's dependencies that descendant's own peers shadow.
+    pub(in super::super) children_scope: Arc<ParentPkgAliases>,
+    /// Whether the walk resolves children whose dependency and peer
+    /// split differs from the prior lockfile's. See
+    /// `mark_changed_locked_splits`.
+    pub(in super::super) changes_locked_split: bool,
 }
 
 impl RecordedChildrenContext {
@@ -73,13 +81,16 @@ impl RecordedChildrenContext {
     /// avoid, and which leaves the occurrences that realized the
     /// pinned subtree pointing at children the record no longer holds.
     ///
-    /// An update policy is the one thing that re-resolves a pin on
-    /// purpose, so a walk under one is never held to the pins.
+    /// An update policy re-resolves a pin on purpose, so a walk under one
+    /// is never held to the pins. Neither is a walk that splits some
+    /// package's dependencies and peers differently, which the pins do
+    /// not describe.
     pub(in super::super) fn pins_children_over(&self, other: &Self) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key.is_some()
             && other.prior_key.is_none()
             && !other.update_active
+            && !other.changes_locked_split
     }
 
     /// Two contexts produce the same children.
@@ -91,10 +102,25 @@ impl RecordedChildrenContext {
     /// only ever decides which occurrence's versions get *recorded*.
     /// Requiring identical overlays here would mean requiring identical
     /// parents, which the occurrences that race never have.
-    pub(in super::super) fn produces_same_children_as(&self, other: &Self) -> bool {
+    ///
+    /// The two scopes only have to agree on `shadowable_dep_names`.
+    /// Every level below the children adds the same aliases to both, so
+    /// that agreement holds for the whole recorded subtree.
+    pub(in super::super) fn produces_same_children_as(
+        &self,
+        other: &Self,
+        shadowable_dep_names: &HashSet<String>,
+    ) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key == other.prior_key
             && self.update_active == other.update_active
+            && (Arc::ptr_eq(&self.children_scope, &other.children_scope)
+                || shadowable_dep_names
+                    .iter()
+                    .all(|name| {
+                        self.children_scope.contains(name)
+                            == other.children_scope.contains(name)
+                    }))
     }
 }
 
@@ -119,6 +145,11 @@ pub(in super::super) struct ChildrenOwnerClaim {
     /// [`fn@recorded_children_match`], which compares the full
     /// resolution context.
     pub(in super::super) children_context_unchanged: bool,
+    /// The children the prior lockfile pinned for the package would split
+    /// some package's dependencies and peers differently under this
+    /// occurrence's scope, so it resolves them instead of reading the
+    /// pins. Set by `mark_changed_locked_splits`.
+    pub(in super::super) changes_locked_split: bool,
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
@@ -160,12 +191,28 @@ pub(in super::super) fn claim_children_owner(
         }
     };
     if owns_children {
-        let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
-        if first_importer.map().get(&**pkg_id) != Some(&owner.importer_id) {
-            first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
-        }
+        record_first_importer(ctx, pkg_id, &owner);
     }
-    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+    ChildrenOwnerClaim {
+        owner,
+        owns_children,
+        peer_shadowed,
+        children_context_unchanged,
+        changes_locked_split: false,
+    }
+}
+
+fn record_first_importer(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) {
+    let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
+    if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
+        first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
+    }
+}
+
+/// Whether a warm-up already took this package's children. See
+/// [`claim_children_warmup`].
+pub(in super::super) fn children_warmup_claimed(ctx: &TreeCtx, pkg_id: &str) -> bool {
+    lock_recoverable(&ctx.workspace.children.warmed_by_id).contains(pkg_id)
 }
 
 /// Whether this occurrence is the first to offer to warm its package's
@@ -192,9 +239,23 @@ pub(in super::super) fn recorded_children_match(
     lock_recoverable(&ctx.workspace.children.by_id)
         .get(pkg_id)
         .is_some_and(|recorded| {
-            recorded.context.produces_same_children_as(context)
-                || recorded.context.pins_children_over(context)
+            recorded.context.produces_same_children_as(
+                context,
+                &lock_recoverable(&ctx.workspace.children.shadowable_dep_names),
+            ) || recorded.context.pins_children_over(context)
         })
+}
+
+/// The scope this package's recorded children resolved in, when they are
+/// the ones the prior lockfile pinned.
+pub(in super::super) fn pinned_children_scope(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+) -> Option<Arc<ParentPkgAliases>> {
+    lock_recoverable(&ctx.workspace.children.by_id)
+        .get(pkg_id)
+        .filter(|recorded| recorded.context.prior_key.is_some())
+        .map(|recorded| Arc::clone(&recorded.context.children_scope))
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -330,6 +391,22 @@ pub(in super::super) fn register_peer_dep_names(
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
             ctx.workspace.tree.record_peer_dep_name(name);
+        }
+    }
+}
+
+pub(in super::super) fn register_shadowable_dep_names<'name>(
+    ctx: &TreeCtx,
+    names: impl IntoIterator<Item = &'name String>,
+) {
+    let mut names = names.into_iter().peekable();
+    if names.peek().is_none() {
+        return;
+    }
+    let mut shadowable = lock_recoverable(&ctx.workspace.children.shadowable_dep_names);
+    for name in names {
+        if !shadowable.contains(name) {
+            shadowable.insert(name.clone());
         }
     }
 }

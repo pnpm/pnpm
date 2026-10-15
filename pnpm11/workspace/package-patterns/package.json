@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.package-patterns",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Expands the packages patterns of pnpm-workspace.yaml",
   "keywords": [
     "pnpm",

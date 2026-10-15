@@ -15,6 +15,7 @@ pnpm-package-name = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
+pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 

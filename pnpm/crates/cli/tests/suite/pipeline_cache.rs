@@ -109,6 +109,47 @@ fn dry_run_prints_the_graph_without_executing_workspace_code() {
 }
 
 #[test]
+fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(project.path().join("package.json"), r#"{"name":"a","scripts":{"build":"echo B"}}"#)
+        .unwrap();
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages: ['packages/*']\npipelines:\n  default: [build]\n",
+    )
+    .unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let report_root = storage
+        .path()
+        .join("pnpm")
+        .join("pipeline");
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(project.path())
+            .env("XDG_CACHE_HOME", storage.path())
+            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        command
+    };
+    let result = command()
+        .args(["pipeline", "--full", "--dry-run", "--json"])
+        .assert()
+        .success();
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    assert_eq!(document, serde_json::json!({"tasks": []}));
+    assert!(!report_root.exists());
+    let result = command()
+        .args(["pipeline", "--full", "--dry-run"])
+        .assert()
+        .success();
+    assert_eq!(
+        String::from_utf8_lossy(&result.get_output().stdout),
+        "No projects are selected — nothing to run.\n",
+    );
+    assert!(!report_root.exists());
+}
+
+#[test]
 fn submodule_projects_and_their_dependents_bypass_task_caching() {
     let root = tempfile::tempdir().unwrap();
     let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "workspace");

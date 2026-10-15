@@ -218,7 +218,7 @@ pub(in super::super) fn env<'a>(
             Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
         }
         EnvSubcommand::List { version_spec } => Box::pin(async move {
-            println!("{}", EnvArgs::run_list(version_spec, config).await?);
+            pnpm_diagnostics::println!("{}", EnvArgs::run_list(version_spec, config).await?);
             Ok(())
         }),
     })
@@ -235,7 +235,7 @@ pub(in super::super) fn permissions<'a>(
             let manifest_path = ctx.locations.manifest_path;
             Ok(Box::pin(async move {
                 let config = installed_project_config(config.await?, manifest_path);
-                print!("{}", render_permissions(config)?);
+                pnpm_diagnostics::print!("{}", render_permissions(config)?);
                 Ok(())
             }))
         }

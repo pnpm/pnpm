@@ -380,6 +380,14 @@ pub fn no_projects_matched_message(workspace_dir: &Path) -> String {
     format!(r#"No projects matched the filters in "{}""#, workspace_dir.display())
 }
 
+/// Print [`no_projects_matched_message`] for a command invoked in `prefix`.
+pub fn print_no_projects_matched(config: &Config, prefix: &Path) {
+    pnpm_diagnostics::println!(
+        "{}",
+        no_projects_matched_message(notice_workspace_dir(config, prefix)),
+    );
+}
+
 /// The lockfile importer ids of `selection`'s projects, in selection
 /// order. The ids key the lockfile's `importers` map, so a lockfile-driven
 /// command (`licenses`, `sbom`) can narrow its walk to what `--filter` /

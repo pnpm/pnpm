@@ -4,6 +4,8 @@
 //! another process: the signal handler and the pending-temp registry are
 //! process-global, and the process must really die from the signal.
 
+#![expect(clippy::print_stderr, reason = "test-only helper binary")]
+
 use std::{path::PathBuf, process::ExitCode};
 
 fn main() -> ExitCode {

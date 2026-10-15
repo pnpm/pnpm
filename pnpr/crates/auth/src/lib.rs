@@ -33,9 +33,13 @@ pub use owned_tokens::OwnedTokens;
 pub use token_store::{TokenRecord, TokenStore};
 pub use user_store::UserStore;
 
+/// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
+pub const MAX_PASSWORD_BYTES: usize = 71;
+
 mod htpasswd;
 use htpasswd::{
-    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
+    dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user,
+    write_atomic,
 };
 
 mod token_store;
@@ -163,6 +167,13 @@ impl AuthState {
         let users = Arc::new(UserStore::in_memory_with_max_users(max_users));
         let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
         Self { users, tokens: Arc::new(tokens) }
+    }
+
+    /// Check that the auth backends (users and tokens) are reachable and ready.
+    pub async fn check_readiness(&self) -> Result<()> {
+        self.users.check_readiness().await?;
+        self.tokens.check_readiness().await?;
+        Ok(())
     }
 
     /// Build the auth state from the resolved config. A configured SQL
@@ -302,6 +313,11 @@ pub trait UserBackend: Send + Sync {
     /// Remove `username`, reporting `false` when there is no such user. The
     /// user's tokens are not touched.
     async fn delete_user(&self, username: &str) -> Result<bool>;
+
+    /// Check that the user store backend is reachable and ready to process requests.
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -309,6 +325,11 @@ pub trait UserBackend: Send + Sync {
 /// request); the rest back the `/-/npm/v1/tokens` CRUD endpoints.
 #[async_trait]
 pub trait TokenBackend: Send + Sync {
+    /// Check that the token store backend is reachable and ready to process requests.
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Mint a fresh token for `username`, persist its hash, and return
     /// the raw token. The raw token is never stored.
     async fn issue(&self, username: &str) -> Result<String>;

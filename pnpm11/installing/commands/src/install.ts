@@ -191,7 +191,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'allProjectsGraph'
 | 'selectedProjectsGraph'
-> & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
+> & CreateStoreControllerOptions & Partial<Pick<Config, 'filter' | 'filterProd' | 'globalPkgDir'>> & {
   argv: {
     cooked?: string[]
     original: string[]

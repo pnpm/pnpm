@@ -275,6 +275,7 @@ jobs:
           - isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store
           - isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr
           - gvs-linker.fresh-restore.hot-cache.hot-store
+          - store-only.unlocked-direct-deps.cold-cache.hot-store
     name: ${{ matrix.scenario }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
@@ -297,8 +298,10 @@ jobs:
       # command exercises client-side peer resolution rather than server or
       # tarball performance.
       PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpm@HEAD' }}
-      # The workspace fixtures use only local packages, so they compare the
-      # PR against main without a pnpr server.
+      # The workspace fixtures use only local packages, and the store-only
+      # scenario measures the client's own resolution and store check, which
+      # a pnpr server would take over, so these compare the PR against main
+      # without one.
       WORKSPACE_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
       BENCHMARK_BUILD_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
       # Network emulation so both install strategies cross the link they
@@ -408,7 +411,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: just
 
@@ -641,6 +644,43 @@ jobs:
           node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=gvs-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Store only: unlocked direct deps, cold cache + hot store'
+        if: matrix.scenario == 'store-only.unlocked-direct-deps.cold-cache.hot-store'
+        shell: bash
+        # The install a FUSE-mounted `node_modules` or a CI job that only
+        # fills a shared store runs: `enableModulesDir: false`, so the
+        # client resolves, writes the lockfile and checks the store, and
+        # links nothing. The seeded lockfile lacks the direct dependencies
+        # that have peers, the shape of `pnpm install` after dependencies
+        # were added to `package.json` by hand: those dependencies resolve
+        # from the registry and land on versions the lockfile's package
+        # graph still holds, so the walk reuses their subtrees instead of
+        # resolving them. (A dependency without peers is taken from the
+        # lockfile's package list without a registry request, so it would
+        # add nothing.) The metadata cache is wiped per iteration, so every
+        # package the walk does resolve costs a round trip over the
+        # emulated registry link; that is what makes the subtrees the
+        # lockfile spares show in the timing. The lockfile is trusted
+        # (`trustLockfile: true`): its supply-chain verification reads
+        # every entry's packument and would hide the walk's own fetches.
+        # The rest of the timed work is the per-package check that the
+        # store holds every file, against a per-file store index
+        # (`storeIndexFormat: files`), the format a store shared between
+        # machines uses.
+        #
+        # No other scenario resolves against a lockfile it can mostly
+        # reuse, runs store-only, or reads the per-file index; this is the
+        # series that guards the speculative warm-up against re-resolving
+        # reused subtrees (pnpm/pnpm#16886) and keeps the store check
+        # overlapped with the resolution (pnpm/pnpm#16888). Direct targets
+        # only: a pnpr server would take over the resolution being measured.
+        # No download and no linking per iteration, so 15 min is ample.
+        timeout-minutes: 15
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=store-only.unlocked-direct-deps.cold-cache.hot-store --registry=verdaccio --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.json
 
       # When a scenario fails, hyperfine aborts and the benchmarked install's
       # own output is invisible: each target's script redirects stdout+stderr to
@@ -902,6 +942,20 @@ jobs:
             echo '```'
             echo
             echo '</details>'
+            echo
+            echo '### Scenario: Store only: unlocked direct deps, cold cache + hot store'
+            echo
+            echo 'Store-only install (`enableModulesDir: false`, per-file store index, trusted lockfile) against a lockfile missing the direct dependencies that have peers, with the metadata cache wiped per iteration: the install resolves those from the registry, reuses their subtrees from the lockfile and checks the store, linking nothing. Direct installs only.'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
@@ -959,7 +1013,8 @@ jobs:
             'ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.linked-workspace-resolve.hot-cache.offline' \
             'ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
-            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'
+            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store' \
+            'STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE:store-only.unlocked-direct-deps.cold-cache.hot-store'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \

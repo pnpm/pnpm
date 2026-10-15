@@ -67,7 +67,7 @@ impl LogoutArgs {
         )
         .await?;
 
-        println!("{message}");
+        pnpm_diagnostics::println!("{message}");
         Ok(())
     }
 }

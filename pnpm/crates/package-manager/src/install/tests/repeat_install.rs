@@ -288,7 +288,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     let root = install_already_up_to_date(&check);
     assert_eq!(
         root.map(|up_to_date| up_to_date.root).as_deref(),
-        Some(&*project_root),
+        Ok(&*project_root),
         "fresh state must short-circuit",
     );
 
@@ -299,7 +299,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // The manifest content still matches no lockfile (config.lockfile
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
-    assert!(install_already_up_to_date(&check).is_none(), "modified manifest must fall through");
+    assert!(install_already_up_to_date(&check).is_err(), "modified manifest must fall through");
 }
 /// `add` / `remove` mutate the manifest in memory and persist it only
 /// after `Install::run` returns, so the on-disk mtimes the optimistic

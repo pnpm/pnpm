@@ -12,6 +12,7 @@ use fixtures::{create_npmrc, create_package_json, create_pnpm_workspace, save_pr
 
 mod injected_workspace;
 mod linked_workspace;
+mod unlocked_deps;
 
 mod server_config;
 use server_config::{

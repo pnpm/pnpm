@@ -145,9 +145,13 @@ Selecting any member with [`--filter`](./filtering.md) installs the whole shared
 
 Sharing is decided per workspace, so a repository can share an environment where its projects agree and keep independent ones where they do not.
 
-## Faster resolution through pnpr
+## Resolution
 
-With [`pnprServer`](/pnpr/install-acceleration) set, the server resolves the Python graph, so pnpm does not have to download a wheel to find out what it requires. A server that does not answer for Python makes pnpm fall back to resolving locally.
+pnpm reads what each release requires from the metadata file the index publishes beside its wheel ([PEP 658](https://peps.python.org/pep-0658/)), and downloads the wheel only once the release is selected. For an index that publishes no metadata file, or no SHA-256 to check it against, pnpm reads the requirements out of the wheel. Index pages and metadata files are read in parallel, up to [`networkConcurrency`](./settings/network.md#networkconcurrency) at a time.
+
+### Faster resolution through pnpr
+
+With [`pnprServer`](/pnpr/install-acceleration) set, the server resolves the Python graph, so pnpm does not read the index to find out what each release requires. A server that does not answer for Python makes pnpm fall back to resolving locally.
 
 Python graphs configured with multiple indexes, overrides, constraints, or explicit target environments resolve locally. pnpr cannot represent these resolution settings.
 

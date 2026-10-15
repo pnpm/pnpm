@@ -6,6 +6,7 @@ title: CLI reference
 ```sh
 pnpr [OPTIONS]
 pnpr [OPTIONS] oci-gc --registry <name>
+pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 ```
 
 ## Options
@@ -17,7 +18,7 @@ pnpr [OPTIONS] oci-gc --registry <name>
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config — the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. When omitted, the loaded config's value wins. |
+| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. Defaults to `300`. A registry's `maxage` overrides it for that registry. |
 | `--osv` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
@@ -55,6 +56,21 @@ the whole run.
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--min-age-secs <n>` | Keep blobs younger than this. Defaults to `86400`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
 
+### cache-gc
+
+Added in: v0.1.0-alpha.16
+
+Reclaims cached upstream tarballs and packuments, prunes orphaned namespaces
+left behind by per-process secrets or changed configurations, and enforces
+cache size and age limits.
+
+| Flag | Description |
+| --- | --- |
+| `--dry-run` | Report the candidates without deleting anything. |
+| `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
+| `--max-age-secs <n>` | Maximum file age in seconds. Entries older than this are deleted. Overrides the config value. |
+| `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
+
 ## Logging
 
 The log level is controlled with the standard `RUST_LOG` environment variable,
@@ -88,3 +104,7 @@ Run only the pnpr resolver endpoints, without exposing an npm registry surface:
 ```sh
 pnpr --disable-registry
 ```
+
+## Signals and graceful shutdown
+
+pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`. When either signal is received, the server initiates a graceful shutdown, stopping new connections and completing in-flight requests. This ensures clean termination in containerized environments such as Docker and Kubernetes.

@@ -127,6 +127,14 @@ impl Identity {
         matches!(self, Identity::User { .. })
     }
 
+    #[must_use]
+    pub fn username(&self) -> Option<&str> {
+        match self {
+            Self::Anonymous => None,
+            Self::User { username, .. } => Some(username),
+        }
+    }
+
     fn satisfies(&self, token: &AccessToken) -> bool {
         match (token, self) {
             (AccessToken::All, _) => true,

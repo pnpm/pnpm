@@ -6,9 +6,9 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 #[test]
@@ -22,6 +22,49 @@ fn version_flag_prints_the_bare_version() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
+
+    drop(root);
+}
+
+/// A reader that closed stdout, as `pnpm --version | true` does, has all
+/// the output it wants, so pnpm exits 0 instead of aborting
+/// (pnpm/tasks#132).
+#[test]
+fn version_flag_exits_zero_when_stdout_is_closed() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet
+        .with_arg("--version")
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet --version");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+
+    drop(root);
+}
+
+/// A stdout that refuses the write for another reason than a closed pipe
+/// leaves the output incomplete, so the command fails.
+#[test]
+#[cfg(target_os = "linux")]
+fn version_flag_fails_when_stdout_is_full() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .expect("open /dev/full");
+
+    let output = pacquet
+        .with_arg("--version")
+        .with_stdout(Stdio::from(full))
+        .output()
+        .expect("run pacquet --version");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("failed to write to stdout"), "{stderr}");
 
     drop(root);
 }

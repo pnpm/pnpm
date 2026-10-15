@@ -69,7 +69,7 @@ impl LaneArgs {
         };
 
         let Some(lane_name) = self.name else {
-            println!("{}", render_lanes(&config.versioning.lanes));
+            pnpm_diagnostics::println!("{}", render_lanes(&config.versioning.lanes));
             return Ok(());
         };
 
@@ -107,7 +107,7 @@ impl LaneArgs {
             &versioning_value(&settings),
         )
         .map_err(miette::Report::new)?;
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
         Ok(())
     }
 }

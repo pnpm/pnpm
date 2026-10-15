@@ -1,0 +1,16 @@
+{
+  "name": "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/bravo-dep": "^1.0.0",
+    "@pnpm.e2e/has-optional-peer-also-in-deps-parent": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/bravo-dep": {
+      "optional": true
+    },
+    "@pnpm.e2e/has-optional-peer-also-in-deps-parent": {
+      "optional": true
+    }
+  }
+}

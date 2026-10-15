@@ -1,8 +1,8 @@
 use super::{
     Config, ExecutionStatus, GraphPkg, HashMap, HashSet, IndexMap, IntoDiagnostic, Mutex, Path,
-    PathBuf, PipelineInvocation, PipelineResults, ProjectGraph, Status, TaskCache, TaskCompletion,
-    TaskGraph, TaskKey, TaskNode, Value, cache, format_task, render_task_graph_dry_run,
-    task_environment, task_graph_to_json,
+    PathBuf, PipelineInvocation, PipelineOutcome, PipelineResults, PipelineRun, ProjectGraph,
+    RunReport, SelectionMode, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey, TaskNode,
+    Value, cache, format_task, render_task_graph_dry_run, task_environment, task_graph_to_json,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
 
@@ -42,11 +42,47 @@ pub(super) fn print_dry_run(
 ) -> miette::Result<()> {
     if invocation.json {
         let document = task_graph_to_json(task_graph, workspace_root);
-        println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
+        pnpm_diagnostics::println!(
+            "{}",
+            serde_json::to_string_pretty(&document).into_diagnostic()?,
+        );
     } else {
-        println!("{}", render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root));
+        pnpm_diagnostics::println!(
+            "{}",
+            render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root),
+        );
     }
     Ok(())
+}
+
+impl PipelineRun<'_> {
+    /// Nothing is selected, so nothing runs. A dry run writes no report, and
+    /// with `--json` prints the empty plan.
+    pub(super) fn conclude_empty_selection(
+        &self,
+        report: &RunReport,
+        mode: SelectionMode,
+        base: &str,
+    ) -> miette::Result<PipelineOutcome> {
+        if self.invocation.dry_run && self.invocation.json {
+            print_dry_run(self.invocation, &TaskGraph::default(), &[], self.workspace_root)?;
+            return Ok(PipelineOutcome::without_upload());
+        }
+        self.info(empty_selection_message(mode, base));
+        if self.invocation.dry_run {
+            return Ok(PipelineOutcome::without_upload());
+        }
+        self.conclude(report, None, 0)
+    }
+}
+
+fn empty_selection_message(mode: SelectionMode, base: &str) -> String {
+    match mode {
+        SelectionMode::Affected => {
+            format!("No projects are affected since {base} — nothing to run.")
+        }
+        SelectionMode::Full => "No projects are selected — nothing to run.".to_string(),
+    }
 }
 
 /// Record one task's status. A task that could not run at all aborts the

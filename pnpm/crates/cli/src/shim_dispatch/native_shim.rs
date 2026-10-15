@@ -325,7 +325,7 @@ fn try_migrate_legacy_shims(bin_dir: &Path) {
 }
 
 fn report_shim_error(error: &miette::Report) {
-    eprintln!("pnpm: {error:?}");
+    pnpm_diagnostics::eprintln!("pnpm: {error:?}");
 }
 
 /// Split the machine-generated tail of a `--shim` invocation into the bin
@@ -357,20 +357,40 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         Ok(Some(target)) => target,
         Ok(None) => return None,
         Err(error) => {
-            eprintln!("pnpm: cannot read the global target of the {name} shim: {error}");
+            pnpm_diagnostics::eprintln!(
+                "pnpm: cannot read the global target of the {name} shim: {error}",
+            );
             return Some(1);
         }
     };
     if let ShimTarget::Installed(path) = &target
-        && same_file::is_same_file(path, &executable).unwrap_or(false)
+        && is_shim_path(path, &executable)
     {
-        eprintln!("pnpm: the global target of the {name} shim points back at the shim");
+        pnpm_diagnostics::eprintln!(
+            "pnpm: the global target of the {name} shim points back at the shim",
+        );
         return Some(1);
     }
     let settings = trusted_shim_settings();
     let invocation = super::ShimInvocation { name: &name, bin_dir, target: &target };
     let args = argv.get(1..).unwrap_or_default();
     Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
+}
+
+/// Whether running `target` would launch `shim` again. A hard link of the
+/// shim elsewhere does not: launched under its own path it finds no
+/// sidecar and runs the CLI. pnpm's own shim and the `pnpm` bin of its
+/// global package are often hard links of one file.
+fn is_shim_path(target: &Path, shim: &Path) -> bool {
+    // The file identity check is the cheap filter on the launch path; only
+    // the same file can be the shim.
+    if !same_file::is_same_file(target, shim).unwrap_or(false) {
+        return false;
+    }
+    match (dunce::canonicalize(target), dunce::canonicalize(shim)) {
+        (Ok(target), Ok(shim)) => target == shim,
+        _ => false,
+    }
 }
 
 fn executable_path(bin_dir: &Path, name: &str) -> PathBuf {

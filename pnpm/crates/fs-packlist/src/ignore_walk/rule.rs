@@ -38,6 +38,16 @@ impl IgnoreRule {
         IgnoreRule { negate: negations % 2 == 1, alternatives }
     }
 
+    /// npm-packlist's `!/<path>` strict rule for a package-relative path,
+    /// except that `path` matches only itself, with exact case.
+    pub(super) fn reinclude_path(path: &str) -> Self {
+        let segments = split_on_slash_runs(&format!("/{path}"))
+            .into_iter()
+            .map(|segment| Segment::Pattern(SegmentPattern::exact(segment)))
+            .collect();
+        IgnoreRule { negate: true, alternatives: vec![segments] }
+    }
+
     /// Whether some alternative is a single segment, optionally followed by
     /// a trailing `/`.
     pub(super) fn is_relative(&self) -> bool {

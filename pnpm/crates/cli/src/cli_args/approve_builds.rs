@@ -83,7 +83,7 @@ impl ApproveBuildsArgs {
         let scan = get_automatically_ignored_builds(config)?;
         let pending = scan.names.unwrap_or_default();
         if pending.is_empty() && self.packages.is_empty() {
-            println!("There are no packages awaiting approval");
+            pnpm_diagnostics::println!("There are no packages awaiting approval");
             return Ok(None);
         }
         let Some(decision) = self.decide::<Reporter>(&pending)? else {
@@ -190,7 +190,7 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 /// confirmation — it denies every pending package.
 fn confirm_selected_builds(build_packages: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
-        println!("All packages were added to allowBuilds with value false.");
+        pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");
         return Ok(true);
     }
     confirm_builds(build_packages)

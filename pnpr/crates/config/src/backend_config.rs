@@ -27,7 +27,7 @@ pub enum BackendConfig {
 /// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
 /// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
 /// keep secrets out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibsqlSettings {
     /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
@@ -53,6 +53,17 @@ pub struct LibsqlSettings {
     pub sync_interval_secs: Option<u64>,
 }
 
+impl std::fmt::Debug for LibsqlSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LibsqlSettings")
+            .field("url", &redact_connection_url(&self.url))
+            .field("auth_token", &self.auth_token.as_ref().map(|_| "[redacted]"))
+            .field("replica_path", &self.replica_path)
+            .field("sync_interval_secs", &self.sync_interval_secs)
+            .finish()
+    }
+}
+
 impl LibsqlSettings {
     /// Default embedded-replica background sync cadence.
     pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
@@ -61,7 +72,7 @@ impl LibsqlSettings {
 /// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlBackendSettings {
     /// Driver connection URL, e.g. `postgres://user:pass@host/db` or
@@ -74,6 +85,47 @@ pub struct SqlBackendSettings {
     pub timeout: Duration,
     /// Deadline for initial auth database connect and schema setup.
     pub startup_timeout: Duration,
+}
+
+impl std::fmt::Debug for SqlBackendSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqlBackendSettings")
+            .field("url", &redact_connection_url(&self.url))
+            .field("max_connections", &self.max_connections)
+            .field("timeout", &self.timeout)
+            .field("startup_timeout", &self.startup_timeout)
+            .finish()
+    }
+}
+
+fn redact_connection_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return "[redacted]".to_string();
+    };
+    if parsed.password().is_some() {
+        let _ = parsed.set_password(Some("[redacted]"));
+    }
+    if !parsed.username().is_empty() {
+        let _ = parsed.set_username("[redacted]");
+    }
+    let query_pairs: Vec<(String, String)> = parsed
+        .query_pairs()
+        .map(|(k, v)| {
+            let k_lower = k.to_ascii_lowercase();
+            if matches!(k_lower.as_str(), "password" | "token" | "authtoken" | "auth_token") {
+                (k.into_owned(), "[redacted]".to_string())
+            } else {
+                (k.into_owned(), v.into_owned())
+            }
+        })
+        .collect();
+    if !query_pairs.is_empty() {
+        parsed
+            .query_pairs_mut()
+            .clear()
+            .extend_pairs(query_pairs);
+    }
+    parsed.to_string()
 }
 
 impl SqlBackendSettings {

@@ -12,6 +12,8 @@ pub(super) use direct_versions::{
     higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
 };
 
+pub(super) use snapshot_children::pinned_specifier;
+
 mod snapshot_children;
 use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
 

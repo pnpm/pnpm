@@ -206,10 +206,9 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
-        let storage = build_storage_config(&mut file, base_dir);
+        let storage = build_storage_config(&mut file, base_dir)?;
+        let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
-        let cors = build_cors_config(file.cors)?;
-        let ui = build_ui_config(file.ui, base_dir);
         reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
         let features = build_features(
             !file.registries.is_empty(),
@@ -227,14 +226,8 @@ impl Config {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
-            http: super::HttpConfig {
-                listen,
-                public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
-                cors,
-                ui,
-                oci: file.oci,
-                packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            },
+            has_configured_secret: file.secret.is_some(),
+            http,
             storage,
             identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
@@ -248,11 +241,55 @@ impl Config {
     }
 }
 
-fn build_storage_config(file: &mut ConfigFile, base_dir: &Path) -> super::StorageConfig {
-    let (hosted_dir, cache_dir) = resolve_storage_paths(file, base_dir);
-    super::StorageConfig {
+fn build_http_config(
+    file: &mut ConfigFile,
+    base_dir: &Path,
+    listen: SocketAddr,
+    public_url: Option<String>,
+) -> Result<super::HttpConfig, RegistryError> {
+    let cors = build_cors_config(std::mem::take(&mut file.cors))?;
+    let ui = build_ui_config(std::mem::take(&mut file.ui), base_dir);
+    let trusted_proxies = super::parse_trusted_proxies(&file.trusted_proxies)?;
+    let trusted_proxy_header = match file.trusted_proxy_header.as_deref() {
+        Some(raw) => raw.parse::<super::TrustedProxyHeader>()?,
+        None => super::TrustedProxyHeader::default(),
+    };
+    let request_timeout = match file.request_timeout.as_ref() {
+        Some(interval) => {
+            let duration =
+                super::parse_interval(&interval.0)
+                    .ok_or_else(|| RegistryError::InvalidConfig {
+                        reason: format!(
+                            "http.requestTimeout {:?} is not a valid interval",
+                            interval.0,
+                        ),
+                    })?;
+            (!duration.is_zero()).then_some(duration)
+        }
+        None => Some(super::HttpConfig::DEFAULT_REQUEST_TIMEOUT),
+    };
+    Ok(super::HttpConfig {
+        listen,
+        public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
+        cors,
+        ui,
+        oci: std::mem::take(&mut file.oci),
+        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        trusted_proxies,
+        trusted_proxy_header,
+        request_timeout,
+    })
+}
+
+fn build_storage_config(
+    file: &mut ConfigFile,
+    base_dir: &Path,
+) -> Result<super::StorageConfig, RegistryError> {
+    let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
+    Ok(super::StorageConfig {
         hosted_dir,
         cache_dir,
+        cache,
         hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
-    }
+    })
 }

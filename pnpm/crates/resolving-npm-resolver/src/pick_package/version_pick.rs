@@ -20,7 +20,7 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
     picked: Option<&Arc<PackageVersion>>,
 ) -> bool {
     let Some(picked) = picked else { return false };
-    if ctx.cache_policy.prefer_offline
+    if ctx.cache_policy.network.prefers_reachable_cache()
         || opts.pick_lowest_version
         || matches!(spec.spec_type, RegistryPackageSpecType::Version)
     {

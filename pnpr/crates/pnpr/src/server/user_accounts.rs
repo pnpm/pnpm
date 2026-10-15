@@ -17,13 +17,34 @@ pub(super) async fn get_whoami(
 pub(super) async fn put_login(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
+    client_ip: Option<axum::extract::Extension<super::ClientIp>>,
     Path(path): Path<UserPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    match path.user.strip_prefix("org.couchdb.user:") {
-        Some(name) => add_user(&state, name, &body).await,
-        None => not_found(),
+    let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
+        return not_found();
+    };
+    let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
+    if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(ip_address, name) {
+        return login_throttled_response(&state, retry_after);
     }
+    add_user(&state, ip_address, name, &body).await
+}
+
+fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
+    state.inner.metrics.record_login_throttled();
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::RETRY_AFTER, &retry_after.to_string()),
+        ],
+        json!({
+            "error": "too many failed login attempts, please try again later"
+        })
+        .to_string(),
+    )
+        .into_response()
 }
 
 pub(super) async fn delete_session_token(
@@ -84,32 +105,65 @@ pub(super) struct TokenKeyPath {
 /// * unknown user → create + return 201 with `{ ok, token }`.
 /// * existing user, password matches → return 201 with `{ ok, token }`.
 /// * existing user, password wrong → 401.
-pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
-    // axum's `Path` extractor already percent-decodes path segments
-    // (`%2F` → `/`, `%40` → `@`, etc.), so we use `name` verbatim.
-    let body: Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
+fn parse_registration_password(name: &str, body: &[u8]) -> Result<String, RegistryError> {
+    let body: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
     let body_name = body
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or("");
     if body_name != name {
-        return RegistryError::BadRequest {
+        return Err(RegistryError::BadRequest {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
-        }
-        .into_response();
+        });
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
-        return RegistryError::BadRequest { reason: "missing password".to_string() }.into_response(
-        );
+        return Err(RegistryError::BadRequest { reason: "missing password".to_string() });
     };
+    if password.is_empty() {
+        return Err(RegistryError::BadRequest { reason: "password cannot be empty".to_string() });
+    }
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
+        return Err(RegistryError::BadRequest {
+            reason: format!("password cannot exceed {} bytes", pnpr_auth::MAX_PASSWORD_BYTES),
+        });
+    }
+    Ok(password.to_string())
+}
 
-    let (outcome, username, token) = match log_in(state, name, password).await {
-        Ok(login) => login,
+pub(super) async fn add_user(
+    state: &AppState,
+    client_ip: Option<std::net::IpAddr>,
+    name: &str,
+    body: &[u8],
+) -> Response {
+    let password = match parse_registration_password(name, body) {
+        Ok(pw) => pw,
         Err(err) => return err.into_response(),
     };
+
+    let _permit = state.inner.identity.login_concurrency.acquire().await;
+    if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, name) {
+        return login_throttled_response(state, retry_after);
+    }
+    let (outcome, username, token) = match log_in(state, name, &password).await {
+        Ok(login) => {
+            state.inner.identity.login_rate_limiter.record_success(client_ip, name);
+            login
+        }
+        Err(err) => {
+            if matches!(
+                err,
+                RegistryError::Unauthenticated { .. } | RegistryError::Forbidden { .. },
+            ) {
+                state.inner.identity.login_rate_limiter.record_failure(client_ip, name);
+            }
+            return err.into_response();
+        }
+    };
+    user_upsert_response(outcome, &username, &token)
+}
+
+fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),

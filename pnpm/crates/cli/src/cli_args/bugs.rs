@@ -320,7 +320,7 @@ fn is_http_url(value: &str) -> bool {
 fn open_url<Sys: OpenUrl>(url: &str) {
     let sanitized = crate::cli_args::sanitize::sanitize(url);
     let redacted = pnpm_network::redact_url_credentials(&sanitized);
-    println!("{redacted}");
+    pnpm_diagnostics::println!("{redacted}");
 
     let clean_url_for_browser = if let Ok(mut parsed) = Url::parse(url) {
         if !parsed.username().is_empty() || parsed.password().is_some() {

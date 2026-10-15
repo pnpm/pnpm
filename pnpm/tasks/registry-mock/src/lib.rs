@@ -1,3 +1,5 @@
+#![expect(clippy::print_stderr, reason = "developer tool, not part of the pnpm binary")]
+
 pub use dirs::*;
 pub use mock_instance::*;
 pub use pick_port::*;

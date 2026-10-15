@@ -251,7 +251,7 @@ async fn remove_blob_then_package() {
 
 #[tokio::test]
 async fn lists_hosted_package_names() {
-    for prefix in ["", "packages"] {
+    for prefix in ["", "packages", "npm~internal"] {
         let (store, _staging) = store_with_prefix(prefix);
         write_document(&store, &pkg("is-positive"), b"{}").await;
         write_document(&store, &pkg("@scope/thing"), b"{}").await;
@@ -521,6 +521,19 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
         files
             .iter()
             .any(|file| file.path == "acme/app/tool/sha256-child"),
+    );
+
+    let (store, _staging) = store_with_prefix("npm~internal");
+    let pkg_name = pkg("@scope/thing");
+    upload(&store, &pkg_name, "thing-1.0.0.tgz", b"tarball").await;
+    write_document(&store, &pkg_name, b"{}").await;
+    let files =
+        crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
+    assert_eq!(files.len(), 2);
+    assert!(
+        files
+            .iter()
+            .any(|file| file.path == "@scope/thing/thing-1.0.0.tgz"),
     );
 }
 

@@ -69,7 +69,7 @@ impl StoreCommand {
                 Ok(())
             }
             StoreCommand::Path => {
-                println!("{}", config.store_dir.display());
+                pnpm_diagnostics::println!("{}", config.store_dir.display());
                 Ok(())
             }
         }

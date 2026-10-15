@@ -89,7 +89,7 @@ impl Term {
 impl Drop for Term {
     fn drop(&mut self) {
         if let Err(error) = pnpm_wasm_host::close_resource(self.handle) {
-            eprintln!("Failed to restore terminal: {error}");
+            pnpm_diagnostics::eprintln!("Failed to restore terminal: {error}");
         }
     }
 }

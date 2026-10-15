@@ -29,9 +29,9 @@ use schema::{
 };
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username, verify_returning_user,
-    with_auth_timeout,
+    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, dummy_verify,
+    fresh_secret, hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username,
+    verify_returning_user, with_auth_timeout,
 };
 use async_trait::async_trait;
 use libsql::{
@@ -185,6 +185,14 @@ impl LibsqlAuth {
         })
         .await
     }
+
+    async fn check_db_readiness(&self) -> Result<()> {
+        with_auth_timeout::<_, LibsqlError>(self.timeout, async {
+            self.conn.query("SELECT 1;", ()).await?;
+            Ok(())
+        })
+        .await
+    }
 }
 
 #[async_trait]
@@ -217,6 +225,10 @@ impl UserBackend for LibsqlAuth {
     async fn delete_user(&self, username: &str) -> Result<bool> {
         self.remove_user(username).await
     }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
+    }
 }
 
 impl LibsqlAuth {
@@ -230,6 +242,11 @@ impl LibsqlAuth {
 
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
@@ -446,6 +463,10 @@ impl TokenBackend for LibsqlAuth {
         };
         self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 

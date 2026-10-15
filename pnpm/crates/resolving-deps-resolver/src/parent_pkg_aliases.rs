@@ -67,26 +67,36 @@ pub(crate) fn peer_shadowed_dependencies(
     parent_pkg_aliases: &ParentPkgAliases,
     auto_install_peers: bool,
 ) -> HashSet<String> {
-    let Some(manifest) = manifest else { return HashSet::default() };
-    let object = |key| manifest.get(key).and_then(Value::as_object);
-    let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
-        return HashSet::default();
-    };
-    let peers_meta = object("peerDependenciesMeta");
-    let is_optional_peer = |name: &str| {
-        peers_meta
-            .and_then(|meta| meta.get(name))
-            .and_then(|entry| entry.get("optional"))
-            .and_then(Value::as_bool)
-            == Some(true)
-    };
-    deps.keys()
-        .filter(|name| peers.contains_key(*name))
-        .filter(|name| {
-            (auto_install_peers && !is_optional_peer(name)) || parent_pkg_aliases.contains(name)
+    dependencies_named_as_peers(manifest)
+        .filter(|(name, is_optional_peer)| {
+            (auto_install_peers && !is_optional_peer) || parent_pkg_aliases.contains(name)
         })
-        .cloned()
+        .map(|(name, _)| name.clone())
         .collect()
+}
+
+/// The `dependencies` entries of `manifest` that its own
+/// `peerDependencies` also name, each with whether that peer is
+/// optional. These are the only names
+/// [`peer_shadowed_dependencies`] can drop.
+pub(crate) fn dependencies_named_as_peers(
+    manifest: Option<&Value>,
+) -> impl Iterator<Item = (&String, bool)> {
+    let object = |key| manifest?.get(key).and_then(Value::as_object);
+    let peers = object("peerDependencies");
+    let peers_meta = object("peerDependenciesMeta");
+    let deps = if peers.is_some() { object("dependencies") } else { None };
+    deps.into_iter()
+        .flat_map(|deps| deps.keys())
+        .filter(move |name| peers.is_some_and(|peers| peers.contains_key(*name)))
+        .map(move |name| {
+            let is_optional_peer = peers_meta
+                .and_then(|meta| meta.get(name))
+                .and_then(|entry| entry.get("optional"))
+                .and_then(Value::as_bool)
+                == Some(true);
+            (name, is_optional_peer)
+        })
 }
 
 #[cfg(test)]

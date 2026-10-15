@@ -127,7 +127,7 @@ impl CacheCommand {
 
         match self {
             CacheCommand::Path => {
-                println!("{}", Self::cleaned_cache_dir(config).display());
+                pnpm_diagnostics::println!("{}", Self::cleaned_cache_dir(config).display());
             }
             CacheCommand::ListRegistries => {
                 let Ok(entries) = fs::read_dir(&cache_dir) else {
@@ -140,7 +140,7 @@ impl CacheCommand {
                     .collect();
                 registries.sort();
                 if !registries.is_empty() {
-                    println!("{}", registries.join("\n"));
+                    pnpm_diagnostics::println!("{}", registries.join("\n"));
                 }
             }
             CacheCommand::List { packages } => {
@@ -149,7 +149,7 @@ impl CacheCommand {
                 }
                 let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
                 if !meta_files.is_empty() {
-                    println!("{}", meta_files.join("\n"));
+                    pnpm_diagnostics::println!("{}", meta_files.join("\n"));
                 }
             }
             CacheCommand::Delete { packages } => Self::delete(config, &packages)?,
@@ -161,7 +161,7 @@ impl CacheCommand {
     }
     fn view(config: &Config, cache_dir: &Path, package: &str) -> miette::Result<()> {
         if !cache_dir.exists() {
-            println!("{{}}");
+            pnpm_diagnostics::println!("{{}}");
             return Ok(());
         }
         Self::reject_path_traversal(package)?;
@@ -205,7 +205,10 @@ impl CacheCommand {
             );
         }
 
-        println!("{}", serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?);
+        pnpm_diagnostics::println!(
+            "{}",
+            serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?,
+        );
         Ok(())
     }
 
@@ -229,7 +232,7 @@ impl CacheCommand {
         deleted.sort();
         deleted.dedup();
         if !deleted.is_empty() {
-            println!("{}", deleted.join("\n"));
+            pnpm_diagnostics::println!("{}", deleted.join("\n"));
         }
         Ok(())
     }
@@ -383,16 +386,16 @@ impl PruneOutcome {
         self.pruned.sort();
         if dry_run {
             let count = directory_count(self.pruned.len());
-            eprintln!("Dry run: {count} would be deleted.");
+            pnpm_diagnostics::eprintln!("Dry run: {count} would be deleted.");
         }
         if !self.pruned.is_empty() {
-            println!("{}", self.pruned.join("\n"));
+            pnpm_diagnostics::println!("{}", self.pruned.join("\n"));
         }
         if self.failures.is_empty() {
             return Ok(());
         }
         for failure in &self.failures {
-            eprintln!("{failure}");
+            pnpm_diagnostics::eprintln!("{failure}");
         }
         let count = directory_count(self.failures.len());
         Err(miette::miette!("Failed to reclaim {count}"))

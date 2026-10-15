@@ -31,6 +31,7 @@ const TEMP_FILE_PREFIX: &str = ".tmp";
 const KEY_LEN_SIZE: usize = size_of::<u32>();
 
 /// An `index/` directory of a store.
+#[derive(Clone)]
 pub(super) struct FilesIndex {
     dir: PathBuf,
 }
