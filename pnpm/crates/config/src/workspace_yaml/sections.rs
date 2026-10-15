@@ -376,7 +376,7 @@ struct RawTaskSettings {
 
 impl<'de> Deserialize<'de> for TaskSettings {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        let raw = RawTaskSettings::deserialize(deserializer)?;
+        let raw = Option::<RawTaskSettings>::deserialize(deserializer)?.unwrap_or_default();
         let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
         let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
         let priority = raw.priority.as_ref().and_then(json_i32);
