@@ -486,3 +486,144 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
         .unwrap();
     assert!(etag.starts_with('"') && etag.ends_with('"'));
 }
+
+#[tokio::test]
+async fn anonymous_only_package_carries_private_cache_headers_and_denies_authenticated_caller() {
+    let tmp = TempDir::new().unwrap();
+    let pkg_dir = tmp.path().join("acme/@acme/widget");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let doc = json!({
+        "name": "@acme/widget",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@acme/widget",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+                }
+            }
+        }
+    });
+    std::fs::write(pkg_dir.join("package.json"), doc.to_string()).unwrap();
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.routing.hosted.insert(
+        "acme".to_string(),
+        super::hosted_with_access("acme", "$anonymous"),
+    );
+    config.routing.registries = super::Registries::new(
+        vec![("acme".to_string(), super::Registry::Hosted { patterns: vec![] })]
+            .into_iter()
+            .collect(),
+        Some("acme".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/@acme/widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|header_value| header_value.to_str().ok()),
+        Some("private, no-store"),
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get(header::VARY)
+            .and_then(|header_value| header_value.to_str().ok()),
+        Some("Accept, Authorization"),
+    );
+
+    let auth_response = app
+        .oneshot(
+            Request::get("/@acme/widget")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(auth_response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_none_match() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = foo_packument(&upstream.url());
+    let _mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.http.packument_ttl = Duration::from_mins(5);
+    let app = router(config);
+
+    let initial = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(initial.status(), StatusCode::OK);
+    let last_modified = initial
+        .headers()
+        .get(header::LAST_MODIFIED)
+        .and_then(|header_value| header_value.to_str().ok())
+        .map(ToString::to_string);
+    let etag = initial
+        .headers()
+        .get(header::ETAG)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    if let Some(lm) = last_modified {
+        let ims = app
+            .clone()
+            .oneshot(
+                Request::get("/foo")
+                    .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                    .header(header::IF_MODIFIED_SINCE, &lm)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ims.status(), StatusCode::OK);
+    }
+
+    let inm = app
+        .oneshot(
+            Request::get("/foo")
+                .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                .header(header::IF_NONE_MATCH, &etag)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(inm.status(), StatusCode::NOT_MODIFIED);
+}

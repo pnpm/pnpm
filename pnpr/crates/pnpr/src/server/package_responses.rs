@@ -163,7 +163,9 @@ pub(super) fn packument_response(
         (serde_json::to_vec(&doc)?, "application/json")
     };
     let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
-    if is_not_modified(headers, &etag, last_modified.as_deref()) {
+    let date_validator =
+        if osv_index.is_some() || abbreviated { None } else { last_modified.as_deref() };
+    if is_not_modified(headers, &etag, date_validator) {
         return Ok(packument_not_modified_response(&etag, last_modified, max_age));
     }
     Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))

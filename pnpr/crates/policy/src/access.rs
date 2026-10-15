@@ -86,6 +86,22 @@ impl AccessList {
             .iter()
             .any(|token| matches!(token, AccessToken::Team { name, .. } if name == team))
     }
+
+    /// Whether the access list admits every caller regardless of identity.
+    #[must_use]
+    pub fn admits_every_identity(&self) -> bool {
+        let mut has_anon = false;
+        let mut has_auth = false;
+        for token in &self.0 {
+            match token {
+                AccessToken::All => return true,
+                AccessToken::Anonymous => has_anon = true,
+                AccessToken::Authenticated => has_auth = true,
+                _ => {}
+            }
+        }
+        has_anon && has_auth
+    }
 }
 
 /// The resolved caller identity an [`AccessList`] is evaluated against: the

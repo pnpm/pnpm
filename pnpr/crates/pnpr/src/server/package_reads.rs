@@ -206,7 +206,7 @@ pub(super) fn resolves_to_private_source(
                     .snapshot()
                     .for_package(package)
                     .access
-                    .allows(&Identity::Anonymous)
+                    .admits_every_identity()
             }),
         // A private upstream (registry-level `access:`) is caller-gated for
         // *every* name — unlike a hosted registry, its registry-level gate is
@@ -224,7 +224,7 @@ pub(super) fn resolves_to_private_source(
                         .snapshot()
                         .for_package(package)
                         .access
-                        .allows(&Identity::Anonymous)
+                        .admits_every_identity()
             }),
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
