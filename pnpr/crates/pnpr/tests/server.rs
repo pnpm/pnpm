@@ -40,6 +40,9 @@ mod web_ui;
 #[path = "server/sign_in.rs"]
 mod sign_in;
 
+#[path = "server/audit.rs"]
+mod audit;
+
 use crate::registry_groups;
 
 use axum::{

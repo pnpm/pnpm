@@ -1,8 +1,5 @@
 mod team_handlers;
-use team_handlers::{
-    delete_team, delete_team_package, delete_team_user, get_org_package_list, get_team_packages,
-    get_team_users, get_teams, put_team, put_team_package, put_team_user,
-};
+use team_handlers::team_routes;
 
 mod npm_handlers;
 use npm_handlers::{
@@ -298,7 +295,8 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        router = team_routes(staged_routes(router, base), base)
+        let with_teams = team_routes(staged_routes(router, base), base);
+        router = super::security_audit::routes(with_teams, base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
             .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
@@ -439,33 +437,4 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
         .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
-}
-
-/// npm's org and team endpoints. Each write names one team or one user, so
-/// its body is capped far below a publish.
-fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
-    let path = |tail: &str| format!("{base}{tail}");
-    router
-        .route(
-            &path("/-/org/{scope}/team"),
-            get(get_teams)
-                .put(put_team)
-                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
-        )
-        .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
-        .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
-        .route(
-            &path("/-/team/{scope}/{team}/user"),
-            get(get_team_users)
-                .put(put_team_user)
-                .delete(delete_team_user)
-                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
-        )
-        .route(
-            &path("/-/team/{scope}/{team}/package"),
-            get(get_team_packages)
-                .put(put_team_package)
-                .delete(delete_team_package)
-                .route_layer(DefaultBodyLimit::max(MAX_TEAM_BODY_BYTES)),
-        )
 }
