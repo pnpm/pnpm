@@ -105,6 +105,7 @@ mod routing;
 mod rule_admin;
 mod rule_overrides;
 mod scim;
+mod security_audit;
 mod singleflight;
 use singleflight::Singleflight;
 mod staged;
