@@ -119,6 +119,10 @@ fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
     )
     .unwrap();
     let storage = tempfile::tempdir().unwrap();
+    let report_root = storage
+        .path()
+        .join("pnpm")
+        .join("pipeline");
     let command = || {
         let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
         command
@@ -133,29 +137,16 @@ fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
         .success();
     let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
     assert_eq!(document, serde_json::json!({"tasks": []}));
-    assert!(
-        !storage
-            .path()
-            .join("pnpm")
-            .join("pipeline")
-            .exists()
-    );
+    assert!(!report_root.exists());
     let result = command()
         .args(["pipeline", "--full", "--dry-run"])
         .assert()
         .success();
-    let stdout = String::from_utf8_lossy(&result.get_output().stdout);
-    assert!(
-        stdout.contains("No projects are selected"),
-        "empty dry run must report no selected projects: {stdout:?}"
+    assert_eq!(
+        String::from_utf8_lossy(&result.get_output().stdout),
+        "No projects are selected — nothing to run.\n",
     );
-    assert!(
-        !storage
-            .path()
-            .join("pnpm")
-            .join("pipeline")
-            .exists()
-    );
+    assert!(!report_root.exists());
 }
 
 #[test]
