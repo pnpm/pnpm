@@ -202,6 +202,7 @@ libc = { version = "0.2.186" }
 reqwest = { version = "0.13", default-features = false, features = ["gzip", "json", "rustls", "socks", "stream"] }
 node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
+parking_lot_core = { version = "0.9.12" }
 pathdiff = { version = "0.2.3" }
 percent-encoding = { version = "2.3.2" }
 pipe-trait = { version = "0.4.0" }

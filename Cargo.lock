@@ -4641,6 +4641,7 @@ dependencies = [
  "node-semver",
  "owo-colors",
  "p256",
+ "parking_lot_core",
  "pathdiff",
  "pep440_rs",
  "percent-encoding",

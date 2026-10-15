@@ -173,6 +173,11 @@ tokio = { workspace = true, features = ["net", "process", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-which = { workspace = true }
+# `dashmap` parks on `parking_lot_core` once a shard lock is contended, and on a
+# wasm target that crate compiles its atomic parker only with this feature on.
+# Without it the parker panics "Parking not supported on this platform", which
+# aborts pnpm the first time two threads contend. The feature is inert off wasm.
+parking_lot_core = { workspace = true, features = ["nightly"] }
 pnpm-wasm-host = { path = "../wasm-host" }
 libc = { workspace = true }
 pnpm-process = { path = "../process" }
