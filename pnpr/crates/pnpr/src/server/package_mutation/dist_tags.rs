@@ -50,6 +50,17 @@ pub(crate) async fn get_dist_tags(
         .expect("static-shape response always builds")
 }
 
+fn validate_dist_tag(tag: &str) -> Result<(), RegistryError> {
+    if tag.is_empty()
+        || tag
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+    {
+        return Err(RegistryError::BadRequest { reason: "invalid dist-tag name".to_string() });
+    }
+    Ok(())
+}
+
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
 /// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
@@ -61,15 +72,18 @@ pub(crate) async fn set_dist_tag(
     tag: &str,
     body: &[u8],
 ) -> Response {
+    if let Err(err) = validate_dist_tag(tag) {
+        return err.into_response();
+    }
     let mut captured_version = None;
-    let res = update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
+    let (res, source) = update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
         let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
         captured_version = Some(version.clone());
         tags.insert(tag.to_string(), Value::String(version));
         Ok(())
     })
     .await;
-    if res.status().is_success() {
+    if let Some(source) = &source {
         let actor = identity.username().unwrap_or("-");
         let version_display = captured_version.as_deref().unwrap_or("-");
         tracing::info!(
@@ -79,6 +93,7 @@ pub(crate) async fn set_dist_tag(
             package = %raw_name,
             tag = %tag,
             version = %version_display,
+            registry = %source,
             "package dist-tag set",
         );
     }
@@ -92,12 +107,16 @@ pub(crate) async fn remove_dist_tag(
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    let res = update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
-        tags.remove(tag);
+    if let Err(err) = validate_dist_tag(tag) {
+        return err.into_response();
+    }
+    let mut removed = false;
+    let (res, source) = update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
+        removed = tags.remove(tag).is_some();
         Ok(())
     })
     .await;
-    if res.status().is_success() {
+    if removed && let Some(source) = &source {
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -105,6 +124,7 @@ pub(crate) async fn remove_dist_tag(
             actor = %actor,
             package = %raw_name,
             tag = %tag,
+            registry = %source,
             "package dist-tag removed",
         );
     }
@@ -120,17 +140,17 @@ async fn update_dist_tag<Mutate>(
     raw_name: &str,
     tag: &str,
     mut mutate: Mutate,
-) -> Response
+) -> (Response, Option<String>)
 where
     Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(name) => name,
-        Err(err) => return err.into_response(),
+        Err(err) => return (err.into_response(), None),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
-        Err(err) => return err.into_response(),
+        Err(err) => return (err.into_response(), None),
     };
     if let Err(err) = authorize(
         state,
@@ -139,7 +159,7 @@ where
         name.as_str(),
         Action::Publish,
     ) {
-        return err.into_response();
+        return (err.into_response(), None);
     }
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
@@ -154,16 +174,17 @@ where
     .await;
     match outcome {
         Ok(DocumentUpdate::Written) => {}
-        Ok(DocumentUpdate::NotFound) => return not_found(),
-        Err(err) => return err.into_response(),
+        Ok(DocumentUpdate::NotFound) => return (not_found(), None),
+        Err(err) => return (err.into_response(), None),
     }
     let body = json!({ "ok": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
+    let response = Response::builder()
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+        .expect("static-shape response always builds");
+    (response, Some(target.source))
 }
 
 /// The stored packument with its `dist-tags` mutated and `time.modified`

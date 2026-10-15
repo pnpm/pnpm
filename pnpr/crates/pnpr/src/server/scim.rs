@@ -152,6 +152,7 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
             Ok(directory.store(&username, user.clone()))
         })
         .await?;
+        let response = finish_write(&state, &username, &created, StatusCode::CREATED).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_create",
@@ -160,7 +161,7 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
             active = created.active,
             "scim user created",
         );
-        finish_write(&state, &username, &created, StatusCode::CREATED).await
+        Ok(response)
     };
     scim_respond(result.await)
 }
@@ -183,6 +184,7 @@ async fn replace_user(
             Ok(directory.store(&path.id, user.clone()))
         })
         .await?;
+        let response = finish_write(&state, &path.id, &replaced, StatusCode::OK).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_replace",
@@ -191,7 +193,7 @@ async fn replace_user(
             active = replaced.active,
             "scim user replaced",
         );
-        finish_write(&state, &path.id, &replaced, StatusCode::OK).await
+        Ok(response)
     };
     scim_respond(result.await)
 }
@@ -212,6 +214,7 @@ async fn patch_user(
             Ok(directory.store(&path.id, user))
         })
         .await?;
+        let response = finish_write(&state, &path.id, &patched, StatusCode::OK).await?;
         tracing::info!(
             target: "pnpr::audit",
             action = "scim.user_patch",
@@ -220,7 +223,7 @@ async fn patch_user(
             active = patched.active,
             "scim user patched",
         );
-        finish_write(&state, &path.id, &patched, StatusCode::OK).await
+        Ok(response)
     };
     scim_respond(result.await)
 }

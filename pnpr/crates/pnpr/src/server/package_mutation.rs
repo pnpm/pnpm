@@ -174,10 +174,13 @@ pub(super) async fn delete_package(
     }
     let org = target.org;
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
-        return err.into_response();
+    let removed = match hosted_storage(state, Some(&org)).remove_package(&name).await {
+        Ok(removed) => removed,
+        Err(err) => return err.into_response(),
+    };
+    if removed {
+        log_package_deleted(identity, &name, &target.source);
     }
-    log_package_deleted(identity, &name, &target.source);
     ok_created_response()
 }
 
@@ -217,23 +220,21 @@ pub(super) async fn delete_tarball(
         Ok(target) => target,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Unpublish,
-    ) {
+    let source = RegistrySource::Hosted(target.source.clone());
+    if let Err(err) = authorize(state, identity, &source, name.as_str(), Action::Unpublish) {
         return err.into_response();
     }
     let org = target.org;
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
-        return err.into_response();
-    }
+    let removed = match hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
+        Ok(removed) => removed,
+        Err(err) => return err.into_response(),
+    };
     let sigstore_name = name.sigstore_name_for_version(&version);
     let _ = hosted_storage(state, Some(&org)).remove_blob(&name, &sigstore_name).await;
-    log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
+    if removed {
+        log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
+    }
     ok_created_response()
 }
 

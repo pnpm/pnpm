@@ -726,18 +726,18 @@ Every request emits an access log record under the tracing target `pnpr::access`
 
 ### Admin audit logs
 
-Administrative and destructive operations emit structured audit records under the tracing target `pnpr::audit` at `info` level. When structured logging is enabled (`format: json`), these events output as JSON objects that inherit the active request span context, including `request_id`, `client_ip`, `method`, and `uri`.
+Administrative and destructive operations emit structured audit records under the tracing target `pnpr::audit` at `info` level. When structured logging is enabled (`format: json`), these events output as JSON objects that inherit the active request span context, including `request_id`, `client_ip`, `method`, and `uri`. The `pnpr::audit=info` directive is included across all configured log levels so audit events are retained by default. Operators can filter or silence them via `RUST_LOG` (for example, `RUST_LOG=pnpr::audit=off`).
 
-Audit events record the `action`, the `actor` (authenticated username, bearer token identifier, or client identity), and operation-specific attributes:
+Audit events record the `action`, the `actor` (the authenticated username, `"scim"` for SCIM actions, or `"-"` when unauthenticated), and operation-specific attributes:
 
 - **User management**:
   - `user.create`: creating an account (`actor`, `user`).
   - `user.password_update`: changing an account password (`actor`, `user`).
-  - `user.token_revoke`: revoking user tokens (`actor`, `user`).
-  - `user.delete`: deleting an account (`actor`, `user`).
+  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `token_key`).
+  - `user.delete`: deleting an account (`actor`, `user`, `tokens_revoked`).
   - `user.register`: self-registering a new account (`actor`, `user`).
 - **Rule overrides**:
-  - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`).
+  - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).
   - `rules.delete`: removing dynamic package access rules (`actor`, `registry`).
 - **Team administration and package access**:
   - `team.create`: creating a team (`actor`, `scope`, `team`).
@@ -752,11 +752,11 @@ Audit events record the `action`, the `actor` (authenticated username, bearer to
   - `scim.user_patch`: updating SCIM user status (`actor`, `user`, `active`).
   - `scim.user_delete`: deprovisioning a SCIM user (`actor`, `user`).
 - **Package unpublishing and mutations**:
-  - `package.unpublish`: unpublishing an entire package (`actor`, `package`).
-  - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`).
-  - `package.update_packument`: modifying packument metadata directly (`actor`, `package`).
-  - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`).
-  - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`).
+  - `package.unpublish`: unpublishing an entire package (`actor`, `package`, `registry`).
+  - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
+  - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).
+  - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`, `registry`).
+  - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`, `registry`).
   - `oci.delete_blob`: deleting an OCI blob (`actor`, `repository`, `digest`).
   - `oci.delete_manifest`: deleting an OCI manifest (`actor`, `repository`, `reference`).
 
