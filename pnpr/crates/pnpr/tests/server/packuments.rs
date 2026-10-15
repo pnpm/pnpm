@@ -550,6 +550,64 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 }
 
 #[tokio::test]
+async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app
+        .oneshot(
+            Request::get("/foo")
+                .header("accept-encoding", "zstd,gzip,deflate")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|value| value.to_str().ok()),
+        Some("zstd"),
+    );
+    let body = decode_zstd(&body_bytes(response.into_body()).await).await;
+    assert_eq!(
+        body["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/foo/-/foo-1.0.0.tgz",
+    );
+
+    mock.assert_async().await;
+}
+
+/// Decodes through reqwest's zstd support, as the workspace has no standalone
+/// zstd decoder.
+async fn decode_zstd(compressed: &[u8]) -> Value {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/")
+        .with_header("content-encoding", "zstd")
+        .with_body(compressed)
+        .create_async()
+        .await;
+    reqwest::get(server.url()).await
+        .expect("fetch the zstd body")
+        .json()
+        .await
+        .expect("decode the zstd body as JSON")
+}
+
+#[tokio::test]
 async fn packument_is_not_gzipped_without_accept_encoding() {
     let mut upstream = mockito::Server::new_async().await;
     let mock = upstream
