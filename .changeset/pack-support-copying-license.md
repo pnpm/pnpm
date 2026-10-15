@@ -1,8 +1,5 @@
 ---
-"@pnpm/fs.packlist": patch
-"@pnpm/pack": patch
-"pnpm": patch
 "pacquet": patch
 ---
 
-Include `COPYING` license files at package root and inject workspace-root `COPYING` files into sub-packages lacking a license.
+Include workspace-root `COPYING` license files in sub-package archives when the sub-package has no license file. Previously, these workspace license files were ignored.
