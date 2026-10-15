@@ -243,7 +243,11 @@ fn failing_browser_redacts_url_and_succeeds() {
     let stderr = String::from_utf8(output.stderr).unwrap();
     dbg!(&stdout, &stderr);
     assert!(output.status.success());
-    assert!(stdout.lines().any(|line| line == "https://example.com/docs"));
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == "https://example.com/docs")
+    );
     assert!(!stdout.contains("secret"));
     assert!(!stdout.contains("user:pass"));
     assert!(!stdout.contains("#frag"));
