@@ -5,6 +5,7 @@ use super::{
     user_accounts::token_timestamp_millis,
 };
 mod compiler_cache;
+mod observability;
 mod oidc_groups;
 mod web_ui;
 
@@ -253,7 +254,7 @@ fn bearer_credentials_extracts_only_bearer_tokens() {
 const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 40000);
 const PROXY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000);
 
-fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
+pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
     TokenRecord {
         username: "alice".to_string(),
         created_at: 1,
@@ -303,7 +304,7 @@ impl TokenBackend for OneToken {
     }
 }
 
-fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
+pub(super) fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
 }

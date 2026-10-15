@@ -1,4 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -88,6 +90,7 @@ mod ecosystem;
 mod health;
 use health::shutdown_signal;
 mod managed_state;
+mod metrics;
 mod oci;
 mod oidc;
 mod oidc_groups;
@@ -97,6 +100,7 @@ mod pypi;
 mod rate_limit;
 use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod request_id;
 mod routing;
 mod rule_admin;
 mod rule_overrides;

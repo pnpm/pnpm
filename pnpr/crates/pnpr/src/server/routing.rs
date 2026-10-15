@@ -44,11 +44,12 @@ use super::{
     not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache, publish_package,
     put_login, pypi, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
     require_resolver_caller, resolve_write_target, serve_artifact_blob, serve_artifact_blob_size,
-    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
-    serve_packument, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
-    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
-    serve_search, serve_tarball, serve_upload_artifact_blob, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged,
+    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_metrics,
+    serve_metrics_or_packument, serve_org_packages, serve_packument, serve_pipeline_ui,
+    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
+    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_upload_artifact_blob, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
+    staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
@@ -112,9 +113,7 @@ fn finish_router(
                 .expose_headers([header::ETAG]),
         );
     }
-    let trusted_proxies = Arc::from(state.inner.config.http.trusted_proxies.clone());
-    let trusted_proxy_header = state.inner.config.http.trusted_proxy_header;
-    Ok(with_observability_layers(router, trusted_proxies, trusted_proxy_header).with_state(state))
+    Ok(with_observability_layers(router, state.clone()).with_state(state))
 }
 
 fn apply_request_timeout(
@@ -178,7 +177,9 @@ fn surface_routes(
         router = router
             .route(&path("/-/ping"), get(serve_ping))
             .route(&path("/-/ready"), get(serve_ready))
-            .route(&path("/-/live"), get(serve_live));
+            .route(&path("/-/live"), get(serve_live))
+            .route(&path("/-/metrics"), get(serve_metrics))
+            .route(&path("/metrics"), get(serve_metrics_or_packument));
     }
     router = router
         .merge(super::oidc::routes(ui_served))

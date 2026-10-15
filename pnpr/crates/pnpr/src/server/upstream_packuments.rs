@@ -51,7 +51,11 @@ pub(super) async fn load_upstream_packument(
         )
         .await?
     {
+        state.inner.metrics.record_cache_hit();
         return Ok(Some(bytes));
+    }
+    if upstream.caches() {
+        state.inner.metrics.record_cache_miss();
     }
 
     let singleflight_key = (namespace.to_string(), name.clone());

@@ -40,7 +40,7 @@ impl Action {
 /// once, and the identity a handler sees is the same one the restriction
 /// gate already approved (no second lookup, no policy/identity race).
 #[derive(Clone)]
-pub(super) struct AuthedCaller(pub(super) Identity);
+pub(crate) struct AuthedCaller(pub(super) Identity);
 
 impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     type Rejection = Response;
@@ -99,10 +99,12 @@ pub(super) async fn authenticate(
                 if let Err(err) = refuse_deprovisioned(&state, &identity) {
                     return err.into_response();
                 }
-                request
-                    .extensions_mut()
-                    .insert(AuthedCaller(identity));
-                return next.run(request).await;
+                let caller = AuthedCaller(identity);
+                record_user_on_span(&caller.0);
+                request.extensions_mut().insert(caller.clone());
+                let mut response = next.run(request).await;
+                response.extensions_mut().insert(caller);
+                return response;
             }
             Ok(None) => {}
             Err(response) => return response,
@@ -117,10 +119,20 @@ pub(super) async fn authenticate(
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
-    request
-        .extensions_mut()
-        .insert(AuthedCaller(identity));
-    next.run(request).await
+    let caller = AuthedCaller(identity);
+    record_user_on_span(&caller.0);
+    request.extensions_mut().insert(caller.clone());
+    let mut response = next.run(request).await;
+    response.extensions_mut().insert(caller);
+    response
+}
+
+fn record_user_on_span(identity: &Identity) {
+    if let Some(username) = identity.username() {
+        tracing::Span::current().record("user", tracing::field::display(username));
+    } else {
+        tracing::Span::current().record("user", "-");
+    }
 }
 
 fn resolve_and_attach_client_ip(request: &mut Request, state: &AppState) -> Option<IpAddr> {

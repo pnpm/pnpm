@@ -1,10 +1,17 @@
 use super::{
-    AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, Singleflight,
-    Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
+    AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
+    Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
 };
 use indexmap::IndexMap;
 use std::sync::Arc;
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "server inner state groups core subsystems"
+    )
+)]
 pub(crate) struct AppInner {
     pub(super) storage: Storage,
     pub(super) config: Config,
@@ -18,6 +25,7 @@ pub(crate) struct AppInner {
     pub(super) proxy: ProxyState,
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
+    pub(crate) metrics: Arc<ServerMetrics>,
 }
 
 type PackumentSingleflight =
@@ -86,6 +94,7 @@ impl AppInner {
                 publish_concurrency: tokio::sync::Semaphore::new(16),
             },
             identity,
+            metrics: Arc::new(ServerMetrics::new()),
         })
     }
 }
