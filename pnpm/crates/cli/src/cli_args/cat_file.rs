@@ -3,7 +3,11 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_store_dir::StoreDir;
-use std::fs::File;
+use std::{
+    fs::File,
+    io::{BufRead as _, BufReader, Write as _},
+    path::Path,
+};
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {
@@ -47,12 +51,33 @@ impl CatFileArgs {
             .join(&hex[..2])
             .join(&hex[2..]);
 
-        let mut file = File::open(&file_path)
+        let file = File::open(&file_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("File not found in store: {}", file_path.display()))?;
 
-        pnpm_diagnostics::stdout::check(std::io::copy(&mut file, &mut std::io::stdout()));
+        copy_to_stdout(file, &file_path)
+    }
+}
 
-        Ok(())
+/// Copy `file` to stdout. A failed read fails with `file_path`; a failed
+/// write goes to [`pnpm_diagnostics::stdout::check`], which `io::copy`
+/// could not tell apart from a failed read.
+fn copy_to_stdout(file: File, file_path: &Path) -> miette::Result<()> {
+    let mut reader = BufReader::with_capacity(64 * 1024, file);
+    let mut stdout = std::io::stdout().lock();
+    loop {
+        let chunk = reader
+            .fill_buf()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Failed to read {}", file_path.display()))?;
+        if chunk.is_empty() {
+            return Ok(());
+        }
+        let length = chunk.len();
+        if let Err(error) = stdout.write_all(chunk) {
+            pnpm_diagnostics::stdout::check(Err::<(), _>(error));
+            return Ok(());
+        }
+        reader.consume(length);
     }
 }
