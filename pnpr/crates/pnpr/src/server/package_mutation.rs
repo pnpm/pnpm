@@ -1,3 +1,6 @@
+pub(super) use dist_tags::{get_dist_tags, remove_dist_tag, set_dist_tag};
+
+mod dist_tags;
 mod immutability;
 use immutability::{enforce_published_version_immutability, submitted_packument};
 
@@ -11,11 +14,11 @@ use serde_json::{Value, json};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, publish::now_iso};
+use pnpr_storage::DocumentWrite;
 
 use super::{
-    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target, tarball_basename,
+    Action, AppState, RegistrySource, authorize, hosted_storage, resolve_write_target,
+    tarball_basename,
 };
 
 /// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
@@ -52,13 +55,15 @@ pub(super) async fn update_packument(
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
-    rewrite_packument(state, &storage, &name, &mut packument).await
+    rewrite_packument(state, identity, &target.source, &storage, &name, &mut packument).await
 }
 
 /// Serialize against other same-package writers so the rewrite cannot
 /// interleave with a concurrent publish or dist-tag merge.
 async fn rewrite_packument(
     state: &AppState,
+    identity: &Identity,
+    source: &str,
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,
     packument: &mut serde_json::Value,
@@ -84,13 +89,28 @@ async fn rewrite_packument(
         storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
             .await;
     match written {
-        Ok(DocumentWrite::Written) => ok_created(),
+        Ok(DocumentWrite::Written) => {
+            log_packument_update(identity, name, source);
+            ok_created()
+        }
         Ok(DocumentWrite::Conflict) => {
             RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
                 .into_response()
         }
         Err(err) => err.into_response(),
     }
+}
+
+fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source: &str) {
+    let actor = identity.username().unwrap_or("-");
+    tracing::info!(
+        target: "pnpr::audit",
+        action = "package.update_packument",
+        actor = %actor,
+        package = %name.as_str(),
+        registry = %source,
+        "package packument updated",
+    );
 }
 
 /// A packument rewrite adds nothing but may remove anything, so it is held to
@@ -153,13 +173,24 @@ pub(super) async fn delete_package(
         return err.into_response();
     }
     let org = target.org;
-    // Serialize against same-package publishers so a delete can't race a
-    // stage-and-commit and remove the package mid-write.
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return err.into_response();
     }
+    log_package_deleted(identity, &name, &target.source);
     ok_created_response()
+}
+
+fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {
+    let actor = identity.username().unwrap_or("-");
+    tracing::info!(
+        target: "pnpr::audit",
+        action = "package.unpublish",
+        actor = %actor,
+        package = %name.as_str(),
+        registry = %source,
+        "entire package unpublished",
+    );
 }
 
 /// `DELETE /:pkg/-/:filename/-rev/:rev` — remove a single tarball
@@ -196,15 +227,34 @@ pub(super) async fn delete_tarball(
         return err.into_response();
     }
     let org = target.org;
-    // Serialize against same-package publishers so a delete can't race a
-    // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
     let sigstore_name = name.sigstore_name_for_version(&version);
     let _ = hosted_storage(state, Some(&org)).remove_blob(&name, &sigstore_name).await;
+    log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
     ok_created_response()
+}
+
+fn log_tarball_deleted(
+    identity: &Identity,
+    name: &CanonicalPackageName,
+    filename: &str,
+    version: &str,
+    source: &str,
+) {
+    let actor = identity.username().unwrap_or("-");
+    tracing::info!(
+        target: "pnpr::audit",
+        action = "package.unpublish_tarball",
+        actor = %actor,
+        package = %name.as_str(),
+        tarball = %filename,
+        version = %version,
+        registry = %source,
+        "package tarball unpublished",
+    );
 }
 
 fn ok_created_response() -> Response {
@@ -215,185 +265,4 @@ fn ok_created_response() -> Response {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
-}
-
-/// `GET /-/package/:pkg/dist-tags` (path-less) or
-/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
-/// `dist-tags` object.
-pub(super) async fn get_dist_tags(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    let bytes = match load_packument_for_read(state, identity, registry, &name).await {
-        Ok(Some(bytes)) => bytes,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let mut tags = packument
-        .get("dist-tags")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
-    filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
-    let bytes = serde_json::to_vec(&tags).expect("dist-tags object serializes");
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
-/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
-/// a JSON-encoded version string (e.g. `"1.0.0"`).
-pub(super) async fn set_dist_tag(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-    body: &[u8],
-) -> Response {
-    let mut parsed_version: Option<String> = None;
-    update_dist_tag(state, identity, registry, raw_name, tag, move |tags| {
-        let version = if let Some(version) = parsed_version.as_ref() {
-            version.clone()
-        } else {
-            let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
-            parsed_version = Some(version.clone());
-            version
-        };
-        tags.insert(tag.to_string(), Value::String(version));
-        Ok(())
-    })
-    .await
-}
-
-pub(super) async fn remove_dist_tag(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-) -> Response {
-    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
-        tags.remove(tag);
-        Ok(())
-    })
-    .await
-}
-
-/// Shared "read packument, mutate dist-tags, write back" helper for
-/// add/remove. Returns 201 on success — verdaccio uses 201 for both
-/// add and remove and the anonymous-npm-registry-client tolerates
-/// 200 or 201, so we standardize on 201.
-async fn update_dist_tag<Mutate>(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-    mut mutate: Mutate,
-) -> Response
-where
-    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
-{
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(name) => name,
-        Err(err) => return err.into_response(),
-    };
-    // A dist-tag change is a write, so it routes to a hosted namespace like
-    // a publish — a name routed to an upstream is rejected — and the
-    // resolved registry's `publish` rule gates it.
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Publish,
-    ) {
-        return err.into_response();
-    }
-    let org = target.org;
-    let storage = hosted_storage(state, Some(&org));
-
-    // Serialize the read-modify-write against other same-package writers
-    // on this instance (held until this function returns).
-    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-
-    let _ = tag; // the tag name is captured by the `mutate` closure.
-    let outcome = storage.update_hosted_document_with_retry(
-        &name,
-        DOCUMENT_WRITE_RETRIES,
-        |existing_bytes| retag_packument(existing_bytes, &mut mutate),
-    )
-    .await;
-    match outcome {
-        Ok(DocumentUpdate::Written) => {}
-        Ok(DocumentUpdate::NotFound) => return not_found(),
-        Err(err) => return err.into_response(),
-    }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// The stored packument with its `dist-tags` mutated and `time.modified`
-/// stamped, or `None` when no packument is stored.
-fn retag_packument<Mutate>(
-    existing_bytes: Option<&[u8]>,
-    mutate: &mut Mutate,
-) -> Result<Option<Vec<u8>>, RegistryError>
-where
-    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
-{
-    // A hosted org has no upstream, so a dist-tag change starts from the
-    // org's own packument; a package it does not host can't be tagged.
-    let Some(bytes) = existing_bytes else {
-        return Ok(None);
-    };
-    let mut packument: Value = serde_json::from_slice(bytes)?;
-    let Some(packument_obj) = packument.as_object_mut() else {
-        return Err(RegistryError::BadRequest {
-            reason: "stored packument is not an object".to_string(),
-        });
-    };
-    let tags_entry = packument_obj
-        .entry("dist-tags".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(tags) = tags_entry.as_object_mut() else {
-        return Err(RegistryError::BadRequest {
-            reason: "stored dist-tags is not an object".to_string(),
-        });
-    };
-    mutate(tags)?;
-    // Refresh `time.modified` so clients do not lag behind a
-    // dist-tag change when deciding packument freshness.
-    let time_entry = packument_obj
-        .entry("time".to_string())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(time_obj) = time_entry.as_object_mut() else {
-        return Err(RegistryError::BadRequest {
-            reason: "stored time is not an object".to_string(),
-        });
-    };
-    time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    Ok(Some(serde_json::to_vec_pretty(&packument)?))
 }

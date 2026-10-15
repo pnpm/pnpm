@@ -37,6 +37,16 @@ pub(super) async fn create_team(
         let team = parse_body::<NewTeam>(body)?.name;
         validate_team_name(&team).map_err(|reason| RegistryError::BadRequest { reason })?;
         update_team_roster(state, registry, |teams| insert_team(teams, &team)).await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.create",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = %team,
+            "team created",
+        );
         Ok((StatusCode::CREATED, axum::Json(json!({ "name": team }))))
     };
     respond(result.await)
@@ -67,6 +77,16 @@ pub(super) async fn destroy_team(
                 .ok_or(RegistryError::NotFound)
         })
         .await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.destroy",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = %team,
+            "team destroyed",
+        );
         Ok((StatusCode::OK, axum::Json(json!({ "name": team }))))
     };
     respond(result.await)
@@ -89,6 +109,17 @@ pub(super) async fn add_team_member(
             Ok(())
         })
         .await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.member_add",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = %team,
+            user = %user,
+            "team member added",
+        );
         Ok((StatusCode::CREATED, axum::Json(json!({}))))
     };
     respond(result.await)
@@ -111,6 +142,17 @@ pub(super) async fn remove_team_member(
             Ok(())
         })
         .await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.member_remove",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = %team,
+            user = %user,
+            "team member removed",
+        );
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)

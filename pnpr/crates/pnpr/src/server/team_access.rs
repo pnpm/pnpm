@@ -59,6 +59,22 @@ pub(super) async fn grant_team_access(
             })
         })
         .await?;
+        let perm_str = match grant.permissions {
+            Permissions::ReadOnly => "read-only",
+            Permissions::ReadWrite => "read-write",
+        };
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.access_grant",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = team,
+            package = %grant.package,
+            permissions = perm_str,
+            "team package access granted",
+        );
         Ok(StatusCode::CREATED)
     };
     respond(result.await)
@@ -84,6 +100,17 @@ pub(super) async fn revoke_team_access(
             })
         })
         .await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "team.access_revoke",
+            actor = %actor,
+            registry = %registry,
+            scope = %target.scope,
+            team = team,
+            package = %revoke.package,
+            "team package access revoked",
+        );
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)

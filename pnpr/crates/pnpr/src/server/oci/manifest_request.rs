@@ -117,10 +117,25 @@ impl Request {
         )
         .await;
         match outcome {
-            Ok(DocumentUpdate::Written) => no_content(StatusCode::ACCEPTED),
+            Ok(DocumentUpdate::Written) => {
+                self.log_oci_manifest_deleted(name, reference);
+                no_content(StatusCode::ACCEPTED)
+            }
             Ok(_) => error(ErrorCode::ManifestUnknown, "no such manifest or tag"),
             Err(err) => registry_error(err),
         }
+    }
+
+    fn log_oci_manifest_deleted(&self, package: &str, reference: &str) {
+        let actor = self.identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "oci.delete_manifest",
+            actor = %actor,
+            package = %package,
+            reference = %reference,
+            "oci manifest deleted",
+        );
     }
 
     pub(super) async fn manifest_publication(

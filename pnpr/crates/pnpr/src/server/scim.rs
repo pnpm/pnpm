@@ -152,6 +152,14 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
             Ok(directory.store(&username, user.clone()))
         })
         .await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_create",
+            actor = "scim",
+            user = %username,
+            active = created.active,
+            "scim user created",
+        );
         finish_write(&state, &username, &created, StatusCode::CREATED).await
     };
     scim_respond(result.await)
@@ -175,6 +183,14 @@ async fn replace_user(
             Ok(directory.store(&path.id, user.clone()))
         })
         .await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_replace",
+            actor = "scim",
+            user = %path.id,
+            active = replaced.active,
+            "scim user replaced",
+        );
         finish_write(&state, &path.id, &replaced, StatusCode::OK).await
     };
     scim_respond(result.await)
@@ -196,6 +212,14 @@ async fn patch_user(
             Ok(directory.store(&path.id, user))
         })
         .await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_patch",
+            actor = "scim",
+            user = %path.id,
+            active = patched.active,
+            "scim user patched",
+        );
         finish_write(&state, &path.id, &patched, StatusCode::OK).await
     };
     scim_respond(result.await)
@@ -217,6 +241,13 @@ async fn delete_user(
         })
         .await?;
         deprovision(&state, &path.id).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_delete",
+            actor = "scim",
+            user = %path.id,
+            "scim user deleted",
+        );
         Ok(StatusCode::NO_CONTENT.into_response())
     };
     scim_respond(result.await)

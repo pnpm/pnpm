@@ -124,6 +124,15 @@ pub(super) async fn add_user(
             return err.into_response();
         }
     };
+    if matches!(outcome, UpsertOutcome::Created) {
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "user.register",
+            actor = %username,
+            user = %username,
+            "user account registered",
+        );
+    }
     user_upsert_response(outcome, &username, &token)
 }
 
