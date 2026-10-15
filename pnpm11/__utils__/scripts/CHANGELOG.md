@@ -1,5 +1,12 @@
 # @pnpm/scripts
 
+## 1100.0.25
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.projects-reader@1101.1.4
+
 ## 1100.0.24
 
 ### Patch Changes

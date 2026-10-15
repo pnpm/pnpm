@@ -1,5 +1,13 @@
 # pd
 
+## 1100.0.26
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.projects-reader@1101.1.4
+  - @pnpm/workspace.root-finder@1100.1.3
+
 ## 1100.0.25
 
 ### Patch Changes
