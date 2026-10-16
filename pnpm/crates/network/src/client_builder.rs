@@ -280,13 +280,14 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
     default_headers.insert(USER_AGENT, user_agent);
     Client::builder()
         .http1_only()
-        // Request gzip and transparently decompress it. Packuments are the
-        // largest payloads pulled during resolution and registries serve
-        // them gzipped; tarballs are unaffected (no `Content-Encoding`, so
-        // store-integrity verification still sees the raw `.tgz`). Defaults
-        // to on with reqwest's `gzip` feature, but set explicitly so the
-        // intent is visible and survives a change to that default.
+        // Packuments are the largest payloads pulled during resolution, and
+        // zstd shrinks them further than gzip. Tarballs are unaffected (no
+        // `Content-Encoding`, so store-integrity verification still sees the
+        // raw `.tgz`). Both default to on with their reqwest features, but
+        // are set explicitly so the intent is visible and survives a change
+        // to that default.
         .gzip(true)
+        .zstd(true)
         .default_headers(default_headers)
         .connect_timeout(settings.fetch_timeout)
         .read_timeout(settings.fetch_timeout)

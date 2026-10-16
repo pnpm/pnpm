@@ -78,6 +78,16 @@ async fn put_rules(
                 reason: format!("invalid request body: {err}"),
             })?;
         let (rules, version) = replace_rules(&state, registry, changes, expected.as_deref()).await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "rules.replace",
+            actor = %actor,
+            ecosystem = %path.ecosystem,
+            registry = %path.name,
+            version = %version,
+            "package rules replaced",
+        );
         let mut view = rules_view(&rules);
         view["version"] = serde_json::json!(version);
         let response = json_response(StatusCode::OK, &view);
@@ -100,6 +110,15 @@ async fn delete_rules(
         let expected = if_match(&headers)?;
         let (_, version) =
             replace_rules(&state, registry, RuleChanges::default(), expected.as_deref()).await?;
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "rules.delete",
+            actor = %actor,
+            ecosystem = %path.ecosystem,
+            registry = %path.name,
+            "package rules deleted",
+        );
         Ok(versioned(StatusCode::NO_CONTENT.into_response(), &version))
     };
     respond(result.await)

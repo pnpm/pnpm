@@ -152,7 +152,16 @@ async fn create_user(State(state): State<AppState>, _client: ScimClient, body: B
             Ok(directory.store(&username, user.clone()))
         })
         .await?;
-        finish_write(&state, &username, &created, StatusCode::CREATED).await
+        let response = finish_write(&state, &username, &created, StatusCode::CREATED).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_create",
+            actor = "scim",
+            user = %username,
+            active = created.active,
+            "scim user created",
+        );
+        Ok(response)
     };
     scim_respond(result.await)
 }
@@ -175,7 +184,16 @@ async fn replace_user(
             Ok(directory.store(&path.id, user.clone()))
         })
         .await?;
-        finish_write(&state, &path.id, &replaced, StatusCode::OK).await
+        let response = finish_write(&state, &path.id, &replaced, StatusCode::OK).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_replace",
+            actor = "scim",
+            user = %path.id,
+            active = replaced.active,
+            "scim user replaced",
+        );
+        Ok(response)
     };
     scim_respond(result.await)
 }
@@ -196,7 +214,16 @@ async fn patch_user(
             Ok(directory.store(&path.id, user))
         })
         .await?;
-        finish_write(&state, &path.id, &patched, StatusCode::OK).await
+        let response = finish_write(&state, &path.id, &patched, StatusCode::OK).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_patch",
+            actor = "scim",
+            user = %path.id,
+            active = patched.active,
+            "scim user patched",
+        );
+        Ok(response)
     };
     scim_respond(result.await)
 }
@@ -217,6 +244,13 @@ async fn delete_user(
         })
         .await?;
         deprovision(&state, &path.id).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "scim.user_delete",
+            actor = "scim",
+            user = %path.id,
+            "scim user deleted",
+        );
         Ok(StatusCode::NO_CONTENT.into_response())
     };
     scim_respond(result.await)

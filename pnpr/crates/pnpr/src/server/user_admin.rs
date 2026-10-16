@@ -4,7 +4,7 @@
 use super::{
     AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, json,
     json_response, private_no_cache, require_admin, team_mutations::respond,
-    user_accounts::token_response_object,
+    tokens::token_response_object,
 };
 use crate::{PasswordChange, UserCreation, UserRemoval};
 use axum::{
@@ -81,16 +81,22 @@ async fn put_user(
             // Tokens a removed account left behind must not reach the new one.
             revoke_all_tokens(&state, &path.user).await?;
         }
-        let status = match users.create_user(&path.user, &password).await? {
-            UserCreation::Created => StatusCode::CREATED,
-            UserCreation::NameTaken => {
-                match users.set_password(&path.user, &password).await? {
-                    PasswordChange::Changed => StatusCode::OK,
-                    // Another request removed the user between the two calls.
-                    PasswordChange::NoSuchUser => return Err(RegistryError::NotFound),
-                }
-            }
+        let (status, action) = match users.create_user(&path.user, &password).await? {
+            UserCreation::Created => (StatusCode::CREATED, "user.create"),
+            UserCreation::NameTaken => match users.set_password(&path.user, &password).await? {
+                PasswordChange::Changed => (StatusCode::OK, "user.password_update"),
+                // Another request removed the user between the two calls.
+                PasswordChange::NoSuchUser => return Err(RegistryError::NotFound),
+            },
         };
+        let actor = identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action,
+            actor = %actor,
+            user = %path.user,
+            "admin action performed on user",
+        );
         Ok(json_response(status, &json!({ "name": path.user })))
     };
     respond(result.await)
@@ -115,6 +121,16 @@ async fn delete_user(
         if removed == UserRemoval::NoSuchUser && revoked_before + revoked_after == 0 {
             return Err(RegistryError::NotFound);
         }
+        let actor = identity.username().unwrap_or("-");
+        let revoked_total = revoked_before + revoked_after;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "user.delete",
+            actor = %actor,
+            user = %path.user,
+            tokens_revoked = revoked_total,
+            "admin user deleted",
+        );
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)
@@ -165,6 +181,15 @@ async fn revoke_user_token(
         match tokens.find_by_key(&path.key).await? {
             Some(record) if record.username == path.user => {
                 tokens.revoke_by_key(&path.key).await?;
+                let actor = identity.username().unwrap_or("-");
+                tracing::info!(
+                    target: "pnpr::audit",
+                    action = "user.token_revoke",
+                    actor = %actor,
+                    user = %path.user,
+                    token_key = %path.key,
+                    "admin user token revoked",
+                );
                 Ok(StatusCode::NO_CONTENT)
             }
             _ => Err(RegistryError::NotFound),

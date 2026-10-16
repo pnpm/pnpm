@@ -73,11 +73,11 @@ use request_access::{
     revision_source_registry, single_authorization_header, upstream_cache_namespace,
 };
 
+mod restrictions;
+mod tokens;
 mod user_accounts;
-use user_accounts::{
-    delete_session_token, delete_token_by_key, get_profile, get_token_list, get_whoami, put_login,
-};
 
+mod attestations;
 mod authentication;
 mod batch;
 mod cargo;

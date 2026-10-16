@@ -724,6 +724,42 @@ Every request emits an access log record under the tracing target `pnpr::access`
 - `latency_ms`: request round-trip processing duration in milliseconds.
 - `bytes`: response body size in bytes, derived from `Content-Length` (0 for chunked or streamed responses without length headers).
 
+### Admin audit logs
+
+Administrative and destructive operations emit structured audit records under the tracing target `pnpr::audit` at `info` level. When structured logging is enabled (`format: json`), these events output as JSON objects that inherit the active request span context, including `request_id`, `client_ip`, `method`, and `uri`. The `pnpr::audit=info` directive is included across all configured log levels so audit events are retained by default. Operators can filter or silence them via `RUST_LOG` (for example, `RUST_LOG=pnpr::audit=off`).
+
+Audit events record the `action`, the `actor` (the authenticated username, `"scim"` for SCIM actions, or `"-"` when unauthenticated), and operation-specific attributes:
+
+- **User management**:
+  - `user.create`: creating an account (`actor`, `user`).
+  - `user.password_update`: changing an account password (`actor`, `user`).
+  - `user.token_revoke`: revoking user tokens (`actor`, `user`, `token_key`).
+  - `user.delete`: deleting an account (`actor`, `user`, `tokens_revoked`).
+  - `user.register`: self-registering a new account (`actor`, `user`).
+- **Rule overrides**:
+  - `rules.replace`: replacing dynamic package access rules (`actor`, `registry`, `ecosystem`, `version`).
+  - `rules.delete`: removing dynamic package access rules (`actor`, `registry`).
+- **Team administration and package access**:
+  - `team.create`: creating a team (`actor`, `scope`, `team`).
+  - `team.destroy`: deleting a team (`actor`, `scope`, `team`).
+  - `team.member_add`: adding a user to a team (`actor`, `scope`, `team`, `user`).
+  - `team.member_remove`: removing a user from a team (`actor`, `scope`, `team`, `user`).
+  - `team.access_grant`: granting package permissions to a team (`actor`, `scope`, `team`, `package`, `permissions`).
+  - `team.access_revoke`: revoking package permissions from a team (`actor`, `scope`, `team`, `package`).
+- **SCIM provisioning**:
+  - `scim.user_create`: provisioning a SCIM user (`actor`, `user`, `active`).
+  - `scim.user_replace`: replacing SCIM user attributes (`actor`, `user`, `active`).
+  - `scim.user_patch`: updating SCIM user status (`actor`, `user`, `active`).
+  - `scim.user_delete`: deprovisioning a SCIM user (`actor`, `user`).
+- **Package unpublishing and mutations**:
+  - `package.unpublish`: unpublishing an entire package (`actor`, `package`, `registry`).
+  - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
+  - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).
+  - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`, `registry`).
+  - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`, `registry`).
+  - `oci.delete_blob`: deleting an OCI blob (`actor`, `repository`, `digest`).
+  - `oci.delete_manifest`: deleting an OCI manifest (`actor`, `repository`, `reference`).
+
 ### Prometheus metrics
 
 pnpr serves Prometheus metrics at `GET /-/metrics` (and `GET /metrics` for scrapers) in standard Prometheus text format (`text/plain; version=0.0.4`). Requests to `GET /metrics` carrying npm packument `Accept` headers receive the `metrics` package packument instead. Like health endpoints (`/-/ping`, `/-/ready`, `/-/live`), the metrics endpoints are intentionally unauthenticated to support telemetry scrapers:

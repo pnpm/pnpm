@@ -15,6 +15,7 @@ mod storage;
 #[path = "common/tokens.rs"]
 mod tokens;
 
+mod admin_audit_log;
 mod auth_persistence;
 mod auth_publish;
 mod auth_user_endpoints;
@@ -27,6 +28,7 @@ mod journal_recovery;
 mod multi_replica;
 mod oci_registry;
 mod policy;
+mod provenance;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
@@ -37,4 +39,5 @@ mod server;
 mod staged_publish;
 mod team_administration;
 mod team_package_access;
+mod token_management;
 mod user_administration;

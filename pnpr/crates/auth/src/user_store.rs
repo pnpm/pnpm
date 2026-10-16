@@ -1,8 +1,9 @@
 use super::{
     DEFAULT_BCRYPT_COST, PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd, validate_username,
+    UserRemoval, dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd,
     verify_returning_user, write_atomic,
 };
+use crate::validation::validate_username;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;

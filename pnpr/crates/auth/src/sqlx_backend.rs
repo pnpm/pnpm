@@ -8,11 +8,12 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, sha256_hex,
+    DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, sha256_hex,
     token_store::{mint_token, unix_seconds},
-    validate_username, verify_returning_user, with_auth_timeout,
+    verify_returning_user, with_auth_timeout,
 };
+use crate::validation::validate_username;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
@@ -104,9 +105,9 @@ trait AuthSqlBackend: Send + Sync {
         max_users: MaxUsers,
     ) -> Result<InsertUser>;
     async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()>;
-    /// The owner of a token whose owner is a stored user. See
-    /// [`TokenBackend::lookup`].
-    async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>>;
+    async fn touch_token(&self, _token_hash: &str, _now: u64) -> Result<()> {
+        Ok(())
+    }
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
     /// [`Self::find_token`] for a token whose owner is a stored user. The
     /// databases answer it in one joined query; this default takes two.
@@ -222,7 +223,11 @@ impl<Db> TokenBackend for SqlAuth<Db>
 where
     Db: AuthSqlBackend,
 {
-    async fn issue(&self, username: &str) -> Result<String> {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
@@ -231,21 +236,42 @@ where
             username: username.to_string(),
             created_at: now,
             last_used_at: now,
-            readonly: false,
-            cidr_whitelist: Vec::new(),
+            readonly: new_token.readonly,
+            cidr_whitelist: new_token.cidr_whitelist,
+            name: new_token.name,
+            expires_at: new_token.expires_at,
         };
         self.db.insert_token(&token_hash, &record).await?;
+        Ok((raw, record))
+    }
+
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
         Ok(raw)
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        with_auth_timeout(self.timeout, self.db.touch_token(key, now)).await
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
+        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
+        let now = unix_seconds();
+        match record {
+            Some(r) if !r.expires_at.is_some_and(|exp| exp <= now) => Ok(Some(r.username)),
+            _ => Ok(None),
+        }
     }
 
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await
+        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
+        let now = unix_seconds();
+        match record {
+            Some(r) if !r.expires_at.is_some_and(|exp| exp <= now) => Ok(Some(r)),
+            _ => Ok(None),
+        }
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {

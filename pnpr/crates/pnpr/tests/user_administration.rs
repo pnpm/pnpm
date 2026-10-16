@@ -234,6 +234,14 @@ struct FailingRevocation(TokenStore);
 
 #[async_trait::async_trait]
 impl TokenBackend for FailingRevocation {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: pnpr_auth::NewToken,
+    ) -> pnpr::Result<(String, TokenRecord)> {
+        self.0.issue_token(username, new_token).await
+    }
+
     async fn issue(&self, username: &str) -> pnpr::Result<String> {
         self.0.issue(username).await
     }

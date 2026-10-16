@@ -39,12 +39,27 @@ impl Request {
                 let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
                     continue;
                 };
+                if response.status().is_success() {
+                    self.log_oci_blob_deleted(&key, digest);
+                }
                 return Ok(response);
             }
             Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() })
         }
         .await;
         result.unwrap_or_else(registry_error)
+    }
+
+    fn log_oci_blob_deleted(&self, repository: &CanonicalPackageName, digest: &Digest) {
+        let actor = self.identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "oci.delete_blob",
+            actor = %actor,
+            repository = %repository.as_str(),
+            digest = %digest,
+            "oci blob deleted",
+        );
     }
 
     async fn ensure_blob_unreferenced(

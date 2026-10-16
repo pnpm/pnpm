@@ -1,7 +1,5 @@
 use super::{
-    super::{
-        PasswordChange, TokenRecord, UserRemoval, token_timestamp_from_sql, token_timestamp_to_sql,
-    },
+    super::{PasswordChange, TokenRecord, UserRemoval},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
     timeout_millis, with_auth_timeout,
 };
@@ -15,6 +13,8 @@ use std::time::Duration;
 pub(crate) struct PostgresDatabase {
     pool: PgPool,
 }
+
+mod tokens;
 
 pub(crate) type PostgresAuth = SqlAuth<PostgresDatabase>;
 
@@ -131,78 +131,27 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
-        let cidr_json = serde_json::to_string(&record.cidr_whitelist)
-            .expect("Vec<String> always serializes to JSON");
-        sqlx::query(
-            "INSERT INTO tokens
-                (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-             VALUES ($1, $2, $3, $4, $5, $6)",
-        )
-        .bind(token_hash)
-        .bind(&record.username)
-        .bind(token_timestamp_to_sql(record.created_at))
-        .bind(token_timestamp_to_sql(record.last_used_at))
-        .bind(i16::from(record.readonly))
-        .bind(cidr_json)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+        self.insert_token_impl(token_hash, record).await
     }
 
-    async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>> {
-        let row = sqlx::query(
-            "SELECT t.username FROM tokens t JOIN users u ON u.username = t.username
-             WHERE t.token_hash = $1",
-        )
-        .bind(token_hash)
-        .fetch_optional(&self.pool)
-        .await?;
-        row.map(|row| row.try_get(0))
-            .transpose()
-            .map_err(RegistryError::from)
+    async fn touch_token(&self, token_hash: &str, now: u64) -> Result<()> {
+        self.touch_token_impl(token_hash, now).await
     }
 
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
-        let row = sqlx::query(
-            "SELECT username, created_at, last_used_at, readonly, cidr_whitelist
-             FROM tokens WHERE token_hash = $1",
-        )
-        .bind(token_hash)
-        .fetch_optional(&self.pool)
-        .await?;
-        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+        self.find_token_impl(token_hash).await
     }
 
     async fn find_owned_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
-        let row = sqlx::query(
-            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist
-             FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = $1",
-        )
-        .bind(token_hash)
-        .fetch_optional(&self.pool)
-        .await?;
-        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+        self.find_owned_token_impl(token_hash).await
     }
 
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let rows = sqlx::query(
-            "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
-             FROM tokens WHERE username = $1",
-        )
-        .bind(username)
-        .fetch_all(&self.pool)
-        .await?;
-        rows.into_iter()
-            .map(|row| keyed_token_record_from_row(&row))
-            .collect()
+        self.list_tokens_impl(username).await
     }
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
-        sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
-            .bind(token_hash)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+        self.delete_token_impl(token_hash).await
     }
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
@@ -255,6 +204,12 @@ impl PostgresDatabase {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
         sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
         sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool).await?;
+        sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS expires_at BIGINT")
+            .execute(&self.pool)
+            .await?;
         sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
         self.ensure_user_counter().await
     }
@@ -339,36 +294,6 @@ impl PostgresDatabase {
             None => Ok(InsertUser::CapReached),
         }
     }
-}
-
-fn keyed_token_record_from_row(row: &sqlx::postgres::PgRow) -> Result<(String, TokenRecord)> {
-    let token_hash: String = row.try_get(0)?;
-    let record = token_record_from_offset(row, 1, &token_hash)?;
-    Ok((token_hash, record))
-}
-
-fn token_record_from_row(row: &sqlx::postgres::PgRow, token_hash: &str) -> Result<TokenRecord> {
-    token_record_from_offset(row, 0, token_hash)
-}
-
-fn token_record_from_offset(
-    row: &sqlx::postgres::PgRow,
-    offset: usize,
-    token_hash: &str,
-) -> Result<TokenRecord> {
-    let cidr_json: String = row.try_get(offset + 4)?;
-    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
-        })?;
-    let readonly: i16 = row.try_get(offset + 3)?;
-    Ok(TokenRecord {
-        username: row.try_get(offset)?,
-        created_at: token_timestamp_from_sql(row.try_get(offset + 1)?),
-        last_used_at: token_timestamp_from_sql(row.try_get(offset + 2)?),
-        readonly: readonly != 0,
-        cidr_whitelist,
-    })
 }
 
 fn is_unique_violation(err: &sqlx::Error) -> bool {

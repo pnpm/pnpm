@@ -1,7 +1,9 @@
 use super::{
-    MAX_USERNAME_CHARS, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore,
-    UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore, identify, parse_htpasswd,
-    sha256_hex, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
+    NewToken, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, UserStore, identify, parse_htpasswd, sha256_hex,
+};
+use crate::validation::{
+    MAX_USERNAME_CHARS, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
 };
 use pnpr_config::MaxUsers;
 use std::sync::Arc;
@@ -324,6 +326,8 @@ async fn lookup_record_surfaces_token_restrictions() {
                 last_used_at: 1,
                 readonly: true,
                 cidr_whitelist: vec!["203.0.113.0/24".to_string()],
+                name: None,
+                expires_at: None,
             },
         );
 
@@ -382,11 +386,113 @@ async fn tokens_persist_across_reopen() {
 }
 
 #[tokio::test]
+async fn tokens_issue_with_options_persists_and_expires() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+
+    let store = TokenStore::open(path.clone()).unwrap();
+    let (raw, record) = store
+        .issue_token(
+            "alice",
+            NewToken {
+                readonly: true,
+                cidr_whitelist: vec!["127.0.0.1/32".to_string()],
+                name: Some("ci-token".to_string()),
+                expires_at: Some(2_000_000_000),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(record.username, "alice");
+    assert!(record.readonly);
+    assert_eq!(record.name.as_deref(), Some("ci-token"));
+    assert_eq!(record.expires_at, Some(2_000_000_000));
+    drop(store);
+
+    let reopened = TokenStore::open(path.clone()).unwrap();
+    let looked_up = reopened
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(looked_up.username, "alice");
+    assert!(looked_up.readonly);
+    assert_eq!(looked_up.cidr_whitelist, vec!["127.0.0.1/32".to_string()]);
+    assert_eq!(looked_up.name.as_deref(), Some("ci-token"));
+    assert_eq!(looked_up.expires_at, Some(2_000_000_000));
+}
+
+#[tokio::test]
+async fn tokens_expired_do_not_authenticate() {
+    let store = TokenStore::in_memory();
+    let (raw, _) = store
+        .issue_token(
+            "alice",
+            NewToken {
+                readonly: false,
+                cidr_whitelist: Vec::new(),
+                name: None,
+                expires_at: Some(1),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        store
+            .lookup(&raw)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        store
+            .lookup_record(&raw)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn tokens_touch_updates_last_used_at() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let store = TokenStore::open(path.clone()).unwrap();
+    let raw = store.issue("alice").await.unwrap();
+    let record_before = store
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+
+    store
+        .touch(&raw, record_before.last_used_at + 100)
+        .await
+        .unwrap();
+    let record_after = store
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record_after.last_used_at, record_before.last_used_at + 100);
+
+    drop(store);
+    let reopened = TokenStore::open(path).unwrap();
+    let record_reopened = reopened
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record_reopened.last_used_at, record_before.last_used_at + 100);
+}
+
+#[tokio::test]
 async fn tokens_clamp_negative_persisted_timestamps() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
-    super::token_store::init_tokens_schema(&conn).unwrap();
+    crate::token_store::sqlite::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
@@ -499,7 +605,7 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
-    super::token_store::init_tokens_schema(&conn).unwrap();
+    crate::token_store::sqlite::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)

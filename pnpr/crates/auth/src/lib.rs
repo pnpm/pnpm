@@ -27,14 +27,14 @@
 //! doesn't grant access on its own.
 
 pub mod oidc;
+pub(crate) mod validation;
 
 pub use htpasswd::verify_bcrypt;
+pub use identify::identify;
 pub use owned_tokens::OwnedTokens;
-pub use token_store::{TokenRecord, TokenStore};
+pub use token_store::{NewToken, TokenRecord, TokenStore};
 pub use user_store::UserStore;
-
-/// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
-pub const MAX_PASSWORD_BYTES: usize = 71;
+pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
 use htpasswd::{
@@ -43,8 +43,9 @@ use htpasswd::{
 };
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex};
+use token_store::{fresh_secret, sha256_hex, unix_seconds};
 
+mod identify;
 mod owned_tokens;
 mod user_store;
 
@@ -91,50 +92,6 @@ where
         Ok(result) => result.map_err(RegistryError::from),
         Err(_) => Err(RegistryError::AuthDatabaseTimeout),
     }
-}
-
-pub(crate) const MAX_USERNAME_CHARS: usize = 255;
-
-pub(crate) fn validate_username(username: &str) -> Result<()> {
-    if username.is_empty() {
-        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
-    }
-    if username.chars().count() > MAX_USERNAME_CHARS {
-        return Err(RegistryError::BadRequest {
-            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-        });
-    }
-    let reason = rejected_username_reason(username);
-    match reason {
-        Some(reason) => Err(RegistryError::BadRequest { reason: reason.to_string() }),
-        None => Ok(()),
-    }
-}
-
-/// Why a username of an acceptable length is still not one pnpr will store.
-fn rejected_username_reason(username: &str) -> Option<&'static str> {
-    let trimmed = username.trim_matches(char::is_whitespace);
-    if trimmed.len() != username.len() {
-        return Some("username must not start or end with whitespace");
-    }
-    if username.starts_with('#') {
-        return Some("username must not start with '#'");
-    }
-    if username.contains(':') {
-        return Some("username must not contain ':'");
-    }
-    if username.chars().any(char::is_control) {
-        return Some("username must not contain control characters");
-    }
-    None
-}
-
-pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
-    timestamp.max(0) as u64
-}
-
-pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
-    i64::try_from(timestamp).unwrap_or(i64::MAX)
 }
 
 /// Bundle of the user store and the token store, each a trait object
@@ -328,24 +285,50 @@ pub trait TokenBackend: Send + Sync {
         Ok(())
     }
 
-    /// Mint a fresh token for `username`, persist its hash, and return
+    /// Mint a fresh token for `username` with custom settings, persist its hash,
+    /// and return the raw token and the stored record.
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)>;
+
+    /// Mint a default read-write token for `username`, persist its hash, and return
     /// the raw token. The raw token is never stored.
-    async fn issue(&self, username: &str) -> Result<String>;
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+        Ok(raw)
+    }
 
     /// Resolve a raw token back to its username. `Ok(None)` means the
-    /// token was never issued (or was revoked); `Err` means the backing
+    /// token was never issued, was revoked, or expired; `Err` means the backing
     /// store failed — never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
     /// Resolve a raw token to its full record — the username plus the
-    /// `readonly` / `cidr_whitelist` restrictions that [`Self::lookup`]
-    /// drops. The request-time restriction gate needs those, so it goes
-    /// through here. `Ok(None)` for a token that was never issued (or was
-    /// revoked); `Err` only for a backing-store failure, never conflated
-    /// with "no such token".
+    /// `readonly`, `cidr_whitelist`, and `expires_at` restrictions that
+    /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
+    /// issued, was revoked, or expired.
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        self.find_by_key(&sha256_hex(raw.as_bytes())).await
+        let now = unix_seconds();
+        let record = self.find_by_key(&sha256_hex(raw.as_bytes())).await?;
+        if let Some(ref r) = record
+            && r.expires_at.is_some_and(|exp| exp <= now)
+        {
+            return Ok(None);
+        }
+        Ok(record)
+    }
+
+    /// Update the last-used timestamp of the token identified by `key`.
+    async fn touch_key(&self, _key: &str, _now: u64) -> Result<()> {
+        Ok(())
+    }
+
+    /// Update the last-used timestamp of the token by raw bearer token value.
+    async fn touch(&self, raw: &str, now: u64) -> Result<()> {
+        self.touch_key(&sha256_hex(raw.as_bytes()), now).await
     }
 
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
@@ -410,39 +393,6 @@ pub enum UserRemoval {
     Removed,
     /// There was no such account.
     NoSuchUser,
-}
-
-/// Identify the caller behind an HTTP request. Inspects the
-/// `Authorization` header and resolves it to a username via the token
-/// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
-/// credentials on requests.
-///
-/// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
-/// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
-/// all parse the same.
-/// `Ok(None)` covers every "no usable credentials" case — a missing or
-/// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
-/// token that simply doesn't match. `Err` is reserved for a failure of the
-/// backing store (e.g. the networked auth DB is unreachable) so the caller
-/// can return a 5xx instead of a misleading 401.
-pub async fn identify(
-    header_value: Option<&str>,
-    tokens: &dyn TokenBackend,
-) -> Result<Option<String>> {
-    let Some(value) = header_value.map(str::trim) else {
-        return Ok(None);
-    };
-    let mut parts = value.splitn(2, ' ');
-    let Some(scheme) = parts.next() else {
-        return Ok(None);
-    };
-    let Some(credentials) = parts.next().map(str::trim) else {
-        return Ok(None);
-    };
-    if scheme.eq_ignore_ascii_case("Bearer") {
-        return tokens.lookup(credentials).await;
-    }
-    Ok(None)
 }
 
 /// `users` table DDL — only shared-database backends need it, since

@@ -2,10 +2,17 @@ use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentForUpdate,
     HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
     PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
-    cleanup_tmp_slots, create_hex_hash, extract_attachments, hosted_storage,
-    integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
-    stream_decode_verify_and_write,
+    cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
+    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
+    stream_decode_verify_and_write, write_sigstore_bundle,
 };
+
+/// What kind of payload an attachment carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum AttachmentKind {
+    Tarball,
+    Sigstore,
+}
 
 /// A publish document that passed every check that can run before
 /// taking the package lock: the caller may publish the package, and
@@ -31,6 +38,7 @@ pub(in super::super) struct PreparedAttachment {
     pub(in super::super) version: String,
     /// The matching `dist` block, or `Value::Null` when absent.
     pub(in super::super) dist: Value,
+    pub(in super::super) kind: AttachmentKind,
 }
 
 pub(in super::super) async fn validate_publish_doc(
@@ -40,10 +48,7 @@ pub(in super::super) async fn validate_publish_doc(
     name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
-    // Route the write to its hosted registry first (masking a denied caller
-    // as not-found, rejecting an upstream target), then check that
-    // registry's `publish` rule for this package — so routing failures
-    // surface before any 401/403 that would reveal a masked name exists.
+    // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
     authorize(
         state,
@@ -56,26 +61,65 @@ pub(in super::super) async fn validate_publish_doc(
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
 
-    // Resolve each attachment's canonical disk filename + matching
-    // `versions[v].dist` block. Attachment names that don't match the
-    // package (`bar-1.0.0.tgz` for `foo`) or that try to escape the
-    // package dir (`../../etc/passwd.tgz`) are rejected here, before
-    // any I/O. The canonical name is what we actually persist — for
-    // scoped libnpmpublish bodies the wire form is `@scope/name-version.tgz`
-    // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
-    // matching what `serve_tarball` expects.
-    let mut prepared: Vec<PreparedAttachment> = Vec::with_capacity(attachments.len());
+    // Validate attachment filenames against the package and parse their
+    // canonical storage filename, matching version, and payload kind.
+    let prepared = prepare_attachments(&name, &incoming, attachments)?;
+    Ok((ValidatedPublish { name, incoming, prepared }, target))
+}
+
+fn prepare_attachments(
+    name: &CanonicalPackageName,
+    incoming: &Value,
+    attachments: Vec<PendingAttachment>,
+) -> Result<Vec<PreparedAttachment>, RegistryError> {
+    let mut prepared = Vec::with_capacity(attachments.len());
+    let mut seen_canonical = HashSet::with_capacity(attachments.len());
+    let mut tarball_versions = HashSet::new();
+
     for attachment in attachments {
-        let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
+        let (canonical, version, kind) = parse_attachment_kind(name, &attachment.filename)?;
+        if !seen_canonical.insert(canonical.clone()) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("duplicate attachment for {canonical}"),
+            });
+        }
+        if kind == AttachmentKind::Tarball {
+            tarball_versions.insert(version.clone());
+        }
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist, kind });
     }
-    Ok((ValidatedPublish { name, incoming, prepared }, target))
+    for att in &prepared {
+        if att.kind == AttachmentKind::Sigstore && !tarball_versions.contains(&att.version) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("sigstore attachment for {} has no tarball", att.version),
+            });
+        }
+    }
+    Ok(prepared)
+}
+
+fn parse_attachment_kind(
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<(String, String, AttachmentKind), RegistryError> {
+    if filename.ends_with(".tgz") {
+        let (canonical, version) = name.parse_tarball_name(filename)?;
+        Ok((canonical, version, AttachmentKind::Tarball))
+    } else if filename.ends_with(".sigstore") || filename.ends_with(".sigstore.json") {
+        let (canonical, version) = name.parse_sigstore_name(filename)?;
+        Ok((canonical, version, AttachmentKind::Sigstore))
+    } else {
+        Err(RegistryError::InvalidTarballName {
+            package: name.as_str().to_string(),
+            filename: filename.to_string(),
+        })
+    }
 }
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
@@ -134,10 +178,12 @@ pub(in super::super) async fn stage_publish(
 
     // A hosted registry has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
-    let merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    let mut merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    attach_sigstore_attestations(&mut merged, &name, &prepared);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     let original_refs = prepared
         .iter()
+        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
         .filter_map(|attachment| staged_hosted_original_ref(&name, attachment))
         .collect();
     // `incoming` is no longer needed; drop it so the base64 strings
@@ -159,6 +205,33 @@ pub(in super::super) async fn stage_publish(
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
+}
+
+fn attach_sigstore_attestations(
+    merged: &mut Value,
+    name: &CanonicalPackageName,
+    prepared: &[PreparedAttachment],
+) {
+    for attachment in prepared
+        .iter()
+        .filter(|att| att.kind == AttachmentKind::Sigstore)
+    {
+        if let Some(dist) = merged
+            .get_mut("versions")
+            .and_then(|v| v.get_mut(&attachment.version))
+            .and_then(|m| m.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+        {
+            let predicate_type = extract_predicate_type(&attachment.attachment.data);
+            dist.insert(
+                "attestations".to_string(),
+                json!({
+                    "url": format!("/-/npm/v1/attestations/{}@{}", name.as_str(), attachment.version),
+                    "provenance": { "predicateType": predicate_type },
+                }),
+            );
+        }
+    }
 }
 
 /// The stored packument, parsed, with the version its update must be based
@@ -200,28 +273,14 @@ pub(super) async fn write_attachment_slot(
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
-    let PreparedAttachment {
-        attachment,
-        canonical,
-        version: _,
-        dist,
-    } = prepared;
-    let slot = storage.reserve_hosted_blob(name, &canonical).await?;
-    let PendingAttachment { filename, data, declared_length } = attachment;
+    let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
-    let dist_for_task = (!dist.is_null()).then_some(dist);
     let result = tokio::task::spawn_blocking(move || {
-        stream_decode_verify_and_write(
-            &filename,
-            &data,
-            declared_length,
-            dist_for_task.as_ref(),
-            &tmp_path,
-        )
+        decode_and_write_attachment(&prepared.attachment, prepared.kind, &prepared.dist, &tmp_path)
     })
     .await;
     match result {
-        Ok(Ok(_)) => Ok(slot),
+        Ok(Ok(())) => Ok(slot),
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
@@ -230,19 +289,40 @@ pub(super) async fn write_attachment_slot(
     }
 }
 
+fn decode_and_write_attachment(
+    attachment: &PendingAttachment,
+    kind: AttachmentKind,
+    dist: &Value,
+    tmp_path: &std::path::Path,
+) -> Result<(), RegistryError> {
+    let dist_ref = (!dist.is_null()).then_some(dist);
+    match kind {
+        AttachmentKind::Tarball => {
+            stream_decode_verify_and_write(
+                &attachment.filename,
+                &attachment.data,
+                attachment.declared_length,
+                dist_ref,
+                tmp_path,
+            )?;
+        }
+        AttachmentKind::Sigstore => {
+            write_sigstore_bundle(
+                &attachment.filename,
+                &attachment.data,
+                attachment.declared_length,
+                tmp_path,
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// Validate each incoming version against the locally hosted packument. A
 /// hosted packument is served as-is, so anything not in it is genuinely new
-/// here, even if it exists upstream.
-///
-/// * Already hosted — published content is immutable, so a *content*
-///   re-publish is refused with 409 (as npm/verdaccio do): one that carries a
-///   new tarball (an attachment) or changes `dist.integrity` (the content
-///   anchor; the `tarball` URL is rewritten on read, so it is not compared).
-///   A clash that does neither is a metadata-only update (`pnpm deprecate`),
-///   which is allowed — `merge_versions` keeps the hosted `dist`.
-/// * New — it must ship a tarball. A version entry with no attachment would be
-///   advertised with no hosted tarball (installs 404) and would block a later
-///   real publish of it (409), so it is refused with 400.
+/// Validate versions against existing hosted versions. Published content is
+/// immutable, so re-publishes with modified tarballs or integrity are rejected.
+/// New versions must provide a tarball.
 pub(super) fn check_publishable_versions(
     name: &CanonicalPackageName,
     incoming: &Value,
@@ -251,6 +331,7 @@ pub(super) fn check_publishable_versions(
 ) -> Result<(), RegistryError> {
     let attachment_versions: HashSet<&str> = prepared
         .iter()
+        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
         .map(|attachment| attachment.version.as_str())
         .collect();
     let hosted_versions = hosted

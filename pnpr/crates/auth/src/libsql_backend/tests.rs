@@ -2,8 +2,9 @@ use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
     UserBackend, UserCreation, UserRemoval, params, retry_database_conflicts,
     schema::{ensure_user_counter, is_transaction_conflict},
-    sha256_hex, with_auth_timeout,
+    with_auth_timeout,
 };
+use crate::token_store::sha256_hex;
 
 /// In-memory libsql database, exercising the same driver and SQL the
 /// networked backend uses without a server.

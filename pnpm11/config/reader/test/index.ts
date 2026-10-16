@@ -181,6 +181,21 @@ test('nodeVersion is read from the PNPM_CONFIG_NODE_VERSION environment variable
   expect(config.nodeVersion).toBe('20.0.0')
 })
 
+test('an invalid URL in PNPM_CONFIG_REGISTRY is ignored', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_REGISTRY: 'not a url',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+})
+
 test('nodeVersion from PNPM_CONFIG_NODE_VERSION takes priority over devEngines.runtime', async () => {
   prepare({
     devEngines: {

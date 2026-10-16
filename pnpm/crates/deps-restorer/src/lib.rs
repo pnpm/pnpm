@@ -100,6 +100,7 @@ pub use virtual_store_layout::*;
 mod custom_fetcher;
 mod gvs_slot_lock;
 mod installed_hoisted_state;
+mod link_pool;
 mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";

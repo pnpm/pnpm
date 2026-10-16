@@ -365,3 +365,49 @@ async fn post_audit_maps_404_to_not_found() {
     assert!(matches!(outcome, FetchOutcome::NotFound));
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn get_attestations_forwards_request_and_handles_404() {
+    let mut server = mockito::Server::new_async().await;
+    let mock_ok = server
+        .mock("GET", "/-/npm/v1/attestations/foo@1.0.0")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"attestations":[]}"#)
+        .expect(1)
+        .create_async()
+        .await;
+    let mock_404 = server
+        .mock("GET", "/-/npm/v1/attestations/bar@1.0.0")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = upstream(server.url(), HeaderMap::new());
+    let ok = upstream.get_attestations("foo@1.0.0").await.unwrap();
+    assert!(matches!(ok, FetchOutcome::Ok(bytes) if bytes == br#"{"attestations":[]}"#));
+    mock_ok.assert_async().await;
+
+    let not_found = upstream.get_attestations("bar@1.0.0").await.unwrap();
+    assert!(matches!(not_found, FetchOutcome::NotFound));
+    mock_404.assert_async().await;
+}
+
+#[tokio::test]
+async fn get_keys_forwards_request() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/-/npm/v1/keys")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"keys":[]}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = upstream(server.url(), HeaderMap::new());
+    let res = upstream.get_keys().await.unwrap();
+    assert!(matches!(res, FetchOutcome::Ok(bytes) if bytes == br#"{"keys":[]}"#));
+    mock.assert_async().await;
+}

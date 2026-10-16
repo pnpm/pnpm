@@ -166,7 +166,7 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
     let groups = group_slots_by_dir(opts.slots, opts.link.layout);
     let link_work =
         || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
-    crate::block_in_place_if_multi_thread(link_work)?;
+    crate::block_in_place_if_multi_thread(|| crate::link_pool::in_link_pool(link_work))?;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "link_slots",

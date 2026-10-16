@@ -1,8 +1,12 @@
+pub(super) mod sqlite;
+
+pub(super) use sqlite::{TOKENS_INDEX_SQL, TOKENS_TABLE_SQL};
+
 use super::{
     AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
-    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait, token_timestamp_from_sql,
-    token_timestamp_to_sql,
+    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
 };
+use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
 use std::fmt::Write as _;
 
 /// SHA-256-hashed (`token_hash` → username) map, optionally backed by
@@ -72,6 +76,14 @@ impl TokenInner {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct NewToken {
+    pub readonly: bool,
+    pub cidr_whitelist: Vec<String>,
+    pub name: Option<String>,
+    pub expires_at: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct TokenRecord {
     pub username: String,
@@ -79,6 +91,8 @@ pub struct TokenRecord {
     pub last_used_at: u64,
     pub readonly: bool,
     pub cidr_whitelist: Vec<String>,
+    pub name: Option<String>,
+    pub expires_at: Option<u64>,
 }
 
 impl TokenStore {
@@ -124,47 +138,65 @@ impl TokenStore {
             counter: AtomicU64::new(0),
         })
     }
+
+    async fn persist_issued(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
+        let Some(path) = self.persist.clone() else {
+            return Ok(());
+        };
+        let hash_for_db = token_hash.to_string();
+        let record_for_db = record.clone();
+        let result = tokio::task::spawn_blocking(move || -> Result<()> {
+            let conn = Connection::open(&path)?;
+            insert_token(&conn, &hash_for_db, &record_for_db)?;
+            Ok(())
+        })
+        .await;
+        match result {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => {
+                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                inner.remove(token_hash);
+                Err(err)
+            }
+            Err(err) => {
+                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                inner.remove(token_hash);
+                Err(err.into())
+            }
+        }
+    }
 }
 
 #[async_trait]
 impl TokenBackend for TokenStore {
-    async fn issue(&self, username: &str) -> Result<String> {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds();
         let record = TokenRecord {
             username: username.to_string(),
-            created_at: unix_seconds(),
-            last_used_at: unix_seconds(),
-            readonly: false,
-            cidr_whitelist: Vec::new(),
+            created_at: now,
+            last_used_at: now,
+            readonly: new_token.readonly,
+            cidr_whitelist: new_token.cidr_whitelist,
+            name: new_token.name,
+            expires_at: new_token.expires_at,
         };
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
             inner.insert(token_hash.clone(), record.clone());
         }
-        if let Some(path) = self.persist.clone() {
-            let hash_for_db = token_hash.clone();
-            let result = tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                insert_token(&conn, &hash_for_db, &record)?;
-                Ok(())
-            })
-            .await;
-            match result {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.remove(&token_hash);
-                    return Err(err);
-                }
-                Err(err) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.remove(&token_hash);
-                    return Err(err.into());
-                }
-            }
-        }
+        self.persist_issued(&token_hash, &record).await?;
+        Ok((raw, record))
+    }
+
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
         Ok(raw)
     }
 
@@ -173,7 +205,40 @@ impl TokenBackend for TokenStore {
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
+        let now = unix_seconds();
+        let Some(record) = inner.tokens.get(&token_hash) else {
+            return Ok(None);
+        };
+        if record.expires_at.is_some_and(|exp| exp <= now) {
+            return Ok(None);
+        }
+        Ok(Some(record.username.clone()))
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        let should_persist = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            if let Some(record) = inner.tokens.get_mut(key) {
+                let old = record.last_used_at;
+                record.last_used_at = now;
+                self.persist.is_some() && now != old
+            } else {
+                false
+            }
+        };
+        if should_persist && let Some(path) = self.persist.clone() {
+            let key = key.to_string();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                conn.execute(
+                    "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+                    rusqlite::params![now as i64, key],
+                )?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(())
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -233,89 +298,6 @@ impl Default for TokenStore {
     fn default() -> Self {
         Self::in_memory()
     }
-}
-
-// ---------------------------------------------------------------
-// SQLite-backed token store
-// ---------------------------------------------------------------
-
-/// `tokens` table DDL — shared by every SQL-backed auth store so the
-/// backends store the same shape and records can be moved between them.
-pub(super) const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      CHAR(64) PRIMARY KEY,
-    username        VARCHAR(255) NOT NULL,
-    created_at      BIGINT NOT NULL,
-    last_used_at    BIGINT NOT NULL,
-    readonly        SMALLINT NOT NULL DEFAULT 0,
-    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]'
-)";
-
-pub(super) const TOKENS_INDEX_SQL: &str =
-    "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
-
-pub(super) fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    conn.execute(TOKENS_TABLE_SQL, [])?;
-    conn.execute(TOKENS_INDEX_SQL, [])?;
-    Ok(())
-}
-
-pub(super) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
-    let mut stmt = conn.prepare(
-        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
-         FROM tokens",
-    )?;
-    let mut rows = stmt.query([])?;
-    let mut out = HashMap::new();
-    while let Some(row) = rows.next()? {
-        let hash: String = row.get(0)?;
-        let username: String = row.get(1)?;
-        let created_at: i64 = row.get(2)?;
-        let last_used_at: i64 = row.get(3)?;
-        let readonly: i64 = row.get(4)?;
-        let cidr_json: String = row.get(5)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
-            .map_err(|err| RegistryError::Internal {
-                reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
-            })?;
-        out.insert(
-            hash,
-            TokenRecord {
-                username,
-                created_at: token_timestamp_from_sql(created_at),
-                last_used_at: token_timestamp_from_sql(last_used_at),
-                readonly: readonly != 0,
-                cidr_whitelist,
-            },
-        );
-    }
-    Ok(out)
-}
-
-pub(super) fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
-    conn.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
-    Ok(())
-}
-
-pub(super) fn insert_token(
-    conn: &Connection,
-    token_hash: &str,
-    record: &TokenRecord,
-) -> Result<()> {
-    let cidr_json = serde_json::to_string(&record.cidr_whitelist)
-        .expect("Vec<String> always serializes to JSON");
-    conn.execute(
-        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![
-            token_hash,
-            record.username,
-            token_timestamp_to_sql(record.created_at),
-            token_timestamp_to_sql(record.last_used_at),
-            i64::from(record.readonly),
-            cidr_json,
-        ],
-    )?;
-    Ok(())
 }
 
 // ---------------------------------------------------------------

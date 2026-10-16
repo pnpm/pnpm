@@ -121,6 +121,35 @@ Two entries describe registry routing and credentials:
 * `configByUri` maps a registry URI to its credentials, the way pnpm 11
   reports them.
 
+#### Registry routing
+
+Returning `registriesByScope` replaces the routing map. Scopes omitted from
+the returned map use its `default` registry, or the previously configured main
+registry if `default` is omitted. The built-in `@jsr` route remains unless
+explicitly overridden. This hook changes the fallback registry:
+
+```js title=".pnpmfile.mjs"
+export const hooks = {
+  updateConfig (config) {
+    return {
+      ...config,
+      registriesByScope: {
+        default: 'https://registry.example.com/',
+      },
+    }
+  },
+}
+```
+
+To preserve existing scope routes while changing one route, spread
+`...config.registriesByScope` into the returned map before the overrides.
+
+Hooks written for pnpm before v11.23.0 return the routing map as
+`registries`. That name now refers to the [`registries` setting](settings/dependency-resolution.md#registries),
+which merges per key with existing configuration. Returning
+`registries: { default: ... }` therefore changes the main registry but leaves
+scope routes from `.npmrc` in place.
+
 #### Settings given on the command line
 
 Since v12.8.0, a setting given on the command line takes precedence over the

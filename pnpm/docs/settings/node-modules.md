@@ -274,6 +274,22 @@ different filesystem from `node_modules` cannot be hardlinked from at all —
 the attempt fails with `EXDEV` — so `auto` already falls back to copying on
 its own.
 
+#### How many files macOS writes at once
+
+On macOS, pnpm writes package files into `node_modules` with 4 threads,
+whatever the number of CPU cores. On the Macs measured, more threads made
+installs slower.
+
+Security software that monitors file operations through Endpoint Security, as
+on many company-managed Macs, can reverse this. On one such Mac, installs were
+35-50% faster with 16 threads than with 4. If your Mac runs such software,
+compare install times with a few values of the `PNPM_MACOS_LINK_THREADS`
+environment variable, which sets the number of threads:
+
+```sh
+PNPM_MACOS_LINK_THREADS=16 pnpm install
+```
+
 [nodeLinker]: #nodelinker
 
 ### modulesCacheMaxAge
