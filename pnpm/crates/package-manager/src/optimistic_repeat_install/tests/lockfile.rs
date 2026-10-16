@@ -620,6 +620,24 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
     );
     assert_eq!(recorded_timestamp(dir.path()), refreshed);
 }
+
+#[test]
+fn single_project_repeat_install_converges_after_lockfile_content_matches() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(refreshed > before);
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.
 #[test]

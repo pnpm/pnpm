@@ -36,23 +36,23 @@ pub(super) fn early_repeat_verdict(
 /// Restore a missing wanted lockfile and refresh `lastValidatedTimestamp`
 /// after the content checks passed, so a repeat run short-circuits earlier.
 ///
-/// The workspace branch rewrites the state; the single-project branch keys
-/// its comparisons off the lockfile mtimes instead and leaves the state
-/// alone, unless the tree `moved` and the state has to be recorded where it
-/// is now. A failed write only costs the next run a repeat of the content
-/// check, so it degrades rather than fails.
+/// The state is rewritten only when `refresh_state` is set: in a workspace,
+/// after a single project's lockfile changed, and for a tree that moved and
+/// has to be recorded where it is now. A single project's manifest drift is
+/// keyed to the lockfile mtimes, so it needs no refresh otherwise. A failed
+/// write only costs the next run a repeat of the content check, so it
+/// degrades rather than fails.
 pub(super) fn settle_repeat_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     loaded_current: Option<Lockfile>,
     filesystem_now: Option<i64>,
-    moved: bool,
+    refresh_state: bool,
 ) -> Result<(), &'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         project_manifests,
-        is_workspace_install,
         catalogs,
         layout:
             crate::RepeatInstallLayout {
@@ -64,7 +64,7 @@ pub(super) fn settle_repeat_install(
         ..
     } = check;
     regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
-    if !is_workspace_install && !moved {
+    if !refresh_state {
         return Ok(());
     }
     // This path refreshes the timestamp without materializing anything, so

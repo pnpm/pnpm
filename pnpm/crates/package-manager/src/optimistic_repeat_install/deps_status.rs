@@ -327,9 +327,11 @@ fn early_content_verdict(
     None
 }
 
-/// Settle the passing content check for a tree in place. A single project
-/// keeps manifest freshness keyed to lockfile mtimes, but records a passing
-/// lockfile check so it does not repeat it.
+/// Settle the passing content check for a tree in place. `refresh_state`
+/// is set where the next run's lockfile drift check reads the recorded
+/// timestamp: always in a workspace, and in a single project once its
+/// lockfile changed. A single project's manifest drift stays keyed to the
+/// lockfile mtimes.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
