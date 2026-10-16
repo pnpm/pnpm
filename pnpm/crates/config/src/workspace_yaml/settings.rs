@@ -906,8 +906,8 @@ pub struct WorkspaceSettings {
     #[serde(skip)]
     pub key_issues: WorkspaceKeyIssues,
 
-    /// The include index of the file this was parsed from, whose local
-    /// sources [`Self::read_at`] merged into these settings. Not a setting.
+    /// The include index of the file this was parsed from. Its local sources
+    /// are merged into these settings. Not a setting.
     #[serde(skip)]
     pub includes: Option<pnpm_workspace::WorkspaceIncludes>,
 }
@@ -963,7 +963,7 @@ impl WorkspaceSettings {
 
     /// [`Self::load_at`], leaving out each top-level setting that does not
     /// read on its own when `skip_unreadable`
-    /// (see [`read_readable_settings`]).
+    /// (see [`super::readable::read_readable_settings`]).
     fn read_at(dir: &Path, skip_unreadable: bool) -> Result<Option<Self>, LoadWorkspaceYamlError> {
         read_workspace_document(dir)?
             .map(|document| {
