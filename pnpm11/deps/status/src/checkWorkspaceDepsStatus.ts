@@ -26,6 +26,7 @@ import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import {
   allowUnawaitedFailure,
   assertCurrentLockfileMatches,
+  getWantedLockfileDirs,
   missingWantedLockfileStandIn,
   readWantedLockfileIn,
   statLockfileSync,
@@ -61,13 +62,14 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
   const modulesDirIssue = await findModulesDirIssue({ ...ctx, allManifestStats })
   if (modulesDirIssue != null) return outdatedResult(modulesDirIssue, workspaceState)
 
-  const issue = await patchesOrHooksAreModified({
+  const { issue, patchesRevalidated } = await patchesOrHooksAreModified({
     patchedDependencies: opts.patchedDependencies,
     rootDir: opts.rootProjectManifestDir,
     lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
     currentPnpmfiles: opts.pnpmfile,
     previousPnpmfiles: workspaceState.pnpmfiles,
     ignorePnpmfile: opts.ignorePnpmfile,
+    readLockfiles: () => readWorkspaceLockfiles(ctx),
   })
   if (issue) {
     return { upToDate: false, issue, workspaceState }
@@ -78,7 +80,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
       modifiedAtOrAfter(manifestStats, workspaceState.lastValidatedTimestamp)
   )
 
-  if ((modifiedProjects.length === 0) && !lockfilesScan.anyModified) {
+  if ((modifiedProjects.length === 0) && !lockfilesScan.anyModified && !patchesRevalidated) {
     const unchangedResult = await checkUnchangedWorkspace(ctx)
     if (unchangedResult != null) return unchangedResult
   }
@@ -172,6 +174,16 @@ async function checkUnchangedWorkspace (
   if (lockfilesScan.anyMissing && wantedLockfileToRestore == null) return undefined
   logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
+}
+
+async function readWorkspaceLockfiles ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<Array<LockfileObject | null>> {
+  if (!opts.sharedWorkspaceLockfile) {
+    return Promise.all(getWantedLockfileDirs(opts).map((lockfileDir) => readWantedLockfileIn(lockfileDir, opts)))
+  }
+  return [
+    (await readWantedLockfileIn(workspaceDir, opts)) ??
+      await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false }),
+  ]
 }
 
 async function createWantedLockfileReader (ctx: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {

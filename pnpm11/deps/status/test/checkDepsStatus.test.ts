@@ -653,6 +653,88 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('Patches were modified')
   })
+
+  it.each([true, false])('compares a patch newer than the last validation with the hash recorded in the lockfile (sharedWorkspaceLockfile: %s)', async (sharedWorkspaceLockfile) => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-'))
+    try {
+      const patchPath = path.join(projectDir, 'patches/foo.patch')
+      await fs.mkdir(path.dirname(patchPath))
+      await fs.writeFile(patchPath, '--- a\n+++ b\n')
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const afterLastValidation = lastValidatedTimestamp + 1_000
+      const projectRootDir = projectDir as ProjectRootDir
+      const patchedDependencies = { 'foo@1.0.0': patchPath }
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+          patchedDependencies,
+        },
+        projects: {
+          [projectRootDir]: {
+            name: 'root',
+            version: '1.0.0',
+          },
+        },
+        filteredInstall: false,
+      }
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => ({
+        mtime: new Date(filePath === patchPath ? afterLastValidation : beforeLastValidation),
+        mtimeMs: filePath === patchPath ? afterLastValidation : beforeLastValidation,
+        isDirectory: () => true,
+      } as unknown as Stats))
+      jest.mocked(fsUtils.safeStatSync).mockReturnValue({
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats)
+      jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats))
+      const { calcPatchHashes } = await import('@pnpm/lockfile.settings-checker')
+      const lockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: { ['.' as ProjectId]: { specifiers: {} } },
+        patchedDependencies: await calcPatchHashes(patchedDependencies),
+      }
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+      jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+      const wantedLockfilePath = path.join(projectDir, 'pnpm-lock.yaml')
+      await fs.writeFile(wantedLockfilePath, '')
+      await fs.utimes(wantedLockfilePath, new Date(beforeLastValidation), new Date(beforeLastValidation))
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [{
+          rootDir: projectRootDir,
+          rootDirRealPath: projectDir as ProjectRootDirRealPath,
+          manifest: { name: 'root', version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        }],
+        workspaceDir: projectDir,
+        rootProjectManifest: {},
+        rootProjectManifestDir: projectDir,
+        sharedWorkspaceLockfile,
+        pnpmfile: [],
+        patchedDependencies,
+        ...mockWorkspaceState.settings,
+      }
+      expect((await checkDepsStatus(opts)).upToDate).toBe(true)
+      const recordedState = JSON.parse(await fs.readFile(path.join(projectDir, 'node_modules/.pnpm-workspace-state-v1.json'), 'utf8'))
+      expect(recordedState.lastValidatedTimestamp).toBeGreaterThan(lastValidatedTimestamp)
+
+      await fs.writeFile(patchPath, '--- a\n+++ b\n+edited\n')
+      const result = await checkDepsStatus(opts)
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe('Patches were modified')
+    } finally {
+      await fs.rm(projectDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('checkDepsStatus - lockfile conflicts', () => {
