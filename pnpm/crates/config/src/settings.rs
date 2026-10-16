@@ -175,6 +175,12 @@ pub struct Config {
     /// workspace manifest or it is clean.
     pub workspace_key_issues: WorkspaceKeyIssues,
 
+    /// The include index of the project's `pnpm-workspace.yaml`: which file
+    /// or config dependency owns each delegated setting, and the config
+    /// entries read from the included config dependencies. `None` when the
+    /// manifest includes nothing.
+    pub workspace_includes: Option<std::sync::Arc<pnpm_workspace::WorkspaceIncludes>>,
+
     pub npmrc_warnings: Vec<String>,
 
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
@@ -1485,6 +1491,19 @@ pub struct Config {
     #[default(_code = "Some(24 * 60)")]
     pub minimum_release_age: Option<u64>,
 
+    /// The `bootConfig` block of the workspace manifest. See
+    /// [`Config::for_boot`].
+    pub boot_config: Option<Box<crate::BootConfig>>,
+
+    /// The boot settings as configured below the workspace manifest, which
+    /// [`Config::for_boot`] falls back to for a setting a config dependency
+    /// owns.
+    pub boot_inherited: Box<crate::BootConfig>,
+
+    /// The boot settings the environment and the command line give, which
+    /// [`Config::for_boot`] applies over `bootConfig`.
+    pub boot_overrides: Box<crate::BootConfig>,
+
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`minimum_release_age`] check. Empty / `None` means
     /// no exclusions. The `minimumReleaseAgeExclude` setting.
@@ -1827,37 +1846,6 @@ impl Config {
         self.engine_strict && !self.force
     }
 
-    /// Where the builds of one tool are downloaded from, as
-    /// `tools.<name>.mirror` names it, without the trailing slash a
-    /// caller joins onto.
-    #[must_use]
-    pub fn tool_mirror(&self, tool: Tool) -> Option<&str> {
-        self.tools
-            .get(&tool)?
-            .mirror
-            .as_deref()
-            .map(|mirror| mirror.trim_end_matches('/'))
-    }
-
-    /// Where each line of a tool's builds is downloaded from, as
-    /// `tools.<name>.channels` names them. A line it does not name is
-    /// left to [`Self::tool_mirror`].
-    #[must_use]
-    pub fn tool_channel_mirrors(&self, tool: Tool) -> HashMap<String, String> {
-        self.tools
-            .get(&tool)
-            .and_then(|tool| tool.channels.as_ref())
-            .map(|channels| {
-                channels
-                    .iter()
-                    .map(|(channel, mirror)| {
-                        (channel.clone(), mirror.trim_end_matches('/').to_string())
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -1889,3 +1877,4 @@ impl Config {
 
 mod cache;
 mod patches;
+mod tools;

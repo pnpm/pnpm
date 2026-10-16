@@ -145,27 +145,55 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
     Ok(())
 }
 
+/// Restores the workspace manifest files a catalog prune rewrote when the
+/// install that pruned them does not finish.
 pub(super) struct WorkspaceManifestRollbackGuard {
-    pub(super) path: PathBuf,
-    pub(super) original_content: String,
-    pub(super) pruned_content: Option<String>,
-    pub(super) committed: bool,
+    files: Vec<FileRollback>,
+    committed: bool,
+}
+
+/// One file the prune rewrote: what it held before, and what the prune left.
+struct FileRollback {
+    path: PathBuf,
+    original_content: String,
+    pruned_content: Option<String>,
 }
 
 impl WorkspaceManifestRollbackGuard {
-    pub(super) fn new(path: PathBuf, original_content: Option<String>) -> Option<Self> {
-        let original = original_content?;
-        let pruned = match std::fs::read_to_string(&path) {
-            Ok(content) => Some(content),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(_) => return None,
-        };
-        (Some(&original) != pruned.as_ref()).then_some(Self {
-            path,
-            original_content: original,
-            pruned_content: pruned,
-            committed: false,
-        })
+    /// The current content of the workspace manifest of `workspace_dir` and
+    /// the local files it includes, to pass to [`Self::new`] once the prune
+    /// has run. A symlinked include is recorded by its target, which is the
+    /// file the prune writes. An include index that does not load names only the root
+    /// manifest, and the prune reports it.
+    pub(super) fn snapshot(workspace_dir: &std::path::Path) -> Vec<(PathBuf, Option<String>)> {
+        let root = workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
+        let included = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
+            .ok()
+            .flatten()
+            .and_then(|document| document.includes)
+            .map(|includes| {
+                includes
+                    .local_paths()
+                    .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        std::iter::once(root)
+            .chain(included)
+            .map(|path| {
+                let content = std::fs::read_to_string(&path).ok();
+                (path, content)
+            })
+            .collect()
+    }
+
+    /// A guard over the files of `snapshot` the prune changed, if any.
+    pub(super) fn new(snapshot: Vec<(PathBuf, Option<String>)>) -> Option<Self> {
+        let files: Vec<FileRollback> = snapshot
+            .into_iter()
+            .filter_map(|(path, original)| FileRollback::new(path, original?))
+            .collect();
+        (!files.is_empty()).then_some(Self { files, committed: false })
     }
 
     pub(super) fn commit(mut self) {
@@ -173,17 +201,37 @@ impl WorkspaceManifestRollbackGuard {
     }
 }
 
+impl FileRollback {
+    fn new(path: PathBuf, original_content: String) -> Option<Self> {
+        let pruned_content = read_if_present(&path).ok()?;
+        (Some(&original_content) != pruned_content.as_ref()).then_some(Self {
+            path,
+            original_content,
+            pruned_content,
+        })
+    }
+
+    /// Put the original content back, unless something other than the prune
+    /// has changed the file since.
+    fn restore(&self) {
+        if read_if_present(&self.path).is_ok_and(|current| current == self.pruned_content) {
+            let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
+        }
+    }
+}
+
+fn read_if_present(path: &std::path::Path) -> std::io::Result<Option<String>> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 impl Drop for WorkspaceManifestRollbackGuard {
     fn drop(&mut self) {
         if !self.committed {
-            let current = match std::fs::read_to_string(&self.path) {
-                Ok(content) => Some(content),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-                Err(_) => return,
-            };
-            if current == self.pruned_content {
-                let _ = pnpm_fs::write_atomic(&self.path, self.original_content.as_bytes());
-            }
+            self.files.iter().for_each(FileRollback::restore);
         }
     }
 }

@@ -260,6 +260,8 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
     ];
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         paths.push(workspace_dir.join("pnpm-workspace.yaml"));
+        let included = config.workspace_includes.iter().flat_map(|includes| includes.local_paths());
+        paths.extend(included.map(Path::to_path_buf));
     }
     paths
 }

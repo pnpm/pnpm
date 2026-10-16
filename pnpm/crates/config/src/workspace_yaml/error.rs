@@ -218,6 +218,13 @@ pub enum LoadWorkspaceYamlError {
 
     #[diagnostic(transparent)]
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
+
+    #[diagnostic(transparent)]
+    Include(#[error(source)] pnpm_workspace::IncludeError),
+
+    #[display(r#""{setting}" in the settings delegated to "{spec}" is not a pnpm setting"#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_WORKSPACE_INCLUDE))]
+    UnknownDelegatedSetting { spec: String, setting: String },
 }
 
 fn base64_credential_content(key: &str) -> &'static str {

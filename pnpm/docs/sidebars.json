@@ -10,6 +10,7 @@
       "items": [
         "pnpm-cli",
         "configuring",
+        "config-includes",
         "filtering",
         "scripts"
       ]

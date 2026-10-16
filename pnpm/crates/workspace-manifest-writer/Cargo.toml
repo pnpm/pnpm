@@ -16,6 +16,7 @@ pnpm-config = { workspace = true }
 pnpm-config-parse-overrides = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-workspace = { workspace = true }
 pnpm-yaml-document-sync = { workspace = true }
 
 derive_more = { workspace = true }

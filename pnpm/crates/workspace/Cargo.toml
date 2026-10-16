@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-catalogs-types = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 
@@ -23,9 +24,11 @@ miette = { workspace = true }
 pathdiff = { workspace = true }
 rayon = { workspace = true }
 same-file = { workspace = true }
+serde_json = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 wax = { workspace = true }
+yaml_serde = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

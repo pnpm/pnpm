@@ -8,7 +8,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_versioning::VersioningSettings;
-use pnpm_workspace_manifest_writer::update_manifest_field;
+use pnpm_workspace_manifest_writer::update_workspace_setting;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// The reserved name of the default lane: every package is on it unless
@@ -101,12 +101,8 @@ impl LaneArgs {
             format!("Moved to the \"{lane_name}\" lane:\n{selected_lines}")
         };
 
-        update_manifest_field(
-            &workspace_dir.join("pnpm-workspace.yaml"),
-            "versioning",
-            &versioning_value(&settings),
-        )
-        .map_err(miette::Report::new)?;
+        update_workspace_setting(&workspace_dir, "versioning", &versioning_value(&settings))
+            .map_err(miette::Report::new)?;
         pnpm_diagnostics::println!("{output}");
         Ok(())
     }

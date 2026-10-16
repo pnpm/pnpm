@@ -28,6 +28,7 @@ pub use crate::{
         UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
     },
 };
+pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
 pub use loading::ConfigLoadFailure;
 pub use network_policy::NetworkPolicy;
@@ -62,6 +63,7 @@ pub use workspace_yaml::{
 };
 
 mod api;
+mod boot_config;
 mod cas;
 mod ci_detection;
 mod defaults;
@@ -100,7 +102,6 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };

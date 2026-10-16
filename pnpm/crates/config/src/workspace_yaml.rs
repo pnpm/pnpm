@@ -1,6 +1,7 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+pub(crate) use includes::read_workspace_document;
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
 };
@@ -427,6 +428,8 @@ mod resolved;
 mod reset;
 
 mod settings;
+
+mod includes;
 
 mod global;
 

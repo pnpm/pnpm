@@ -40,6 +40,7 @@ mod completion;
 mod concurrency_groups;
 mod config_dependencies;
 mod config_get_set;
+mod config_includes;
 mod convergence_overrides;
 mod create;
 mod current_lockfile;
