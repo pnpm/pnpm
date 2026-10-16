@@ -132,6 +132,23 @@ fn self_update_refuses_a_pnpm_executed_by_corepack_outside_a_pinned_project() {
     drop(root);
 }
 
+#[test]
+fn self_update_refuses_a_pnpm_executed_by_corepack_when_package_json_is_malformed() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{").expect("write package.json");
+
+    let output = pacquet
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_arg("self-update")
+        .output()
+        .expect("run pacquet self-update");
+
+    assert!(!output.status.success(), "self-update must refuse a Corepack pnpm");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK"), "stderr={stderr}");
+    drop(root);
+}
+
 /// The executable is copied into a fake keg rather than linked, because
 /// pnpm detects Homebrew from its canonical path and the keg's install receipt.
 fn install_into_homebrew_keg(pacquet: &Command, root: &Path) -> PathBuf {

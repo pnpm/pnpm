@@ -46,7 +46,7 @@ impl From<ExternalManager> for SelfUpdateError {
 /// `dir`. Without a pnpm pin there is nothing left to do, and this fails.
 ///
 /// Checked in the dispatcher *before* project config is loaded, so a broken
-/// `.npmrc` / workspace config can't mask the refusal.
+/// `.npmrc` / workspace config / `package.json` can't mask the refusal.
 pub(crate) fn check_externally_managed(dir: &Path) -> miette::Result<Option<ExternalManager>> {
     if cfg!(target_family = "wasm") {
         return Err(miette::miette!(
@@ -57,7 +57,7 @@ pub(crate) fn check_externally_managed(dir: &Path) -> miette::Result<Option<Exte
     let Some(manager) = find_external_manager() else {
         return Ok(None);
     };
-    if project_pins_pnpm(dir)? {
+    if project_pins_pnpm(dir) {
         return Ok(Some(manager));
     }
     Err(SelfUpdateError::from(manager).into())
@@ -74,11 +74,14 @@ fn find_external_manager() -> Option<ExternalManager> {
     Some(ExternalManager::Homebrew { formula })
 }
 
-fn project_pins_pnpm(dir: &Path) -> miette::Result<bool> {
-    Ok(read_manifest_json(&dir.join("package.json"))?
+/// A manifest that cannot be read holds no pin the update could write.
+fn project_pins_pnpm(dir: &Path) -> bool {
+    read_manifest_json(&dir.join("package.json"))
+        .ok()
+        .flatten()
         .as_ref()
         .and_then(wanted_package_manager)
-        .is_some_and(|pm| pm.name == "pnpm"))
+        .is_some_and(|pm| pm.name == "pnpm")
 }
 
 /// The Homebrew formula (`pnpm`, `pnpm@11`, ...) whose keg holds `exe`, a
