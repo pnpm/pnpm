@@ -134,6 +134,59 @@ impl LoginRateLimiter {
         Ok(())
     }
 
+    fn update_existing_web_login(
+        &self,
+        record: &mut AttemptRecord,
+        now: Instant,
+    ) -> Result<(), u64> {
+        if now.duration_since(record.first_attempt) >= self.window {
+            record.count = 1;
+            record.first_attempt = now;
+            return Ok(());
+        }
+        if record.count >= self.max_ip_attempts {
+            let elapsed = now.duration_since(record.first_attempt);
+            let retry_after = self.window
+                .saturating_sub(elapsed)
+                .as_secs()
+                .max(1);
+            return Err(retry_after);
+        }
+        record.count += 1;
+        Ok(())
+    }
+
+    fn ensure_web_login_capacity(
+        &self,
+        inner: &mut RateLimiterInner,
+        now: Instant,
+    ) -> Result<(), u64> {
+        if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
+            return Ok(());
+        }
+        self.evict_if_needed(inner, now, true);
+        if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
+            return Ok(());
+        }
+        let cooldown_active = now.duration_since(inner.last_eviction) < FULL_EVICTION_COOLDOWN;
+        let has_expired = cooldown_active
+            && inner.map
+                .iter()
+                .any(|(k, r)| {
+                    matches!(k, RateLimitKey::WebLogin(_))
+                        && now.duration_since(r.first_attempt) >= self.window
+                });
+        let retry_after = if has_expired {
+            FULL_EVICTION_COOLDOWN
+                .saturating_sub(now.duration_since(inner.last_eviction))
+                .as_secs()
+                .max(1)
+        } else {
+            self.window.as_secs().max(1)
+        };
+        Err(retry_after)
+    }
+
     /// Check and record a web login session creation attempt.
     /// Uses `peer_ip` as a fallback when `client_ip` is `None` (such as when
     /// a trusted proxy forwards an invalid header), so distinct socket peers
@@ -149,31 +202,10 @@ impl LoginRateLimiter {
 
         let key = RateLimitKey::WebLogin(client_ip.or(peer_ip));
         if let Some(record) = inner.map.get_mut(&key) {
-            if now.duration_since(record.first_attempt) >= self.window {
-                record.count = 1;
-                record.first_attempt = now;
-                return Ok(());
-            }
-            if record.count >= self.max_ip_attempts {
-                let elapsed = now.duration_since(record.first_attempt);
-                let retry_after = self.window
-                    .saturating_sub(elapsed)
-                    .as_secs()
-                    .max(1);
-                return Err(retry_after);
-            }
-            record.count += 1;
-            return Ok(());
+            return self.update_existing_web_login(record, now);
         }
 
-        if inner.web_login_count >= MAX_WEB_LOGIN_RECORDS {
-            self.evict_if_needed(&mut inner, now, true);
-        }
-
-        if inner.web_login_count >= MAX_WEB_LOGIN_RECORDS {
-            return Err(self.window.as_secs().max(1));
-        }
-
+        self.ensure_web_login_capacity(&mut inner, now)?;
         self.evict_if_needed(&mut inner, now, false);
 
         inner.map.insert(key, AttemptRecord { count: 1, first_attempt: now });
