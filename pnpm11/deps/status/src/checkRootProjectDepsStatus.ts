@@ -44,7 +44,7 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
   const { currentLockfileStats, manifestStats } = lockfiles
   const effectiveWantedLockfileStats = getEffectiveWantedLockfileStats(lockfiles, ctx)
 
-  const issue = await patchesOrHooksAreModified({
+  const { issue } = await patchesOrHooksAreModified({
     patchedDependencies: opts.patchedDependencies,
     rootDir: rootProjectManifestDir,
     lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),

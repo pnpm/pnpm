@@ -704,6 +704,9 @@ describe('checkDepsStatus - pnpmfile modification', () => {
       }
       jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
       jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+      const wantedLockfilePath = path.join(projectDir, 'pnpm-lock.yaml')
+      await fs.writeFile(wantedLockfilePath, '')
+      await fs.utimes(wantedLockfilePath, new Date(beforeLastValidation), new Date(beforeLastValidation))
 
       const opts: CheckDepsStatusOptions = {
         allProjects: [{
@@ -721,6 +724,8 @@ describe('checkDepsStatus - pnpmfile modification', () => {
         ...mockWorkspaceState.settings,
       }
       expect((await checkDepsStatus(opts)).upToDate).toBe(true)
+      const recordedState = JSON.parse(await fs.readFile(path.join(projectDir, 'node_modules/.pnpm-workspace-state-v1.json'), 'utf8'))
+      expect(recordedState.lastValidatedTimestamp).toBeGreaterThan(lastValidatedTimestamp)
 
       await fs.writeFile(patchPath, '--- a\n+++ b\n+edited\n')
       const result = await checkDepsStatus(opts)

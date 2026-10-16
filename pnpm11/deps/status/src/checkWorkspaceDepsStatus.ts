@@ -62,7 +62,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
   const modulesDirIssue = await findModulesDirIssue({ ...ctx, allManifestStats })
   if (modulesDirIssue != null) return outdatedResult(modulesDirIssue, workspaceState)
 
-  const issue = await patchesOrHooksAreModified({
+  const { issue, patchesRevalidated } = await patchesOrHooksAreModified({
     patchedDependencies: opts.patchedDependencies,
     rootDir: opts.rootProjectManifestDir,
     lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
@@ -80,7 +80,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
       modifiedAtOrAfter(manifestStats, workspaceState.lastValidatedTimestamp)
   )
 
-  if ((modifiedProjects.length === 0) && !lockfilesScan.anyModified) {
+  if ((modifiedProjects.length === 0) && !lockfilesScan.anyModified && !patchesRevalidated) {
     const unchangedResult = await checkUnchangedWorkspace(ctx)
     if (unchangedResult != null) return unchangedResult
   }

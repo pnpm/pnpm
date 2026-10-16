@@ -20,10 +20,29 @@ export interface PatchesOrHooksAreModifiedOptions {
   readLockfiles: () => Promise<Array<LockfileObject | null>>
 }
 
-export async function patchesOrHooksAreModified (opts: PatchesOrHooksAreModifiedOptions): Promise<string | undefined> {
-  if (opts.patchedDependencies && await patchesAreModified(opts.patchedDependencies, opts)) {
-    return 'Patches were modified'
+export interface PatchesOrHooksStatus {
+  issue?: string
+  /**
+   * A patch file is newer than `lastValidatedTimestamp`, but its content
+   * still matches the lockfiles.
+   */
+  patchesRevalidated: boolean
+}
+
+type PatchesStatus = 'unchanged' | 'revalidated' | 'modified'
+
+export async function patchesOrHooksAreModified (opts: PatchesOrHooksAreModifiedOptions): Promise<PatchesOrHooksStatus> {
+  const patchesStatus = opts.patchedDependencies ? await getPatchesStatus(opts.patchedDependencies, opts) : 'unchanged'
+  if (patchesStatus === 'modified') {
+    return { issue: 'Patches were modified', patchesRevalidated: false }
   }
+  return {
+    issue: findHooksChange(opts),
+    patchesRevalidated: patchesStatus === 'revalidated',
+  }
+}
+
+function findHooksChange (opts: PatchesOrHooksAreModifiedOptions): string | undefined {
   if (opts.ignorePnpmfile) {
     return undefined
   }
@@ -33,7 +52,7 @@ export async function patchesOrHooksAreModified (opts: PatchesOrHooksAreModified
   return findPnpmfileChange(opts.currentPnpmfiles, opts.lastValidatedTimestamp)
 }
 
-async function patchesAreModified (patchedDependencies: Record<string, string>, opts: PatchesOrHooksAreModifiedOptions): Promise<boolean> {
+async function getPatchesStatus (patchedDependencies: Record<string, string>, opts: PatchesOrHooksAreModifiedOptions): Promise<PatchesStatus> {
   const allPatchStats = await Promise.all(Object.values(patchedDependencies).map((patchFile) => {
     return safeStat(patchFile)
   }))
@@ -41,8 +60,8 @@ async function patchesAreModified (patchedDependencies: Record<string, string>, 
     (patch) =>
       patch && modifiedAtOrAfter(patch, opts.lastValidatedTimestamp)
   )
-  if (!anyPatchNewer) return false
-  return !await patchHashesMatchLockfiles(patchedDependencies, opts.rootDir, opts.readLockfiles)
+  if (!anyPatchNewer) return 'unchanged'
+  return await patchHashesMatchLockfiles(patchedDependencies, opts.rootDir, opts.readLockfiles) ? 'revalidated' : 'modified'
 }
 
 /**

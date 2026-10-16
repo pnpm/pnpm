@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`verifyDepsBeforeRun` no longer reports "Patches were modified" when a patch file has a newer modification time but unchanged content, such as after a copy or `touch` [#16988](https://github.com/pnpm/pnpm/issues/16988).
+`verifyDepsBeforeRun` now compares a patch file that changed on disk with the patch hash in the lockfile. A patch that was copied or touched without changing its content no longer marks dependencies as outdated [#16988](https://github.com/pnpm/pnpm/issues/16988).
