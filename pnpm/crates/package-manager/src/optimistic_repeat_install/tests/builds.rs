@@ -3,8 +3,8 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install_ignoring,
         deps_status::RunDepsStatus, settings::current_settings,
     },
-    backdate_validated_files, check, isolated_included, workspace_deps_status,
-    write_empty_lockfile, write_state,
+    backdate_validated_files, check, isolated_included, single_project_deps_status,
+    workspace_deps_status, write_empty_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -110,7 +110,25 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
 }
 /// A newer patch mtime is resolved by comparing its content with the lockfile.
 #[test]
-fn compares_newer_patch_content_with_lockfile() {
+fn workspace_compares_newer_patch_content_with_lockfile() {
+    assert_newer_patch_content_compared_with_lockfile(workspace_deps_status);
+}
+
+/// [`workspace_compares_newer_patch_content_with_lockfile`] for a project
+/// without a workspace manifest, whose unmodified manifest skips the project
+/// content check.
+#[test]
+fn single_project_compares_newer_patch_content_with_lockfile() {
+    assert_newer_patch_content_compared_with_lockfile(single_project_deps_status);
+}
+
+fn assert_newer_patch_content_compared_with_lockfile(
+    deps_status: fn(
+        &tempfile::TempDir,
+        &'static Config,
+        &[(std::path::PathBuf, &PackageManifest)],
+    ) -> RunDepsStatus,
+) {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let manifest_path = workspace_root.join("package.json");
@@ -161,12 +179,11 @@ fn compares_newer_patch_content_with_lockfile() {
 
     // Rewrite the patch without changing its content.
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
-
-    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert_eq!(deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
 
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
     assert!(matches!(
-        workspace_deps_status(&dir, config, &project_manifests),
+        deps_status(&dir, config, &project_manifests),
         RunDepsStatus::Outdated { issue, .. } if issue == "Patches were modified"
     ));
 }

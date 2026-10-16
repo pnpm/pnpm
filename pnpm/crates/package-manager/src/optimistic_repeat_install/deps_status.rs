@@ -77,6 +77,9 @@ pub fn check_deps_status_before_run(
     }
     let patches_modified =
         patches_modified_since(check.workspace_root, check.config, state.last_validated_timestamp);
+    if patches_modified && let Err(reason) = patches_match_lockfile(check) {
+        return outdated(reason.to_string());
+    }
     let modified = drift.modified();
     if let Some(status) = early_content_verdict(
         check,
@@ -86,12 +89,17 @@ pub fn check_deps_status_before_run(
     ) {
         return status;
     }
+    content_check_status(check, state, &drift.projects_to_check(modified), &outdated)
+}
 
-    let projects_to_check = if patches_modified {
-        drift.stats.iter().collect()
-    } else {
-        drift.projects_to_check(modified)
-    };
+/// The gate's verdict once something changed since the last validation: the
+/// changed projects must still agree with the lockfile.
+fn content_check_status(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    projects_to_check: &[&ManifestStat<'_>],
+    outdated: &impl Fn(String) -> RunDepsStatus,
+) -> RunDepsStatus {
     let filesystem_now = check.is_workspace_install
         .then(|| {
             filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
@@ -102,12 +110,42 @@ pub fn check_deps_status_before_run(
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
-    match modified_manifests_match_lockfile(check, state, &projects_to_check, false) {
-        Ok(_) => match settle_content_check(check, state, filesystem_now) {
-            Ok(()) => RunDepsStatus::UpToDate,
-            Err(reason) => outdated(reason),
-        },
-        Err(reason) => outdated(reason.to_string()),
+    if !projects_to_check.is_empty()
+        && let Err(reason) =
+            modified_manifests_match_lockfile(check, state, projects_to_check, false)
+    {
+        return outdated(reason.to_string());
+    }
+    match settle_content_check(check, state, filesystem_now) {
+        Ok(()) => RunDepsStatus::UpToDate,
+        Err(reason) => outdated(reason),
+    }
+}
+
+/// Whether the configured patch files still hash to what the lockfile
+/// records. A missing lockfile passes here and is left to
+/// [`missing_wanted_lockfile_stand_in_ok`].
+fn patches_match_lockfile(check: &OptimisticRepeatInstallCheck<'_>) -> Result<(), &'static str> {
+    const PATCHES_MODIFIED: &str = "Patches were modified";
+    let hashes = check.config.patched_dependency_hashes().map_err(|_| PATCHES_MODIFIED)?;
+    let mut current = None;
+    let lockfile = match check.lockfile.get() {
+        Ok(Some(wanted)) => wanted,
+        Ok(None) => {
+            match Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir) {
+                Ok(Some(loaded)) => &*current.insert(loaded),
+                Ok(None) => return Ok(()),
+                Err(_) => return Err("the current lockfile cannot be loaded"),
+            }
+        }
+        Err(_) => return Err("the wanted lockfile cannot be read or parsed"),
+    };
+    let empty = std::collections::BTreeMap::new();
+    if lockfile.patched_dependencies.as_ref().unwrap_or(&empty) == hashes.as_ref().unwrap_or(&empty)
+    {
+        Ok(())
+    } else {
+        Err(PATCHES_MODIFIED)
     }
 }
 

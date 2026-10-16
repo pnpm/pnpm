@@ -540,6 +540,24 @@ fn workspace_deps_status_for_selected(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     selected_project_dirs: &[&std::path::Path],
 ) -> RunDepsStatus {
+    deps_status(dir, config, project_manifests, selected_project_dirs, true)
+}
+
+fn single_project_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    deps_status(dir, config, project_manifests, &[], false)
+}
+
+fn deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    selected_project_dirs: &[&std::path::Path],
+    is_workspace_install: bool,
+) -> RunDepsStatus {
     let state = load_workspace_state(dir.path())
         .expect("read the workspace state")
         .expect("a workspace state to have been written");
@@ -549,7 +567,7 @@ fn workspace_deps_status_for_selected(
             workspace_root: dir.path(),
             config,
             project_manifests,
-            is_workspace_install: true,
+            is_workspace_install,
             lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),
             layout: crate::RepeatInstallLayout {

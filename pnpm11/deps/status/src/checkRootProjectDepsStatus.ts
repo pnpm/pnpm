@@ -51,6 +51,7 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
     currentPnpmfiles: opts.pnpmfile,
     previousPnpmfiles: workspaceState.pnpmfiles,
     ignorePnpmfile: opts.ignorePnpmfile,
+    readLockfile: async () => (await lockfiles.wantedLockfilePromise) ?? lockfiles.currentLockfilePromise,
   })
   if (issue) {
     return { upToDate: false, issue, workspaceState }

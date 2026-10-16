@@ -68,6 +68,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
     currentPnpmfiles: opts.pnpmfile,
     previousPnpmfiles: workspaceState.pnpmfiles,
     ignorePnpmfile: opts.ignorePnpmfile,
+    readLockfile: opts.sharedWorkspaceLockfile ? () => readSharedLockfile(ctx) : undefined,
   })
   if (issue) {
     return { upToDate: false, issue, workspaceState }
@@ -172,6 +173,11 @@ async function checkUnchangedWorkspace (
   if (lockfilesScan.anyMissing && wantedLockfileToRestore == null) return undefined
   logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
+}
+
+async function readSharedLockfile ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<LockfileObject | null> {
+  return (await readWantedLockfileIn(workspaceDir, opts)) ??
+    readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
 }
 
 async function createWantedLockfileReader (ctx: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {
