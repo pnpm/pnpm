@@ -217,6 +217,67 @@ test('self-update refuses to update a pnpm installed by Homebrew', async () => {
   expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
 })
 
+test('self-update updates the project pin of a pnpm installed by Homebrew', async () => {
+  findHomebrewFormula.mockReturnValue('pnpm@11')
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0\nThe global pnpm was left alone because it is installed by Homebrew. Update it with Homebrew instead: brew upgrade pnpm@11')
+  expect(JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8')).packageManager).toBe('pnpm@9.1.0')
+  expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
+})
+
+describe('under Corepack', () => {
+  const originalCorepackRoot = process.env.COREPACK_ROOT
+  beforeEach(() => {
+    process.env.COREPACK_ROOT = '/fake/corepack'
+  })
+  afterEach(() => {
+    if (originalCorepackRoot == null) {
+      delete process.env.COREPACK_ROOT
+    } else {
+      process.env.COREPACK_ROOT = originalCorepackRoot
+    }
+  })
+
+  test('self-update refuses to update pnpm outside a project that pins it', async () => {
+    const opts = prepare()
+
+    await expect(selfUpdate.handler(opts, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK',
+    })
+  })
+
+  test('self-update updates the project pin', async () => {
+    const opts = prepare({
+      packageManager: 'pnpm@8.0.0',
+    })
+    mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+    const output = await selfUpdate.handler({
+      ...opts,
+      wantedPackageManager: {
+        name: 'pnpm',
+        version: '8.0.0',
+      },
+    }, [])
+
+    expect(output).toMatch(/^The current project has been updated to use pnpm v9\.1\.0\nThe global pnpm was left alone because it is executed by Corepack\. Install pnpm with the standalone script instead: /)
+    expect(JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8')).packageManager).toBe('pnpm@9.1.0')
+    expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
+  })
+})
+
 test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () => {
   // pnpm v10 setup added pnpmHomeDir (not pnpmHomeDir/bin) to PATH and wrote
   // a `pnpm` bootstrap shim there. After upgrading to v11, that shim still

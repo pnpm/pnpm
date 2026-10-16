@@ -12,7 +12,7 @@
 pub(crate) mod install_pnpm;
 pub(crate) mod verify_engine;
 
-pub(crate) use externally_managed::reject_externally_managed;
+pub(crate) use externally_managed::{ExternalManager, check_externally_managed};
 
 mod externally_managed;
 mod global_bin;
@@ -184,13 +184,15 @@ fn enforce_resolution_policy(
 }
 
 impl SelfUpdateArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         config: &'static Config,
         dir: &Path,
+        external_manager: Option<ExternalManager>,
     ) -> miette::Result<()> {
         if let Some(message) =
-            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir)).await?
+            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir, external_manager))
+                .await?
         {
             pnpm_diagnostics::println!("{message}");
         }
@@ -199,11 +201,13 @@ impl SelfUpdateArgs {
 }
 
 /// The `self-update` flow. Returns the final user-facing message (printed
-/// to stdout), or `None` when nothing needs printing.
+/// to stdout), or `None` when nothing needs printing. Under an
+/// `external_manager`, only the project pin is written.
 async fn handler<Reporter: self::Reporter + 'static>(
     params: Option<&str>,
     config: &'static Config,
     dir: &Path,
+    external_manager: Option<ExternalManager>,
 ) -> miette::Result<Option<String>> {
     let prefix = dir.to_string_lossy().into_owned();
     info::<Reporter>(&prefix, "Checking for updates...");
@@ -238,14 +242,19 @@ async fn handler<Reporter: self::Reporter + 'static>(
     // The global install moves forward even when the project pins pnpm, or
     // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
     // The pin is written last so a failed switch leaves the project as it was.
-    let global_message = Box::pin(decline_or_switch_global::<Reporter>(
-        config,
-        &target_version,
-        &prefix,
-        bare_specifier,
-        is_implicit_latest,
-    ))
-    .await?;
+    let global_message = match external_manager {
+        Some(manager) => Some(manager.global_switch_skipped_message()),
+        None => {
+            Box::pin(decline_or_switch_global::<Reporter>(
+                config,
+                &target_version,
+                &prefix,
+                bare_specifier,
+                is_implicit_latest,
+            ))
+            .await?
+        }
+    };
 
     let project_pin_message = match pinned_pnpm {
         Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),

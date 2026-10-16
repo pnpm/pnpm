@@ -82,17 +82,9 @@ export async function handler (
   opts: SelfUpdateCommandOptions,
   params: string[]
 ): Promise<undefined | string> {
-  if (isExecutedByCorepack()) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
-      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
-    })
-  }
-  const homebrewFormula = findHomebrewFormula()
-  if (homebrewFormula != null) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_HOMEBREW', 'pnpm cannot update itself when it is installed by Homebrew', {
-      hint: `Update it with Homebrew instead: brew upgrade ${homebrewFormula}`,
-    })
-  }
+  const pinsPnpm = opts.wantedPackageManager?.name === packageManager.name
+  const externalManager = findExternalManager()
+  if (externalManager != null && !pinsPnpm) throw externalManager.error
   globalInfo('Checking for updates...')
   const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
@@ -105,7 +97,6 @@ export async function handler (
   const targetVersion = await resolveTargetVersion(opts, bareSpecifier)
   warnOnMajorUpgrade(opts.wantedPackageManager, targetVersion)
 
-  const pinsPnpm = opts.wantedPackageManager?.name === packageManager.name
   if (pinsPnpm && isImplicitLatest && opts.wantedPackageManager?.version !== targetVersion) {
     const noUpgradeMessage = await describeNewerProjectPin(opts, targetVersion)
     if (noUpgradeMessage != null) return noUpgradeMessage
@@ -114,10 +105,38 @@ export async function handler (
   // The global install moves forward even when the project pins pnpm, or the
   // machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747). The pin
   // is written last so a failed switch leaves the project as it was.
-  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion })
+  const globalMessage = externalManager?.globalSwitchSkippedMessage ??
+    await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion })
   if (!pinsPnpm) return globalMessage
   const projectPinMessage = await updateProjectPin(opts, targetVersion, bootstrapConfig)
   return `${projectPinMessage}\n${globalMessage}`
+}
+
+interface ExternalManager {
+  error: PnpmError
+  globalSwitchSkippedMessage: string
+}
+
+/**
+ * The tool other than pnpm that manages the running pnpm's updates, if any.
+ * A global switch under it would install a second pnpm that the one on PATH
+ * shadows, so only the project pin may be written.
+ */
+function findExternalManager (): ExternalManager | undefined {
+  if (isExecutedByCorepack()) {
+    const hint = `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`
+    return {
+      error: new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', { hint }),
+      globalSwitchSkippedMessage: `The global pnpm was left alone because it is executed by Corepack. ${hint}`,
+    }
+  }
+  const homebrewFormula = findHomebrewFormula()
+  if (homebrewFormula == null) return undefined
+  const hint = `Update it with Homebrew instead: brew upgrade ${homebrewFormula}`
+  return {
+    error: new PnpmError('CANT_SELF_UPDATE_IN_HOMEBREW', 'pnpm cannot update itself when it is installed by Homebrew', { hint }),
+    globalSwitchSkippedMessage: `The global pnpm was left alone because it is installed by Homebrew. ${hint}`,
+  }
 }
 
 async function resolveTargetVersion (opts: SelfUpdateCommandOptions, bareSpecifier: string): Promise<string> {
