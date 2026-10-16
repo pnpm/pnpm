@@ -205,13 +205,11 @@ fn test_fix_converts_repository_string_to_object() {
     }
 }
 
-/// `npm pkg fix` writes `git+https://gist.github.com/abc123.git` here. The
-/// gist host is not recognised, so the url stays as it is.
 #[test]
-fn test_fix_keeps_gist_repository_url() {
+fn test_fix_normalizes_gist_repository_url() {
     assert_eq!(
         fix_repository(json!("gist:abc123")),
-        json!({ "type": "git", "url": "gist:abc123" }),
+        json!({ "type": "git", "url": "git+https://gist.github.com/abc123.git" }),
     );
 }
 

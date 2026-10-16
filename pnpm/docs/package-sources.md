@@ -212,6 +212,7 @@ You can use a protocol shorthand `[provider]:` for certain Git providers:
 pnpm add github:zkochan/is-negative
 pnpm add bitbucket:pnpmjs/git-resolver
 pnpm add gitlab:pnpm/git-resolver
+pnpm add gist:106cfef49f8476b753a9cbbf9c65aff1
 ```
 
 If `[provider]:` is omitted, it defaults to `github:`.
@@ -230,7 +231,7 @@ Installs from the `beta` branch and only the subdirectory at `/packages/simple-r
 
 Added in: v12.0.0 (pnpm v12 only)
 
-For repositories on GitHub, GitLab, and Bitbucket, the specifier is an **identity**, not a choice of transport. All of the following name the same dependency and resolve identically:
+For repositories on GitHub, GitLab, Bitbucket, and GitHub Gist, the specifier is an **identity**, not a choice of transport. All of the following name the same dependency and resolve identically:
 
 ```text
 kevva/is-positive

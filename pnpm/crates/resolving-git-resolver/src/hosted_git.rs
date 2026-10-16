@@ -10,8 +10,9 @@
 //!   directly. Upstream hosted-git-info still emits the
 //!   `/api/v4/projects/<user>%2F<project>/repository/archive.tar.gz`
 //!   form; pacquet uses the override, not the raw template.
-//! - The `gist` host is not implemented. The test suite never
-//!   exercises it and the install path has no gist-shaped store key.
+//! - The gist `https` and `git` forms keep URL-embedded credentials, as
+//!   GitHub's do. Upstream's gist templates drop them, which would strip
+//!   the credentials from the URL `git ls-remote` reaches.
 //! - `browse` / `bugs` / `file` templates are not implemented.
 
 mod url_parse;
@@ -31,6 +32,9 @@ pub enum HostedGitType {
     Github,
     Gitlab,
     Bitbucket,
+    /// A gist is addressed by its id alone: every URL form omits
+    /// [`HostedGit::user`], which a gist URL may or may not carry.
+    Gist,
 }
 
 impl HostedGitType {
@@ -39,6 +43,7 @@ impl HostedGitType {
             HostedGitType::Github => "github.com",
             HostedGitType::Gitlab => "gitlab.com",
             HostedGitType::Bitbucket => "bitbucket.org",
+            HostedGitType::Gist => "gist.github.com",
         }
     }
 
@@ -47,6 +52,7 @@ impl HostedGitType {
             HostedGitType::Github => "github",
             HostedGitType::Gitlab => "gitlab",
             HostedGitType::Bitbucket => "bitbucket",
+            HostedGitType::Gist => "gist",
         }
     }
 
@@ -55,6 +61,7 @@ impl HostedGitType {
             "github" => Some(HostedGitType::Github),
             "gitlab" => Some(HostedGitType::Gitlab),
             "bitbucket" => Some(HostedGitType::Bitbucket),
+            "gist" => Some(HostedGitType::Gist),
             _ => None,
         }
     }
@@ -67,6 +74,7 @@ impl HostedGitType {
             "github.com" => Some(HostedGitType::Github),
             "gitlab.com" => Some(HostedGitType::Gitlab),
             "bitbucket.org" => Some(HostedGitType::Bitbucket),
+            "gist.github.com" => Some(HostedGitType::Gist),
             _ => None,
         }
     }
@@ -80,6 +88,10 @@ impl HostedGitType {
             // gitHosts.gitlab.protocols and gitHosts.bitbucket.protocols
             HostedGitType::Gitlab | HostedGitType::Bitbucket => {
                 matches!(proto, "git+ssh" | "git+https" | "ssh" | "https")
+            }
+            // gitHosts.gist.protocols
+            HostedGitType::Gist => {
+                matches!(proto, "git" | "git+ssh" | "git+https" | "ssh" | "https")
             }
         }
     }
@@ -199,22 +211,39 @@ impl HostedGit {
     /// nested in subgroups arrives with its groups joined by `/`, which
     /// a scope cannot hold; they join with `~`, which a group path
     /// cannot contain, so a nested path cannot be spelled by a group
-    /// name. A shortcut naming no owner keeps the bare project name.
+    /// name. A shortcut naming no owner keeps the bare project name, and
+    /// so does a gist, whose id is unique on its own.
     #[must_use]
     pub fn synthesized_package_name(&self) -> String {
-        if self.user.is_empty() {
+        if self.user.is_empty() || self.host_type == HostedGitType::Gist {
             return self.project.to_ascii_lowercase();
         }
         format!("@{}/{}", self.user.replace('/', SUBGROUP_SEPARATOR), self.project)
             .to_ascii_lowercase()
     }
 
+    /// Whether the URL forms name a whole repository. A shortcut such as
+    /// `github:skills` names no owner, so its forms come out broken; a gist
+    /// needs none.
+    #[must_use]
+    pub fn has_owner(&self) -> bool {
+        !self.user.is_empty() || self.host_type == HostedGitType::Gist
+    }
+
+    /// The `<user>/<project>` path every URL form shares, or the bare
+    /// project id for a gist.
+    fn repo_path(&self) -> String {
+        if self.host_type == HostedGitType::Gist {
+            return self.project.clone();
+        }
+        format!("{}/{}", self.user, self.project)
+    }
+
     /// Shorthand `<type>:<user>/<project>[#committish]`. Mirrors
     /// upstream's `shortcuttemplate`.
     #[must_use]
     pub fn shortcut(&self, opts: HostedOpts) -> String {
-        let mut out =
-            format!("{}:{}/{}", self.host_type.shortcut_prefix(), self.user, self.project);
+        let mut out = format!("{}:{}", self.host_type.shortcut_prefix(), self.repo_path());
         if !opts.no_committish
             && let Some(ref c) = self.committish
         {
@@ -234,10 +263,9 @@ impl HostedGit {
             .map(|a| format!("{a}@"))
             .unwrap_or_default();
         let mut out = format!(
-            "git+https://{auth}{domain}/{user}/{project}.git",
+            "git+https://{auth}{domain}/{path}.git",
             domain = self.host_type.domain(),
-            user = self.user,
-            project = self.project,
+            path = self.repo_path(),
         );
         if !opts.no_committish
             && let Some(ref c) = self.committish
@@ -267,11 +295,20 @@ impl HostedGit {
     }
 
     fn docs(&self) -> String {
+        let separator = match self.host_type {
+            HostedGitType::Github | HostedGitType::Gitlab => "tree",
+            HostedGitType::Bitbucket => "src",
+            // Upstream's gist `docstemplate`: no tree segment and no `#readme`.
+            HostedGitType::Gist => {
+                let mut out = format!("https://gist.github.com/{}", self.project);
+                if let Some(committish) = &self.committish {
+                    out.push('/');
+                    out.push_str(&encode_uri_component(committish));
+                }
+                return out;
+            }
+        };
         if let Some(committish) = &self.committish {
-            let separator = match self.host_type {
-                HostedGitType::Github | HostedGitType::Gitlab => "tree",
-                HostedGitType::Bitbucket => "src",
-            };
             return format!(
                 "https://{domain}/{user}/{project}/{separator}/{committish}#readme",
                 domain = self.host_type.domain(),
@@ -293,10 +330,9 @@ impl HostedGit {
     #[must_use]
     pub fn ssh(&self, opts: HostedOpts) -> Option<String> {
         let mut out = format!(
-            "git@{domain}:{user}/{project}.git",
+            "git@{domain}:{path}.git",
             domain = self.host_type.domain(),
-            user = self.user,
-            project = self.project,
+            path = self.repo_path(),
         );
         if !opts.no_committish
             && let Some(ref c) = self.committish
@@ -312,10 +348,9 @@ impl HostedGit {
     #[must_use]
     pub fn sshurl(&self, opts: HostedOpts) -> Option<String> {
         let mut out = format!(
-            "git+ssh://git@{domain}/{user}/{project}.git",
+            "git+ssh://git@{domain}/{path}.git",
             domain = self.host_type.domain(),
-            user = self.user,
-            project = self.project,
+            path = self.repo_path(),
         );
         if !opts.no_committish
             && let Some(ref c) = self.committish
@@ -332,9 +367,9 @@ impl HostedGit {
     }
 
     /// `git://[auth@]<domain>/<user>/<project>.git[#committish]`. Mirrors
-    /// upstream's `gittemplate`, which only GitHub defines.
+    /// upstream's `gittemplate`, which only GitHub and gist define.
     fn git(&self) -> Option<String> {
-        if self.host_type != HostedGitType::Github {
+        if !matches!(self.host_type, HostedGitType::Github | HostedGitType::Gist) {
             return None;
         }
         let auth = self.auth
@@ -342,10 +377,9 @@ impl HostedGit {
             .map(|auth| format!("{auth}@"))
             .unwrap_or_default();
         let mut out = format!(
-            "git://{auth}{domain}/{user}/{project}.git",
+            "git://{auth}{domain}/{path}.git",
             domain = self.host_type.domain(),
-            user = self.user,
-            project = self.project,
+            path = self.repo_path(),
         );
         if let Some(committish) = &self.committish {
             out.push('#');
@@ -364,8 +398,7 @@ impl HostedGit {
     /// URL form for that protocol.
     #[must_use]
     pub fn normalized_repository_url(&self) -> Option<String> {
-        // Rendering an ownerless shortcut such as `github:skills` yields a broken URL.
-        if self.user.is_empty() {
+        if !self.has_owner() {
             return None;
         }
         let opts = HostedOpts::default();
@@ -412,6 +445,11 @@ impl HostedGit {
             HostedGitType::Gitlab => format!(
                 "https://gitlab.com/{user}/{project}/-/archive/{ref}/{project}-{ref}.tar.gz",
                 user = self.user,
+                project = self.project,
+                r#ref = encoded_committish,
+            ),
+            HostedGitType::Gist => format!(
+                "https://codeload.github.com/gist/{project}/tar.gz/{ref}",
                 project = self.project,
                 r#ref = encoded_committish,
             ),
