@@ -2,9 +2,11 @@
 //! own lockfiles ahead of the workspace projects they depend on.
 //!
 //! Resolving, fetching and materializing a project reads nothing the installs
-//! of its workspace dependencies produce, so projects start in dependency
-//! order, with at most `workspaceConcurrency` installs in flight. Waiting
-//! installs count toward this limit because they retain materialized state.
+//! of its workspace dependencies produce, so a project starts once each of
+//! them has started, with at most `workspaceConcurrency` installs in flight.
+//! An install counts from its start until it returns, waits included, because
+//! it retains materialized state. Every install in flight then depends only on
+//! installs that are in flight or done, so the earliest of them can finish.
 //! A project waits for its workspace dependencies' installs
 //! only where they start to matter: before it links its dependencies and runs
 //! its lifecycle scripts. The scripts of a project therefore still run after
@@ -19,7 +21,7 @@ use crate::state::DedicatedCaches;
 use futures_util::{
     FutureExt,
     future::BoxFuture,
-    stream::{self, StreamExt},
+    stream::{FuturesUnordered, StreamExt},
 };
 use pnpm_package_manager::WorkspaceDependenciesInstalled;
 use std::{
@@ -29,12 +31,14 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use tokio::sync::watch;
+use tokio::sync::{Semaphore, watch};
 
 /// How far a project's install got, for the projects that depend on it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Installed {
     Pending,
+    /// Holds one of the in-flight slots.
+    Started,
     Succeeded,
     Failed,
 }
@@ -95,14 +99,16 @@ impl DedicatedProjectRuns<'_> {
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let order = sequence_project_dependencies(&self.projects.dependencies);
-        let concurrency =
-            usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+        let concurrency = usize::try_from(self.config.workspace_concurrency)
+            .unwrap_or(usize::MAX)
+            .clamp(1, Semaphore::MAX_PERMITS);
         let run = PipelinedRun {
             runs: self,
             states: order
                 .iter()
                 .map(|_| watch::channel(Installed::Pending).0)
                 .collect(),
+            slots: Semaphore::new(concurrency),
             stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
             caches: DedicatedCaches::default(),
@@ -113,9 +119,11 @@ impl DedicatedProjectRuns<'_> {
             .enumerate()
             .map(|(index, project_dir)| (project_dir.as_path(), index))
             .collect();
-        stream::iter(0..order.len())
-            .map(|index| run.project(index, &order[index], &position))
-            .buffer_unordered(concurrency)
+        order
+            .iter()
+            .enumerate()
+            .map(|(index, project_dir)| run.project(index, project_dir, &position))
+            .collect::<FuturesUnordered<_>>()
             .collect::<()>()
             .await;
         run.first_error
@@ -129,6 +137,7 @@ struct PipelinedRun<'r, 'c, Runner> {
     runs: &'r DedicatedProjectRuns<'c>,
     /// Indexed like the dependency order the projects start in.
     states: Vec<watch::Sender<Installed>>,
+    slots: Semaphore,
     /// Set by the first failure when the command stops at it, so that no
     /// project that has yet to start, or to link, does.
     stopped: Arc<AtomicBool>,
@@ -145,16 +154,21 @@ where
     async fn project(&self, index: usize, project_dir: &Path, position: &HashMap<&Path, usize>) {
         let dependencies_installed = self.dependencies_installed(index, project_dir, position);
         let starts_early = self.runs.projects.early_starts.contains(project_dir);
-        if !starts_early && !dependencies_installed.clone().await {
+        if starts_early {
+            self.dependencies_started(index, project_dir, position).await;
+        } else if !dependencies_installed.clone().await {
             self.states[index].send_replace(Installed::Failed);
             return;
         }
+        let slot = self.slots.acquire().await.expect("the install slots are never closed");
         if self.stopped.load(Ordering::Acquire) {
             self.states[index].send_replace(Installed::Failed);
             return;
         }
+        self.states[index].send_replace(Installed::Started);
         let gate = starts_early.then(|| self.gate(dependencies_installed.clone()));
         let result = self.runs.install_project(project_dir, &self.caches, gate, self.run).await;
+        drop(slot);
         let failed = result.is_err();
         record_dedicated_result(&self.first_error, result);
         if failed && self.runs.config.bail {
@@ -181,19 +195,15 @@ where
         project_dir: &Path,
         position: &HashMap<&Path, usize>,
     ) -> WorkspaceDependenciesInstalled {
-        let dependencies: Vec<watch::Receiver<Installed>> = self.runs.projects.dependencies
-            [project_dir]
-            .iter()
-            .filter_map(|dependency| position.get(dependency.as_path()).copied())
-            .filter(|&dependency| dependency < index)
-            .map(|dependency| self.states[dependency].subscribe())
-            .collect();
+        let dependencies = self.dependency_states(index, project_dir, position);
         let bail = self.runs.config.bail;
         let settled: BoxFuture<'static, bool> = async move {
             let mut all_succeeded = true;
             for mut dependency in dependencies {
                 let installed = dependency
-                    .wait_for(|installed| *installed != Installed::Pending)
+                    .wait_for(|installed| {
+                        matches!(installed, Installed::Succeeded | Installed::Failed)
+                    })
                     .await
                     .map_or(Installed::Failed, |installed| *installed);
                 all_succeeded &= installed == Installed::Succeeded;
@@ -202,6 +212,35 @@ where
         }
         .boxed();
         settled.shared()
+    }
+
+    /// Resolves once every workspace project `project_dir` depends on, as
+    /// [`Self::dependencies_installed`] counts them, has started or settled.
+    async fn dependencies_started(
+        &self,
+        index: usize,
+        project_dir: &Path,
+        position: &HashMap<&Path, usize>,
+    ) {
+        for mut dependency in self.dependency_states(index, project_dir, position) {
+            // A closed channel means the dependency's install is gone, which
+            // is as good as settled for starting.
+            let _ = dependency.wait_for(|installed| *installed != Installed::Pending).await;
+        }
+    }
+
+    fn dependency_states(
+        &self,
+        index: usize,
+        project_dir: &Path,
+        position: &HashMap<&Path, usize>,
+    ) -> Vec<watch::Receiver<Installed>> {
+        self.runs.projects.dependencies[project_dir]
+            .iter()
+            .filter_map(|dependency| position.get(dependency.as_path()).copied())
+            .filter(|&dependency| dependency < index)
+            .map(|dependency| self.states[dependency].subscribe())
+            .collect()
     }
 
     /// `dependencies_installed` as the install awaits it: `false` too when
