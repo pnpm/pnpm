@@ -1,9 +1,9 @@
 use super::{
     Action, Body, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode, ImageDocument, Method,
-    OciPublication, Refusal, RegistryError, RegistrySource, Request, Response, StatusCode,
-    authorize, collect_body, created, error, header, hosted_manifest_response, insert_header,
-    method_not_allowed, no_content, read_hosted_document, read_manifest_bytes, registry_error,
-    unknown_repository,
+    OciPublication, Refusal, RegistryError, RegistrySource, Request, Response, ResponseBody,
+    StatusCode, authorize, collect_body, created, error, header, hosted_manifest_response,
+    insert_header, method_not_allowed, no_content, read_hosted_document, read_manifest_bytes,
+    registry_error, unknown_repository,
 };
 
 impl Request {
@@ -54,7 +54,8 @@ impl Request {
             Ok(None) => return error(ErrorCode::ManifestUnknown, "no such manifest"),
             Err(err) => return registry_error(err),
         };
-        let response = hosted_manifest_response(bytes, entry, self.method == Method::HEAD);
+        let response =
+            hosted_manifest_response(bytes, entry, ResponseBody::for_method(&self.method));
         self.caller_scoped(Some(repo.key.as_str()), response)
     }
 

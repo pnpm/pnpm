@@ -6,8 +6,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, router,
-    router_with_auth,
+    AuthState, Config, PasswordChange, TokenBackend, TokenStore, UpsertOutcome, UserBackend,
+    UserCreation, UserRemoval, UserStore, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -275,15 +275,15 @@ impl UserBackend for DeactivatedDuringLogin {
         self.users.password_hash(username).await
     }
 
-    async fn create_user(&self, username: &str, password: &str) -> pnpr::Result<bool> {
+    async fn create_user(&self, username: &str, password: &str) -> pnpr::Result<UserCreation> {
         self.users.create_user(username, password).await
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> pnpr::Result<bool> {
+    async fn set_password(&self, username: &str, password: &str) -> pnpr::Result<PasswordChange> {
         self.users.set_password(username, password).await
     }
 
-    async fn delete_user(&self, username: &str) -> pnpr::Result<bool> {
+    async fn delete_user(&self, username: &str) -> pnpr::Result<UserRemoval> {
         self.users.delete_user(username).await
     }
 }

@@ -1,4 +1,4 @@
-pub use artifact_identity::OrgAccess;
+pub use artifact_identity::{OrgAccess, OrgGrant};
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
 
 mod publication_quota;

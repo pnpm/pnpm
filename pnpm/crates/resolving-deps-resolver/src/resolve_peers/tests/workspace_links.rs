@@ -1,6 +1,7 @@
 use super::{
     BTreeMap, DepPath, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, ResolvePeersOptions,
-    ResolvedTree, linked_package, package, resolve_peers, resolve_peers_workspace, tree_node,
+    ResolvedTree, WorkspacePeerSettings, linked_package, package, resolve_peers,
+    resolve_peers_workspace, tree_node,
 };
 
 /// Same as [`pruned_hoisted_provider_falls_back_to_root_resolution`] but
@@ -43,9 +44,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         &mut tree,
         &[importer],
         std::path::Path::new("/repo"),
-        false,
-        false,
-        false,
+        WorkspacePeerSettings::default(),
         ResolvePeersOptions {
             scope: crate::PeerResolutionScope {
                 hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),

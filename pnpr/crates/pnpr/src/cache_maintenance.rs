@@ -23,17 +23,38 @@ pub struct CacheReport {
     pub bytes_reclaimed: u64,
 }
 
+/// Whether a collection pass deletes what it selects.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CacheGcEffect {
+    /// Delete the entries the pass selects.
+    #[default]
+    Apply,
+    /// Leave every entry in place, and report what [`Self::Apply`] would
+    /// have removed.
+    DryRun,
+}
+
+/// How much of the cache a collection pass covers.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CacheGcScope {
+    /// Prune orphaned namespaces, then evict within the active ones.
+    #[default]
+    Full,
+    /// Prune orphaned namespaces only, leaving active entries in place.
+    OrphansOnly,
+}
+
 /// Options controlling cache reclamation and eviction.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CacheGcOptions {
-    /// Report reclaimable entries without deleting anything.
-    pub dry_run: bool,
+    /// Whether this pass deletes what it finds.
+    pub effect: CacheGcEffect,
     /// Maximum total cache size to retain. Oldest files are evicted first.
     pub max_size: Option<u64>,
     /// Maximum age of cached entries. Files older than this are deleted.
     pub max_age: Option<Duration>,
-    /// Only prune orphaned upstream namespaces without evicting active cache files.
-    pub orphans_only: bool,
+    /// How much of the cache this pass covers.
+    pub scope: CacheGcScope,
 }
 
 struct CachedFile {
@@ -58,12 +79,13 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
     let mut report = prune_orphaned_namespaces(
         &config.storage.cache_dir,
         &active,
-        options.dry_run,
+        options.effect,
         config.has_configured_secret,
     )
     .await?;
-    if options.orphans_only {
-        return Ok(report);
+    match options.scope {
+        CacheGcScope::OrphansOnly => return Ok(report),
+        CacheGcScope::Full => {}
     }
     let max_age = options.max_age.or(config.storage.cache.max_age);
     let max_size = options.max_size.or(config.storage.cache.max_size);
@@ -73,12 +95,16 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
             &active,
             max_age,
             max_size,
-            options.dry_run,
+            options.effect,
         )
         .await?;
         report.files_evicted += ev.files_evicted;
         report.bytes_reclaimed += ev.bytes_reclaimed;
-        if !options.dry_run && ev.files_evicted > 0 {
+        let prunes_empty_dirs = match options.effect {
+            CacheGcEffect::Apply => ev.files_evicted > 0,
+            CacheGcEffect::DryRun => false,
+        };
+        if prunes_empty_dirs {
             prune_empty_dirs(&config.storage.cache_dir, &active).await?;
         }
     }
@@ -88,10 +114,10 @@ pub async fn collect_cache(config: &Config, options: &CacheGcOptions) -> Result<
 /// Evict cache entries on startup: cleans orphaned namespaces and enforces configured caps.
 pub async fn prune_orphaned_namespaces_startup(config: &Config) -> Result<CacheReport> {
     let opts = CacheGcOptions {
-        dry_run: false,
+        effect: CacheGcEffect::Apply,
         max_size: config.storage.cache.max_size,
         max_age: config.storage.cache.max_age,
-        orphans_only: false,
+        scope: CacheGcScope::Full,
     };
     collect_cache(config, &opts).await
 }
@@ -123,7 +149,7 @@ async fn prune_orphan_entry(
     entry: &tokio::fs::DirEntry,
     prefix: &str,
     active: &HashSet<String>,
-    dry_run: bool,
+    effect: CacheGcEffect,
     report: &mut CacheReport,
 ) -> Result<()> {
     let Ok(file_type) = entry.file_type().await else {
@@ -137,8 +163,9 @@ async fn prune_orphan_entry(
         return Ok(());
     }
     let (count, bytes) = count_dir_contents(&entry.path()).await?;
-    if !dry_run {
-        fs::remove_dir_all(entry.path()).await?;
+    match effect {
+        CacheGcEffect::Apply => fs::remove_dir_all(entry.path()).await?,
+        CacheGcEffect::DryRun => {}
     }
     report.namespaces_removed += 1;
     report.files_evicted += count;
@@ -150,7 +177,7 @@ async fn prune_orphan_prefix(
     cache_dir: &Path,
     prefix: &str,
     active: &HashSet<String>,
-    dry_run: bool,
+    effect: CacheGcEffect,
     report: &mut CacheReport,
 ) {
     let parent = cache_dir.join(prefix);
@@ -163,7 +190,7 @@ async fn prune_orphan_prefix(
         return;
     };
     while let Ok(Some(entry)) = entries.next_entry().await {
-        if let Err(err) = prune_orphan_entry(&entry, prefix, active, dry_run, report).await {
+        if let Err(err) = prune_orphan_entry(&entry, prefix, active, effect, report).await {
             tracing::warn!(error = %err, path = %entry.path().display(), "orphan cache namespace cleanup failed");
         }
     }
@@ -173,14 +200,14 @@ async fn prune_orphan_prefix(
 async fn prune_orphaned_namespaces(
     cache_dir: &Path,
     active: &HashSet<String>,
-    dry_run: bool,
+    effect: CacheGcEffect,
     has_configured_secret: bool,
 ) -> Result<CacheReport> {
     let mut report = CacheReport::default();
     if has_configured_secret {
-        prune_orphan_prefix(cache_dir, "~upstreams", active, dry_run, &mut report).await;
+        prune_orphan_prefix(cache_dir, "~upstreams", active, effect, &mut report).await;
     }
-    prune_orphan_prefix(cache_dir, "~public", active, dry_run, &mut report).await;
+    prune_orphan_prefix(cache_dir, "~public", active, effect, &mut report).await;
     Ok(report)
 }
 
@@ -219,25 +246,33 @@ async fn count_dir_contents(path: &Path) -> Result<(usize, u64)> {
     Ok((count, bytes))
 }
 
+/// Whether `path` may be counted as reclaimed: [`CacheGcEffect::Apply`]
+/// counts it once the file is gone, a dry run counts it without touching
+/// the file.
+async fn counts_as_removed(effect: CacheGcEffect, path: &Path) -> bool {
+    match effect {
+        CacheGcEffect::Apply => fs::remove_file(path).await.is_ok(),
+        CacheGcEffect::DryRun => true,
+    }
+}
+
 async fn evict_file_if_expired(
     file: CachedFile,
     max_age: Option<Duration>,
-    dry_run: bool,
+    effect: CacheGcEffect,
     report: &mut CacheReport,
     total_size: &mut u64,
     retained: &mut Vec<CachedFile>,
 ) {
     if is_tmp_file(&file.path) {
-        if is_abandoned_tmp(&file.path, file.age)
-            && (dry_run || fs::remove_file(&file.path).await.is_ok())
-        {
+        if is_abandoned_tmp(&file.path, file.age) && counts_as_removed(effect, &file.path).await {
             report.files_evicted += 1;
             report.bytes_reclaimed += file.size;
         }
         return;
     }
     let is_expired = max_age.is_some_and(|ttl| file.age >= ttl);
-    if is_expired && (dry_run || fs::remove_file(&file.path).await.is_ok()) {
+    if is_expired && counts_as_removed(effect, &file.path).await {
         report.files_evicted += 1;
         report.bytes_reclaimed += file.size;
         return;
@@ -252,7 +287,7 @@ async fn evict_active_cache(
     active: &HashSet<String>,
     max_age: Option<Duration>,
     max_size: Option<u64>,
-    dry_run: bool,
+    effect: CacheGcEffect,
 ) -> Result<CacheReport> {
     let mut report = CacheReport::default();
     let mut retained = Vec::new();
@@ -264,7 +299,7 @@ async fn evict_active_cache(
             evict_file_if_expired(
                 file,
                 max_age,
-                dry_run,
+                effect,
                 &mut report,
                 &mut total_size,
                 &mut retained,
@@ -273,22 +308,29 @@ async fn evict_active_cache(
         }
     }
     if let Some(limit) = max_size {
-        evict_lru(&mut retained, total_size, limit, dry_run, &mut report).await;
+        evict_lru(&mut retained, total_size, limit, effect, &mut report).await;
     }
     Ok(report)
 }
 
-async fn evict_lru_entry(entry: &CachedFile, dry_run: bool, report: &mut CacheReport) -> bool {
-    if !dry_run {
-        if let Ok(meta) = fs::metadata(&entry.path).await {
-            let (current_time, _) = file_effective_time(&meta);
-            if current_time > entry.effective_time {
+async fn evict_lru_entry(
+    entry: &CachedFile,
+    effect: CacheGcEffect,
+    report: &mut CacheReport,
+) -> bool {
+    match effect {
+        CacheGcEffect::Apply => {
+            if let Ok(meta) = fs::metadata(&entry.path).await {
+                let (current_time, _) = file_effective_time(&meta);
+                if current_time > entry.effective_time {
+                    return false;
+                }
+            }
+            if fs::remove_file(&entry.path).await.is_err() {
                 return false;
             }
         }
-        if fs::remove_file(&entry.path).await.is_err() {
-            return false;
-        }
+        CacheGcEffect::DryRun => {}
     }
     report.files_evicted += 1;
     report.bytes_reclaimed += entry.size;
@@ -300,7 +342,7 @@ async fn evict_lru(
     retained: &mut [CachedFile],
     mut total_size: u64,
     limit: u64,
-    dry_run: bool,
+    effect: CacheGcEffect,
     report: &mut CacheReport,
 ) {
     if total_size <= limit {
@@ -311,7 +353,7 @@ async fn evict_lru(
         if total_size <= limit {
             break;
         }
-        if evict_lru_entry(entry, dry_run, report).await {
+        if evict_lru_entry(entry, effect, report).await {
             total_size = total_size.saturating_sub(entry.size);
         }
     }

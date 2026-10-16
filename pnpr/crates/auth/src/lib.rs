@@ -259,17 +259,15 @@ pub trait UserBackend: Send + Sync {
     /// password.
     async fn password_hash(&self, username: &str) -> Result<Option<String>>;
 
-    /// Create `username` on an administrator's behalf, reporting `false`
-    /// when it exists. Not bound by the self-registration cap.
-    async fn create_user(&self, username: &str, password: &str) -> Result<bool>;
+    /// Create `username` on an administrator's behalf. Not bound by the
+    /// self-registration cap.
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation>;
 
-    /// Replace the password of `username`, reporting `false` when there is
-    /// no such user.
-    async fn set_password(&self, username: &str, password: &str) -> Result<bool>;
+    /// Replace the password of `username`.
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange>;
 
-    /// Remove `username`, reporting `false` when there is no such user. The
-    /// user's tokens are not touched.
-    async fn delete_user(&self, username: &str) -> Result<bool>;
+    /// Remove `username`. The user's tokens are not touched.
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
 
     /// Check that the user store backend is reachable and ready to process requests.
     async fn check_readiness(&self) -> Result<()> {
@@ -368,6 +366,33 @@ pub enum UpsertOutcome {
     Created,
     /// The user existed and the password matched.
     LoggedIn,
+}
+
+/// What [`UserBackend::create_user`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserCreation {
+    /// The name was free; the account is stored.
+    Created,
+    /// The name was taken, so the account it names is untouched.
+    NameTaken,
+}
+
+/// What [`UserBackend::set_password`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasswordChange {
+    /// The account's password is the new one.
+    Changed,
+    /// There is no such account, so no password was stored.
+    NoSuchUser,
+}
+
+/// What [`UserBackend::delete_user`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserRemoval {
+    /// The account is gone.
+    Removed,
+    /// There was no such account.
+    NoSuchUser,
 }
 
 /// `users` table DDL — only shared-database backends need it, since

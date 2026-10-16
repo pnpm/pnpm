@@ -382,20 +382,23 @@ impl IndexFetcher {
     }
 
     async fn cached(&self, path: &Path) -> Option<String> {
-        Self::cached_entry(path, self.ttl, false).await
+        Self::cached_entry(path, self.ttl, StaleEntry::Keep).await
     }
 
     /// The cached index file when it is younger than the TTL. Every failure
     /// (absent, unreadable, stale) is a miss: the registry is the source of
     /// truth and refetching is always correct.
-    async fn cached_entry(path: &Path, ttl: Duration, delete_stale: bool) -> Option<String> {
+    async fn cached_entry(path: &Path, ttl: Duration, stale: StaleEntry) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
         let age = SystemTime::now()
             .duration_since(metadata.modified().ok()?)
             .ok()?;
         if age >= ttl {
-            if delete_stale {
-                let _ = tokio::fs::remove_file(path).await;
+            match stale {
+                StaleEntry::Delete => {
+                    let _ = tokio::fs::remove_file(path).await;
+                }
+                StaleEntry::Keep => {}
             }
             return None;
         }
@@ -414,6 +417,13 @@ impl IndexFetcher {
         })
         .await;
     }
+}
+
+/// What a cache read does with an entry past its TTL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaleEntry {
+    Delete,
+    Keep,
 }
 
 mod locked_entry;

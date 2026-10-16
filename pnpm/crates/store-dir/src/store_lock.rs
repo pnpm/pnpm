@@ -1,6 +1,7 @@
 use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_fs::LockMode;
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -41,21 +42,21 @@ impl StoreDir {
     /// Keep the store stable while an install, fetch, or engine setup may
     /// create or consume files in it. Multiple consumers may run together.
     pub fn lock_for_use(&self) -> Result<StoreOperationLock, StoreLockError> {
-        lock_files(self, false)
+        lock_files(self, LockMode::Shared)
     }
 
     /// Keep an immutable store stable without creating a lock file inside it.
     pub fn lock_for_frozen_use(&self) -> Result<StoreOperationLock, StoreLockError> {
-        lock_files(self, false)
+        lock_files(self, LockMode::Shared)
     }
 
     /// Keep consumers out of the store while destructive maintenance runs.
     pub fn lock_for_prune(&self) -> Result<StoreOperationLock, StoreLockError> {
-        lock_files(self, true)
+        lock_files(self, LockMode::Exclusive)
     }
 }
 
-fn lock_files(store_dir: &StoreDir, exclusive: bool) -> Result<StoreOperationLock, StoreLockError> {
+fn lock_files(store_dir: &StoreDir, mode: LockMode) -> Result<StoreOperationLock, StoreLockError> {
     // The shared global barrier keeps path aliases safe even if a symlink or
     // junction changes target after its per-store identity is resolved.
     // Consumers of every store still overlap; only destructive maintenance
@@ -65,8 +66,7 @@ fn lock_files(store_dir: &StoreDir, exclusive: bool) -> Result<StoreOperationLoc
     for path in paths {
         let file = pnpm_fs::open_secure_lock_file(&path)
             .map_err(|error| StoreLockError::Open { path: path.clone(), error })?;
-        pnpm_fs::lock_file(&file, exclusive)
-            .map_err(|error| StoreLockError::Acquire { path, error })?;
+        pnpm_fs::lock_file(&file, mode).map_err(|error| StoreLockError::Acquire { path, error })?;
         files.push(file);
     }
     Ok(StoreOperationLock { _files: files })

@@ -1,3 +1,12 @@
+/// Which region of the frame a message is written to. A pinned message is
+/// rewritten in place below the scrolling ones; a scrolling message moves
+/// up as later output arrives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BlockPlacement {
+    Scrolling,
+    Pinned,
+}
+
 /// Lazily-assigned block indices for one logical output stream — its
 /// non-fixed (`block`) and fixed (`fixed`) slots in the frame — the
 /// per-stream `currentBlockNo` / `currentFixedBlockNo` pair.
@@ -32,34 +41,37 @@ impl Frame {
         }
     }
 
-    pub(super) fn emit(&mut self, slot: &mut BlockSlot, msg: String, fixed: bool) {
+    pub(super) fn emit(&mut self, slot: &mut BlockSlot, msg: String, placement: BlockPlacement) {
         if self.append_only {
             self.pending.push(msg);
             return;
         }
-        if fixed {
-            let idx = *slot.fixed.get_or_insert_with(|| {
-                let assigned = self.next_fixed;
-                self.next_fixed += 1;
-                assigned
-            });
-            if self.fixed_blocks.len() <= idx {
-                self.fixed_blocks.resize(idx + 1, None);
+        match placement {
+            BlockPlacement::Pinned => {
+                let idx = *slot.fixed.get_or_insert_with(|| {
+                    let assigned = self.next_fixed;
+                    self.next_fixed += 1;
+                    assigned
+                });
+                if self.fixed_blocks.len() <= idx {
+                    self.fixed_blocks.resize(idx + 1, None);
+                }
+                self.fixed_blocks[idx] = Some(msg);
             }
-            self.fixed_blocks[idx] = Some(msg);
-        } else {
-            if let Some(f) = slot.fixed.take() {
-                self.fixed_blocks[f] = None;
+            BlockPlacement::Scrolling => {
+                if let Some(f) = slot.fixed.take() {
+                    self.fixed_blocks[f] = None;
+                }
+                let idx = *slot.block.get_or_insert_with(|| {
+                    let assigned = self.next_block;
+                    self.next_block += 1;
+                    assigned
+                });
+                if self.blocks.len() <= idx {
+                    self.blocks.resize(idx + 1, None);
+                }
+                self.blocks[idx] = Some(msg);
             }
-            let idx = *slot.block.get_or_insert_with(|| {
-                let assigned = self.next_block;
-                self.next_block += 1;
-                assigned
-            });
-            if self.blocks.len() <= idx {
-                self.blocks.resize(idx + 1, None);
-            }
-            self.blocks[idx] = Some(msg);
         }
     }
 

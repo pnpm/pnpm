@@ -6,6 +6,7 @@ use super::{
     json_response, private_no_cache, require_admin, team_mutations::respond,
     tokens::token_response_object,
 };
+use crate::{PasswordChange, UserCreation, UserRemoval};
 use axum::{
     Router,
     body::Bytes,
@@ -80,13 +81,13 @@ async fn put_user(
             // Tokens a removed account left behind must not reach the new one.
             revoke_all_tokens(&state, &path.user).await?;
         }
-        let (status, action) = if users.create_user(&path.user, &password).await? {
-            (StatusCode::CREATED, "user.create")
-        } else if users.set_password(&path.user, &password).await? {
-            (StatusCode::OK, "user.password_update")
-        } else {
-            // Another request removed the user between the two calls.
-            return Err(RegistryError::NotFound);
+        let (status, action) = match users.create_user(&path.user, &password).await? {
+            UserCreation::Created => (StatusCode::CREATED, "user.create"),
+            UserCreation::NameTaken => match users.set_password(&path.user, &password).await? {
+                PasswordChange::Changed => (StatusCode::OK, "user.password_update"),
+                // Another request removed the user between the two calls.
+                PasswordChange::NoSuchUser => return Err(RegistryError::NotFound),
+            },
         };
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
@@ -117,7 +118,7 @@ async fn delete_user(
         let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
         let revoked_after = revoke_all_tokens(&state, &path.user).await?;
-        if !removed && revoked_before + revoked_after == 0 {
+        if removed == UserRemoval::NoSuchUser && revoked_before + revoked_after == 0 {
             return Err(RegistryError::NotFound);
         }
         let actor = identity.username().unwrap_or("-");

@@ -1,7 +1,7 @@
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 
-use super::{super::test_support::manifest_result, extract_children};
+use super::{super::test_support::manifest_result, DependencySpec, extract_children};
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -18,7 +18,12 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("node".to_string(), "runtime:22.19.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "node".to_string(),
+            bare_specifier: "runtime:22.19.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -65,7 +70,12 @@ fn bundled_dependencies_are_not_walked() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "regular-dep".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -79,7 +89,12 @@ fn bundle_dependencies_spelling_is_honored() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "regular-dep".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -94,7 +109,12 @@ fn bundled_dependencies_true_bundles_every_dependency() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("three".to_string(), "^3.0.0".to_string(), true, false)],
+        vec![DependencySpec {
+            alias: "three".to_string(),
+            bare_specifier: "^3.0.0".to_string(),
+            optional: true,
+            injected: false
+        }],
     );
 }
 
@@ -112,7 +132,12 @@ fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("optional-only".to_string(), "^3.0.0".to_string(), true, false)],
+        vec![DependencySpec {
+            alias: "optional-only".to_string(),
+            bare_specifier: "^3.0.0".to_string(),
+            optional: true,
+            injected: false
+        }],
     );
 }
 
@@ -127,8 +152,18 @@ fn dependencies_meta_marks_children_as_injected() {
     assert_eq!(
         extract_children(&result).unwrap(),
         vec![
-            ("injected".to_string(), "workspace:*".to_string(), false, true),
-            ("linked".to_string(), "workspace:*".to_string(), false, false),
+            DependencySpec {
+                alias: "injected".to_string(),
+                bare_specifier: "workspace:*".to_string(),
+                optional: false,
+                injected: true
+            },
+            DependencySpec {
+                alias: "linked".to_string(),
+                bare_specifier: "workspace:*".to_string(),
+                optional: false,
+                injected: false
+            },
         ],
     );
 }

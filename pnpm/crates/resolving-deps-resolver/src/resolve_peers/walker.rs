@@ -46,7 +46,7 @@ use crate::{
             link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
-        finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
+        finalize::{NodeRecord, PeerIdRecording, PendingPeerEdge, WalkedNode},
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
@@ -121,11 +121,7 @@ pub(super) struct PeerWalkTraversal {
     /// is a cycle — the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
     pub(super) in_progress: HashSet<NodeId>,
-    /// `true` for a peer-hoist discovery pass: the walk records no
-    /// graph entries, node records, or pending edges, and the caller
-    /// runs none of the final depPath/graph passes. Everything that
-    /// decides *what* resolves or goes missing is unchanged.
-    pub(super) discovery: bool,
+    pub(super) mode: PeerWalkMode,
     /// Nodes this call resolved (any return path except the cycle
     /// re-entry). Distinguishes them from nodes only known through the
     /// persistent [`PeerDiscoveryCaches`], so the pruned-provider
@@ -140,6 +136,17 @@ pub(super) struct PeerWalkTraversal {
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
+}
+
+/// Which peer walk a [`Walker`] runs. The modes decide the same resolved
+/// and missing peers and differ in what they record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PeerWalkMode {
+    /// A peer-hoist discovery pass: no graph entries, node records or
+    /// pending edges are recorded, and no final depPath or graph pass runs.
+    Discovery,
+    /// The final pass that records the graph.
+    Final,
 }
 
 pub(super) struct PeerWalkProviders {
@@ -165,7 +172,7 @@ impl<'tree> Walker<'tree> {
         node_ids_by_previous_dep_path: HashMap<DepPath, NodeId>,
         current_provider_sources: Vec<CurrentProviderSource>,
         mut caches: PeerDiscoveryCaches,
-        discovery: bool,
+        mode: PeerWalkMode,
     ) -> Self {
         caches.peer_providers.refresh(tree);
         Walker {
@@ -192,7 +199,7 @@ impl<'tree> Walker<'tree> {
             },
             traversal: PeerWalkTraversal {
                 in_progress: HashSet::default(),
-                discovery,
+                mode,
                 visited_this_call: HashSet::default(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,
@@ -322,7 +329,7 @@ impl Walker<'_> {
         // suffix (the cycle fallback during the walk collapses peers
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
-        let final_dep_paths = self.build_final_dep_paths(false).by_node_id;
+        let final_dep_paths = self.build_final_dep_paths(PeerIdRecording::Skip).by_node_id;
         let direct_by_alias = self.importer_direct_dep_paths(&direct, &final_dep_paths);
         let graph = self.build_final_graph(&final_dep_paths);
         let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);

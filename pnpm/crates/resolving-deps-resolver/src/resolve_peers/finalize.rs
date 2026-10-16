@@ -4,7 +4,7 @@
 //! suffix, and the [`DependenciesGraph`] built from the per-node records
 //! keyed by those depPaths.
 
-pub(crate) use final_paths::FinalDepPaths;
+pub(crate) use final_paths::{FinalDepPaths, PeerIdRecording};
 pub(crate) use graph_edges::merge_additional_edges;
 
 mod peer_scc;
