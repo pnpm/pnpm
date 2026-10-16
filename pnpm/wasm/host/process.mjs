@@ -20,6 +20,8 @@ export async function spawnProcess (resources, options, { signal, acquireDescrip
   const stderr = addPipe(resources, stdio.redirects.has(2) ? null : child.stderr)
   try {
     await once(child, 'spawn')
+    // WebContainers can emit 'spawn' before the 'error' of a missing executable, without a pid.
+    if (child.pid === undefined) throw (await processResource.completion).error ?? new Error(`Failed to spawn ${options.program}`)
     signal?.throwIfAborted()
   } catch (error) {
     resources.remove(handle)
