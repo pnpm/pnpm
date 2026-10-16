@@ -257,17 +257,30 @@ impl DirRules<'_> {
                 return false;
             }
         }
-        for rule in self.defaults
+        let rules = self.defaults
             .rules(may_match_defaults)
             .iter()
-            .chain(&self.rules)
-        {
-            if rule.negate != included && rule_matches(rule, entry, partial, entry_basename) {
-                included = rule.negate;
-            }
-        }
-        included
+            .chain(&self.rules);
+        apply_rules(rules, included, entry, partial, entry_basename)
     }
+}
+
+/// Folds `rules` over `included`: each matching rule that flips it wins, so
+/// the last match decides.
+fn apply_rules<'a>(
+    rules: impl Iterator<Item = &'a IgnoreRule>,
+    included: bool,
+    entry: &str,
+    partial: bool,
+    entry_basename: Option<&str>,
+) -> bool {
+    rules.fold(included, |included, rule| {
+        if rule.negate != included && rule_matches(rule, entry, partial, entry_basename) {
+            rule.negate
+        } else {
+            included
+        }
+    })
 }
 
 fn rule_matches(
