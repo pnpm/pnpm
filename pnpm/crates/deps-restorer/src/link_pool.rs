@@ -18,18 +18,19 @@ const MACOS_LINK_THREADS: usize = 4;
 
 /// The environment variable that overrides [`MACOS_LINK_THREADS`], for
 /// Macs whose limit differs from it, such as ones running an Endpoint
-/// Security client.
+/// Security client. `0` turns the link pool off.
 #[cfg(target_os = "macos")]
 const MACOS_LINK_THREADS_ENV: &str = "PNPM_MACOS_LINK_THREADS";
 
-/// The thread count `configured` asks for, or [`MACOS_LINK_THREADS`] when
-/// it is unset or not a positive number.
+/// The link pool size `configured` asks for: `None` for `0`, which links
+/// on the calling thread's pool, and [`MACOS_LINK_THREADS`] when it is
+/// unset or not a number.
 #[cfg(target_os = "macos")]
-fn link_threads(configured: Option<&str>) -> usize {
-    configured
+fn link_threads(configured: Option<&str>) -> Option<usize> {
+    let threads = configured
         .and_then(|threads| threads.trim().parse::<usize>().ok())
-        .filter(|threads| *threads > 0)
-        .unwrap_or(MACOS_LINK_THREADS)
+        .unwrap_or(MACOS_LINK_THREADS);
+    (threads > 0).then_some(threads)
 }
 
 /// Run `link`, and every rayon task it spawns, on the link pool.
@@ -38,8 +39,9 @@ pub(crate) fn in_link_pool<Output: Send>(link: impl FnOnce() -> Output + Send) -
     use std::sync::LazyLock;
 
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        let threads = link_threads(std::env::var(MACOS_LINK_THREADS_ENV).ok().as_deref())?;
         rayon::ThreadPoolBuilder::new()
-            .num_threads(link_threads(std::env::var(MACOS_LINK_THREADS_ENV).ok().as_deref()))
+            .num_threads(threads)
             .thread_name(|index| format!("pnpm-link-{index}"))
             .build()
             .ok()
