@@ -40,9 +40,6 @@ pub(super) fn dependency_is_workspace_or_injected(
     let Some(spec_str) = spec.as_str() else {
         return false;
     };
-    if spec_str.starts_with("workspace:") {
-        return true;
-    }
     let resolved_spec = if spec_str.starts_with("catalog:") {
         resolve_catalog_spec(catalogs, alias, spec_str)
     } else {
@@ -80,8 +77,10 @@ fn workspace_dep_matches(
     alias: &str,
     spec: &str,
 ) -> bool {
-    if let Some(ws_spec) = spec.strip_prefix("workspace:") {
-        return ws_spec_matches_workspace(workspace_packages, alias, ws_spec);
+    // A per-project lockfile install lists only the projects it installs,
+    // so the `workspace:` target is usually missing from the map.
+    if spec.starts_with("workspace:") {
+        return true;
     }
     let (target_name, range_str) = parse_target_name_and_range(alias, spec);
     let Some(target_ver) = workspace_packages.get(target_name) else {
@@ -91,38 +90,6 @@ fn workspace_dep_matches(
         return true;
     };
     match target_ver {
-        Some(version) => range.satisfies(version),
-        None => true,
-    }
-}
-
-fn is_workspace_path(ws_spec: &str) -> bool {
-    pnpm_local_spec::is_filespec(ws_spec)
-}
-
-fn ws_spec_matches_workspace(
-    workspace_packages: &WorkspacePackageMap<'_>,
-    alias: &str,
-    ws_spec: &str,
-) -> bool {
-    if is_workspace_path(ws_spec) {
-        return true;
-    }
-    let (target_name, range_str) = match ws_spec.rfind('@') {
-        Some(idx) if idx > 0 => (&ws_spec[..idx], &ws_spec[idx + 1..]),
-        _ => (alias, ws_spec),
-    };
-    if !workspace_packages.contains_key(target_name) {
-        return false;
-    }
-    let parsed_range_str = match range_str {
-        "*" | "^" | "~" | "" => return true,
-        other => other,
-    };
-    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return true;
-    };
-    match workspace_packages.get(target_name).and_then(Option::as_ref) {
         Some(version) => range.satisfies(version),
         None => true,
     }

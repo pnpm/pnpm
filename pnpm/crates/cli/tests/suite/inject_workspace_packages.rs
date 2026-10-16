@@ -250,14 +250,13 @@ fn filtered_install_refreshes_consumer_lockfile_after_injected_dependency_change
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::create_dir_all(&workspace).expect("create workspace directory");
+    fs::create_dir_all(workspace.join("app")).expect("mkdir app");
+    fs::create_dir_all(workspace.join("lib")).expect("mkdir lib");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages: [app, lib]\nsharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
     )
     .expect("write workspace manifest");
-    fs::create_dir_all(workspace.join("app")).expect("mkdir app");
-    fs::create_dir_all(workspace.join("lib")).expect("mkdir lib");
     fs::write(
         workspace.join("app/package.json"),
         serde_json::json!({
@@ -268,72 +267,55 @@ fn filtered_install_refreshes_consumer_lockfile_after_injected_dependency_change
         .to_string(),
     )
     .expect("write app manifest");
-    fs::write(
-        workspace.join("lib/package.json"),
-        serde_json::json!({
-            "name": "lib",
-            "version": "1.0.0",
-            "dependencies": { "is-positive": "1.0.0" },
-        })
-        .to_string(),
-    )
-    .expect("write lib manifest");
-
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-
+    let write_lib_manifest = |is_positive: &str| {
+        fs::write(
+            workspace.join("lib/package.json"),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "dependencies": { "is-positive": is_positive },
+            })
+            .to_string(),
+        )
+        .expect("write lib manifest");
+    };
+    let pnpm = |args: &[&str]| {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+    };
     let app_lockfile = workspace.join("app/pnpm-lock.yaml");
-    let initial_lockfile = fs::read_to_string(&app_lockfile).expect("read app lockfile");
-    fs::write(
-        workspace.join("lib/package.json"),
-        serde_json::json!({
-            "name": "lib",
-            "version": "1.0.0",
-            "dependencies": { "is-positive": "2.0.0" },
-        })
-        .to_string(),
-    )
-    .expect("update lib manifest");
+    let read_app_lockfile = || fs::read_to_string(&app_lockfile).expect("read app lockfile");
 
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_args(["--filter=app", "install", "--no-frozen-lockfile"])
-        .assert()
-        .success();
+    write_lib_manifest("1.0.0");
+    pnpm(&["install"]);
+    let initial_lockfile = read_app_lockfile();
 
-    let updated_lockfile = fs::read_to_string(&app_lockfile).expect("read updated app lockfile");
+    write_lib_manifest("2.0.0");
+    pnpm(&["--filter=app", "install", "--no-frozen-lockfile"]);
+    let updated_lockfile = read_app_lockfile();
     assert_ne!(updated_lockfile, initial_lockfile);
     assert!(updated_lockfile.contains("is-positive@2.0.0"), "{updated_lockfile}");
-
-    fs::write(
-        workspace.join("lib/package.json"),
-        serde_json::json!({
-            "name": "lib",
-            "version": "1.0.0",
-            "dependencies": { "is-positive": "1.0.0" },
-        })
-        .to_string(),
+    let injected_lib =
+        fs::canonicalize(workspace.join("app/node_modules/lib")).expect("resolve the injected lib");
+    let installed_is_positive: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(injected_lib.with_file_name("is-positive").join("package.json"))
+            .expect("read the is-positive manifest next to the injected lib"),
     )
-    .expect("update lib manifest");
+    .expect("parse the is-positive manifest");
+    assert_eq!(installed_is_positive["version"], "2.0.0");
+    pnpm(&["--filter=app", "install", "--frozen-lockfile"]);
 
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_args(["--filter=app", "install", "--lockfile-only", "--no-frozen-lockfile"])
-        .assert()
-        .success();
-
-    let lockfile_only_lockfile = fs::read_to_string(&app_lockfile).expect("read app lockfile");
+    write_lib_manifest("1.0.0");
+    pnpm(&["--filter=app", "install", "--lockfile-only", "--no-frozen-lockfile"]);
+    let lockfile_only_lockfile = read_app_lockfile();
     assert_ne!(lockfile_only_lockfile, updated_lockfile);
     assert!(lockfile_only_lockfile.contains("is-positive@1.0.0"), "{lockfile_only_lockfile}");
 
-    drop(mock_instance);
-    drop(root);
+    drop((root, mock_instance));
 }
 
 /// `dependenciesMeta[<name>].injected = true` opts a single workspace

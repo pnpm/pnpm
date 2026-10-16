@@ -42,9 +42,11 @@ snapshots:
 /// The decision for a repeat install of a workspace whose root injects the
 /// `pkg-a` project, with manifests handed over in memory: `pkg-a` has no
 /// `package.json` on disk, and `sibling_manifest` is what it declares now.
+/// `None` leaves `pkg-a` out of the install's projects, as a per-project
+/// lockfile install of the root does.
 fn injected_sibling_decision(
     shared_workspace_lockfile: bool,
-    sibling_manifest: &serde_json::Value,
+    sibling_manifest: Option<&serde_json::Value>,
 ) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
@@ -95,15 +97,16 @@ fn injected_sibling_decision(
             "dependencies": { "pkg-a": "workspace:*" },
         }),
     );
-    let sibling_manifest =
-        PackageManifest::from_value(sibling_dir.join("package.json"), sibling_manifest.clone());
-    content_check_decision_for(
-        &dir,
-        config,
-        true,
-        &[(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)],
-        ManifestFreshness::Content,
-    )
+    let sibling_manifest = sibling_manifest.map(|value| {
+        PackageManifest::from_value(sibling_dir.join("package.json"), value.clone())
+    });
+    let mut project_manifests = vec![(workspace_root.to_path_buf(), &root_manifest)];
+    project_manifests.extend(
+        sibling_manifest
+            .as_ref()
+            .map(|manifest| (sibling_dir, manifest)),
+    );
+    content_check_decision_for(&dir, config, true, &project_manifests, ManifestFreshness::Content)
 }
 
 fn unchanged_sibling() -> serde_json::Value {
@@ -115,7 +118,7 @@ fn unchanged_sibling() -> serde_json::Value {
 /// to its dependencies and the fast path may stand.
 #[test]
 fn returns_up_to_date_for_an_injected_workspace_dependency_with_a_shared_lockfile() {
-    assert_eq!(injected_sibling_decision(true, &unchanged_sibling()), Decision::UpToDate);
+    assert_eq!(injected_sibling_decision(true, Some(&unchanged_sibling())), Decision::UpToDate);
 }
 
 /// The injected project gained a dependency its `file:` snapshot does not
@@ -127,7 +130,7 @@ fn returns_skipped_when_an_injected_workspace_dependency_gains_a_dependency() {
         "version": "1.0.0",
         "dependencies": { "is-positive": "1.0.0" },
     });
-    let decision = injected_sibling_decision(true, &sibling);
+    let decision = injected_sibling_decision(true, Some(&sibling));
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("no longer satisfied")),
         "expected Skipped(manifest no longer satisfied), got {decision:?}",
@@ -139,7 +142,19 @@ fn returns_skipped_when_an_injected_workspace_dependency_gains_a_dependency() {
 /// to re-check it.
 #[test]
 fn returns_skipped_for_an_injected_workspace_dependency_without_a_shared_lockfile() {
-    let decision = injected_sibling_decision(false, &unchanged_sibling());
+    let decision = injected_sibling_decision(false, Some(&unchanged_sibling()));
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "expected Skipped(local file dependency), got {decision:?}",
+    );
+}
+
+/// A per-project lockfile install of the consumer does not list the injected
+/// project, so its `workspace:` dependency cannot be looked up and still rules
+/// the fast path out.
+#[test]
+fn returns_skipped_for_an_injected_workspace_dependency_outside_the_installed_projects() {
+    let decision = injected_sibling_decision(false, None);
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
         "expected Skipped(local file dependency), got {decision:?}",

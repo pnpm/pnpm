@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Filtered installs now refresh lockfiles when an injected workspace dependency changes [#17007](https://github.com/pnpm/pnpm/issues/17007).
+With `sharedWorkspaceLockfile: false`, `pnpm install` now updates a project's lockfile when an injected workspace package changes its dependencies [#17007](https://github.com/pnpm/pnpm/issues/17007).
