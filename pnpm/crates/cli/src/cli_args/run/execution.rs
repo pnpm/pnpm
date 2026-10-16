@@ -4,15 +4,15 @@ use super::{
     ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
     exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
-    interrupt_count, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
-    throw_or_filter_hidden_scripts,
+    interrupt_count,
+    lifecycle_failure::report_lifecycle_failure,
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution, run_script, schedule_graph, throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::{
-    concurrency_group::{SlotOutcome, acquire_concurrency_group_slot, with_held_group},
-    reporter::default_reporter_selected,
+use crate::cli_args::concurrency_group::{
+    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::LogEvent;
 
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
@@ -136,8 +136,8 @@ fn run_one_script(
         return TaskCompletion::Passed;
     }
     match run_stages(ctx, name, &main, args) {
-        Ok(status) if status.success() => TaskCompletion::Passed,
-        Ok(status) => outcome.fail(name, status),
+        Ok(exit) if exit.status.success() => TaskCompletion::Passed,
+        Ok(exit) => outcome.fail(name, exit.status),
         Err(error) => outcome.abort(error),
     }
 }
@@ -290,12 +290,20 @@ impl ScriptOutcome<'_> {
     }
 }
 
+/// How a script's stages ended: the status of the stage that ended them,
+/// and whether the user's interrupt ended that stage.
+#[derive(Debug, Clone, Copy)]
+pub(in super::super) struct StageExit {
+    pub(in super::super) status: ScriptExit,
+    pub(in super::super) interrupted: bool,
+}
+
 pub(in super::super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
     main_body: &str,
     args: &[String],
-) -> miette::Result<ScriptExit> {
+) -> miette::Result<StageExit> {
     let project_env = project_extra_env(ctx);
     let ctx = &RunContext { extra_env: &project_env, ..*ctx };
     // Held across every stage, so a `pre` script cannot hand the slot
@@ -306,7 +314,9 @@ pub(in super::super) fn run_stages(
         SlotOutcome::Held(slot) => slot,
         // The callers read the tracker after a script ends, as they do for
         // a child the cancellation killed.
-        SlotOutcome::Cancelled => return Ok(ScriptExit::Emulated(1)),
+        SlotOutcome::Cancelled => {
+            return Ok(StageExit { status: ScriptExit::Emulated(1), interrupted: false });
+        }
     };
     let held_env = with_held_group(ctx.extra_env, slot.group());
     run_script_stages(&RunContext { extra_env: &held_env, ..*ctx }, name, main_body, args)
@@ -335,7 +345,7 @@ fn run_script_stages(
     name: &str,
     main_body: &str,
     args: &[String],
-) -> miette::Result<ScriptExit> {
+) -> miette::Result<StageExit> {
     // Joined before the hardlink sync below, including when a stage fails.
     let watch = start_injected_edit_watch(ctx, name);
     let mut main_status = None;
@@ -343,18 +353,17 @@ fn run_script_stages(
         get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
     {
         let is_main = stage == name;
-        let Some(status) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })?
-        else {
+        let Some(exit) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })? else {
             continue;
         };
         // A failing stage stops the script, and its status is the
         // script's.
-        if !status.success() {
+        if !exit.status.success() {
             drop(watch);
-            return Ok(status);
+            return Ok(exit);
         }
         if is_main {
-            main_status = Some(status);
+            main_status = Some(exit);
         }
     }
     let main_status = main_status.expect(
@@ -415,7 +424,7 @@ fn get_run_script_stages(
 /// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
 /// no-op guards apply (empty body, or `npx only-allow pnpm` with no
 /// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic exit. A non-success [`ScriptExit`] is
+/// inventing a synthetic exit. A non-success status is
 /// returned to the caller — single-project `RunArgs::run` exits with
 /// the code; recursive `run_recursive` records `Failure` and decides
 /// whether to bail.
@@ -424,7 +433,7 @@ pub(in super::super) fn run_stage(
     stage: &str,
     script: &str,
     args: &[String],
-) -> miette::Result<Option<ScriptExit>> {
+) -> miette::Result<Option<StageExit>> {
     // The `npx only-allow pnpm` guard script is a no-op, so a lifecycle
     // stage whose final command is exactly that string is skipped. Args
     // are appended *before* this check, so a stage invoked with args
@@ -471,40 +480,11 @@ pub(in super::super) fn run_stage(
     // interrupted command and nothing else (pnpm/pnpm#16579). A script
     // that fails on its own after an earlier stage handled an interrupt
     // is still reported.
-    if !status.success() && interrupt_count() == interrupts_before {
-        report_lifecycle_failure(ctx, &lifecycle_failure_message(status, stage));
+    let interrupted = !status.success() && interrupt_count() != interrupts_before;
+    if !status.success() && !interrupted {
+        report_lifecycle_failure(ctx, status, stage);
     }
-    Ok(Some(status))
-}
-
-fn lifecycle_failure_message(status: ScriptExit, stage: &str) -> String {
-    if let Some(signal) = status.signal_name() {
-        format!("[ELIFECYCLE] Command failed with signal {signal}.")
-    } else if stage == "test" {
-        "[ELIFECYCLE] Test failed. See above for more details.".to_string()
-    } else if let Some(code) = status.code() {
-        format!("[ELIFECYCLE] Command failed with exit code {code}.")
-    } else {
-        "[ELIFECYCLE] Command failed.".to_string()
-    }
-}
-
-/// A streamed run goes through the reporter, which may be redrawing its
-/// frame in place: a line written past it would shift the rows the frame
-/// moves the cursor over. An inherited run under the default reporter
-/// writes the line to stderr after the script's own output; under any
-/// other reporter it goes through the reporter too, so the ndjson
-/// reporter writes a record and the silent reporter drops it.
-fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
-    if matches!(ctx.output, ScriptOutput::Inherit) && default_reporter_selected() {
-        pnpm_diagnostics::eprintln!("{message}");
-        return;
-    }
-    (ctx.emit)(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Error,
-        message: message.to_string(),
-        prefix: String::new(),
-    }));
+    Ok(Some(StageExit { status, interrupted }))
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(

@@ -6,12 +6,14 @@ use super::{
     pnp_path_for_execution, run_stages, script_concurrency, task_summary_key,
 };
 use crate::cli_args::reporter::script_output_colors;
+use pnpm_executor::ScriptExit;
 
 /// The slots the tasks record into while they run.
 pub(super) struct RunSlots {
     pub(super) result: Mutex<IndexMap<String, ExecutionStatus>>,
     pub(super) has_command: AtomicUsize,
     pub(super) first_failure: Mutex<Option<String>>,
+    pub(super) interrupted: Mutex<Option<ScriptExit>>,
     pub(super) abort: Mutex<Option<miette::Report>>,
 }
 
@@ -26,6 +28,7 @@ impl RunSlots {
             ),
             has_command: AtomicUsize::new(0),
             first_failure: Mutex::new(None),
+            interrupted: Mutex::new(None),
             abort: Mutex::new(None),
         }
     }
@@ -46,6 +49,9 @@ impl RunSlots {
             statuses: self.result.into_inner().expect("summary lock is not poisoned"),
             ran_a_command: self.has_command.load(Ordering::Relaxed) > 0,
             first_failure: bail.then_some(first_failure).flatten(),
+            interrupted: self.interrupted
+                .into_inner()
+                .expect("interrupted slot lock is not poisoned"),
         })
     }
 }
@@ -98,6 +104,7 @@ pub(super) struct RunOutcome<'a> {
     pub(super) result: &'a Mutex<IndexMap<String, ExecutionStatus>>,
     pub(super) has_command: &'a AtomicUsize,
     pub(super) first_failure: &'a Mutex<Option<String>>,
+    pub(super) interrupted: &'a Mutex<Option<ScriptExit>>,
     pub(super) abort: &'a Mutex<Option<miette::Report>>,
     pub(super) process_tracker: Option<&'a ProcessTracker>,
     pub(super) task_run_state: &'a crate::cli_args::task_run_state::TaskRunState,
@@ -121,6 +128,12 @@ impl RunOutcome<'_> {
         let failed = execution.status.status == Status::Failure;
         let cancelled = execution.cancelled;
         let recursion_guarded = execution.recursion_guarded;
+        if let Some(exit) = execution.interrupted {
+            self.interrupted
+                .lock()
+                .expect("interrupted slot lock is not poisoned")
+                .get_or_insert(exit);
+        }
         self.result.lock().expect("summary lock is not poisoned")[summary_key] = execution.status;
         if cancelled {
             return TaskCompletion::Cancelled;
@@ -164,6 +177,8 @@ struct ProjectExecution {
     has_command: usize,
     cancelled: bool,
     recursion_guarded: bool,
+    /// How the first script the user's interrupt ended exited.
+    interrupted: Option<ScriptExit>,
 }
 
 #[derive(Clone, Copy)]
@@ -254,6 +269,7 @@ impl ScriptRunState {
                 has_command: 0,
                 cancelled: false,
                 recursion_guarded: false,
+                interrupted: None,
             },
             failed: false,
         }
@@ -276,6 +292,39 @@ impl ScriptRunState {
             self.execution.cancelled = true;
         }
     }
+
+    /// Book a script the user's interrupt ended. The run ends with it, so
+    /// the task stops like a cancelled one, and the siblings the same
+    /// interrupt reached are left to shut down on their own.
+    fn interrupted_script(&mut self, exit: ScriptExit) {
+        self.cancelled_script();
+        self.execution.interrupted.get_or_insert(exit);
+    }
+}
+
+/// How one script settled.
+#[derive(Clone, Copy)]
+struct SettledScript {
+    status: ScriptExit,
+    /// Whether the user's interrupt ended the stage that ended the script.
+    interrupted: bool,
+    duration: f64,
+}
+
+/// Run one selected script's stages and time them.
+fn run_settled_script(
+    ctx: &RunContext<'_>,
+    selected: &str,
+    script: &str,
+    args: &[String],
+) -> miette::Result<SettledScript> {
+    let start = Instant::now();
+    let exit = run_stages(ctx, selected, script, args)?;
+    Ok(SettledScript {
+        status: exit.status,
+        interrupted: exit.interrupted,
+        duration: start.elapsed().as_secs_f64() * 1e3,
+    })
 }
 
 /// Apply one settled script's verdict to the run state. `false` when
@@ -285,9 +334,13 @@ impl ScriptRunState {
 fn apply_script_result(
     state: &mut ScriptRunState,
     ctx: &RunContext<'_>,
-    status: pnpm_executor::ScriptExit,
-    duration: f64,
+    settled: SettledScript,
 ) -> bool {
+    let SettledScript { status, interrupted, duration } = settled;
+    if interrupted {
+        state.interrupted_script(status);
+        return false;
+    }
     if ctx.process_tracker.is_some_and(ProcessTracker::is_cancelled) {
         state.cancelled_script();
         return false;
