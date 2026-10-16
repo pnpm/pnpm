@@ -4,15 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, SessionUser, Utc, handoffs::Handoff,
-    random_secret, rejected, unavailable,
+    random_secret, rejected, unavailable, web_login::WebLoginEntry,
 };
 
-/// Browser sign-ins on this process: the sessions pnpr issued, and the
-/// handoff codes that carry a session to the web UI.
+/// Browser sign-ins on this process: the sessions pnpr issued, the
+/// handoff codes that carry a session to the web UI, and pending web login
+/// sessions for CLI authentication.
 #[derive(Default)]
 pub(super) struct BrowserSessions {
     pub(super) sessions: Mutex<HashMap<String, Session>>,
     pub(super) handoffs: Mutex<HashMap<String, Handoff>>,
+    pub(super) web_logins: Mutex<HashMap<String, WebLoginEntry>>,
 }
 
 pub(super) struct Session {
@@ -27,7 +29,7 @@ pub struct LoginSession {
 }
 
 /// Where a browser goes after signing in.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LoginReturn {
     /// A page that shows the token, to copy into an `.npmrc`.
     #[default]
@@ -35,6 +37,8 @@ pub enum LoginReturn {
     /// The web UI, which redeems a [handoff code](OidcState::hand_off) for
     /// the token.
     Ui,
+    /// CLI web login session flow (`/-/v1/login`).
+    Cli { session: String },
 }
 
 impl OidcState {

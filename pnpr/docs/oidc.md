@@ -107,9 +107,14 @@ and `npm logout` revokes it. Sessions live in memory and disappear on restart,
 so a multi-replica deployment needs affinity for both the login flow and the
 authenticated requests that follow. They do not appear in `npm token list`. The
 [web UI](web-ui.md) lists these providers on its sign-in screen and returns to
-the UI after sign-in. This sign-in URL is separate from the npm CLI's
-`npm login` web protocol. An OIDC
-session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
+the UI after sign-in.
+
+`pnpm login` and `npm login` use this flow automatically via `/-/v1/login`. The
+CLI opens the browser to sign in and polls until authentication completes. If no
+OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
+to username and password authentication (`/-/user/org.couchdb.user:{name}`).
+
+An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
 
 ## GitHub Actions keyless publishing
 

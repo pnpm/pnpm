@@ -349,6 +349,9 @@ including a resolver-only server that exposes no registry surface.
 
 | Method | Path | Description |
 | --- | --- | --- |
+| `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
+| `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
+| `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
 | `PUT` | `/-/user/org.couchdb.user:{name}` | npm adduser/login endpoint. Creates a user only when `auth.htpasswd.max_users` allows registration; existing users can log in with the correct password. Returns a bearer token. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |

@@ -1,11 +1,13 @@
 pub use handoffs::HANDOFF_TTL;
 pub use sessions::{LoginReturn, LoginSession};
+pub use web_login::{WEB_LOGIN_TTL, WebLoginPoll};
 
 mod workload_verification;
 
 mod groups;
 mod handoffs;
 mod sessions;
+mod web_login;
 use sessions::BrowserSessions;
 
 mod provider_config;
@@ -96,6 +98,7 @@ impl OidcState {
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
             .dns_resolver(network::public_resolver())
+            .tls_certs_only(pnpm_network::bundled_root_certs().iter().cloned())
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()

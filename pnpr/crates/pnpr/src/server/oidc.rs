@@ -40,6 +40,7 @@ pub(super) fn routes(ui_served: bool) -> Router<AppState> {
 pub(super) struct LoginQuery {
     #[serde(rename = "return")]
     returns_to: Option<String>,
+    session: Option<String>,
 }
 
 async fn login(
@@ -52,6 +53,15 @@ async fn login(
         None => LoginReturn::Token,
         Some("ui") if ui_served => LoginReturn::Ui,
         Some("ui") => return bad_request("this pnpr does not serve the web UI"),
+        Some("cli") => {
+            let Some(session) = query.session.as_deref() else {
+                return bad_request("session query parameter required for return=cli");
+            };
+            if !is_valid_state(session) || !state.inner.identity.oidc.is_valid_web_login(session) {
+                return bad_request("invalid or expired web login session");
+            }
+            LoginReturn::Cli { session: session.to_string() }
+        }
         Some(_) => return bad_request("return must be ui"),
     };
     let response = match state.inner.identity.oidc.start(&provider, returns_to).await {
@@ -118,6 +128,23 @@ fn signed_in(oidc: &OidcState, flow: &str, session: LoginSession) -> Response {
             Err(err) => err.into_response(),
         };
     }
+    if let LoginReturn::Cli { session: ref session_id } = session.returns_to {
+        return match oidc.fulfill_web_login(session_id, session.token) {
+            Ok(()) => {
+                let html = r#"<!doctype html>
+<html>
+<head><title>Signed In - pnpr</title><meta charset="utf-8"></head>
+<body>
+  <h1>Authentication successful</h1>
+  <p>You may now close this browser window and return to your terminal.</p>
+</body>
+</html>"#;
+                (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html)
+                    .into_response()
+            }
+            Err(err) => err.into_response(),
+        };
+    }
     let token = session.token;
     let expires = session.expires;
     let message = format!(
@@ -160,7 +187,7 @@ fn redeem(oidc: &OidcState, flow: &str, headers: &HeaderMap) -> Response {
 }
 
 /// An OIDC state as pnpr issues it, safe to put in a cookie name.
-fn is_valid_state(state: &str) -> bool {
+pub(super) fn is_valid_state(state: &str) -> bool {
     !state.is_empty()
         && state.len() <= 128
         && state
@@ -214,7 +241,7 @@ fn bad_request(reason: &str) -> Response {
     protect(RegistryError::BadRequest { reason: reason.to_string() }.into_response())
 }
 
-fn protect(response: Response) -> Response {
+pub(super) fn protect(response: Response) -> Response {
     let mut response = private_no_cache(response);
     response
         .headers_mut()

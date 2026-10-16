@@ -123,6 +123,7 @@ mod team_access;
 mod team_mutations;
 mod team_rosters;
 mod user_admin;
+mod web_login;
 mod web_ui;
 
 #[cfg(test)]

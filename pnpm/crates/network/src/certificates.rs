@@ -28,7 +28,8 @@ pub(super) enum TrustRoots {
 /// [`Certificate`] form. Parsed once — `for_installs` builds one
 /// client per per-registry override, and the fallback path is taken
 /// by every one of them on a system without a trust store.
-pub(super) fn bundled_root_certs() -> &'static [Certificate] {
+#[must_use]
+pub fn bundled_root_certs() -> &'static [Certificate] {
     static CERTS: LazyLock<Vec<Certificate>> = LazyLock::new(|| {
         webpki_root_certs::TLS_SERVER_ROOT_CERTS
             .iter()
