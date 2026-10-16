@@ -137,10 +137,8 @@ function assertMetaNamesRequestedPackage (meta: PackageMeta, spec: RegistryPacka
 // in their package.json may omit the scope.
 function readManifestUnderRequestedName (meta: PackageMeta, version: string, spec: RegistryPackageSpec): PackageInRegistry {
   const manifest = meta.versions[version]
-  if (manifest) {
-    manifest.name = spec.name
-  }
-  return manifest
+  if (!manifest || manifest.name === spec.name) return manifest
+  return { ...manifest, name: spec.name }
 }
 
 function toMalformedMetadataError (err: unknown, spec: RegistryPackageSpec): Error {
