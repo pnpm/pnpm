@@ -188,10 +188,8 @@ pub fn update_workspace_manifest(
     let manifests = WorkspaceManifests::read(dir)?;
     if !manifests.has_includes() {
         let target = manifests.root_target();
-        return match edit_manifest_file(&target, opts, None)? {
-            Some(manifest) => write_or_remove_manifest(&target, manifest),
-            None => Ok(()),
-        };
+        let edited = edit_manifest_file(&target, opts, None)?;
+        return edited.map_or(Ok(()), |manifest| write_or_remove_manifest(&target, manifest));
     }
     routing::update_included_manifests(&manifests, opts)
 }
