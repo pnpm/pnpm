@@ -347,10 +347,20 @@ fn fix_manifest(value: &mut Value) {
     normalize_repository(obj);
 }
 
-/// Rewrite `repository` the way the `fixRepositoryField` step of
-/// `npm pkg fix` does: a non-empty string becomes a `{ "type": "git", "url" }`
-/// object, and a `url` on a recognised git host becomes
-/// [`HostedGit::normalized_repository_url`].
+/// Drop a manifest field whose value is not of a shape pnpm can read.
+fn remove_ill_typed_field(
+    obj: &mut Map<String, Value>,
+    field: &str,
+    well_typed: impl Fn(&Value) -> bool,
+) {
+    if obj
+        .get(field)
+        .is_some_and(|value| !well_typed(value))
+    {
+        obj.remove(field);
+    }
+}
+
 fn normalize_repository(obj: &mut Map<String, Value>) {
     let Some(repository) = obj.get_mut("repository") else { return };
     if let Value::String(url) = repository
@@ -363,20 +373,6 @@ fn normalize_repository(obj: &mut Map<String, Value>) {
         HostedGit::from_url(url).and_then(|hosted| hosted.normalized_repository_url())
     {
         *url = normalized;
-    }
-}
-
-/// Drop a manifest field whose value is not of a shape pnpm can read.
-fn remove_ill_typed_field(
-    obj: &mut Map<String, Value>,
-    field: &str,
-    well_typed: impl Fn(&Value) -> bool,
-) {
-    if obj
-        .get(field)
-        .is_some_and(|value| !well_typed(value))
-    {
-        obj.remove(field);
     }
 }
 
