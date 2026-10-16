@@ -6,7 +6,7 @@ use super::{
     pnp_path_for_execution, run_stages, script_concurrency, task_summary_key,
 };
 use crate::cli_args::reporter::script_output_colors;
-use pnpm_executor::{ScriptExit, interrupt_count};
+use pnpm_executor::ScriptExit;
 
 /// The slots the tasks record into while they run.
 pub(super) struct RunSlots {
@@ -306,9 +306,7 @@ impl ScriptRunState {
 #[derive(Clone, Copy)]
 struct SettledScript {
     status: ScriptExit,
-    /// Whether an interrupt reached pnpm while the script ran and the
-    /// script then failed, which is what an interrupt that ended it
-    /// leaves behind.
+    /// Whether the user's interrupt ended the stage that ended the script.
     interrupted: bool,
     duration: f64,
 }
@@ -320,12 +318,11 @@ fn run_settled_script(
     script: &str,
     args: &[String],
 ) -> miette::Result<SettledScript> {
-    let interrupts_before = interrupt_count();
     let start = Instant::now();
-    let status = run_stages(ctx, selected, script, args)?;
+    let exit = run_stages(ctx, selected, script, args)?;
     Ok(SettledScript {
-        status,
-        interrupted: !status.success() && interrupt_count() != interrupts_before,
+        status: exit.status,
+        interrupted: exit.interrupted,
         duration: start.elapsed().as_secs_f64() * 1e3,
     })
 }

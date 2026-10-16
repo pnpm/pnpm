@@ -687,6 +687,56 @@ fn a_script_failing_after_a_handled_interrupt_is_still_reported() {
     drop(root);
 }
 
+/// In a recursive run too, a script that fails on its own after an earlier
+/// stage handled the interrupt is a run failure, not an interrupted run.
+#[test]
+fn a_recursive_script_failing_after_a_handled_interrupt_is_still_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &RECURSIVE_PROJECTS[..1], LINGERING_SCRIPT);
+    let project = workspace.join(RECURSIVE_PROJECTS[0]);
+    let manifest = json!({
+        "name": RECURSIVE_PROJECTS[0],
+        "version": "0.0.0",
+        "scripts": { "predev": "exec node pre.js", "dev": r#"exec node -e "process.exit(3)""# },
+    });
+    fs::write(project.join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(project.join("pre.js"), PRE_SCRIPT).expect("write the pre script");
+
+    let mut process = spawn_without_terminal(
+        pacquet
+            .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+            .with_args([
+                "--config.verify-deps-before-run=false",
+                "-r",
+                "--filter=project-1",
+                "run",
+                "dev",
+            ])
+            .with_stderr(Stdio::piped()),
+    );
+    wait_for_file(&project.join("pre-started.txt"), &mut process);
+    interrupt(&process);
+    let status = wait_for_shutdown(&mut process);
+    let mut output = String::new();
+    process.stderr
+        .take()
+        .expect("stderr is piped")
+        .read_to_string(&mut output)
+        .expect("read stderr");
+
+    assert!(
+        project.join("pre-shut-down.txt").exists(),
+        "the pre script should have handled the interrupt\n{output}",
+    );
+    assert!(
+        output.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
+        "a script that fails on its own is still a run failure\n{output}",
+    );
+    assert_eq!(status.code(), Some(1), "the run failed\n{output}");
+
+    drop(root);
+}
+
 /// The `dev` script execs `script`: the shell is out of the picture, and
 /// the relay's target is the script itself.
 fn write_project(dir: &Path, name: &str, script: &str) {
