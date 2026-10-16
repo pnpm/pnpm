@@ -166,6 +166,7 @@ impl WorkspaceSettings {
 
     pub(super) fn with_resolved_policy(self, config: &Config) -> Self {
         Self {
+            boot_config: config.boot_config.as_deref().cloned(),
             minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
             minimum_release_age_ignore_missing_time: Some(
                 config.minimum_release_age_ignore_missing_time,

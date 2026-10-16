@@ -1,7 +1,6 @@
 use crate::{
     filter::FilterError,
-    get_changed_projects::{ChangeType, GetChangedProjectsOptions, strip_final_newline},
-    process::Command,
+    get_changed_projects::{ChangeType, GetChangedProjectsOptions},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -9,8 +8,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use git_file::read_git_file;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
+
+mod git_file;
 
 pub fn apply_changed_catalogs(
     project_change_types: &mut IndexMap<PathBuf, Option<ChangeType>>,
@@ -70,59 +72,52 @@ fn detect_changed_catalogs(
     use pnpm_workspace::WORKSPACE_MANIFEST_FILENAME;
 
     let manifest_path = workspace_dir.join(WORKSPACE_MANIFEST_FILENAME);
-    let rel_manifest_path = pathdiff::diff_paths(&manifest_path, repo_root)
-        .unwrap_or_else(|| PathBuf::from(WORKSPACE_MANIFEST_FILENAME));
+    let rel_workspace_dir = pathdiff::diff_paths(workspace_dir, repo_root).unwrap_or_default();
 
-    let prev_content = read_git_file(commit, workspace_dir, &rel_manifest_path)?;
-    let curr_content = match fs::read_to_string(&manifest_path) {
-        Ok(c) => Some(c),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
-        Err(err) => return Err(FilterError::FilterChanged { stderr: err.to_string() }),
-    };
+    let prev_content =
+        read_git_file(commit, workspace_dir, &rel_workspace_dir.join(WORKSPACE_MANIFEST_FILENAME))?;
+    let curr_content = read_working_tree_file(&manifest_path)
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
 
-    let prev_catalogs = load_workspace_catalogs(prev_content.as_deref())?;
-    let curr_catalogs = load_workspace_catalogs(curr_content.as_deref())?;
+    let prev_catalogs =
+        load_workspace_catalogs(prev_content.as_deref(), &rel_workspace_dir, |path| {
+            read_git_file(commit, workspace_dir, path)
+                .map_err(|err| std::io::Error::other(err.to_string()))
+        })?;
+    let curr_catalogs =
+        load_workspace_catalogs(curr_content.as_deref(), workspace_dir, read_working_tree_file)?;
 
     Ok(diff_catalogs(&prev_catalogs, &curr_catalogs))
 }
 
-fn read_git_file(
-    commit: &str,
-    workspace_dir: &Path,
-    rel_path: &Path,
-) -> Result<Option<String>, FilterError> {
-    let rel_str = rel_path.to_string_lossy().replace('\\', "/");
-    let output = Command::new("git")
-        .args(["show", "--end-of-options", &format!("{commit}:{rel_str}")])
-        .current_dir(workspace_dir)
-        .env("LC_ALL", "C")
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if output.status.success() {
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-        Ok(Some(stdout))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("does not exist in") || stderr.contains("exists on disk, but not in") {
-            Ok(None)
-        } else {
-            Err(FilterError::FilterChanged { stderr: strip_final_newline(&stderr).to_string() })
-        }
+fn read_working_tree_file(path: &Path) -> std::io::Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
     }
 }
 
-fn load_workspace_catalogs(content: Option<&str>) -> Result<Catalogs, FilterError> {
+/// The catalogs of a workspace manifest and the local files it includes,
+/// each read through `read` by its path joined to `base_dir`.
+fn load_workspace_catalogs(
+    content: Option<&str>,
+    base_dir: &Path,
+    read: impl Fn(&Path) -> std::io::Result<Option<String>>,
+) -> Result<Catalogs, FilterError> {
     use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
     use pnpm_workspace::WorkspaceManifest;
 
     let Some(text) = content else {
         return Ok(Catalogs::default());
     };
-    let manifest: WorkspaceManifest = serde_saphyr::from_str(text)
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    get_catalogs_from_workspace_manifest(Some(&manifest))
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })
+    let to_filter_error =
+        |err: &dyn std::fmt::Display| FilterError::FilterChanged { stderr: err.to_string() };
+    let text = pnpm_workspace::merge_local_includes(text, base_dir, read)
+        .map_err(|err| to_filter_error(&err))?;
+    let manifest: WorkspaceManifest =
+        serde_saphyr::from_str(&text).map_err(|err| to_filter_error(&err))?;
+    get_catalogs_from_workspace_manifest(Some(&manifest)).map_err(|err| to_filter_error(&err))
 }
 
 fn diff_catalogs(

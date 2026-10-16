@@ -108,7 +108,8 @@ struct ChangedDirsResult {
 
 struct DiffFilterContext<'a> {
     repo_root: &'a Path,
-    workspace_manifest: &'a Path,
+    /// `pnpm-workspace.yaml` and the local files it includes.
+    workspace_manifests: &'a [PathBuf],
     working_dir: &'a Path,
     workspace_dir: &'a Path,
     ignore_globs: &'a [Glob<'a>],
@@ -140,7 +141,7 @@ fn process_diff_path(
     if file.is_empty() {
         return;
     }
-    if ctx.repo_root.join(file) == ctx.workspace_manifest {
+    if ctx.workspace_manifests.contains(&ctx.repo_root.join(file)) {
         *manifest_changed = true;
         if ctx.working_dir != ctx.workspace_dir {
             return;
@@ -163,9 +164,9 @@ fn get_changed_dirs_since_commit(
     repo_root: &Path,
 ) -> Result<ChangedDirsResult, FilterError> {
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
-    let manifest_path = opts.workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
+    let manifest_paths = workspace_manifest_paths(opts.workspace_dir, repo_root);
 
-    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_path)?;
+    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths, repo_root)?;
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
             changed_dirs: IndexMap::new(),
@@ -177,7 +178,7 @@ fn get_changed_dirs_since_commit(
     let test_globs = compile_globs(opts.test_pattern)?;
     let ctx = DiffFilterContext {
         repo_root,
-        workspace_manifest: &manifest_path,
+        workspace_manifests: &manifest_paths,
         working_dir,
         workspace_dir: opts.workspace_dir,
         ignore_globs: &ignore_globs,
@@ -216,11 +217,87 @@ fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError>
     }
 }
 
+/// `pnpm-workspace.yaml` and the local files it includes, whose changes can
+/// change a catalog. An include reached through a symlink also names its
+/// target inside the repository and every symlinked directory on its path,
+/// since retargeting one changes the file. An include index that does not load names only the root
+/// manifest.
+fn workspace_manifest_paths(workspace_dir: &Path, repo_root: &Path) -> Vec<PathBuf> {
+    let included: Vec<PathBuf> = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
+        .ok()
+        .flatten()
+        .and_then(|document| document.includes)
+        .map(|includes| {
+            includes
+                .local_paths()
+                .flat_map(|path| {
+                    std::iter::once(normalize_lexically(path))
+                        .chain(resolved_in_repo(repo_root, path))
+                        .chain(symlinked_ancestors(repo_root, path))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    std::iter::once(workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME))
+        .chain(included)
+        .collect()
+}
+
+/// Where `path` resolves after following symlinks in any of its
+/// components, as a path under `repo_root`, when that differs from `path`.
+/// Expressed under `repo_root` so it compares equal to the repository paths
+/// git reports even when `repo_root` itself is reached through a symlink.
+fn resolved_in_repo(repo_root: &Path, path: &Path) -> Option<PathBuf> {
+    let target = std::fs::canonicalize(path).ok()?;
+    let root = std::fs::canonicalize(repo_root).ok()?;
+    let resolved = repo_root.join(target.strip_prefix(root).ok()?);
+    (resolved != normalize_lexically(path)).then_some(resolved)
+}
+
+fn symlinked_ancestors(repo_root: &Path, path: &Path) -> Vec<PathBuf> {
+    normalize_lexically(path)
+        .ancestors()
+        .skip(1)
+        .filter(|ancestor| {
+            ancestor
+                .symlink_metadata()
+                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+                && is_inside_repo(ancestor, repo_root)
+        })
+        .map(Path::to_path_buf)
+        .collect()
+}
+
+fn is_inside_repo(path: &Path, repo_root: &Path) -> bool {
+    let canonical_dir = path
+        .parent()
+        .and_then(|dir| std::fs::canonicalize(dir).ok());
+    let canonical_root = std::fs::canonicalize(repo_root).ok();
+    matches!((canonical_dir, canonical_root), (Some(dir), Some(root)) if dir.starts_with(&root))
+}
+
+/// `path` with `.` and `..` resolved without touching the filesystem, so it
+/// compares equal to the repository paths git reports.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::CurDir => {}
+            component => normalized.push(component),
+        }
+    }
+    normalized
+}
+
 fn git_diff_names(
     commit: &str,
     workspace_dir: &Path,
     working_dir: &Path,
-    manifest_path: &Path,
+    manifest_paths: &[PathBuf],
+    repo_root: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "-z", "--no-renames"]);
@@ -229,9 +306,9 @@ fn git_diff_names(
     }
     cmd.args(["--end-of-options", commit, "--"])
         .arg(working_dir);
-    if working_dir != workspace_dir {
-        cmd.arg(manifest_path);
-    }
+    // Included files may live outside the diffed directory. git rejects a
+    // pathspec outside the repository, so those are left out.
+    cmd.args(manifest_paths.iter().filter(|path| is_inside_repo(path, repo_root)));
     cmd.current_dir(workspace_dir);
 
     let output = cmd

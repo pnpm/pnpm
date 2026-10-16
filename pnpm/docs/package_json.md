@@ -138,7 +138,7 @@ When the lockfile records no version yet, pnpm records the running pnpm if it sa
 
 :::note
 
-When pnpm 12 is declared via the legacy `packageManager` field and [`pmOnFail`](./settings/cli.md#pmonfail) is not set to `ignore`, its resolution info is written to `pnpm-lock.yaml`. The lockfile then gains a leading [env lockfile document](./lockfile.md).
+When pnpm 12 is declared via the legacy `packageManager` field and [`pmOnFail`](./settings/cli.md#pmonfail) is not set to `ignore`, its resolution info is written to `pnpm-lock.yaml`. The lockfile then gains a leading [boot document](./lockfile.md).
 
 :::
 

@@ -39,6 +39,7 @@ mod render;
 mod tests;
 
 use model::Manifest;
+use routing::{ManifestTarget, WorkspaceManifests, read_owning_manifest};
 
 /// Base name of pnpm's workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
@@ -107,6 +108,21 @@ pub enum UpdateWorkspaceManifestError {
 
     #[diagnostic(transparent)]
     VersionPolicy(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
+
+    #[diagnostic(transparent)]
+    Include(#[error(source)] pnpm_workspace::IncludeError),
+
+    #[display(r#""include" cannot be changed by this command. Edit pnpm-workspace.yaml directly."#)]
+    #[diagnostic(code(ERR_PNPM_INCLUDE_NOT_WRITABLE))]
+    IncludeNotWritable,
+
+    #[display(r#"The catalogs are owned by more than one file, so "catalogs" cannot be written as a whole. Edit the files that own the catalogs."#)]
+    #[diagnostic(code(ERR_PNPM_CATALOGS_SPLIT_ACROSS_FILES))]
+    CatalogsSplitAcrossFiles,
+
+    #[display(r#""{setting}" is delegated to {name}. Change it in that package and update the config dependency."#)]
+    #[diagnostic(code(ERR_PNPM_SETTING_OWNED_BY_CONFIG_DEPENDENCY))]
+    OwnedByConfigDependency { setting: String, name: String },
 }
 
 /// Whether `value` holds a character YAML treats as a line break: a
@@ -139,7 +155,7 @@ fn unsupported_inline_key(text: &str, paths: &[&[&str]]) -> Option<String> {
 }
 
 /// Inputs of [`update_workspace_manifest`].
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
     pub updated_catalogs: Option<&'a Catalogs>,
@@ -162,43 +178,69 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
 }
 
 /// Apply the requested merges and cleanup passes to `dir`'s
-/// `pnpm-workspace.yaml`, writing the file back only when something actually
-/// changed (and removing it when the edits empty the document).
+/// `pnpm-workspace.yaml` and the files it includes, writing each file back
+/// only when something actually changed (and removing the root manifest when
+/// the edits empty it).
 pub fn update_workspace_manifest(
     dir: &Path,
     opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+    let manifests = WorkspaceManifests::read(dir)?;
+    if !manifests.has_includes() {
+        let target = manifests.root_target();
+        let edited = edit_manifest_file(&target, opts, None)?;
+        return edited.map_or(Ok(()), |manifest| write_or_remove_manifest(&target, manifest));
+    }
+    routing::update_included_manifests(&manifests, opts)
+}
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+/// The edits of [`update_workspace_manifest`] applied to one file, or `None`
+/// when they change nothing. `merged` is the whole workspace's settings when
+/// they span several files, for the passes that read settings the file may
+/// not hold.
+fn edit_manifest_file(
+    target: &ManifestTarget,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+    merged: Option<&Manifest>,
+) -> Result<Option<Manifest>, UpdateWorkspaceManifestError> {
+    let path = &target.path;
+    let mut manifest = read_manifest_at(path)?;
 
     if let Some(key) = unsupported_edit_target(&manifest, opts) {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path: path.clone(),
+            key,
+        });
     }
 
-    let mut changed = add_updated_catalogs(&mut manifest, opts, &path)?;
+    let mut changed = add_updated_catalogs(&mut manifest, opts, path)?;
     if opts.catalog_prune && !opts.catalog_references.all_projects.is_empty() {
-        let references = opts.catalog_references.collect(&manifest);
+        let references = opts.catalog_references.collect(merged.unwrap_or(&manifest));
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
         changed |= prune_version_policies(&mut manifest, opts, resolved);
     }
     if !opts.added_minimum_release_age_excludes.is_empty() {
-        changed |= add_minimum_release_age_excludes(&mut manifest, opts, &path)?;
+        changed |= add_minimum_release_age_excludes(&mut manifest, opts, path)?;
     }
-    if !changed {
-        return Ok(());
-    }
+    Ok(changed.then_some(manifest))
+}
 
-    write_or_remove_manifest(&path, manifest)
+/// The text of `path`, or `None` when there is no file.
+fn read_if_present(path: &Path) -> Result<Option<String>, UpdateWorkspaceManifestError> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source }),
+    }
+}
+
+/// `path` parsed, or an empty document when there is no file.
+fn read_manifest_at(path: &Path) -> Result<Manifest, UpdateWorkspaceManifestError> {
+    let original = read_if_present(path)?;
+    Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source })
 }
 
 /// The first key an edit would have to rewrite that is written in a flow
@@ -313,13 +355,30 @@ pub fn update_manifest_field(
     key: &str,
     value: &serde_json::Value,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let original = match fs::read_to_string(path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => {
-            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
-        }
-    };
+    let target = ManifestTarget::root_manifest(path);
+    update_target_field(&target, key, value)
+}
+
+/// [`update_manifest_field`] for a workspace setting of `dir`, written to the
+/// file of the workspace that owns `key`: the root `pnpm-workspace.yaml`, or a
+/// file it includes. A file an edit empties is removed only when it is the
+/// root manifest.
+pub fn update_workspace_setting(
+    dir: &Path,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let target = WorkspaceManifests::read(dir)?.target_for_setting(key)?;
+    update_target_field(&target, key, &target.setting_from(dir, key, value))
+}
+
+fn update_target_field(
+    target: &ManifestTarget,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = target.path.as_path();
+    let original = read_if_present(path)?;
 
     let edit = edit_manifest_field(original.as_deref(), key, value)
         .map_err(|error| match error {
@@ -339,7 +398,8 @@ pub fn update_manifest_field(
 
     let text = match edit {
         ManifestEdit::Unchanged => return Ok(()),
-        ManifestEdit::Remove => return remove_manifest(path),
+        ManifestEdit::Remove if !target.included => return remove_manifest(path),
+        ManifestEdit::Remove => String::new(),
         ManifestEdit::Write(text) => text,
     };
 
@@ -442,25 +502,21 @@ fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
     }
 }
 
+/// Write `manifest` back to `target`. A root manifest the edits emptied is
+/// removed; an included file is kept, since the root manifest still names it.
 fn write_or_remove_manifest(
-    path: &Path,
+    target: &ManifestTarget,
     manifest: Manifest,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    if manifest.document.keys.is_empty() {
-        remove_manifest(path)
-    } else {
-        let text = manifest.document
-            .into_text()
-            .map_err(|source| UpdateWorkspaceManifestError::Edit {
-                path: path.to_path_buf(),
-                source,
-            })?;
-        write_atomic(path, &text)
-            .map_err(|source| UpdateWorkspaceManifestError::Write {
-                path: path.to_path_buf(),
-                source,
-            })
+    let path = &target.path;
+    if manifest.document.keys.is_empty() && !target.included {
+        return remove_manifest(path);
     }
+    let text = manifest.document
+        .into_text()
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    write_atomic(path, &text)
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path: path.clone(), source })
 }
 
 /// Write `contents` to `path` atomically: a sibling temp file in the same
@@ -482,5 +538,6 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
 
 mod build_settings;
 mod catalog_references;
+mod routing;
 
 mod version_policies;

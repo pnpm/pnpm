@@ -377,4 +377,6 @@ mod execution;
 
 mod injected_sync;
 
+mod lifecycle_failure;
+
 mod listing;

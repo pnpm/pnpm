@@ -192,6 +192,13 @@ are checked against the serving registry's matching
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
 
+Packument responses emit strong `ETag` and `Vary: Accept` headers. Public
+packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
+global packument TTL configuration, while private or caller-scoped responses
+set `Cache-Control: private, no-store` and `Vary: Accept, Authorization`.
+Conditional requests sending `If-None-Match` or `If-Modified-Since` receive
+`304 Not Modified` when unchanged.
+
 When OSV checks are enabled, vulnerable versions are removed from packuments
 and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.

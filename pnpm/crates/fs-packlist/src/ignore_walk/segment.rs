@@ -11,9 +11,19 @@ pub(super) struct SegmentPattern {
     has_extglob: bool,
 }
 
+/// How a pattern's literal characters match a name's characters.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum LiteralCase {
+    /// Equal after Unicode lowercasing, so U+212A (Kelvin sign) matches `k`.
+    Unicode,
+    /// Equal ignoring ASCII case only.
+    Ascii,
+}
+
 #[derive(Debug)]
 enum Node {
     Literal(char),
+    AsciiLiteral(char),
     ExactLiteral(char),
     AnyChar,
     AnyRun,
@@ -64,9 +74,9 @@ const MAX_MATCH_STEPS: usize = 1_000_000;
 const MAX_MATCH_DEPTH: usize = 256;
 
 impl SegmentPattern {
-    pub(super) fn parse(segment: &str) -> Self {
+    pub(super) fn parse(segment: &str, literal_case: LiteralCase) -> Self {
         let chars: Vec<char> = segment.chars().collect();
-        let mut parser = Parser { chars: &chars, pos: 0, nesting: 0 };
+        let mut parser = Parser { chars: &chars, pos: 0, nesting: 0, literal_case };
         let nodes = parser.parse_sequence(false);
         let has_extglob = nodes
             .iter()
@@ -113,6 +123,7 @@ struct Parser<'a> {
     pos: usize,
     /// How many extglobs enclose the current position.
     nesting: usize,
+    literal_case: LiteralCase,
 }
 
 impl Parser<'_> {
@@ -151,11 +162,18 @@ impl Parser<'_> {
             '\\' => match self.chars.get(self.pos) {
                 Some(&escaped) => {
                     self.pos += 1;
-                    Node::Literal(escaped)
+                    self.literal(escaped)
                 }
-                None => Node::Literal('\\'),
+                None => self.literal('\\'),
             },
-            literal => Node::Literal(literal),
+            literal => self.literal(literal),
+        }
+    }
+
+    fn literal(&self, literal: char) -> Node {
+        match self.literal_case {
+            LiteralCase::Unicode => Node::Literal(literal),
+            LiteralCase::Ascii => Node::AsciiLiteral(literal),
         }
     }
 
@@ -400,6 +418,7 @@ impl Node {
     fn matches_char(&self, current: char) -> bool {
         match self {
             Node::Literal(literal) => chars_eq_ignoring_case(current, *literal),
+            Node::AsciiLiteral(literal) => current.eq_ignore_ascii_case(literal),
             Node::ExactLiteral(literal) => current == *literal,
             Node::AnyChar => true,
             Node::Class(class) => class.matches(current),

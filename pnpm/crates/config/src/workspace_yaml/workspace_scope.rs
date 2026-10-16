@@ -22,6 +22,7 @@ impl WorkspaceSettings {
         self.trust_policy = None;
         self.trust_policy_exclude = None;
         self.trust_policy_ignore_after = None;
+        self.boot_config = None;
     }
 
     /// Zero out fields not permitted in the global `config.yaml`.
@@ -61,6 +62,7 @@ impl WorkspaceSettings {
         self.python = None;
         self.packages = None;
         self.catalog = None;
+        self.boot_config = None;
         // Task declarations describe the workspace's own scripts; pnpm's
         // config-file key filter drops them from the global file too. The
         // same holds for the pipelines built from them.

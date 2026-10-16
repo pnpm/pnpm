@@ -1,6 +1,6 @@
 use super::{
-    IndexMap, Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
-    has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
+    IndexMap, Path, UpdateWorkspaceManifestError, edit, has_control_char, read_owning_manifest,
+    unsupported_inline_key, write_or_remove_manifest,
 };
 
 /// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`
@@ -13,16 +13,8 @@ pub fn set_config_dependencies<'a>(
     dir: &Path,
     entries: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "configDependencies")?;
+    let path = target.path.clone();
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
@@ -41,7 +33,7 @@ pub fn set_config_dependencies<'a>(
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Merge `patched_dependencies` into `dir`'s `pnpm-workspace.yaml`
@@ -51,16 +43,12 @@ pub fn set_patched_dependencies(
     dir: &Path,
     patched_dependencies: &IndexMap<String, String>,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "patchedDependencies")?;
+    let path = target.path.clone();
+    let patched_dependencies: IndexMap<String, String> = patched_dependencies
+        .iter()
+        .map(|(selector, patch)| (selector.clone(), target.path_from(dir, patch)))
+        .collect();
 
     if !patched_dependencies.is_empty()
         && let Some(key) =
@@ -69,13 +57,13 @@ pub fn set_patched_dependencies(
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
-    let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
+    let changed = edit::add_patched_dependencies(&mut manifest, &patched_dependencies)
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     if !changed {
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Upsert `selector → specifier` entries into `dir`'s `pnpm-workspace.yaml`
@@ -95,16 +83,8 @@ pub fn set_overrides<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, &'a str)>,
 {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "overrides")?;
+    let path = target.path.clone();
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
@@ -133,14 +113,15 @@ where
 
     let mut changed = false;
     for (selector, specifier) in entries {
-        changed |= edit::add_overrides(&mut manifest, selector, specifier)
+        let specifier = target.specifier_from(dir, specifier);
+        changed |= edit::add_overrides(&mut manifest, selector, &specifier)
             .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     }
     if !changed {
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// The first selector or specifier holding a control character, if any.
@@ -165,16 +146,8 @@ pub fn set_audit_ignore_ghsas(
     dir: &Path,
     ghsas: &[String],
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "audit")?;
+    let path = target.path.clone();
 
     if let Some(bad) = ghsas.iter().find(|ghsa| has_control_char(ghsa)) {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
@@ -196,7 +169,7 @@ pub fn set_audit_ignore_ghsas(
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Set `dir`'s `pnpm-workspace.yaml` top-level `minimumReleaseAgeExclude:` to
@@ -209,13 +182,8 @@ pub fn set_minimum_release_age_excludes(
     dir: &Path,
     excludes: &[String],
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
+    let (target, mut manifest) = read_owning_manifest(dir, "minimumReleaseAgeExclude")?;
+    let path = target.path.clone();
 
     if let Some(bad) = excludes.iter().find(|exclude| has_control_char(exclude)) {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
@@ -223,9 +191,6 @@ pub fn set_minimum_release_age_excludes(
             value: bad.clone(),
         });
     }
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
     if let Some(key) =
         unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
@@ -237,7 +202,7 @@ pub fn set_minimum_release_age_excludes(
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Delete `selectors` from `dir`'s `pnpm-workspace.yaml` `overrides:` block,
@@ -249,20 +214,11 @@ pub fn remove_overrides(
     dir: &Path,
     selectors: &[String],
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(Some(&original))
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "overrides")?;
 
     if !edit::remove_overrides(&mut manifest, selectors) {
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }

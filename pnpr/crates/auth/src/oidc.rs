@@ -11,15 +11,22 @@ use sessions::BrowserSessions;
 mod provider_config;
 use provider_config::{build_providers, secure_url};
 
-mod provider_metadata;
-use provider_metadata::{MetadataCache, MetadataFreshness};
-
 mod workload;
 use workload::{
     bound_user, match_workload_binding, token_payload, token_verifier, verify_workload,
 };
 
 mod network;
+
+mod login_client;
+
+mod pending_login;
+use pending_login::PendingLogin;
+
+mod provider_metadata;
+use provider_metadata::{MetadataCache, MetadataFreshness};
+
+mod transport;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
 use chrono::Utc;
@@ -32,10 +39,7 @@ use openidconnect::{
         CoreJwsSigningAlgorithm, CoreProviderMetadata, CoreTokenResponse,
     },
 };
-use p256::ecdsa::{
-    Signature, SigningKey,
-    signature::{Signer as _, Verifier as _},
-};
+use p256::ecdsa::{Signature, SigningKey};
 use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcTeamGrant, OidcWorkload};
 use pnpr_error::{RegistryError, Result};
 use serde::{Deserialize, Serialize};
@@ -52,15 +56,6 @@ const MAX_ENTRIES: usize = 1024;
 const LOGIN_TTL: Duration = Duration::from_mins(5);
 const SESSION_PREFIX: &str = "pnpr_oidc_";
 
-type LoginClient = CoreClient<
-    EndpointSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointMaybeSet,
-    EndpointMaybeSet,
->;
-
 pub struct OidcState {
     providers: HashMap<String, Provider>,
     http: reqwest::Client,
@@ -76,17 +71,6 @@ struct Provider {
     config: OidcProvider,
     metadata: AsyncMutex<MetadataCache>,
     refresh: AsyncMutex<()>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct PendingLogin {
-    provider: String,
-    nonce: String,
-    verifier: String,
-    state_hash: String,
-    expires: i64,
-    #[serde(default)]
-    returns_to: LoginReturn,
 }
 
 /// Who a browser session signed in as.
@@ -201,32 +185,6 @@ impl OidcState {
         Ok(session)
     }
 
-    fn validate_pending_login(
-        &self,
-        login: &PendingLogin,
-        provider_name: &str,
-        state: &str,
-        code: &str,
-    ) -> Result<()> {
-        let now = Utc::now().timestamp();
-        if login.provider != provider_name
-            || login.expires <= now
-            || login.state_hash != super::sha256_hex(state.as_bytes())
-            || code.is_empty()
-            || code.len() > 8192
-        {
-            return Err(rejected());
-        }
-        if self.consumed
-            .lock()
-            .expect("OIDC consumed mutex poisoned")
-            .contains_key(&login.state_hash)
-        {
-            return Err(rejected());
-        }
-        Ok(())
-    }
-
     /// Verify the ID token against the provider's keys, refreshing them once
     /// when the cached keys reject it, and check the access token hash it
     /// carries. Returns the verified claims' expiration.
@@ -258,117 +216,6 @@ impl OidcState {
             }
         }
         Ok(claims.expiration().timestamp())
-    }
-
-    fn record_attempt(&self, state_hash: &str) -> Result<()> {
-        let mut attempts = self.attempts.lock().expect("OIDC attempts mutex poisoned");
-        if attempts
-            .iter()
-            .any(|state| state == state_hash)
-        {
-            return Err(rejected());
-        }
-        if attempts.len() >= MAX_ENTRIES {
-            attempts.pop_front();
-        }
-        attempts.push_back(state_hash.to_string());
-        Ok(())
-    }
-
-    fn seal_login(&self, login: &PendingLogin) -> Result<String> {
-        let bytes = serde_json::to_vec(login).map_err(|_| unavailable())?;
-        let signature: Signature = self.state_key.sign(&bytes);
-        Ok(format!(
-            "{}.{}",
-            BASE64_URL_SAFE_NO_PAD.encode(bytes),
-            BASE64_URL_SAFE_NO_PAD.encode(signature.to_bytes()),
-        ))
-    }
-
-    fn open_login(&self, cookie: &str) -> Result<PendingLogin> {
-        if cookie.len() > 4096 {
-            return Err(rejected());
-        }
-        let (payload, signature) = cookie.split_once('.').ok_or_else(rejected)?;
-        let payload = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
-        let signature = BASE64_URL_SAFE_NO_PAD.decode(signature).map_err(|_| rejected())?;
-        let signature = Signature::from_slice(&signature).map_err(|_| rejected())?;
-        self.state_key
-            .verifying_key()
-            .verify(&payload, &signature)
-            .map_err(|_| rejected())?;
-        serde_json::from_slice(&payload).map_err(|_| rejected())
-    }
-
-    fn login_client(
-        &self,
-        provider: &Provider,
-        metadata: CoreProviderMetadata,
-    ) -> Result<LoginClient> {
-        let config = &provider.config;
-        let login = config.login.as_ref().ok_or_else(rejected)?;
-        let auth_type = if login.client_secret.is_none() {
-            AuthType::RequestBody
-        } else if metadata
-            .token_endpoint_auth_methods_supported()
-            .is_none_or(|methods| methods.contains(&CoreClientAuthMethod::ClientSecretBasic))
-        {
-            AuthType::BasicAuth
-        } else if metadata
-            .token_endpoint_auth_methods_supported()
-            .is_some_and(|methods| methods.contains(&CoreClientAuthMethod::ClientSecretPost))
-        {
-            AuthType::RequestBody
-        } else {
-            return Err(invalid_config(
-                "OIDC provider does not support client secret authentication",
-            ));
-        };
-        Ok(CoreClient::from_provider_metadata(
-            metadata,
-            ClientId::new(config.audience.clone()),
-            login.client_secret.clone().map(ClientSecret::new),
-        )
-        .set_auth_type(auth_type)
-        .set_redirect_uri(
-            RedirectUrl::new(format!("{}/-/oidc/{}/callback", self.public_url, config.name))
-                .map_err(|_| invalid_config("invalid OIDC callback URL"))?,
-        ))
-    }
-
-    async fn http_request(&self, request: HttpRequest) -> Result<HttpResponse> {
-        secure_url(&request.uri().to_string())?;
-        network::validate_destination(&request.uri().to_string())?;
-        let (parts, body) = request.into_parts();
-        let mut response = self.http
-            .request(parts.method, parts.uri.to_string())
-            .headers(parts.headers)
-            .body(body)
-            .send()
-            .await
-            .map_err(|_| unavailable())?;
-        let mut builder = openidconnect::http::Response::builder().status(response.status());
-        for (key, value) in response.headers() {
-            builder = builder.header(key, value);
-        }
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| unavailable())? {
-            if body.len() + chunk.len() > 1024 * 1024 {
-                return Err(unavailable());
-            }
-            body.extend_from_slice(&chunk);
-        }
-        builder.body(body).map_err(|_| unavailable())
-    }
-}
-
-impl<'client> openidconnect::AsyncHttpClient<'client> for OidcState {
-    type Error = RegistryError;
-    type Future =
-        std::pin::Pin<Box<dyn std::future::Future<Output = Result<HttpResponse>> + Send + 'client>>;
-
-    fn call(&'client self, request: HttpRequest) -> Self::Future {
-        Box::pin(self.http_request(request))
     }
 }
 

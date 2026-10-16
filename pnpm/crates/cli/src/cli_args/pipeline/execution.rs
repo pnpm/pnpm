@@ -291,7 +291,7 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
                 options.config.enable_pre_post_scripts,
             );
         }
-        let exit = exit?;
+        let exit = exit?.status;
         if !exit.success() {
             execution.status = Status::Failure;
             execution.message =

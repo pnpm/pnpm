@@ -1,4 +1,4 @@
-mod apply;
+pub use self::package_settings::apply_config_dependency_settings;
 
 use self::apply::apply_hook_delta;
 use super::{
@@ -71,6 +71,7 @@ pub async fn prepare_config<Reporter: self::Reporter>(
     let config_root = config.root_project_manifest_dir(dir).to_path_buf();
     install_config_deps::<Reporter>(config, &config_root, config.frozen_lockfile.unwrap_or(false))
         .await?;
+    apply_config_dependency_settings(config)?;
     run_update_config_hooks::<Reporter>(config, &config_root).await
 }
 
@@ -325,3 +326,6 @@ fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
 
     Ok(())
 }
+
+mod apply;
+mod package_settings;

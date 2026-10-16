@@ -1,3 +1,7 @@
+//! Discovery of a provider's metadata, and the per-provider cache that
+//! keeps one copy alive for [`METADATA_TTL`] while [`REFRESH_INTERVAL`] bounds
+//! how often a failed discovery is retried.
+
 use super::{
     CoreProviderMetadata, Duration, Instant, IssuerUrl, OidcState, Provider, Result, rejected,
     secure_url, unavailable,

@@ -1229,6 +1229,352 @@ mod changed_packages {
     }
 
     #[test]
+    fn select_projects_using_a_catalog_changed_in_an_included_file() {
+        let repo = TempDir::new().expect("create tempdir");
+        let ws_dir = repo.path();
+        init_repo(ws_dir);
+
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        let pkg_b_dir = ws_dir.join("packages").join("pkg-b");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_b_dir).expect("create pkg-b");
+        fs::create_dir_all(ws_dir.join("config")).expect("create config dir");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./config/catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(ws_dir.join("config/catalog.yaml"), "catalog:\n  foo: ^1.0.0\n")
+            .expect("write catalog file");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_b_dir.join("package.json"),
+            r#"{"name":"pkg-b","version":"1.0.0","dependencies":{"bar":"^1.0.0"}}"#,
+        )
+        .expect("write pkg-b package.json");
+
+        commit_all(ws_dir);
+
+        fs::write(ws_dir.join("config/catalog.yaml"), "catalog:\n  foo: ^1.1.0\n")
+            .expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        graph.insert(
+            pkg_b_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(&pkg_b_dir.to_string_lossy(), "pkg-b", &[("bar", "^1.0.0")]),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: ws_dir.to_path_buf(),
+            ..Default::default()
+        };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_changed_in_a_symlinked_included_file() {
+        let repo = TempDir::new().expect("create tempdir");
+        let ws_dir = repo.path();
+        init_repo(ws_dir);
+
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(ws_dir.join("shared")).expect("create shared dir");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(ws_dir.join("shared/catalog.yaml"), "catalog:\n  foo: ^1.0.0\n")
+            .expect("write catalog file");
+        std::os::unix::fs::symlink("shared/catalog.yaml", ws_dir.join("catalog.yaml"))
+            .expect("symlink catalog file");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+
+        commit_all(ws_dir);
+
+        fs::write(ws_dir.join("shared/catalog.yaml"), "catalog:\n  foo: ^1.1.0\n")
+            .expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: ws_dir.to_path_buf(),
+            ..Default::default()
+        };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    const FOO_CHANGED: &str = "catalog:\n  foo: ^1.1.0\n  bar: ^1.0.0\n";
+
+    /// How a workspace in `<repo>/ws` reaches `<repo>/shared/catalog.yaml`.
+    #[derive(Clone, Copy)]
+    enum SharedCatalog {
+        /// `../shared/catalog.yaml`
+        Relative,
+        /// `./catalog.yaml`, a symlink to the file
+        #[cfg(unix)]
+        LinkedFile,
+        /// `./config/catalog.yaml`, `config` being a symlink to `../shared`
+        #[cfg(unix)]
+        LinkedDir,
+    }
+
+    /// The projects that changing `<repo>/shared/catalog.yaml` to `updated`
+    /// selects in a workspace that includes it as `layout` says. Only
+    /// `pkg-a` uses the catalog, for `foo`.
+    fn select_after_changing_a_catalog_outside_the_workspace(
+        layout: SharedCatalog,
+        updated: &str,
+    ) -> (Vec<String>, String) {
+        let include_spec = match layout {
+            SharedCatalog::Relative => "../shared/catalog.yaml",
+            #[cfg(unix)]
+            SharedCatalog::LinkedFile => "./catalog.yaml",
+            #[cfg(unix)]
+            SharedCatalog::LinkedDir => "./config/catalog.yaml",
+        };
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(repo.path().join("shared")).expect("create shared dir");
+        let shared = repo.path().join("shared/catalog.yaml");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  {include_spec}: [catalog]\n"),
+        )
+        .expect("write workspace manifest");
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n").expect("write catalog file");
+        match layout {
+            SharedCatalog::Relative => {}
+            #[cfg(unix)]
+            SharedCatalog::LinkedFile => {
+                std::os::unix::fs::symlink("../shared/catalog.yaml", ws_dir.join("catalog.yaml"))
+                    .expect("symlink catalog file");
+            }
+            #[cfg(unix)]
+            SharedCatalog::LinkedDir => {
+                std::os::unix::fs::symlink("../shared", ws_dir.join("config"))
+                    .expect("symlink config dir");
+            }
+        }
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::write(&shared, updated).expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        (
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            pkg_a_dir.to_string_lossy().into_owned(),
+        )
+    }
+
+    #[test]
+    fn select_projects_using_a_catalog_included_from_outside_the_workspace() {
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::Relative,
+            FOO_CHANGED,
+        );
+        assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_symlinked_from_outside_the_workspace() {
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedFile,
+            FOO_CHANGED,
+        );
+        assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_included_through_a_symlinked_directory() {
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedDir,
+            FOO_CHANGED,
+        );
+        assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skip_projects_not_using_an_entry_changed_through_a_symlinked_directory() {
+        let (selected, _) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedDir,
+            "catalog:\n  foo: ^1.0.0\n  bar: ^1.1.0\n",
+        );
+        assert!(selected.is_empty(), "{selected:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_whose_directory_symlink_is_retargeted() {
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        for (dir, version) in [("v1", "^1.0.0"), ("v2", "^2.0.0")] {
+            fs::create_dir_all(repo.path().join(dir)).expect("create catalog dir");
+            fs::write(
+                repo.path()
+                    .join(dir)
+                    .join("catalog.yaml"),
+                format!("catalog:\n  foo: {version}\n"),
+            )
+            .expect("write catalog file");
+        }
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./config/catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        let link = ws_dir.join("config");
+        std::os::unix::fs::symlink("../v1", &link).expect("symlink config dir");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::remove_file(&link).expect("remove link");
+        std::os::unix::fs::symlink("../v2", &link).expect("retarget config dir");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn follow_a_symlink_chain_longer_than_eight_links_in_history() {
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        let shared = ws_dir.join("shared.yaml");
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n").expect("write catalog file");
+        let mut target = "shared.yaml".to_string();
+        for hop in 0..12 {
+            let name = format!("link{hop}.yaml");
+            std::os::unix::fs::symlink(&target, ws_dir.join(&name)).expect("symlink hop");
+            target = name;
+        }
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  ./{target}: [catalog]\n"),
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.1.0\n")
+            .expect("update catalog file");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  ./{target}: [catalog]\n# touched\n"),
+        )
+        .expect("touch workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        let selected = selected(&graph, &[diff_selector("HEAD")], &opts);
+        assert!(selected.is_empty(), "{selected:?}");
+    }
+
+    #[test]
     fn select_nested_projects_matching_glob_scoped_selector() {
         let repo = TempDir::new().expect("create tempdir");
         let workspace_dir = repo.path();

@@ -23,7 +23,7 @@ use pnpm_config::{
     WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases, property_path, property_path::Segment,
     protected_settings, refused_keys,
 };
-use pnpm_workspace_manifest_writer::update_manifest_field;
+use pnpm_workspace_manifest_writer::{update_manifest_field, update_workspace_setting};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use values::{
@@ -222,17 +222,19 @@ impl ConfigArgs {
                 config_set(config, dir, flags, &key, None)?;
             }
             ConfigSubcommand::Get(args) => {
-                let output = match args.key
+                let key = args.key
                     .as_deref()
-                    .filter(|key| !key.is_empty())
-                {
+                    .filter(|key| !key.is_empty());
+                let output = match key {
                     Some(key) => config_get(config, flags, key)?,
                     None => config_list(config),
                 };
                 pnpm_diagnostics::println!("{output}");
+                incomplete::warn_if_incomplete(config, key);
             }
             ConfigSubcommand::List(_) => {
                 pnpm_diagnostics::println!("{}", config_list(config));
+                incomplete::warn_if_incomplete(config, None);
             }
         }
         Ok(())
@@ -302,30 +304,38 @@ fn config_set(
     }
 
     let (config_dir, config_file_name) = get_config_file_info(&key, global, config, dir)?;
-    let config_path = config_dir.join(config_file_name);
 
     match config_file_name {
         GLOBAL_CONFIG_YAML_FILENAME | WORKSPACE_MANIFEST_FILENAME => {
-            set_yaml_setting(config_file_name, &config_path, &key, value)?;
+            set_yaml_setting(config_file_name, &config_dir, &key, value)?;
         }
         _ => {
             // INI file reached via `getConfigFileInfo` (auth/scoped/registry key
             // whose kebab-case form is an INI key). Validate against `types`.
             key = validate_ini_config_key(&key)?;
-            write_ini_setting(&config_path, &key, &value)?;
+            write_ini_setting(&config_dir.join(config_file_name), &key, &value)?;
         }
     }
     Ok(())
 }
 
 /// Write one setting to the global `config.yaml` or the project's
-/// `pnpm-workspace.yaml`, whichever `config_file_name` names.
+/// `pnpm-workspace.yaml`, whichever `config_file_name` names. A project
+/// setting goes to the workspace file that owns it.
 fn set_yaml_setting(
     config_file_name: &str,
-    config_path: &Path,
+    config_dir: &Path,
     key: &str,
     value: Value,
 ) -> miette::Result<()> {
+    let write = |key: &str, value: &Value| {
+        if config_file_name == WORKSPACE_MANIFEST_FILENAME {
+            update_workspace_setting(config_dir, key, value)
+        } else {
+            update_manifest_field(&config_dir.join(config_file_name), key, value)
+        }
+        .map_err(miette::Report::new)
+    };
     let given_key = key;
     let key = if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
         validate_yaml_config_key(key)?
@@ -345,9 +355,9 @@ fn set_yaml_setting(
         .into());
     }
     validate_macos_backup_value(&key, &cast)?;
-    update_manifest_field(config_path, &key, &cast).map_err(miette::Report::new)?;
+    write(&key, &cast)?;
     if cast.is_null() {
-        clear_other_spellings(config_path, &key, given_key)?;
+        clear_other_spellings(&key, given_key, write)?;
     }
     Ok(())
 }
@@ -355,12 +365,15 @@ fn set_yaml_setting(
 /// A hand-edited file may carry a spelling pnpm did not write, and that is the
 /// one the reader's warning names, so a removal also clears the spelling the
 /// user gave and the kebab-case one.
-fn clear_other_spellings(config_path: &Path, key: &str, given_key: &str) -> miette::Result<()> {
+fn clear_other_spellings(
+    key: &str,
+    given_key: &str,
+    write: impl Fn(&str, &Value) -> miette::Result<()>,
+) -> miette::Result<()> {
     let kebab_key = naming_cases::to_kebab_case(key);
     for spelling in [given_key, kebab_key.as_str()] {
         if spelling != key {
-            update_manifest_field(config_path, spelling, &Value::Null)
-                .map_err(miette::Report::new)?;
+            write(spelling, &Value::Null)?;
         }
     }
     Ok(())
@@ -503,4 +516,5 @@ fn global_config_dir(config: &Config) -> Result<PathBuf, ConfigError> {
     config.config_dir.clone().ok_or(ConfigError::NoGlobalConfigDir)
 }
 
+mod incomplete;
 mod values;

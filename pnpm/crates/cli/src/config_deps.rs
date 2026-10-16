@@ -10,7 +10,8 @@
 pub use declarations::{add_config_dependencies, update_config_dependencies};
 pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
-    load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
+    apply_config_dependency_settings, load_before_packing_hooks, may_update_config, prepare_config,
+    run_update_config_hooks,
 };
 
 pub(crate) use declarations::declared_specifier;
@@ -95,6 +96,7 @@ pub async fn prepare<Reporter: self::Reporter>(
     frozen_lockfile: bool,
 ) -> Result<()> {
     install_config_deps::<Reporter>(config, root_dir, frozen_lockfile).await?;
+    apply_config_dependency_settings(config)?;
     run_update_config_hooks::<Reporter>(config, root_dir).await?;
     Ok(())
 }
@@ -113,6 +115,8 @@ pub async fn record_running_package_manager_pin(
     frozen_lockfile: bool,
     force_resync: bool,
 ) -> Result<()> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
     let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
     let resolved = resolve_package_manager_integrities(
@@ -152,7 +156,7 @@ pub async fn sync_package_manager_dependencies(
     force_resync: bool,
 ) -> Result<EnvLockfile> {
     sync_engine_dependencies(
-        config,
+        &config.for_boot(),
         root_dir,
         pnpm_engine_packages(pnpm_version),
         wanted_specifier,
@@ -251,6 +255,8 @@ async fn resolve_engine(
     bare_specifier: &str,
     ignore_maturity: bool,
 ) -> Result<Option<ResolvedEngine>> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
     let context = EnvInstallerContext::for_package_manager(config)?;
     let opts = engine_resolve_options(config, ignore_maturity)?;
     resolve_engine_with(&context, package, bare_specifier, &opts).await
@@ -295,8 +301,8 @@ async fn resolve_engine_with(
     }))
 }
 
-/// Build the resolver + install options from `config` and resolve +
-/// install `config_dependencies`.
+/// Build the resolver + install options from the boot policy of `config`
+/// (see [`Config::for_boot`]) and resolve + install `config_dependencies`.
 async fn resolve_and_install<Reporter: self::Reporter>(
     config: &Config,
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,
@@ -304,6 +310,8 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     frozen_lockfile: bool,
     updates: &ConfigDepUpdates,
 ) -> Result<BTreeMap<String, String>> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Debug,
         message: "Waiting for the configuration dependency store operation lock".to_string(),

@@ -369,6 +369,30 @@ fn packs_a_basic_package_to_a_tarball() {
 }
 
 #[test]
+fn omits_default_excluded_swap_and_apple_double_files() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
+    touch(dir.path(), "index.js", "");
+    touch(dir.path(), ".index.js.swp", "");
+    touch(dir.path(), "._index.js", "");
+    touch(dir.path(), "lib/a.js", "");
+    touch(dir.path(), "lib/._a.js", "");
+    touch(dir.path(), "lib/.a.js.swp", "");
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let mut names = tarball_entry_names(&dir.path().join("foo-1.2.3.tgz"));
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "package/index.js".to_string(),
+            "package/lib/a.js".into(),
+            "package/package.json".into(),
+        ],
+    );
+}
+
+#[test]
 fn packs_regular_files_with_posix_ustar_headers() {
     let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.2.3" }));
     touch(dir.path(), "index.js", "module.exports = 1\n");
