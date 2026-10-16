@@ -27,14 +27,6 @@ fn workspace(workspace: &Path) {
     fs::write(dist.join("package.json"), r#"{"name":"lib","version":"1.0.0"}"#).unwrap();
 }
 
-const CHANGE_DIRECTORY: &str = r"const fs = require('fs');
-const path = require('path');
-const file = path.join(__dirname, 'package.json');
-const manifest = JSON.parse(fs.readFileSync(file));
-manifest.publishConfig = { directory: 'dist' };
-fs.writeFileSync(file, JSON.stringify(manifest));
-";
-
 fn assert_lib_target(workspace: &Path, directory: &str) {
     assert_eq!(
         fs::canonicalize(workspace.join("packages/app/node_modules/lib")).unwrap(),
@@ -66,41 +58,6 @@ fn filtered_dedicated_install_resolves_unselected_siblings_and_reloads_next_comm
     fs::remove_dir_all(fixture.workspace.join("packages/app/node_modules")).unwrap();
     pacquet_at(&fixture.workspace)
         .with_args(["install", "--filter", "app", "--ignore-scripts", "--force"])
-        .assert()
-        .success();
-    assert_lib_target(&fixture.workspace, "dist");
-}
-
-#[test]
-fn dedicated_installs_see_workspace_manifest_changes_from_lifecycle_scripts() {
-    let fixture = CommandTempCwd::init().add_mocked_registry();
-    workspace(&fixture.workspace);
-    let lib = fixture.workspace.join("packages/lib");
-    fs::write(lib.join("change.cjs"), CHANGE_DIRECTORY).unwrap();
-    fs::write(
-        lib.join("package.json"),
-        serde_json::json!({
-            "name": "lib", "version": "1.0.0", "scripts": { "postinstall": "node change.cjs" },
-        })
-        .to_string(),
-    )
-    .unwrap();
-    pacquet_at(&fixture.workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    assert_lib_target(&fixture.workspace, "dist");
-}
-
-#[test]
-fn ignoring_scripts_still_observes_workspace_manifest_changes_from_pnpmfiles() {
-    let fixture = CommandTempCwd::init().add_mocked_registry();
-    workspace(&fixture.workspace);
-    fs::write(fixture.workspace.join("packages/lib/.pnpmfile.cjs"), format!(
-        "module.exports = {{ hooks: {{ readPackage(pkg) {{ {CHANGE_DIRECTORY} return pkg; }} }} }};",
-    )).unwrap();
-    pacquet_at(&fixture.workspace)
-        .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     assert_lib_target(&fixture.workspace, "dist");

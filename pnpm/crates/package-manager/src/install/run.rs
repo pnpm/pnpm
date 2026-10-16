@@ -193,7 +193,7 @@ where
             None
         };
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
-        let loaded_workspace_projects = workspace.loaded_workspace.projects.take();
+        let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
         let fetches_into_store = mode.fetches_into_store(install.execution);
         let outcome = Box::pin(
             RunExecution {

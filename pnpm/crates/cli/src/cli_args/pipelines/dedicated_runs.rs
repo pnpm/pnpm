@@ -13,43 +13,6 @@ use pnpm_workspace_task_scheduler::{
 use std::{future::Future, sync::Mutex};
 
 impl DedicatedProjectRuns<'_> {
-    pub(super) fn install_caches(&self) -> DedicatedCaches {
-        let mut caches = DedicatedCaches::default();
-        // Scripts and pnpmfiles can rewrite manifests before a later project
-        // discovers them. Custom layouts and packageConfigs can also give each
-        // project different discovery exclusions. Keep fresh reads in those cases.
-        let config = self.config;
-        if super::ecosystem_install::is_enabled(config) {
-            return caches;
-        }
-        if !config.ignore_scripts
-            || config.package_configs
-                .as_ref()
-                .is_some_and(|configs| !configs.is_empty())
-            || config.explicit_settings.contains_key("modulesDir")
-            || config.explicit_settings.contains_key("virtualStoreDir")
-        {
-            return caches;
-        }
-        let Some(workspace_dir) = config.workspace_dir.as_deref() else { return caches };
-        let has_hooks = !config.ignore_pnpmfile
-            && self.projects.dependencies
-                .keys()
-                .map(PathBuf::as_path)
-                .chain(std::iter::once(workspace_dir))
-                .any(|dir| {
-                    !pnpm_hooks::finder::find_pnpmfiles(
-                        dir,
-                        pnpm_package_manager::pnpmfile_selection(config),
-                    )
-                    .is_empty()
-                });
-        if !has_hooks {
-            caches.install.workspace = Some(Arc::default());
-        }
-        caches
-    }
-
     pub(super) async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
@@ -132,7 +95,11 @@ impl DedicatedProjectRuns<'_> {
             self.require_lockfile,
             self.http_client.as_ref().map(Arc::clone),
         )?
-        .into_dedicated_project(caches, dependencies_installed);
+        .into_dedicated_project(
+            caches,
+            dependencies_installed,
+            self.pipelined.then(|| self.projects.workspace.clone()),
+        );
         // A project's install blocks its thread in places, such as while its
         // lifecycle scripts run. On its own task, the other projects'
         // installs move to another worker then.

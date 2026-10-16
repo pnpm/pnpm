@@ -28,10 +28,8 @@ pub(crate) use workspace_state::{
 
 pub(crate) use verification_gate::IsReplaced;
 pub use verification_gate::LockfileVerificationGate;
-pub use workspace_discovery::WorkspaceDiscoveryCache;
 
 mod entry_points;
-mod workspace_discovery;
 
 mod errors;
 
@@ -416,6 +414,35 @@ pub struct DedicatedProjectInstall {
     /// installs of the workspace projects it depends on produce. `None`
     /// waits for nothing.
     pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+    /// The workspace the command already discovered, which the install
+    /// reads instead of walking the workspace itself. `None` walks it.
+    pub workspace: Option<DiscoveredWorkspace>,
+}
+
+/// Every project of a workspace and the workspace-package index built from
+/// them, discovered once for all the per-project installs of a command.
+#[derive(Clone)]
+pub struct DiscoveredWorkspace {
+    projects: Arc<[pnpm_workspace::Project]>,
+    packages: Arc<pnpm_resolving_resolver_base::WorkspacePackages>,
+}
+
+impl DiscoveredWorkspace {
+    #[must_use]
+    pub fn new(projects: Vec<pnpm_workspace::Project>) -> Self {
+        let packages = build_workspace_packages_map(Some(&projects)).unwrap_or_default();
+        DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::new(packages) }
+    }
+
+    /// The index of `projects` when they are this workspace's own list.
+    fn packages_of(
+        &self,
+        projects: Option<&[pnpm_workspace::Project]>,
+    ) -> Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
+        projects
+            .filter(|projects| std::ptr::eq(*projects, Arc::as_ptr(&self.projects)))
+            .map(|_| Arc::clone(&self.packages))
+    }
 }
 
 /// Resolves once the installs of the workspace projects a project depends
@@ -432,8 +459,6 @@ pub type WorkspaceDependenciesInstalled =
 /// loaded, parsed and verified once instead of once per project.
 #[derive(Default, Clone)]
 pub struct SharedInstallCaches {
-    /// Opt in only when no install in this command can change workspace inputs.
-    pub workspace: Option<Arc<WorkspaceDiscoveryCache>>,
     pub packuments: Arc<InMemoryPackageMetaCache>,
     pub verifier_lookups: pnpm_resolving_npm_resolver::VerifierLookups,
     pub fetch: pnpm_deps_restorer::SharedFetchCaches,

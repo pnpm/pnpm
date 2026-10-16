@@ -5,7 +5,7 @@ use super::{
         build_root_importer_project_manifests_list, build_selected_project_manifests_list,
         build_workspace_packages_map, configured_or_discovered_workspace_dir,
         dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, load_workspace_projects,
-        lockfile_root_dir, workspace_discovery::WorkspaceSnapshot,
+        lockfile_root_dir,
     },
     InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
     importer_selection::ImporterSelection,
@@ -69,7 +69,10 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) catalogs: super::super::Catalogs,
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
-    pub(super) loaded_workspace: WorkspaceSnapshot,
+    pub(super) loaded_workspace_projects: Option<std::sync::Arc<[pnpm_workspace::Project]>>,
+    /// The workspace the command discovered for all its per-project
+    /// installs, when this install reads it.
+    pub(super) discovered: Option<crate::DiscoveredWorkspace>,
     pub(super) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) dirs: WorkspaceDirs<'a>,
 }
@@ -107,20 +110,31 @@ impl<'a> InstallWorkspace<'a> {
         let workspace_projects_are_overridden = owned.projects
             .workspace_projects_override
             .is_some();
-        let loaded_workspace = owned.discover_workspace_projects(
-            install,
-            options,
-            &dirs,
+        let discovered = owned.projects.dedicated
+            .as_ref()
+            .and_then(|dedicated| dedicated.workspace.clone());
+        let known_workspace_projects = owned.projects
+            .workspace_projects_override
+            .take()
+            .map(std::sync::Arc::from)
+            .or_else(|| {
+                discovered.as_ref().map(|workspace| std::sync::Arc::clone(&workspace.projects))
+            });
+        let loaded_workspace_projects = discovered_workspace_projects(
+            options.selection.is_some(),
+            known_workspace_projects,
+            dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest.as_ref(),
+            &install.context.config.managed_directories(),
         )?;
         report_discovered_scope::<Reporter>(
             install,
             options,
             &dirs,
-            loaded_workspace.projects.as_deref(),
+            loaded_workspace_projects.as_deref(),
         );
         let workspace_packages =
-            workspace_packages_for_install(install, loaded_workspace.projects.as_deref(), options);
+            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -133,7 +147,8 @@ impl<'a> InstallWorkspace<'a> {
             catalog_context_present,
             catalogs,
             workspace_projects_are_overridden,
-            loaded_workspace,
+            loaded_workspace_projects,
+            discovered,
             workspace_packages,
             dirs,
         })
@@ -285,18 +300,19 @@ pub(super) fn catalog_context_present(
 /// nothing.
 pub(super) fn discovered_workspace_projects(
     has_selection: bool,
-    workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
+    known_workspace_projects: Option<std::sync::Arc<[pnpm_workspace::Project]>>,
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
     ignored_directories: &[PathBuf],
-) -> Result<Option<Vec<pnpm_workspace::Project>>, InstallError> {
+) -> Result<Option<std::sync::Arc<[pnpm_workspace::Project]>>, InstallError> {
     if has_selection {
         return Ok(None);
     }
-    if let Some(projects) = workspace_projects_override {
+    if let Some(projects) = known_workspace_projects {
         return Ok(Some(projects));
     }
     load_workspace_projects(workspace_dir, workspace_manifest, ignored_directories)
+        .map(|projects| projects.map(std::sync::Arc::from))
         .map_err(InstallError::FindWorkspaceProjects)
 }
 /// A full install (pnpm's `mutation: "install"`) is the workspace-wide one and

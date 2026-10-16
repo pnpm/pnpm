@@ -4,7 +4,6 @@ use super::{
     super::{
         Arc, AtomicU8, IncludedDependencies, PackageManifest, PathBuf, RebuildOptions,
         prior_hoisted_dependencies, prior_hoisted_locations,
-        workspace_discovery::WorkspacePackageSource,
     },
     Dispatched, InstallScope, Loaded, Lockfiles, Verification,
 };
@@ -43,12 +42,10 @@ impl super::InstallWorkspace<'_> {
             dependency_groups,
             project_manifests,
             lockfile_specifier_project_manifests,
-            workspace_packages: self.loaded_workspace.packages
+            workspace_projects,
+            discovered_workspace_packages: self.discovered
                 .as_ref()
-                .map_or_else(
-                    || WorkspacePackageSource::Projects(workspace_projects),
-                    |packages| WorkspacePackageSource::Shared(Arc::clone(packages)),
-                ),
+                .and_then(|discovered| discovered.packages_of(workspace_projects)),
             requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
             real_importer_ids: &scope.importers.real_importer_ids,
             workspace_root: &self.dirs.workspace_root,
