@@ -224,11 +224,10 @@ impl HostedGit {
             .to_ascii_lowercase()
     }
 
-    /// Whether the URL forms name a whole repository. A shortcut such as
-    /// `github:skills` names no owner, so its forms come out broken; a gist
-    /// needs none.
+    /// Whether the URL forms name a whole repository. They do not for a
+    /// shortcut with no owner, such as `github:skills`. A gist needs no owner.
     #[must_use]
-    pub fn has_owner(&self) -> bool {
+    pub fn names_repository(&self) -> bool {
         !self.user.is_empty() || self.host_type == HostedGitType::Gist
     }
 
@@ -400,15 +399,22 @@ impl HostedGit {
     /// URL form for that protocol.
     #[must_use]
     pub fn normalized_repository_url(&self) -> Option<String> {
-        if !self.has_owner() {
+        if !self.names_repository() {
             return None;
         }
+        // Upstream's gist templates drop credentials; see the module docs for
+        // why `https` and `git` keep them.
+        let hosted = if self.host_type == HostedGitType::Gist {
+            &HostedGit { auth: None, ..self.clone() }
+        } else {
+            self
+        };
         let opts = HostedOpts::default();
-        match self.default_representation {
-            Representation::Shortcut | Representation::Https => self.https(opts),
+        match hosted.default_representation {
+            Representation::Shortcut | Representation::Https => hosted.https(opts),
             // Upstream has no `http` template, so `toString` falls back to `sshurl`.
-            Representation::Sshurl | Representation::Http => self.sshurl(opts),
-            Representation::Git => self.git(),
+            Representation::Sshurl | Representation::Http => hosted.sshurl(opts),
+            Representation::Git => hosted.git(),
         }
     }
 

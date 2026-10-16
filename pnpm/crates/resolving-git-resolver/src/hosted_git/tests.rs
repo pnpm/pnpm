@@ -332,7 +332,7 @@ fn gist_shortcut() {
     assert_eq!(hosted.user, "");
     assert_eq!(hosted.project, "abc123");
     assert_eq!(hosted.committish.as_deref(), Some("deadbeef"));
-    assert!(hosted.has_owner());
+    assert!(hosted.names_repository());
 }
 
 #[test]
@@ -374,7 +374,8 @@ fn gist_package_docs_url() {
 }
 
 /// The gist forms keep URL-embedded credentials so `git ls-remote` can
-/// still reach a private gist.
+/// still reach a private gist. The `repository` field `npm pkg fix` writes
+/// drops them, as upstream's gist templates do.
 #[test]
 fn gist_https_keeps_credentials() {
     let hosted = HostedGit::from_url("https://user:token@gist.github.com/abc123.git").unwrap();
@@ -383,5 +384,9 @@ fn gist_https_keeps_credentials() {
             .https(HostedOpts::default())
             .unwrap(),
         "git+https://user:token@gist.github.com/abc123.git",
+    );
+    assert_eq!(
+        hosted.normalized_repository_url().unwrap(),
+        "git+https://gist.github.com/abc123.git",
     );
 }

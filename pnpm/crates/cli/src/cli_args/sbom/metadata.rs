@@ -22,7 +22,7 @@ fn repository_url(raw: &str) -> Option<String> {
         return Some(url);
     }
     let hosted = HostedGit::from_url(raw)?;
-    if !hosted.has_owner() {
+    if !hosted.names_repository() {
         return None;
     }
     let expanded = hosted.https(HostedOpts::default())?;
