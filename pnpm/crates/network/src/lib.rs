@@ -13,6 +13,7 @@ pub use auth::{
     nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
     redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
 };
+pub use certificates::bundled_root_certs;
 pub use client_builder::{default_network_concurrency, native_dns_resolver};
 pub use error_chain::{is_permanent_error, walk_reqwest_chain};
 pub use limited_body::{LimitedBody, read_limited_body, read_self_delimiting_text};
@@ -579,9 +580,7 @@ impl Default for ThrottledClient {
 mod certificates;
 #[cfg(target_vendor = "apple")]
 use certificates::is_platform_verifier_available;
-use certificates::{
-    AppliedTls, TrustRoots, apply_tls, bundled_root_certs, load_node_extra_ca_certs, merge_tls,
-};
+use certificates::{AppliedTls, TrustRoots, apply_tls, load_node_extra_ca_certs, merge_tls};
 
 mod client_builder;
 use client_builder::{

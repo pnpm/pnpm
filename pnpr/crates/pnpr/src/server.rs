@@ -123,6 +123,7 @@ mod team_access;
 mod team_mutations;
 mod team_rosters;
 mod user_admin;
+mod web_login;
 mod web_ui;
 
 #[cfg(test)]
@@ -284,20 +285,25 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
 /// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
 /// puts the raw bearer token in the URL path, and a reusable credential
 /// must never reach a log line, so everything after that marker is
-/// redacted. OIDC callback queries are also omitted. Other URIs are logged verbatim; a false positive (a
-/// registry path that merely embeds the marker) is redacted too, which
-/// only costs log detail on a request no route serves.
+/// redacted. Web login polling (`/-/v1/login/poll/{token}`) is also
+/// redacted, and OIDC callback and web login start queries are omitted.
+/// Other URIs are logged verbatim; a false positive (a registry path that
+/// merely embeds the marker) is redacted too, which only costs log detail
+/// on a request no route serves.
 fn loggable_uri(uri: &axum::http::Uri) -> String {
-    if uri.path().starts_with("/-/oidc/") {
-        return uri.path().to_string();
+    let path = uri.path();
+    if path.starts_with("/-/oidc/") || path.ends_with("/-/v1/login/start") {
+        return path.to_string();
     }
     const TOKEN_MARKER: &str = "/-/user/token/";
-    match uri.path().find(TOKEN_MARKER) {
-        Some(index) => {
-            format!("{}<redacted>", &uri.path()[..index + TOKEN_MARKER.len()])
-        }
-        None => uri.to_string(),
+    const POLL_MARKER: &str = "/-/v1/login/poll/";
+    if let Some(index) = path.find(TOKEN_MARKER) {
+        return format!("{}<redacted>", &path[..index + TOKEN_MARKER.len()]);
     }
+    if let Some(index) = path.find(POLL_MARKER) {
+        return format!("{}<redacted>", &path[..index + POLL_MARKER.len()]);
+    }
+    uri.to_string()
 }
 
 // --------------------------------------------------------------------

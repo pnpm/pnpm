@@ -82,6 +82,7 @@ async fn selected_registry_errors_do_not_fall_back_to_another_index() {
     let denied = extra
         .mock("GET", "/simple/alpha/")
         .with_status(403)
+        .expect_at_least(1)
         .create_async()
         .await;
     project(root.path(), &primary.url(), &["alpha"]);
