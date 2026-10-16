@@ -213,7 +213,8 @@ function normalizeRepository (manifest: Record<string, unknown>): void {
   const repository = manifest.repository
   if (!isPlainObject(repository) || typeof repository.url !== 'string') return
   const hosted = HostedGit.fromUrl(repository.url)
-  if (hosted == null) return
+  // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
+  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
   repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
 }
 

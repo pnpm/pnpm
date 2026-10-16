@@ -299,6 +299,10 @@ describe('pkg command', () => {
       expect(Object.keys(fixed as object)).toStrictEqual(['type', 'url'])
     })
 
+    test('leaves the url of a repository shortcut with no owner as written', async () => {
+      expect(await fixRepository('github:skills')).toStrictEqual({ type: 'git', url: 'github:skills' })
+    })
+
     test('normalizes the url of a repository object and keeps its other fields', async () => {
       expect(await fixRepository({ type: 'git', url: 'github:pnpm/example', directory: 'packages/x' })).toStrictEqual({
         type: 'git',

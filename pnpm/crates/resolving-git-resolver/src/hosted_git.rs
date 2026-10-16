@@ -360,9 +360,14 @@ impl HostedGit {
     /// it. Mirrors the `fixRepositoryField` step of
     /// [`@npmcli/package-json`](https://github.com/npm/package-json/blob/v7.0.5/lib/normalize.js).
     ///
-    /// Returns `None` when the host has no URL form for that protocol.
+    /// Returns `None` when the repository has no owner or the host has no
+    /// URL form for that protocol.
     #[must_use]
     pub fn normalized_repository_url(&self) -> Option<String> {
+        // Rendering an ownerless shortcut such as `github:skills` yields a broken URL.
+        if self.user.is_empty() {
+            return None;
+        }
         let opts = HostedOpts::default();
         match self.default_representation {
             Representation::Shortcut | Representation::Https => self.https(opts),

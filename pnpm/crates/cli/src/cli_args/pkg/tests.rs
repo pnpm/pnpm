@@ -216,6 +216,14 @@ fn test_fix_keeps_gist_repository_url() {
 }
 
 #[test]
+fn test_fix_keeps_ownerless_repository_shortcut() {
+    assert_eq!(
+        fix_repository(json!("github:skills")),
+        json!({ "type": "git", "url": "github:skills" }),
+    );
+}
+
+#[test]
 fn test_fix_normalizes_repository_object_url() {
     assert_eq!(
         fix_repository(json!({
