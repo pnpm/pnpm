@@ -4,15 +4,15 @@ use super::{
     ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
     exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
-    interrupt_count, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
-    throw_or_filter_hidden_scripts,
+    interrupt_count,
+    lifecycle_failure::report_lifecycle_failure,
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution, run_script, schedule_graph, throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::{
-    concurrency_group::{SlotOutcome, acquire_concurrency_group_slot, with_held_group},
-    reporter::default_reporter_selected,
+use crate::cli_args::concurrency_group::{
+    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::LogEvent;
 
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
@@ -482,39 +482,9 @@ pub(in super::super) fn run_stage(
     // is still reported.
     let interrupted = !status.success() && interrupt_count() != interrupts_before;
     if !status.success() && !interrupted {
-        report_lifecycle_failure(ctx, &lifecycle_failure_message(status, stage));
+        report_lifecycle_failure(ctx, status, stage);
     }
     Ok(Some(StageExit { status, interrupted }))
-}
-
-fn lifecycle_failure_message(status: ScriptExit, stage: &str) -> String {
-    if let Some(signal) = status.signal_name() {
-        format!("[ELIFECYCLE] Command failed with signal {signal}.")
-    } else if stage == "test" {
-        "[ELIFECYCLE] Test failed. See above for more details.".to_string()
-    } else if let Some(code) = status.code() {
-        format!("[ELIFECYCLE] Command failed with exit code {code}.")
-    } else {
-        "[ELIFECYCLE] Command failed.".to_string()
-    }
-}
-
-/// A streamed run goes through the reporter, which may be redrawing its
-/// frame in place: a line written past it would shift the rows the frame
-/// moves the cursor over. An inherited run under the default reporter
-/// writes the line to stderr after the script's own output; under any
-/// other reporter it goes through the reporter too, so the ndjson
-/// reporter writes a record and the silent reporter drops it.
-fn report_lifecycle_failure(ctx: &RunContext<'_>, message: &str) {
-    if matches!(ctx.output, ScriptOutput::Inherit) && default_reporter_selected() {
-        pnpm_diagnostics::eprintln!("{message}");
-        return;
-    }
-    (ctx.emit)(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Error,
-        message: message.to_string(),
-        prefix: String::new(),
-    }));
 }
 
 pub(crate) fn exec_scripts_prepend_node_path(
