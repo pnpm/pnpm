@@ -66,7 +66,7 @@ fn local_sources_are_merged_into_the_root_settings() {
         ),
         ("config/security.yaml", "minimumReleaseAge: 1440\n"),
         ("config/catalog.yml", "catalog:\n  react: ^19.0.0\n"),
-        ("config/workspace.yaml", "packages: ['pkgs/*']\n"),
+        ("config/workspace.yaml", "packages: ['../pkgs/*']\n"),
     ]);
     let expected: yaml_serde::Value = yaml_serde::from_str(
         "nodeLinker: hoisted\nminimumReleaseAge: 1440\ncatalog:\n  react: ^19.0.0\npackages: ['pkgs/*']\n",
@@ -586,4 +586,88 @@ fn an_escaped_include_key_is_honored() {
     ]);
     let document = load(dir.path()).expect("load");
     assert_eq!(local_owner(&document, &setting("nodeLinker")).as_deref(), Some("./deploy.yaml"));
+}
+
+#[test]
+fn relative_paths_are_measured_from_the_including_fragment() {
+    let dir = workspace(&[
+        (
+            "pnpm-workspace.yaml",
+            "include:\n  ./patches/patches.yaml: [patchedDependencies, patchesDir]\n  ./config/settings.yaml: '*'\n",
+        ),
+        (
+            "patches/patches.yaml",
+            "patchesDir: .\npatchedDependencies:\n  foo@1.0.0: ./foo.patch\n  bar: bar.patch\n",
+        ),
+        (
+            "config/settings.yaml",
+            concat!(
+                "packages:\n  - '../packages/*'\n  - '!../packages/skip'\n",
+                "storeDir: ~/store\ncacheDir: /abs/cache\nmodulesDir: ${NM}/node_modules\n",
+                "pnpmfile: ['./hooks.mjs']\nscriptShell: ./bin/sh\n",
+                "catalog:\n  linked: link:../libs/linked\n  tarball: ./vendor/x.tgz\n  range: ^1.0.0\n",
+                "overrides:\n  local: file:../vendor/local\n  ref: $ref\n",
+            ),
+        ),
+    ]);
+    let expected: yaml_serde::Value = yaml_serde::from_str(concat!(
+        "patchesDir: patches\n",
+        "patchedDependencies:\n  foo@1.0.0: ./patches/foo.patch\n  bar: patches/bar.patch\n",
+        "packages:\n  - 'packages/*'\n  - '!packages/skip'\n",
+        "storeDir: ~/store\ncacheDir: /abs/cache\nmodulesDir: ${NM}/node_modules\n",
+        "pnpmfile: ['./config/hooks.mjs']\nscriptShell: ./config/bin/sh\n",
+        "catalog:\n  linked: link:libs/linked\n  tarball: ./config/vendor/x.tgz\n  range: ^1.0.0\n",
+        "overrides:\n  local: file:vendor/local\n  ref: $ref\n",
+    ))
+    .expect("expected settings parse");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
+fn a_bare_command_script_shell_is_not_a_path() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./config/shell.yaml: [scriptShell]\n"),
+        ("config/shell.yaml", "scriptShell: bash\n"),
+    ]);
+    let expected: yaml_serde::Value =
+        yaml_serde::from_str("scriptShell: bash\n").expect("expected settings parse");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
+fn paths_in_a_fragment_beside_the_root_manifest_are_kept() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./patches.yaml: [patchedDependencies]\n"),
+        ("patches.yaml", "patchedDependencies:\n  foo: patches/foo.patch\n"),
+    ]);
+    let expected: yaml_serde::Value =
+        yaml_serde::from_str("patchedDependencies:\n  foo: patches/foo.patch\n")
+            .expect("expected settings parse");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
+fn paths_in_a_fragment_outside_the_workspace_are_measured_from_it() {
+    let dir = workspace(&[
+        ("ws/pnpm-workspace.yaml", "include:\n  ../shared/policy.yaml: [patchesDir]\n"),
+        ("shared/policy.yaml", "patchesDir: patches\n"),
+    ]);
+    let expected: yaml_serde::Value =
+        yaml_serde::from_str("patchesDir: ../shared/patches\n").expect("expected settings parse");
+    assert_eq!(merged(&dir.path().join("ws")), expected);
+}
+
+#[test]
+fn merging_at_a_revision_measures_paths_from_each_fragment() {
+    let root = "include:\n  ./patches/patches.yaml: [patchedDependencies]\n";
+    let text = super::merge_local_includes(root, Path::new("ws"), |path| {
+        assert_eq!(path, Path::new("ws/./patches/patches.yaml"));
+        Ok(Some("patchedDependencies:\n  foo: ./foo.patch\n".to_string()))
+    })
+    .expect("merge");
+    let merged: yaml_serde::Value = yaml_serde::from_str(&text).expect("merged text parses");
+    let expected: yaml_serde::Value =
+        yaml_serde::from_str("patchedDependencies:\n  foo: ./patches/foo.patch\n")
+            .expect("expected settings parse");
+    assert_eq!(merged, expected);
 }

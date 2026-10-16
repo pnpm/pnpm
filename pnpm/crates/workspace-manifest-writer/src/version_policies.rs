@@ -45,6 +45,10 @@ pub fn set_patched_dependencies(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let (target, mut manifest) = read_owning_manifest(dir, "patchedDependencies")?;
     let path = target.path.clone();
+    let patched_dependencies: IndexMap<String, String> = patched_dependencies
+        .iter()
+        .map(|(selector, patch)| (selector.clone(), target.path_from(dir, patch)))
+        .collect();
 
     if !patched_dependencies.is_empty()
         && let Some(key) =
@@ -53,7 +57,7 @@ pub fn set_patched_dependencies(
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
-    let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
+    let changed = edit::add_patched_dependencies(&mut manifest, &patched_dependencies)
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     if !changed {
         return Ok(());
@@ -109,7 +113,8 @@ where
 
     let mut changed = false;
     for (selector, specifier) in entries {
-        changed |= edit::add_overrides(&mut manifest, selector, specifier)
+        let specifier = target.specifier_from(dir, specifier);
+        changed |= edit::add_overrides(&mut manifest, selector, &specifier)
             .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
     }
     if !changed {

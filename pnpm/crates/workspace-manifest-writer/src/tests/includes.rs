@@ -187,3 +187,42 @@ fn a_failed_write_restores_the_files_written_before_it() {
     assert!(matches!(error, UpdateWorkspaceManifestError::Write { .. }));
     assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), root);
 }
+
+#[test]
+fn a_patch_path_is_written_relative_to_the_file_owning_patched_dependencies() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./patches/patches.yaml: [patchedDependencies]\n",
+    )
+    .expect("seed root");
+    fs::create_dir(dir.path().join("patches")).expect("create patches dir");
+    fs::write(dir.path().join("patches/patches.yaml"), "").expect("seed patches file");
+    let patches =
+        std::iter::once(("foo@1.0.0".to_string(), "patches/foo@1.0.0.patch".to_string())).collect();
+    crate::set_patched_dependencies(dir.path(), &patches).expect("set");
+    assert_eq!(
+        read(dir.path(), "patches/patches.yaml"),
+        "patchedDependencies:\n  foo@1.0.0: foo@1.0.0.patch\n",
+    );
+}
+
+#[test]
+fn a_local_catalog_entry_is_written_relative_to_the_file_owning_the_catalog() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./config/catalog.yaml: [catalog]\n",
+    )
+    .expect("seed root");
+    fs::create_dir(dir.path().join("config")).expect("create config dir");
+    fs::write(dir.path().join("config/catalog.yaml"), "").expect("seed catalog file");
+    let updated = catalogs(&[("default", &[("local", "link:libs/local"), ("react", "^19.0.0")])]);
+    let opts =
+        UpdateWorkspaceManifestOptions { updated_catalogs: Some(&updated), ..Default::default() };
+    update_workspace_manifest(dir.path(), &opts).expect("update");
+    assert_eq!(
+        read(dir.path(), "config/catalog.yaml"),
+        "catalog:\n  local: link:../libs/local\n  react: ^19.0.0\n",
+    );
+}

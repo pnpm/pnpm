@@ -10,6 +10,7 @@
 pub use error::IncludeError;
 pub use ownership::{Ownership, SettingOwner};
 pub use package::{PackageEntry, config_dependency_dir};
+pub use rebase::{rebase_path, rebase_specifier};
 pub use selector::{SettingSlot, canonical_setting_name};
 
 use indexmap::IndexMap;
@@ -26,6 +27,7 @@ mod merge;
 mod normalize;
 mod ownership;
 mod package;
+mod rebase;
 mod selector;
 
 /// The root-manifest key holding the include index.
@@ -239,7 +241,7 @@ fn load_includes(
     let fragments = read_local_sources(root_path, &includes)?;
     let mut parsed = Vec::with_capacity(fragments.len());
     for (&position, text) in &fragments {
-        parsed.push((position, parse_fragment(&includes[position].source, text)?));
+        parsed.push((position, parse_fragment(&includes[position].source, text, base_dir)?));
     }
     let ownership = Ownership::build(&root, &includes, &parsed)?;
     let merged = merge::merge(root, parsed.into_iter().map(|(_, fragment)| fragment));
@@ -312,14 +314,24 @@ fn read_fragment(spec: &str, path: &Path) -> Result<String, IncludeError> {
     fs::read_to_string(path).map_err(read_error)
 }
 
-/// A local source's settings, rejecting a nested include index.
-fn parse_fragment(source: &IncludeSource, text: &str) -> Result<Mapping, IncludeError> {
+/// A local source's settings, rejecting a nested include index. Its relative
+/// paths are re-expressed from `base_dir`, the workspace root.
+fn parse_fragment(
+    source: &IncludeSource,
+    text: &str,
+    base_dir: &Path,
+) -> Result<Mapping, IncludeError> {
     let spec = source.to_string();
     let fragment = parse_mapping(text)
         .map_err(|source| IncludeError::ParseFragment { spec: spec.clone(), source })?
         .ok_or_else(|| IncludeError::FragmentNotAMapping { spec: spec.clone() })?;
     if fragment.contains_key(INCLUDE_KEY) {
         return Err(IncludeError::NestedInclude { spec });
+    }
+    let mut fragment = fragment;
+    if let IncludeSource::Local { path, .. } = source {
+        let fragment_dir = path.parent().unwrap_or(base_dir);
+        rebase::rebase_settings(&mut fragment, fragment_dir, base_dir);
     }
     Ok(fragment)
 }
@@ -348,7 +360,7 @@ pub fn merge_local_includes(
         };
         let read_error = |source| IncludeError::ReadFragment { spec: spec.clone(), source };
         if let Some(text) = read(path).map_err(read_error)? {
-            fragments.push(parse_fragment(&include.source, &text)?);
+            fragments.push(parse_fragment(&include.source, &text, base_dir)?);
         }
     }
     Ok(merge::render(merge::merge(root, fragments)))

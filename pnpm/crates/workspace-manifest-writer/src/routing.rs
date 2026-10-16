@@ -9,7 +9,7 @@ use super::{
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_workspace::{
     INCLUDE_KEY, IncludeError, IncludeSource, SettingOwner, SettingSlot, WorkspaceIncludes,
-    canonical_setting_name,
+    canonical_setting_name, rebase_path, rebase_specifier,
 };
 use std::{
     collections::HashMap,
@@ -23,6 +23,35 @@ pub(crate) struct ManifestTarget {
     pub(crate) path: PathBuf,
     /// A file the root manifest includes, which a write never deletes.
     pub(crate) included: bool,
+    /// The directory relative paths in this file are measured from: the
+    /// directory of its path as `include` writes it.
+    pub(crate) base_dir: PathBuf,
+}
+
+impl ManifestTarget {
+    /// A root manifest, which an edit that empties it removes.
+    pub(crate) fn root_manifest(path: &Path) -> Self {
+        ManifestTarget {
+            path: path.to_path_buf(),
+            included: false,
+            base_dir: path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default(),
+        }
+    }
+
+    /// `value`, a path measured from `workspace_dir`, measured from this
+    /// file's [`Self::base_dir`].
+    pub(crate) fn path_from(&self, workspace_dir: &Path, value: &str) -> String {
+        rebase_path(value, workspace_dir, &self.base_dir).unwrap_or_else(|| value.to_string())
+    }
+
+    /// [`Self::path_from`] for a dependency specifier, which moves only when
+    /// it names a local path.
+    pub(crate) fn specifier_from(&self, workspace_dir: &Path, value: &str) -> String {
+        rebase_specifier(value, workspace_dir, &self.base_dir).unwrap_or_else(|| value.to_string())
+    }
 }
 
 /// The workspace manifest of a directory and the files it includes.
@@ -114,7 +143,14 @@ impl WorkspaceManifests {
     }
 
     pub(crate) fn root_target(&self) -> ManifestTarget {
-        ManifestTarget { path: self.root.clone(), included: false }
+        ManifestTarget::root_manifest(&self.root)
+    }
+
+    pub(crate) fn workspace_dir(&self) -> PathBuf {
+        self.root
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default()
     }
 
     /// The root manifest and every local file it includes.
@@ -133,6 +169,10 @@ fn included_target(path: &Path) -> ManifestTarget {
     ManifestTarget {
         path: fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
         included: true,
+        base_dir: path
+            .parent()
+            .map(pnpm_fs::lexical_normalize)
+            .unwrap_or_default(),
     }
 }
 
@@ -219,16 +259,23 @@ fn route_catalogs(
     manifests: &WorkspaceManifests,
     updated_catalogs: Option<&Catalogs>,
 ) -> Result<HashMap<PathBuf, Catalogs>, UpdateWorkspaceManifestError> {
+    let workspace_dir = manifests.workspace_dir();
     let mut routed: HashMap<PathBuf, Catalogs> = HashMap::new();
     for (name, entries) in updated_catalogs.into_iter().flatten() {
         if entries.is_empty() {
             continue;
         }
         let target = manifests.target_for(&SettingSlot::Catalog(name.clone()))?;
+        let entries = entries
+            .iter()
+            .map(|(alias, specifier)| {
+                (alias.clone(), target.specifier_from(&workspace_dir, specifier))
+            })
+            .collect();
         routed
             .entry(target.path)
             .or_default()
-            .insert(name.clone(), entries.clone());
+            .insert(name.clone(), entries);
     }
     Ok(routed)
 }

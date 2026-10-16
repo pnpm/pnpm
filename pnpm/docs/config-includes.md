@@ -27,7 +27,27 @@ This lets a team protect `pnpm-workspace.yaml` and the files that hold security 
 * **A local file** starts with `./` or `../` and is resolved relative to the workspace root. It must be a `.yaml` or `.yml` file. Globs, directories, URLs, and absolute paths are not accepted. Every included file must exist, even if it is empty. Files that `include` does not name are never read.
 * **A config dependency** is named exactly as it is declared in `configDependencies`. It always needs a list of settings. See [Settings from config dependencies](#settings-from-config-dependencies).
 
-Paths inside an included file, such as `packages` and `patchedDependencies`, are resolved relative to the workspace root, the same as in `pnpm-workspace.yaml`. An included file cannot define `include`.
+An included file cannot define `include`.
+
+### Relative paths
+
+A relative path in an included file is relative to that file, the way a relative path in `pnpm-workspace.yaml` is relative to the workspace root. This covers settings that hold paths, such as `patchedDependencies`, `patchesDir`, `pnpmfile`, `packages`, `storeDir`, and a `scriptShell` that contains a slash. It also covers `file:`, `link:`, and `./` paths in catalogs and `overrides`. Absolute paths, and paths that start with `~` or an environment variable, are kept as written.
+
+A patch list can therefore sit next to its patches:
+
+```yaml title="pnpm-workspace.yaml"
+include:
+  ./patches/patches.yaml: [patchedDependencies]
+```
+
+```yaml title="patches/patches.yaml"
+patchedDependencies:
+  express@4.21.2: express@4.21.2.patch
+```
+
+`pnpm patch-commit` writes the patch to `patchesDir` and adds its entry to `patches/patches.yaml` relative to that file. pnpm also writes catalog entries and `overrides` that name a local path relative to the file that owns them.
+
+A path is relative to the include path as written in `pnpm-workspace.yaml`, even when that path is a symlink.
 
 ## Delegation and ownership
 

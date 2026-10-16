@@ -6528,6 +6528,7 @@ dependencies = [
  "pathdiff",
  "pnpm-catalogs-types",
  "pnpm-fs",
+ "pnpm-local-spec",
  "pnpm-package-manifest",
  "pnpm-workspace-projects-graph",
  "pretty_assertions",

@@ -355,7 +355,7 @@ pub fn update_manifest_field(
     key: &str,
     value: &serde_json::Value,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let target = ManifestTarget { path: path.to_path_buf(), included: false };
+    let target = ManifestTarget::root_manifest(path);
     update_target_field(&target, key, value)
 }
 
