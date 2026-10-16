@@ -4,7 +4,7 @@ use crate::{
     process::Command,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
 };
@@ -103,28 +103,71 @@ fn read_git_file(
     workspace_dir: &Path,
     rel_path: &Path,
 ) -> Result<Option<String>, FilterError> {
-    const MAX_SYMLINK_HOPS: usize = 8;
-    let mut rel_path = rel_path.to_path_buf();
-    for _ in 0..MAX_SYMLINK_HOPS {
-        let Some(rel_str) = normalize_git_path(&rel_path) else {
-            return Ok(None);
-        };
-        let Some(content) = show_git_file(commit, workspace_dir, &rel_str)? else {
-            return Ok(None);
-        };
-        if !is_git_symlink(commit, workspace_dir, &rel_str)? {
-            return Ok(Some(content));
-        }
-        let target = Path::new(&content);
-        if target.is_absolute() {
-            return Ok(None);
-        }
-        rel_path = Path::new(&rel_str)
-            .parent()
-            .unwrap_or_else(|| Path::new(""))
-            .join(target);
+    match resolve_git_path(commit, workspace_dir, rel_path)? {
+        Some(rel_str) => show_git_file(commit, workspace_dir, &rel_str),
+        None => Ok(None),
     }
-    Ok(None)
+}
+
+/// `rel_path` with every symlink among its components resolved in the tree
+/// of `commit`. `None` when it leaves the repository or does not resolve.
+fn resolve_git_path(
+    commit: &str,
+    workspace_dir: &Path,
+    rel_path: &Path,
+) -> Result<Option<String>, FilterError> {
+    const MAX_SYMLINK_HOPS: usize = 8;
+    let Some(normalized) = normalize_git_path(rel_path) else {
+        return Ok(None);
+    };
+    let mut pending: VecDeque<String> = normalized
+        .split('/')
+        .map(str::to_string)
+        .collect();
+    let mut resolved: Vec<String> = Vec::new();
+    let mut hops = 0;
+    while let Some(segment) = pending.pop_front() {
+        if !push_segment(&mut resolved, segment) {
+            return Ok(None);
+        }
+        let Some(target) = git_symlink_target(commit, workspace_dir, &resolved.join("/"))? else {
+            continue;
+        };
+        hops += 1;
+        if hops > MAX_SYMLINK_HOPS || Path::new(&target).is_absolute() {
+            return Ok(None);
+        }
+        resolved.pop();
+        for segment in target.rsplit('/') {
+            pending.push_front(segment.to_string());
+        }
+    }
+    Ok(Some(resolved.join("/")))
+}
+
+/// Apply one path segment to `resolved`. `false` when `..` leaves the
+/// repository.
+fn push_segment(resolved: &mut Vec<String>, segment: String) -> bool {
+    match segment.as_str() {
+        "" | "." => true,
+        ".." => resolved.pop().is_some(),
+        _ => {
+            resolved.push(segment);
+            true
+        }
+    }
+}
+
+/// What `rel_str` points to, when it is a symlink in the tree of `commit`.
+fn git_symlink_target(
+    commit: &str,
+    workspace_dir: &Path,
+    rel_str: &str,
+) -> Result<Option<String>, FilterError> {
+    if rel_str.is_empty() || !is_git_symlink(commit, workspace_dir, rel_str)? {
+        return Ok(None);
+    }
+    show_git_file(commit, workspace_dir, rel_str)
 }
 
 fn show_git_file(

@@ -218,8 +218,8 @@ fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError>
 }
 
 /// `pnpm-workspace.yaml` and the local files it includes, whose changes can
-/// change a catalog. A symlinked include also names its target inside the
-/// repository. An include index that does not load names only the root
+/// change a catalog. An include reached through a symlink also names its
+/// target inside the repository. An include index that does not load names only the root
 /// manifest.
 fn workspace_manifest_paths(workspace_dir: &Path, repo_root: &Path) -> Vec<PathBuf> {
     let included: Vec<PathBuf> = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
@@ -231,7 +231,7 @@ fn workspace_manifest_paths(workspace_dir: &Path, repo_root: &Path) -> Vec<PathB
                 .local_paths()
                 .flat_map(|path| {
                     std::iter::once(normalize_lexically(path))
-                        .chain(symlink_target_in(repo_root, path))
+                        .chain(resolved_in_repo(repo_root, path))
                 })
                 .collect()
         })
@@ -241,24 +241,15 @@ fn workspace_manifest_paths(workspace_dir: &Path, repo_root: &Path) -> Vec<PathB
         .collect()
 }
 
-/// Where the symlink `path` points, as a path under `repo_root`, so it
-/// compares equal to the repository paths git reports even when
-/// `repo_root` itself is reached through a symlink.
-fn symlink_target_in(repo_root: &Path, path: &Path) -> Option<PathBuf> {
-    if !path
-        .symlink_metadata()
-        .ok()?
-        .file_type()
-        .is_symlink()
-    {
-        return None;
-    }
+/// Where `path` resolves after following symlinks in any of its
+/// components, as a path under `repo_root`, when that differs from `path`.
+/// Expressed under `repo_root` so it compares equal to the repository paths
+/// git reports even when `repo_root` itself is reached through a symlink.
+fn resolved_in_repo(repo_root: &Path, path: &Path) -> Option<PathBuf> {
     let target = std::fs::canonicalize(path).ok()?;
     let root = std::fs::canonicalize(repo_root).ok()?;
-    target
-        .strip_prefix(root)
-        .ok()
-        .map(|relative| repo_root.join(relative))
+    let resolved = repo_root.join(target.strip_prefix(root).ok()?);
+    (resolved != normalize_lexically(path)).then_some(resolved)
 }
 
 fn is_inside_repo(path: &Path, repo_root: &Path) -> bool {

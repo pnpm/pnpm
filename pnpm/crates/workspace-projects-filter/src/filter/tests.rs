@@ -1345,13 +1345,35 @@ mod changed_packages {
         );
     }
 
-    /// A workspace in `<repo>/ws` whose catalog comes from `include_spec`.
-    /// `link` symlinks the include to `<repo>/shared/catalog.yaml`, else the
-    /// include names that file. Returns the projects a change to it selects.
+    const FOO_CHANGED: &str = "catalog:\n  foo: ^1.1.0\n  bar: ^1.0.0\n";
+
+    /// How a workspace in `<repo>/ws` reaches `<repo>/shared/catalog.yaml`.
+    #[derive(Clone, Copy)]
+    enum SharedCatalog {
+        /// `../shared/catalog.yaml`
+        Relative,
+        /// `./catalog.yaml`, a symlink to the file
+        #[cfg(unix)]
+        LinkedFile,
+        /// `./config/catalog.yaml`, `config` being a symlink to `../shared`
+        #[cfg(unix)]
+        LinkedDir,
+    }
+
+    /// The projects that changing `<repo>/shared/catalog.yaml` to `updated`
+    /// selects in a workspace that includes it as `layout` says. Only
+    /// `pkg-a` uses the catalog, for `foo`.
     fn select_after_changing_a_catalog_outside_the_workspace(
-        include_spec: &str,
-        link: bool,
+        layout: SharedCatalog,
+        updated: &str,
     ) -> (Vec<String>, String) {
+        let include_spec = match layout {
+            SharedCatalog::Relative => "../shared/catalog.yaml",
+            #[cfg(unix)]
+            SharedCatalog::LinkedFile => "./catalog.yaml",
+            #[cfg(unix)]
+            SharedCatalog::LinkedDir => "./config/catalog.yaml",
+        };
         let repo = TempDir::new().expect("create tempdir");
         init_repo(repo.path());
         let ws_dir = repo.path().join("ws");
@@ -1364,14 +1386,20 @@ mod changed_packages {
             format!("packages:\n  - 'packages/*'\ninclude:\n  {include_spec}: [catalog]\n"),
         )
         .expect("write workspace manifest");
-        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n").expect("write catalog file");
-        #[cfg(unix)]
-        if link {
-            std::os::unix::fs::symlink("../shared/catalog.yaml", ws_dir.join("catalog.yaml"))
-                .expect("symlink catalog file");
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n").expect("write catalog file");
+        match layout {
+            SharedCatalog::Relative => {}
+            #[cfg(unix)]
+            SharedCatalog::LinkedFile => {
+                std::os::unix::fs::symlink("../shared/catalog.yaml", ws_dir.join("catalog.yaml"))
+                    .expect("symlink catalog file");
+            }
+            #[cfg(unix)]
+            SharedCatalog::LinkedDir => {
+                std::os::unix::fs::symlink("../shared", ws_dir.join("config"))
+                    .expect("symlink config dir");
+            }
         }
-        #[cfg(not(unix))]
-        assert!(!link, "symlinked includes are tested on Unix only");
         fs::write(
             pkg_a_dir.join("package.json"),
             r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
@@ -1379,7 +1407,7 @@ mod changed_packages {
         .expect("write pkg-a package.json");
         commit_all(repo.path());
 
-        fs::write(&shared, "catalog:\n  foo: ^1.1.0\n").expect("update catalog file");
+        fs::write(&shared, updated).expect("update catalog file");
 
         let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
         graph.insert(
@@ -1402,17 +1430,41 @@ mod changed_packages {
 
     #[test]
     fn select_projects_using_a_catalog_included_from_outside_the_workspace() {
-        let (selected, pkg_a) =
-            select_after_changing_a_catalog_outside_the_workspace("../shared/catalog.yaml", false);
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::Relative,
+            FOO_CHANGED,
+        );
         assert_eq!(selected, [pkg_a]);
     }
 
     #[cfg(unix)]
     #[test]
     fn select_projects_using_a_catalog_symlinked_from_outside_the_workspace() {
-        let (selected, pkg_a) =
-            select_after_changing_a_catalog_outside_the_workspace("./catalog.yaml", true);
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedFile,
+            FOO_CHANGED,
+        );
         assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_included_through_a_symlinked_directory() {
+        let (selected, pkg_a) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedDir,
+            FOO_CHANGED,
+        );
+        assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skip_projects_not_using_an_entry_changed_through_a_symlinked_directory() {
+        let (selected, _) = select_after_changing_a_catalog_outside_the_workspace(
+            SharedCatalog::LinkedDir,
+            "catalog:\n  foo: ^1.0.0\n  bar: ^1.1.0\n",
+        );
+        assert!(selected.is_empty(), "{selected:?}");
     }
 
     #[test]
