@@ -109,14 +109,6 @@ impl Args {
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let mut args = Args::parse();
-    if matches!(
-        args.command,
-        Some(Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }),
-    ) {
-        let report = pnpr::config_check::check_config(args.config.as_deref())?;
-        println!("{}", pnpr::config_check::format_report(&report));
-        return Ok(());
-    }
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
@@ -131,6 +123,16 @@ async fn main() -> miette::Result<()> {
     )
     .map_err(|err| miette::miette!("{err}"))?;
     apply_cli_overrides(&mut config, &mut args, &source);
+
+    if matches!(
+        args.command,
+        Some(Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }),
+    ) {
+        let report = pnpr::config_check::check_resolved_config(&config, &source);
+        println!("{}", pnpr::config_check::format_report(&report));
+        return Ok(());
+    }
+
     // Surface overrides were folded in during parse; the parse already
     // enforced that at least one surface stays enabled.
     init_logging(&config.logs);

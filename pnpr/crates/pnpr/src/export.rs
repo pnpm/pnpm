@@ -32,13 +32,19 @@ pub async fn export_storage(
 
     let mut report = ExportReport { out_dir: out.to_path_buf(), ..Default::default() };
 
-    let package_names = storage
-        .hosted_package_names()
-        .await
-        .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
+    let namespaces = configured_hosted_namespaces(config);
+    for org in namespaces {
+        let org_storage = if org.is_empty() { storage.clone() } else { storage.for_hosted(&org) };
+        let base_out = if org.is_empty() { out.to_path_buf() } else { out.join(&org) };
 
-    for pkg_name in package_names {
-        export_package(&storage, &pkg_name, out, &mut report).await?;
+        let package_names = org_storage
+            .hosted_package_names()
+            .await
+            .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
+
+        for pkg_name in package_names {
+            export_package(&org_storage, &pkg_name, &base_out, &mut report).await?;
+        }
     }
 
     if include_auth {
@@ -48,14 +54,28 @@ pub async fn export_storage(
     Ok(report)
 }
 
+pub(crate) fn configured_hosted_namespaces(config: &Config) -> Vec<String> {
+    let mut orgs = Vec::new();
+    for hosted in config.routing.hosted.values() {
+        if !orgs.contains(&hosted.org) {
+            orgs.push(hosted.org.clone());
+        }
+    }
+    if orgs.is_empty() {
+        orgs.push(String::new());
+    }
+    orgs
+}
+
 async fn export_package(
     storage: &Storage,
     pkg_name: &str,
     out: &Path,
     report: &mut ExportReport,
 ) -> miette::Result<()> {
-    let canonical = CanonicalPackageName::parse(pkg_name, Ecosystem::Npm)
-        .map_err(|err| miette::miette!("invalid package name '{pkg_name}': {err}"))?;
+    let Ok(canonical) = CanonicalPackageName::parse(pkg_name, Ecosystem::Npm) else {
+        return Ok(());
+    };
 
     let doc_bytes = storage
         .read_hosted_document(&canonical)
@@ -68,16 +88,16 @@ async fn export_package(
 
     let pkg_dir = out.join(pkg_name);
     fs::create_dir_all(&pkg_dir).await.into_diagnostic()?;
-    fs::write(pkg_dir.join("package.json"), &bytes).await.into_diagnostic()?;
+    pnpr_storage::write_atomic(&pkg_dir.join("package.json"), &bytes).await.into_diagnostic()?;
     report.packages_exported += 1;
 
     let doc: Value = serde_json::from_slice(&bytes)
         .map_err(|err| miette::miette!("invalid JSON in '{pkg_name}': {err}"))?;
 
     if let Some(versions) = doc.get("versions").and_then(Value::as_object) {
-        for ver_val in versions.values() {
+        for (ver, ver_val) in versions {
             report.versions_exported += 1;
-            export_version_blobs(storage, &canonical, ver_val, &pkg_dir, report).await?;
+            export_version_blobs(storage, &canonical, ver, ver_val, &pkg_dir, report).await?;
         }
     }
     Ok(())
@@ -86,6 +106,7 @@ async fn export_package(
 async fn export_version_blobs(
     storage: &Storage,
     canonical: &CanonicalPackageName,
+    ver: &str,
     ver_val: &Value,
     pkg_dir: &Path,
     report: &mut ExportReport,
@@ -100,13 +121,13 @@ async fn export_version_blobs(
     {
         export_single_blob(storage, canonical, filename, pkg_dir, report).await?;
     }
-    if let Some(filename) = dist
+    if dist
         .get("attestations")
         .and_then(|a| a.get("url"))
-        .and_then(Value::as_str)
-        .and_then(filename_from_url)
+        .is_some()
     {
-        export_single_blob(storage, canonical, filename, pkg_dir, report).await?;
+        let sigstore_name = canonical.sigstore_name_for_version(ver);
+        export_single_blob(storage, canonical, &sigstore_name, pkg_dir, report).await?;
     }
     Ok(())
 }
@@ -118,19 +139,22 @@ async fn export_single_blob(
     pkg_dir: &Path,
     report: &mut ExportReport,
 ) -> miette::Result<()> {
-    let dest_file = pkg_dir.join(filename);
+    let Some(safe_name) = safe_filename(filename) else {
+        return Ok(());
+    };
+    let dest_file = pkg_dir.join(safe_name);
     if dest_file.exists() {
         return Ok(());
     }
 
     let opened = storage
-        .open_hosted_blob(canonical, filename)
+        .open_hosted_blob(canonical, safe_name)
         .await
-        .map_err(|err| miette::miette!("failed to read blob '{filename}': {err}"))?;
+        .map_err(|err| miette::miette!("failed to read blob '{safe_name}': {err}"))?;
 
     if let Some((body, _)) = opened {
         let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-        fs::write(&dest_file, &bytes).await.into_diagnostic()?;
+        pnpr_storage::write_atomic(&dest_file, &bytes).await.into_diagnostic()?;
         report.blobs_exported += 1;
         report.bytes_exported += bytes.len() as u64;
     }
@@ -139,18 +163,39 @@ async fn export_single_blob(
 
 async fn export_auth_files(config: &Config, out: &Path) -> miette::Result<()> {
     if let Some(ht_path) = config.identity.auth.htpasswd.file.as_deref().filter(|p| p.exists()) {
-        fs::copy(ht_path, out.join("htpasswd")).await.into_diagnostic()?;
+        let bytes = fs::read(ht_path).await.into_diagnostic()?;
+        pnpr_auth::write_atomic(&out.join("htpasswd"), &bytes).into_diagnostic()?;
     }
     if let Some(tok_path) = config.identity.auth.tokens.file.as_deref().filter(|p| p.exists()) {
-        fs::copy(tok_path, out.join("tokens.db")).await.into_diagnostic()?;
+        let bytes = fs::read(tok_path).await.into_diagnostic()?;
+        pnpr_auth::write_atomic(&out.join("tokens.db"), &bytes).into_diagnostic()?;
     }
     Ok(())
 }
 
+fn safe_filename(name: &str) -> Option<&str> {
+    let name = name.trim();
+    if name.is_empty() || name == "." || name == ".." {
+        return None;
+    }
+    if name.contains('/') || name.contains('\\') {
+        return None;
+    }
+    let path = Path::new(name);
+    if path.file_name().and_then(|f| f.to_str()) != Some(name) {
+        return None;
+    }
+    Some(name)
+}
+
 fn filename_from_url(url: &str) -> Option<&str> {
-    url.rsplit('/')
+    let segment = url
+        .split(['?', '#'])
         .next()
-        .filter(|segment| !segment.is_empty())
+        .unwrap_or("")
+        .rsplit('/')
+        .next()?;
+    safe_filename(segment)
 }
 
 #[must_use]

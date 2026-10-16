@@ -1,7 +1,5 @@
 pub(super) mod sqlite;
 
-pub(super) use sqlite::{TOKENS_INDEX_SQL, TOKENS_TABLE_SQL};
-
 use super::{
     AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
     Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,

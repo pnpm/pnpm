@@ -32,6 +32,19 @@ pub struct ConfigCheckReport {
     pub surfaces: SurfaceSummary,
 }
 
+#[must_use]
+pub fn check_resolved_config(config: &Config, source: &ConfigSource) -> ConfigCheckReport {
+    let source_description = match source {
+        ConfigSource::Cli(cli_path) => format!("--config {}", cli_path.display()),
+        ConfigSource::DefaultPath(default_path) => {
+            format!("default path {}", default_path.display())
+        }
+        ConfigSource::Bundled => "bundled default".to_string(),
+    };
+
+    build_report(config, source_description)
+}
+
 pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckReport> {
     if let Some(path) = config_path.filter(|item| !item.exists()) {
         let display_path = path.display();
@@ -54,15 +67,7 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
     )
     .map_err(|err| miette::miette!("{err}"))?;
 
-    let source_description = match &source {
-        ConfigSource::Cli(cli_path) => format!("--config {}", cli_path.display()),
-        ConfigSource::DefaultPath(default_path) => {
-            format!("default path {}", default_path.display())
-        }
-        ConfigSource::Bundled => "bundled default".to_string(),
-    };
-
-    Ok(build_report(&config, source_description))
+    Ok(check_resolved_config(&config, &source))
 }
 
 fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
@@ -135,7 +140,7 @@ fn format_auth_summary(config: &Config) -> String {
     let ht = &config.identity.auth.htpasswd;
     let path = ht.file
         .as_ref()
-        .map_or("in-memory", |file_path| file_path.to_str().unwrap_or("htpasswd"));
+        .map_or_else(|| "in-memory".to_string(), |file_path| file_path.display().to_string());
     let max = match ht.max_users {
         MaxUsers::Unlimited => "unlimited".to_string(),
         MaxUsers::Limited(n) => format!("max {n}"),

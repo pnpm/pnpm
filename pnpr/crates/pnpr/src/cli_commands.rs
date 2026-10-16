@@ -42,9 +42,9 @@ pub enum Command {
     },
     /// Verify every document against its blobs (tarballs, attestations).
     Verify {
-        /// Check cryptographic hashes (SHA-512 / SHA-1) of stored blobs against packument integrity.
-        #[arg(long, default_value_t = true)]
-        check_hashes: bool,
+        /// Skip cryptographic hash verification (SHA-512 / SHA-1) of stored blobs against packument integrity.
+        #[arg(long, alias = "no-check-hashes")]
+        skip_hashes: bool,
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
@@ -55,7 +55,7 @@ pub enum Command {
         #[arg(long)]
         out: PathBuf,
         /// Include auth files (htpasswd, tokens.db) in export.
-        #[arg(long, default_value_t = true)]
+        #[arg(long)]
         include_auth: bool,
     },
     /// Migrate hosted packages and blobs from local disk storage to S3.
@@ -135,10 +135,10 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify { check_hashes, prune_orphans } = command else {
+    let Command::Verify { skip_hashes, prune_orphans } = command else {
         return Ok(());
     };
-    run_verify(config, check_hashes, prune_orphans).await
+    run_verify(config, !skip_hashes, prune_orphans).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -226,7 +226,13 @@ fn run_import_htpasswd(
     dry_run: bool,
 ) -> miette::Result<()> {
     let target = target.or_else(|| config.identity.auth.htpasswd.file.clone());
-    let options = pnpr::htpasswd_import::HtpasswdImportOptions { source, target, dry_run };
+    let Some(target) = target else {
+        return Err(miette::miette!(
+            "no target htpasswd file specified and none configured in identity.auth.htpasswd.file; pass --target <path>"
+        ));
+    };
+    let options =
+        pnpr::htpasswd_import::HtpasswdImportOptions { source, target: Some(target), dry_run };
     let report = pnpr::htpasswd_import::import_htpasswd(&options)?;
     print!("{}", pnpr::htpasswd_import::format_import_report(&report));
     Ok(())

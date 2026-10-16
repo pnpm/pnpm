@@ -201,7 +201,7 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::sqlite::TOKENS_TABLE_SQL).execute(&self.pool).await?;
         create_token_index(&self.pool).await?;
         add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
         add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;

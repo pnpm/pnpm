@@ -30,7 +30,7 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use htpasswd::{
-    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
+    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
 };
 pub use identify::identify;
 pub use owned_tokens::OwnedTokens;
@@ -39,9 +39,7 @@ pub use user_store::UserStore;
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{
-    dummy_verify, hash_bcrypt, serialize_htpasswd, verify_returning_user, write_atomic,
-};
+use htpasswd::{dummy_verify, hash_bcrypt, serialize_htpasswd, verify_returning_user};
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};

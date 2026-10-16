@@ -74,7 +74,7 @@ pnpr verify --prune-orphans
 
 | Flag | Description |
 | --- | --- |
-| `--check-hashes` | Recompute and verify tarball SHA-1 (`shasum`) and sha512 (`integrity`) checksums. |
+| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
 | `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. |
 
 ### export
@@ -88,7 +88,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 | Flag | Description |
 | --- | --- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
-| `--include-auth` | Also copy configured `htpasswd` and `tokens.db` files into the output directory. |
+| `--include-auth` | Include configured auth files (`htpasswd`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
 
 ### migrate-storage
 
@@ -98,7 +98,7 @@ Migrates hosted packages and blobs from local filesystem storage to an S3-compat
 # Preview packages and blobs that would be transferred
 pnpr migrate-storage --to-bucket my-bucket --dry-run
 
-# Transfer and verify blob sizes on the destination
+# Transfer and verify blob content on the destination
 pnpr migrate-storage --to-bucket my-bucket --verify
 ```
 
@@ -110,11 +110,13 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |
 | `--to-prefix <prefix>` | Destination key prefix within the bucket. |
 | `--dry-run` | Report packages and blobs to migrate without uploading. |
-| `--verify` | Read back and verify size of uploaded blobs after transfer. |
+| `--verify` | Read back and verify content of uploaded blobs after transfer. |
 
 ### import-htpasswd
 
 Imports users from an Apache or Verdaccio `htpasswd` file into pnpr's user store. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login).
+
+Run this command as an offline maintenance step while pnpr is stopped, or specify an unshared `--target` path.
 
 ```sh
 # Preview users that would be imported

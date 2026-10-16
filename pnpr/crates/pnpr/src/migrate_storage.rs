@@ -30,6 +30,31 @@ pub async fn migrate_local_to_s3(
     config: &Config,
     options: &MigrateStorageOptions,
 ) -> miette::Result<MigrateReport> {
+    let (source, target) = init_source_and_target_storage(config, options)?;
+    let mut report = MigrateReport { dry_run: options.dry_run, ..Default::default() };
+
+    let namespaces = crate::export::configured_hosted_namespaces(config);
+    for org in namespaces {
+        let src = if org.is_empty() { source.clone() } else { source.for_hosted(&org) };
+        let tgt = if org.is_empty() { target.clone() } else { target.for_hosted(&org) };
+
+        let package_names = src
+            .hosted_package_names()
+            .await
+            .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
+
+        for pkg_name in package_names {
+            migrate_package(&src, &tgt, &pkg_name, options, &mut report).await?;
+        }
+    }
+
+    Ok(report)
+}
+
+fn init_source_and_target_storage(
+    config: &Config,
+    options: &MigrateStorageOptions,
+) -> miette::Result<(Storage, Storage)> {
     let source_dir =
         options.from.clone().unwrap_or_else(|| config.storage.hosted_dir.clone());
 
@@ -50,18 +75,7 @@ pub async fn migrate_local_to_s3(
     )
     .map_err(|err| miette::miette!("failed to initialize target S3 storage: {err}"))?;
 
-    let mut report = MigrateReport { dry_run: options.dry_run, ..Default::default() };
-
-    let package_names = source
-        .hosted_package_names()
-        .await
-        .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
-
-    for pkg_name in package_names {
-        migrate_package(&source, &target, &pkg_name, options, &mut report).await?;
-    }
-
-    Ok(report)
+    Ok((source, target))
 }
 
 fn resolve_target_s3_config(
@@ -76,8 +90,8 @@ fn resolve_target_s3_config(
             prefix: options.to_prefix.clone(),
             access_key_id: None,
             secret_access_key: None,
-            force_path_style: Some(false),
-            allow_http: Some(false),
+            force_path_style: None,
+            allow_http: None,
         };
         Ok(HostedStoreConfig::S3(settings))
     } else if let HostedStoreConfig::S3(s) = &config.storage.hosted_backend {
@@ -96,8 +110,9 @@ async fn migrate_package(
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let canonical = CanonicalPackageName::parse(pkg_name, Ecosystem::Npm)
-        .map_err(|err| miette::miette!("invalid package name '{pkg_name}': {err}"))?;
+    let Ok(canonical) = CanonicalPackageName::parse(pkg_name, Ecosystem::Npm) else {
+        return Ok(());
+    };
 
     let doc_bytes = source
         .read_hosted_document(&canonical)
@@ -108,6 +123,15 @@ async fn migrate_package(
         return Ok(());
     };
 
+    let doc: Value = serde_json::from_slice(&bytes)
+        .map_err(|err| miette::miette!("invalid JSON in '{pkg_name}': {err}"))?;
+
+    if let Some(versions) = doc.get("versions").and_then(Value::as_object) {
+        for (ver, ver_val) in versions {
+            migrate_version_blobs(source, target, &canonical, ver, ver_val, options, report).await?;
+        }
+    }
+
     if !options.dry_run {
         target
             .write_hosted_document_if_current(&canonical, &bytes, None)
@@ -116,14 +140,6 @@ async fn migrate_package(
     }
     report.packages_migrated += 1;
 
-    let doc: Value = serde_json::from_slice(&bytes)
-        .map_err(|err| miette::miette!("invalid JSON in '{pkg_name}': {err}"))?;
-
-    if let Some(versions) = doc.get("versions").and_then(Value::as_object) {
-        for ver_val in versions.values() {
-            migrate_version_blobs(source, target, &canonical, ver_val, options, report).await?;
-        }
-    }
     Ok(())
 }
 
@@ -131,6 +147,7 @@ async fn migrate_version_blobs(
     source: &Storage,
     target: &Storage,
     canonical: &CanonicalPackageName,
+    ver: &str,
     ver_val: &Value,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
@@ -145,13 +162,13 @@ async fn migrate_version_blobs(
     {
         migrate_single_blob(source, target, canonical, filename, options, report).await?;
     }
-    if let Some(filename) = dist
+    if dist
         .get("attestations")
         .and_then(|a| a.get("url"))
-        .and_then(Value::as_str)
-        .and_then(filename_from_url)
+        .is_some()
     {
-        migrate_single_blob(source, target, canonical, filename, options, report).await?;
+        let sigstore_name = canonical.sigstore_name_for_version(ver);
+        migrate_single_blob(source, target, canonical, &sigstore_name, options, report).await?;
     }
     Ok(())
 }
@@ -164,10 +181,14 @@ async fn migrate_single_blob(
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
+    let Some(safe_name) = safe_filename(filename) else {
+        return Ok(());
+    };
+
     let opened = source
-        .open_hosted_blob(canonical, filename)
+        .open_hosted_blob(canonical, safe_name)
         .await
-        .map_err(|err| miette::miette!("failed to read source blob '{filename}': {err}"))?;
+        .map_err(|err| miette::miette!("failed to read source blob '{safe_name}': {err}"))?;
 
     let Some((body, _)) = opened else {
         return Ok(());
@@ -179,19 +200,25 @@ async fn migrate_single_blob(
 
     if !options.dry_run {
         let slot = target
-            .reserve_hosted_blob(canonical, filename)
+            .reserve_hosted_blob(canonical, safe_name)
             .await
             .map_err(|err| miette::miette!("failed to reserve blob slot on target: {err}"))?;
 
         fs::write(&slot.tmp_path, &bytes).await.into_diagnostic()?;
 
-        target
+        let outcome = target
             .finalize_blob_slot(slot)
             .await
             .map_err(|err| miette::miette!("failed to finalize blob on target: {err}"))?;
 
+        if outcome == pnpr_storage::BlobFinalize::Conflict {
+            return Err(miette::miette!(
+                "blob '{safe_name}' already exists on target storage with different content (conflict)"
+            ));
+        }
+
         if options.verify {
-            verify_uploaded_blob(target, canonical, filename, bytes.len() as u64).await?;
+            verify_uploaded_blob(target, canonical, safe_name, &bytes).await?;
         }
     }
     Ok(())
@@ -201,7 +228,7 @@ async fn verify_uploaded_blob(
     target: &Storage,
     canonical: &CanonicalPackageName,
     filename: &str,
-    expected_size: u64,
+    expected_bytes: &[u8],
 ) -> miette::Result<()> {
     let opened = target
         .open_hosted_blob(canonical, filename)
@@ -209,15 +236,13 @@ async fn verify_uploaded_blob(
         .map_err(|err| miette::miette!("failed to verify uploaded blob '{filename}': {err}"))?;
 
     match opened {
-        Some((_, Some(size))) if size == expected_size => Ok(()),
         Some((body, _)) => {
             let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-            if bytes.len() as u64 == expected_size {
+            if bytes.as_ref() == expected_bytes {
                 Ok(())
             } else {
                 Err(miette::miette!(
-                    "uploaded blob '{filename}' size mismatch: expected {expected_size}, got {}",
-                    bytes.len()
+                    "uploaded blob '{filename}' content mismatch: target does not match source"
                 ))
             }
         }
@@ -225,10 +250,29 @@ async fn verify_uploaded_blob(
     }
 }
 
+fn safe_filename(name: &str) -> Option<&str> {
+    let name = name.trim();
+    if name.is_empty() || name == "." || name == ".." {
+        return None;
+    }
+    if name.contains('/') || name.contains('\\') {
+        return None;
+    }
+    let path = std::path::Path::new(name);
+    if path.file_name().and_then(|f| f.to_str()) != Some(name) {
+        return None;
+    }
+    Some(name)
+}
+
 fn filename_from_url(url: &str) -> Option<&str> {
-    url.rsplit('/')
+    let segment = url
+        .split(['?', '#'])
         .next()
-        .filter(|segment| !segment.is_empty())
+        .unwrap_or("")
+        .rsplit('/')
+        .next()?;
+    safe_filename(segment)
 }
 
 #[must_use]

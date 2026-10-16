@@ -28,7 +28,9 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
         return Err(miette::miette!("source htpasswd file '{display_source}' does not exist"));
     }
 
-    let target_path = options.target.clone().unwrap_or_else(|| PathBuf::from("htpasswd"));
+    let Some(target_path) = options.target.clone() else {
+        return Err(miette::miette!("no target htpasswd file specified"));
+    };
 
     let source_content = std::fs::read_to_string(&options.source)
         .into_diagnostic()
@@ -115,19 +117,7 @@ fn save_target_users(path: &Path, users: &HashMap<String, String>) -> miette::Re
         out.push('\n');
     }
 
-    if let Some(parent) = path
-        .parent()
-        .filter(|parent_dir| !parent_dir.as_os_str().is_empty())
-    {
-        std::fs::create_dir_all(parent).into_diagnostic()?;
-    }
-
-    std::fs::write(path, out).into_diagnostic()?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
-    }
+    pnpr_auth::write_atomic(path, out.as_bytes()).into_diagnostic()?;
     Ok(())
 }
 

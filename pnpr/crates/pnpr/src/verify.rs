@@ -22,12 +22,14 @@ pub struct VerifyReport {
     pub missing_blobs: Vec<String>,
     pub corrupted_blobs: Vec<String>,
     pub orphaned_blobs: Vec<String>,
+    pub prune_failures: Vec<String>,
 }
 
 struct VerifyContext<'a> {
     storage: &'a Storage,
     options: &'a VerifyOptions,
     referenced_blobs: &'a mut HashSet<String>,
+    verified_npm_packages: &'a mut HashSet<String>,
     report: &'a mut VerifyReport,
 }
 
@@ -43,33 +45,49 @@ pub async fn verify_storage(
     .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
 
     let mut report = VerifyReport::default();
-    let mut referenced_blobs = HashSet::new();
+    let namespaces = crate::export::configured_hosted_namespaces(config);
 
-    let package_names = storage
-        .hosted_package_names()
-        .await
-        .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
+    for org in namespaces {
+        let org_storage = if org.is_empty() { storage.clone() } else { storage.for_hosted(&org) };
+        let mut referenced_blobs = HashSet::new();
+        let mut verified_npm_packages = HashSet::new();
 
-    {
-        let mut ctx = VerifyContext {
-            storage: &storage,
-            options,
-            referenced_blobs: &mut referenced_blobs,
-            report: &mut report,
-        };
-        for pkg_name in package_names {
-            verify_package(&mut ctx, &pkg_name).await?;
+        let package_names = org_storage
+            .hosted_package_names()
+            .await
+            .map_err(|err| miette::miette!("failed to list hosted packages: {err}"))?;
+
+        {
+            let mut ctx = VerifyContext {
+                storage: &org_storage,
+                options,
+                referenced_blobs: &mut referenced_blobs,
+                verified_npm_packages: &mut verified_npm_packages,
+                report: &mut report,
+            };
+            for pkg_name in package_names {
+                verify_package(&mut ctx, &pkg_name).await?;
+            }
         }
-    }
 
-    check_orphaned_blobs(&storage, &referenced_blobs, options.prune_orphans, &mut report).await?;
+        check_orphaned_blobs(
+            &org_storage,
+            &referenced_blobs,
+            &verified_npm_packages,
+            options.prune_orphans,
+            &mut report,
+        )
+        .await?;
+    }
 
     Ok(report)
 }
 
 async fn verify_package(ctx: &mut VerifyContext<'_>, pkg_name: &str) -> miette::Result<()> {
-    let canonical = CanonicalPackageName::parse(pkg_name, pnpr_registry::Ecosystem::Npm)
-        .map_err(|err| miette::miette!("invalid package name '{pkg_name}': {err}"))?;
+    let Ok(canonical) = CanonicalPackageName::parse(pkg_name, pnpr_registry::Ecosystem::Npm) else {
+        return Ok(());
+    };
+    ctx.verified_npm_packages.insert(pkg_name.to_string());
 
     let doc_bytes = ctx.storage
         .read_hosted_document(&canonical)
@@ -172,24 +190,20 @@ async fn verify_version_attestation(
     ver: &str,
     ver_val: &Value,
 ) -> miette::Result<()> {
-    let Some(url) = ver_val
+    let Some(_) = ver_val
         .get("dist")
         .and_then(|d| d.get("attestations"))
         .and_then(|a| a.get("url"))
-        .and_then(Value::as_str)
     else {
         return Ok(());
     };
 
-    let Some(filename) = filename_from_url(url) else {
-        return Ok(());
-    };
-
+    let filename = canonical.sigstore_name_for_version(ver);
     let blob_key = format!("{pkg_name}/{filename}");
     ctx.referenced_blobs.insert(blob_key);
 
     let opened = ctx.storage
-        .open_hosted_blob(canonical, filename)
+        .open_hosted_blob(canonical, &filename)
         .await
         .map_err(|err| miette::miette!("error opening attestation for '{pkg_name}': {err}"))?;
 
@@ -202,6 +216,7 @@ async fn verify_version_attestation(
 async fn check_orphaned_blobs(
     storage: &Storage,
     referenced: &HashSet<String>,
+    verified_npm_packages: &HashSet<String>,
     prune: bool,
     report: &mut VerifyReport,
 ) -> miette::Result<()> {
@@ -213,20 +228,40 @@ async fn check_orphaned_blobs(
             continue;
         }
 
-        if !referenced.contains(path) {
-            report.orphaned_blobs.push(path.to_string());
-            if prune {
-                prune_orphan_blob(storage, path).await;
-            }
+        let Some((pkg, _)) = path.rsplit_once('/') else {
+            continue;
+        };
+        if !verified_npm_packages.contains(pkg) || referenced.contains(path) {
+            continue;
         }
+
+        handle_orphan_blob(storage, path, prune, report).await;
     }
     Ok(())
 }
 
-async fn prune_orphan_blob(storage: &Storage, path: &str) {
-    let Some((pkg, file_name)) = path.rsplit_once('/') else { return };
-    let Ok(canon) = CanonicalPackageName::parse(pkg, pnpr_registry::Ecosystem::Npm) else { return };
-    let _ = storage.remove_hosted_blob(&canon, file_name).await;
+async fn handle_orphan_blob(storage: &Storage, path: &str, prune: bool, report: &mut VerifyReport) {
+    report.orphaned_blobs.push(path.to_string());
+    if !prune {
+        return;
+    }
+    if let Err(err) = prune_orphan_blob(storage, path).await {
+        report.prune_failures.push(format!("{path}: {err}"));
+    }
+}
+
+async fn prune_orphan_blob(storage: &Storage, path: &str) -> Result<(), String> {
+    let Some((pkg, file_name)) = path.rsplit_once('/') else {
+        return Err("invalid blob path format".to_string());
+    };
+    let Ok(canon) = CanonicalPackageName::parse(pkg, pnpr_registry::Ecosystem::Npm) else {
+        return Err(format!("cannot parse npm package name from path '{pkg}'"));
+    };
+    storage
+        .remove_hosted_blob(&canon, file_name)
+        .await
+        .map(|_| ())
+        .map_err(|err| err.to_string())
 }
 
 fn is_metadata_or_reserved_path(path: &str) -> bool {
@@ -237,10 +272,29 @@ fn is_metadata_or_reserved_path(path: &str) -> bool {
         || path.starts_with(".pnpr-artifacts/")
 }
 
+fn safe_filename(name: &str) -> Option<&str> {
+    let name = name.trim();
+    if name.is_empty() || name == "." || name == ".." {
+        return None;
+    }
+    if name.contains('/') || name.contains('\\') {
+        return None;
+    }
+    let path = std::path::Path::new(name);
+    if path.file_name().and_then(|f| f.to_str()) != Some(name) {
+        return None;
+    }
+    Some(name)
+}
+
 fn filename_from_url(url: &str) -> Option<&str> {
-    url.rsplit('/')
+    let segment = url
+        .split(['?', '#'])
         .next()
-        .filter(|segment| !segment.is_empty())
+        .unwrap_or("")
+        .rsplit('/')
+        .next()?;
+    safe_filename(segment)
 }
 
 fn verify_blob_integrity(bytes: &[u8], integrity_str: &str) -> bool {
@@ -277,6 +331,12 @@ pub fn format_verify_report(report: &VerifyReport) -> String {
     let _ = writeln!(out, "  Orphaned blobs: {}", report.orphaned_blobs.len());
     for orphan in &report.orphaned_blobs {
         let _ = writeln!(out, "    - ORPHANED: {orphan}");
+    }
+    if !report.prune_failures.is_empty() {
+        let _ = writeln!(out, "  Prune failures: {}", report.prune_failures.len());
+        for failure in &report.prune_failures {
+            let _ = writeln!(out, "    - PRUNE FAILED: {failure}");
+        }
     }
     out
 }

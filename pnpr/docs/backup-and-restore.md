@@ -19,7 +19,7 @@ A pnpr instance stores two categories of data:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.
    - Local artifact staging scratch.
-   - **Do not back this up**: The cache is self-healing and repopulates automatically on demand.
+   - **Do not back this up routinely**: The upstream proxy cache is self-healing and repopulates automatically on demand. However, for the S3 backend, in-progress publish journal data and local staging scratch live in the cache directory (`cache_dir`). Ensure pnpr has completed startup journal recovery and drained in-flight publishes before wiping cache scratch or decommissioning an instance.
 
 ## Local filesystem storage
 
@@ -62,9 +62,9 @@ When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs a
 
 ### S3 journal caveats
 
-pnpr uses a write-ahead journal (`.staged/` and `.revisions/`) in the bucket to coordinate distributed multi-replica updates:
-
-- When restoring an S3 bucket from a point-in-time snapshot, restore the `.revisions/` prefix alongside the package directories to keep revision digest references intact.
+pnpr uses a commit journal for hosted publishes. For the S3 backend:
+- The local publish journal lives beside staged blobs in the local cache scratch directory (`cache_dir`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
+- Revision digest records (`.revisions/`) live in the S3 bucket itself. When restoring an S3 bucket from a point-in-time snapshot, restore the `.revisions/` prefix alongside package directories to keep revision digest references intact.
 - After a restore, run `pnpr verify` to audit whether any references point to missing blobs:
   ```sh
   pnpr verify

@@ -154,7 +154,13 @@ where
 
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
-            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+            return verify_returning_user(
+                &stored.username,
+                password,
+                stored.bcrypt_hash,
+                DEFAULT_BCRYPT_COST,
+            )
+            .await;
         }
 
         if matches!(self.max_users, MaxUsers::Disabled) {
@@ -168,7 +174,13 @@ where
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
             InsertUser::Existing(stored) => {
-                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
+                verify_returning_user(
+                    &stored.username,
+                    password,
+                    stored.bcrypt_hash,
+                    DEFAULT_BCRYPT_COST,
+                )
+                .await
             }
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),

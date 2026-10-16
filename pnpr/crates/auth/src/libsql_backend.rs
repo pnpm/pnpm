@@ -14,7 +14,7 @@
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
 //! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::token_store::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
+//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
@@ -228,7 +228,7 @@ impl LibsqlAuth {
         validate_username(username)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return verify_returning_user(username, password, stored, DEFAULT_BCRYPT_COST).await;
         }
 
         if matches!(self.max_users, MaxUsers::Disabled) {
@@ -347,7 +347,7 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return verify_returning_user(username, password, stored, DEFAULT_BCRYPT_COST).await;
         }
         let MaxUsers::Limited(max) = self.max_users else {
             return Err(RegistryError::RegistrationDisabled);
@@ -365,7 +365,7 @@ impl LibsqlAuth {
         let Some(stored) = self.stored_hash(username).await? else {
             return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         };
-        verify_returning_user(username, password, stored).await
+        verify_returning_user(username, password, stored, DEFAULT_BCRYPT_COST).await
     }
 }
 

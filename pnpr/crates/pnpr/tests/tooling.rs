@@ -165,6 +165,7 @@ async fn test_verify_storage_health_and_orphan_prune() {
     let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true };
     let prune_report = verify_storage(&config, &prune_opts).await.unwrap();
     assert_eq!(prune_report.orphaned_blobs.len(), 1);
+    assert!(prune_report.prune_failures.is_empty());
     assert!(!orphan_path.exists());
 }
 
@@ -248,4 +249,50 @@ async fn test_migrate_storage_dry_run() {
 
     let formatted = format_migrate_report(&report);
     assert!(formatted.contains("would be migrated"));
+}
+
+#[tokio::test]
+async fn test_verify_and_export_attestations() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+
+    let pkg_dir = config.storage.hosted_dir.join("signed-pkg");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+
+    let tarball_bytes = b"signed package tarball";
+    let shasum = "327001467a169ac289299b0a689cab5a19be6372";
+    let doc = serde_json::json!({
+        "name": "signed-pkg",
+        "versions": {
+            "1.0.0": {
+                "name": "signed-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost:7677/signed-pkg/-/signed-pkg-1.0.0.tgz",
+                    "shasum": shasum,
+                    "attestations": {
+                        "url": "http://localhost:7677/-/npm/v1/attestations/signed-pkg@1.0.0"
+                    }
+                }
+            }
+        }
+    });
+    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
+    std::fs::write(pkg_dir.join("signed-pkg-1.0.0.tgz"), tarball_bytes).unwrap();
+    std::fs::write(pkg_dir.join("signed-pkg-1.0.0.sigstore"), b"sigstore bundle bytes").unwrap();
+
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: true };
+    let rep = verify_storage(&config, &opts).await.unwrap();
+    assert_eq!(rep.packages_checked, 1);
+    assert_eq!(rep.missing_blobs.len(), 0);
+    assert_eq!(rep.corrupted_blobs.len(), 0);
+    assert_eq!(rep.orphaned_blobs.len(), 0);
+
+    let export_out = dir.path().join("export-signed");
+    let exp_rep = export_storage(&config, &export_out, false).await.unwrap();
+    assert_eq!(exp_rep.packages_exported, 1);
+    assert_eq!(exp_rep.blobs_exported, 2);
+    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
+    assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
+    assert!(!export_out.join("htpasswd").exists());
 }

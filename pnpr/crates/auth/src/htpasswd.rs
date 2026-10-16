@@ -101,7 +101,7 @@ pub(super) fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
     out
 }
 
-pub(super) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write as _;
 
     if let Some(parent) = path.parent()
@@ -189,13 +189,18 @@ pub async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
 /// Verify `password` against an existing user's `stored` hash,
 /// mapping the result to the login outcome a returning user expects:
 /// `LoggedIn` on a match, `Unauthenticated` otherwise.
-pub(super) async fn verify_returning_user(
+pub async fn verify_returning_user(
     username: &str,
     password: &str,
     stored: String,
+    bcrypt_cost: u32,
 ) -> Result<(UpsertOutcome, String)> {
     let valid = if is_sha_hash(&stored) {
-        verify_sha1(password, &stored)
+        let ok = verify_sha1(password, &stored);
+        if !ok {
+            dummy_verify(password, bcrypt_cost).await;
+        }
+        ok
     } else {
         verify_bcrypt(password.to_string(), stored).await?
     };
