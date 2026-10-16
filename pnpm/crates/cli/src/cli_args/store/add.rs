@@ -228,6 +228,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
             index_writer: Some(Arc::clone(args.store.index_writer)),
             verify_integrity: args.config.verify_store_integrity,
             strict_pkg_content_check: args.config.strict_store_pkg_content_check,
+            max_unpacked_size: args.config.max_unpacked_size,
             verified_files_cache: args.store.verified_files_cache,
             prefetched_cas_paths: None,
         },

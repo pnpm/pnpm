@@ -136,7 +136,7 @@ fn extract_propagates_malformed_tar_instead_of_panicking() {
     // way the filter+map_err plumbing must surface the failure as
     // `TarballError::ReadTarballEntries`.
     let bogus: Vec<u8> = vec![0xFF; 1024];
-    let err = extract_tarball_entries(&bogus, store_path, None)
+    let err = extract_tarball_entries(&bogus, store_path, None, u64::MAX)
         .expect_err("malformed tar must surface a TarballError, not panic");
 
     assert!(
@@ -181,7 +181,7 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
         builder.finish().expect("finalize tar");
     }
 
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
         .expect_err("parent-dir component must be rejected, not normalized");
 
     match err {
@@ -229,7 +229,7 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
     }
 
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, Some(&drop_npm))
+        extract_tarball_entries(&tar_bytes, store_path, Some(&drop_npm), u64::MAX)
             .expect("tarball extraction with ignore filter");
 
     dbg!(&cas_paths);
@@ -317,8 +317,9 @@ fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
         "the fixture must look small enough to route to the eager path",
     );
 
-    let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(&bomb, None, store_path, None)
-        .expect("an archive past the eager ceiling must still extract");
+    let (cas_paths, pkg_files_idx) =
+        extract_gzipped_tarball(&bomb, None, store_path, None, u64::MAX)
+            .expect("an archive past the eager ceiling must still extract");
 
     dbg!(cas_paths.keys().collect::<Vec<_>>());
     assert_eq!(pkg_files_idx.files["bomb.bin"].size, payload_size);
@@ -359,11 +360,11 @@ fn streaming_extract_matches_eager_extract() {
 
     let (eager_tempdir, eager_store) = tempdir_with_leaked_path();
     let (eager_cas_paths, eager_idx) =
-        extract_tarball_entries(&tar_bytes, eager_store, None).expect("eager extraction");
+        extract_tarball_entries(&tar_bytes, eager_store, None, u64::MAX).expect("eager extraction");
 
     let (streaming_tempdir, streaming_store) = tempdir_with_leaked_path();
     let (streaming_cas_paths, streaming_idx) =
-        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), streaming_store, None)
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), streaming_store, None, u64::MAX)
             .expect("streaming extraction");
 
     let relative =
@@ -438,7 +439,7 @@ fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
         builder.finish().expect("finalize tar");
     }
 
-    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None, u64::MAX)
         .expect_err("parent-dir component must be rejected, not normalized");
 
     match err {
@@ -479,9 +480,13 @@ fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
         path.starts_with("lib/node_modules/npm/")
     }
 
-    let (cas_paths, pkg_files_idx) =
-        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, Some(&drop_npm))
-            .expect("streaming extraction with ignore filter");
+    let (cas_paths, pkg_files_idx) = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        store_path,
+        Some(&drop_npm),
+        u64::MAX,
+    )
+    .expect("streaming extraction with ignore filter");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -512,7 +517,7 @@ fn streaming_extract_truncated_large_entry_commits_nothing() {
     // Only 1 KiB of the claimed payload is present.
     tar_bytes.extend_from_slice(&[0u8; 1024]);
 
-    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None, u64::MAX)
         .expect_err("truncated large entry must fail extraction");
     assert!(
         matches!(err, TarballError::ReadTarballEntries(_)),
@@ -556,7 +561,7 @@ fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let bogus: Vec<u8> = vec![0xFF; 1024];
-    let err = stream_extract_gzipped_tarball(&bogus, store_path, None)
+    let err = stream_extract_gzipped_tarball(&bogus, store_path, None, u64::MAX)
         .expect_err("corrupt gzip must surface a TarballError, not panic");
 
     assert!(
@@ -609,6 +614,7 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
             None,
             None,
             false,
+            u64::MAX,
         )
         .await
         .expect("download with a large unpacked-size hint");
@@ -741,6 +747,7 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
         None,
         None,
         true,
+        u64::MAX,
     )
     .await
     .expect_err("a revision-addressed 503 must fail after one request");
@@ -787,6 +794,7 @@ async fn revision_addressed_tarball_does_not_follow_a_redirect() {
         None,
         None,
         true,
+        u64::MAX,
     )
     .await
     .expect_err("a revision-addressed redirect must not be followed");

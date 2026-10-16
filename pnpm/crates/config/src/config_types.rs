@@ -135,6 +135,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("stream", false),
     ("strict-dep-builds", false),
     ("strict-store-pkg-content-check", false),
+    ("max-unpacked-size", true),
     ("strict-peer-dependencies", false),
     ("trust-lockfile", false),
     ("trust-policy", false),

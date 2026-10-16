@@ -43,6 +43,11 @@ pub struct ArchiveStoreContext<'a> {
     /// [`pnpm_store_dir::pkg_content_mismatch`] for what counts as a
     /// disagreement.
     pub strict_pkg_content_check: bool,
+    /// Mirrors pnpm's `maxUnpackedSize` setting: the most bytes the
+    /// regular files of one archive may declare in total before its
+    /// extraction fails with
+    /// [`TarballError::UnpackedSizeExceeded`](crate::TarballError::UnpackedSizeExceeded).
+    pub max_unpacked_size: u64,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
     /// path that one snapshot's verify pass has already stat'ed (and

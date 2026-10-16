@@ -780,7 +780,7 @@ test.each([
   { control: '\x9b31m', escaped: '\\x9B' },
 ])('escapes terminal controls in oversized TAR entry diagnostics: $escaped', ({ control, escaped }) => {
   const onFile = jest.fn()
-  const parser = createTarballParser(onFile, undefined, 16)
+  const parser = createTarballParser(onFile, undefined, { maxBufferedEntrySize: 16 })
   const header = createTarballWithEntry(`package/bad${control}name`, '', { declaredSize: 17 }).subarray(0, 512)
   let error: unknown
   try {
@@ -794,4 +794,94 @@ test.each([
   })
   expect((error as Error).message).not.toContain(control[0])
   expect(onFile).not.toHaveBeenCalled()
+})
+
+describe('maxUnpackedSize', () => {
+  const entries = [
+    createTarballWithEntry('package/a.txt', 'a'.repeat(60)).subarray(0, 1024),
+    createTarballWithEntry('package/b.txt', 'b'.repeat(60)),
+  ]
+  const smallTarball = gzipSync(Buffer.concat(entries))
+  const expectedError = {
+    code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED',
+    message: 'Tarball unpacks to more than 119 bytes',
+    hint: 'If the package is expected to be this large, raise the maxUnpackedSize setting.',
+  }
+  type Import = (cafs: ReturnType<typeof createCafs>, tarball: Buffer, maxUnpackedSize: number) => Promise<unknown>
+  const imports: Array<[string, Import]> = [
+    ['addFilesFromTarballBounded', async (cafs, tarball, max) => cafs.addFilesFromTarballBounded(tarball, false, undefined, max)],
+    ['addFilesFromTarballFile', async (cafs, tarball, max) => {
+      const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+      fs.writeFileSync(tarballFile, tarball)
+      return cafs.addFilesFromTarballFile(tarballFile, false, undefined, max)
+    }],
+  ]
+
+  test.each(imports)('%s rejects an archive whose files sum past the limit without writing the crossing entry', async (_name, run) => {
+    const storeDir = temporaryDirectory()
+    const cafs = createCafs(storeDir)
+    await expect(run(cafs, smallTarball, 119)).rejects.toMatchObject(expectedError)
+    expect(fs.existsSync(cafs.getFilePathByModeInCafs(crypto.hash('sha512', 'b'.repeat(60), 'hex'), 0o644))).toBe(false)
+  })
+
+  test.each(imports)('%s extracts an archive that is exactly at the limit', async (_name, run) => {
+    await expect(run(createCafs(temporaryDirectory()), smallTarball, 120)).resolves.toBeDefined()
+  })
+
+  test.each(imports)('%s counts entries that the ignore filter drops', async (_name, run) => {
+    const cafs = createCafs(temporaryDirectory(), { ignoreFile: (name) => name === 'b.txt' })
+    await expect(run(cafs, smallTarball, 119)).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' })
+  })
+
+  it('rejects before the content of the crossing entry is read', async () => {
+    const header = createTarballWithEntry('package/b.txt', '', { declaredSize: 1000 }).subarray(0, 512)
+    const tarball = gzipSync(Buffer.concat([entries[0], header]))
+    await expect(createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, false, undefined, 119))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' })
+  })
+
+  it('rejects a bzip2 archive whose files sum past the limit', async () => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures/package.tar.bz2')
+    const tarball = fs.readFileSync(tarballFile)
+    const cafs = createCafs(temporaryDirectory())
+    await expect(cafs.addFilesFromTarballBounded(tarball, true, undefined, 88)).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' })
+    await expect(cafs.addFilesFromTarballFile(tarballFile, true, undefined, 88)).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' })
+    await expect(cafs.addFilesFromTarballBounded(tarball, true, undefined, 89)).resolves.toBeDefined()
+    await expect(cafs.addFilesFromTarballFile(tarballFile, true, undefined, 89)).resolves.toBeDefined()
+  })
+
+  describe('streamed gzip archive', () => {
+    const manifest = '{"name":"large","version":"1.0.0"}'
+    const bigFileSize = MAX_IN_MEMORY_TARBALL_SIZE + 1024 * 1024
+    const tarball = gzipSync(Buffer.concat([
+      createTarballWithEntry('package/package.json', manifest).subarray(0, 1024),
+      createTarballWithEntry('package/zeros.bin', Buffer.alloc(bigFileSize)),
+    ]))
+    const bigFileDigest = crypto.hash('sha512', Buffer.alloc(bigFileSize), 'hex')
+
+    test.each([false, true])('rejects before writing the crossing entry, file-backed %s', async (fileBacked) => {
+      const storeDir = temporaryDirectory()
+      const cafs = createCafs(storeDir)
+      const limit = manifest.length + bigFileSize - 1
+      const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+      fs.writeFileSync(tarballFile, tarball)
+      const result = fileBacked
+        ? cafs.addFilesFromTarballFile(tarballFile, true, undefined, limit)
+        : cafs.addFilesFromTarballBounded(tarball, true, undefined, limit)
+      await expect(result).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' })
+      expect(fs.readdirSync(storeDir).filter((entry) => entry.startsWith('tarball-'))).toEqual([])
+      expect(fs.existsSync(cafs.getFilePathByModeInCafs(bigFileDigest, 0o644))).toBe(false)
+    })
+
+    test.each([false, true])('extracts at the limit, file-backed %s', async (fileBacked) => {
+      const cafs = createCafs(temporaryDirectory())
+      const limit = manifest.length + bigFileSize
+      const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+      fs.writeFileSync(tarballFile, tarball)
+      const { filesIndex } = fileBacked
+        ? await cafs.addFilesFromTarballFile(tarballFile, true, undefined, limit)
+        : await cafs.addFilesFromTarballBounded(tarball, true, undefined, limit)
+      expect(filesIndex.get('zeros.bin')).toMatchObject({ size: bigFileSize, digest: bigFileDigest })
+    })
+  })
 })

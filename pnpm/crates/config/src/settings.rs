@@ -10,12 +10,12 @@ use super::{
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_install_state_dir, default_modules_cache_max_age,
-    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
-    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
-    default_unsafe_perm, default_user_agent, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_ci, npmrc_auth, side_effects_cache_remote_env,
-    workspace_yaml,
+    default_hoist_pattern, default_install_state_dir, default_max_unpacked_size,
+    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
+    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
+    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
+    side_effects_cache_remote_env, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -864,6 +864,13 @@ pub struct Config {
     /// `pnpm-workspace.yaml`.
     #[default = true]
     pub strict_store_pkg_content_check: bool,
+
+    /// Largest total unpacked size of one package archive, in bytes: the
+    /// sum of the sizes its regular files declare. Extraction stops at the
+    /// entry that takes the sum past the limit. The `maxUnpackedSize`
+    /// setting (default `2147483648`, or 2 GiB).
+    #[default(_code = "default_max_unpacked_size()")]
+    pub max_unpacked_size: u64,
 
     /// Opt-in assertion that the package store is complete and will not
     /// be written during this install — for running against a store on a

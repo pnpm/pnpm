@@ -37,6 +37,7 @@ async fn retries_other_4xx_codes() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("non-401/403/404 4xx should exhaust the retry budget");
@@ -69,6 +70,7 @@ async fn does_not_retry_an_untrusted_certificate() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("an untrusted certificate must fail the fetch");
@@ -106,6 +108,7 @@ async fn retry_exhaustion_returns_last_error() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("permanent 500s should exhaust the retry budget");
@@ -238,6 +241,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                         index_writer: None,
                         verify_integrity: true,
                         strict_pkg_content_check: true,
+                        max_unpacked_size: u64::MAX,
                         verified_files_cache: SharedVerifiedFilesCache::default(),
                         prefetched_cas_paths: None,
                     },
@@ -326,6 +330,7 @@ async fn zero_retries_makes_a_single_attempt() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("retries=0 must surface the first failure");
@@ -395,6 +400,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },
@@ -493,6 +499,7 @@ async fn started_fires_for_connection_level_failures() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("connect-refused must surface as a TarballError");
@@ -590,6 +597,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             index_writer: Some(Arc::clone(&writer)),
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
         },
@@ -641,6 +649,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
         },
@@ -744,6 +753,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -867,6 +877,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },
@@ -957,6 +968,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: Some(&prefetched),
         },

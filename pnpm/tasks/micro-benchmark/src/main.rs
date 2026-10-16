@@ -174,6 +174,7 @@ async fn ingest_benchmark_package(
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },

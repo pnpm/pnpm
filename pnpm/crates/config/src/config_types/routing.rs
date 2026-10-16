@@ -32,6 +32,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "init-type",
     "optimistic-repeat-install",
     "loglevel",
+    "max-unpacked-size",
     "maxsockets",
     "modules-cache-max-age",
     "dlx-cache-max-age",

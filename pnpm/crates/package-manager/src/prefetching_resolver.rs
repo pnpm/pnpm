@@ -430,6 +430,7 @@ impl PrefetchStoreRefs<'_> {
             verified_files_cache: SharedVerifiedFilesCache::clone(self.verified_files_cache),
             verify_integrity: config.verify_store_integrity,
             strict_pkg_content_check: config.strict_store_pkg_content_check,
+            max_unpacked_size: config.max_unpacked_size,
             prefetched_cas_paths: None,
         }
     }

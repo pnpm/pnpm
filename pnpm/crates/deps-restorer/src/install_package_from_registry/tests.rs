@@ -160,6 +160,7 @@ fn create_config(
         ignore_workspace_cycles: false,
         disallow_workspace_cycles: false,
         strict_store_pkg_content_check: true,
+        max_unpacked_size: u64::MAX,
         frozen_store: false,
         store_index_format: StoreIndexFormat::Sqlite,
         force: false,

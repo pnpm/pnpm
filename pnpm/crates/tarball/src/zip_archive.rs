@@ -5,8 +5,8 @@
 
 use super::{
     Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError,
-    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
-    post_download_semaphore,
+    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, UnpackedSizeBudget,
+    allocate_tarball_buffer, post_download_semaphore,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -34,9 +34,11 @@ pub(crate) fn extract_zip_entries(
     store_dir: &StoreDir,
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let entry_count = archive.len();
     let mut extracted = ExtractedEntries::with_capacity(entry_count);
+    let mut budget = UnpackedSizeBudget::new(max_unpacked_size);
 
     // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
     // keeping entry paths verbatim when there is no prefix. The
@@ -53,9 +55,15 @@ pub(crate) fn extract_zip_entries(
                 url: package_url.to_string(),
                 source,
             })?;
-        let Some(cleaned) =
-            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
-        else {
+        let cleaned =
+            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?;
+        // Charged after the path check and before the filter's verdict, as
+        // the tar extractors do: a traversal is reported as such, and an
+        // ignored file still counts toward the archive's unpacked size.
+        if !entry.is_dir() {
+            budget.declare(entry.size())?;
+        }
+        let Some(cleaned) = cleaned else {
             continue;
         };
         let stored = store_zip_entry(&mut entry, package_url, &cleaned, store_dir)?;
@@ -310,6 +318,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     max_bytes: Option<usize>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let (client, response_head, _) = crate::archive_request::request_archive::<Reporter>(
         http_client,
@@ -337,6 +346,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         package_url: package_url.to_string(),
         archive_prefix: archive_prefix.map(str::to_string),
         ignore_file_pattern,
+        max_unpacked_size,
     }
     .run(store_dir)
     .await?;
@@ -381,6 +391,8 @@ pub(crate) struct ZipExtraction {
     pub(crate) package_url: String,
     pub(crate) archive_prefix: Option<String>,
     pub(crate) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    /// See [`crate::ArchiveStoreContext::max_unpacked_size`].
+    pub(crate) max_unpacked_size: u64,
 }
 
 pub(crate) fn check_zip_size(
@@ -429,6 +441,7 @@ impl ZipExtraction {
             store_dir,
             self.archive_prefix.as_deref(),
             self.ignore_file_pattern.as_deref(),
+            self.max_unpacked_size,
         )
     }
 }
@@ -438,7 +451,7 @@ impl ZipExtraction {
 /// permanent errors fail fast, while transient errors retry with
 /// exponential backoff until [`RetryOpts::retries`] is exhausted.
 /// On success, emit `pnpm:progress fetched` once per resolved package.
-// 10 arguments — over the default clippy threshold for the same
+// 12 arguments — over the default clippy threshold for the same
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a
 // wrapper.
@@ -455,6 +468,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     max_bytes: Option<usize>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     crate::archive_retry::retry_archive::<Reporter, _, _>(
         package_url,
@@ -474,6 +488,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
                 archive_prefix,
                 ignore_file_pattern.clone(),
                 max_bytes,
+                max_unpacked_size,
             )
         },
     )

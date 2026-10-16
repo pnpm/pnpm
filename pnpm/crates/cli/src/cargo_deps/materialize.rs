@@ -51,9 +51,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
         index_writer: Arc::clone(&store_index_writer),
         verified_files_cache,
         logged_methods: options.logged_methods,
-        import_method: config.package_import_method,
-        verify_integrity: config.verify_store_integrity,
-        strict_pkg_content_check: config.strict_store_pkg_content_check,
+        config,
     };
     let slots = stream::iter(options.packages)
         .map(|package| {
@@ -97,9 +95,9 @@ pub(crate) struct CrateStore {
     pub(super) index_writer: Arc<StoreIndexWriter>,
     pub(super) verified_files_cache: SharedVerifiedFilesCache,
     pub(super) logged_methods: Arc<AtomicU8>,
-    pub(super) import_method: pnpm_config::PackageImportMethod,
-    pub(super) verify_integrity: bool,
-    pub(super) strict_pkg_content_check: bool,
+    /// Source of the import method and of the store policy
+    /// [`Self::archive_context`] mirrors.
+    pub(super) config: &'static Config,
 }
 
 pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
@@ -120,7 +118,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         .add(&mut cas_paths, &options.package.checksum)?;
         import_indexed_dir::<Reporter>(
             &options.store.logged_methods,
-            options.store.import_method,
+            options.store.config.package_import_method,
             &slot_for_import,
             &cas_paths,
             ImportIndexedDirOpts {
@@ -240,8 +238,9 @@ impl CrateStore {
             dir: self.dir,
             index: self.index.as_ref().map(Arc::clone),
             index_writer: Some(Arc::clone(&self.index_writer)),
-            verify_integrity: self.verify_integrity,
-            strict_pkg_content_check: self.strict_pkg_content_check,
+            verify_integrity: self.config.verify_store_integrity,
+            strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+            max_unpacked_size: self.config.max_unpacked_size,
             verified_files_cache: Arc::clone(&self.verified_files_cache),
             prefetched_cas_paths: None,
         }

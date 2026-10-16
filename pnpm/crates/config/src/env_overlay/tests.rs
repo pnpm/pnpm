@@ -262,6 +262,20 @@ fn network_settings_parse_from_env() {
 }
 
 #[test]
+fn max_unpacked_size_parses_from_env() {
+    struct EnvLimit;
+    impl EnvVar for EnvLimit {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_MAX_UNPACKED_SIZE").then(|| "1048576".to_owned())
+        }
+    }
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvLimit>().max_unpacked_size,
+        Some(1_048_576),
+    );
+}
+
+#[test]
 fn scope_parses_from_env() {
     struct EnvScope;
     impl EnvVar for EnvScope {

@@ -46,6 +46,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
+  maxUnpackedSize?: number
   localDirPackageImportMethod?: LocalDirPackageImportMethod
 } & ResolverFactoryOptions & DispatcherOptions
   & Pick<ResolutionVerifierFactoryOptions,
@@ -148,6 +149,7 @@ function createFetchers (
   | 'includeOnlyPackageFiles'
   | 'offline'
   | 'fetchMinSpeedKiBps'
+  | 'maxUnpackedSize'
   | 'storeIndex'
   | 'localDirPackageImportMethod'
   >

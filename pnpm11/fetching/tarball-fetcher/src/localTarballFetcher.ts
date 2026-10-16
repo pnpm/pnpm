@@ -6,7 +6,7 @@ import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 
-import { MAX_BUFFERED_DOWNLOAD_SIZE } from './remoteTarballFetcher.js'
+import { DEFAULT_MAX_UNPACKED_SIZE, MAX_BUFFERED_DOWNLOAD_SIZE } from './remoteTarballFetcher.js'
 
 const isAbsolutePath = /^\/|^[A-Z]:/i
 
@@ -16,7 +16,7 @@ interface Resolution {
   tarball: string
 }
 
-export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
+export function createLocalTarballFetcher (storeIndex: StoreIndex, { maxUnpackedSize = DEFAULT_MAX_UNPACKED_SIZE }: { maxUnpackedSize?: number } = {}): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const source = gfs.statSync(tarball).size > MAX_BUFFERED_DOWNLOAD_SIZE
@@ -33,6 +33,7 @@ export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunctio
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
       ignoreFilePattern: opts.ignoreFilePattern,
+      maxUnpackedSize,
     })
     return { ...result, local: true }
   }

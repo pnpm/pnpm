@@ -221,6 +221,7 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
         }
         TarballError::TaskJoin(_) => "ERR_PNPM_TASK_JOIN",
         TarballError::TarballTooLarge { .. } => "ERR_PNPM_TARBALL_TOO_LARGE",
+        TarballError::UnpackedSizeExceeded { .. } => "ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED",
         TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
         TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
@@ -261,6 +262,8 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         TarballError::WriteCasFile(write) => !is_storage_full(write),
         // A route policy does not change between attempts.
         TarballError::OffAllowlist { .. } => false,
+        // A re-fetch yields the same archive with the same unpacked size.
+        TarballError::UnpackedSizeExceeded { .. } => false,
         _ => true,
     }
 }
@@ -286,6 +289,7 @@ pub(crate) async fn extract_tarball_buffer(
     package_url: &str,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_unpacked_size: u64,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let post_download_permit = post_download_semaphore()
         .acquire()
@@ -309,6 +313,7 @@ pub(crate) async fn extract_tarball_buffer(
                 package_unpacked_size,
                 store_dir,
                 ignore_file_pattern.as_deref(),
+                max_unpacked_size,
             )?;
             Ok((integrity, cas_paths, pkg_files_idx))
         },
@@ -414,15 +419,15 @@ impl<'a> BodyProgress<'a> {
 /// part-way through extraction stay on disk. That's safe: the CAFS is
 /// content-addressed, so re-extracting the same bytes produces
 /// identical paths and `write_cas_file` is idempotent.
-// 13 arguments — over the default clippy threshold but each is
+// 14 arguments — over the default clippy threshold but each is
 // distinct: client + URL + integrity describe the request, ID +
 // requester are the reporter dimensions, progress_key dedups the
 // package-status emit, unpacked-size is allocation hinting,
 // download_priority is queue ordering, store_dir + retry_opts +
-// auth_headers are install-scoped, and ignore_file_pattern is the
-// per-fetch archive filter, and revision_addressed selects the immutable
-// request policy. Bundling into a struct would just push
-// the same fields into a wrapper.
+// auth_headers + max_unpacked_size are install-scoped, and
+// ignore_file_pattern is the per-fetch archive filter, and
+// revision_addressed selects the immutable request policy. Bundling
+// into a struct would just push the same fields into a wrapper.
 #[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
@@ -441,6 +446,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
+    max_unpacked_size: u64,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     match fetch_and_extract_conditional::<Reporter>(
         http_client,
@@ -457,6 +463,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
         progress_key,
         revision_addressed,
         None,
+        max_unpacked_size,
     )
     .await?
     {
@@ -494,6 +501,7 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
     if_none_match: Option<&str>,
+    max_unpacked_size: u64,
 ) -> Result<AttemptedFetch, TarballError> {
     let retries = if revision_addressed { 0 } else { retry_opts.retries };
     crate::archive_retry::retry_archive::<Reporter, _, _>(
@@ -516,6 +524,7 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
                 ignore_file_pattern.clone(),
                 revision_addressed,
                 if_none_match,
+                max_unpacked_size,
             )
         },
     )

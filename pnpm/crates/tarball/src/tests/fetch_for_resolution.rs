@@ -1,8 +1,8 @@
 use super::{
     ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
     FetchTarballForResolution, IngestTarballToStore, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
-    SharedVerifiedFilesCache, SilentReporter, TarballError, ThrottledClient, fast_retry_opts,
-    integrity, tempdir_with_leaked_path, test_retry_opts,
+    ResolutionStore, SharedVerifiedFilesCache, SilentReporter, TarballError, ThrottledClient,
+    fast_retry_opts, integrity, tempdir_with_leaked_path, test_retry_opts,
 };
 use crate::{CacheValue, CachedTarball, package_mem_cache_key};
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -45,6 +45,7 @@ fn ingest<'a>(
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },
@@ -64,8 +65,7 @@ fn resolution_read<'a>(
 ) -> FetchTarballForResolution<'a> {
     FetchTarballForResolution {
         http_client: client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: ResolutionStore { dir: store_path, index_writer: None, max_unpacked_size: u64::MAX },
         package: crate::TarballPackage {
             integrity: Some(integrity),
             unpacked_size: None,

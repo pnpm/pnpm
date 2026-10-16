@@ -73,6 +73,7 @@ fn ingest<'a>(
             index_writer: None,
             verify_integrity: config.verify_store_integrity,
             strict_pkg_content_check: config.strict_store_pkg_content_check,
+            max_unpacked_size: config.max_unpacked_size,
             verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },

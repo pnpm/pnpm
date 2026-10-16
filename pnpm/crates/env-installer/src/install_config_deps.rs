@@ -268,6 +268,7 @@ async fn materialize<Reporter: self::Reporter>(
             index_writer: opts.store_index_writer.clone(),
             verify_integrity: opts.store.verify_integrity,
             strict_pkg_content_check: opts.store.strict_pkg_content_check,
+            max_unpacked_size: opts.store.max_unpacked_size,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },

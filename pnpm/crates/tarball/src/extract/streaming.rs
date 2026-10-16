@@ -1,7 +1,7 @@
 use super::{
     Archive, BuildTriggers, CafsFileInfo, HashMap, IgnoreEntryFilter, PackageFilesIndex, PathBuf,
-    PendingFile, Read, StoreDir, TarballError, clean_archive_entry_path, file_mode,
-    write_pending_files,
+    PendingFile, Read, StoreDir, TarballError, UnpackedSizeBudget, clean_archive_entry_path,
+    file_mode, write_pending_files,
 };
 
 /// Body chunks in flight between the download loop and the extractor.
@@ -82,11 +82,13 @@ pub(crate) fn stream_extract_gzipped_channel(
     rx: BodyChunkReceiver,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     extract_tarball_entries_streaming(
         flate2::read::GzDecoder::new(ChannelBytesReader::new(rx)),
         store_dir,
         ignore_file_pattern,
+        max_unpacked_size,
     )
 }
 
@@ -121,11 +123,13 @@ pub(crate) fn stream_extract_gzipped_tarball(
     gz_data: &[u8],
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     extract_tarball_entries_streaming(
         flate2::read::GzDecoder::new(gz_data),
         store_dir,
         ignore_file_pattern,
+        max_unpacked_size,
     )
 }
 
@@ -147,17 +151,18 @@ pub(crate) fn extract_tarball_entries_streaming(
     reader: impl Read,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
-    let mut extract = StreamingExtract::new(store_dir);
+    let mut extract = StreamingExtract::new(store_dir, max_unpacked_size);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
         if !entry.header().entry_type().is_file() {
             continue;
         }
-        let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
+        let Some(meta) = entry_meta(&entry, ignore_file_pattern, &mut extract.budget)? else {
             continue;
         };
         extract.triggers.add_file(&meta.cleaned_path);
@@ -178,10 +183,13 @@ pub(super) struct EntryMeta {
 /// `None` when the ignore filter drops the entry.
 /// Bypassing the CAS write here also keeps the package's
 /// [`PackageFilesIndex`] tight — an ignored entry never surfaces in `files`
-/// or `manifest`.
+/// or `manifest`. The entry's declared size is charged to `budget` once its
+/// path is valid and before the filter runs, so a traversal is reported
+/// as such and an ignored entry still counts toward the unpacked size.
 pub(super) fn entry_meta<Source: Read>(
     entry: &tar::Entry<'_, Source>,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    budget: &mut UnpackedSizeBudget,
 ) -> Result<Option<EntryMeta>, TarballError> {
     let mode = entry
         .header()
@@ -195,6 +203,7 @@ pub(super) fn entry_meta<Source: Read>(
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         clean_archive_entry_path(&entry_path.to_string_lossy())?
     };
+    budget.declare(size)?;
     if ignore_file_pattern.is_some_and(|filter| filter(&cleaned_path)) {
         return Ok(None);
     }
@@ -211,6 +220,7 @@ pub(super) struct StreamingExtract<'a> {
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
     pub(super) triggers: BuildTriggers,
+    pub(super) budget: UnpackedSizeBudget,
 }
 
 pub(super) fn truncated_entry_error() -> TarballError {

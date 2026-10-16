@@ -43,6 +43,7 @@ impl WorkspaceSettings {
             strict_store_pkg_content_check,
             "STRICT_STORE_PKG_CONTENT_CHECK"
         );
+        json_field!(settings, reader, max_unpacked_size, "MAX_UNPACKED_SIZE");
         json_field!(settings, reader, include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
         json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
         json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");

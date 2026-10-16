@@ -83,6 +83,17 @@ installation will fail.
 
 Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may set the `strictStorePkgContentCheck` setting to `false`.
 
+### maxUnpackedSize
+
+Added in: v12.15.0
+
+* Default: **2147483648 (2 GiB)**
+* Type: **Number**
+
+The largest total size, in bytes, that the files of one package may unpack to. pnpm refuses to install a package whose files add up to more than this many bytes and fails with the error `ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED`. A small archive can unpack to a far larger size, so the limit protects the disk against a malicious or corrupt package.
+
+Raise the setting if you need to install a legitimately large package.
+
 ### frozenStore
 
 Added in: v11.7.0

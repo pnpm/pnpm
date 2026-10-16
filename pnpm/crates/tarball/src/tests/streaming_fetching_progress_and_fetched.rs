@@ -80,6 +80,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -148,6 +149,7 @@ fn extract_zip_strips_prefix_from_entry_paths() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         None,
+        u64::MAX,
     )
     .expect("happy-path zip extraction");
 
@@ -193,6 +195,7 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         Some(&node_extras_filter),
+        u64::MAX,
     )
     .expect("zip extraction with ignore filter");
 
@@ -218,9 +221,15 @@ fn extract_zip_rejects_parent_dir_component() {
     let bytes = build_zip(&[("../evil.txt", b"evil")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let err =
-        extract_zip_entries(&mut archive, "https://example.test/evil.zip", store_path, None, None)
-            .expect_err("escaping zip entry must be rejected, not normalized");
+    let err = extract_zip_entries(
+        &mut archive,
+        "https://example.test/evil.zip",
+        store_path,
+        None,
+        None,
+        u64::MAX,
+    )
+    .expect_err("escaping zip entry must be rejected, not normalized");
 
     match err {
         TarballError::PathTraversal { url, entry_path, reason } => {
@@ -263,6 +272,7 @@ fn extract_zip_rejects_directory_entry_with_parent_component() {
         store_path,
         None,
         None,
+        u64::MAX,
     )
     .expect_err("escaping directory entry must be rejected, not silently skipped");
 
@@ -284,9 +294,15 @@ fn extract_zip_uses_entry_path_when_no_prefix() {
     let bytes = build_zip(&[("bin/tool", b"x"), ("README.md", b"docs")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let (cas_paths, _) =
-        extract_zip_entries(&mut archive, "https://example.test/flat.zip", store_path, None, None)
-            .expect("flat zip extraction");
+    let (cas_paths, _) = extract_zip_entries(
+        &mut archive,
+        "https://example.test/flat.zip",
+        store_path,
+        None,
+        None,
+        u64::MAX,
+    )
+    .expect("flat zip extraction");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -318,6 +334,7 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         None,
+        u64::MAX,
     )
     .expect("zip with `.` segments");
 
@@ -400,8 +417,8 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
         builder.finish().expect("finalize tar");
     }
 
-    let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+    let (cas_paths, _) = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
+        .expect("extract the tarball");
 
     assert!(
         cas_paths.contains_key("bin/nested/tool.js"),
@@ -499,6 +516,7 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
             None,
             None,
             false,
+            u64::MAX,
         )
         .await
         .expect("the download should succeed");
@@ -562,6 +580,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("a well-formed pinned tarball must download and extract");
@@ -571,7 +590,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
-        stream_extract_gzipped_tarball(&body, reference_store, None)
+        stream_extract_gzipped_tarball(&body, reference_store, None, u64::MAX)
             .expect("the reference extraction of the same bytes must succeed");
     assert_eq!(
         cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
@@ -634,6 +653,7 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("a chunked body must download and extract");
@@ -677,6 +697,7 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect_err("a corrupt archive must exhaust the retry budget");
@@ -732,8 +753,8 @@ fn extract_keeps_only_regular_file_entries() {
         builder.finish().expect("finalize tar");
     }
 
-    let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+    let (cas_paths, _) = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
+        .expect("extract the tarball");
 
     assert_eq!(
         cas_paths.keys().collect::<Vec<_>>(),
@@ -750,7 +771,8 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
 
     let tar_bytes = tar_with_raw_entry_name(b"./package/package.json", b"bytes");
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
+            .expect("extract the tarball");
 
     assert_eq!(cas_paths.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
     assert_eq!(pkg_files_idx.files.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
@@ -770,7 +792,8 @@ fn extract_keys_a_root_level_entry_by_its_own_name() {
 
     let tar_bytes = tar_with_root_level_entries();
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
+            .expect("extract the tarball");
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
@@ -794,8 +817,9 @@ fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_root_level_entries();
-    let (cas_paths, _) = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
-        .expect("extract the tarball");
+    let (cas_paths, _) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None, u64::MAX)
+            .expect("extract the tarball");
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
@@ -812,7 +836,7 @@ fn extract_rejects_an_entry_naming_the_archive_root() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_raw_entry_name(b"./.", b"bytes");
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
         .expect_err("an entry naming the archive root must be rejected");
 
     match err {
@@ -833,8 +857,8 @@ fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js", b"bytes");
-    let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+    let (cas_paths, _) = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
+        .expect("extract the tarball");
 
     assert!(
         cas_paths.contains_key("bin/tool.js"),

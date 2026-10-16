@@ -38,6 +38,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
     if_none_match: Option<&str>,
+    max_unpacked_size: u64,
 ) -> Result<AttemptedFetch, TarballError> {
     let download = TarballDownload {
         http_client,
@@ -47,6 +48,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         package_id,
         store_dir,
         ignore_file_pattern,
+        max_unpacked_size,
     };
     if let Some(path) = local_file_tarball_path(package_url) {
         return fetch_local_archive::<Reporter>(download, &path, attempt).await;
@@ -133,6 +135,7 @@ pub(super) struct TarballDownload<'a> {
     pub(super) package_id: &'a str,
     pub(super) store_dir: &'static StoreDir,
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    pub(super) max_unpacked_size: u64,
 }
 
 /// A `file:` tarball is read straight off disk: no request, no streaming
@@ -150,6 +153,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     attempt: u32,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_unpacked_size: u64,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let (file, size) = open_local_tarball(path).await?;
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
@@ -168,6 +172,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
         package_url,
         store_dir,
         ignore_file_pattern,
+        max_unpacked_size,
     )
     .await
 }
@@ -211,6 +216,7 @@ impl TarballDownload<'_> {
             attempt,
             self.store_dir,
             self.ignore_file_pattern,
+            self.max_unpacked_size,
         )
         .await
     }
@@ -293,6 +299,7 @@ impl TarballDownload<'_> {
             self.package_url,
             self.store_dir,
             self.ignore_file_pattern,
+            self.max_unpacked_size,
         )
         .await
     }
@@ -345,6 +352,7 @@ impl TarballDownload<'_> {
             self.package_url,
             self.store_dir,
             self.ignore_file_pattern,
+            self.max_unpacked_size,
         )
         .await
     }
