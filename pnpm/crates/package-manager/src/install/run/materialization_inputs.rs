@@ -42,10 +42,14 @@ impl super::InstallWorkspace<'_> {
             dependency_groups,
             project_manifests,
             lockfile_specifier_project_manifests,
-            workspace_projects,
-            discovered_workspace_packages: self.discovered
-                .as_ref()
-                .and_then(|discovered| discovered.packages_of(workspace_projects)),
+            workspace_packages: self.loaded_workspace
+                .packages_of(workspace_projects)
+                .map_or(
+                    crate::install::materialize::WorkspacePackageSource::Projects(
+                        workspace_projects,
+                    ),
+                    crate::install::materialize::WorkspacePackageSource::Shared,
+                ),
             requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
             real_importer_ids: &scope.importers.real_importer_ids,
             workspace_root: &self.dirs.workspace_root,

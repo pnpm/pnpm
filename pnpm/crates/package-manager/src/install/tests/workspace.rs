@@ -884,12 +884,12 @@ fn discovered_workspace_index_serves_only_its_own_projects() {
     assert!(
         index
             .get("lib")
-            .is_some_and(|by_version| by_version.contains_key("1.0.0"))
+            .is_some_and(|by_version| by_version.contains_key("1.0.0")),
     );
     assert!(
         workspace
             .packages_of(Some(&[project("lib")]))
-            .is_none()
+            .is_none(),
     );
     assert!(workspace.packages_of(None).is_none());
 }
