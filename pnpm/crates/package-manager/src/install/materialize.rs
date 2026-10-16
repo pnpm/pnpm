@@ -13,8 +13,8 @@ use super::{
     Arc, AtomicU8, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
     InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile, LockfileEntries,
     MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
-    ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, run::InstallView,
+    ThrottledClient, map_fresh_lockfile_error, map_frozen_lockfile_error, run::InstallView,
+    workspace_discovery::WorkspacePackageSource,
 };
 use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
 
@@ -32,7 +32,7 @@ pub(super) struct MaterializationWorkspace<'a> {
     pub(super) dependency_groups: Vec<DependencyGroup>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    pub(super) workspace_projects: Option<&'a [pnpm_workspace::Project]>,
+    pub(super) workspace_packages: WorkspacePackageSource<'a>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
     pub(super) real_importer_ids: &'a HashSet<String>,
     pub(super) workspace_root: &'a Path,
@@ -270,7 +270,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                         lockfile_specifier_manifests_by_id(manifests, self.workspace.workspace_root)
                     }),
                 catalogs: self.workspace.catalogs.clone(),
-                workspace_packages: build_workspace_packages_map(self.workspace.workspace_projects),
+                workspace_packages: self.workspace.workspace_packages.into_packages(),
             },
         }
     }

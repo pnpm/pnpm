@@ -110,7 +110,7 @@ impl DedicatedProjectRuns<'_> {
             slots: Arc::new(Semaphore::new(concurrency)),
             stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
-            caches: DedicatedCaches::default(),
+            caches: self.install_caches(),
             run: &run,
         };
         let position: HashMap<&Path, usize> = order

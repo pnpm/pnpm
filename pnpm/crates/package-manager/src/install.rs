@@ -28,8 +28,10 @@ pub(crate) use workspace_state::{
 
 pub(crate) use verification_gate::IsReplaced;
 pub use verification_gate::LockfileVerificationGate;
+pub use workspace_discovery::WorkspaceDiscoveryCache;
 
 mod entry_points;
+mod workspace_discovery;
 
 mod errors;
 
@@ -430,6 +432,8 @@ pub type WorkspaceDependenciesInstalled =
 /// loaded, parsed and verified once instead of once per project.
 #[derive(Default, Clone)]
 pub struct SharedInstallCaches {
+    /// Opt in only when no install in this command can change workspace inputs.
+    pub workspace: Option<Arc<WorkspaceDiscoveryCache>>,
     pub packuments: Arc<InMemoryPackageMetaCache>,
     pub verifier_lookups: pnpm_resolving_npm_resolver::VerifierLookups,
     pub fetch: pnpm_deps_restorer::SharedFetchCaches,

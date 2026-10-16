@@ -5,7 +5,7 @@ use super::{
         build_root_importer_project_manifests_list, build_selected_project_manifests_list,
         build_workspace_packages_map, configured_or_discovered_workspace_dir,
         dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, load_workspace_projects,
-        lockfile_root_dir,
+        lockfile_root_dir, workspace_discovery::WorkspaceSnapshot,
     },
     InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
     importer_selection::ImporterSelection,
@@ -69,7 +69,7 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) catalogs: super::super::Catalogs,
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
-    pub(super) loaded_workspace_projects: Option<Vec<pnpm_workspace::Project>>,
+    pub(super) loaded_workspace: WorkspaceSnapshot,
     pub(super) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) dirs: WorkspaceDirs<'a>,
 }
@@ -107,21 +107,20 @@ impl<'a> InstallWorkspace<'a> {
         let workspace_projects_are_overridden = owned.projects
             .workspace_projects_override
             .is_some();
-        let loaded_workspace_projects = discovered_workspace_projects(
-            options.selection.is_some(),
-            owned.projects.workspace_projects_override.take(),
-            dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
+        let loaded_workspace = owned.discover_workspace_projects(
+            install,
+            options,
+            &dirs,
             workspace_manifest.as_ref(),
-            &install.context.config.managed_directories(),
         )?;
         report_discovered_scope::<Reporter>(
             install,
             options,
             &dirs,
-            loaded_workspace_projects.as_deref(),
+            loaded_workspace.projects.as_deref(),
         );
         let workspace_packages =
-            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
+            workspace_packages_for_install(install, loaded_workspace.projects.as_deref(), options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -134,7 +133,7 @@ impl<'a> InstallWorkspace<'a> {
             catalog_context_present,
             catalogs,
             workspace_projects_are_overridden,
-            loaded_workspace_projects,
+            loaded_workspace,
             workspace_packages,
             dirs,
         })
