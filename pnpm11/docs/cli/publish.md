@@ -33,6 +33,9 @@ You may override some fields before publish, using the
 [publishConfig] field in `package.json`.
 You also can use the [`publishConfig.directory`](../package_json.md#publishconfigdirectory) to customize the published subdirectory (usually using third party build tools).
 
+For registries that support trusted publishing, OIDC token exchanges preserve the
+configured registry path, such as `/npm/` in `https://registry.example/npm/`.
+
 When running this command recursively (`pnpm -r publish`), pnpm will publish all
 the packages that have versions not yet published to the registry.
 

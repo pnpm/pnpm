@@ -38,6 +38,31 @@ async fn posts_to_escaped_exchange_endpoint_and_returns_token() {
 }
 
 #[tokio::test]
+async fn preserves_registry_path_with_or_without_trailing_slash() {
+    oidc_fetch!(Sys, |request: OidcRequest<'_>| {
+        assert_eq!(
+            request.url,
+            "https://registry.example/npm/private/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg"
+        );
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"token":"registry-token"}"#.to_owned() })
+    });
+
+    for registry in
+        ["https://registry.example/npm/private", "https://registry.example/npm/private/"]
+    {
+        let token = fetch_auth_token::<Sys>(
+            "id-token",
+            "@scope/pkg",
+            registry,
+            &OidcHttpOptions::default(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(token, "registry-token");
+    }
+}
+
+#[tokio::test]
 async fn surfaces_exchange_error_message_from_body() {
     oidc_fetch!(Sys, |_: OidcRequest<'_>| Ok(OidcResponse {
         ok: false,
