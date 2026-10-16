@@ -1,7 +1,7 @@
 //! One `.npmignore` / `.gitignore` line, matched the way ignore-walk matches
 //! it: minimatch with `matchBase`, `dot`, `nocase`, and `flipNegate`.
 
-use super::segment::SegmentPattern;
+use super::segment::{LiteralCase, SegmentPattern};
 use std::{collections::HashSet, iter};
 
 /// Brace expansion stops after this many alternatives, or once it has
@@ -27,13 +27,22 @@ enum Segment {
 impl IgnoreRule {
     /// `line` is already trimmed and is neither empty nor a comment.
     pub(super) fn parse(line: &str) -> Self {
+        Self::parse_with_case(line, LiteralCase::Unicode)
+    }
+
+    /// Like [`Self::parse`], but literal characters ignore ASCII case only.
+    pub(super) fn parse_ascii_case(line: &str) -> Self {
+        Self::parse_with_case(line, LiteralCase::Ascii)
+    }
+
+    fn parse_with_case(line: &str, literal_case: LiteralCase) -> Self {
         let negations = line
             .chars()
             .take_while(|&current| current == '!')
             .count();
         let alternatives = expand_braces(&line[negations..])
             .iter()
-            .map(|pattern| parse_segments(pattern))
+            .map(|pattern| parse_segments(pattern, literal_case))
             .collect();
         IgnoreRule { negate: negations % 2 == 1, alternatives }
     }
@@ -79,7 +88,7 @@ impl IgnoreRule {
     }
 }
 
-fn parse_segments(pattern: &str) -> Vec<Segment> {
+fn parse_segments(pattern: &str, literal_case: LiteralCase) -> Vec<Segment> {
     let mut segments: Vec<Segment> = Vec::new();
     for segment in split_on_slash_runs(pattern) {
         if segment == "**" {
@@ -88,7 +97,7 @@ fn parse_segments(pattern: &str) -> Vec<Segment> {
             }
             continue;
         }
-        segments.push(Segment::Pattern(SegmentPattern::parse(segment)));
+        segments.push(Segment::Pattern(SegmentPattern::parse(segment, literal_case)));
     }
     segments
 }

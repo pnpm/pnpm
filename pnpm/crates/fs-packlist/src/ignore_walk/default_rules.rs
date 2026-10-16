@@ -4,11 +4,12 @@ use std::sync::LazyLock;
 /// The rules npm-packlist's [`defaults`](https://github.com/npm/npm-packlist/blob/v10.0.4/lib/index.js)
 /// apply in every directory, before the directory's own ignore file. They are
 /// soft: a later negation, a `files` entry, or a `main` / `bin` path
-/// re-includes a file they exclude.
+/// re-includes a file they exclude. Like minimatch's `nocase` regex for
+/// these patterns, they ignore ASCII case only.
 static DEFAULT_RULES: LazyLock<Vec<IgnoreRule>> = LazyLock::new(|| {
     DEFAULT_PATTERNS
         .into_iter()
-        .map(IgnoreRule::parse)
+        .map(IgnoreRule::parse_ascii_case)
         .collect()
 });
 

@@ -173,6 +173,25 @@ fn default_rules_match_ascii_case_only() {
 }
 
 #[test]
+fn default_rules_match_ascii_case_only_below_a_candidate_directory() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "config.gypi/.loc\u{212A}-wscript");
+    touch(root, "config.gypi/.wafpic\u{212A}le-1");
+    touch(root, "config.gypi/.lock-wscript");
+
+    assert_eq!(
+        packed(root, &manifest()),
+        names(&[
+            "config.gypi/.loc\u{212A}-wscript",
+            "config.gypi/.wafpic\u{212A}le-1",
+            "package.json",
+        ]),
+    );
+}
+
+#[test]
 fn main_and_bin_reinclude_default_excluded_files() {
     let dir = tempdir().unwrap();
     let root = dir.path();
