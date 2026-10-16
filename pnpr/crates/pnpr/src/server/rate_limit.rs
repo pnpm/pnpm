@@ -17,6 +17,7 @@ enum RateLimitKey {
 }
 
 const MAX_WEB_LOGIN_RECORDS: usize = 1024;
+const EVICTION_MAP_THRESHOLD: usize = 1024;
 const EVICTION_INTERVAL: Duration = Duration::from_secs(30);
 const FULL_EVICTION_COOLDOWN: Duration = Duration::from_secs(1);
 
@@ -69,7 +70,7 @@ impl LoginRateLimiter {
 
     fn evict_if_needed(&self, inner: &mut RateLimiterInner, now: Instant, force: bool) {
         let should_evict = now.duration_since(inner.last_eviction) >= EVICTION_INTERVAL
-            || ((force || inner.map.len() > 1024)
+            || ((force || inner.map.len() > EVICTION_MAP_THRESHOLD)
                 && now.duration_since(inner.last_eviction) >= FULL_EVICTION_COOLDOWN);
         if should_evict {
             let web_login_count = &mut inner.web_login_count;

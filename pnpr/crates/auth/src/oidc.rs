@@ -98,7 +98,7 @@ impl OidcState {
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
             .dns_resolver(network::public_resolver())
-            .tls_certs_only(pnpm_network::bundled_root_certs().iter().cloned())
+            .tls_certs_merge(pnpm_network::bundled_root_certs().iter().cloned())
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()
