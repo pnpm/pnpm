@@ -156,8 +156,8 @@ async fn test_verify_storage_health_and_orphan_prune() {
     let orphan_path = pkg_dir.join("orphaned-blob.tgz");
     std::fs::write(&orphan_path, b"unreferenced").unwrap();
 
-    // 1. Verify detecting the orphan
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
+    // 1. Verify detecting the orphan even with min_age_secs: 86400 (audit reports all orphans)
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 86400 };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.packages_checked, 1);
     assert_eq!(report.versions_checked, 1);
@@ -167,12 +167,25 @@ async fn test_verify_storage_health_and_orphan_prune() {
     assert_eq!(report.orphaned_blobs.len(), 1);
     assert!(orphan_path.exists());
 
-    // 2. Verify with prune_orphans: true
+    // 2. Prune with min_age_secs: 86400 does NOT prune freshly created orphan
+    let guard_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 86400 };
+    let guard_report = verify_storage(&config, &guard_opts).await.unwrap();
+    assert_eq!(guard_report.orphaned_blobs.len(), 0);
+    assert!(orphan_path.exists());
+
+    // 3. Verify with prune_orphans: true and min_age_secs: 0 prunes the orphan
     let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
     let prune_report = verify_storage(&config, &prune_opts).await.unwrap();
     assert_eq!(prune_report.orphaned_blobs.len(), 1);
     assert!(prune_report.prune_failures.is_empty());
     assert!(!orphan_path.exists());
+
+    // 4. Verify an undeclared .sigstore file is pruned when dist.attestations is absent
+    let undeclared_sigstore = pkg_dir.join("demo-pkg-1.0.0.sigstore");
+    std::fs::write(&undeclared_sigstore, b"abandoned sigstore").unwrap();
+    let sigstore_report = verify_storage(&config, &prune_opts).await.unwrap();
+    assert_eq!(sigstore_report.orphaned_blobs.len(), 1);
+    assert!(!undeclared_sigstore.exists());
 }
 
 #[tokio::test]
@@ -315,7 +328,7 @@ cache: '{}'
 registries:
   private:
     type: upstream
-    url: 'https://secretuser:secretpass@registry.example.com/?auth_token=supersecret'
+    url: 'https://secretuser:secretpass@registry.example.com/?auth_token=supersecret&sig=secretsig&X-Amz-Signature=amazonsig'
     public: true
 ",
         storage_dir.display(),
@@ -330,6 +343,8 @@ registries:
     assert!(!output.contains("secretuser"));
     assert!(!output.contains("secretpass"));
     assert!(!output.contains("supersecret"));
+    assert!(!output.contains("secretsig"));
+    assert!(!output.contains("amazonsig"));
     assert!(output.contains("REDACTED"));
 }
 

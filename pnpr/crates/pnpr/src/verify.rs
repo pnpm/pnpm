@@ -236,9 +236,10 @@ async fn check_orphaned_blobs(
             continue;
         }
 
-        if let Ok(elapsed) = file.modified.elapsed()
-            && elapsed.as_secs() < options.min_age_secs
-        {
+        let is_young = file.modified
+            .elapsed()
+            .map_or(true, |elapsed| elapsed.as_secs() < options.min_age_secs);
+        if options.prune_orphans && is_young {
             continue;
         }
 
@@ -292,7 +293,13 @@ fn check_packument_for_blob(
             .and_then(Value::as_str)
             .and_then(filename_from_url)
             .is_some_and(|name| name == file_name);
-        if tarball_match || canon.sigstore_name_for_version(ver) == file_name {
+        let attestation_match = v
+            .get("dist")
+            .and_then(|d| d.get("attestations"))
+            .and_then(|a| a.get("url"))
+            .is_some()
+            && canon.sigstore_name_for_version(ver) == file_name;
+        if tarball_match || attestation_match {
             return true;
         }
     }
