@@ -1,6 +1,6 @@
 use super::{
-    BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_json, common, json, publish_doc, put_json, router, static_config,
+    BASE64, Body, MaxUsers, Request, ServiceExt, StatusCode, TempDir, Value,
+    add_user_and_get_token, body_json, common, json, publish_doc, put_json, router, static_config,
     static_config_with_packages,
 };
 use base64::Engine;
@@ -11,6 +11,21 @@ async fn adduser_creates_user_and_returns_token() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let (_, token) = add_user_and_get_token(app, "alice", "secret").await;
     assert!(!token.is_empty(), "token should be non-empty");
+}
+
+#[tokio::test]
+async fn router_honors_disabled_registration_cap() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.identity.auth.htpasswd.max_users = MaxUsers::Disabled;
+    let app = router(config);
+    let path = "/-/user/org.couchdb.user:alice";
+    let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+    let response = app
+        .oneshot(put_json(path, body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
