@@ -37,8 +37,8 @@ pub(super) fn rebase_settings(settings: &mut Mapping, from_dir: &Path, to_dir: &
     }
 }
 
-/// [`rebase_settings`] for the value of one setting, `name` spelled the way
-/// a settings file spells it.
+/// Rewrite the relative paths in `value`, the value of the setting `name`,
+/// from `from_dir` to `to_dir`.
 pub fn rebase_setting(name: &str, value: &mut Value, from_dir: &Path, to_dir: &Path) {
     let path = |value: &str| rebase_path(value, from_dir, to_dir);
     let specifier =
