@@ -68,6 +68,12 @@ If you use a registry that allows to override existing versions of a package, th
 
 But also be careful and verify that the package is downloaded from the right URL. The URL should be printed in the error message.
 
+## ERR_PNPM_REGISTRY_NAME_MISMATCH
+
+The registry answered a request for one package with the metadata of a different package. pnpm stops instead of installing the package under a name the registry was not asked about.
+
+Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
+
 ## ERR_PNPM_MISMATCHED_RELEASE_CHANNEL
 
 The config field `use-node-version` defines a release channel different from version suffix.
