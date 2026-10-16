@@ -153,6 +153,13 @@ pub enum PickPackageFromMetaError {
         #[error(not(source))]
         pkg_name: String,
     },
+    /// `ERR_PNPM_REGISTRY_NAME_MISMATCH`: the packument names a package
+    /// other than the requested one.
+    #[display(
+        r#"The registry returned metadata for "{returned_name}" when "{pkg_name}" was requested"#
+    )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_NAME_MISMATCH))]
+    NameMismatch { pkg_name: String, returned_name: String },
 }
 
 /// Pure picker entry point.
@@ -176,6 +183,7 @@ pub fn pick_package_from_meta<PickFn>(
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
+    assert_meta_names_requested_package(meta, spec)?;
     // "Owned-after-filter" shape: when publishedBy is active and a
     // maturity filter applies, swap `meta` for the filtered view —
     // otherwise borrow the input through.
@@ -213,7 +221,7 @@ where
             undecodable_excluded = Some(without_version(meta_now, &version));
             continue;
         };
-        return Ok(Some(pinned_manifest(manifest, meta_now)));
+        return Ok(Some(manifest_under_requested_name(manifest, spec)));
     }
 }
 
@@ -226,15 +234,33 @@ fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageF
     PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
 }
 
+/// The registry may confirm the identity of the requested package but
+/// never change it: build policy, trust policy, and the lockfile all key
+/// on the resolved name.
+fn assert_meta_names_requested_package(
+    meta: &Package,
+    spec: &RegistryPackageSpec,
+) -> Result<(), PickPackageFromMetaError> {
+    if meta.name.is_empty() || meta.name == spec.name {
+        return Ok(());
+    }
+    Err(PickPackageFromMetaError::NameMismatch {
+        pkg_name: spec.name.clone(),
+        returned_name: meta.name.clone(),
+    })
+}
+
 /// GitHub registry quirk: a scoped package can be published as `@owner/foo`
-/// while the per-version `name` is just `foo`. The manifest name is pinned
-/// to the packument-level name.
-fn pinned_manifest(manifest: Arc<PackageVersion>, meta: &Package) -> Arc<PackageVersion> {
-    if meta.name.is_empty() || manifest.name == meta.name {
+/// while the per-version `name` is just `foo`.
+fn manifest_under_requested_name(
+    manifest: Arc<PackageVersion>,
+    spec: &RegistryPackageSpec,
+) -> Arc<PackageVersion> {
+    if manifest.name == spec.name {
         return manifest;
     }
     let mut pinned = (*manifest).clone();
-    pinned.name.clone_from(&meta.name);
+    pinned.name.clone_from(&spec.name);
     Arc::new(pinned)
 }
 

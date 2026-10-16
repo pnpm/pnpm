@@ -584,6 +584,38 @@ fn preferred_selector_pick_uses_canonical_packument_name() {
 }
 
 #[test]
+fn pick_from_meta_rejects_packument_naming_another_package() {
+    let pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    let err = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("@untrusted/denied-pkg", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect_err("name mismatch");
+    assert_eq!(
+        err.to_string(),
+        r#"The registry returned metadata for "approved-pkg" when "@untrusted/denied-pkg" was requested"#,
+    );
+    assert!(matches!(err, PickPackageFromMetaError::NameMismatch { .. }), "got {err:?}");
+}
+
+#[test]
+fn pick_from_meta_resolves_unnamed_packument_under_requested_name() {
+    let mut pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    pkg.name = String::new();
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect("pick")
+    .expect("manifest");
+    assert_eq!(picked.name, "acme");
+}
+
+#[test]
 fn pick_from_meta_tag_spec_reads_dist_tag() {
     let pkg = make_package(
         "acme",
