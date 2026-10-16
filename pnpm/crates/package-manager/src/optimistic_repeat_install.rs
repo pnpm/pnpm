@@ -12,6 +12,7 @@
 
 pub(crate) mod conflict_markers;
 pub(crate) mod deps_status;
+pub(crate) mod freshness;
 pub(crate) mod local_file_deps;
 pub(crate) mod manifest_agreement;
 pub(crate) mod settings;
@@ -36,10 +37,9 @@ pub(crate) use settings::{
     recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms,
-    filesystem_now_ms_in_modules, lockfile_modified_since, manifest_drift_reference_ms,
-    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
-    wanted_lockfile_mtime,
+    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
+    lockfile_modified_since, manifest_drift_reference_ms, modified_at_or_after, mtime_ms,
+    refreshed_validation_baseline_ms, validation_baseline_ms, wanted_lockfile_mtime,
 };
 
 mod current_lockfile;
@@ -47,15 +47,16 @@ mod manifest_source;
 mod modules_dirs;
 mod relocation;
 mod settle;
+use freshness::{
+    Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+};
 use modules_dirs::{
     direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_from_current_lockfile,
     first_selected_project_missing_modules_dir, modules_dirs_present,
 };
 use settle::{
-    content_check_decision, current_lockfile_file_has_content,
-    current_lockfile_unusable_with_non_empty_wanted, early_repeat_verdict,
-    project_structure_matches, settle_repeat_install, wanted_lockfile_file_has_content,
+    current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
 };
 
 use std::{
@@ -175,100 +176,34 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let (state, moved) =
         relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
             .map_or((state, false), |relocated| (relocated, true));
-    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings, moved);
+    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings);
     if let Some(reason) = blocked {
         return Decision::Skipped { reason };
     }
-    // The fast-path conclusion: walk every manifest and report up to
-    // date when none have an mtime newer than
-    // `workspaceState.lastValidatedTimestamp`. The walk has to
-    // succeed (read errors mean we can't *prove* freshness, so fall
-    // through).
-    let Some(drift) = ManifestDrift::stat(check, &state) else {
-        return Decision::Skipped { reason: "failed to stat a project manifest" };
+    // The fast-path conclusion: nothing newer than the last validation, or
+    // a content re-check proving the newer files still agree with the
+    // lockfile. A rewrite that left the dependency fields intact (`touch`,
+    // a `scripts` edit, `npm pkg set/delete`) still reports up to date.
+    let policy = GatePolicy {
+        gate: Gate::Install,
+        missing_wanted_lockfile: MissingWantedLockfile::Restore,
+        newer_patch: NewerPatch::Refuse,
+        dedupe_peers: check.config.dedupe_peers,
+        recorded_groups: RecordedGroups::Current,
     };
-    if moved {
-        return relocation::moved_tree_decision(check, &state, &drift);
+    match check_freshness(check, &state, moved, &policy) {
+        Ok(()) => Decision::UpToDate,
+        Err(stale) => Decision::Skipped { reason: skip_reason(stale) },
     }
-    let modified = drift.modified();
-    if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
-        return decision;
-    }
-    content_check_decision(check, &state, &drift, modified)
 }
 
-/// Every project manifest's mtime against the timestamp that proves it
-/// unchanged, and whether the wanted lockfile itself moved since the last
-/// validation.
-pub(crate) struct ManifestDrift<'a> {
-    stats: Vec<ManifestStat<'a>>,
-    //// A lockfile-only change — `git checkout`/stash-restore of just
-    //// `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
-    //// untouched but still invalidates the install. Probe the wanted
-    //// lockfile's mtime before the manifest-mtime exit so a lockfile
-    //// modification is not missed. A missing lockfile reports `false`
-    //// here — it is handled by the existence and stand-in gates, not
-    //// treated as a modification.
-    pub(crate) lockfile_modified: bool,
-    /// Per [`manifest_drift_reference_ms`].
-    manifest_reference_ms: i64,
-    /// The wanted lockfile's mtime when [`Self::stat`] ran.
-    lockfile_mtime: Option<FileMtime>,
-}
-
-impl<'a> ManifestDrift<'a> {
-    /// `None` when a manifest cannot be stat'd, which leaves freshness
-    /// unprovable. In-memory manifests ([`ManifestFreshness::Content`]) are
-    /// not stat'd: each one counts as possibly modified, so the content
-    /// re-check covers them all.
-    pub(crate) fn stat(
-        check: &OptimisticRepeatInstallCheck<'a>,
-        state: &WorkspaceState,
-    ) -> Option<Self> {
-        let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
-        let stats = match check.manifests.freshness {
-            ManifestFreshness::Mtime => stat_manifests(check.project_manifests)?,
-            ManifestFreshness::Content => unstatted_manifests(check.project_manifests),
-        };
-        Some(Self {
-            stats,
-            lockfile_modified: lockfile_mtime.is_some_and(|mtime| {
-                lockfile_modified_since(mtime, state.last_validated_timestamp)
-            }),
-            manifest_reference_ms: manifest_drift_reference_ms(
-                check.config,
-                check.is_workspace_install,
-                state.last_validated_timestamp,
-                lockfile_mtime,
-            ),
-            lockfile_mtime,
-        })
-    }
-
-    /// Whether the wanted lockfile still has the mtime [`Self::stat`] saw.
-    /// A content check that passed validated the lockfile it read, so a
-    /// lockfile rewritten since must not have its mtime recorded as
-    /// validated.
-    pub(crate) fn lockfile_unchanged(&self, check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-        let mtime_ns = |mtime: Option<FileMtime>| mtime.map(|mtime| mtime.ns);
-        mtime_ns(self.lockfile_mtime)
-            == mtime_ns(wanted_lockfile_mtime(check.workspace_root, check.config))
-    }
-
-    pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
-        self.stats
-            .iter()
-            .filter(|stat| stat.possibly_modified_since(self.manifest_reference_ms))
-            .collect()
-    }
-
-    /// The projects the content check covers: every one when the lockfile
-    /// itself changed, else the modified ones.
-    pub(crate) fn projects_to_check<'s>(
-        &'s self,
-        modified: Vec<&'s ManifestStat<'a>>,
-    ) -> Vec<&'s ManifestStat<'a>> {
-        if self.lockfile_modified { self.stats.iter().collect() } else { modified }
+/// The diagnostic reason the fast path is skipped for.
+fn skip_reason(stale: Stale) -> &'static str {
+    match stale {
+        Stale::Unprovable => "failed to stat a project manifest",
+        Stale::NothingInstalled => "current lockfile missing",
+        Stale::NoLockfile => "wanted lockfile missing",
+        Stale::MoveRefused(reason) | Stale::Content(reason) => reason,
     }
 }
 
@@ -290,12 +225,11 @@ fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
 }
 
 /// The first reason the recorded workspace state cannot prove this install is
-/// a no-op. `moved` marks a state [`relocation::relocated_state`] re-keyed.
+/// a no-op.
 fn state_blocks_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     ignored_workspace_state_settings: &[&str],
-    moved: bool,
 ) -> Option<&'static str> {
     // A filtered install refreshes `lastValidatedTimestamp` while
     // materializing only the projects it selected, so its state cannot
@@ -313,7 +247,7 @@ fn state_blocks_fast_path(
     }
     local_file_blocks_fast_path(check)
         .or_else(|| settings_block_fast_path(check, state, ignored_workspace_state_settings))
-        .or_else(|| lockfile_inputs_block_fast_path(check, state, moved))
+        .or_else(|| lockfile_inputs_block_fast_path(check, state))
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
@@ -397,14 +331,11 @@ fn settings_block_fast_path(
 }
 
 /// The lockfile and the resolution inputs beside the manifests: a missing
-/// lockfile the current one may not stand in for, an edited patch, an edited
-/// pnpmfile. The patch mtimes of a `moved` tree come from where it was
-/// validated, so its patches are left to the content proof, which hashes
-/// them.
+/// lockfile the current one may not stand in for, an edited pnpmfile. An
+/// edited patch is left to the content phase's [`NewerPatch`] policy.
 fn lockfile_inputs_block_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    moved: bool,
 ) -> Option<&'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -420,7 +351,7 @@ fn lockfile_inputs_block_fast_path(
     // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
     // scan `continue`s on ENOENT, and the missing lockfile is restored
     // from the current one rather than failing). The mtime side of that
-    // probe is handled by `ManifestDrift::stat` in the caller.
+    // probe is handled by `InputDrift::stat` in the content phase.
     // The current lockfile is not a stand-in for a missing *branch*
     // lockfile: it records what the previous branch's install
     // materialized, and pnpm refuses the substitution for the same
@@ -435,14 +366,6 @@ fn lockfile_inputs_block_fast_path(
         && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some("wanted lockfile missing");
-    }
-    // A patch file edited in place keeps the same `patchedDependencies`
-    // key→path entry (so `settings_match` can't see the change) but
-    // changes the patched output and the patch hash. This check runs
-    // before the manifest-modified exit so the patch reason wins when
-    // both a patch and a manifest are newer than the last validation.
-    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
-        return Some("a patch file is newer than the last validation");
     }
     // A pnpmfile added, removed, or edited in place can change
     // resolution (readPackage rewrites, custom resolvers, a

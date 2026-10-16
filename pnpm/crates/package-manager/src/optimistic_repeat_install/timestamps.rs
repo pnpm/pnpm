@@ -120,10 +120,6 @@ pub(crate) fn validation_baseline_ms(
 /// the state file for the first time. `None` when the probe cannot be
 /// created or stat'd, leaving the caller with the mtime-derived
 /// baseline.
-pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
-    filesystem_now_ms_in_modules(&workspace_root.join("node_modules"))
-}
-
 pub(crate) fn filesystem_now_ms_in_modules(parent: &Path) -> Option<i64> {
     fs::create_dir_all(parent).ok()?;
     let probe = tempfile::tempfile_in(parent).ok()?;

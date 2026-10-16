@@ -1,7 +1,8 @@
 use super::{
     super::{
-        Decision, ManifestDrift, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         deps_status::{RunDepsStatus, check_deps_status_before_run},
+        freshness::InputDrift,
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
     },
@@ -12,7 +13,7 @@ use super::{
     validate_existing_files, write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
@@ -618,7 +619,7 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
         manifests: crate::RepeatInstallManifests::ON_DISK,
     };
     let state = load_workspace_state(dir.path()).unwrap().unwrap();
-    let drift = ManifestDrift::stat(&check, &state).unwrap();
+    let drift = InputDrift::stat(&check, &state).unwrap();
     assert!(drift.lockfile_unchanged(&check));
 
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
@@ -871,5 +872,46 @@ fn detects_an_edit_during_install_against_the_current_lockfile_stand_in() {
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
         "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+}
+
+/// A workspace without projects has no manifest to compare, but a changed
+/// lockfile still has to parse before the fast path may skip the install.
+#[test]
+fn workspace_without_projects_refuses_a_changed_unparsable_lockfile() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+    fs::write(&lockfile_path, "lockfileVersion: '9.0'\n").unwrap();
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let timestamp = backdate_validated_files(workspace_root);
+    write_state(workspace_root, timestamp, settings, BTreeMap::new());
+    fs::write(&lockfile_path, "lockfileVersion: '9.0'\nimporters: [\n").unwrap();
+    set_mtime_ms(&lockfile_path, timestamp + MTIME_STEP_MS);
+
+    let lazy =
+        LazyLockfile::deferred(workspace_root.to_path_buf(), config.wanted_lockfile_selection());
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests: &[],
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Lazy(&lazy),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    });
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "the wanted lockfile cannot be read or parsed" },
     );
 }

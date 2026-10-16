@@ -1,133 +1,15 @@
 use super::{
-    Decision, ManifestDrift, OptimisticRepeatInstallCheck, filesystem_now_ms,
-    manifest_agreement::{LinkedPackagesContext, ManifestStat},
-    manifest_string_field, modified_manifests_match_lockfile,
+    OptimisticRepeatInstallCheck, manifest_agreement::LinkedPackagesContext, manifest_string_field,
 };
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::Host;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::WorkspaceState;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 
-/// The verdict the fast path can already reach from the current lockfile and
-/// the fact that nothing was modified.
-pub(super) fn early_repeat_verdict(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    modified: &[&ManifestStat<'_>],
-    lockfile_modified: bool,
-) -> Option<Decision> {
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => return Some(Decision::Skipped { reason: "current lockfile missing" }),
-        Ok(false) => {}
-        Err(reason) => return Some(Decision::Skipped { reason }),
-    }
-    if modified.is_empty() && !lockfile_modified {
-        return Some(match regenerate_wanted_lockfile_if_missing(check, None) {
-            Ok(()) => Decision::UpToDate,
-            Err(reason) => Decision::Skipped { reason },
-        });
-    }
-    None
-}
-/// The fast path's verdict once some manifest or the lockfile may have
-/// changed: the content check, settled in place when it passes.
-pub(super) fn content_check_decision(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    drift: &ManifestDrift<'_>,
-    modified: Vec<&ManifestStat<'_>>,
-) -> Decision {
-    // A newer mtime alone doesn't invalidate: the modified-manifests
-    // branch re-checks the *content* against the wanted lockfile so a
-    // rewrite that left the dependency fields intact — `touch`, a
-    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
-    // When only the lockfile changed, every project is validated rather
-    // than just the modified ones.
-    let projects_to_check = drift.projects_to_check(modified);
-    let refresh_state = check.is_workspace_install || drift.lockfile_modified;
-    let filesystem_now = refresh_state.then(|| filesystem_now_ms(check.workspace_root)).flatten();
-    match modified_manifests_match_lockfile(
-        check,
-        state,
-        &projects_to_check,
-        check.config.dedupe_peers,
-    ) {
-        Ok(loaded_current) => {
-            let refresh_state = refresh_state && drift.lockfile_unchanged(check);
-            match settle_repeat_install(check, state, loaded_current, filesystem_now, refresh_state)
-            {
-                Ok(()) => Decision::UpToDate,
-                Err(reason) => Decision::Skipped { reason },
-            }
-        }
-        Err(reason) => Decision::Skipped { reason },
-    }
-}
-
-/// Restore a missing wanted lockfile and refresh `lastValidatedTimestamp`
-/// after the content checks passed, so a repeat run short-circuits earlier.
-///
-/// The state is rewritten only when `refresh_state` is set: in a workspace,
-/// after a single project's lockfile changed, and for a tree that moved and
-/// has to be recorded where it is now. A single project's manifest drift is
-/// keyed to the lockfile mtimes, so it needs no refresh otherwise. A failed
-/// write only costs the next run a repeat of the content check, so it
-/// degrades rather than fails.
-pub(super) fn settle_repeat_install(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    loaded_current: Option<Lockfile>,
-    filesystem_now: Option<i64>,
-    refresh_state: bool,
-) -> Result<(), &'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
-    if !refresh_state {
-        return Ok(());
-    }
-    // This path refreshes the timestamp without materializing anything, so
-    // it carries the previous run's `filtered_install` forward: clearing it
-    // would claim every importer is materialized when a filtered install
-    // left the unselected ones untouched.
-    let mut new_state = crate::install::build_workspace_state::<Host>(
-        workspace_root,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        catalogs,
-        project_manifests,
-        state.filtered_install,
-        filesystem_now,
-    );
-    new_state.settings.auto_dedupe =
-        crate::install::recorded_auto_dedupe(config, state.settings.auto_dedupe);
-    if let Err(error) = update_workspace_state(workspace_root, &new_state) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to refresh the workspace state after the repeat-install content check",
-        );
-    }
-    Ok(())
-}
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before
 /// the fast path reports "Already up to date", so the short-circuit
 /// leaves the same on-disk contract a full install would (the full
