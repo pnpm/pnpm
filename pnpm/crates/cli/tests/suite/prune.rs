@@ -167,6 +167,7 @@ fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
         .success();
     assert!(!workspace.join("pnpm-lock.yaml").exists(), "install must not write a lockfile");
     assert!(has_link(&workspace, PROD));
+    assert!(has_link(&workspace, FILTERED));
 
     pacquet_in(&workspace)
         .with_args(["prune", "--prod"])
