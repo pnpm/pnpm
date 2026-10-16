@@ -293,6 +293,54 @@ fn ctrl_c_ends_pnpm_with_the_signal_without_a_lifecycle_failure() {
     drop(root);
 }
 
+/// A recursive run the user interrupts ends pnpm with the signal too, and
+/// reports no run failure for the scripts the interrupt ended
+/// ([pnpm/pnpm#16964](https://github.com/pnpm/pnpm/issues/16964)).
+#[test]
+fn ctrl_c_ends_a_parallel_run_with_the_signal_without_a_run_failure() {
+    assert_ctrl_c_ends_recursive_run(&["--filter=./project-*", "--parallel"], &RECURSIVE_PROJECTS);
+}
+
+/// The same for a recursive run that selects one project, whose script
+/// runs in the terminal's foreground group.
+#[test]
+fn ctrl_c_ends_a_filtered_run_with_the_signal_without_a_run_failure() {
+    assert_ctrl_c_ends_recursive_run(&["--filter=project-1"], &RECURSIVE_PROJECTS[..1]);
+}
+
+const RECURSIVE_PROJECTS: [&str; 2] = ["project-1", "project-2"];
+
+fn assert_ctrl_c_ends_recursive_run(selection: &[&str], started: &[&str]) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &RECURSIVE_PROJECTS, LINGERING_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(
+        pacquet
+            .with_args(["--config.verify-deps-before-run=false", "-r"])
+            .with_args(selection)
+            .with_args(["run", "dev"]),
+    );
+    for project in started {
+        wait_for_file(&workspace.join(project).join("started.txt"), &mut process);
+    }
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGINT),
+        "an interrupted recursive run ends pnpm with SIGINT\n{output}",
+    );
+    assert!(
+        !output.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL") && !output.contains("ELIFECYCLE"),
+        "scripts the user interrupted are not a run failure\n{output}",
+    );
+
+    drop(root);
+}
+
 /// Without a terminal, the shell running the script may stay its parent
 /// (dash does) and then keeps a relayed `SIGINT` to itself until its
 /// child exits. pnpm signals the script's whole process group instead,

@@ -35,7 +35,7 @@ use execution::{RunOutcome, RunSlots, TaskRunner};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, TaskSettings};
-use pnpm_executor::{ProcessTracker, ScriptOutput};
+use pnpm_executor::{ProcessTracker, ScriptExit, ScriptOutput, exit_like};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -227,6 +227,8 @@ struct RunResults {
     ran_a_command: bool,
     /// The first failed project's prefix, when `--bail` stopped the run.
     first_failure: Option<String>,
+    /// How the first script the user's interrupt ended exited.
+    interrupted: Option<ScriptExit>,
 }
 
 impl RecursiveRun<'_, '_> {
@@ -252,6 +254,12 @@ impl RecursiveRun<'_, '_> {
             self.reporter,
         )?;
         let results = self.execute(&prepared)?;
+        // The user ended the run, so pnpm ends the way the interrupted
+        // script did rather than reporting the scripts as failed
+        // (pnpm/pnpm#16964).
+        if let Some(exit) = results.interrupted {
+            exit_like(exit);
+        }
         report_run_outcome(
             &RunReporting {
                 args: self.args,
@@ -405,6 +413,7 @@ impl RecursiveRun<'_, '_> {
                 result: &slots.result,
                 has_command: &slots.has_command,
                 first_failure: &slots.first_failure,
+                interrupted: &slots.interrupted,
                 abort: &slots.abort,
                 process_tracker: process_tracker.as_ref(),
                 task_run_state: &prepared.task_run_state,

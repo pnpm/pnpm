@@ -1,11 +1,10 @@
 use super::{
-    Instant, Mutex, ProcessTracker, ProjectExecution, ProjectScripts, RunContext, ScriptRunState,
-    TaskCompletion, apply_script_result, reenters_running_script, run_stages,
-    runnable_project_script, start_script,
+    Mutex, ProcessTracker, ProjectExecution, ProjectScripts, RunContext, ScriptRunState,
+    SettledScript, TaskCompletion, apply_script_result, reenters_running_script,
+    run_settled_script, runnable_project_script, start_script,
 };
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
-use pnpm_executor::ScriptExit;
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, schedule_graph};
 
 /// Dispatch the task's scripts over the shared scheduler, then fold what
@@ -71,9 +70,8 @@ fn run_one_script(
         .lock()
         .expect("run state lock is not poisoned")
         .before_script();
-    let start = Instant::now();
-    match run_stages(ctx, selected, &script, run.options.args.script_args()) {
-        Ok(status) => settle_script(ctx, state, status, start.elapsed().as_secs_f64() * 1e3),
+    match run_settled_script(ctx, selected, &script, run.options.args.script_args()) {
+        Ok(settled) => settle_script(ctx, state, settled),
         Err(error) => abort_run(run.options.process.process_tracker, abort, error),
     }
 }
@@ -81,11 +79,10 @@ fn run_one_script(
 fn settle_script(
     ctx: &RunContext<'_>,
     state: &Mutex<ScriptRunState>,
-    status: ScriptExit,
-    duration: f64,
+    settled: SettledScript,
 ) -> TaskCompletion {
     let mut state = state.lock().expect("run state lock is not poisoned");
-    if !apply_script_result(&mut state, ctx, status, duration) {
+    if !apply_script_result(&mut state, ctx, settled) {
         return TaskCompletion::Cancelled;
     }
     if state.failed {
