@@ -852,3 +852,67 @@ async fn workload_namespace_does_not_consult_the_token_backend() {
     let app = app_with_token(&tmp, raw, record(false, &[]));
     assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn post_v1_login_uses_peer_addr_fallback_for_rate_limiting() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.http.public_url = "https://registry.example".to_string();
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "login_provider", "issuer": "https://login.example", "audience": "pnpr",
+        "login": { "users": [{ "subject": "alice", "username": "alice" }] },
+    }]))
+    .unwrap();
+    let app = crate::router(config);
+
+    let peer_a: SocketAddr = "192.168.1.1:12345".parse().unwrap();
+    let peer_b: SocketAddr = "192.168.1.2:12345".parse().unwrap();
+
+    // 20 requests from peer A succeed
+    for _ in 0..20 {
+        let req = with_peer(
+            Request::post("/-/v1/login")
+                .body(Body::empty())
+                .unwrap(),
+            peer_a,
+        );
+        assert_eq!(
+            app.clone()
+                .oneshot(req)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::ACCEPTED,
+        );
+    }
+
+    // 21st request from peer A is throttled (429)
+    let req_a = with_peer(
+        Request::post("/-/v1/login")
+            .body(Body::empty())
+            .unwrap(),
+        peer_a,
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(req_a)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::TOO_MANY_REQUESTS,
+    );
+
+    // Request from peer B is still allowed under its own peer quota
+    let req_b = with_peer(
+        Request::post("/-/v1/login")
+            .body(Body::empty())
+            .unwrap(),
+        peer_b,
+    );
+    assert_eq!(
+        app.oneshot(req_b).await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+}

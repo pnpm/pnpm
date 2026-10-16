@@ -26,21 +26,49 @@ pub(crate) struct PollPath {
     session: String,
 }
 
+fn has_oidc_login_provider(state: &AppState) -> bool {
+    state.inner.config.identity.auth.oidc.iter().any(|provider| provider.login.is_some())
+}
+
+fn resolve_rate_limit_ips(
+    client_ip: Option<axum::extract::Extension<super::ClientIp>>,
+    peer_addr: Option<axum::extract::Extension<axum::extract::ConnectInfo<super::PeerAddr>>>,
+) -> (Option<std::net::IpAddr>, Option<std::net::IpAddr>) {
+    let ip = client_ip.map(|axum::extract::Extension(super::ClientIp(addr))| addr);
+    let peer = peer_addr.map(
+        |axum::extract::Extension(axum::extract::ConnectInfo(super::PeerAddr(addr)))| addr.ip(),
+    );
+    (ip, peer)
+}
+
+fn build_login_urls(
+    public_url: &str,
+    registry: Option<&str>,
+    tokens: &pnpr_auth::oidc::WebLoginTokens,
+) -> (String, String) {
+    let base = public_url.trim_end_matches('/');
+    let prefix = registry
+        .map(|reg| format!("/~{reg}"))
+        .unwrap_or_default();
+    (
+        format!("{base}{prefix}/-/v1/login/start?session={}", tokens.browser_session_id),
+        format!("{base}{prefix}/-/v1/login/poll/{}", tokens.poll_token),
+    )
+}
+
 /// `POST /-/v1/login` or `POST /~{registry}/-/v1/login`: initiate CLI web login.
 pub(crate) async fn post_v1_login(
     State(state): State<AppState>,
     TargetRegistry(registry): TargetRegistry,
     client_ip: Option<axum::extract::Extension<super::ClientIp>>,
+    peer_addr: Option<axum::extract::Extension<axum::extract::ConnectInfo<super::PeerAddr>>>,
 ) -> Response {
-    let has_oidc_login = state.inner.config.identity.auth.oidc
-        .iter()
-        .any(|provider| provider.login.is_some());
-    if !has_oidc_login {
+    if !has_oidc_login_provider(&state) {
         return not_found();
     }
-    let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
+    let (ip_address, peer_ip) = resolve_rate_limit_ips(client_ip, peer_addr);
     if let Err(retry_after) =
-        state.inner.identity.login_rate_limiter.check_and_record_web_login(ip_address)
+        state.inner.identity.login_rate_limiter.check_and_record_web_login(ip_address, peer_ip)
     {
         return super::user_accounts::login_throttled_response(&state, retry_after);
     }
@@ -48,14 +76,8 @@ pub(crate) async fn post_v1_login(
         Ok(tokens) => tokens,
         Err(err) => return err.into_response(),
     };
-    let public_url = state.inner.config.http.public_url.trim_end_matches('/');
-    let prefix = match registry {
-        Some(reg) => format!("/~{reg}"),
-        None => String::new(),
-    };
-    let login_url =
-        format!("{public_url}{prefix}/-/v1/login/start?session={}", tokens.browser_session_id);
-    let done_url = format!("{public_url}{prefix}/-/v1/login/poll/{}", tokens.poll_token);
+    let (login_url, done_url) =
+        build_login_urls(&state.inner.config.http.public_url, registry.as_deref(), &tokens);
     private_no_cache(
         (
             StatusCode::ACCEPTED,
