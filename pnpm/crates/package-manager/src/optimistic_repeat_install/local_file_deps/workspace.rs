@@ -40,6 +40,9 @@ pub(super) fn dependency_is_workspace_or_injected(
     let Some(spec_str) = spec.as_str() else {
         return false;
     };
+    if spec_str.starts_with("workspace:") {
+        return true;
+    }
     let resolved_spec = if spec_str.starts_with("catalog:") {
         resolve_catalog_spec(catalogs, alias, spec_str)
     } else {
