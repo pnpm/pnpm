@@ -11,7 +11,7 @@ export function isSameSource (spec1: string, spec2: string, alias: string): bool
 function getSpecifierSource (spec: string, alias: string): string {
   const hosted = HostedGit.fromUrl(spec)
   if (hosted) {
-    return `git:${hosted.type}:${hosted.user}:${hosted.project}`
+    return `git:${hosted.shortcut({ noCommittish: true })}`
   }
   if (spec.startsWith('git+') || spec.startsWith('git:') || spec.endsWith('.git')) {
     const repoPart = spec.split('#')[0]

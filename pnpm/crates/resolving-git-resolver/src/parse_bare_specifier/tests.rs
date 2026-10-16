@@ -91,6 +91,18 @@ fn finalize_hosted_uses_canonical_https() {
 }
 
 #[test]
+fn finalize_gist_uses_canonical_https() {
+    for bare in
+        ["gist:abc123", "https://gist.github.com/foo/abc123", "git@gist.github.com:abc123.git"]
+    {
+        let spec = parse_bare_specifier(bare).expect("hosted").finalize();
+        assert_eq!(spec.fetch_spec, "https://gist.github.com/abc123.git", "bare: {bare}");
+        assert_eq!(spec.normalized_bare_specifier, "gist:abc123", "bare: {bare}");
+        assert!(spec.hosted.is_some(), "bare: {bare}");
+    }
+}
+
+#[test]
 fn finalize_hosted_ssh_input_becomes_the_same_https_identity() {
     let kind = parse_bare_specifier("git+ssh://git@github.com/foo/bar.git").expect("hosted");
     let spec = kind.finalize();

@@ -5,6 +5,7 @@ import { isSameSource } from '../src/isSameSource.js'
 test('isSameSource checks whether specifiers point to the same source', () => {
   expect(isSameSource('github:foo-org/skills#main', 'github:foo-org/skills#v1', 'skills')).toBe(true)
   expect(isSameSource('github:foo-org/skills', 'github:vercel-labs/skills', 'skills')).toBe(false)
+  expect(isSameSource('gist:abc123', 'https://gist.github.com/foo/abc123', 'abc123')).toBe(true)
   expect(isSameSource('^1.0.0', '^2.0.0', 'express')).toBe(true)
   expect(isSameSource('^1.0.0', 'github:vercel-labs/skills', 'skills')).toBe(false)
   expect(isSameSource('npm:foo@1.0.0', 'npm:foo@2.0.0', 'my-foo')).toBe(true)
