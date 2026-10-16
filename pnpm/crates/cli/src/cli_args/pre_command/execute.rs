@@ -18,7 +18,7 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            sync_env_lockfile(sync).await?;
+            Box::pin(sync_env_lockfile(sync)).await?;
             Ok(false)
         }
     }
