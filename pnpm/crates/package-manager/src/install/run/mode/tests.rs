@@ -41,7 +41,7 @@ fn rollback_restores_a_symlinked_include_through_the_link() {
         link.symlink_metadata()
             .expect("link")
             .file_type()
-            .is_symlink()
+            .is_symlink(),
     );
     assert_eq!(
         std::fs::read_to_string(&shared).expect("read include"),
