@@ -7,7 +7,7 @@ use super::{
     first_selected_project_missing_from_current_lockfile,
     first_selected_project_missing_modules_dir, first_setting_drift,
     freshness::{
-        GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+        Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
     },
     pnpmfiles_drift, project_structure_matches,
     relocation::relocated_state,
@@ -71,6 +71,7 @@ pub fn check_deps_status_before_run(
     }
 
     let policy = GatePolicy {
+        gate: Gate::Run,
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
         newer_patch: NewerPatch::CompareHash,
         // The TypeScript run/exec handler does not forward `dedupePeers`

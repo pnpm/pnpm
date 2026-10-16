@@ -48,7 +48,7 @@ mod modules_dirs;
 mod relocation;
 mod settle;
 use freshness::{
-    GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+    Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
 };
 use modules_dirs::{
     direct_dependency_link_dangling, first_project_missing_modules_dir,
@@ -185,6 +185,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // lockfile. A rewrite that left the dependency fields intact (`touch`,
     // a `scripts` edit, `npm pkg set/delete`) still reports up to date.
     let policy = GatePolicy {
+        gate: Gate::Install,
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
         newer_patch: NewerPatch::Refuse,
         dedupe_peers: check.config.dedupe_peers,

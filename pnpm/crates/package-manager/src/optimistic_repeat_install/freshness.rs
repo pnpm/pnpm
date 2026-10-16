@@ -17,11 +17,18 @@ use super::{
 
 /// What a gate does differently in the shared content phase.
 pub(super) struct GatePolicy {
+    /// The gate a failed state write is logged under.
+    pub(super) gate: Gate,
     pub(super) missing_wanted_lockfile: MissingWantedLockfile,
     pub(super) newer_patch: NewerPatch,
     /// Whether the content check applies `dedupePeers`.
     pub(super) dedupe_peers: bool,
     pub(super) recorded_groups: RecordedGroups,
+}
+
+pub(super) enum Gate {
+    Install,
+    Run,
 }
 
 /// What a gate does when `pnpm-lock.yaml` is missing and the current lockfile
@@ -103,7 +110,9 @@ pub(super) fn check_freshness(
     }
     require_installed(check)?;
     let projects_to_check = drift.projects_to_check(modified);
-    let loaded_current = if projects_to_check.is_empty() {
+    // Only a patch changed: the hash check above covered it, and no project
+    // or lockfile content is left to compare.
+    let loaded_current = if projects_to_check.is_empty() && !drift.lockfile_modified {
         None
     } else {
         modified_manifests_match_lockfile(check, state, &projects_to_check, policy.dedupe_peers)
@@ -310,14 +319,23 @@ fn record_state(
 ) {
     let new_state = refreshed_state(check, state, filesystem_now, policy);
     let modules_dir = check.config.workspace_state_modules_dir(check.workspace_root);
-    if let Err(error) =
+    let Err(error) =
         pnpm_workspace_state::update_workspace_state_in_modules(&modules_dir, &new_state)
-    {
-        tracing::warn!(
+    else {
+        return;
+    };
+    // `tracing` takes the target as a literal.
+    match policy.gate {
+        Gate::Install => tracing::warn!(
             target: "pacquet::install",
             ?error,
-            "Failed to refresh the workspace state after the dependency content check",
-        );
+            "Failed to refresh the workspace state after the repeat-install content check",
+        ),
+        Gate::Run => tracing::warn!(
+            target: "pacquet::run",
+            ?error,
+            "Failed to refresh the workspace state after the verify-deps-before-run content check",
+        ),
     }
 }
 
