@@ -187,19 +187,24 @@ pub fn update_workspace_manifest(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let manifests = WorkspaceManifests::read(dir)?;
     if !manifests.has_includes() {
-        return update_manifest_file(&manifests.root_target(), opts, None);
+        let target = manifests.root_target();
+        return match edit_manifest_file(&target, opts, None)? {
+            Some(manifest) => write_or_remove_manifest(&target, manifest),
+            None => Ok(()),
+        };
     }
     routing::update_included_manifests(&manifests, opts)
 }
 
-/// [`update_workspace_manifest`] for one file. `merged` is the whole
-/// workspace's settings when they span several files, for the passes that
-/// read settings the file may not hold.
-fn update_manifest_file(
+/// The edits of [`update_workspace_manifest`] applied to one file, or `None`
+/// when they change nothing. `merged` is the whole workspace's settings when
+/// they span several files, for the passes that read settings the file may
+/// not hold.
+fn edit_manifest_file(
     target: &ManifestTarget,
     opts: &UpdateWorkspaceManifestOptions<'_>,
     merged: Option<&Manifest>,
-) -> Result<(), UpdateWorkspaceManifestError> {
+) -> Result<Option<Manifest>, UpdateWorkspaceManifestError> {
     let path = &target.path;
     let mut manifest = read_manifest_at(path)?;
 
@@ -221,11 +226,7 @@ fn update_manifest_file(
     if !opts.added_minimum_release_age_excludes.is_empty() {
         changed |= add_minimum_release_age_excludes(&mut manifest, opts, path)?;
     }
-    if !changed {
-        return Ok(());
-    }
-
-    write_or_remove_manifest(target, manifest)
+    Ok(changed.then_some(manifest))
 }
 
 /// The text of `path`, or `None` when there is no file.

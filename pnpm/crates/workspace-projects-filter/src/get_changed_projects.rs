@@ -218,7 +218,8 @@ fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError>
 }
 
 /// `pnpm-workspace.yaml` and the local files it includes, whose changes can
-/// change a catalog. An include index that does not load names only the root
+/// change a catalog. A symlinked include also names its target inside the
+/// workspace. An include index that does not load names only the root
 /// manifest.
 fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
     let included: Vec<PathBuf> = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
@@ -228,13 +229,36 @@ fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
         .map(|includes| {
             includes
                 .local_paths()
-                .map(normalize_lexically)
+                .flat_map(|path| {
+                    std::iter::once(normalize_lexically(path))
+                        .chain(symlink_target_in(workspace_dir, path))
+                })
                 .collect()
         })
         .unwrap_or_default();
     std::iter::once(workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME))
         .chain(included)
         .collect()
+}
+
+/// Where the symlink `path` points, as a path under `workspace_dir`, so it
+/// compares equal to the repository paths git reports even when
+/// `workspace_dir` itself is reached through a symlink.
+fn symlink_target_in(workspace_dir: &Path, path: &Path) -> Option<PathBuf> {
+    if !path
+        .symlink_metadata()
+        .ok()?
+        .file_type()
+        .is_symlink()
+    {
+        return None;
+    }
+    let target = std::fs::canonicalize(path).ok()?;
+    let root = std::fs::canonicalize(workspace_dir).ok()?;
+    target
+        .strip_prefix(root)
+        .ok()
+        .map(|relative| workspace_dir.join(relative))
 }
 
 /// `path` with `.` and `..` resolved without touching the filesystem, so it

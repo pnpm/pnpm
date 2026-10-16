@@ -67,7 +67,7 @@ That depends on what your tool is for:
   anything that asks "what does this project depend on": the **last** document.
 - **Everything the lockfile installs** — vulnerability scanners and SBOM
   generators: **every** document. Config dependencies are real npm packages,
-  installed into `node_modules/.pnpm-config`, and they appear only in the env
+  installed into `node_modules/.pnpm-config`, and they appear only in the boot
   document.
 
 Either way, load the file with a multi-document API. A single-document one
@@ -90,7 +90,7 @@ This is correct for both shapes, and for every `pnpm-lock.yaml` pnpm has ever
 written.
 
 If you would rather detect the layout than always take the last document, a
-file whose first line is `---` has an boot document. pnpm writes that leading
+file whose first line is `---` has a boot document. pnpm writes that leading
 marker only when it writes two documents.
 
 ### Everything the lockfile installs
@@ -180,7 +180,7 @@ If you scan pnpm projects:
   project document misses the config dependencies; a tool that reads only the
   boot document misses everything else.
 - **Verify your scanner against a two-document lockfile before you trust its
-  output.** "It reported something" is not a sufficient check here: the env
+  output.** "It reported something" is not a sufficient check here: the boot
   document does contain packages, so a broken reader emits a plausible-looking
   result listing pnpm's own binaries.
 - [`pnpm audit`] reads the lockfile correctly in both shapes and needs no

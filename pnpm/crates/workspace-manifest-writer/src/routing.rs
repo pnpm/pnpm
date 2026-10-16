@@ -3,7 +3,7 @@
 
 use super::{
     Manifest, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
-    WORKSPACE_MANIFEST_FILENAME, read_manifest_at, update_manifest_file,
+    WORKSPACE_MANIFEST_FILENAME, edit_manifest_file, read_manifest_at, write_or_remove_manifest,
 };
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_workspace::{
@@ -165,6 +165,7 @@ pub(crate) fn update_included_manifests(
     let excludes_target = (!opts.added_minimum_release_age_excludes.is_empty())
         .then(|| manifests.target_for_setting("minimumReleaseAgeExclude"))
         .transpose()?;
+    let mut edited = Vec::new();
     for target in manifests.targets() {
         let excludes_here = excludes_target.as_ref() == Some(&target);
         let file_opts = UpdateWorkspaceManifestOptions {
@@ -176,9 +177,13 @@ pub(crate) fn update_included_manifests(
             },
             ..*opts
         };
-        update_manifest_file(&target, &file_opts, merged.as_ref())?;
+        if let Some(manifest) = edit_manifest_file(&target, &file_opts, merged.as_ref())? {
+            edited.push((target, manifest));
+        }
     }
-    Ok(())
+    edited
+        .into_iter()
+        .try_for_each(|(target, manifest)| write_or_remove_manifest(&target, manifest))
 }
 
 /// The updated catalog entries, grouped by the file that owns each catalog.

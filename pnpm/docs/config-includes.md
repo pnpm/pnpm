@@ -93,7 +93,7 @@ minimumReleaseAge: 1440
 trustPolicy: no-downgrade
 ```
 
-The file must stay inside the package. The package may define only the settings `include` delegates to it, so a new version cannot take over another setting. A config dependency cannot be delegated `include`, `configDependencies`, `pnpmfile`, `globalPnpmfile`, `bootConfig`, `packages`, or settings that hold paths, such as `patchedDependencies` and `storeDir`.
+The file must stay inside the package. The package may define only the settings `include` delegates to it, so a new version cannot take over another setting. Some settings cannot be delegated to a config dependency. These include `configDependencies`, `pnpmfile`, `globalPnpmfile`, `bootConfig`, `packages`, `scriptShell`, and settings that hold paths, such as `patchedDependencies`, `storeDir`, and `lockfileDir`. No source can be delegated `include`.
 
 Commands that install config dependencies fail when the settings of an included config dependency cannot be loaded. `pnpm config get` and `pnpm config list` still work before the first install, and warn that settings owned by a config dependency that is not installed are missing.
 

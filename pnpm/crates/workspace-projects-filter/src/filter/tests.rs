@@ -1292,6 +1292,59 @@ mod changed_packages {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_changed_in_a_symlinked_included_file() {
+        let repo = TempDir::new().expect("create tempdir");
+        let ws_dir = repo.path();
+        init_repo(ws_dir);
+
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(ws_dir.join("shared")).expect("create shared dir");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(ws_dir.join("shared/catalog.yaml"), "catalog:\n  foo: ^1.0.0\n")
+            .expect("write catalog file");
+        std::os::unix::fs::symlink("shared/catalog.yaml", ws_dir.join("catalog.yaml"))
+            .expect("symlink catalog file");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+
+        commit_all(ws_dir);
+
+        fs::write(ws_dir.join("shared/catalog.yaml"), "catalog:\n  foo: ^1.1.0\n")
+            .expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: ws_dir.to_path_buf(),
+            ..Default::default()
+        };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
     #[test]
     fn select_nested_projects_matching_glob_scoped_selector() {
         let repo = TempDir::new().expect("create tempdir");

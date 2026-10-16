@@ -70,32 +70,37 @@ impl BootConfig {
         overlay(&mut config.trust_policy_ignore_after, self.trust_policy_ignore_after);
     }
 
-    /// Keep only the fields `keep` accepts by setting name.
-    fn retain(mut self, keep: impl Fn(&str) -> bool) -> Self {
-        let clear = |name: &str| !keep(name);
-        clear_if(&mut self.minimum_release_age, clear("minimumReleaseAge"));
-        clear_if(&mut self.minimum_release_age_exclude, clear("minimumReleaseAgeExclude"));
-        clear_if(&mut self.minimum_release_age_strict, clear("minimumReleaseAgeStrict"));
-        clear_if(
-            &mut self.minimum_release_age_ignore_missing_time,
-            clear("minimumReleaseAgeIgnoreMissingTime"),
-        );
-        clear_if(&mut self.trust_policy, clear("trustPolicy"));
-        clear_if(&mut self.trust_policy_exclude, clear("trustPolicyExclude"));
-        clear_if(&mut self.trust_policy_ignore_after, clear("trustPolicyIgnoreAfter"));
-        self
+    /// Give each setting `owned` accepts by name the value it has here,
+    /// unset ones included.
+    fn assign_owned(self, config: &mut Config, owned: impl Fn(&str) -> bool) {
+        if owned("minimumReleaseAge") {
+            config.minimum_release_age = self.minimum_release_age;
+        }
+        if owned("minimumReleaseAgeExclude") {
+            config.minimum_release_age_exclude = self.minimum_release_age_exclude;
+        }
+        if owned("minimumReleaseAgeStrict") {
+            config.minimum_release_age_strict = self.minimum_release_age_strict;
+        }
+        if owned("minimumReleaseAgeIgnoreMissingTime") {
+            config.minimum_release_age_ignore_missing_time =
+                self.minimum_release_age_ignore_missing_time.unwrap_or_default();
+        }
+        if owned("trustPolicy") {
+            config.trust_policy = self.trust_policy.unwrap_or_default();
+        }
+        if owned("trustPolicyExclude") {
+            config.trust_policy_exclude = self.trust_policy_exclude;
+        }
+        if owned("trustPolicyIgnoreAfter") {
+            config.trust_policy_ignore_after = self.trust_policy_ignore_after;
+        }
     }
 }
 
 fn overlay<Value>(target: &mut Option<Value>, value: Option<Value>) {
     if value.is_some() {
         *target = value;
-    }
-}
-
-fn clear_if<Value>(target: &mut Option<Value>, clear: bool) {
-    if clear {
-        *target = None;
     }
 }
 
@@ -116,8 +121,7 @@ impl Config {
         self.boot_inherited
             .as_ref()
             .clone()
-            .retain(|setting| self.is_owned_by_config_dependency(setting))
-            .apply_to(&mut config);
+            .assign_owned(&mut config, |setting| self.is_owned_by_config_dependency(setting));
         if let Some(boot_config) = self.boot_config.as_deref().cloned() {
             boot_config.apply_to(&mut config);
         }

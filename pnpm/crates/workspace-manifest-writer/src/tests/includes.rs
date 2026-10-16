@@ -146,3 +146,19 @@ fn a_symlinked_included_file_is_written_through_the_link() {
         "nodeLinker: hoisted\n# deployment settings\n",
     );
 }
+
+#[test]
+fn a_rejected_edit_in_an_included_file_leaves_every_file_unchanged() {
+    let dir = workspace();
+    let legacy = "catalogs: {\n  react18: { react: ^18.0.0 }, # pinned\n}\n";
+    fs::write(dir.path().join("legacy.yaml"), legacy).expect("seed file");
+    let updated =
+        catalogs(&[("tools", &[("tsx", "^4.0.0")]), ("react18", &[("react", "^18.3.1")])]);
+    let opts =
+        UpdateWorkspaceManifestOptions { updated_catalogs: Some(&updated), ..Default::default() };
+    let error = update_workspace_manifest(dir.path(), &opts).expect_err("inline catalogs");
+    dbg!(&error);
+    assert!(matches!(error, UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
+    assert_eq!(read(dir.path(), "legacy.yaml"), legacy);
+}

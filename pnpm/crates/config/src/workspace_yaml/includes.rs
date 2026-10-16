@@ -1,7 +1,8 @@
 use super::{LoadWorkspaceYamlError, WorkspaceSettings, parse_settings, read_readable_settings};
 use crate::{api::EnvVar, known_settings::is_known_setting_key, naming_cases::is_camel_case};
 use pnpm_workspace::{
-    Delegation, IncludeError, SettingSlot, WorkspaceIncludes, WorkspaceManifestDocument,
+    Delegation, IncludeError, IncludeSource, SettingSlot, WorkspaceIncludes,
+    WorkspaceManifestDocument,
 };
 use std::path::Path;
 
@@ -34,8 +35,10 @@ fn read_fragments(
     includes: &WorkspaceIncludes,
     read: impl Fn(&str, &Path) -> Result<WorkspaceSettings, LoadWorkspaceYamlError>,
 ) -> Result<(), LoadWorkspaceYamlError> {
-    for (path, text) in includes.local_paths().zip(includes.fragments.values()) {
-        read(text, path)?;
+    for (&position, text) in &includes.fragments {
+        if let IncludeSource::Local { path, .. } = &includes.includes[position].source {
+            read(text, path)?;
+        }
     }
     Ok(())
 }

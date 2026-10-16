@@ -140,6 +140,14 @@ fn boot_phase_ignores_the_policy_of_a_config_dependency() {
 }
 
 #[test]
+fn boot_phase_unsets_a_policy_setting_only_a_config_dependency_sets() {
+    let root = "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [trustPolicyExclude]\n";
+    let config = load_with_policy(root, "trustPolicyExclude: ['*']\n", &[]);
+    assert_eq!(config.trust_policy_exclude, Some(vec!["*".to_string()]));
+    assert_eq!(config.for_boot().trust_policy_exclude, None);
+}
+
+#[test]
 fn boot_config_governs_the_boot_phase_only() {
     let root = format!(
         "{POLICY_ROOT}bootConfig:\n  minimumReleaseAge: 0\n  trustPolicyExclude: ['policy']\n",

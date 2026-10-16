@@ -96,14 +96,42 @@ fn read_working_tree_file(path: &Path) -> std::io::Result<Option<String>> {
     }
 }
 
+/// The content of `rel_path` at `commit`, following symlinks within that
+/// revision the way the working-tree reader follows them on disk.
 fn read_git_file(
     commit: &str,
     workspace_dir: &Path,
     rel_path: &Path,
 ) -> Result<Option<String>, FilterError> {
-    let Some(rel_str) = normalize_git_path(rel_path) else {
-        return Ok(None);
-    };
+    const MAX_SYMLINK_HOPS: usize = 8;
+    let mut rel_path = rel_path.to_path_buf();
+    for _ in 0..MAX_SYMLINK_HOPS {
+        let Some(rel_str) = normalize_git_path(&rel_path) else {
+            return Ok(None);
+        };
+        let Some(content) = show_git_file(commit, workspace_dir, &rel_str)? else {
+            return Ok(None);
+        };
+        if !is_git_symlink(commit, workspace_dir, &rel_str)? {
+            return Ok(Some(content));
+        }
+        let target = Path::new(&content);
+        if target.is_absolute() {
+            return Ok(None);
+        }
+        rel_path = Path::new(&rel_str)
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(target);
+    }
+    Ok(None)
+}
+
+fn show_git_file(
+    commit: &str,
+    workspace_dir: &Path,
+    rel_str: &str,
+) -> Result<Option<String>, FilterError> {
     let output = Command::new("git")
         .args(["show", "--end-of-options", &format!("{commit}:{rel_str}")])
         .current_dir(workspace_dir)
@@ -122,6 +150,24 @@ fn read_git_file(
             Err(FilterError::FilterChanged { stderr: strip_final_newline(&stderr).to_string() })
         }
     }
+}
+
+/// Whether `rel_str` is a symlink in the tree of `commit`.
+fn is_git_symlink(commit: &str, workspace_dir: &Path, rel_str: &str) -> Result<bool, FilterError> {
+    const SYMLINK_MODE: &[u8] = b"120000 ";
+    let output = Command::new("git")
+        .args(["ls-tree", "--full-tree", "--end-of-options", commit, "--", rel_str])
+        .current_dir(workspace_dir)
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(FilterError::FilterChanged {
+            stderr: strip_final_newline(&stderr).to_string(),
+        });
+    }
+    Ok(output.stdout.starts_with(SYMLINK_MODE))
 }
 
 /// The catalogs of a workspace manifest and the local files it includes,

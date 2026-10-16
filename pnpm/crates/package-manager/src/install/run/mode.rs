@@ -162,7 +162,8 @@ struct FileRollback {
 impl WorkspaceManifestRollbackGuard {
     /// The current content of the workspace manifest of `workspace_dir` and
     /// the local files it includes, to pass to [`Self::new`] once the prune
-    /// has run. An include index that does not load names only the root
+    /// has run. A symlinked include is recorded by its target, which is the
+    /// file the prune writes. An include index that does not load names only the root
     /// manifest, and the prune reports it.
     pub(super) fn snapshot(workspace_dir: &std::path::Path) -> Vec<(PathBuf, Option<String>)> {
         let root = workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
@@ -173,7 +174,7 @@ impl WorkspaceManifestRollbackGuard {
             .map(|includes| {
                 includes
                     .local_paths()
-                    .map(std::path::Path::to_path_buf)
+                    .map(|path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
