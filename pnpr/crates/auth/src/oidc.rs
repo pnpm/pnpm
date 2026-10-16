@@ -1,6 +1,6 @@
 pub use handoffs::HANDOFF_TTL;
 pub use sessions::{LoginReturn, LoginSession};
-pub use web_login::{WEB_LOGIN_TTL, WebLoginPoll};
+pub use web_login::{WEB_LOGIN_TTL, WebLoginPoll, WebLoginTokens};
 
 mod workload_verification;
 

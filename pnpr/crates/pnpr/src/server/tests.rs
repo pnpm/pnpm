@@ -627,6 +627,16 @@ fn access_log_uri_redacts_the_logout_token_segment() {
         redact("/~corp/-/user/token/npm_secret-token-value"),
         "/~corp/-/user/token/<redacted>",
     );
+    assert_eq!(redact("/-/v1/login/start?session=secret-session-id"), "/-/v1/login/start");
+    assert_eq!(
+        redact("/~corp/-/v1/login/start?session=secret-session-id"),
+        "/~corp/-/v1/login/start",
+    );
+    assert_eq!(redact("/-/v1/login/poll/secret-poll-token"), "/-/v1/login/poll/<redacted>");
+    assert_eq!(
+        redact("/~corp/-/v1/login/poll/secret-poll-token"),
+        "/~corp/-/v1/login/poll/<redacted>",
+    );
     // Everything else is logged verbatim, query string included.
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
     assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");

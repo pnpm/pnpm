@@ -115,8 +115,10 @@ async fn post_v1_login_returns_202_with_urls() {
     let login_url = body["loginUrl"].as_str().unwrap();
     let done_url = body["doneUrl"].as_str().unwrap();
 
-    assert!(login_url.starts_with("https://registry.example/-/v1/login/start?session="));
-    assert!(done_url.starts_with("https://registry.example/-/v1/login/poll/"));
+    let browser_session =
+        login_url.strip_prefix("https://registry.example/-/v1/login/start?session=").unwrap();
+    let poll_token = done_url.strip_prefix("https://registry.example/-/v1/login/poll/").unwrap();
+    assert_ne!(browser_session, poll_token);
 }
 
 #[tokio::test]
@@ -140,8 +142,12 @@ async fn post_v1_login_preserves_registry_prefix() {
     let login_url = body["loginUrl"].as_str().unwrap();
     let done_url = body["doneUrl"].as_str().unwrap();
 
-    assert!(login_url.starts_with("https://registry.example/~internal/-/v1/login/start?session="));
-    assert!(done_url.starts_with("https://registry.example/~internal/-/v1/login/poll/"));
+    let browser_session = login_url
+        .strip_prefix("https://registry.example/~internal/-/v1/login/start?session=")
+        .unwrap();
+    let poll_token =
+        done_url.strip_prefix("https://registry.example/~internal/-/v1/login/poll/").unwrap();
+    assert_ne!(browser_session, poll_token);
 }
 
 #[tokio::test]
@@ -162,13 +168,16 @@ async fn polling_done_url_before_and_after_fulfillment() {
     let body = body_json(response.into_body()).await;
     let login_url = body["loginUrl"].as_str().unwrap();
     let done_url = body["doneUrl"].as_str().unwrap();
-    let session_id = done_url.strip_prefix("https://registry.example/-/v1/login/poll/").unwrap();
+    let poll_token = done_url.strip_prefix("https://registry.example/-/v1/login/poll/").unwrap();
+    let browser_session =
+        login_url.strip_prefix("https://registry.example/-/v1/login/start?session=").unwrap();
+    assert_ne!(browser_session, poll_token);
 
-    // 2. Poll while pending
+    // 2. Poll while pending using poll_token
     let poll_response = app
         .clone()
         .oneshot(
-            Request::get(format!("/-/v1/login/poll/{session_id}"))
+            Request::get(format!("/-/v1/login/poll/{poll_token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -178,7 +187,19 @@ async fn polling_done_url_before_and_after_fulfillment() {
     assert_eq!(poll_response.headers()[header::RETRY_AFTER], "1");
     assert_eq!(poll_response.headers()[header::CACHE_CONTROL], "private, no-store");
 
-    // 3. Start web login redirects to company provider
+    // 3. Polling with browser_session returns 404
+    let browser_poll_response = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/-/v1/login/poll/{browser_session}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(browser_poll_response.status(), StatusCode::NOT_FOUND);
+
+    // 4. Start web login redirects to company provider with browser_session
     let start_response = app
         .clone()
         .oneshot(
@@ -192,10 +213,12 @@ async fn polling_done_url_before_and_after_fulfillment() {
     let location = start_response.headers()[header::LOCATION].to_str().unwrap();
     assert_eq!(
         location,
-        format!("https://registry.example/-/oidc/company/login?return=cli&session={session_id}"),
+        format!(
+            "https://registry.example/-/oidc/company/login?return=cli&session={browser_session}"
+        ),
     );
 
-    // 4. Poll on unknown session returns 404
+    // 5. Poll on unknown session returns 404
     let unknown_poll = app
         .clone()
         .oneshot(
@@ -206,6 +229,37 @@ async fn polling_done_url_before_and_after_fulfillment() {
         .await
         .unwrap();
     assert_eq!(unknown_poll.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn post_v1_login_rate_limits_excessive_requests() {
+    let storage = TempDir::new().unwrap();
+    let app = router(config_with_single_login_provider(&storage));
+
+    for _ in 0..20 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/-/v1/login")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+    }
+
+    // 21st attempt is rate limited
+    let throttled = app
+        .oneshot(
+            Request::post("/-/v1/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(throttled.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(throttled.headers().contains_key(header::RETRY_AFTER));
 }
 
 #[tokio::test]

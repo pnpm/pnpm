@@ -30,6 +30,7 @@ pub(crate) struct PollPath {
 pub(crate) async fn post_v1_login(
     State(state): State<AppState>,
     TargetRegistry(registry): TargetRegistry,
+    client_ip: Option<axum::extract::Extension<super::ClientIp>>,
 ) -> Response {
     let has_oidc_login = state.inner.config.identity.auth.oidc
         .iter()
@@ -37,8 +38,14 @@ pub(crate) async fn post_v1_login(
     if !has_oidc_login {
         return not_found();
     }
-    let session_id = match state.inner.identity.oidc.create_web_login() {
-        Ok(id) => id,
+    let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
+    if let Err(retry_after) =
+        state.inner.identity.login_rate_limiter.check_and_record_web_login(ip_address)
+    {
+        return super::user_accounts::login_throttled_response(&state, retry_after);
+    }
+    let tokens = match state.inner.identity.oidc.create_web_login() {
+        Ok(tokens) => tokens,
         Err(err) => return err.into_response(),
     };
     let public_url = state.inner.config.http.public_url.trim_end_matches('/');
@@ -46,8 +53,9 @@ pub(crate) async fn post_v1_login(
         Some(reg) => format!("/~{reg}"),
         None => String::new(),
     };
-    let login_url = format!("{public_url}{prefix}/-/v1/login/start?session={session_id}");
-    let done_url = format!("{public_url}{prefix}/-/v1/login/poll/{session_id}");
+    let login_url =
+        format!("{public_url}{prefix}/-/v1/login/start?session={}", tokens.browser_session_id);
+    let done_url = format!("{public_url}{prefix}/-/v1/login/poll/{}", tokens.poll_token);
     private_no_cache(
         (
             StatusCode::ACCEPTED,

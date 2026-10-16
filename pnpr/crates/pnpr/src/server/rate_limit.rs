@@ -13,6 +13,7 @@ enum RateLimitKey {
     Ip(IpAddr),
     IpUser(IpAddr, String),
     User(String),
+    WebLogin(Option<IpAddr>),
 }
 
 struct AttemptRecord {
@@ -60,6 +61,15 @@ impl LoginRateLimiter {
         }
     }
 
+    fn evict_expired(&self, inner: &mut RateLimiterInner, now: Instant) {
+        if now.duration_since(inner.last_eviction) >= Duration::from_secs(30)
+            || inner.map.len() > 1024
+        {
+            inner.map.retain(|_, record| now.duration_since(record.first_attempt) < self.window);
+            inner.last_eviction = now;
+        }
+    }
+
     fn check_key(
         &self,
         map: &HashMap<RateLimitKey, AttemptRecord>,
@@ -87,14 +97,7 @@ impl LoginRateLimiter {
     pub(crate) fn check(&self, client_ip: Option<IpAddr>, username: &str) -> Result<(), u64> {
         let now = Instant::now();
         let mut inner = self.records.lock().unwrap();
-
-        // Evict expired entries periodically or when map exceeds size threshold
-        if now.duration_since(inner.last_eviction) >= Duration::from_secs(30)
-            || inner.map.len() > 1024
-        {
-            inner.map.retain(|_, record| now.duration_since(record.first_attempt) < self.window);
-            inner.last_eviction = now;
-        }
+        self.evict_expired(&mut inner, now);
 
         if let Some(ip_address) = client_ip {
             self.check_key(
@@ -112,6 +115,31 @@ impl LoginRateLimiter {
                 now,
             )?;
         }
+
+        Ok(())
+    }
+
+    /// Check and record a web login session creation attempt from `client_ip`.
+    /// Returns `Err(retry_after_seconds)` if rate limited.
+    pub(crate) fn check_and_record_web_login(&self, client_ip: Option<IpAddr>) -> Result<(), u64> {
+        let now = Instant::now();
+        let mut inner = self.records.lock().unwrap();
+        self.evict_expired(&mut inner, now);
+
+        let key = RateLimitKey::WebLogin(client_ip);
+        self.check_key(&inner.map, &key, self.max_ip_attempts, now)?;
+
+        inner.map
+            .entry(key)
+            .and_modify(|record| {
+                if now.duration_since(record.first_attempt) >= self.window {
+                    record.count = 1;
+                    record.first_attempt = now;
+                } else {
+                    record.count += 1;
+                }
+            })
+            .or_insert(AttemptRecord { count: 1, first_attempt: now });
 
         Ok(())
     }

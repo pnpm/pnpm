@@ -110,3 +110,32 @@ fn rate_limiter_throttles_by_username_even_when_ip_is_none() {
     limiter.record_failure(None, "alice");
     assert!(limiter.check(None, "alice").is_err(), "expected throttling by username");
 }
+
+#[test]
+fn web_login_throttles_after_exceeding_ip_threshold() {
+    let limiter = LoginRateLimiter::new(Duration::from_mins(1), 5, 3, 5);
+    let ip_address = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+
+    // Under threshold for IP
+    for _ in 0..3 {
+        assert!(
+            limiter
+                .check_and_record_web_login(Some(ip_address))
+                .is_ok(),
+        );
+    }
+
+    // Exceeding threshold for IP
+    assert!(
+        limiter
+            .check_and_record_web_login(Some(ip_address))
+            .is_err(),
+    );
+
+    // When IP is None, it is tracked in its own bucket and still under threshold
+    for _ in 0..3 {
+        assert!(limiter.check_and_record_web_login(None).is_ok());
+    }
+    // Exceeding threshold for None
+    assert!(limiter.check_and_record_web_login(None).is_err());
+}

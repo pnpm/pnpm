@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     MAX_ENTRIES, OidcState, Result, SESSION_PREFIX, SessionUser, Utc, handoffs::Handoff,
-    random_secret, rejected, unavailable, web_login::WebLoginEntry,
+    random_secret, rejected, unavailable, web_login::WebLogins,
 };
 
 /// Browser sign-ins on this process: the sessions pnpr issued, the
@@ -14,7 +14,7 @@ use super::{
 pub(super) struct BrowserSessions {
     pub(super) sessions: Mutex<HashMap<String, Session>>,
     pub(super) handoffs: Mutex<HashMap<String, Handoff>>,
-    pub(super) web_logins: Mutex<HashMap<String, WebLoginEntry>>,
+    pub(super) web_logins: Mutex<WebLogins>,
 }
 
 pub(super) struct Session {
