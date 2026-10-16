@@ -436,7 +436,11 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
                 .headers()
                 .get(header::VARY)
                 .and_then(|value| value.to_str().ok()),
-            Some("Authorization"),
+            if path == "/@acme/widget" {
+                Some("Accept, Authorization")
+            } else {
+                Some("Authorization")
+            },
             "missing Vary on {path}",
         );
     }
@@ -460,11 +464,12 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(
+    assert_eq!(
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .is_none(),
+            .and_then(|value| value.to_str().ok()),
+        Some("public, max-age=60"),
         "a public path-less response must stay cacheable",
     );
 }
@@ -516,7 +521,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
             .headers()
             .get(header::VARY)
             .and_then(|value| value.to_str().ok()),
-        Some("Authorization"),
+        Some("Accept, Authorization"),
     );
 }
 

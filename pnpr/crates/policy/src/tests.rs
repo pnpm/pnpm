@@ -293,3 +293,24 @@ fn a_credential_membership_satisfies_team_tokens_of_that_roster_only() {
     assert!(!list.allows(&Identity::member("bob", vec![membership(other_registry, "platform")])));
     assert!(!list.allows(&user("bob")));
 }
+
+#[test]
+fn admits_every_identity_requires_universal_access() {
+    let all = AccessList::from_tokens(["$all"]);
+    assert!(all.admits_every_identity());
+
+    let both = AccessList::from_tokens(["$anonymous", "$authenticated"]);
+    assert!(both.admits_every_identity());
+
+    let anon_only = AccessList::from_tokens(["$anonymous"]);
+    assert!(!anon_only.admits_every_identity());
+
+    let auth_only = AccessList::from_tokens(["$authenticated"]);
+    assert!(!auth_only.admits_every_identity());
+
+    let user_only = AccessList::from_tokens(["alice"]);
+    assert!(!user_only.admits_every_identity());
+
+    let empty = AccessList::from_tokens([] as [&str; 0]);
+    assert!(!empty.admits_every_identity());
+}
