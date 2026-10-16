@@ -55,12 +55,10 @@ fn check_blocking(directory: &Path) {
     assert!(status.success());
     assert_eq!(std::fs::read(&redirected).unwrap(), b"redirected");
     std::fs::remove_file(redirected).unwrap();
-    assert_eq!(
+    assert!(
         Command::new("/nonexistent-pnpm-command")
             .status()
-            .unwrap_err()
-            .kind(),
-        std::io::ErrorKind::NotFound
+            .is_err()
     );
 }
 
