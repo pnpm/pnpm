@@ -6535,9 +6535,11 @@ dependencies = [
  "same-file",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "tempfile",
  "wax",
  "windows-sys 0.61.2",
+ "yaml_serde",
 ]
 
 [[package]]
@@ -6553,6 +6555,7 @@ dependencies = [
  "pnpm-config-parse-overrides",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-workspace",
  "pnpm-yaml-document-sync",
  "serde",
  "serde-saphyr",

@@ -9,13 +9,13 @@
 //! (`pnpm_config` is not a dependency of this crate, so it is not
 //! linked here.)
 
+use crate::include::{IncludeError, read_workspace_manifest_document};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::{Catalog, Catalogs};
 use serde::Deserialize;
 use std::{
-    fs,
-    io::{self, ErrorKind},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -88,6 +88,8 @@ pub enum ReadWorkspaceManifestError {
     },
     #[diagnostic(transparent)]
     Invalid(#[error(source)] InvalidWorkspaceManifestError),
+    #[diagnostic(transparent)]
+    Include(#[error(source)] IncludeError),
 }
 
 /// Resolve `pnpm-workspace.yaml` `packages:` into the workspace package
@@ -99,7 +101,8 @@ pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
         .unwrap_or_else(|| vec![".".to_string()])
 }
 
-/// Read and validate the `pnpm-workspace.yaml` under `dir`.
+/// Read and validate the `pnpm-workspace.yaml` under `dir`, with the files it
+/// includes merged in.
 ///
 /// Returns `Ok(None)` when the file does not exist (`ENOENT` means "no
 /// manifest", not an error). Every other read or parse failure
@@ -107,13 +110,15 @@ pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
 pub fn read_workspace_manifest(
     dir: &Path,
 ) -> Result<Option<WorkspaceManifest>, ReadWorkspaceManifestError> {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(ReadWorkspaceManifestError::ReadFile { path, source }),
+    let document = match read_workspace_manifest_document(dir) {
+        Ok(Some(document)) => document,
+        Ok(None) => return Ok(None),
+        Err(IncludeError::ReadRoot { path, source }) => {
+            return Err(ReadWorkspaceManifestError::ReadFile { path, source });
+        }
+        Err(error) => return Err(ReadWorkspaceManifestError::Include(error)),
     };
-    parse_workspace_manifest(&path, &text).map(Some)
+    parse_workspace_manifest(&document.path, &document.text).map(Some)
 }
 
 /// Parse and validate `text` as a `pnpm-workspace.yaml`. `path` only labels

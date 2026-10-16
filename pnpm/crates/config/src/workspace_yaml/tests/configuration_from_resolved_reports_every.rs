@@ -41,6 +41,10 @@ fn from_resolved_reports_every_setting() {
         init_license: Some("MIT".to_string()),
         init_version: Some("1.0.0".to_string()),
         minimum_release_age_strict: Some(true),
+        boot_config: Some(Box::new(crate::BootConfig {
+            minimum_release_age: Some(0),
+            ..crate::BootConfig::default()
+        })),
         minimum_release_age_exclude: Some(vec!["is-positive".to_string()]),
         trust_policy_exclude: Some(vec!["is-negative".to_string()]),
         trust_policy_ignore_after: Some(1),

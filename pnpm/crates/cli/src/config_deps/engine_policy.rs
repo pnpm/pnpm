@@ -20,6 +20,8 @@ pub async fn mature_pnpm_version_for_range(
     range: &str,
     running_version: &str,
 ) -> Result<String> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
     if engine_release_cutoff(config)?.is_none() {
         return Ok(running_version.to_string());
     }

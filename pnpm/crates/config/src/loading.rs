@@ -203,6 +203,7 @@ impl Config {
             start_dir,
         );
 
+        *self.boot_inherited = crate::BootConfig::capture(self);
         self.apply_workspace_yaml_unless_unreadable::<Sys>(
             workspace_yaml,
             &mut explicit,
@@ -311,6 +312,7 @@ impl Config {
     {
         let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         explicit.note(&env_settings);
+        self.boot_overrides.overlay(&env_settings);
         env_settings.substitute_env_trusted::<Sys>();
         // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
         // repository, so it overrides the bootstrap default registry too.
@@ -352,6 +354,7 @@ impl Config {
         }
         let mut settings = WorkspaceSettings::from_string_values(&self.cli_setting_values);
         explicit.note(&settings);
+        self.boot_overrides.overlay(&settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         if let Some(configured_state_dir) = settings.state_dir.take() {
             self.state_dir = resolve_configured_state_dir(default_state_dir, &configured_state_dir);

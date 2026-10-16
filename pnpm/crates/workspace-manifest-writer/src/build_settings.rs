@@ -1,8 +1,8 @@
 use pnpm_config::PermissionCapability;
 
 use super::{
-    Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
-    has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
+    Manifest, Path, UpdateWorkspaceManifestError, edit, has_control_char, read_owning_manifest,
+    unsupported_inline_key, write_or_remove_manifest,
 };
 
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
@@ -54,16 +54,8 @@ fn update_allow_builds<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, bool)>,
 {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "allowBuilds")?;
+    let path = target.path.clone();
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
     if !entries.is_empty()
@@ -95,7 +87,7 @@ where
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Record `permissions` decisions in `dir`'s `pnpm-workspace.yaml`,
@@ -113,8 +105,8 @@ pub fn set_permissions<'a, Entries>(
 where
     Entries: IntoIterator<Item = (&'a str, PermissionCapability, bool)>,
 {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-    let mut manifest = read_manifest(&path)?;
+    let (target, mut manifest) = read_owning_manifest(dir, "allowBuilds")?;
+    let path = target.path.clone();
     let entries: Vec<(&str, PermissionCapability, bool)> = entries.into_iter().collect();
     validate_permission_entries(&manifest, &path, &entries)?;
 
@@ -125,20 +117,7 @@ where
     if !changed {
         return Ok(());
     }
-    write_or_remove_manifest(&path, manifest)
-}
-
-/// `path` parsed, or an empty document when there is no file.
-fn read_manifest(path: &Path) -> Result<Manifest, UpdateWorkspaceManifestError> {
-    let original = match fs::read_to_string(path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => {
-            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
-        }
-    };
-    Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source })
+    write_or_remove_manifest(&target, manifest)
 }
 
 /// Refuse a write the line-based splices cannot make safely.
@@ -208,16 +187,8 @@ pub fn scaffold_allow_builds<'a, Names>(
 where
     Names: IntoIterator<Item = &'a str>,
 {
-    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let (target, mut manifest) = read_owning_manifest(dir, "allowBuilds")?;
+    let path = target.path.clone();
 
     let names: Vec<&str> = names.into_iter().collect();
     if !names.is_empty()
@@ -243,5 +214,5 @@ where
         return Ok(());
     }
 
-    write_or_remove_manifest(&path, manifest)
+    write_or_remove_manifest(&target, manifest)
 }

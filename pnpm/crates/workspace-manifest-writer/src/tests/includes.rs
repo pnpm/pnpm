@@ -1,0 +1,148 @@
+//! Writes to a workspace whose `pnpm-workspace.yaml` includes other files.
+
+use super::{TempDir, UpdateWorkspaceManifestOptions, catalogs, fs, update_workspace_manifest};
+use crate::{
+    UpdateWorkspaceManifestError, set_allow_builds, set_overrides, update_workspace_setting,
+};
+use std::path::Path;
+
+const ROOT: &str = "configDependencies:\n  policy: 1.0.0\ninclude:\n  ./catalog.yaml: [catalog]\n  ./legacy.yaml: [catalogs.react18]\n  ./deploy.yaml: [nodeLinker]\n  ./security.yaml: '*'\n  policy: [minimumReleaseAge, minimumReleaseAgeExclude]\n";
+
+fn workspace() -> TempDir {
+    let dir = TempDir::new().expect("temp dir");
+    for (name, text) in [
+        ("pnpm-workspace.yaml", ROOT),
+        ("catalog.yaml", "catalog:\n  react: ^19.0.0\n"),
+        ("legacy.yaml", ""),
+        ("deploy.yaml", "# deployment settings\n"),
+        ("security.yaml", "allowBuilds:\n  esbuild: true\n"),
+    ] {
+        fs::write(dir.path().join(name), text).expect("seed file");
+    }
+    dir
+}
+
+fn read(dir: &Path, name: &str) -> String {
+    fs::read_to_string(dir.join(name)).expect("read file")
+}
+
+#[test]
+fn catalog_entries_go_to_the_file_owning_each_catalog() {
+    let dir = workspace();
+    let updated = catalogs(&[
+        ("default", &[("react-dom", "^19.0.0")]),
+        ("react18", &[("react", "^18.3.1")]),
+        ("tools", &[("tsx", "^4.0.0")]),
+    ]);
+    let opts =
+        UpdateWorkspaceManifestOptions { updated_catalogs: Some(&updated), ..Default::default() };
+    update_workspace_manifest(dir.path(), &opts).expect("update");
+    assert_eq!(
+        read(dir.path(), "catalog.yaml"),
+        "catalog:\n  react: ^19.0.0\n  react-dom: ^19.0.0\n",
+    );
+    assert_eq!(read(dir.path(), "legacy.yaml"), "catalogs:\n  react18:\n    react: ^18.3.1\n");
+    assert_eq!(
+        read(dir.path(), "pnpm-workspace.yaml"),
+        format!("catalogs:\n  tools:\n    tsx: ^4.0.0\n{ROOT}"),
+    );
+}
+
+#[test]
+fn an_omitted_delegated_setting_is_written_to_its_owner() {
+    let dir = workspace();
+    update_workspace_setting(dir.path(), "nodeLinker", &"hoisted".into()).expect("set");
+    assert_eq!(read(dir.path(), "deploy.yaml"), "nodeLinker: hoisted\n# deployment settings\n");
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
+}
+
+#[test]
+fn a_setting_defined_in_an_unrestricted_file_stays_there() {
+    let dir = workspace();
+    set_allow_builds(dir.path(), [("sharp", true)]).expect("set");
+    assert_eq!(read(dir.path(), "security.yaml"), "allowBuilds:\n  esbuild: true\n  sharp: true\n");
+}
+
+#[test]
+fn an_unowned_setting_is_added_to_the_root() {
+    let dir = workspace();
+    set_overrides(dir.path(), [("foo", "1.0.0")]).expect("set");
+    assert_eq!(
+        read(dir.path(), "pnpm-workspace.yaml"),
+        format!("{ROOT}overrides:\n  foo: 1.0.0\n"),
+    );
+    assert_eq!(read(dir.path(), "security.yaml"), "allowBuilds:\n  esbuild: true\n");
+}
+
+#[test]
+fn a_package_owned_setting_cannot_be_written() {
+    let dir = workspace();
+    let error = update_workspace_setting(dir.path(), "minimumReleaseAge", &0.into())
+        .expect_err("package-owned");
+    assert!(
+        matches!(&error, UpdateWorkspaceManifestError::OwnedByConfigDependency { name, .. } if name == "policy"),
+        "{error:?}",
+    );
+    let added = ["foo".to_string()];
+    let opts = UpdateWorkspaceManifestOptions {
+        added_minimum_release_age_excludes: &added,
+        ..Default::default()
+    };
+    let error = update_workspace_manifest(dir.path(), &opts).expect_err("package-owned");
+    assert!(
+        matches!(error, UpdateWorkspaceManifestError::OwnedByConfigDependency { .. }),
+        "{error:?}",
+    );
+}
+
+#[test]
+fn deleting_the_last_setting_of_an_included_file_keeps_the_file() {
+    let dir = workspace();
+    update_workspace_setting(dir.path(), "allowBuilds", &serde_json::Value::Null).expect("delete");
+    assert_eq!(read(dir.path(), "security.yaml"), "");
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
+}
+
+#[test]
+fn an_invalid_include_index_fails_the_write() {
+    let dir = workspace();
+    fs::remove_file(dir.path().join("deploy.yaml")).expect("remove included file");
+    let error = update_workspace_setting(dir.path(), "overrides", &serde_json::json!({}))
+        .expect_err("missing include");
+    assert!(matches!(error, UpdateWorkspaceManifestError::Include(_)), "{error:?}");
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
+}
+
+#[test]
+fn the_include_index_cannot_be_written() {
+    let dir = workspace();
+    let error = update_workspace_setting(dir.path(), "include", &serde_json::Value::Null)
+        .expect_err("include is not writable");
+    assert!(matches!(error, UpdateWorkspaceManifestError::IncludeNotWritable), "{error:?}");
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
+}
+
+#[test]
+fn catalogs_split_across_files_cannot_be_written_as_a_whole() {
+    let dir = workspace();
+    let error =
+        update_workspace_setting(dir.path(), "catalogs", &serde_json::json!({ "tools": {} }))
+            .expect_err("split catalogs");
+    assert!(matches!(error, UpdateWorkspaceManifestError::CatalogsSplitAcrossFiles), "{error:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_included_file_is_written_through_the_link() {
+    let dir = workspace();
+    fs::rename(dir.path().join("deploy.yaml"), dir.path().join("deploy-target.yaml"))
+        .expect("move included file");
+    std::os::unix::fs::symlink("deploy-target.yaml", dir.path().join("deploy.yaml"))
+        .expect("symlink included file");
+    update_workspace_setting(dir.path(), "nodeLinker", &"hoisted".into()).expect("set");
+    assert!(fs::symlink_metadata(dir.path().join("deploy.yaml")).expect("stat").is_symlink());
+    assert_eq!(
+        read(dir.path(), "deploy-target.yaml"),
+        "nodeLinker: hoisted\n# deployment settings\n",
+    );
+}

@@ -1,17 +1,17 @@
 use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
-    CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
-    HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType, LinkWorkspacePackages,
-    LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting, NodePackageMapMode,
-    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod,
-    PackagePermissions, Path, PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting,
-    PythonSettings, RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    ResolutionMode, RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, SideEffectsCacheSetting, SkillsSettings, StoreIndexFormat,
-    SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
-    UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceKeyIssues, drop_placeholders, fs, read_readable_settings, redact_and_sanitize,
-    resolvable_placeholders, resolve_placeholders,
+    CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, HashMap,
+    HoistingLimits, IgnoredAny, IndexMap, InitType, LinkWorkspacePackages, LoadWorkspaceYamlError,
+    LockfileSetting, NodeLinkerSetting, NodePackageMapMode, NodePackageMapType,
+    PackageConfigsSetting, PackageExtension, PackageImportMethod, PackagePermissions, Path,
+    PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
+    RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings, ResolutionMode,
+    RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    SideEffectsCacheSetting, SkillsSettings, StoreIndexFormat, SupportedArchitectures, SystemEnv,
+    TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
+    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
+    drop_placeholders, read_workspace_document, redact_and_sanitize, resolvable_placeholders,
+    resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -892,6 +892,9 @@ pub struct WorkspaceSettings {
     /// job.
     pub pipelines: Option<IndexMap<String, Vec<String>>>,
 
+    /// `bootConfig` from `pnpm-workspace.yaml`. See [`crate::BootConfig`].
+    pub boot_config: Option<crate::BootConfig>,
+
     /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
     /// `pnpm pipeline` resolves its affected-selection merge base against.
     pub pipeline_base: Option<String>,
@@ -902,6 +905,11 @@ pub struct WorkspaceSettings {
     /// warnings/error in `pnpm-cli`'s `config_warnings`).
     #[serde(skip)]
     pub key_issues: WorkspaceKeyIssues,
+
+    /// The include index of the file this was parsed from, whose local
+    /// sources [`Self::read_at`] merged into these settings. Not a setting.
+    #[serde(skip)]
+    pub includes: Option<pnpm_workspace::WorkspaceIncludes>,
 }
 
 impl WorkspaceSettings {
@@ -957,17 +965,13 @@ impl WorkspaceSettings {
     /// read on its own when `skip_unreadable`
     /// (see [`read_readable_settings`]).
     fn read_at(dir: &Path, skip_unreadable: bool) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
-        let text = match fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
-        };
-        let read = |text: &str| Self::read_valid(text, &path);
-        let mut settings =
-            if skip_unreadable { read_readable_settings(&text, read) } else { read(&text) }?;
-        settings.collect_key_issues(&text);
-        Ok(Some(settings))
+        read_workspace_document(dir)?
+            .map(|document| {
+                Self::read_document(document, skip_unreadable, |text, path| {
+                    Self::read_valid(text, path)
+                })
+            })
+            .transpose()
     }
 
     /// Parse and validate the text of the `pnpm-workspace.yaml` at `path`.

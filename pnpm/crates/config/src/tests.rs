@@ -2,7 +2,7 @@ use std::{
     env,
     ffi::OsString,
     fmt::Write as _,
-    io,
+    fs, io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -17,7 +17,7 @@ use tracing_subscriber::{Layer, layer::SubscriberExt};
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
     NodeLinker, NodePackageMapMode, NodePackageMapType, PackageImportMethod, TrustPolicy,
-    WorkspaceSettings, fs,
+    WorkspaceSettings,
 };
 use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 
@@ -400,3 +400,5 @@ mod integrity;
 mod json_env_multiple_registries;
 
 mod cli_setting_values;
+
+mod includes;

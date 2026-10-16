@@ -23,9 +23,11 @@ miette = { workspace = true }
 pathdiff = { workspace = true }
 rayon = { workspace = true }
 same-file = { workspace = true }
+serde_json = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 wax = { workspace = true }
+yaml_serde = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

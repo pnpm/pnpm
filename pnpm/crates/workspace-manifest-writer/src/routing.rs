@@ -1,0 +1,201 @@
+//! Which file a write to a workspace setting goes to, by the ownership the
+//! root manifest's include index declares.
+
+use super::{
+    Manifest, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
+    WORKSPACE_MANIFEST_FILENAME, read_manifest_at, update_manifest_file,
+};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_workspace::{
+    INCLUDE_KEY, IncludeError, IncludeSource, SettingOwner, SettingSlot, WorkspaceIncludes,
+    canonical_setting_name,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
+
+/// A file a workspace setting can be written to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ManifestTarget {
+    pub(crate) path: PathBuf,
+    /// A file the root manifest includes, which a write never deletes.
+    pub(crate) included: bool,
+}
+
+/// The workspace manifest of a directory and the files it includes.
+pub(crate) struct WorkspaceManifests {
+    root: PathBuf,
+    includes: Option<WorkspaceIncludes>,
+    /// The merged settings, when the root manifest has an include index.
+    pub(crate) merged_text: Option<String>,
+}
+
+impl WorkspaceManifests {
+    /// Read `<dir>/pnpm-workspace.yaml`'s include index. A missing manifest
+    /// has none.
+    pub(crate) fn read(dir: &Path) -> Result<Self, UpdateWorkspaceManifestError> {
+        let root = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        let document = pnpm_workspace::read_workspace_manifest_document(dir)
+            .map_err(|error| match error {
+                IncludeError::ReadRoot { path, source } => {
+                    UpdateWorkspaceManifestError::Read { path, source }
+                }
+                error => UpdateWorkspaceManifestError::Include(error),
+            })?;
+        let Some(document) = document.filter(|document| document.includes.is_some()) else {
+            return Ok(WorkspaceManifests { root, includes: None, merged_text: None });
+        };
+        Ok(WorkspaceManifests {
+            root,
+            includes: document.includes,
+            merged_text: Some(document.text),
+        })
+    }
+
+    pub(crate) fn has_includes(&self) -> bool {
+        self.includes.is_some()
+    }
+
+    /// The file that owns the top-level setting `key`.
+    pub(crate) fn target_for_setting(
+        &self,
+        key: &str,
+    ) -> Result<ManifestTarget, UpdateWorkspaceManifestError> {
+        let slot = match key {
+            INCLUDE_KEY => return Err(UpdateWorkspaceManifestError::IncludeNotWritable),
+            "catalog" => SettingSlot::Catalog(DEFAULT_CATALOG_NAME.to_string()),
+            "catalogs" => return self.target_for_all_catalogs(),
+            _ => SettingSlot::Setting(canonical_setting_name(key).to_string()),
+        };
+        self.target_for(&slot)
+    }
+
+    /// The one file that owns every catalog, for a write of `catalogs` as a
+    /// whole.
+    fn target_for_all_catalogs(&self) -> Result<ManifestTarget, UpdateWorkspaceManifestError> {
+        let target = self.target_for(&SettingSlot::AllCatalogs)?;
+        let catalog_slots = self.includes
+            .iter()
+            .flat_map(|includes| {
+                includes.ownership
+                    .slots()
+                    .filter(|slot| matches!(slot, SettingSlot::Catalog(_)))
+            });
+        for slot in catalog_slots {
+            if self.target_for(slot)? != target {
+                return Err(UpdateWorkspaceManifestError::CatalogsSplitAcrossFiles);
+            }
+        }
+        Ok(target)
+    }
+
+    /// The file that owns `slot`. A setting no file owns goes to the root
+    /// manifest; one a config dependency owns cannot be written.
+    pub(crate) fn target_for(
+        &self,
+        slot: &SettingSlot,
+    ) -> Result<ManifestTarget, UpdateWorkspaceManifestError> {
+        let owner = self.includes
+            .as_ref()
+            .map_or(SettingOwner::Unowned, |includes| includes.owner(slot));
+        match owner {
+            SettingOwner::Unowned | SettingOwner::Root => Ok(self.root_target()),
+            SettingOwner::Include(IncludeSource::Local { path, .. }) => Ok(included_target(path)),
+            SettingOwner::Include(IncludeSource::Package(name)) => {
+                Err(UpdateWorkspaceManifestError::OwnedByConfigDependency {
+                    setting: slot.to_string(),
+                    name: name.clone(),
+                })
+            }
+        }
+    }
+
+    pub(crate) fn root_target(&self) -> ManifestTarget {
+        ManifestTarget { path: self.root.clone(), included: false }
+    }
+
+    /// The root manifest and every local file it includes.
+    pub(crate) fn targets(&self) -> Vec<ManifestTarget> {
+        let included = self.includes
+            .iter()
+            .flat_map(WorkspaceIncludes::local_paths)
+            .map(included_target);
+        std::iter::once(self.root_target()).chain(included).collect()
+    }
+}
+
+/// An included file, written through a symlink, which the root manifest names
+/// on purpose, rather than replacing it.
+fn included_target(path: &Path) -> ManifestTarget {
+    ManifestTarget {
+        path: fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
+        included: true,
+    }
+}
+
+/// The file of `dir`'s workspace that owns the setting `key`, parsed. A file
+/// that does not exist yet parses as an empty document.
+pub(crate) fn read_owning_manifest(
+    dir: &Path,
+    key: &str,
+) -> Result<(ManifestTarget, Manifest), UpdateWorkspaceManifestError> {
+    let target = WorkspaceManifests::read(dir)?.target_for_setting(key)?;
+    let manifest = read_manifest_at(&target.path)?;
+    Ok((target, manifest))
+}
+
+/// [`crate::update_workspace_manifest`] for settings spread over several
+/// files: each catalog entry and exclude goes to the file that owns it, and
+/// the cleanup passes run in every file, which holds only what it owns.
+pub(crate) fn update_included_manifests(
+    manifests: &WorkspaceManifests,
+    opts: &UpdateWorkspaceManifestOptions<'_>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let merged = manifests.merged_text
+        .as_deref()
+        .map(|text| Manifest::parse(Some(text)))
+        .transpose()
+        .map_err(|source| UpdateWorkspaceManifestError::Parse {
+            path: manifests.root.clone(),
+            source,
+        })?;
+    let catalogs = route_catalogs(manifests, opts.updated_catalogs)?;
+    let excludes_target = (!opts.added_minimum_release_age_excludes.is_empty())
+        .then(|| manifests.target_for_setting("minimumReleaseAgeExclude"))
+        .transpose()?;
+    for target in manifests.targets() {
+        let excludes_here = excludes_target.as_ref() == Some(&target);
+        let file_opts = UpdateWorkspaceManifestOptions {
+            updated_catalogs: catalogs.get(&target.path),
+            added_minimum_release_age_excludes: if excludes_here {
+                opts.added_minimum_release_age_excludes
+            } else {
+                &[]
+            },
+            ..*opts
+        };
+        update_manifest_file(&target, &file_opts, merged.as_ref())?;
+    }
+    Ok(())
+}
+
+/// The updated catalog entries, grouped by the file that owns each catalog.
+fn route_catalogs(
+    manifests: &WorkspaceManifests,
+    updated_catalogs: Option<&Catalogs>,
+) -> Result<HashMap<PathBuf, Catalogs>, UpdateWorkspaceManifestError> {
+    let mut routed: HashMap<PathBuf, Catalogs> = HashMap::new();
+    for (name, entries) in updated_catalogs.into_iter().flatten() {
+        if entries.is_empty() {
+            continue;
+        }
+        let target = manifests.target_for(&SettingSlot::Catalog(name.clone()))?;
+        routed
+            .entry(target.path)
+            .or_default()
+            .insert(name.clone(), entries.clone());
+    }
+    Ok(routed)
+}

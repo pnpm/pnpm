@@ -39,8 +39,6 @@ mod uninstall_hooks;
 mod up_to_date_scripts;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
-use std::fs;
-
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
     Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
@@ -274,8 +272,7 @@ impl InstallView<'_> {
         else {
             return Ok(None);
         };
-        let workspace_manifest_path = workspace_dir.join("pnpm-workspace.yaml");
-        let original_content = fs::read_to_string(&workspace_manifest_path).ok();
+        let snapshot = WorkspaceManifestRollbackGuard::snapshot(&workspace_dir);
         let selected_projects = workspace_projects_override.or_else(|| {
             options.selection.as_ref().map(|s| s.all_projects)
         });
@@ -296,7 +293,7 @@ impl InstallView<'_> {
             selected_projects,
             kept_catalogs.as_ref(),
         )?;
-        Ok(WorkspaceManifestRollbackGuard::new(workspace_manifest_path, original_content))
+        Ok(WorkspaceManifestRollbackGuard::new(snapshot))
     }
 }
 

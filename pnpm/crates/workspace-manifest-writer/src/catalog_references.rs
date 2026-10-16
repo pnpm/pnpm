@@ -5,7 +5,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use super::{Manifest, edit::CatalogReferences};
 
 /// What the `catalogPrune` pass counts as a reference to a catalog entry.
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct CatalogReferenceSources<'a> {
     /// Every workspace project manifest (with in-memory dependency edits
     /// applied), consulted by the cleanup pass to decide which catalog

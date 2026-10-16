@@ -108,7 +108,8 @@ struct ChangedDirsResult {
 
 struct DiffFilterContext<'a> {
     repo_root: &'a Path,
-    workspace_manifest: &'a Path,
+    /// `pnpm-workspace.yaml` and the local files it includes.
+    workspace_manifests: &'a [PathBuf],
     working_dir: &'a Path,
     workspace_dir: &'a Path,
     ignore_globs: &'a [Glob<'a>],
@@ -140,7 +141,7 @@ fn process_diff_path(
     if file.is_empty() {
         return;
     }
-    if ctx.repo_root.join(file) == ctx.workspace_manifest {
+    if ctx.workspace_manifests.contains(&ctx.repo_root.join(file)) {
         *manifest_changed = true;
         if ctx.working_dir != ctx.workspace_dir {
             return;
@@ -163,9 +164,9 @@ fn get_changed_dirs_since_commit(
     repo_root: &Path,
 ) -> Result<ChangedDirsResult, FilterError> {
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
-    let manifest_path = opts.workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
+    let manifest_paths = workspace_manifest_paths(opts.workspace_dir);
 
-    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_path)?;
+    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths)?;
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
             changed_dirs: IndexMap::new(),
@@ -177,7 +178,7 @@ fn get_changed_dirs_since_commit(
     let test_globs = compile_globs(opts.test_pattern)?;
     let ctx = DiffFilterContext {
         repo_root,
-        workspace_manifest: &manifest_path,
+        workspace_manifests: &manifest_paths,
         working_dir,
         workspace_dir: opts.workspace_dir,
         ignore_globs: &ignore_globs,
@@ -216,11 +217,47 @@ fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError>
     }
 }
 
+/// `pnpm-workspace.yaml` and the local files it includes, whose changes can
+/// change a catalog. An include index that does not load names only the root
+/// manifest.
+fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
+    let included: Vec<PathBuf> = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
+        .ok()
+        .flatten()
+        .and_then(|document| document.includes)
+        .map(|includes| {
+            includes
+                .local_paths()
+                .map(normalize_lexically)
+                .collect()
+        })
+        .unwrap_or_default();
+    std::iter::once(workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME))
+        .chain(included)
+        .collect()
+}
+
+/// `path` with `.` and `..` resolved without touching the filesystem, so it
+/// compares equal to the repository paths git reports.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::CurDir => {}
+            component => normalized.push(component),
+        }
+    }
+    normalized
+}
+
 fn git_diff_names(
     commit: &str,
     workspace_dir: &Path,
     working_dir: &Path,
-    manifest_path: &Path,
+    manifest_paths: &[PathBuf],
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "-z", "--no-renames"]);
@@ -230,7 +267,7 @@ fn git_diff_names(
     cmd.args(["--end-of-options", commit, "--"])
         .arg(working_dir);
     if working_dir != workspace_dir {
-        cmd.arg(manifest_path);
+        cmd.args(manifest_paths);
     }
     cmd.current_dir(workspace_dir);
 

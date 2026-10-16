@@ -196,7 +196,7 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
     let workspace_dir = pnpm_workspace::find_workspace_dir_from_env()
         .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
-        hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
+        hash_workspace_manifest(&workspace_dir, hasher);
         hash_file(&workspace_dir.join(".npmrc"), hasher);
     }
 
@@ -228,6 +228,17 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         .collect();
     env_vars.sort();
     env_vars.hash(hasher);
+}
+
+/// The workspace manifest with the files and config dependencies it includes
+/// merged in, so a change to any of them misses the cache.
+fn hash_workspace_manifest(workspace_dir: &Path, hasher: &mut DefaultHasher) {
+    let path = workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME);
+    path.hash(hasher);
+    match pnpm_workspace::read_workspace_manifest_document(workspace_dir) {
+        Ok(document) => document.map(|document| document.text).hash(hasher),
+        Err(error) => error.to_string().hash(hasher),
+    }
 }
 
 fn hash_file(path: &Path, hasher: &mut DefaultHasher) {

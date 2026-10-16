@@ -1229,6 +1229,70 @@ mod changed_packages {
     }
 
     #[test]
+    fn select_projects_using_a_catalog_changed_in_an_included_file() {
+        let repo = TempDir::new().expect("create tempdir");
+        let ws_dir = repo.path();
+        init_repo(ws_dir);
+
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        let pkg_b_dir = ws_dir.join("packages").join("pkg-b");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(&pkg_b_dir).expect("create pkg-b");
+        fs::create_dir_all(ws_dir.join("config")).expect("create config dir");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./config/catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        fs::write(ws_dir.join("config/catalog.yaml"), "catalog:\n  foo: ^1.0.0\n")
+            .expect("write catalog file");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        fs::write(
+            pkg_b_dir.join("package.json"),
+            r#"{"name":"pkg-b","version":"1.0.0","dependencies":{"bar":"^1.0.0"}}"#,
+        )
+        .expect("write pkg-b package.json");
+
+        commit_all(ws_dir);
+
+        fs::write(ws_dir.join("config/catalog.yaml"), "catalog:\n  foo: ^1.1.0\n")
+            .expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        graph.insert(
+            pkg_b_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(&pkg_b_dir.to_string_lossy(), "pkg-b", &[("bar", "^1.0.0")]),
+                dependencies: Vec::new(),
+            },
+        );
+
+        let opts = FilterWorkspaceProjectsOptions {
+            workspace_dir: ws_dir.to_path_buf(),
+            ..Default::default()
+        };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    #[test]
     fn select_nested_projects_matching_glob_scoped_selector() {
         let repo = TempDir::new().expect("create tempdir");
         let workspace_dir = repo.path();

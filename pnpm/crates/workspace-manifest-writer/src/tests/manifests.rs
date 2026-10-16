@@ -62,7 +62,11 @@ fn write_or_remove_manifest_ignores_missing_empty_manifest() {
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
     let manifest = crate::model::Manifest::parse(Some("")).expect("empty manifest");
 
-    crate::write_or_remove_manifest(&path, manifest).expect("remove missing empty manifest");
+    crate::write_or_remove_manifest(
+        &crate::ManifestTarget { path: path.clone(), included: false },
+        manifest,
+    )
+    .expect("remove missing empty manifest");
 
     assert!(!path.exists());
 }
@@ -75,7 +79,8 @@ fn write_or_remove_manifest_reports_remove_errors() {
     let manifest = crate::model::Manifest::parse(Some("")).expect("empty manifest");
 
     let err =
-        crate::write_or_remove_manifest(&path, manifest).expect_err("directory remove should fail");
+        crate::write_or_remove_manifest(&crate::ManifestTarget { path, included: false }, manifest)
+            .expect_err("directory remove should fail");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::Remove { .. }));
 }
@@ -90,7 +95,8 @@ fn write_or_remove_manifest_reports_write_errors() {
     let manifest = crate::model::Manifest::parse(Some("packages:\n  - '*'\n")).expect("manifest");
 
     let err =
-        crate::write_or_remove_manifest(&path, manifest).expect_err("missing parent should fail");
+        crate::write_or_remove_manifest(&crate::ManifestTarget { path, included: false }, manifest)
+            .expect_err("missing parent should fail");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::Write { .. }));
 }

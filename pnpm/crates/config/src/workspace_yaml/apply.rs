@@ -383,6 +383,7 @@ impl WorkspaceSettings {
         audit_level_in_yaml: bool,
         audit_config_in_yaml: bool,
     ) {
+        overlay_some(&mut config.boot_config, self.boot_config.take().map(Box::new));
         overlay_some(&mut config.minimum_release_age, self.minimum_release_age.take());
         overlay_some(
             &mut config.minimum_release_age_exclude,
