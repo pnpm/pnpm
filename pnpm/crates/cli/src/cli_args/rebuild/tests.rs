@@ -4,6 +4,21 @@ use pnpm_package_manifest::DependencyGroup;
 use std::{fs, path::Path};
 use tempfile::tempdir;
 
+fn state(dir: &Path, config: Config) -> crate::State {
+    let manifest_path = dir.join("package.json");
+    fs::write(&manifest_path, "{}").unwrap();
+    let config = Box::leak(Box::new(config));
+    crate::State {
+        tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
+        http_client: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
+        config,
+        manifest: pnpm_package_manifest::PackageManifest::from_path(manifest_path).unwrap(),
+        lockfile: pnpm_lockfile::LazyLockfile::disabled(),
+        resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
+        dedicated: None,
+    }
+}
+
 /// A `Config` whose `modules_dir` is a `node_modules` under `dir`. When
 /// `included` is `Some`, a `.modules.yaml` recording it is written.
 fn config_with_included(dir: &Path, included: Option<serde_json::Value>) -> Config {
@@ -106,7 +121,8 @@ fn falls_back_to_all_groups_when_included_is_empty() {
 fn pending_without_install_state_does_not_rebuild_every_dependency() {
     let dir = tempdir().unwrap();
     let config = config_with_included(dir.path(), None);
-    let selection = super::resolve_selection(&[], true, &config).unwrap();
+    let state = state(dir.path(), config);
+    let selection = super::resolve_selection(&[], true, &state).unwrap();
     assert_eq!(selection.names, Some(Vec::new()));
     assert!(selection.projects.is_empty());
     assert!(selection.snapshots.is_none());
@@ -131,7 +147,8 @@ fn pending_selects_dependencies_and_workspace_projects_separately() {
         serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
     manifest["pendingBuilds"] = serde_json::json!(["dependency@1.0.0", "app"]);
     fs::write(manifest_path, manifest.to_string()).unwrap();
-    let selection = super::resolve_selection(&[], true, &config).unwrap();
+    let state = state(dir.path(), config);
+    let selection = super::resolve_selection(&[], true, &state).unwrap();
     assert_eq!(selection.names, Some(vec!["dependency".to_owned()]));
     assert_eq!(selection.projects, vec!["app".to_owned()]);
     assert!(selection.snapshots.is_none());
