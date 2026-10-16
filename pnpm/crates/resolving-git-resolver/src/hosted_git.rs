@@ -13,6 +13,8 @@
 //! - The gist `https` and `git` forms keep URL-embedded credentials, as
 //!   GitHub's do. Upstream's gist templates drop them, which would strip
 //!   the credentials from the URL `git ls-remote` reaches.
+//! - An ownerless gist file URL, `https://gist.github.com/<id>/raw/…`, is
+//!   rejected. Upstream reads it as the gist `raw`.
 //! - `browse` / `bugs` / `file` templates are not implemented.
 
 mod url_parse;

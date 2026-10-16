@@ -317,6 +317,8 @@ fn from_url_rejects_repository_urls_npm_leaves_unchanged() {
         "https://example.com/repo.git",
         "http://gist.github.com/abc123",
         "https://gist.github.com/foo/abc123/raw/file.js",
+        "https://gist.github.com/abc123/raw/file.js",
+        "https://gist.github.com/abc123/raw",
         "https://gist.github.com/",
     ] {
         assert_eq!(HostedGit::from_url(url), None, "url: {url}");

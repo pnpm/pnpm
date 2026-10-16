@@ -243,12 +243,12 @@ pub(super) fn extract_for_host(host: HostedGitType, parsed: &ParsedUrl) -> Optio
 }
 
 /// Port of `gitHosts.gist.extract`: `/<user>/<id>` or `/<id>`, but not a
-/// `/<user>/<id>/raw/…` file URL.
+/// `/<user>/<id>/raw/…` or `/<id>/raw/…` file URL.
 pub(super) fn extract_gist(parsed: &ParsedUrl) -> Option<Segments> {
     let mut parts = parsed.pathname.split('/').skip(1);
     let first = parts.next().unwrap_or_default();
     let second = parts.next().unwrap_or_default();
-    if parts.next() == Some("raw") {
+    if second == "raw" || parts.next() == Some("raw") {
         return None;
     }
     let (user, project) = match (first, second) {
