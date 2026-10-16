@@ -40,7 +40,7 @@ use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root
 use resolution::{
     ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, project_snapshot_to_snapshot_entry, validate_lockfile_local_path,
+    create_file_url_key, project_snapshot_to_snapshot_entry,
 };
 use serde_json::{Map, Value};
 use std::{
@@ -117,14 +117,6 @@ enum DeployError {
     #[display("The selected project is missing from pnpm-lock.yaml: {project_id}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
     MissingImporter { project_id: String },
-
-    #[display(
-        "Refusing to deploy unsafe lockfile path {}: path resolves outside workspace {}",
-        path.display(),
-        workspace_dir.display()
-    )]
-    #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
-    UnsafeLockfilePath { path: PathBuf, workspace_dir: PathBuf },
 }
 
 #[derive(Clone)]

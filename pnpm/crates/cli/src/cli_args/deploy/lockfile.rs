@@ -7,7 +7,7 @@ use super::{
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
     create_file_url_key, deploy_peer_edges, deploy_workspace_settings, is_ancestor_path,
     lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
-    prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
+    prune_deploy_lockfile_graph, relative_path, same_path,
 };
 use pnpm_tool_protocol::is_tool_specifier;
 
@@ -50,8 +50,7 @@ pub(super) fn create_deploy_files(
     let input_snapshot = lockfile.importers
         .get(project_id)
         .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
-    let deployed_project_root =
-        validate_lockfile_local_path(&lockfile_dir.join(project_id), lockfile_dir)?;
+    let deployed_project_root = lexical_normalize(&lockfile_dir.join(project_id));
     let ctx = ConvertCtx {
         projects_by_path: &selected.projects_by_path,
         deploy_dir,
@@ -222,8 +221,7 @@ fn convert_deploy_packages(
         if importer_path == project_id {
             continue;
         }
-        let project_root =
-            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
+        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
         packages.insert(
             package_key,
@@ -272,8 +270,7 @@ fn convert_deploy_snapshots(
         if importer_path == project_id {
             continue;
         }
-        let project_root =
-            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
+        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
         if let Some(project) = selected.project_info(&project_root)
