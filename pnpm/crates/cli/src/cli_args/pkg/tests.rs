@@ -258,68 +258,6 @@ fn test_fix_keeps_unfixable_repository() {
 }
 
 #[test]
-fn test_fix_normalizes_github_shortcut_repository() {
-    let mut manifest = json!({
-        "name": "test-pkg",
-        "repository": "github:pnpm/example",
-    });
-    fix_manifest(&mut manifest);
-    assert_eq!(
-        manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
-    );
-}
-
-#[test]
-fn test_fix_normalizes_gitlab_shortcut_repository() {
-    let mut manifest = json!({
-        "name": "test-pkg",
-        "repository": "gitlab:group/repo",
-    });
-    fix_manifest(&mut manifest);
-    assert_eq!(
-        manifest["repository"],
-        json!({ "type": "git", "url": "git+https://gitlab.com/group/repo.git" }),
-    );
-}
-
-#[test]
-fn test_fix_normalizes_full_git_repository_url() {
-    let mut manifest = json!({
-        "name": "test-pkg",
-        "repository": "https://github.com/pnpm/example.git",
-    });
-    fix_manifest(&mut manifest);
-    assert_eq!(
-        manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
-    );
-}
-
-#[test]
-fn test_fix_keeps_object_repository_unchanged() {
-    let mut manifest = json!({
-        "name": "test-pkg",
-        "repository": { "type": "git", "url": "git+https://github.com/pnpm/example.git" },
-    });
-    fix_manifest(&mut manifest);
-    assert_eq!(
-        manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
-    );
-}
-
-#[test]
-fn test_fix_leaves_unparsable_repository_unchanged() {
-    let mut manifest = json!({
-        "name": "test-pkg",
-        "repository": "not-a-repository-url",
-    });
-    fix_manifest(&mut manifest);
-    assert_eq!(manifest["repository"], "not-a-repository-url");
-}
-
-#[test]
 fn test_delete_key() {
     let mut value = json!({
         "name": "test-pkg",

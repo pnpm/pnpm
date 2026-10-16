@@ -347,6 +347,25 @@ fn fix_manifest(value: &mut Value) {
     normalize_repository(obj);
 }
 
+/// Rewrite `repository` the way the `fixRepositoryField` step of
+/// `npm pkg fix` does: a non-empty string becomes a `{ "type": "git", "url" }`
+/// object, and a `url` on a recognised git host becomes
+/// [`HostedGit::normalized_repository_url`].
+fn normalize_repository(obj: &mut Map<String, Value>) {
+    let Some(repository) = obj.get_mut("repository") else { return };
+    if let Value::String(url) = repository
+        && !url.is_empty()
+    {
+        *repository = json!({ "type": "git", "url": std::mem::take(url) });
+    }
+    let Some(Value::String(url)) = repository.get_mut("url") else { return };
+    if let Some(normalized) =
+        HostedGit::from_url(url).and_then(|hosted| hosted.normalized_repository_url())
+    {
+        *url = normalized;
+    }
+}
+
 /// Drop a manifest field whose value is not of a shape pnpm can read.
 fn remove_ill_typed_field(
     obj: &mut Map<String, Value>,
@@ -358,24 +377,6 @@ fn remove_ill_typed_field(
         .is_some_and(|value| !well_typed(value))
     {
         obj.remove(field);
-    }
-}
-
-fn normalize_repository(obj: &mut Map<String, Value>) {
-    let Some(repository) = obj.get_mut("repository") else { return };
-    if let Value::String(url) = repository
-        && !url.is_empty()
-    {
-        if HostedGit::from_url(url).is_none() {
-            return;
-        }
-        *repository = json!({ "type": "git", "url": std::mem::take(url) });
-    }
-    let Some(Value::String(url)) = repository.get_mut("url") else { return };
-    if let Some(normalized) =
-        HostedGit::from_url(url).and_then(|hosted| hosted.normalized_repository_url())
-    {
-        *url = normalized;
     }
 }
 

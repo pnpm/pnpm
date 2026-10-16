@@ -184,45 +184,41 @@ async function pkgFix (opts: PkgCommandOptions): Promise<void> {
 
   removeIllTypedField(untypedManifest, 'name', (value) => typeof value === 'string')
   removeIllTypedField(untypedManifest, 'version', (value) => typeof value === 'string')
-
-  if ('repository' in untypedManifest) {
-    untypedManifest.repository = normalizeRepository(untypedManifest.repository) as ProjectManifest['repository']
-  }
-
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
     removeIllTypedField(untypedManifest, field, isPlainObject)
   }
-
   removeIllTypedField(untypedManifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
+
+  normalizeRepository(untypedManifest)
 
   await writeProjectManifest(manifest)
 }
 
 function removeIllTypedField (
-  obj: Record<string, unknown>,
+  manifest: Record<string, unknown>,
   field: string,
-  wellTyped: (value: unknown) => boolean
-) {
-  if (field in obj && !wellTyped(obj[field])) {
-    delete obj[field]
+  isWellTyped: (value: unknown) => boolean
+): void {
+  if (field in manifest && !isWellTyped(manifest[field])) {
+    delete manifest[field]
   }
+}
+
+// Mirrors the fixRepositoryField step of npm's `pkg fix`.
+function normalizeRepository (manifest: Record<string, unknown>): void {
+  if (typeof manifest.repository === 'string' && manifest.repository !== '') {
+    manifest.repository = { type: 'git', url: manifest.repository }
+  }
+  const repository = manifest.repository
+  if (!isPlainObject(repository) || typeof repository.url !== 'string') return
+  const hosted = HostedGit.fromUrl(repository.url)
+  // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
+  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
+  repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
 }
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function normalizeRepository (value: unknown): unknown {
-  const original = value
-  if (typeof value === 'string' && value !== '') {
-    value = { type: 'git', url: value }
-  }
-  if (!isPlainObject(value) || typeof value.url !== 'string') return value
-  const hosted = HostedGit.fromUrl(value.url)
-  if (hosted == null) return original
-  if (hosted.user == null && hosted.type !== 'gist') return value
-  value.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
-  return value
 }
 
 const COMMANDS = {
