@@ -65,7 +65,7 @@ pub fn check_deps_status_before_run(
     let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);
-    if let Some(issue) = first_static_drift(check, state, moved, selected_project_dirs) {
+    if let Some(issue) = first_static_drift(check, state, selected_project_dirs) {
         return outdated(issue);
     }
 
@@ -75,14 +75,23 @@ pub fn check_deps_status_before_run(
     if moved {
         return moved_tree_status(check, state, &drift, &outdated);
     }
+    let patches_modified =
+        patches_modified_since(check.workspace_root, check.config, state.last_validated_timestamp);
     let modified = drift.modified();
-    if let Some(status) =
-        early_content_verdict(check, &modified, drift.lockfile_modified, &outdated)
-    {
+    if let Some(status) = early_content_verdict(
+        check,
+        &modified,
+        drift.lockfile_modified || patches_modified,
+        &outdated,
+    ) {
         return status;
     }
 
-    let projects_to_check = drift.projects_to_check(modified);
+    let projects_to_check = if patches_modified {
+        drift.stats.iter().collect()
+    } else {
+        drift.projects_to_check(modified)
+    };
     let filesystem_now = check.is_workspace_install
         .then(|| {
             filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
@@ -125,11 +134,10 @@ const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed s
 fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    moved: bool,
     selected_project_dirs: &[&Path],
 ) -> Option<String> {
     first_lockfile_or_setting_drift(check, state)
-        .or_else(|| first_workspace_drift(check, state, moved, selected_project_dirs))
+        .or_else(|| first_workspace_drift(check, state, selected_project_dirs))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -188,12 +196,9 @@ fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
         && wanted_lockfile_file_has_content(check.workspace_root, config)
 }
 
-/// A `moved` tree leaves its patches to the content proof, as the install
-/// fast path does.
 fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    moved: bool,
     selected_project_dirs: &[&Path],
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
@@ -214,9 +219,6 @@ fn first_workspace_drift(
         && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
-    }
-    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
-        return Some("Patches were modified".to_string());
     }
     pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
 }
@@ -256,7 +258,7 @@ fn first_uninstalled_project(
 fn early_content_verdict(
     check: &OptimisticRepeatInstallCheck<'_>,
     modified: &[&ManifestStat<'_>],
-    lockfile_modified: bool,
+    shared_input_modified: bool,
     outdated: &impl Fn(String) -> RunDepsStatus,
 ) -> Option<RunDepsStatus> {
     match current_lockfile_unusable_with_non_empty_wanted(check) {
@@ -268,7 +270,7 @@ fn early_content_verdict(
         Ok(false) => {}
         Err(reason) => return Some(outdated(reason.to_string())),
     }
-    if modified.is_empty() && !lockfile_modified {
+    if modified.is_empty() && !shared_input_modified {
         return Some(match missing_wanted_lockfile_stand_in_ok(check) {
             Ok(()) => RunDepsStatus::UpToDate,
             Err(reason) => outdated(reason),
