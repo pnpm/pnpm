@@ -1,7 +1,8 @@
 use super::{
     super::{
-        Decision, ManifestDrift, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         deps_status::{RunDepsStatus, check_deps_status_before_run},
+        freshness::InputDrift,
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
     },
@@ -618,7 +619,7 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
         manifests: crate::RepeatInstallManifests::ON_DISK,
     };
     let state = load_workspace_state(dir.path()).unwrap().unwrap();
-    let drift = ManifestDrift::stat(&check, &state).unwrap();
+    let drift = InputDrift::stat(&check, &state).unwrap();
     assert!(drift.lockfile_unchanged(&check));
 
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
