@@ -14,10 +14,10 @@ export interface PatchesOrHooksAreModifiedOptions {
   previousPnpmfiles: string[]
   ignorePnpmfile?: boolean
   /**
-   * Reads the lockfile whose recorded patch hashes a newer patch file is
-   * compared with. Without it, a newer patch file counts as modified.
+   * Reads the lockfiles whose recorded patch hashes a newer patch file is
+   * compared with. A missing lockfile is `null`.
    */
-  readLockfile?: () => Promise<LockfileObject | null>
+  readLockfiles: () => Promise<Array<LockfileObject | null>>
 }
 
 export async function patchesOrHooksAreModified (opts: PatchesOrHooksAreModifiedOptions): Promise<string | undefined> {
@@ -42,17 +42,16 @@ async function patchesAreModified (patchedDependencies: Record<string, string>, 
       patch && modifiedAtOrAfter(patch, opts.lastValidatedTimestamp)
   )
   if (!anyPatchNewer) return false
-  if (opts.readLockfile == null) return true
-  return !await patchHashesMatchLockfile(patchedDependencies, opts.rootDir, opts.readLockfile)
+  return !await patchHashesMatchLockfiles(patchedDependencies, opts.rootDir, opts.readLockfiles)
 }
 
 /**
  * A missing lockfile passes here. The checks that follow report it.
  */
-async function patchHashesMatchLockfile (
+async function patchHashesMatchLockfiles (
   patchedDependencies: Record<string, string>,
   rootDir: string,
-  readLockfile: () => Promise<LockfileObject | null>
+  readLockfiles: () => Promise<Array<LockfileObject | null>>
 ): Promise<boolean> {
   let patchHashes: Record<string, string>
   try {
@@ -61,9 +60,8 @@ async function patchHashesMatchLockfile (
     if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_NOT_FOUND') return false
     throw err
   }
-  const lockfile = await readLockfile()
-  if (lockfile == null) return true
-  return equals(lockfile.patchedDependencies ?? {}, patchHashes)
+  const lockfiles = await readLockfiles()
+  return lockfiles.every((lockfile) => lockfile == null || equals(lockfile.patchedDependencies ?? {}, patchHashes))
 }
 
 function findPnpmfileChange (pnpmfilePaths: string[], lastValidatedTimestamp: number): string | undefined {

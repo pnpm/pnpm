@@ -654,7 +654,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.issue).toBe('Patches were modified')
   })
 
-  it('compares a patch newer than the last validation with the hash recorded in the lockfile', async () => {
+  it.each([true, false])('compares a patch newer than the last validation with the hash recorded in the lockfile (sharedWorkspaceLockfile: %s)', async (sharedWorkspaceLockfile) => {
     const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-'))
     try {
       const patchPath = path.join(projectDir, 'patches/foo.patch')
@@ -715,7 +715,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
         workspaceDir: projectDir,
         rootProjectManifest: {},
         rootProjectManifestDir: projectDir,
-        sharedWorkspaceLockfile: true,
+        sharedWorkspaceLockfile,
         pnpmfile: [],
         patchedDependencies,
         ...mockWorkspaceState.settings,

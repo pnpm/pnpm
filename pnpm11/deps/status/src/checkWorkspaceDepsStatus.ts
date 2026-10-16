@@ -26,6 +26,7 @@ import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import {
   allowUnawaitedFailure,
   assertCurrentLockfileMatches,
+  getWantedLockfileDirs,
   missingWantedLockfileStandIn,
   readWantedLockfileIn,
   statLockfileSync,
@@ -68,7 +69,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
     currentPnpmfiles: opts.pnpmfile,
     previousPnpmfiles: workspaceState.pnpmfiles,
     ignorePnpmfile: opts.ignorePnpmfile,
-    readLockfile: opts.sharedWorkspaceLockfile ? () => readSharedLockfile(ctx) : undefined,
+    readLockfiles: () => readWorkspaceLockfiles(ctx),
   })
   if (issue) {
     return { upToDate: false, issue, workspaceState }
@@ -175,9 +176,14 @@ async function checkUnchangedWorkspace (
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
 }
 
-async function readSharedLockfile ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<LockfileObject | null> {
-  return (await readWantedLockfileIn(workspaceDir, opts)) ??
-    readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+async function readWorkspaceLockfiles ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<Array<LockfileObject | null>> {
+  if (!opts.sharedWorkspaceLockfile) {
+    return Promise.all(getWantedLockfileDirs(opts).map((lockfileDir) => readWantedLockfileIn(lockfileDir, opts)))
+  }
+  return [
+    (await readWantedLockfileIn(workspaceDir, opts)) ??
+      await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false }),
+  ]
 }
 
 async function createWantedLockfileReader (ctx: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {
