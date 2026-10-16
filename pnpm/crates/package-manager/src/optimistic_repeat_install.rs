@@ -53,9 +53,9 @@ use modules_dirs::{
     first_selected_project_missing_modules_dir, modules_dirs_present,
 };
 use settle::{
-    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    early_repeat_verdict, project_structure_matches, settle_repeat_install,
-    wanted_lockfile_file_has_content,
+    content_check_decision, current_lockfile_file_has_content,
+    current_lockfile_unusable_with_non_empty_wanted, early_repeat_verdict,
+    project_structure_matches, settle_repeat_install, wanted_lockfile_file_has_content,
 };
 
 use std::{
@@ -195,41 +195,6 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         return decision;
     }
     content_check_decision(check, &state, &drift, modified)
-}
-
-/// The fast path's verdict once some manifest or the lockfile may have
-/// changed: the content check, settled in place when it passes.
-fn content_check_decision(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    drift: &ManifestDrift<'_>,
-    modified: Vec<&ManifestStat<'_>>,
-) -> Decision {
-    // A newer mtime alone doesn't invalidate: the modified-manifests
-    // branch re-checks the *content* against the wanted lockfile so a
-    // rewrite that left the dependency fields intact — `touch`, a
-    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
-    // When only the lockfile changed, every project is validated rather
-    // than just the modified ones.
-    let projects_to_check = drift.projects_to_check(modified);
-    let refresh_state = check.is_workspace_install || drift.lockfile_modified;
-    let filesystem_now = refresh_state.then(|| filesystem_now_ms(check.workspace_root)).flatten();
-    match modified_manifests_match_lockfile(
-        check,
-        state,
-        &projects_to_check,
-        check.config.dedupe_peers,
-    ) {
-        Ok(loaded_current) => {
-            let refresh_state = refresh_state && drift.lockfile_unchanged(check);
-            match settle_repeat_install(check, state, loaded_current, filesystem_now, refresh_state)
-            {
-                Ok(()) => Decision::UpToDate,
-                Err(reason) => Decision::Skipped { reason },
-            }
-        }
-        Err(reason) => Decision::Skipped { reason },
-    }
 }
 
 /// Every project manifest's mtime against the timestamp that proves it

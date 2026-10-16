@@ -1,7 +1,7 @@
 use super::{
-    Decision, OptimisticRepeatInstallCheck,
+    Decision, ManifestDrift, OptimisticRepeatInstallCheck, filesystem_now_ms,
     manifest_agreement::{LinkedPackagesContext, ManifestStat},
-    manifest_string_field,
+    manifest_string_field, modified_manifests_match_lockfile,
 };
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
@@ -33,6 +33,41 @@ pub(super) fn early_repeat_verdict(
     }
     None
 }
+/// The fast path's verdict once some manifest or the lockfile may have
+/// changed: the content check, settled in place when it passes.
+pub(super) fn content_check_decision(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &ManifestDrift<'_>,
+    modified: Vec<&ManifestStat<'_>>,
+) -> Decision {
+    // A newer mtime alone doesn't invalidate: the modified-manifests
+    // branch re-checks the *content* against the wanted lockfile so a
+    // rewrite that left the dependency fields intact — `touch`, a
+    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
+    // When only the lockfile changed, every project is validated rather
+    // than just the modified ones.
+    let projects_to_check = drift.projects_to_check(modified);
+    let refresh_state = check.is_workspace_install || drift.lockfile_modified;
+    let filesystem_now = refresh_state.then(|| filesystem_now_ms(check.workspace_root)).flatten();
+    match modified_manifests_match_lockfile(
+        check,
+        state,
+        &projects_to_check,
+        check.config.dedupe_peers,
+    ) {
+        Ok(loaded_current) => {
+            let refresh_state = refresh_state && drift.lockfile_unchanged(check);
+            match settle_repeat_install(check, state, loaded_current, filesystem_now, refresh_state)
+            {
+                Ok(()) => Decision::UpToDate,
+                Err(reason) => Decision::Skipped { reason },
+            }
+        }
+        Err(reason) => Decision::Skipped { reason },
+    }
+}
+
 /// Restore a missing wanted lockfile and refresh `lastValidatedTimestamp`
 /// after the content checks passed, so a repeat run short-circuits earlier.
 ///
