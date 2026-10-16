@@ -1467,6 +1467,113 @@ mod changed_packages {
         assert!(selected.is_empty(), "{selected:?}");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_whose_directory_symlink_is_retargeted() {
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        for (dir, version) in [("v1", "^1.0.0"), ("v2", "^2.0.0")] {
+            fs::create_dir_all(repo.path().join(dir)).expect("create catalog dir");
+            fs::write(
+                repo.path()
+                    .join(dir)
+                    .join("catalog.yaml"),
+                format!("catalog:\n  foo: {version}\n"),
+            )
+            .expect("write catalog file");
+        }
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - 'packages/*'\ninclude:\n  ./config/catalog.yaml: [catalog]\n",
+        )
+        .expect("write workspace manifest");
+        let link = ws_dir.join("config");
+        std::os::unix::fs::symlink("../v1", &link).expect("symlink config dir");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::remove_file(&link).expect("remove link");
+        std::os::unix::fs::symlink("../v2", &link).expect("retarget config dir");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        assert_eq!(
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn follow_a_symlink_chain_longer_than_eight_links_in_history() {
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        let shared = ws_dir.join("shared.yaml");
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.0.0\n").expect("write catalog file");
+        let mut target = "shared.yaml".to_string();
+        for hop in 0..12 {
+            let name = format!("link{hop}.yaml");
+            std::os::unix::fs::symlink(&target, ws_dir.join(&name)).expect("symlink hop");
+            target = name;
+        }
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  ./{target}: [catalog]\n"),
+        )
+        .expect("write workspace manifest");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n  bar: ^1.1.0\n")
+            .expect("update catalog file");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  ./{target}: [catalog]\n# touched\n"),
+        )
+        .expect("touch workspace manifest");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        let selected = selected(&graph, &[diff_selector("HEAD")], &opts);
+        assert!(selected.is_empty(), "{selected:?}");
+    }
+
     #[test]
     fn select_nested_projects_matching_glob_scoped_selector() {
         let repo = TempDir::new().expect("create tempdir");

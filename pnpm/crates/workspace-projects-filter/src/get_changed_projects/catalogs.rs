@@ -1,16 +1,18 @@
 use crate::{
     filter::FilterError,
-    get_changed_projects::{ChangeType, GetChangedProjectsOptions, strip_final_newline},
-    process::Command,
+    get_changed_projects::{ChangeType, GetChangedProjectsOptions},
 };
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
 
+use git_file::read_git_file;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
+
+mod git_file;
 
 pub fn apply_changed_catalogs(
     project_change_types: &mut IndexMap<PathBuf, Option<ChangeType>>,
@@ -96,123 +98,6 @@ fn read_working_tree_file(path: &Path) -> std::io::Result<Option<String>> {
     }
 }
 
-/// The content of `rel_path` at `commit`, following symlinks within that
-/// revision the way the working-tree reader follows them on disk.
-fn read_git_file(
-    commit: &str,
-    workspace_dir: &Path,
-    rel_path: &Path,
-) -> Result<Option<String>, FilterError> {
-    match resolve_git_path(commit, workspace_dir, rel_path)? {
-        Some(rel_str) => show_git_file(commit, workspace_dir, &rel_str),
-        None => Ok(None),
-    }
-}
-
-/// `rel_path` with every symlink among its components resolved in the tree
-/// of `commit`. `None` when it leaves the repository or does not resolve.
-fn resolve_git_path(
-    commit: &str,
-    workspace_dir: &Path,
-    rel_path: &Path,
-) -> Result<Option<String>, FilterError> {
-    const MAX_SYMLINK_HOPS: usize = 8;
-    let Some(normalized) = normalize_git_path(rel_path) else {
-        return Ok(None);
-    };
-    let mut pending: VecDeque<String> = normalized
-        .split('/')
-        .map(str::to_string)
-        .collect();
-    let mut resolved: Vec<String> = Vec::new();
-    let mut hops = 0;
-    while let Some(segment) = pending.pop_front() {
-        if !push_segment(&mut resolved, segment) {
-            return Ok(None);
-        }
-        let Some(target) = git_symlink_target(commit, workspace_dir, &resolved.join("/"))? else {
-            continue;
-        };
-        hops += 1;
-        if hops > MAX_SYMLINK_HOPS || Path::new(&target).is_absolute() {
-            return Ok(None);
-        }
-        resolved.pop();
-        for segment in target.rsplit('/') {
-            pending.push_front(segment.to_string());
-        }
-    }
-    Ok(Some(resolved.join("/")))
-}
-
-/// Apply one path segment to `resolved`. `false` when `..` leaves the
-/// repository.
-fn push_segment(resolved: &mut Vec<String>, segment: String) -> bool {
-    match segment.as_str() {
-        "" | "." => true,
-        ".." => resolved.pop().is_some(),
-        _ => {
-            resolved.push(segment);
-            true
-        }
-    }
-}
-
-/// What `rel_str` points to, when it is a symlink in the tree of `commit`.
-fn git_symlink_target(
-    commit: &str,
-    workspace_dir: &Path,
-    rel_str: &str,
-) -> Result<Option<String>, FilterError> {
-    if rel_str.is_empty() || !is_git_symlink(commit, workspace_dir, rel_str)? {
-        return Ok(None);
-    }
-    show_git_file(commit, workspace_dir, rel_str)
-}
-
-fn show_git_file(
-    commit: &str,
-    workspace_dir: &Path,
-    rel_str: &str,
-) -> Result<Option<String>, FilterError> {
-    let output = Command::new("git")
-        .args(["show", "--end-of-options", &format!("{commit}:{rel_str}")])
-        .current_dir(workspace_dir)
-        .env("LC_ALL", "C")
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if output.status.success() {
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-        Ok(Some(stdout))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("does not exist in") || stderr.contains("exists on disk, but not in") {
-            Ok(None)
-        } else {
-            Err(FilterError::FilterChanged { stderr: strip_final_newline(&stderr).to_string() })
-        }
-    }
-}
-
-/// Whether `rel_str` is a symlink in the tree of `commit`.
-fn is_git_symlink(commit: &str, workspace_dir: &Path, rel_str: &str) -> Result<bool, FilterError> {
-    const SYMLINK_MODE: &[u8] = b"120000 ";
-    let output = Command::new("git")
-        .args(["ls-tree", "--full-tree", "--end-of-options", commit, "--", rel_str])
-        .current_dir(workspace_dir)
-        .env("LC_ALL", "C")
-        .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(FilterError::FilterChanged {
-            stderr: strip_final_newline(&stderr).to_string(),
-        });
-    }
-    Ok(output.stdout.starts_with(SYMLINK_MODE))
-}
-
 /// The catalogs of a workspace manifest and the local files it includes,
 /// each read through `read` by its path joined to `base_dir`.
 fn load_workspace_catalogs(
@@ -233,25 +118,6 @@ fn load_workspace_catalogs(
     let manifest: WorkspaceManifest =
         serde_saphyr::from_str(&text).map_err(|err| to_filter_error(&err))?;
     get_catalogs_from_workspace_manifest(Some(&manifest)).map_err(|err| to_filter_error(&err))
-}
-
-/// `path` as a git revision path: forward slashes, with `.` and `..`
-/// resolved, since git does not resolve them. `None` for a path outside the
-/// repository.
-fn normalize_git_path(path: &Path) -> Option<String> {
-    let mut segments: Vec<String> = Vec::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::ParentDir => {
-                segments.pop()?;
-            }
-            std::path::Component::Normal(segment) => {
-                segments.push(segment.to_string_lossy().into_owned());
-            }
-            _ => {}
-        }
-    }
-    Some(segments.join("/"))
 }
 
 fn diff_catalogs(
