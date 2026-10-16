@@ -2,8 +2,10 @@
 //! own lockfiles ahead of the workspace projects they depend on.
 //!
 //! Resolving, fetching and materializing a project reads nothing the installs
-//! of its workspace dependencies produce, so each project starts as soon as a
-//! concurrency slot is free, in dependency order. It waits for those installs
+//! of its workspace dependencies produce, so projects start in dependency
+//! order, with at most `workspaceConcurrency` installs in flight. Waiting
+//! installs count toward this limit because they retain materialized state.
+//! A project waits for its workspace dependencies' installs
 //! only where they start to matter: before it links its dependencies and runs
 //! its lifecycle scripts. The scripts of a project therefore still run after
 //! the scripts of every workspace project it depends on, as they do when each
@@ -17,7 +19,7 @@ use crate::state::DedicatedCaches;
 use futures_util::{
     FutureExt,
     future::BoxFuture,
-    stream::{FuturesUnordered, StreamExt},
+    stream::{self, StreamExt},
 };
 use pnpm_package_manager::WorkspaceDependenciesInstalled;
 use std::{
@@ -97,15 +99,15 @@ impl DedicatedProjectRuns<'_> {
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let order = sequence_project_dependencies(&self.projects.dependencies);
+        let concurrency =
+            usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
         let run = PipelinedRun {
             runs: self,
             states: order
                 .iter()
                 .map(|_| watch::channel(Installed::Pending).0)
                 .collect(),
-            slots: Arc::new(Semaphore::new(
-                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
-            )),
+            slots: Arc::new(Semaphore::new(concurrency)),
             stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
             caches: DedicatedCaches::default(),
@@ -116,11 +118,9 @@ impl DedicatedProjectRuns<'_> {
             .enumerate()
             .map(|(index, project_dir)| (project_dir.as_path(), index))
             .collect();
-        order
-            .iter()
-            .enumerate()
-            .map(|(index, project_dir)| run.project(index, project_dir, &position))
-            .collect::<FuturesUnordered<_>>()
+        stream::iter(0..order.len())
+            .map(|index| run.project(index, &order[index], &position))
+            .buffer_unordered(concurrency)
             .collect::<()>()
             .await;
         run.first_error
@@ -222,9 +222,9 @@ where
     }
 
     /// `dependencies_installed` as the install awaits it: the install hands
-    /// its concurrency slot back while it waits, so that a project waiting
-    /// on its dependencies never keeps one of them, or any other project,
-    /// from running. `false` too when the command stopped at another
+    /// its execution permit back while it waits and reacquires it before
+    /// linking. The project still counts toward the in-flight install limit.
+    /// `false` too when the command stopped at another
     /// project's failure in the meantime, so the install links nothing.
     fn gate(
         &self,

@@ -93,6 +93,60 @@ module.exports = { hooks: { readPackage(pkg) {
     assert_eq!(order, "lib;app;");
 }
 
+/// An install waiting for a workspace dependency still counts toward the
+/// concurrency limit, since it retains its resolved and materialized state.
+#[test]
+fn waiting_projects_count_toward_workspace_concurrency() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    workspace_projects(
+        workspace,
+        &[
+            (
+                "lib",
+                serde_json::json!({}),
+                serde_json::json!({
+                    "postinstall": r#"node -e "const fs = require('fs'); const deadline = Date.now() + 30000; const poll = () => { if (fs.existsSync('../../app-resolving')) return setTimeout(() => fs.writeFileSync('../../lib-built', ''), 1000); if (Date.now() > deadline) process.exit(1); setTimeout(poll, 20); }; poll()""#,
+                }),
+            ),
+            ("app", serde_json::json!({ "lib": "workspace:*" }), serde_json::json!({})),
+            ("tail", serde_json::json!({ "app": "workspace:*" }), serde_json::json!({})),
+        ],
+    );
+    fs::write(
+        workspace.join("packages/app/.pnpmfile.cjs"),
+        r"const fs = require('fs');
+const path = require('path');
+module.exports = { hooks: { readPackage(pkg) {
+  fs.writeFileSync(path.join(__dirname, '../../app-resolving'), '');
+  return pkg;
+} } };
+",
+    )
+    .expect("write app pnpmfile");
+    fs::write(
+        workspace.join("packages/tail/.pnpmfile.cjs"),
+        r"const fs = require('fs');
+const path = require('path');
+module.exports = { hooks: { readPackage(pkg) {
+  if (!fs.existsSync(path.join(__dirname, '../../lib-built'))) {
+    throw new Error('third project started while two installs were unfinished');
+  }
+  return pkg;
+} } };
+",
+    )
+    .expect("write tail pnpmfile");
+
+    pacquet_at(workspace)
+        .with_args(["install", "--workspace-concurrency=2", "--no-lockfile"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("lib-built").exists());
+    assert!(workspace.join("packages/tail/node_modules/app").exists());
+}
+
 /// A project's `preinstall` and `pnpm:devPreinstall` scripts run before
 /// its install could wait for the workspace projects it depends on, so such
 /// a project waits for them before it starts at all.
