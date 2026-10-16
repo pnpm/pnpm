@@ -1111,3 +1111,5 @@ mod dependency_groups;
 mod virtual_store;
 
 mod source_isolation;
+
+mod local_dependencies;
