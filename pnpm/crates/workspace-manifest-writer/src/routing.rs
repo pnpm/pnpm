@@ -3,7 +3,8 @@
 
 use super::{
     Manifest, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
-    WORKSPACE_MANIFEST_FILENAME, edit_manifest_file, read_manifest_at, write_or_remove_manifest,
+    WORKSPACE_MANIFEST_FILENAME, edit_manifest_file, read_if_present, read_manifest_at,
+    write_atomic, write_or_remove_manifest,
 };
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_workspace::{
@@ -181,9 +182,36 @@ pub(crate) fn update_included_manifests(
             edited.push((target, manifest));
         }
     }
-    edited
-        .into_iter()
-        .try_for_each(|(target, manifest)| write_or_remove_manifest(&target, manifest))
+    write_all_or_restore(edited)
+}
+
+/// Write every edited file. When a write fails, the files written before it
+/// get their original content back.
+fn write_all_or_restore(
+    edited: Vec<(ManifestTarget, Manifest)>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let originals = edited
+        .iter()
+        .map(|(target, _)| read_if_present(&target.path))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut written: Vec<(PathBuf, Option<String>)> = Vec::with_capacity(edited.len());
+    for ((target, manifest), original) in edited.into_iter().zip(originals) {
+        if let Err(error) = write_or_remove_manifest(&target, manifest) {
+            for (path, original) in written {
+                restore(&path, original);
+            }
+            return Err(error);
+        }
+        written.push((target.path, original));
+    }
+    Ok(())
+}
+
+fn restore(path: &Path, original: Option<String>) {
+    let _ = match original {
+        Some(text) => write_atomic(path, &text),
+        None => fs::remove_file(path),
+    };
 }
 
 /// The updated catalog entries, grouped by the file that owns each catalog.

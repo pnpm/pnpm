@@ -162,3 +162,28 @@ fn a_rejected_edit_in_an_included_file_leaves_every_file_unchanged() {
     assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), ROOT);
     assert_eq!(read(dir.path(), "legacy.yaml"), legacy);
 }
+
+#[cfg(unix)]
+#[test]
+fn a_failed_write_restores_the_files_written_before_it() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = workspace();
+    let legacy_dir = dir.path().join("legacy");
+    fs::create_dir(&legacy_dir).expect("create legacy dir");
+    fs::write(legacy_dir.join("catalog.yaml"), "").expect("seed file");
+    let root = ROOT.replace("./legacy.yaml", "./legacy/catalog.yaml");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), &root).expect("seed root");
+    fs::set_permissions(&legacy_dir, fs::Permissions::from_mode(0o555)).expect("read-only dir");
+    let updated =
+        catalogs(&[("tools", &[("tsx", "^4.0.0")]), ("react18", &[("react", "^18.3.1")])]);
+    let opts =
+        UpdateWorkspaceManifestOptions { updated_catalogs: Some(&updated), ..Default::default() };
+    let result = update_workspace_manifest(dir.path(), &opts);
+    fs::set_permissions(&legacy_dir, fs::Permissions::from_mode(0o755)).expect("writable dir");
+
+    let error = result.expect_err("the included file's directory is read-only");
+    dbg!(&error);
+    assert!(matches!(error, UpdateWorkspaceManifestError::Write { .. }));
+    assert_eq!(read(dir.path(), "pnpm-workspace.yaml"), root);
+}

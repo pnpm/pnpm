@@ -164,9 +164,9 @@ fn get_changed_dirs_since_commit(
     repo_root: &Path,
 ) -> Result<ChangedDirsResult, FilterError> {
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
-    let manifest_paths = workspace_manifest_paths(opts.workspace_dir);
+    let manifest_paths = workspace_manifest_paths(opts.workspace_dir, repo_root);
 
-    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths)?;
+    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_paths, repo_root)?;
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
             changed_dirs: IndexMap::new(),
@@ -219,9 +219,9 @@ fn merge_base(commit: &str, workspace_dir: &Path) -> Result<String, FilterError>
 
 /// `pnpm-workspace.yaml` and the local files it includes, whose changes can
 /// change a catalog. A symlinked include also names its target inside the
-/// workspace. An include index that does not load names only the root
+/// repository. An include index that does not load names only the root
 /// manifest.
-fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
+fn workspace_manifest_paths(workspace_dir: &Path, repo_root: &Path) -> Vec<PathBuf> {
     let included: Vec<PathBuf> = pnpm_workspace::read_workspace_manifest_document(workspace_dir)
         .ok()
         .flatten()
@@ -231,7 +231,7 @@ fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
                 .local_paths()
                 .flat_map(|path| {
                     std::iter::once(normalize_lexically(path))
-                        .chain(symlink_target_in(workspace_dir, path))
+                        .chain(symlink_target_in(repo_root, path))
                 })
                 .collect()
         })
@@ -241,10 +241,10 @@ fn workspace_manifest_paths(workspace_dir: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Where the symlink `path` points, as a path under `workspace_dir`, so it
+/// Where the symlink `path` points, as a path under `repo_root`, so it
 /// compares equal to the repository paths git reports even when
-/// `workspace_dir` itself is reached through a symlink.
-fn symlink_target_in(workspace_dir: &Path, path: &Path) -> Option<PathBuf> {
+/// `repo_root` itself is reached through a symlink.
+fn symlink_target_in(repo_root: &Path, path: &Path) -> Option<PathBuf> {
     if !path
         .symlink_metadata()
         .ok()?
@@ -254,11 +254,19 @@ fn symlink_target_in(workspace_dir: &Path, path: &Path) -> Option<PathBuf> {
         return None;
     }
     let target = std::fs::canonicalize(path).ok()?;
-    let root = std::fs::canonicalize(workspace_dir).ok()?;
+    let root = std::fs::canonicalize(repo_root).ok()?;
     target
         .strip_prefix(root)
         .ok()
-        .map(|relative| workspace_dir.join(relative))
+        .map(|relative| repo_root.join(relative))
+}
+
+fn is_inside_repo(path: &Path, repo_root: &Path) -> bool {
+    let canonical_dir = path
+        .parent()
+        .and_then(|dir| std::fs::canonicalize(dir).ok());
+    let canonical_root = std::fs::canonicalize(repo_root).ok();
+    matches!((canonical_dir, canonical_root), (Some(dir), Some(root)) if dir.starts_with(&root))
 }
 
 /// `path` with `.` and `..` resolved without touching the filesystem, so it
@@ -282,6 +290,7 @@ fn git_diff_names(
     workspace_dir: &Path,
     working_dir: &Path,
     manifest_paths: &[PathBuf],
+    repo_root: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "-z", "--no-renames"]);
@@ -290,9 +299,9 @@ fn git_diff_names(
     }
     cmd.args(["--end-of-options", commit, "--"])
         .arg(working_dir);
-    if working_dir != workspace_dir {
-        cmd.args(manifest_paths);
-    }
+    // Included files may live outside the diffed directory. git rejects a
+    // pathspec outside the repository, so those are left out.
+    cmd.args(manifest_paths.iter().filter(|path| is_inside_repo(path, repo_root)));
     cmd.current_dir(workspace_dir);
 
     let output = cmd

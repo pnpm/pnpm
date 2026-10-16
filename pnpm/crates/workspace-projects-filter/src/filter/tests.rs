@@ -1345,6 +1345,76 @@ mod changed_packages {
         );
     }
 
+    /// A workspace in `<repo>/ws` whose catalog comes from `include_spec`.
+    /// `link` symlinks the include to `<repo>/shared/catalog.yaml`, else the
+    /// include names that file. Returns the projects a change to it selects.
+    fn select_after_changing_a_catalog_outside_the_workspace(
+        include_spec: &str,
+        link: bool,
+    ) -> (Vec<String>, String) {
+        let repo = TempDir::new().expect("create tempdir");
+        init_repo(repo.path());
+        let ws_dir = repo.path().join("ws");
+        let pkg_a_dir = ws_dir.join("packages").join("pkg-a");
+        fs::create_dir_all(&pkg_a_dir).expect("create pkg-a");
+        fs::create_dir_all(repo.path().join("shared")).expect("create shared dir");
+        let shared = repo.path().join("shared/catalog.yaml");
+        fs::write(
+            ws_dir.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - 'packages/*'\ninclude:\n  {include_spec}: [catalog]\n"),
+        )
+        .expect("write workspace manifest");
+        fs::write(&shared, "catalog:\n  foo: ^1.0.0\n").expect("write catalog file");
+        #[cfg(unix)]
+        if link {
+            std::os::unix::fs::symlink("../shared/catalog.yaml", ws_dir.join("catalog.yaml"))
+                .expect("symlink catalog file");
+        }
+        #[cfg(not(unix))]
+        assert!(!link, "symlinked includes are tested on Unix only");
+        fs::write(
+            pkg_a_dir.join("package.json"),
+            r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"catalog:"}}"#,
+        )
+        .expect("write pkg-a package.json");
+        commit_all(repo.path());
+
+        fs::write(&shared, "catalog:\n  foo: ^1.1.0\n").expect("update catalog file");
+
+        let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+        graph.insert(
+            pkg_a_dir.clone(),
+            ProjectGraphNode {
+                package: graph_project(
+                    &pkg_a_dir.to_string_lossy(),
+                    "pkg-a",
+                    &[("foo", "catalog:")],
+                ),
+                dependencies: Vec::new(),
+            },
+        );
+        let opts = FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() };
+        (
+            selected(&graph, &[diff_selector("HEAD")], &opts),
+            pkg_a_dir.to_string_lossy().into_owned(),
+        )
+    }
+
+    #[test]
+    fn select_projects_using_a_catalog_included_from_outside_the_workspace() {
+        let (selected, pkg_a) =
+            select_after_changing_a_catalog_outside_the_workspace("../shared/catalog.yaml", false);
+        assert_eq!(selected, [pkg_a]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_projects_using_a_catalog_symlinked_from_outside_the_workspace() {
+        let (selected, pkg_a) =
+            select_after_changing_a_catalog_outside_the_workspace("./catalog.yaml", true);
+        assert_eq!(selected, [pkg_a]);
+    }
+
     #[test]
     fn select_nested_projects_matching_glob_scoped_selector() {
         let repo = TempDir::new().expect("create tempdir");

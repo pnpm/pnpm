@@ -1,4 +1,4 @@
-use super::{InstallExecution, WorkspaceManifestRollbackGuard, fetches_into_store};
+use super::{InstallExecution, fetches_into_store};
 
 fn execution(lockfile_only: bool, dry_run: bool) -> InstallExecution {
     InstallExecution {
@@ -25,6 +25,8 @@ fn only_a_disabled_modules_dir_fetches_into_the_store() {
 #[cfg(unix)]
 #[test]
 fn rollback_restores_a_symlinked_include_through_the_link() {
+    use super::WorkspaceManifestRollbackGuard;
+
     let dir = tempfile::tempdir().expect("temp dir");
     let shared = dir.path().join("shared.yaml");
     let link = dir.path().join("policy.yaml");
