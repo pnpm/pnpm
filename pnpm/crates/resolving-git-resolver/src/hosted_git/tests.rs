@@ -276,3 +276,39 @@ fn synthesized_name_of_an_ownerless_shortcut_is_the_project() {
     assert_eq!(hosted.user, "");
     assert_eq!(hosted.synthesized_package_name(), "skills");
 }
+
+#[test]
+fn normalized_repository_url_matches_npm_pkg_fix() {
+    for (url, expected) in [
+        ("github:pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("https://github.com/pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("https://github.com/pnpm/example.git", "git+https://github.com/pnpm/example.git"),
+        ("https://www.github.com/pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("git+https://github.com/pnpm/example.git", "git+https://github.com/pnpm/example.git"),
+        ("git@github.com:pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("ssh://git@github.com/pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("git+ssh://git@github.com/pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("http://github.com/pnpm/example", "git+ssh://git@github.com/pnpm/example.git"),
+        ("git://github.com/pnpm/example.git", "git://github.com/pnpm/example.git"),
+        ("git://github.com/pnpm/example.git#v1", "git://github.com/pnpm/example.git#v1"),
+        ("gitlab:foo/bar", "git+https://gitlab.com/foo/bar.git"),
+        ("https://gitlab.com/group/sub/proj", "git+https://gitlab.com/group/sub/proj.git"),
+        ("bitbucket:foo/bar", "git+https://bitbucket.org/foo/bar.git"),
+        ("github:pnpm/example#v1", "git+https://github.com/pnpm/example.git#v1"),
+        ("github:pnpm/example#semver:^1", "git+https://github.com/pnpm/example.git#semver:^1"),
+    ] {
+        let hosted = HostedGit::from_url(url).expect("recognised");
+        assert_eq!(hosted.normalized_repository_url().as_deref(), Some(expected), "url: {url}");
+    }
+}
+
+/// `npm pkg fix` leaves these URLs as they are because hosted-git-info does
+/// not recognise them. `gist:` is the exception: npm recognises it, but the
+/// `gist` host is not implemented here.
+#[test]
+fn from_url_rejects_repository_urls_npm_leaves_unchanged() {
+    for url in ["git://gitlab.com/foo/bar.git", "https://example.com/repo.git", "gist:abc123"] {
+        assert_eq!(HostedGit::from_url(url), None, "url: {url}");
+    }
+}

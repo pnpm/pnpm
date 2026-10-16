@@ -8401,6 +8401,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      hosted-git-info:
+        specifier: 'catalog:'
+        version: '@pnpm/hosted-git-info@1.0.0'
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
@@ -8414,6 +8417,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/hosted-git-info':
+        specifier: 'catalog:'
+        version: 3.0.5
 
   pnpm11/pkg-manifest/reader:
     dependencies:
