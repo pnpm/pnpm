@@ -18,6 +18,7 @@ use super::{
 /// What a gate does differently in the shared content phase.
 pub(super) struct GatePolicy {
     pub(super) missing_wanted_lockfile: MissingWantedLockfile,
+    pub(super) newer_patch: NewerPatch,
     /// Whether the content check applies `dedupePeers`.
     pub(super) dedupe_peers: bool,
     pub(super) recorded_groups: RecordedGroups,
@@ -31,6 +32,17 @@ pub(super) enum MissingWantedLockfile {
     Restore,
     /// Leave the project untouched and only require the stand-in to exist.
     RequireStandIn,
+}
+
+/// What a gate does with a patch file newer than the last validation. An
+/// edit in place keeps the `patchedDependencies` entry, so the settings
+/// comparison cannot see it, but it changes the patched output.
+pub(super) enum NewerPatch {
+    /// Report the tree stale.
+    Refuse,
+    /// Report it current when every patch still hashes to what the lockfile
+    /// records.
+    CompareHash,
 }
 
 /// The dependency groups a refreshed state records.
@@ -82,7 +94,12 @@ pub(super) fn check_freshness(
     // records nothing, so it is spared the probe.
     let refresh = drift.refreshes_state(check).then(|| validation_now(check));
     if drift.patches_modified {
-        patches_match_lockfile(check).map_err(Stale::Content)?;
+        match policy.newer_patch {
+            NewerPatch::Refuse => {
+                return Err(Stale::Content("a patch file is newer than the last validation"));
+            }
+            NewerPatch::CompareHash => patches_match_lockfile(check).map_err(Stale::Content)?,
+        }
     }
     require_installed(check)?;
     let projects_to_check = drift.projects_to_check(modified);

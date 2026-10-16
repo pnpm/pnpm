@@ -47,7 +47,9 @@ mod manifest_source;
 mod modules_dirs;
 mod relocation;
 mod settle;
-use freshness::{GatePolicy, MissingWantedLockfile, RecordedGroups, Stale, check_freshness};
+use freshness::{
+    GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+};
 use modules_dirs::{
     direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_from_current_lockfile,
@@ -174,7 +176,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let (state, moved) =
         relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
             .map_or((state, false), |relocated| (relocated, true));
-    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings, moved);
+    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings);
     if let Some(reason) = blocked {
         return Decision::Skipped { reason };
     }
@@ -184,6 +186,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // a `scripts` edit, `npm pkg set/delete`) still reports up to date.
     let policy = GatePolicy {
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
+        newer_patch: NewerPatch::Refuse,
         dedupe_peers: check.config.dedupe_peers,
         recorded_groups: RecordedGroups::Current,
     };
@@ -221,12 +224,11 @@ fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
 }
 
 /// The first reason the recorded workspace state cannot prove this install is
-/// a no-op. `moved` marks a state [`relocation::relocated_state`] re-keyed.
+/// a no-op.
 fn state_blocks_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     ignored_workspace_state_settings: &[&str],
-    moved: bool,
 ) -> Option<&'static str> {
     // A filtered install refreshes `lastValidatedTimestamp` while
     // materializing only the projects it selected, so its state cannot
@@ -244,7 +246,7 @@ fn state_blocks_fast_path(
     }
     local_file_blocks_fast_path(check)
         .or_else(|| settings_block_fast_path(check, state, ignored_workspace_state_settings))
-        .or_else(|| lockfile_inputs_block_fast_path(check, state, moved))
+        .or_else(|| lockfile_inputs_block_fast_path(check, state))
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
@@ -328,14 +330,11 @@ fn settings_block_fast_path(
 }
 
 /// The lockfile and the resolution inputs beside the manifests: a missing
-/// lockfile the current one may not stand in for, an edited patch, an edited
-/// pnpmfile. The patch mtimes of a `moved` tree come from where it was
-/// validated, so its patches are left to the content proof, which hashes
-/// them.
+/// lockfile the current one may not stand in for, an edited pnpmfile. An
+/// edited patch is left to the content phase's [`NewerPatch`] policy.
 fn lockfile_inputs_block_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    moved: bool,
 ) -> Option<&'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -366,14 +365,6 @@ fn lockfile_inputs_block_fast_path(
         && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some("wanted lockfile missing");
-    }
-    // A patch file edited in place keeps the same `patchedDependencies`
-    // key→path entry (so `settings_match` can't see the change) but
-    // changes the patched output and the patch hash. This check runs
-    // before the manifest-modified exit so the patch reason wins when
-    // both a patch and a manifest are newer than the last validation.
-    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
-        return Some("a patch file is newer than the last validation");
     }
     // A pnpmfile added, removed, or edited in place can change
     // resolution (readPackage rewrites, custom resolvers, a

@@ -6,7 +6,9 @@ use super::{
     first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
     first_selected_project_missing_from_current_lockfile,
     first_selected_project_missing_modules_dir, first_setting_drift,
-    freshness::{GatePolicy, MissingWantedLockfile, RecordedGroups, Stale, check_freshness},
+    freshness::{
+        GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+    },
     pnpmfiles_drift, project_structure_matches,
     relocation::relocated_state,
     wanted_lockfile_file_has_content,
@@ -37,8 +39,7 @@ pub enum RunDepsStatus {
 /// it runs regardless of `optimisticRepeatInstall`, never treats local
 /// file dependencies as outdated, ignores `dev`/`optional`/`production`
 /// drift (scripts always run with the default groups), compares
-/// configuration dependencies, hashes a patch newer than the last
-/// validation instead of refusing it, and reports drift with pnpm's
+/// configuration dependencies, and reports drift with pnpm's
 /// user-facing issue wording instead of a diagnostic-only reason.
 /// `state` arrives from the caller, which already had to load it to
 /// decide whether a check is possible at all (a missing state is
@@ -71,6 +72,7 @@ pub fn check_deps_status_before_run(
 
     let policy = GatePolicy {
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
+        newer_patch: NewerPatch::CompareHash,
         // The TypeScript run/exec handler does not forward `dedupePeers`
         // into `checkDepsStatus`, so its pre-run lockfile check uses the
         // false default even when the workspace setting is true.
