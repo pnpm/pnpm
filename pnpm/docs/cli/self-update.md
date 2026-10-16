@@ -32,7 +32,7 @@ If the project does not pin pnpm, or the pin is being ignored via [`pmOnFail: ig
 
 ### When Homebrew or Corepack manages pnpm
 
-`pnpm self-update` fails if Homebrew installed pnpm or Corepack runs it. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@11` for a versioned formula).
+If Homebrew installed pnpm or Corepack runs it, `pnpm self-update` leaves the global pnpm alone. In a project that pins pnpm, it still updates the pin. Outside such a project, it fails. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@11` for a versioned formula).
 
 ## Project settings are ignored
 
