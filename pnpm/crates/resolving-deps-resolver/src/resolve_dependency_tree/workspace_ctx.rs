@@ -40,7 +40,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock},
 };
 
 use crate::{
@@ -130,7 +130,7 @@ pub(crate) struct WorkspaceTreeStorage {
 
 #[derive(Default)]
 pub(crate) struct WorkspaceChildrenState {
-    pub(super) specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
+    pub(super) specs_by_id: RwLock<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
     /// it a level seeds — see [`fn@warm_children_resolutions`].
