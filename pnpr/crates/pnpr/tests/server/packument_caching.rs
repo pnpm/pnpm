@@ -216,6 +216,7 @@ async fn packument_conditional_if_none_match() {
 
     // Non-matching ETag returns 200 OK with body
     let mismatch = app
+        .clone()
         .oneshot(
             Request::get("/foo")
                 .header(header::IF_NONE_MATCH, r#""non-matching-etag""#)
@@ -226,6 +227,31 @@ async fn packument_conditional_if_none_match() {
         .unwrap();
     assert_eq!(mismatch.status(), StatusCode::OK);
     assert!(!body_bytes(mismatch.into_body()).await.is_empty());
+
+    // Unquoted candidate does not match quoted ETag
+    let unquoted = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .header(header::IF_NONE_MATCH, etag.trim_matches('"'))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unquoted.status(), StatusCode::OK);
+
+    // Quoted candidate with embedded comma is not split into fragments
+    let comma_etag = app
+        .oneshot(
+            Request::get("/foo")
+                .header(header::IF_NONE_MATCH, format!(r#""{},other""#, etag.trim_matches('"')))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(comma_etag.status(), StatusCode::OK);
 }
 
 #[tokio::test]

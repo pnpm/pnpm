@@ -195,21 +195,25 @@ fn is_not_modified(headers: &HeaderMap, etag: &str, last_modified: Option<&str>)
 }
 
 fn if_none_match_matches(header_val: &str, etag: &str) -> bool {
-    let clean_etag = etag
-        .trim()
-        .trim_start_matches("W/")
-        .trim_matches('"');
-    for candidate in header_val.split(',') {
+    let matches_candidate = |candidate: &str| {
         let candidate = candidate.trim();
-        if candidate == "*" {
-            return true;
-        }
-        let clean_candidate = candidate.trim_start_matches("W/").trim_matches('"');
-        if clean_candidate == clean_etag {
-            return true;
+        candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == etag
+    };
+    let mut in_quotes = false;
+    let mut start = 0;
+    for (idx, char_code) in header_val.char_indices() {
+        match char_code {
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => {
+                if matches_candidate(&header_val[start..idx]) {
+                    return true;
+                }
+                start = idx + 1;
+            }
+            _ => {}
         }
     }
-    false
+    matches_candidate(&header_val[start..])
 }
 
 fn if_modified_since_matches(if_modified_since: &str, last_modified: &str) -> bool {
