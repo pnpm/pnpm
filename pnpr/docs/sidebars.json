@@ -10,6 +10,7 @@
       "items": [
         "configuration",
         "storage",
+        "backup-and-restore",
         "auth-backends",
         "oidc",
         "scim"

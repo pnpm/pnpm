@@ -175,6 +175,22 @@ impl AuthSqlBackend for MysqlDatabase {
         Ok(updated.rows_affected() > 0)
     }
 
+    async fn update_user_hash_if_current(
+        &self,
+        username: &str,
+        old_hash: &str,
+        new_hash: &str,
+    ) -> Result<bool> {
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE username = ? AND bcrypt_hash = ?")
+                .bind(new_hash)
+                .bind(username)
+                .bind(old_hash)
+                .execute(&self.pool)
+                .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
     async fn delete_user(&self, username: &str) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM users WHERE username = ?")
@@ -201,7 +217,7 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::sqlite::TOKENS_TABLE_SQL).execute(&self.pool).await?;
         create_token_index(&self.pool).await?;
         add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
         add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;

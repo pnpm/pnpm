@@ -29,7 +29,9 @@
 pub mod oidc;
 pub(crate) mod validation;
 
-pub use htpasswd::verify_bcrypt;
+pub use htpasswd::{
+    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
+};
 pub use identify::identify;
 pub use owned_tokens::OwnedTokens;
 pub use token_store::{NewToken, TokenRecord, TokenStore};
@@ -37,10 +39,7 @@ pub use user_store::UserStore;
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{
-    dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user,
-    write_atomic,
-};
+use htpasswd::{dummy_verify, hash_bcrypt, serialize_htpasswd, verify_returning_user};
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
@@ -362,7 +361,7 @@ pub trait TokenBackend: Send + Sync {
 /// feel sluggish.
 const DEFAULT_BCRYPT_COST: u32 = 10;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpsertOutcome {
     /// The user didn't exist; we created the account.
     Created,

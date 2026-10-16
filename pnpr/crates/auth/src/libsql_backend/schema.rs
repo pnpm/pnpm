@@ -20,8 +20,8 @@ pub(super) async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) 
 
 pub(super) async fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute(super::super::USERS_TABLE_SQL, ()).await?;
-    conn.execute(super::super::token_store::TOKENS_TABLE_SQL, ()).await?;
-    conn.execute(super::super::token_store::TOKENS_INDEX_SQL, ()).await?;
+    conn.execute(super::super::token_store::sqlite::TOKENS_TABLE_SQL, ()).await?;
+    conn.execute(super::super::token_store::sqlite::TOKENS_INDEX_SQL, ()).await?;
     add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
     add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;
     conn.execute(super::super::AUTH_COUNTERS_TABLE_SQL, ()).await?;

@@ -15,7 +15,12 @@
 #![recursion_limit = "256"]
 
 pub mod cache_maintenance;
+pub mod config_check;
+pub mod export;
+pub mod htpasswd_import;
+pub mod migrate_storage;
 pub mod oci_maintenance;
+pub mod verify;
 
 pub use pnpr_auth::{
     AuthState, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,

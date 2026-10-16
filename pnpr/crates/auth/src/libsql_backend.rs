@@ -14,7 +14,7 @@
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
 //! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::token_store::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
+//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
@@ -30,7 +30,7 @@ use schema::{
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, dummy_verify,
-    fresh_secret, hash_bcrypt, verify_returning_user, with_auth_timeout,
+    fresh_secret, hash_bcrypt, is_sha_hash, verify_returning_user, with_auth_timeout,
 };
 use crate::validation::validate_username;
 use async_trait::async_trait;
@@ -228,7 +228,7 @@ impl LibsqlAuth {
         validate_username(username)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return self.verify_and_maybe_upgrade(username, password, stored).await;
         }
 
         if matches!(self.max_users, MaxUsers::Disabled) {
@@ -347,7 +347,7 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return self.verify_and_maybe_upgrade(username, password, stored).await;
         }
         let MaxUsers::Limited(max) = self.max_users else {
             return Err(RegistryError::RegistrationDisabled);
@@ -365,7 +365,26 @@ impl LibsqlAuth {
         let Some(stored) = self.stored_hash(username).await? else {
             return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         };
-        verify_returning_user(username, password, stored).await
+        self.verify_and_maybe_upgrade(username, password, stored).await
+    }
+
+    async fn verify_and_maybe_upgrade(
+        &self,
+        username: &str,
+        password: &str,
+        stored: String,
+    ) -> Result<(UpsertOutcome, String)> {
+        let (outcome, user) =
+            verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
+        if is_sha_hash(&stored) {
+            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            self.conn.execute(
+                "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
+                params![new_hash, username, stored],
+            )
+            .await?;
+        }
+        Ok((outcome, user))
     }
 }
 

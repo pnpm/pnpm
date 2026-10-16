@@ -873,3 +873,42 @@ async fn verify_bcrypt_handles_passwords_exceeding_72_bytes() {
     let password_72 = "a".repeat(72);
     assert!(!super::verify_bcrypt(password_72, hash).await.unwrap());
 }
+
+#[test]
+fn parse_htpasswd_accepts_sha1_entries() {
+    let raw = "alice:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=\nbob:$2y$04$somevalidhashhere12345678901234567890123456789012\n";
+    let users = super::parse_htpasswd(raw).unwrap();
+    assert_eq!(users.get("alice"), Some(&"{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=".to_string()));
+    assert!(users.contains_key("bob"));
+}
+
+#[tokio::test]
+async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("htpasswd");
+    // "test" hashed with SHA-1 in Apache/Verdaccio format
+    std::fs::write(&path, "verdaccio_user:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=\n").unwrap();
+
+    let store =
+        UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, TEST_COST)
+            .unwrap();
+
+    // Wrong password fails
+    let err = store.add_or_login("verdaccio_user", "wrong").await.unwrap_err();
+    assert!(matches!(err, pnpr_error::RegistryError::Unauthenticated { .. }));
+
+    // Correct password succeeds
+    let (outcome, user) = store.add_or_login("verdaccio_user", "test").await.unwrap();
+    assert_eq!(outcome, super::UpsertOutcome::LoggedIn);
+    assert_eq!(user, "verdaccio_user");
+
+    // File on disk is now upgraded to bcrypt
+    let content = std::fs::read_to_string(&path).unwrap();
+    assert!(!content.contains("{SHA}"));
+    assert!(content.contains("verdaccio_user:$2y$"));
+
+    // Verify returning user can log in with new bcrypt hash
+    let (outcome2, user2) = store.add_or_login("verdaccio_user", "test").await.unwrap();
+    assert_eq!(outcome2, super::UpsertOutcome::LoggedIn);
+    assert_eq!(user2, "verdaccio_user");
+}

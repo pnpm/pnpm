@@ -167,6 +167,23 @@ impl AuthSqlBackend for PostgresDatabase {
         Ok(updated.rows_affected() > 0)
     }
 
+    async fn update_user_hash_if_current(
+        &self,
+        username: &str,
+        old_hash: &str,
+        new_hash: &str,
+    ) -> Result<bool> {
+        let updated = sqlx::query(
+            "UPDATE users SET bcrypt_hash = $3 WHERE username = $1 AND bcrypt_hash = $2",
+        )
+        .bind(username)
+        .bind(old_hash)
+        .bind(new_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
     async fn delete_user(&self, username: &str) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM users WHERE username = $1")
@@ -193,8 +210,8 @@ impl AuthSqlBackend for PostgresDatabase {
 impl PostgresDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::sqlite::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::sqlite::TOKENS_INDEX_SQL).execute(&self.pool).await?;
         sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
             .execute(&self.pool)
             .await?;
