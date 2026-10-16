@@ -72,21 +72,19 @@ pub(super) fn check_freshness(
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
     }
+    let modified = drift.modified();
+    if modified.is_empty() && !drift.shared_input_modified() {
+        require_installed(check)?;
+        return settle_missing_wanted_lockfile(check, policy, None);
+    }
     // Probed before any content is read, so a file edited while the checks
-    // run is newer than the recorded validation.
+    // run is newer than the recorded validation. The unchanged tree above
+    // records nothing, so it is spared the probe.
     let refresh = drift.refreshes_state(check).then(|| validation_now(check));
     if drift.patches_modified {
         patches_match_lockfile(check).map_err(Stale::Content)?;
     }
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => return Err(Stale::NothingInstalled),
-        Ok(false) => {}
-        Err(reason) => return Err(Stale::Content(reason)),
-    }
-    let modified = drift.modified();
-    if modified.is_empty() && !drift.shared_input_modified() {
-        return settle_missing_wanted_lockfile(check, policy, None);
-    }
+    require_installed(check)?;
     let projects_to_check = drift.projects_to_check(modified);
     let loaded_current = if projects_to_check.is_empty() {
         None
@@ -100,6 +98,16 @@ pub(super) fn check_freshness(
         record_state(check, state, filesystem_now, policy);
     }
     Ok(())
+}
+
+/// A single project whose wanted lockfile has packages must have a current
+/// lockfile recording their install.
+fn require_installed(check: &OptimisticRepeatInstallCheck<'_>) -> Result<(), Stale> {
+    match current_lockfile_unusable_with_non_empty_wanted(check) {
+        Ok(true) => Err(Stale::NothingInstalled),
+        Ok(false) => Ok(()),
+        Err(reason) => Err(Stale::Content(reason)),
+    }
 }
 
 /// Every input the content phase compares against the last validation, with
