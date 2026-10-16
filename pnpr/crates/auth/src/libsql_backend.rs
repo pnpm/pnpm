@@ -376,14 +376,13 @@ impl LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let (outcome, user) =
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
-        if is_sha_hash(&stored)
-            && let Ok(new_hash) = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await
-        {
-            let _ = self.conn.execute(
+        if is_sha_hash(&stored) {
+            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            self.conn.execute(
                 "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
                 params![new_hash, username, stored],
             )
-            .await;
+            .await?;
         }
         Ok((outcome, user))
     }

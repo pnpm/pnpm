@@ -107,10 +107,9 @@ impl<Db> SqlAuth<Db> {
             DEFAULT_BCRYPT_COST,
         )
         .await?;
-        if is_sha_hash(&stored.bcrypt_hash)
-            && let Ok(new_hash) = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await
-        {
-            let _ = with_auth_timeout(
+        if is_sha_hash(&stored.bcrypt_hash) {
+            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            with_auth_timeout(
                 self.timeout,
                 self.db.update_user_hash_if_current(
                     &stored.username,
@@ -118,7 +117,7 @@ impl<Db> SqlAuth<Db> {
                     &new_hash,
                 ),
             )
-            .await;
+            .await?;
         }
         Ok((outcome, user))
     }

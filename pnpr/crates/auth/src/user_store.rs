@@ -160,11 +160,9 @@ impl UserStore {
         let (outcome, user) =
             verify_returning_user(username, password, stored.clone(), self.bcrypt_cost).await?;
         if is_sha_hash(&stored) {
-            let Ok(new_hash) = hash_bcrypt(password.to_string(), self.bcrypt_cost).await else {
-                return Ok((outcome, user));
-            };
+            let new_hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
             let name = username.to_string();
-            let _ = self.update(move |users| {
+            self.update(move |users| {
                 if users.get(&name) == Some(&stored) {
                     users.insert(name, new_hash);
                     Ok(Change::Write(()))
@@ -172,7 +170,7 @@ impl UserStore {
                     Ok(Change::Keep(()))
                 }
             })
-            .await;
+            .await?;
         }
         Ok((outcome, user))
     }
