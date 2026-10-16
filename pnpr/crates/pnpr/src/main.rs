@@ -1,4 +1,5 @@
 use clap::{Parser, builder::BoolishValueParser};
+use pnpm_diagnostics::println;
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
 use std::{
     io::IsTerminal,
@@ -92,36 +93,8 @@ struct FeatureArgs {
     disable_artifacts: bool,
 }
 
-#[derive(Debug, clap::Subcommand)]
-enum Command {
-    /// Collect old, unreferenced image blobs. Stop all registry writers first.
-    OciGc {
-        /// Concrete hosted OCI registry from the config.
-        #[arg(long)]
-        registry: String,
-        /// Report reclaimable blobs without deleting them.
-        #[arg(long)]
-        dry_run: bool,
-        /// Minimum blob age to reclaim, in seconds.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
-    },
-    /// Reclaim cached upstream tarballs and packuments.
-    CacheGc {
-        /// Report reclaimable entries without deleting them.
-        #[arg(long)]
-        dry_run: bool,
-        /// Maximum total cache size to retain (e.g. "10GB", "500MB", or raw bytes).
-        #[arg(long)]
-        max_size: Option<String>,
-        /// Maximum file age in seconds. Entries older than this are deleted.
-        #[arg(long)]
-        max_age_secs: Option<u64>,
-        /// Only prune orphaned upstream namespaces without evicting active cache files.
-        #[arg(long)]
-        orphans_only: bool,
-    },
-}
+mod cli_commands;
+use cli_commands::{Command, ConfigSubcommand, run_command};
 
 impl Args {
     fn feature_overrides(&self) -> pnpr::FeatureOverrides {
@@ -136,6 +109,14 @@ impl Args {
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let mut args = Args::parse();
+    if matches!(
+        args.command,
+        Some(Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }),
+    ) {
+        let report = pnpr::config_check::check_config(args.config.as_deref())?;
+        println!("{}", pnpr::config_check::format_report(&report));
+        return Ok(());
+    }
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
@@ -158,73 +139,6 @@ async fn main() -> miette::Result<()> {
         return run_command(&config, command).await;
     }
     serve(config).await.map_err(|err| redacted_report(&err))
-}
-
-async fn run_oci_gc(
-    config: &Config,
-    registry: String,
-    dry_run: bool,
-    min_age_secs: u64,
-) -> miette::Result<()> {
-    pnpr::recover_publish_journal(config).await.map_err(|err| redacted_report(&err))?;
-    let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
-        config,
-        &registry,
-        Duration::from_secs(min_age_secs),
-        dry_run,
-    )
-    .await
-    .map_err(|err| redacted_report(&err))?;
-    tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
-    Ok(())
-}
-
-async fn run_cache_gc(
-    config: &Config,
-    dry_run: bool,
-    max_size: Option<String>,
-    max_age_secs: Option<u64>,
-    orphans_only: bool,
-) -> miette::Result<()> {
-    let max_size = if let Some(raw) = max_size.as_deref() {
-        Some(pnpr_config::parse_byte_size(raw).ok_or_else(|| {
-            miette::miette!(
-                "invalid --max-size {raw:?}; expected byte size like '10GB', '500MB', or raw bytes"
-            )
-        })?)
-    } else {
-        None
-    };
-    let options = pnpr::cache_maintenance::CacheGcOptions {
-        dry_run,
-        max_size,
-        max_age: max_age_secs.map(Duration::from_secs),
-        orphans_only,
-    };
-    let report = pnpr::cache_maintenance::collect_cache(config, &options).await
-        .map_err(|err| redacted_report(&err))?;
-    tracing::info!(
-        namespaces = report.namespaces_removed,
-        files = report.files_evicted,
-        bytes = report.bytes_reclaimed,
-        dry_run,
-        "cache collection completed",
-    );
-    Ok(())
-}
-
-async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
-    match command {
-        Command::OciGc { registry, dry_run, min_age_secs } => {
-            run_oci_gc(config, registry, dry_run, min_age_secs).await
-        }
-        Command::CacheGc {
-            dry_run,
-            max_size,
-            max_age_secs,
-            orphans_only,
-        } => run_cache_gc(config, dry_run, max_size, max_age_secs, orphans_only).await,
-    }
 }
 
 /// Fold the command-line overrides into the resolved config.

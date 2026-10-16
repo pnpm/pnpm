@@ -5,6 +5,11 @@ title: CLI reference
 
 ```sh
 pnpr [OPTIONS]
+pnpr config check
+pnpr verify [OPTIONS]
+pnpr export --out <dir> [OPTIONS]
+pnpr migrate-storage [OPTIONS]
+pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr [OPTIONS] oci-gc --registry <name>
 pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 ```
@@ -41,6 +46,89 @@ PNPR_LISTEN=0.0.0.0:7677 PNPR_PUBLIC_URL=https://registry.example.com pnpr
 ```
 
 ## Subcommands
+
+### config check
+
+Validates the YAML configuration file and prints diagnostic details, including configured registries, upstreams, hosted storage, cache directory, auth backends, and enabled surface toggles (`registry`, `resolver`, `artifacts`).
+
+```sh
+pnpr config check
+# or using the hyphenated alias
+pnpr config-check
+```
+
+### verify
+
+Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.
+
+```sh
+# Fast presence check
+pnpr verify
+
+# Full checksum verification (SHA-1 and Subresource Integrity)
+pnpr verify --check-hashes
+
+# Prune unreferenced blobs left behind by interrupted operations
+pnpr verify --prune-orphans
+```
+
+| Flag | Description |
+| --- | --- |
+| `--check-hashes` | Recompute and verify tarball SHA-1 (`shasum`) and sha512 (`integrity`) checksums. |
+| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. |
+
+### export
+
+Exports hosted packages, packuments, and tarball blobs to a local directory.
+
+```sh
+pnpr export --out /mnt/backups/pnpr-export --include-auth
+```
+
+| Flag | Description |
+| --- | --- |
+| `--out <dir>` | Destination directory for exported packages and files. Required. |
+| `--include-auth` | Also copy configured `htpasswd` and `tokens.db` files into the output directory. |
+
+### migrate-storage
+
+Migrates hosted packages and blobs from local filesystem storage to an S3-compatible object store.
+
+```sh
+# Preview packages and blobs that would be transferred
+pnpr migrate-storage --to-bucket my-bucket --dry-run
+
+# Transfer and verify blob sizes on the destination
+pnpr migrate-storage --to-bucket my-bucket --verify
+```
+
+| Flag | Description |
+| --- | --- |
+| `--from <dir>` | Source hosted storage directory. Defaults to configured `storage.hosted_dir`. |
+| `--to-bucket <name>` | Destination S3 bucket name. |
+| `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
+| `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |
+| `--to-prefix <prefix>` | Destination key prefix within the bucket. |
+| `--dry-run` | Report packages and blobs to migrate without uploading. |
+| `--verify` | Read back and verify size of uploaded blobs after transfer. |
+
+### import-htpasswd
+
+Imports users from an Apache or Verdaccio `htpasswd` file into pnpr's user store. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login).
+
+```sh
+# Preview users that would be imported
+pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
+
+# Import and merge with pnpr's configured htpasswd file
+pnpr import-htpasswd --source /path/to/old/htpasswd
+```
+
+| Flag | Description |
+| --- | --- |
+| `--source <path>` | Path to the source htpasswd file to import. Required. |
+| `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
+| `--dry-run` | Preview imported user counts without writing to target file. |
 
 ### oci-gc
 

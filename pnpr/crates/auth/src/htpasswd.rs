@@ -10,7 +10,7 @@ use crate::validation::validate_username;
 /// `$2b$`, `$2y$`) but reject everything else so a config file
 /// holding `crypt(3)` or plaintext entries can't masquerade as
 /// passing without the password actually being verifiable.
-pub(super) fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
+pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
     let mut out = HashMap::new();
     for (line_no, line) in raw.lines().enumerate() {
         let line = line.trim_end_matches(['\r']);
@@ -25,7 +25,7 @@ pub(super) fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, S
 }
 
 /// The user and bcrypt hash one htpasswd line declares.
-pub(super) fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), String> {
+pub fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), String> {
     let Some((user, hash)) = line.split_once(':') else {
         return Err("missing ':' separator".to_string());
     };
@@ -42,16 +42,48 @@ pub(super) fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str
         return Err(format!("invalid username {user:?}: {reason}"));
     }
     if !is_supported_hash(hash) {
-        return Err(format!("unsupported hash format for user {user:?} (only bcrypt is accepted)"));
+        return Err(format!(
+            "unsupported hash format for user {user:?} (only bcrypt and {{SHA}} are accepted)",
+        ));
     }
     Ok((user, hash))
 }
 
-/// True for any bcrypt variant. We don't accept `{SHA}`, `$apr1$`,
-/// crypt(3), or plaintext — every supported entry must go through
-/// `bcrypt::verify` cleanly.
-pub(super) fn is_supported_hash(hash: &str) -> bool {
+/// True for any bcrypt variant or Apache/Verdaccio `{SHA}` format.
+#[must_use]
+pub fn is_supported_hash(hash: &str) -> bool {
+    is_bcrypt_hash(hash) || is_sha_hash(hash)
+}
+
+#[must_use]
+pub fn is_bcrypt_hash(hash: &str) -> bool {
     hash.starts_with("$2a$") || hash.starts_with("$2b$") || hash.starts_with("$2y$")
+}
+
+#[must_use]
+pub fn is_sha_hash(hash: &str) -> bool {
+    hash.starts_with("{SHA}")
+}
+
+pub(super) fn verify_sha1(password: &str, stored_hash: &str) -> bool {
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha1)
+        .chain(password.as_bytes())
+        .result();
+    let Some(first) = integrity.hashes.first() else { return false };
+    let expected = format!("{{SHA}}{}", first.digest);
+    constant_time_eq(stored_hash.as_bytes(), expected.as_bytes())
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (left_byte, right_byte) in left.iter().zip(right.iter()) {
+        diff |= left_byte ^ right_byte;
+    }
+    diff == 0
 }
 
 /// Serialize the user map back to htpasswd shape. Sorted output so
@@ -162,7 +194,12 @@ pub(super) async fn verify_returning_user(
     password: &str,
     stored: String,
 ) -> Result<(UpsertOutcome, String)> {
-    if verify_bcrypt(password.to_string(), stored).await? {
+    let valid = if is_sha_hash(&stored) {
+        verify_sha1(password, &stored)
+    } else {
+        verify_bcrypt(password.to_string(), stored).await?
+    };
+    if valid {
         Ok((UpsertOutcome::LoggedIn, username.to_string()))
     } else {
         Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
