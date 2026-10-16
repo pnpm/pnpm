@@ -12,7 +12,7 @@
 //!   form; pacquet uses the override, not the raw template.
 //! - The `gist` host is not implemented. The test suite never
 //!   exercises it and the install path has no gist-shaped store key.
-//! - `browse` / `bugs` / `file` / `git` templates are not implemented.
+//! - `browse` / `bugs` / `file` templates are not implemented.
 
 mod url_parse;
 use url_parse::{
@@ -329,6 +329,52 @@ impl HostedGit {
             out = stripped.to_string();
         }
         Some(out)
+    }
+
+    /// `git://[auth@]<domain>/<user>/<project>.git[#committish]`. Mirrors
+    /// upstream's `gittemplate`, which only GitHub defines.
+    fn git(&self) -> Option<String> {
+        if self.host_type != HostedGitType::Github {
+            return None;
+        }
+        let auth = self.auth
+            .as_deref()
+            .map(|auth| format!("{auth}@"))
+            .unwrap_or_default();
+        let mut out = format!(
+            "git://{auth}{domain}/{user}/{project}.git",
+            domain = self.host_type.domain(),
+            user = self.user,
+            project = self.project,
+        );
+        if let Some(committish) = &self.committish {
+            out.push('#');
+            out.push_str(committish);
+        }
+        Some(out)
+    }
+
+    /// The `repository.url` that `npm pkg fix` writes for this repository:
+    /// [`https`](Self::https) when the input was a shortcut, otherwise the
+    /// form of the input's own protocol, as upstream's `toString` renders
+    /// it. Mirrors the `fixRepositoryField` step of
+    /// [`@npmcli/package-json`](https://github.com/npm/package-json/blob/v7.0.5/lib/normalize.js).
+    ///
+    /// Returns `None` when the repository has no owner or the host has no
+    /// URL form for that protocol.
+    #[must_use]
+    pub fn normalized_repository_url(&self) -> Option<String> {
+        // Rendering an ownerless shortcut such as `github:skills` yields a broken URL.
+        if self.user.is_empty() {
+            return None;
+        }
+        let opts = HostedOpts::default();
+        match self.default_representation {
+            Representation::Shortcut | Representation::Https => self.https(opts),
+            // Upstream has no `http` template, so `toString` falls back to `sshurl`.
+            Representation::Sshurl | Representation::Http => self.sshurl(opts),
+            Representation::Git => self.git(),
+        }
     }
 
     /// Host-specific tarball URL. Mirrors upstream's `tarballtemplate`

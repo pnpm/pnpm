@@ -9,6 +9,7 @@ import {
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
 import type { ProjectManifest } from '@pnpm/types'
+import HostedGit from 'hosted-git-info'
 import { renderHelp } from 'render-help'
 
 import { assignReportKeys } from './reportKeys.js'
@@ -199,7 +200,22 @@ async function pkgFix (opts: PkgCommandOptions): Promise<void> {
     delete untypedManifest.bin
   }
 
+  normalizeRepository(untypedManifest)
+
   await writeProjectManifest(manifest)
+}
+
+// Mirrors the fixRepositoryField step of npm's `pkg fix`.
+function normalizeRepository (manifest: Record<string, unknown>): void {
+  if (typeof manifest.repository === 'string' && manifest.repository !== '') {
+    manifest.repository = { type: 'git', url: manifest.repository }
+  }
+  const repository = manifest.repository
+  if (!isPlainObject(repository) || typeof repository.url !== 'string') return
+  const hosted = HostedGit.fromUrl(repository.url)
+  // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
+  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
+  repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
 }
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {
