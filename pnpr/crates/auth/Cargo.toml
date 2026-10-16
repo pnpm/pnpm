@@ -29,7 +29,7 @@ pnpm-network = { workspace = true }
 p256 = { workspace = true }
 serde = { workspace = true }
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 bcrypt = { workspace = true }

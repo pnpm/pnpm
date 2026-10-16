@@ -6934,7 +6934,6 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "indexmap 2.14.0",
- "pnpr-error",
  "pnpr-package-name",
  "wax",
 ]
