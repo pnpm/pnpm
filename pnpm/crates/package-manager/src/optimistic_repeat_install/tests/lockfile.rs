@@ -1,6 +1,6 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision, ManifestDrift, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         deps_status::{RunDepsStatus, check_deps_status_before_run},
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
@@ -596,6 +596,34 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
         .unwrap()
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+
+#[test]
+fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    let drift = ManifestDrift::stat(&check, &state).unwrap();
+    assert!(drift.lockfile_unchanged(&check));
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, recorded_timestamp(dir.path()) + MTIME_STEP_MS);
+    assert!(!drift.lockfile_unchanged(&check));
 }
 
 #[test]

@@ -221,6 +221,7 @@ fn content_check_decision(
         check.config.dedupe_peers,
     ) {
         Ok(loaded_current) => {
+            let refresh_state = refresh_state && drift.lockfile_unchanged(check);
             match settle_repeat_install(check, state, loaded_current, filesystem_now, refresh_state)
             {
                 Ok(()) => Decision::UpToDate,
@@ -246,6 +247,8 @@ pub(crate) struct ManifestDrift<'a> {
     pub(crate) lockfile_modified: bool,
     /// Per [`manifest_drift_reference_ms`].
     manifest_reference_ms: i64,
+    /// The wanted lockfile's mtime when [`Self::stat`] ran.
+    lockfile_mtime: Option<FileMtime>,
 }
 
 impl<'a> ManifestDrift<'a> {
@@ -273,7 +276,18 @@ impl<'a> ManifestDrift<'a> {
                 state.last_validated_timestamp,
                 lockfile_mtime,
             ),
+            lockfile_mtime,
         })
+    }
+
+    /// Whether the wanted lockfile still has the mtime [`Self::stat`] saw.
+    /// A content check that passed validated the lockfile it read, so a
+    /// lockfile rewritten since must not have its mtime recorded as
+    /// validated.
+    pub(crate) fn lockfile_unchanged(&self, check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+        let mtime_ns = |mtime: Option<FileMtime>| mtime.map(|mtime| mtime.ns);
+        mtime_ns(self.lockfile_mtime)
+            == mtime_ns(wanted_lockfile_mtime(check.workspace_root, check.config))
     }
 
     pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
