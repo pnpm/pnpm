@@ -11,12 +11,7 @@ use super::{
 };
 // Path shapes. Each names only the segments its handlers read: the
 // `/~<name>/` registration captures a `registry` segment too, and the
-<<<<<<< HEAD
 // `-rev` routes also capture the document revision.
-// --------------------------------------------------------------------
-=======
-// `-rev` routes capture a revision token pnpr does not track.
->>>>>>> 3c3d0589f (chore: clean up decorative comment dividers across codebase)
 
 /// A package addressed by a single segment: an unscoped name, or a scoped name
 /// percent-encoded as `@scope%2Fname`.
