@@ -3,12 +3,14 @@
 //! together with the rules of its ancestors, so a negation such as
 //! `!lib/**` re-includes files under a directory that `*` excluded.
 
+mod default_rules;
 mod rule;
 mod segment;
 #[cfg(test)]
 mod tests;
 
 use crate::ALWAYS_EXCLUDED_DIR_SEGMENTS;
+use default_rules::DirDefaults;
 use rule::IgnoreRule;
 use std::{
     collections::BTreeSet,
@@ -20,7 +22,8 @@ use std::{
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum IgnoreFiles<'a> {
     /// Each subdirectory's, as for [`Self::Read`], but not the package
-    /// root's or any inherited ones: a `files` allowlist takes their place.
+    /// root's or any inherited ones, and not the default rules at the root:
+    /// a `files` allowlist takes their place.
     /// The walk keeps `named_files`, package-relative paths with `/`
     /// separators, even where a subdirectory's rules exclude them.
     SubdirectoriesOnly { named_files: &'a BTreeSet<String> },
@@ -45,13 +48,15 @@ pub(crate) fn walk_files(
     ignore_files: IgnoreFiles<'_>,
     on_file: &mut dyn FnMut(&Path, fs::FileType),
 ) -> io::Result<()> {
-    let (root_rules, named_files) = match ignore_files {
-        IgnoreFiles::SubdirectoriesOnly { named_files } => (Vec::new(), Some(named_files)),
+    let (root_rules, root_defaults, named_files) = match ignore_files {
+        IgnoreFiles::SubdirectoriesOnly { named_files } => {
+            (Vec::new(), DirDefaults::NONE, Some(named_files))
+        }
         IgnoreFiles::Read { workspace_dir, required_paths } => {
             let mut rules = inherited_rules(pkg_dir, workspace_dir)?;
             rules.extend(read_dir_rules(pkg_dir)?);
             rules.extend(required_paths.iter().map(|path| IgnoreRule::reinclude_path(path)));
-            (rules, None)
+            (rules, DirDefaults::root(), None)
         }
     };
     let root = DirRules {
@@ -60,6 +65,7 @@ pub(crate) fn walk_files(
         rel_path: String::new(),
         named_only: false,
         any_rules: !root_rules.is_empty(),
+        defaults: root_defaults,
         rules: root_rules,
         exact: false,
     };
@@ -145,12 +151,15 @@ impl Walker<'_> {
         depth: usize,
     ) -> io::Result<()> {
         let rules = read_dir_rules(path)?;
-        let exact = included.as_file || parent.includes(&format!("{name}/"), false, None);
+        let defaults = parent.defaults.child(&name);
+        let exact = included.as_file
+            || parent.includes(&format!("{name}/"), false, None, defaults.has_candidate_segment);
         let child = DirRules {
             parent: Some(parent),
             rel_path: parent.child_rel_path(&name),
             name,
             any_rules: parent.any_rules || !rules.is_empty(),
+            defaults,
             rules,
             exact,
             named_only: !included.as_dir,
@@ -186,6 +195,8 @@ struct DirRules<'a> {
     name: String,
     /// The directory's path relative to the package, `/`-separated.
     rel_path: String,
+    /// Evaluated before `rules`.
+    defaults: DirDefaults,
     rules: Vec<IgnoreRule>,
     /// Whether the parent includes the directory itself, not only paths
     /// below it. Only then may the directory's own rules re-include an entry
@@ -203,9 +214,10 @@ impl DirRules<'_> {
         if self.named_only {
             return Included { as_file: false, as_dir: false };
         }
+        let may_match_defaults = self.defaults.entry_may_match(entry);
         Included {
-            as_file: self.includes(entry, false, None),
-            as_dir: self.includes(entry, true, None),
+            as_file: self.includes(entry, false, None, may_match_defaults),
+            as_dir: self.includes(entry, true, None, may_match_defaults),
         }
     }
 
@@ -220,20 +232,36 @@ impl DirRules<'_> {
     /// ignore-walk's `filterEntry`. `partial` asks whether `entry`, as a
     /// directory, may hold included paths. `entry_basename` is the name of
     /// the entry being walked when `entry` is a path from a descendant.
-    fn includes(&self, entry: &str, partial: bool, entry_basename: Option<&str>) -> bool {
-        if !self.any_rules {
+    /// `may_match_defaults` is whether the entry's package-relative path has a
+    /// segment the default rules may match; without one, only user rules apply.
+    fn includes(
+        &self,
+        entry: &str,
+        partial: bool,
+        entry_basename: Option<&str>,
+        may_match_defaults: bool,
+    ) -> bool {
+        if !self.any_rules && !may_match_defaults {
             return true;
         }
         let mut included = true;
         if let Some(parent) = self.parent {
             let parent_entry = format!("{}/{entry}", self.name);
-            included =
-                parent.includes(&parent_entry, partial, Some(entry_basename.unwrap_or(entry)));
+            included = parent.includes(
+                &parent_entry,
+                partial,
+                Some(entry_basename.unwrap_or(entry)),
+                may_match_defaults,
+            );
             if !included && !self.exact {
                 return false;
             }
         }
-        for rule in &self.rules {
+        for rule in self.defaults
+            .rules(may_match_defaults)
+            .iter()
+            .chain(&self.rules)
+        {
             if rule.negate != included && rule_matches(rule, entry, partial, entry_basename) {
                 included = rule.negate;
             }

@@ -1,4 +1,7 @@
-use super::rule::IgnoreRule;
+use super::{
+    default_rules::{DEFAULT_PATTERNS, may_match_default_rules},
+    rule::IgnoreRule,
+};
 
 /// Each case is `(rule, path, partial, minimatch's result)`, recorded from
 /// minimatch with the options ignore-walk passes it.
@@ -45,6 +48,15 @@ const CASES: &[(&str, &str, bool, bool)] = &[
     ("lib/**/!(*.js.map|.tsbuildinfo)", "lib/utils/foo.js", false, true),
     ("lib/**/!(*.js.map|.tsbuildinfo)", "lib/utils/foo.js.map", false, false),
     ("lib/**/!(*.js.map|.tsbuildinfo)", "lib/.tsbuildinfo", false, false),
+    ("/.wafpickle-*", "/.wafpickle-2", false, true),
+    ("/.wafpickle-*", "/lib/.wafpickle-2", false, false),
+    ("**/._*/**", "/lib/._dir/inner.js", false, true),
+    ("**/._*/**", "/lib/dir/inner.js", false, false),
+    (".*.swp", "/lib/.a.js.swp", false, true),
+    (".*.swp", "/lib/.foo.SWP", false, true),
+    (".*.swp", "/lib/a.swp", false, false),
+    ("/build/config.gypi", "/build/config.gypi", false, true),
+    ("/build/config.gypi", "/sub/build/config.gypi", false, false),
 ];
 
 #[test]
@@ -118,5 +130,60 @@ fn reinclude_path_matches_only_the_path_itself() {
     ];
     for (path, partial, expected) in cases {
         assert_eq!(rule.matches(path, partial), expected, "{path:?} (partial: {partial})");
+    }
+}
+
+fn gate_passes(path: &str) -> bool {
+    path.split('/').any(may_match_default_rules)
+}
+
+#[test]
+fn default_rule_gate_is_a_superset_of_the_default_rules() {
+    const SAMPLES: &[&str] = &[
+        "/.lock-wscript",
+        "/.LOCK-WSCRIPT",
+        "/.wafpickle-2",
+        "/.WAFPICKLE-2",
+        "/build/config.gypi",
+        "/BUILD/CONFIG.GYPI",
+        "/sub/build/config.gypi",
+        "/lib/.a.js.swp",
+        "/lib/.foo.SWP",
+        "/.index.js.swp",
+        "/._a.js",
+        "/lib/._A.js",
+        "/lib/._dir/inner.js",
+        "/LIB/._DIR/INNER.JS",
+        "/lib/.DS_Store/child.js",
+        "/lib/.ds_store/child.js",
+        "/archived-packages/x",
+        "/ARCHIVED-PACKAGES/x",
+        "/sub/archived-packages/x",
+    ];
+    for pattern in DEFAULT_PATTERNS {
+        let rule = IgnoreRule::parse(pattern);
+        let mut matched = false;
+        for sample in SAMPLES {
+            if rule.matches(sample, false) || rule.matches(sample, true) {
+                matched = true;
+                assert!(gate_passes(sample), "{pattern:?} matches {sample:?}");
+            }
+        }
+        assert!(matched, "no sample matches {pattern:?}");
+    }
+}
+
+#[test]
+fn default_rule_gate_rejects_ordinary_paths() {
+    for path in [
+        "index.js",
+        "lib/a.js",
+        "build/other.js",
+        "x.swp",
+        "config.gypi.bak",
+        "archived-pac\u{212A}ages/data.json",
+        ".loc\u{212A}-wscript",
+    ] {
+        assert!(!gate_passes(path), "{path:?}");
     }
 }
