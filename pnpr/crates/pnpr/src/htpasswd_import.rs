@@ -5,11 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HtpasswdImportOptions {
     pub source: PathBuf,
     pub target: Option<PathBuf>,
     pub dry_run: bool,
+    pub overwrite: bool,
 }
 
 #[derive(Debug)]
@@ -20,6 +21,7 @@ pub struct HtpasswdImportReport {
     pub merged: usize,
     pub target_path: PathBuf,
     pub dry_run: bool,
+    pub collisions: Vec<String>,
 }
 
 pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<HtpasswdImportReport> {
@@ -39,7 +41,7 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
     let (source_users, bcrypt_count, sha_count) = parse_source_entries(&source_content)?;
     let mut target_users = load_existing_target(&target_path)?;
 
-    let merged = merge_users(&mut target_users, source_users);
+    let (merged, collisions) = merge_users(&mut target_users, source_users, options.overwrite);
 
     if !options.dry_run {
         save_target_users(&target_path, &target_users)?;
@@ -52,6 +54,7 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
         merged,
         target_path,
         dry_run: options.dry_run,
+        collisions,
     })
 }
 
@@ -89,12 +92,20 @@ fn load_existing_target(target_path: &Path) -> miette::Result<HashMap<String, St
     parse_htpasswd(&content).map_err(|err| miette::miette!("failed to parse target file: {err}"))
 }
 
-fn merge_users(target: &mut HashMap<String, String>, source: HashMap<String, String>) -> usize {
+fn merge_users(
+    target: &mut HashMap<String, String>,
+    source: HashMap<String, String>,
+    overwrite: bool,
+) -> (usize, Vec<String>) {
     let mut merged = 0;
+    let mut collisions = Vec::new();
     for (user, source_hash) in source {
         match target.get(&user) {
-            Some(existing) if is_bcrypt_hash(existing) && is_sha_hash(&source_hash) => {
-                // Keep stronger existing bcrypt hash
+            Some(existing) if existing == &source_hash => {}
+            Some(existing) if !overwrite => {
+                let d_kind = hash_kind(existing);
+                let s_kind = hash_kind(&source_hash);
+                collisions.push(format!("{user} (destination: {d_kind}, source: {s_kind})"));
             }
             _ => {
                 target.insert(user, source_hash);
@@ -102,7 +113,17 @@ fn merge_users(target: &mut HashMap<String, String>, source: HashMap<String, Str
             }
         }
     }
-    merged
+    (merged, collisions)
+}
+
+fn hash_kind(hash: &str) -> &'static str {
+    if is_bcrypt_hash(hash) {
+        "bcrypt"
+    } else if is_sha_hash(hash) {
+        "{SHA}"
+    } else {
+        "unrecognized"
+    }
 }
 
 fn save_target_users(path: &Path, users: &HashMap<String, String>) -> miette::Result<()> {
@@ -123,10 +144,22 @@ fn save_target_users(path: &Path, users: &HashMap<String, String>) -> miette::Re
 
 #[must_use]
 pub fn format_import_report(report: &HtpasswdImportReport) -> String {
+    use std::fmt::Write as _;
     let action = if report.dry_run { "would be imported" } else { "imported" };
     let display_target = report.target_path.display();
-    format!(
+    let mut out = format!(
         "htpasswd import completed: {} users {} ({} bcrypt, {} {{SHA}}) into {display_target}\n",
         report.merged, action, report.bcrypt_count, report.sha_count,
-    )
+    );
+    if !report.collisions.is_empty() {
+        let count = report.collisions.len();
+        let _ = writeln!(
+            out,
+            "  warning: {count} conflicting credentials not overwritten (pass --overwrite to replace):",
+        );
+        for collision in &report.collisions {
+            let _ = writeln!(out, "    - {collision}");
+        }
+    }
+    out
 }

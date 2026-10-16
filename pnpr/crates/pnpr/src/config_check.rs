@@ -83,8 +83,8 @@ fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
         Some(Registry::Upstream { patterns }) => {
             let url = config.routing.upstreams
                 .get(name)
-                .map(|upstream| upstream.url.as_str())
-                .unwrap_or("unknown");
+                .map(|upstream| sanitize_diagnostic_url(upstream.url.as_str()))
+                .unwrap_or_else(|| "unknown".to_string());
             ("upstream".to_string(), format!("url: {url}, {} patterns", patterns.len()))
         }
         Some(Registry::Router { sources }) => {
@@ -93,6 +93,44 @@ fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
         None => ("unknown".to_string(), String::new()),
     };
     RegistrySummary { name: name.to_string(), kind, details }
+}
+
+fn sanitize_diagnostic_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return raw.to_string();
+    };
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    if parsed.query().is_some() {
+        redact_sensitive_query(&mut parsed);
+    }
+    parsed.to_string()
+}
+
+fn redact_sensitive_query(parsed: &mut url::Url) {
+    let pairs: Vec<_> = parsed
+        .query_pairs()
+        .map(|(k, v)| {
+            if is_sensitive_param(&k) {
+                (k.into_owned(), "REDACTED".to_string())
+            } else {
+                (k.into_owned(), v.into_owned())
+            }
+        })
+        .collect();
+    parsed
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(pairs);
+}
+
+fn is_sensitive_param(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    lower.contains("token")
+        || lower.contains("secret")
+        || lower.contains("key")
+        || lower.contains("auth")
+        || lower.contains("pass")
 }
 
 fn describe_storage_backend(config: &Config) -> String {

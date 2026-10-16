@@ -62,20 +62,24 @@ pnpr config-check
 Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.
 
 ```sh
-# Fast presence check
+# Full checksum verification (SHA-1 and Subresource Integrity)
 pnpr verify
 
-# Full checksum verification (SHA-1 and Subresource Integrity)
-pnpr verify --check-hashes
+# Fast presence check without recomputing hashes
+pnpr verify --skip-hashes
 
-# Prune unreferenced blobs left behind by interrupted operations
+# Prune unreferenced blobs left behind by interrupted operations (older than 24h)
 pnpr verify --prune-orphans
+
+# Prune immediately without age guard
+pnpr verify --prune-orphans --min-age-secs 0
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
-| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. |
+| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
+| `--min-age-secs <secs>` | Minimum age in seconds before an unreferenced blob is considered for pruning (defaults to 86400, or 24 hours). |
 
 ### export
 
@@ -131,6 +135,7 @@ pnpr import-htpasswd --source /path/to/old/htpasswd
 | `--source <path>` | Path to the source htpasswd file to import. Required. |
 | `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
+| `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
 
 ### oci-gc
 

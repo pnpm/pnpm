@@ -48,6 +48,9 @@ pub enum Command {
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
+        /// Minimum age in seconds before an unreferenced blob is considered for pruning.
+        #[arg(long, default_value_t = 86400)]
+        min_age_secs: u64,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
@@ -93,6 +96,9 @@ pub enum Command {
         /// Report what would be imported without writing to target file.
         #[arg(long)]
         dry_run: bool,
+        /// Overwrite conflicting credentials for existing users in destination file.
+        #[arg(long)]
+        overwrite: bool,
     },
 }
 
@@ -135,10 +141,15 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify { skip_hashes, prune_orphans } = command else {
+    let Command::Verify {
+        skip_hashes,
+        prune_orphans,
+        min_age_secs,
+    } = command
+    else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans).await
+    run_verify(config, !skip_hashes, prune_orphans, min_age_secs).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -174,10 +185,10 @@ async fn run_migrate_command(config: &Config, command: Command) -> miette::Resul
 }
 
 fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::ImportHtpasswd { source, target, dry_run } = command else {
+    let Command::ImportHtpasswd { source, target, dry_run, overwrite } = command else {
         return Ok(());
     };
-    run_import_htpasswd(config, source, target, dry_run)
+    run_import_htpasswd(config, source, target, dry_run, overwrite)
 }
 
 fn run_config_check() -> miette::Result<()> {
@@ -199,8 +210,9 @@ async fn run_verify(
     config: &Config,
     check_hashes: bool,
     prune_orphans: bool,
+    min_age_secs: u64,
 ) -> miette::Result<()> {
-    let options = pnpr::verify::VerifyOptions { check_hashes, prune_orphans };
+    let options = pnpr::verify::VerifyOptions { check_hashes, prune_orphans, min_age_secs };
     let report = pnpr::verify::verify_storage(config, &options).await?;
     print!("{}", pnpr::verify::format_verify_report(&report));
     if !report.missing_blobs.is_empty() || !report.corrupted_blobs.is_empty() {
@@ -224,6 +236,7 @@ fn run_import_htpasswd(
     source: PathBuf,
     target: Option<PathBuf>,
     dry_run: bool,
+    overwrite: bool,
 ) -> miette::Result<()> {
     let target = target.or_else(|| config.identity.auth.htpasswd.file.clone());
     let Some(target) = target else {
@@ -231,8 +244,12 @@ fn run_import_htpasswd(
             "no target htpasswd file specified and none configured in identity.auth.htpasswd.file; pass --target <path>"
         ));
     };
-    let options =
-        pnpr::htpasswd_import::HtpasswdImportOptions { source, target: Some(target), dry_run };
+    let options = pnpr::htpasswd_import::HtpasswdImportOptions {
+        source,
+        target: Some(target),
+        dry_run,
+        overwrite,
+    };
     let report = pnpr::htpasswd_import::import_htpasswd(&options)?;
     print!("{}", pnpr::htpasswd_import::format_import_report(&report));
     Ok(())

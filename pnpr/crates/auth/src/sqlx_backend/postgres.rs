@@ -167,6 +167,23 @@ impl AuthSqlBackend for PostgresDatabase {
         Ok(updated.rows_affected() > 0)
     }
 
+    async fn update_user_hash_if_current(
+        &self,
+        username: &str,
+        old_hash: &str,
+        new_hash: &str,
+    ) -> Result<bool> {
+        let updated = sqlx::query(
+            "UPDATE users SET bcrypt_hash = $3 WHERE username = $1 AND bcrypt_hash = $2",
+        )
+        .bind(username)
+        .bind(old_hash)
+        .bind(new_hash)
+        .execute(&self.pool)
+        .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
     async fn delete_user(&self, username: &str) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM users WHERE username = $1")

@@ -67,6 +67,7 @@ async fn test_htpasswd_import() {
         source: source.clone(),
         target: Some(target.clone()),
         dry_run: true,
+        overwrite: false,
     };
     let dry_rep = import_htpasswd(&dry_run_opts).unwrap();
     assert_eq!(dry_rep.merged, 2);
@@ -75,7 +76,12 @@ async fn test_htpasswd_import() {
     assert!(!target.exists());
 
     // 2. Real import
-    let real_opts = HtpasswdImportOptions { source, target: Some(target.clone()), dry_run: false };
+    let real_opts = HtpasswdImportOptions {
+        source,
+        target: Some(target.clone()),
+        dry_run: false,
+        overwrite: false,
+    };
     let real_rep = import_htpasswd(&real_opts).unwrap();
     assert_eq!(real_rep.merged, 2);
     assert!(target.exists());
@@ -151,7 +157,7 @@ async fn test_verify_storage_health_and_orphan_prune() {
     std::fs::write(&orphan_path, b"unreferenced").unwrap();
 
     // 1. Verify detecting the orphan
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false };
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.packages_checked, 1);
     assert_eq!(report.versions_checked, 1);
@@ -162,7 +168,7 @@ async fn test_verify_storage_health_and_orphan_prune() {
     assert!(orphan_path.exists());
 
     // 2. Verify with prune_orphans: true
-    let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true };
+    let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
     let prune_report = verify_storage(&config, &prune_opts).await.unwrap();
     assert_eq!(prune_report.orphaned_blobs.len(), 1);
     assert!(prune_report.prune_failures.is_empty());
@@ -200,7 +206,7 @@ async fn test_verify_storage_corrupted_and_missing() {
     std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
     std::fs::write(pkg_dir.join("corrupt-1.0.0.tgz"), b"some mismatched content").unwrap();
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false };
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.missing_blobs.len(), 1);
     assert_eq!(report.corrupted_blobs.len(), 1);
@@ -281,7 +287,7 @@ async fn test_verify_and_export_attestations() {
     std::fs::write(pkg_dir.join("signed-pkg-1.0.0.tgz"), tarball_bytes).unwrap();
     std::fs::write(pkg_dir.join("signed-pkg-1.0.0.sigstore"), b"sigstore bundle bytes").unwrap();
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: true };
+    let opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
     let rep = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(rep.packages_checked, 1);
     assert_eq!(rep.missing_blobs.len(), 0);
@@ -295,4 +301,89 @@ async fn test_verify_and_export_attestations() {
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
     assert!(!export_out.join("htpasswd").exists());
+}
+
+#[test]
+fn test_config_check_upstream_url_sanitized() {
+    let dir = TempDir::new().unwrap();
+    let storage_dir = dir.path().join("hosted");
+    let cache_dir = dir.path().join("cache");
+    let yaml = format!(
+        r"
+storage: '{}'
+cache: '{}'
+registries:
+  private:
+    type: upstream
+    url: 'https://secretuser:secretpass@registry.example.com/?auth_token=supersecret'
+    public: true
+",
+        storage_dir.display(),
+        cache_dir.display(),
+    );
+
+    let config_file = dir.path().join("pnpr.yaml");
+    std::fs::write(&config_file, yaml).unwrap();
+
+    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
+    let output = pnpr::config_check::format_report(&report);
+    assert!(!output.contains("secretuser"));
+    assert!(!output.contains("secretpass"));
+    assert!(!output.contains("supersecret"));
+    assert!(output.contains("REDACTED"));
+}
+
+#[test]
+fn test_htpasswd_import_malformed_and_collisions() {
+    let dir = TempDir::new().unwrap();
+    let source = dir.path().join("source-malformed");
+    let target = dir.path().join("target-users");
+
+    // 1. Malformed SHA hash is rejected
+    std::fs::write(&source, "baduser:{SHA}not-valid-base64\n").unwrap();
+    let opts = HtpasswdImportOptions {
+        source: source.clone(),
+        target: Some(target.clone()),
+        dry_run: false,
+        overwrite: false,
+    };
+    assert!(import_htpasswd(&opts).is_err());
+
+    // 2. Existing user collision handling without and with overwrite
+    std::fs::write(&target, "alice:$2y$10$abcdefghijklmnopqrstuu\n").unwrap();
+    // Incoming source has alice with a different hash
+    std::fs::write(
+        &source,
+        "alice:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=\nbob:$2y$10$abcdefghijklmnopqrstuu\n",
+    )
+    .unwrap();
+
+    let no_ow_opts = HtpasswdImportOptions {
+        source: source.clone(),
+        target: Some(target.clone()),
+        dry_run: false,
+        overwrite: false,
+    };
+    let rep = import_htpasswd(&no_ow_opts).unwrap();
+    assert_eq!(rep.merged, 1); // bob was merged
+    assert_eq!(rep.collisions.len(), 1); // alice collided
+    assert!(rep.collisions[0].contains("alice"));
+
+    // Check alice was NOT overwritten
+    let content = std::fs::read_to_string(&target).unwrap();
+    assert!(content.contains("alice:$2y$10$abcdefghijklmnopqrstuu"));
+
+    // 3. With overwrite: true, alice gets replaced (bob is already identical)
+    let ow_opts = HtpasswdImportOptions {
+        source,
+        target: Some(target.clone()),
+        dry_run: false,
+        overwrite: true,
+    };
+    let rep2 = import_htpasswd(&ow_opts).unwrap();
+    assert_eq!(rep2.merged, 1);
+    assert_eq!(rep2.collisions.len(), 0);
+
+    let content2 = std::fs::read_to_string(&target).unwrap();
+    assert!(content2.contains("alice:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g="));
 }

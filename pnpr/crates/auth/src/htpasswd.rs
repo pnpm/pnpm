@@ -62,7 +62,16 @@ pub fn is_bcrypt_hash(hash: &str) -> bool {
 
 #[must_use]
 pub fn is_sha_hash(hash: &str) -> bool {
-    hash.starts_with("{SHA}")
+    let Some(digest_b64) = hash.strip_prefix("{SHA}") else {
+        return false;
+    };
+    if digest_b64.len() != 28 {
+        return false;
+    }
+    use base64::Engine as _;
+    base64::prelude::BASE64_STANDARD
+        .decode(digest_b64)
+        .is_ok_and(|bytes| bytes.len() == 20)
 }
 
 pub(super) fn verify_sha1(password: &str, stored_hash: &str) -> bool {

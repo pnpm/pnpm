@@ -11,6 +11,7 @@ use std::collections::HashSet;
 pub struct VerifyOptions {
     pub check_hashes: bool,
     pub prune_orphans: bool,
+    pub min_age_secs: u64,
 }
 
 #[derive(Debug, Default)]
@@ -74,7 +75,7 @@ pub async fn verify_storage(
             &org_storage,
             &referenced_blobs,
             &verified_npm_packages,
-            options.prune_orphans,
+            options,
             &mut report,
         )
         .await?;
@@ -217,7 +218,7 @@ async fn check_orphaned_blobs(
     storage: &Storage,
     referenced: &HashSet<String>,
     verified_npm_packages: &HashSet<String>,
-    prune: bool,
+    options: &VerifyOptions,
     report: &mut VerifyReport,
 ) -> miette::Result<()> {
     let mut stream = storage.hosted_blob_files();
@@ -235,19 +236,67 @@ async fn check_orphaned_blobs(
             continue;
         }
 
-        handle_orphan_blob(storage, path, prune, report).await;
+        if let Ok(elapsed) = file.modified.elapsed()
+            && elapsed.as_secs() < options.min_age_secs
+        {
+            continue;
+        }
+
+        handle_orphan_blob(storage, path, options.prune_orphans, report).await;
     }
     Ok(())
 }
 
 async fn handle_orphan_blob(storage: &Storage, path: &str, prune: bool, report: &mut VerifyReport) {
+    if prune {
+        if is_blob_referenced_in_fresh_packument(storage, path).await {
+            return;
+        }
+        if let Err(err) = prune_orphan_blob(storage, path).await {
+            report.prune_failures.push(format!("{path}: {err}"));
+            report.orphaned_blobs.push(path.to_string());
+            return;
+        }
+    }
     report.orphaned_blobs.push(path.to_string());
-    if !prune {
-        return;
+}
+
+async fn is_blob_referenced_in_fresh_packument(storage: &Storage, path: &str) -> bool {
+    let Some((pkg, file_name)) = path.rsplit_once('/') else {
+        return false;
+    };
+    let Ok(canon) = CanonicalPackageName::parse(pkg, pnpr_registry::Ecosystem::Npm) else {
+        return false;
+    };
+    let Ok(Some(doc_bytes)) = storage.read_hosted_document(&canon).await else {
+        return false;
+    };
+    let Ok(packument) = serde_json::from_slice::<Value>(&doc_bytes) else {
+        return false;
+    };
+    check_packument_for_blob(&packument, &canon, file_name)
+}
+
+fn check_packument_for_blob(
+    packument: &Value,
+    canon: &CanonicalPackageName,
+    file_name: &str,
+) -> bool {
+    let Some(versions) = packument.get("versions").and_then(Value::as_object) else {
+        return false;
+    };
+    for (ver, v) in versions {
+        let tarball_match = v
+            .get("dist")
+            .and_then(|d| d.get("tarball"))
+            .and_then(Value::as_str)
+            .and_then(filename_from_url)
+            .is_some_and(|name| name == file_name);
+        if tarball_match || canon.sigstore_name_for_version(ver) == file_name {
+            return true;
+        }
     }
-    if let Err(err) = prune_orphan_blob(storage, path).await {
-        report.prune_failures.push(format!("{path}: {err}"));
-    }
+    false
 }
 
 async fn prune_orphan_blob(storage: &Storage, path: &str) -> Result<(), String> {

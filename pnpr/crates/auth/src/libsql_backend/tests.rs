@@ -501,3 +501,27 @@ async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
             .is_some(),
     );
 }
+
+#[tokio::test]
+async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let sha_hash = "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=";
+    backend.conn
+        .execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params!["alice", sha_hash],
+        )
+        .await
+        .unwrap();
+
+    let outcome = backend.add_or_login("alice", "test").await.unwrap();
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+
+    let updated = backend
+        .stored_hash("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(updated.starts_with("$2y$") || updated.starts_with("$2b$"));
+    assert_ne!(updated, sha_hash);
+}

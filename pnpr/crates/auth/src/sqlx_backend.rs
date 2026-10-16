@@ -9,7 +9,7 @@ pub(super) mod mysql;
 
 use super::{
     DEFAULT_BCRYPT_COST, NewToken, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    dummy_verify, fresh_secret, hash_bcrypt, sha256_hex,
+    dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash, sha256_hex,
     token_store::{mint_token, unix_seconds},
     verify_returning_user, with_auth_timeout,
 };
@@ -91,6 +91,37 @@ impl<Db> SqlAuth<Db> {
     {
         with_auth_timeout(self.timeout, self.db.check_readiness()).await
     }
+
+    async fn verify_and_maybe_upgrade(
+        &self,
+        stored: StoredUser,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)>
+    where
+        Db: AuthSqlBackend,
+    {
+        let (outcome, user) = verify_returning_user(
+            &stored.username,
+            password,
+            stored.bcrypt_hash.clone(),
+            DEFAULT_BCRYPT_COST,
+        )
+        .await?;
+        if is_sha_hash(&stored.bcrypt_hash)
+            && let Ok(new_hash) = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await
+        {
+            let _ = with_auth_timeout(
+                self.timeout,
+                self.db.update_user_hash_if_current(
+                    &stored.username,
+                    &stored.bcrypt_hash,
+                    &new_hash,
+                ),
+            )
+            .await;
+        }
+        Ok((outcome, user))
+    }
 }
 
 #[async_trait]
@@ -121,6 +152,14 @@ trait AuthSqlBackend: Send + Sync {
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
     async fn list_usernames(&self) -> Result<Vec<String>>;
     async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool>;
+    async fn update_user_hash_if_current(
+        &self,
+        _username: &str,
+        _old_hash: &str,
+        _new_hash: &str,
+    ) -> Result<bool> {
+        Ok(false)
+    }
     /// Remove the user and take one off the `users` counter in one transaction.
     async fn delete_user(&self, username: &str) -> Result<bool>;
     async fn check_readiness(&self) -> Result<()> {
@@ -154,13 +193,7 @@ where
 
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
-            return verify_returning_user(
-                &stored.username,
-                password,
-                stored.bcrypt_hash,
-                DEFAULT_BCRYPT_COST,
-            )
-            .await;
+            return self.verify_and_maybe_upgrade(stored, password).await;
         }
 
         if matches!(self.max_users, MaxUsers::Disabled) {
@@ -173,15 +206,7 @@ where
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
-            InsertUser::Existing(stored) => {
-                verify_returning_user(
-                    &stored.username,
-                    password,
-                    stored.bcrypt_hash,
-                    DEFAULT_BCRYPT_COST,
-                )
-                .await
-            }
+            InsertUser::Existing(stored) => self.verify_and_maybe_upgrade(stored, password).await,
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
                 MaxUsers::Disabled | MaxUsers::Unlimited => {
