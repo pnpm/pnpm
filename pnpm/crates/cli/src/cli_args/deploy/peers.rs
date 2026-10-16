@@ -247,10 +247,11 @@ pub(super) fn prune_deploy_lockfile_graph(
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
     let reachable = reachable_deploy_snapshots(importer, snapshots, include_optional, peer_edges);
 
-    let reachable_metadata = reachable
+    let mut reachable_metadata = reachable
         .iter()
         .map(PackageKey::without_peer)
         .collect::<HashSet<_>>();
+    reachable_metadata.extend(lockfile.build_tool_keys(&reachable));
     retain_reachable_snapshots(lockfile, &reachable, include_optional, peer_edges);
     if let Some(packages) = lockfile.packages.as_mut() {
         packages.retain(|key, _| reachable_metadata.contains(key));

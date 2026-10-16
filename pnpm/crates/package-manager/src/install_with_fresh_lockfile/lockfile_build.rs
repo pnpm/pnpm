@@ -371,6 +371,7 @@ pub(super) fn build_fresh_lockfile(
         settings: pnpm_lockfile::LockfileSettings {
             auto_install_peers: config.auto_install_peers,
             dedupe_peers: config.dedupe_peers.then_some(true),
+            lock_build_tools: config.lock_build_tools.then_some(true),
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             inject_workspace_packages: config.inject_workspace_packages,
             peers_suffix_max_length: (config.peers_suffix_max_length

@@ -794,6 +794,12 @@ pub struct Config {
     /// default `false`.
     pub dedupe_peers: bool,
 
+    /// When `true`, the package manager and Node.js that prepare a
+    /// git-hosted dependency are recorded in the lockfile, and every later
+    /// install provisions exactly the recorded, integrity-checked tools.
+    /// The experimental `lockBuildTools` setting; default `false`.
+    pub lock_build_tools: bool,
+
     /// Deduplicate compatible versions during non-frozen installs.
     pub auto_dedupe: bool,
 

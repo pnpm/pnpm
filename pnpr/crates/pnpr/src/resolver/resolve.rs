@@ -356,6 +356,7 @@ fn check_frozen_settings(
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
+            lock_build_tools: config.lock_build_tools,
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,

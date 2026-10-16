@@ -4704,6 +4704,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-tool-protocol",
  "pnpm-versioning",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
@@ -4889,6 +4890,7 @@ dependencies = [
  "pnpm-workspace",
  "pretty_assertions",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
 ]
@@ -5407,6 +5409,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-patching",
  "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "rayon",
  "serde",
@@ -5463,6 +5466,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-reporter",
  "pnpm-resolving-resolver-base",
+ "pnpm-tool-protocol",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
@@ -5754,6 +5758,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-tool-protocol",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
  "pnpm-workspace-projects-graph",
@@ -6325,6 +6330,14 @@ dependencies = [
 [[package]]
 name = "pnpm-text-sanitize"
 version = "0.0.1"
+
+[[package]]
+name = "pnpm-tool-protocol"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+ "pretty_assertions",
+]
 
 [[package]]
 name = "pnpm-versioning"

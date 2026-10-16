@@ -231,6 +231,7 @@ macro_rules! identically_named_settings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
+            lock_build_tools,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
             strict_store_pkg_content_check, frozen_store,

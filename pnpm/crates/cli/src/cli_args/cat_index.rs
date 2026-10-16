@@ -138,7 +138,13 @@ fn importer_store_index_keys(
     else {
         return Vec::new();
     };
-    metadata_store_index_keys(&metadata_key.pkg_id(), metadata)
+    let build_tools = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&snapshot_key))
+        .and_then(|snapshot| {
+            pnpm_deps_restorer::build_tools_identity(snapshot, lockfile.packages.as_ref())
+        });
+    metadata_store_index_keys(&metadata_key.pkg_id(), metadata, build_tools.as_deref())
 }
 
 fn importer_ids(lockfile_dir: &Path, current_dir: &Path) -> Vec<String> {
@@ -180,10 +186,14 @@ fn request_matches_dependency(
     dependency.specifier == requested_bare || lockfile_key == format!("{alias}@{requested_bare}")
 }
 
-fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<String> {
+fn metadata_store_index_keys(
+    pkg_id: &str,
+    metadata: &PackageMetadata,
+    build_tools: Option<&str>,
+) -> Vec<String> {
     match &metadata.resolution {
         LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
-            git_store_index_keys(pkg_id)
+            git_store_index_keys(pkg_id, build_tools)
         }
         LockfileResolution::Tarball(resolution) => resolution.integrity
             .as_ref()
@@ -192,7 +202,7 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
         LockfileResolution::Registry(resolution) => {
             vec![store_index_key(&resolution.integrity.to_string(), pkg_id)]
         }
-        LockfileResolution::Git(_) => git_store_index_keys(pkg_id),
+        LockfileResolution::Git(_) => git_store_index_keys(pkg_id, build_tools),
         LockfileResolution::Binary(resolution) => {
             vec![store_index_key(&resolution.integrity.to_string(), pkg_id)]
         }
@@ -205,8 +215,15 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
     }
 }
 
-fn git_store_index_keys(pkg_id: &str) -> Vec<String> {
-    vec![git_hosted_store_index_key(pkg_id, true), git_hosted_store_index_key(pkg_id, false)]
+fn git_store_index_keys(pkg_id: &str, build_tools: Option<&str>) -> Vec<String> {
+    let mut keys = vec![
+        git_hosted_store_index_key(pkg_id, true, None),
+        git_hosted_store_index_key(pkg_id, false, None),
+    ];
+    if let Some(build_tools) = build_tools {
+        keys.push(git_hosted_store_index_key(pkg_id, true, Some(build_tools)));
+    }
+    keys
 }
 
 fn fallback_pkg_ids(alias: &str, requested_bare: Option<&str>) -> Vec<String> {

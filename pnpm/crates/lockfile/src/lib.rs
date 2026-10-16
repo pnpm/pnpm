@@ -1,6 +1,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
+pub use build_tools::*;
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
@@ -29,6 +30,7 @@ pub use snapshot_dep_ref::*;
 pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
+mod build_tools;
 mod catalog_snapshots;
 mod comver;
 mod env_lockfile;
@@ -88,6 +90,8 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_build_tools: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
     /// this lockfile. `false` round-trips as a missing key — the key
     /// is stripped on save so historic v9 lockfiles (which never

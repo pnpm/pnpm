@@ -32,7 +32,7 @@ pub(super) fn collect_candidates(
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
     let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
-        let name = key.name.clone();
+        let registry_package = registry_package_name(key, &metadata.resolution);
         // A registry-qualified key (`<name>@<registryName>:<version>`)
         // contributes its bare semver as the candidate version and the
         // alias separately, so the verifier can route by registry while
@@ -49,9 +49,9 @@ pub(super) fn collect_candidates(
         // that key shape, which is only sound while this invariant
         // holds. The check is offline, so it applies even when no
         // policy verifiers are active.
-        if has_registry_shape_mismatch(key, &metadata.resolution) {
+        if registry_package.is_none() || has_registry_shape_mismatch(key, &metadata.resolution) {
             shape_violations.push(ResolutionPolicyViolation {
-                name: name.clone(),
+                name: key.name.clone(),
                 version: version.clone(),
                 resolution: metadata.resolution.clone(),
                 code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
@@ -59,6 +59,7 @@ pub(super) fn collect_candidates(
                     .to_string(),
             });
         }
+        let Some(name) = registry_package else { continue };
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
         // numbers — the only way this `expect` could fire is a future
@@ -81,6 +82,23 @@ pub(super) fn collect_candidates(
             });
     }
     (deduped.into_values().collect(), shape_violations)
+}
+
+/// The registry package an entry is checked against: the key's own name,
+/// except for a build tool (`yarn@tool:4.9.2`) published under another
+/// package (`@yarnpkg/cli-dist`). `None` for a build tool entry whose
+/// resolution is not the artifact that tool can be.
+fn registry_package_name(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &LockfileResolution,
+) -> Option<PkgName> {
+    if key.suffix.prefix() != pnpm_lockfile::Prefix::Tool {
+        return Some(key.name.clone());
+    }
+    match pnpm_lockfile::build_tool_artifact(key, resolution)? {
+        pnpm_lockfile::BuildToolArtifact::Registry { package, .. } => package.parse().ok(),
+        pnpm_lockfile::BuildToolArtifact::Archive => Some(key.name.clone()),
+    }
 }
 
 /// A registry-style key must have a registry-shaped resolution because

@@ -34,6 +34,8 @@ use std::{
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     pub packages: Vec<String>,
+    #[clap(long)]
+    pub include_build_dependencies: bool,
     /// Max display depth of the reverse dependency tree.
     #[clap(long)]
     pub depth: Option<usize>,
@@ -82,6 +84,7 @@ impl WhyArgs {
                 lockfile,
                 include,
                 only_projects: false,
+                include_build_dependencies: self.include_build_dependencies,
                 peer_edges: state.config.peer_edge_options(),
             },
         );

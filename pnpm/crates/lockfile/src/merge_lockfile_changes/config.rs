@@ -19,6 +19,7 @@ pub(super) fn merge_settings(
                 || theirs.exclude_links_from_lockfile,
             inject_workspace_packages: ours.inject_workspace_packages
                 || theirs.inject_workspace_packages,
+            lock_build_tools: ours.lock_build_tools.or(theirs.lock_build_tools),
             peers_suffix_max_length: ours.peers_suffix_max_length
                 .or(theirs.peers_suffix_max_length),
         }),

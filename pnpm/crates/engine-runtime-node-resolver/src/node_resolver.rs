@@ -156,7 +156,7 @@ impl NodeResolver {
         wanted_dependency: &WantedDependency,
         _opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(version_spec) = bare_runtime_spec(wanted_dependency, "node") else {
+        let Some((protocol, version_spec)) = bare_node_spec(wanted_dependency) else {
             return Ok(None);
         };
 
@@ -173,11 +173,18 @@ impl NodeResolver {
             .map_err(|err| Box::new(err) as ResolveError)?;
         let variants = self.read_picked_assets(&picked, version_spec).await?;
         let PickedNodeVersion { version, .. } = picked;
-        let range = normalize_node_runtime_version_specifier(
-            version_spec,
-            &version,
-            wanted_dependency.prev_specifier.as_deref(),
-        );
+        let normalized_specifier = match protocol {
+            BARE_SPEC_PREFIX => format!(
+                "{BARE_SPEC_PREFIX}{}",
+                normalize_node_runtime_version_specifier(
+                    version_spec,
+                    &version,
+                    wanted_dependency.prev_specifier.as_deref(),
+                ),
+            ),
+            "tool:" => format!("tool:{version}"),
+            _ => unreachable!(),
+        };
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
             "name": "node",
@@ -185,10 +192,10 @@ impl NodeResolver {
             "bin": node_bins_for_current_os(current_platform()),
         });
         Ok(Some(ResolveResult {
-            id: format!("node@runtime:{version}").into(),
+            id: format!("node@{protocol}{version}").into(),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{range}")),
+            normalized_bare_specifier: Some(normalized_specifier),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
@@ -311,7 +318,8 @@ impl NodeResolver {
         query: &LatestQuery,
         _opts: &ResolveOptions,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "node") else {
+        let Some((BARE_SPEC_PREFIX, manifest_spec)) = bare_node_spec(&query.wanted_dependency)
+        else {
             return Ok(None);
         };
         let spec_owned;
@@ -422,13 +430,18 @@ struct PickedNodeVersion {
 /// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
 /// halves match the runtime contract. Returns `None` (defer to the
 /// next resolver) for any other shape.
-fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
-    if wanted.alias.as_deref() != Some(expected_alias) {
+fn bare_node_spec(wanted: &WantedDependency) -> Option<(&'static str, &str)> {
+    if wanted.alias.as_deref() != Some("node") {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    let specifier = wanted.bare_specifier.as_deref()?;
+    [BARE_SPEC_PREFIX, "tool:"]
+        .into_iter()
+        .find_map(|protocol| {
+            specifier
+                .strip_prefix(protocol)
+                .map(|version| (protocol, version))
+        })
 }
 
 /// The selector a `runtime:` declaration saves for `resolved_version`.

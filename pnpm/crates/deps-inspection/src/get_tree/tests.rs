@@ -109,6 +109,7 @@ fn graph_for(lockfile: &Lockfile, roots: &[TreeNodeId]) -> DependencyGraph {
             lockfile,
             include: include_no_optional(),
             only_projects: false,
+            include_build_dependencies: false,
             peer_edges: pnpm_lockfile::PeerEdgeOptions::default(),
         },
     )
@@ -786,6 +787,7 @@ fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
             lockfile: &lockfile,
             include: include_no_optional(),
             only_projects: false,
+            include_build_dependencies: false,
             peer_edges: pnpm_lockfile::PeerEdgeOptions::default(),
         },
     );

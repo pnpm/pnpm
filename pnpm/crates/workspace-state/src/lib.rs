@@ -141,6 +141,10 @@ pub struct WorkspaceStateSettings {
     pub ignored_optional_dependencies: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,
+    /// `lockBuildTools`, recorded only while it is on. pnpm v11 has no such
+    /// setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lock_build_tools: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<serde_json::Value>,
     /// Minutes a published version must age before it may be installed.

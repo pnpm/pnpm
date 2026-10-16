@@ -206,6 +206,7 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
             lockfile,
             include: included_dependencies(options),
             only_projects: false,
+            include_build_dependencies: false,
             peer_edges: peer_edge_options(options),
         },
     );

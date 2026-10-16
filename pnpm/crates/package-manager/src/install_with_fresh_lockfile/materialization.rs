@@ -2,9 +2,10 @@ use super::{
     FinalScope, FreshInputs, FreshPlan, HostProbeInputs, InstallShape,
     InstallWithFreshLockfileResult, LockfileOnlyOptions, LockfileViews, MaterializationScope,
     OnDiskInputs, OnDiskOutput, OwnedInputs, PlanLockfiles, PlanScope, Resolved, ResolverSetup,
-    build_lockfile_phase, errors::InstallWithFreshLockfileError, finish_early_materialization,
-    finish_lockfile_only, manifest_transforms, persist_fresh_lockfile, plan_fresh_materialization,
-    resolver_setup, run_on_disk_phases, warn_stale_convergence_overrides_if_any,
+    build_lockfile_phase, build_tools_phase::BuildToolResolution,
+    errors::InstallWithFreshLockfileError, finish_early_materialization, finish_lockfile_only,
+    manifest_transforms, persist_fresh_lockfile, plan_fresh_materialization, resolver_setup,
+    run_on_disk_phases, warn_stale_convergence_overrides_if_any,
 };
 use crate::{AllowBuildPolicy, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
@@ -51,6 +52,7 @@ pub(super) struct FreshMaterialization<'a, Reporter> {
     shape: InstallShape,
     stores: MaterializationStores,
     custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+    build_tools: Option<BuildToolResolution>,
     resolved: Resolved<'a, Reporter>,
 }
 /// Release resolution caches before materializing. Boxing this phase bounds the
@@ -66,43 +68,53 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
 > {
     Box::pin(async move {
         warn_stale_overrides::<Reporter>(install, &setup, &resolved).await;
+        let build_tools = BuildToolResolution::keep(
+            install,
+            (&setup.policy, &setup.observer),
+            setup.chain.resolver,
+        )?;
         // Resolution is over: release the resolvers and the metadata
         // cache before materializing, so their memory does not outlive
         // its use. The custom fetchers stay, the cold batch consults them.
-        drop(setup.chain.resolver);
         drop(setup.chain.npm_resolver);
         drop(owned.fetching.meta_cache);
         drop(setup.chain.fetch_locker);
         drop(setup.chain.picked_manifest_cache);
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: install.projects.lockfile_dir.display().to_string(),
-            stage: Stage::ResolutionDone,
-        }));
-        FreshMaterialization {
-            install,
-            resources: MaterializationResources {
-                tarball_mem_cache: owned.fetching.tarball_mem_cache,
-                lockfile_specifier_manifests:
-                    manifest_transforms::apply_overrides_to_specifier_manifests(
-                        owned.projects.lockfile_specifier_manifests,
-                        resolved.overrides.versions_overrider.as_deref(),
-                    ),
-                catalogs: owned.projects.catalogs,
-                node_version: owned.node_version,
-                early_host_detection: owned.early_host_detection,
-                deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
-                lockfile_verification_gate: owned.lockfile_verification_gate,
-                resolution_observer: setup.completion_observer,
-            },
-            shape: setup.shape,
-            stores: setup.stores.into(),
-            custom_fetcher_session: setup.chain.custom_fetcher_session,
-            resolved,
-        }
-        .run()
+        emit_resolution_done::<Reporter>(install);
+        Box::pin(
+            FreshMaterialization {
+                install,
+                resources: MaterializationResources {
+                    tarball_mem_cache: owned.fetching.tarball_mem_cache,
+                    lockfile_specifier_manifests:
+                        manifest_transforms::apply_overrides_to_specifier_manifests(
+                            owned.projects.lockfile_specifier_manifests,
+                            resolved.overrides.versions_overrider.as_deref(),
+                        ),
+                    catalogs: owned.projects.catalogs,
+                    node_version: owned.node_version,
+                    early_host_detection: owned.early_host_detection,
+                    deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
+                    lockfile_verification_gate: owned.lockfile_verification_gate,
+                    resolution_observer: setup.completion_observer,
+                },
+                shape: setup.shape,
+                stores: setup.stores.into(),
+                custom_fetcher_session: setup.chain.custom_fetcher_session,
+                build_tools,
+                resolved,
+            }
+            .run(),
+        )
         .await
     })
+}
+fn emit_resolution_done<Reporter: self::Reporter>(install: FreshInputs<'_>) {
+    Reporter::emit(&LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: install.projects.lockfile_dir.display().to_string(),
+        stage: Stage::ResolutionDone,
+    }));
 }
 pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
     install: FreshInputs<'_>,
@@ -148,7 +160,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             .then(|| AllowBuildPolicy::from_config(self.install.drivers.config))
             .transpose()
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
-        let built_lockfile = build_lockfile_phase::<Reporter>(
+        let mut built_lockfile = build_lockfile_phase::<Reporter>(
             self.install,
             &mut self.resources.lockfile_verification_gate,
             std::mem::take(&mut self.resolved.graph.time),
@@ -166,10 +178,29 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             self.shape.verify_filtered_repair,
         )
         .await?;
+        self.record_build_tools(&mut built_lockfile).await?;
         match allow_build_policy {
             Some(policy) => self.materialize(built_lockfile, policy).await,
             None => self.finish_lockfile_only(built_lockfile).await,
         }
+    }
+
+    async fn record_build_tools(
+        &mut self,
+        lockfile: &mut Lockfile,
+    ) -> Result<(), InstallWithFreshLockfileError> {
+        let Some(build_tools) = self.build_tools.take() else { return Ok(()) };
+        let prior = self.resolved.fixed_wanted_lockfile
+            .as_ref()
+            .or(self.install.lockfiles.wanted);
+        let sources = crate::build_tools_record::PackageSources {
+            config: self.install.drivers.config,
+            http_client: self.install.drivers.http_client,
+            git_source_cache: &self.stores.caches.git_source_cache,
+            tarball_mem_cache: &self.resources.tarball_mem_cache,
+            store_index: self.stores.index.as_ref(),
+        };
+        build_tools.record::<Reporter>(lockfile, prior, sources).await
     }
 
     async fn finish_lockfile_only(
@@ -336,5 +367,6 @@ pub(super) fn fresh_install_context<'b>(
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
         dir_clone_cache,
+        build_tools_cache: pnpm_deps_restorer::BuildToolsCache::default(),
     }
 }

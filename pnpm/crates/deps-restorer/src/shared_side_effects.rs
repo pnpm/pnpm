@@ -45,6 +45,7 @@ pub struct SharedSideEffectsPublisher {
     organization: String,
     packages: HashSet<String>,
     platform: ArtifactPlatform<'static>,
+    lock_build_tools: bool,
     runtime: tokio::runtime::Handle,
 }
 
@@ -139,6 +140,7 @@ pub(crate) fn shared_side_effects_publisher(
             .cloned()
             .collect(),
         platform,
+        lock_build_tools: config.lock_build_tools,
 
         runtime: tokio::runtime::Handle::current(),
     })
@@ -149,8 +151,11 @@ impl SharedSideEffectsPublisher {
         &self,
         metadata_key: &PackageKey,
         metadata: &PackageMetadata,
+        has_verified_build_tools: bool,
     ) -> bool {
-        self.packages.contains(&metadata_key.name.to_string())
+        self.lock_build_tools
+            && has_verified_build_tools
+            && self.packages.contains(&metadata_key.name.to_string())
             && metadata.resolution.checkable_integrity().is_some()
     }
 

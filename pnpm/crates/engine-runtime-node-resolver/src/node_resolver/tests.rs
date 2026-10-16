@@ -45,6 +45,45 @@ async fn declines_node_without_runtime_prefix() {
 }
 
 #[tokio::test]
+async fn resolves_node_tool_protocol_through_the_configured_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let _index = server
+        .mock("GET", "/download/rc/index.json")
+        .with_status(200)
+        .with_body(r#"[{"version":"v22.11.0-rc.0","lts":false}]"#)
+        .create_async()
+        .await;
+    let _shasums = server
+        .mock("GET", "/download/rc/v22.11.0-rc.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(
+            "ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-rc.0-linux-x64.tar.gz\n",
+        )
+        .create_async()
+        .await;
+    let mut resolver = resolver();
+    resolver.node_download_mirrors.insert(
+        "rc".to_string(),
+        format!("{}/download/rc/", server.url()),
+    );
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("tool:22.11.0-rc.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("Node tool protocol resolves");
+
+    assert_eq!(result.id.as_str(), "node@tool:22.11.0-rc.0");
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("tool:22.11.0-rc.0"));
+    assert!(matches!(result.resolution, pnpm_lockfile::LockfileResolution::Variations(_)));
+}
+
+#[tokio::test]
 async fn offline_raises_no_offline_nodejs_resolution() {
     let mut resolver = resolver();
     resolver.offline = true;

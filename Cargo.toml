@@ -53,6 +53,7 @@ pnpm-lockfile = { path = "pnpm/crates/lockfile" }
 pnpm-lockfile-import = { path = "pnpm/crates/lockfile-import" }
 pnpm-lockfile-preferred-versions = { path = "pnpm/crates/lockfile-preferred-versions" }
 pnpm-lockfile-verification = { path = "pnpm/crates/lockfile-verification" }
+pnpm-tool-protocol = { path = "pnpm/crates/tool-protocol" }
 pnpm-modules-yaml = { path = "pnpm/crates/modules-yaml" }
 pnpm-network = { path = "pnpm/crates/network" }
 pnpm-napi = { path = "pnpm/crates/napi" }

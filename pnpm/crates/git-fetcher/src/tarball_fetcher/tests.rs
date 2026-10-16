@@ -47,6 +47,7 @@ async fn passes_through_package_without_scripts() {
     );
 
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -102,6 +103,7 @@ async fn filters_files_outside_files_field() {
     );
 
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -156,6 +158,7 @@ async fn rejects_build_when_not_allowed() {
     );
 
     let err = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -205,6 +208,7 @@ async fn surfaces_prepare_script_failure() {
     );
 
     let err = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -267,6 +271,7 @@ async fn path_field_packs_only_subdirectory() {
     );
 
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -331,6 +336,7 @@ async fn materialized_temp_dir_does_not_corrupt_cas() {
     let cas_bytes_before = fs::read(&original_cas_path).unwrap();
 
     let _ = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -384,6 +390,7 @@ async fn writes_index_row_when_writer_provided() {
 
     let key = "x@1.0.0\tbuilt";
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -478,6 +485,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     let input_snapshot = cas_paths.clone();
 
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -537,6 +545,7 @@ async fn fast_path_queues_synthesized_index_row() {
 
     let key = "x@1.0.0\tbuilt";
     let _received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -626,6 +635,7 @@ async fn sub_path_never_takes_fast_path() {
 
     let key = "sub@1.0.0\tbuilt";
     let received = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -713,6 +723,7 @@ async fn fast_path_skipped_preparation_caches_only_explicit_denials() {
 
         let key = "x@1.0.0\tbuilt";
         let received = GitHostedTarballFetcher {
+            build_tools: crate::BuildTools::Detected,
             scripts: crate::PrepareScriptOptions {
                 ignore,
                 unsafe_perm: true,
@@ -770,6 +781,7 @@ async fn tarball_path_traversal_attack_is_rejected() {
         write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -827,6 +839,7 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
         write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
+        build_tools: crate::BuildTools::Detected,
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,

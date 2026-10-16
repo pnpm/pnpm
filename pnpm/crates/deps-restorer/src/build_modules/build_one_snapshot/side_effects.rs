@@ -244,18 +244,24 @@ pub(super) fn upload_side_effects_cache(
         return;
     };
     let Some(metadata) = packages.get(upload.metadata_key) else { return };
-    let publishes_remotely = upload.has_side_effects
+    let has_verified_build_tools = context.graph.snapshots
+        .get(snapshot_key)
+        .is_some_and(|snapshot| {
+            snapshot.build_dependencies.is_some()
+                && context.graph.packages.is_some_and(|packages| {
+                    crate::build_tools_identity(snapshot, Some(packages)).is_some()
+                })
+        });
+    let publishes_remotely = has_verified_build_tools
+        && upload.has_side_effects
         && context.cache.publisher.is_some_and(|publisher| {
-            publisher.can_publish(upload.metadata_key, metadata)
+            publisher.can_publish(upload.metadata_key, metadata, has_verified_build_tools)
         });
     if !context.cache.write && !publishes_remotely {
         return;
     }
-    let Some(files_index_file) = store_index_key_for_resolution(
-        &metadata.resolution,
-        &upload.metadata_key.pkg_id(),
-        !context.scripts.ignore,
-    ) else {
+    let Some(files_index_file) = files_index_file(context, snapshot_key, upload.metadata_key)
+    else {
         return;
     };
     if let Err(err) = upload_and_publish(
@@ -271,6 +277,27 @@ pub(super) fn upload_side_effects_cache(
             "side-effects cache upload failed; build proceeds",
         );
     }
+}
+
+/// The store-index key the package's files were filed under, which keys a
+/// built git-hosted package by its recorded build tools.
+fn files_index_file(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    metadata_key: &PackageKey,
+) -> Option<String> {
+    let packages = context.graph.packages?;
+    let snapshot = context.graph.snapshots.get(snapshot_key)?;
+    let build_tools = crate::build_tools_identity(snapshot, Some(packages));
+    if snapshot.build_dependencies.is_some() && build_tools.is_none() {
+        return None;
+    }
+    store_index_key_for_resolution(
+        &packages.get(metadata_key)?.resolution,
+        &metadata_key.pkg_id(),
+        !context.scripts.ignore,
+        build_tools.as_deref(),
+    )
 }
 pub(super) fn upload_and_publish(
     context: &BuildOneSnapshot<'_>,

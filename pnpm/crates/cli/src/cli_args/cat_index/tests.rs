@@ -1,4 +1,6 @@
-use super::{MAX_JSON_SORT_DEPTH, request_matches_dependency, sort_deep_keys};
+use super::{
+    MAX_JSON_SORT_DEPTH, git_store_index_keys, request_matches_dependency, sort_deep_keys,
+};
 use pnpm_lockfile::ResolvedDependencySpec;
 use serde_json::json;
 
@@ -61,6 +63,14 @@ fn sort_deep_keys_sorts_nested_objects_deterministically() {
         .first()
         .expect("root array has an object");
     assert_eq!(object_keys(root_array_object), vec!["alpha", "beta"]);
+}
+
+#[test]
+fn git_store_index_keys_include_build_tools() {
+    let keys = git_store_index_keys("foo@1.0.0", Some("tools-digest"));
+
+    assert_eq!(keys.len(), 3);
+    assert!(keys.contains(&"foo@1.0.0\tbuilt:tools-digest".to_string()));
 }
 
 fn object_keys(value: &serde_json::Value) -> Vec<&str> {

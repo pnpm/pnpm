@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use pnpm_lockfile::{
     Lockfile, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
-    SnapshotEntry,
+    SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 
@@ -64,6 +64,7 @@ pub struct BuildGraphOptions<'a> {
     pub lockfile: &'a Lockfile,
     pub include: IncludedDependencies,
     pub only_projects: bool,
+    pub include_build_dependencies: bool,
     /// How the graph classifies the peer-satisfaction edges it leaves out
     /// while `include` excludes a group.
     pub peer_edges: PeerEdgeOptions,
@@ -196,8 +197,17 @@ fn package_edges(
     skipped_peer_edges: &PeerSatisfactionEdges,
 ) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let entries =
-        skipped_peer_edges.followed_entries(key, snapshot, opts.include.optional_dependencies);
+    let mut entries: Vec<_> = skipped_peer_edges
+        .followed_entries(key, snapshot, opts.include.optional_dependencies)
+        .map(|(alias, dep_ref)| (alias, dep_ref.clone()))
+        .collect();
+    if opts.include_build_dependencies {
+        entries.extend(
+            snapshot
+                .build_dependency_keys()
+                .map(|(alias, key)| (alias, SnapshotDepRef::Plain(key.suffix))),
+        );
+    }
     for (alias, dep_ref) in entries {
         let dep_path = dep_ref.resolve(alias);
         let link_target = dep_ref.as_link_target().map(str::to_string);
@@ -218,6 +228,9 @@ fn package_edges(
     }
     edges
 }
+
+#[cfg(test)]
+mod tests;
 
 /// The node an edge leads to. A resolvable depPath is a package node; a
 /// `link:` from an importer resolves to a sibling importer when the

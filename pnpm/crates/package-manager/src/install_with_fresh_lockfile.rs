@@ -32,6 +32,7 @@ use resolution::{ManifestSlots, Resolved, resolve_graph, start_early_materializa
 mod setup;
 use setup::{InstallShape, ResolverSetup, set_up_resolvers};
 
+mod build_tools_phase;
 mod materialization;
 use materialization::finish_resolved_install;
 

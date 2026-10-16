@@ -122,6 +122,7 @@ async fn run_snapshot_install_with_session(
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     super::InstallPackageBySnapshot {
+        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,
@@ -147,6 +148,7 @@ async fn run_snapshot_install_with_session(
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
             dir_clone_cache: None,
+            build_tools_cache: crate::BuildToolsCache::default(),
         },
 
         skipped: &skipped,

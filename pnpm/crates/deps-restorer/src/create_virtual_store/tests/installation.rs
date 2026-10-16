@@ -141,6 +141,7 @@ async fn shared_store_context_materializes_a_warm_package() {
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
             dir_clone_cache: None,
+            build_tools_cache: crate::BuildToolsCache::default(),
         },
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },

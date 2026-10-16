@@ -3,6 +3,12 @@ pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
 
+pub use build_tools::BuildToolError;
+
+mod build_tools;
+
+pub use build_tools::BuildToolsCache;
+
 mod fetch;
 
 mod runtime;
@@ -59,6 +65,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// once its tarball is in the store. No effect under
     /// [`NodeLinker::Hoisted`](pnpm_modules_yaml::NodeLinker::Hoisted), which never writes virtual-store slots.
     pub defer_link: bool,
+    /// The `packages:` of the lockfile being materialized, where the tools
+    /// a snapshot's `buildDependencies` name are found.
+    pub packages: Option<&'a HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -121,6 +130,9 @@ pub enum InstallPackageBySnapshotError {
     /// every fetcher path that exits through `pnpm-git-fetcher`.
     #[diagnostic(transparent)]
     GitFetch(#[error(source)] GitFetcherError),
+
+    #[diagnostic(transparent)]
+    BuildTool(#[error(source)] BuildToolError),
 
     /// Failure from the directory fetcher: walking the source
     /// directory of an injected workspace dep, reading its manifest,

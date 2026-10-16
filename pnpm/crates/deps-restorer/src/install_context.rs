@@ -32,6 +32,7 @@ pub struct InstallContext<'a> {
     /// resolve-time manifest read and the fetch phase's git fetcher.
     pub git_source_cache: &'a pnpm_git_fetcher::GitSourceCache,
     pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
+    pub build_tools_cache: crate::BuildToolsCache,
 }
 
 impl InstallContext<'_> {

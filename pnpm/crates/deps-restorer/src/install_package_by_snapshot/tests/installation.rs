@@ -190,6 +190,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::super::InstallPackageBySnapshot {
+        packages: None,
         fetching: crate::SnapshotFetchContext {
             http_client: &pnpm_network::ThrottledClient::default(),
             store_index: None,
@@ -215,6 +216,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
             dir_clone_cache: None,
+            build_tools_cache: crate::BuildToolsCache::default(),
         },
 
         skipped: &skipped,

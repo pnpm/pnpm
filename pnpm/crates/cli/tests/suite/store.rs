@@ -371,6 +371,7 @@ fn store_status_ignores_skipped_optional_packages() {
         &metadata.resolution,
         &snapshot_key.pkg_id(),
         true,
+        None,
     )
     .expect("a registry tarball has a store index key");
 

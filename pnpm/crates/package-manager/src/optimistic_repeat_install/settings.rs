@@ -111,6 +111,7 @@ impl SettingsComparison<'_> {
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
+            .or_else(|| self.build_tools_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -212,6 +213,14 @@ impl SettingsComparison<'_> {
             live.package_extensions.as_ref(),
         );
         return_drift_if!(self, "packageExtensions", package_extensions_drift);
+        None
+    }
+    fn build_tools_drift(&self) -> Option<&'static str> {
+        return_drift_if!(
+            self,
+            "lockBuildTools",
+            self.recorded.lock_build_tools != self.live.lock_build_tools,
+        );
         None
     }
     fn workspace_policy_drift(&self) -> Option<&'static str> {
@@ -397,6 +406,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
+        lock_build_tools: config.lock_build_tools.then_some(true),
         ..Default::default()
     }
 }

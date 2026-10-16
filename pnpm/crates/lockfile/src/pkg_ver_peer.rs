@@ -74,9 +74,8 @@ pub struct PkgVerPeer {
 /// can discriminate runtime entries by their prefix instead of
 /// substring-searching the depPath.
 ///
-/// The enum is closed because pnpm only defines this one scheme so
-/// far; if upstream adds another (e.g. `tag:`), add a variant here
-/// rather than turning the prefix into an unbounded string.
+/// The enum is closed: add a variant here for a new scheme rather than
+/// turning the prefix into an unbounded string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Prefix {
     /// No prefix — plain semver, the default before pnpm v11.
@@ -84,6 +83,10 @@ pub enum Prefix {
     /// `runtime:` — runtime dependency specifier (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`).
     Runtime,
+    /// `tool:` — a tool pnpm provisions to build a package
+    /// (`node@tool:24.6.0`, `yarn@tool:4.9.2`), reached only through a
+    /// snapshot's [`buildDependencies`](crate::SnapshotEntry::build_dependencies).
+    Tool,
 }
 
 impl Prefix {
@@ -93,7 +96,8 @@ impl Prefix {
     pub const fn as_str(self) -> &'static str {
         match self {
             Prefix::None => "",
-            Prefix::Runtime => "runtime:",
+            Prefix::Runtime => pnpm_tool_protocol::RUNTIME_PROTOCOL,
+            Prefix::Tool => pnpm_tool_protocol::TOOL_PROTOCOL,
         }
     }
 }
@@ -191,7 +195,7 @@ pub enum ParsePkgVerPeerError {
     MismatchParenthesis,
     #[display("Empty path after `file:` scheme")]
     EmptyFilePath,
-    #[display("`runtime:` and `file:` schemes are mutually exclusive")]
+    #[display("`runtime:` / `tool:` and `file:` schemes are mutually exclusive")]
     ConflictingSchemes,
 }
 
@@ -229,16 +233,19 @@ impl FromStr for PkgVerPeer {
         // scheme prefix flush against the semver, e.g.
         // `runtime:22.0.0` — splitting it off here keeps the
         // parenthesis-based peer-suffix detection below unchanged.
-        let (prefix, body) = if let Some(rest) = value.strip_prefix(Prefix::Runtime.as_str()) {
-            (Prefix::Runtime, rest)
-        } else {
-            (Prefix::None, value)
-        };
+        let (prefix, body) = [Prefix::Runtime, Prefix::Tool]
+            .into_iter()
+            .find_map(|prefix| {
+                value
+                    .strip_prefix(prefix.as_str())
+                    .map(|rest| (prefix, rest))
+            })
+            .unwrap_or((Prefix::None, value));
 
         // Pnpm never writes `runtime:file:...`; rejecting it here keeps
         // [`PkgVerPeer::to_string`] byte-stable (a silent acceptance would
         // round-trip back as `file:...` with the prefix dropped).
-        if prefix == Prefix::Runtime && body.starts_with("file:") {
+        if prefix != Prefix::None && body.starts_with("file:") {
             return Err(ParsePkgVerPeerError::ConflictingSchemes);
         }
 

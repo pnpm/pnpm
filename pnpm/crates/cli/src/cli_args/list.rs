@@ -125,6 +125,8 @@ pub struct ListGraphArgs {
     /// workspace.
     #[clap(long)]
     pub only_projects: bool,
+    #[clap(long)]
+    pub include_build_dependencies: bool,
     /// List packages from the lockfile only, without checking
     /// `node_modules`.
     #[clap(long)]
@@ -351,6 +353,7 @@ impl ListArgs {
                 lockfile: env.current_lockfile,
                 include,
                 only_projects: self.graph.only_projects,
+                include_build_dependencies: self.graph.include_build_dependencies,
                 peer_edges: config.peer_edge_options(),
             },
         );

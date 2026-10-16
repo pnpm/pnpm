@@ -31,6 +31,7 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub lock_build_tools: bool,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -245,6 +246,13 @@ pub enum StalenessReason {
     )]
     DedupePeersChanged { lockfile: bool, config: bool },
 
+    /// The lockfile's `settings.lockBuildTools` differs from the current
+    /// install's `Config::lock_build_tools`.
+    #[display(
+        "`lockBuildTools` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    LockBuildToolsChanged { lockfile: bool, config: bool },
+
     /// The lockfile's `settings.excludeLinksFromLockfile` differs from
     /// the current install's `Config::exclude_links_from_lockfile`. The
     /// setting decides whether `link:` deps are recorded at all, so a
@@ -298,6 +306,7 @@ impl StalenessReason {
             StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
             StalenessReason::AutoInstallPeersChanged { .. } => Some("settings.autoInstallPeers"),
             StalenessReason::DedupePeersChanged { .. } => Some("settings.dedupePeers"),
+            StalenessReason::LockBuildToolsChanged { .. } => Some("settings.lockBuildTools"),
             StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
                 Some("settings.excludeLinksFromLockfile")
             }
@@ -347,6 +356,7 @@ pub fn check_lockfile_settings(
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
+    check_lock_build_tools(lockfile, check.lock_build_tools)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted
@@ -440,6 +450,14 @@ fn check_overrides(
 /// `settings` block records nothing about the settings it was written under,
 /// so there is nothing to compare — pnpm's
 /// `lockfile.settings?.autoInstallPeers != null` guard.
+fn check_lock_build_tools(lockfile: &Lockfile, config: bool) -> Result<(), StalenessReason> {
+    let recorded = recorded_lock_build_tools(lockfile.settings.as_ref());
+    if recorded == config {
+        return Ok(());
+    }
+    Err(StalenessReason::LockBuildToolsChanged { lockfile: recorded, config })
+}
+
 fn check_recorded_settings(
     lockfile: &Lockfile,
     check: &ResolutionSettingsCheck<'_>,
@@ -552,6 +570,12 @@ pub fn recorded_peers_suffix_max_length(recorded: Option<&crate::LockfileSetting
 #[must_use]
 pub fn recorded_inject_workspace_packages(recorded: Option<&crate::LockfileSettings>) -> bool {
     recorded.is_some_and(|settings| settings.inject_workspace_packages)
+}
+
+/// See [`recorded_inject_workspace_packages`].
+#[must_use]
+pub fn recorded_lock_build_tools(recorded: Option<&crate::LockfileSettings>) -> bool {
+    recorded.is_some_and(|settings| settings.lock_build_tools.unwrap_or(false))
 }
 
 fn all_catalogs_are_up_to_date(

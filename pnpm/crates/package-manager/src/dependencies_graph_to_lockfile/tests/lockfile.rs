@@ -156,6 +156,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: Some(true),
             exclude_links_from_lockfile: false,
@@ -200,6 +201,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
@@ -296,6 +298,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             catalogs: &EMPTY_CATALOGS,
             time: BTreeMap::new(),
             settings: pnpm_lockfile::LockfileSettings {
+                lock_build_tools: None,
                 auto_install_peers: false,
                 dedupe_peers: None,
                 exclude_links_from_lockfile: false,
@@ -402,6 +405,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
@@ -510,6 +514,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         catalogs: &EMPTY_CATALOGS,
         time: BTreeMap::new(),
         settings: pnpm_lockfile::LockfileSettings {
+            lock_build_tools: None,
             auto_install_peers: false,
             dedupe_peers: None,
             exclude_links_from_lockfile: false,

@@ -63,6 +63,24 @@ pub use install_options::{
     SnapshotSelection, VirtualStoreFetchInputs,
 };
 pub use install_package_by_snapshot::*;
+
+#[must_use]
+pub fn build_tools_identity(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    packages: Option<
+        &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    >,
+) -> Option<String> {
+    let identity = pnpm_lockfile::build_tools_identity(snapshot, packages)?;
+    let has_runtime = snapshot
+        .build_dependency_keys()
+        .any(|(alias, _)| matches!(alias.to_string().as_str(), "node" | "bun" | "deno"));
+    if has_runtime {
+        return Some(identity);
+    }
+    let node_version = pnpm_graph_hasher::detect_node_version()?;
+    Some(format!("{identity}|host-node:{node_version}"))
+}
 pub use install_package_from_registry::*;
 pub use installability::*;
 pub use installed_hoisted_state::InstalledHoistedState;
@@ -98,11 +116,17 @@ mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 
+/// `build_tools` is the [`pnpm_lockfile::build_tools_identity`] of the
+/// package's snapshot, which keys a built git-hosted package.
 pub fn store_index_key_for_resolution(
     resolution: &pnpm_lockfile::LockfileResolution,
     pkg_id: &str,
     built: bool,
+    build_tools: Option<&str>,
 ) -> Option<String> {
+    if resolution.is_git_hosted() {
+        return Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, built, build_tools));
+    }
     match resolution {
         pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
             Some(pnpm_store_dir::pick_store_index_key(
@@ -110,13 +134,10 @@ pub fn store_index_key_for_resolution(
                     .as_ref()
                     .map(ToString::to_string)
                     .as_deref(),
-                tarball.is_git_hosted(),
+                false,
                 pkg_id,
                 built,
             ))
-        }
-        pnpm_lockfile::LockfileResolution::Git(_) => {
-            Some(pnpm_store_dir::git_hosted_store_index_key(pkg_id, built))
         }
         _ => resolution
             .integrity()
