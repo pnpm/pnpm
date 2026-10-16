@@ -53,9 +53,9 @@ use modules_dirs::{
     first_selected_project_missing_modules_dir, modules_dirs_present,
 };
 use settle::{
-    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    early_repeat_verdict, project_structure_matches, settle_repeat_install,
-    wanted_lockfile_file_has_content,
+    content_check_decision, current_lockfile_file_has_content,
+    current_lockfile_unusable_with_non_empty_wanted, early_repeat_verdict,
+    project_structure_matches, settle_repeat_install, wanted_lockfile_file_has_content,
 };
 
 use std::{
@@ -194,29 +194,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
         return decision;
     }
-    // A newer mtime alone doesn't invalidate: the modified-manifests
-    // branch re-checks the *content* against the wanted lockfile so a
-    // rewrite that left the dependency fields intact — `touch`, a
-    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
-    // When only the lockfile changed, every project is validated rather
-    // than just the modified ones.
-    let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now =
-        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
-    match modified_manifests_match_lockfile(
-        check,
-        &state,
-        &projects_to_check,
-        check.config.dedupe_peers,
-    ) {
-        Ok(loaded_current) => {
-            match settle_repeat_install(check, &state, loaded_current, filesystem_now, false) {
-                Ok(()) => Decision::UpToDate,
-                Err(reason) => Decision::Skipped { reason },
-            }
-        }
-        Err(reason) => Decision::Skipped { reason },
-    }
+    content_check_decision(check, &state, &drift, modified)
 }
 
 /// Every project manifest's mtime against the timestamp that proves it
@@ -234,6 +212,8 @@ pub(crate) struct ManifestDrift<'a> {
     pub(crate) lockfile_modified: bool,
     /// Per [`manifest_drift_reference_ms`].
     manifest_reference_ms: i64,
+    /// The wanted lockfile's mtime when [`Self::stat`] ran.
+    lockfile_mtime: Option<FileMtime>,
 }
 
 impl<'a> ManifestDrift<'a> {
@@ -261,7 +241,18 @@ impl<'a> ManifestDrift<'a> {
                 state.last_validated_timestamp,
                 lockfile_mtime,
             ),
+            lockfile_mtime,
         })
+    }
+
+    /// Whether the wanted lockfile still has the mtime [`Self::stat`] saw.
+    /// A content check that passed validated the lockfile it read, so a
+    /// lockfile rewritten since must not have its mtime recorded as
+    /// validated.
+    pub(crate) fn lockfile_unchanged(&self, check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+        let mtime_ns = |mtime: Option<FileMtime>| mtime.map(|mtime| mtime.ns);
+        mtime_ns(self.lockfile_mtime)
+            == mtime_ns(wanted_lockfile_mtime(check.workspace_root, check.config))
     }
 
     pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {

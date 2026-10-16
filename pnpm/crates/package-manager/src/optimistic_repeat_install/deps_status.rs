@@ -77,6 +77,14 @@ pub fn check_deps_status_before_run(
     }
     let patches_modified =
         patches_modified_since(check.workspace_root, check.config, state.last_validated_timestamp);
+    // Probed before any content is read, so a file edited while the checks
+    // run is newer than the recorded validation.
+    let refresh =
+        (check.is_workspace_install || drift.lockfile_modified || patches_modified).then(|| {
+            filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
+                check.workspace_root,
+            ))
+        });
     if patches_modified && let Err(reason) = patches_match_lockfile(check) {
         return outdated(reason.to_string());
     }
@@ -89,7 +97,7 @@ pub fn check_deps_status_before_run(
     ) {
         return status;
     }
-    content_check_status(check, state, &drift.projects_to_check(modified), &outdated)
+    content_check_status(check, state, &drift, modified, refresh, &outdated)
 }
 
 /// The gate's verdict once something changed since the last validation: the
@@ -97,26 +105,22 @@ pub fn check_deps_status_before_run(
 fn content_check_status(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    projects_to_check: &[&ManifestStat<'_>],
+    drift: &super::ManifestDrift<'_>,
+    modified: Vec<&ManifestStat<'_>>,
+    refresh: Option<Option<i64>>,
     outdated: &impl Fn(String) -> RunDepsStatus,
 ) -> RunDepsStatus {
-    let filesystem_now = check.is_workspace_install
-        .then(|| {
-            filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
-                check.workspace_root,
-            ))
-        })
-        .flatten();
+    let projects_to_check = drift.projects_to_check(modified);
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
     if !projects_to_check.is_empty()
         && let Err(reason) =
-            modified_manifests_match_lockfile(check, state, projects_to_check, false)
+            modified_manifests_match_lockfile(check, state, &projects_to_check, false)
     {
         return outdated(reason.to_string());
     }
-    match settle_content_check(check, state, filesystem_now) {
+    match settle_content_check(check, state, refresh.filter(|_| drift.lockfile_unchanged(check))) {
         Ok(()) => RunDepsStatus::UpToDate,
         Err(reason) => outdated(reason),
     }
@@ -317,15 +321,18 @@ fn early_content_verdict(
     None
 }
 
-/// Settle the passing content check for a tree in place. A single project
-/// uses the lockfile mtimes and leaves its workspace state unchanged.
+/// Settle the passing content check for a tree in place. `refresh` carries
+/// the filesystem time probed before the check where the next run measures
+/// drift against the recorded timestamp: always in a workspace, and in a
+/// single project once its lockfile or a patch changed. A single project's
+/// manifest drift stays keyed to the lockfile mtimes.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    filesystem_now: Option<i64>,
+    refresh: Option<Option<i64>>,
 ) -> Result<(), String> {
     missing_wanted_lockfile_stand_in_ok(check)?;
-    if check.is_workspace_install {
+    if let Some(filesystem_now) = refresh {
         record_content_check_state(check, state, filesystem_now);
     }
     Ok(())
