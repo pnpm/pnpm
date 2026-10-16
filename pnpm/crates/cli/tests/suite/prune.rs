@@ -1,5 +1,6 @@
 use crate::_utils::{
     append_line_script, has_link, importer_has_group_dependency, pacquet_in, read_lockfile,
+    set_minimum_release_age,
 };
 
 use assert_cmd::prelude::*;
@@ -260,6 +261,51 @@ fn prune_with_prod_only_does_not_run_prepare_scripts() {
         (true, false),
         "prune --prod must keep the prod dependency linked and unlink the dev dependency",
     );
+
+    drop((root, mock_instance));
+}
+
+/// A store and lockfile restored without the metadata cache, as in a CI
+/// cache restore or a Nix sandbox (pnpm/pnpm#16999). Verifying the lockfile
+/// needs the metadata `--offline` cannot fetch, so only `trustLockfile`
+/// lets the prune through.
+#[test]
+fn prune_offline_honors_trust_lockfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { PROD: "100.0.0" },
+            "devDependencies": { FILTERED: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    set_minimum_release_age(&workspace, 1);
+    pacquet_in(&workspace)
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    fs::remove_dir_all(&cache_dir).expect("drop the metadata cache");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["prune", "--prod", "--offline"])
+        .output()
+        .expect("spawn pacquet prune");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    eprintln!("{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_NO_OFFLINE_META"));
+
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod", "--offline", "--config.trust-lockfile=true"])
+        .assert()
+        .success();
+    assert!(has_link(&workspace, PROD));
+    assert!(!has_link(&workspace, FILTERED));
 
     drop((root, mock_instance));
 }
