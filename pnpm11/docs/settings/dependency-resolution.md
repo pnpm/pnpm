@@ -577,3 +577,21 @@ There is no setting to keep the old behavior — the old shape is the vulnerabil
 Every non-built-in alias that the lockfile references must stay declared — through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
 
 Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.
+
+### pnprServer
+
+* Default: **null**
+* Type: **String**
+
+URL of a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server.
+
+When set, `pnpm install` offloads dependency resolution and package fetching to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, the server resolves the dependency graph against those registries and streams back any files missing from the local store, and `node_modules` is linked locally from the server-produced lockfile.
+
+```yaml title="pnpm-workspace.yaml"
+pnprServer: https://pnpr.example.com/
+```
+
+This can also be configured via the `--config.pnprServer=<url>` command-line option or the `PNPM_CONFIG_PNPR_SERVER` environment variable.
+
+When `pnprServer` is set, authentication headers configured for the pnpr server URL in `.npmrc` (for example, `//pnpr.example.com/:_authToken=...`) are automatically sent to authenticate requests to the server.
+

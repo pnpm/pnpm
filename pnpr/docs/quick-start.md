@@ -94,5 +94,9 @@ claims, is rejected.
 - [CLI reference](cli.md) — every flag `pnpr` accepts.
 - [Configuration](configuration.md) — write your own config: registries,
   access rules, and auth.
+- [Reverse proxy and TLS](tls-and-reverse-proxy.md) — set up Nginx, Caddy, Traefik, or a cloud load balancer for production.
+- [Webhooks and event notifications](webhooks.md) — stream audit events and storage notifications to external webhooks.
+- [Backup and restore](backup-and-restore.md) — snapshot and restore package storage and user records.
 - [Install acceleration](install-acceleration.md) — let pnpr resolve your
   dependency graph to speed up installs.
+
