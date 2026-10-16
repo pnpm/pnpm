@@ -182,27 +182,26 @@ async function pkgFix (opts: PkgCommandOptions): Promise<void> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
   const untypedManifest = manifest as ProjectManifest & Record<string, unknown>
 
-  if ('name' in untypedManifest && typeof untypedManifest.name !== 'string') {
-    delete untypedManifest.name
-  }
-
-  if ('version' in untypedManifest && typeof untypedManifest.version !== 'string') {
-    delete untypedManifest.version
-  }
-
+  removeIllTypedField(untypedManifest, 'name', (value) => typeof value === 'string')
+  removeIllTypedField(untypedManifest, 'version', (value) => typeof value === 'string')
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in untypedManifest && !isPlainObject(untypedManifest[field])) {
-      delete untypedManifest[field]
-    }
+    removeIllTypedField(untypedManifest, field, isPlainObject)
   }
-
-  if ('bin' in untypedManifest && typeof untypedManifest.bin !== 'string' && !isPlainObject(untypedManifest.bin)) {
-    delete untypedManifest.bin
-  }
+  removeIllTypedField(untypedManifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
 
   normalizeRepository(untypedManifest)
 
   await writeProjectManifest(manifest)
+}
+
+function removeIllTypedField (
+  manifest: Record<string, unknown>,
+  field: string,
+  isWellTyped: (value: unknown) => boolean
+): void {
+  if (field in manifest && !isWellTyped(manifest[field])) {
+    delete manifest[field]
+  }
 }
 
 // Mirrors the fixRepositoryField step of npm's `pkg fix`.
