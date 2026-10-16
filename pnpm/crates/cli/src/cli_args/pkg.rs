@@ -366,6 +366,9 @@ fn normalize_repository(obj: &mut Map<String, Value>) {
     if let Value::String(url) = repository
         && !url.is_empty()
     {
+        if HostedGit::from_url(url).is_none() {
+            return;
+        }
         *repository = json!({ "type": "git", "url": std::mem::take(url) });
     }
     let Some(Value::String(url)) = repository.get_mut("url") else { return };

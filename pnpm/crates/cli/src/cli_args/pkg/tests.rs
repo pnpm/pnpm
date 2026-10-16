@@ -266,7 +266,7 @@ fn test_fix_normalizes_github_shortcut_repository() {
     fix_manifest(&mut manifest);
     assert_eq!(
         manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" })
+        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
     );
 }
 
@@ -279,7 +279,7 @@ fn test_fix_normalizes_gitlab_shortcut_repository() {
     fix_manifest(&mut manifest);
     assert_eq!(
         manifest["repository"],
-        json!({ "type": "git", "url": "git+https://gitlab.com/group/repo.git" })
+        json!({ "type": "git", "url": "git+https://gitlab.com/group/repo.git" }),
     );
 }
 
@@ -292,7 +292,7 @@ fn test_fix_normalizes_full_git_repository_url() {
     fix_manifest(&mut manifest);
     assert_eq!(
         manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" })
+        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
     );
 }
 
@@ -305,7 +305,7 @@ fn test_fix_keeps_object_repository_unchanged() {
     fix_manifest(&mut manifest);
     assert_eq!(
         manifest["repository"],
-        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" })
+        json!({ "type": "git", "url": "git+https://github.com/pnpm/example.git" }),
     );
 }
 

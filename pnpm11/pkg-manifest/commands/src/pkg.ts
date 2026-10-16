@@ -213,12 +213,14 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeRepository (value: unknown): unknown {
+  const original = value
   if (typeof value === 'string' && value !== '') {
     value = { type: 'git', url: value }
   }
   if (!isPlainObject(value) || typeof value.url !== 'string') return value
   const hosted = HostedGit.fromUrl(value.url)
-  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return value
+  if (hosted == null) return original
+  if (hosted.user == null && hosted.type !== 'gist') return value
   value.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
   return value
 }
