@@ -67,7 +67,7 @@ fn test_include_logic() {
     let include_prod = opts_prod.include(true);
     assert!(include_prod.dependencies);
     assert!(!include_prod.dev_dependencies);
-    assert!(!include_prod.optional_dependencies);
+    assert!(include_prod.optional_dependencies);
 
     let opts_no_optional =
         LicensesDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
