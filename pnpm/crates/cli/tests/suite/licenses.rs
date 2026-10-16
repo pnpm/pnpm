@@ -313,6 +313,78 @@ snapshots:
     assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
 }
 
+#[test]
+fn licenses_lists_transitive_optional_dependencies_under_prod() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "alpha": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+  native@1.0.0:
+    resolution: {integrity: sha512-native}
+snapshots:
+  alpha@1.0.0:
+    optionalDependencies:
+      native: 1.0.0
+  native@1.0.0:
+    optional: true
+",
+    )
+    .expect("write lockfile");
+    for name in ["alpha", "native"] {
+        let package_dir = workspace
+            .path()
+            .join(format!("node_modules/.pnpm/{name}@1.0.0/node_modules/{name}"));
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write package manifest");
+    }
+
+    let listed_names = |args: &[&str]| -> Vec<String> {
+        let output = pacquet_in(workspace.path())
+            .args(args)
+            .output()
+            .expect("run licenses");
+        assert!(
+            output.status.success(),
+            "licenses should succeed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+        report["MIT"]
+            .as_array()
+            .expect("MIT group")
+            .iter()
+            .map(|package| {
+                package["name"]
+                    .as_str()
+                    .expect("package name")
+                    .to_string()
+            })
+            .collect()
+    };
+
+    assert_eq!(listed_names(&["licenses", "list", "--json", "--prod"]), ["alpha", "native"]);
+    assert_eq!(listed_names(&["licenses", "list", "--json", "--prod", "--no-optional"]), ["alpha"]);
+}
+
 fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
     let workspace = tempfile::tempdir().expect("create workspace");
     fs::write(
