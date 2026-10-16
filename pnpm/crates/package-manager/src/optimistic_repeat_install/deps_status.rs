@@ -89,8 +89,7 @@ pub fn check_deps_status_before_run(
     ) {
         return status;
     }
-    let refresh_state =
-        check.is_workspace_install || drift.lockfile_modified || patches_modified;
+    let refresh_state = check.is_workspace_install || drift.lockfile_modified || patches_modified;
     content_check_status(check, state, &drift, modified, refresh_state, &outdated)
 }
 
@@ -328,9 +327,9 @@ fn early_content_verdict(
 }
 
 /// Settle the passing content check for a tree in place. `refresh_state`
-/// is set where the next run's lockfile drift check reads the recorded
-/// timestamp: always in a workspace, and in a single project once its
-/// lockfile changed. A single project's manifest drift stays keyed to the
+/// is set where the next run measures drift against the recorded timestamp:
+/// always in a workspace, and in a single project once its lockfile or a
+/// patch changed. A single project's manifest drift stays keyed to the
 /// lockfile mtimes.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,

@@ -3,12 +3,13 @@ use super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install_ignoring,
         deps_status::RunDepsStatus, settings::current_settings,
     },
-    backdate_validated_files, check, isolated_included, single_project_deps_status,
-    workspace_deps_status, write_empty_lockfile, write_state,
+    MTIME_STEP_MS, backdate_validated_files, check, isolated_included, recorded_timestamp,
+    single_project_deps_status, workspace_deps_status, write_empty_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
+use pnpm_testing_utils::fs::set_mtime_ms;
 use pnpm_workspace_state::ProjectEntry;
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -179,6 +180,14 @@ fn assert_newer_patch_content_compared_with_lockfile(
 
     // Rewrite the patch without changing its content.
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
+    let rewritten_ms = recorded_timestamp(workspace_root) + MTIME_STEP_MS;
+    set_mtime_ms(&patch_path, rewritten_ms);
+    assert_eq!(deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+
+    // The passing hash check was recorded, so the same patch mtime does not
+    // trigger another one.
+    fs::write(&patch_path, "--- a\n+++ b\n+unchecked\n").unwrap();
+    set_mtime_ms(&patch_path, rewritten_ms);
     assert_eq!(deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
 
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
