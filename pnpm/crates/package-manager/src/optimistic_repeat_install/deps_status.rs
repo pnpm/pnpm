@@ -89,7 +89,9 @@ pub fn check_deps_status_before_run(
     ) {
         return status;
     }
-    content_check_status(check, state, &drift.projects_to_check(modified), &outdated)
+    let refresh_state =
+        check.is_workspace_install || drift.lockfile_modified || patches_modified;
+    content_check_status(check, state, &drift, modified, refresh_state, &outdated)
 }
 
 /// The gate's verdict once something changed since the last validation: the
@@ -97,10 +99,13 @@ pub fn check_deps_status_before_run(
 fn content_check_status(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    projects_to_check: &[&ManifestStat<'_>],
+    drift: &super::ManifestDrift<'_>,
+    modified: Vec<&ManifestStat<'_>>,
+    refresh_state: bool,
     outdated: &impl Fn(String) -> RunDepsStatus,
 ) -> RunDepsStatus {
-    let filesystem_now = check.is_workspace_install
+    let projects_to_check = drift.projects_to_check(modified);
+    let filesystem_now = refresh_state
         .then(|| {
             filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
                 check.workspace_root,
@@ -112,11 +117,16 @@ fn content_check_status(
     // false default even when the workspace setting is true.
     if !projects_to_check.is_empty()
         && let Err(reason) =
-            modified_manifests_match_lockfile(check, state, projects_to_check, false)
+            modified_manifests_match_lockfile(check, state, &projects_to_check, false)
     {
         return outdated(reason.to_string());
     }
-    match settle_content_check(check, state, filesystem_now) {
+    match settle_content_check(
+        check,
+        state,
+        filesystem_now,
+        refresh_state && drift.lockfile_unchanged(check),
+    ) {
         Ok(()) => RunDepsStatus::UpToDate,
         Err(reason) => outdated(reason),
     }
@@ -318,14 +328,16 @@ fn early_content_verdict(
 }
 
 /// Settle the passing content check for a tree in place. A single project
-/// uses the lockfile mtimes and leaves its workspace state unchanged.
+/// keeps manifest freshness keyed to lockfile mtimes, but records a passing
+/// lockfile check so it does not repeat it.
 fn settle_content_check(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     filesystem_now: Option<i64>,
+    refresh_state: bool,
 ) -> Result<(), String> {
     missing_wanted_lockfile_stand_in_ok(check)?;
-    if check.is_workspace_install {
+    if refresh_state {
         record_content_check_state(check, state, filesystem_now);
     }
     Ok(())

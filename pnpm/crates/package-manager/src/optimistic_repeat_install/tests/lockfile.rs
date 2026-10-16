@@ -5,9 +5,10 @@ use super::{
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
     },
-    FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, backdate_validated_files, check,
-    check_with_lockfile, check_workspace, content_check_decision, isolated_included,
-    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
+    FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
+    backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
+    isolated_included, poison_lockfile_content, recorded_timestamp, setup_content_check_project,
+    setup_fresh_install, setup_fresh_install_with_config, single_project_deps_status,
     validate_existing_files, write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
@@ -596,6 +597,29 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
+
+#[test]
+fn single_project_run_check_converges_after_lockfile_content_matches() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(refreshed > before);
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.
 #[test]
@@ -727,6 +751,37 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
         &[],
     );
 
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("satisfied")),
+        "expected Outdated(no longer satisfied), got {status:?}",
+    );
+}
+
+#[test]
+fn lockfile_refresh_does_not_hide_a_manifest_edit_during_commit() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+
+    let refreshed = recorded_timestamp(dir.path());
+    let lockfile_mtime = refreshed - 2 * MTIME_STEP_MS;
+    set_mtime_ms(&lockfile_path, lockfile_mtime);
+    set_mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile_mtime);
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    set_mtime_ms(&dir.path().join("package.json"), refreshed - MTIME_STEP_MS);
+    let edited = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let status = single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &edited)]);
     assert!(
         matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("satisfied")),
         "expected Outdated(no longer satisfied), got {status:?}",
