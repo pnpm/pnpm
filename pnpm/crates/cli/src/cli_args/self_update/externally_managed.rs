@@ -46,7 +46,7 @@ impl From<ExternalManager> for SelfUpdateError {
 /// `dir`. Without a pnpm pin there is nothing left to do, and this fails.
 ///
 /// Checked in the dispatcher *before* project config is loaded, so a broken
-/// `.npmrc` / workspace config / `package.json` can't mask the refusal.
+/// `.npmrc` / workspace config can't mask the refusal.
 pub(crate) fn check_externally_managed(dir: &Path) -> miette::Result<Option<ExternalManager>> {
     if cfg!(target_family = "wasm") {
         return Err(miette::miette!(
