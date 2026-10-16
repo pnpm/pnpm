@@ -71,7 +71,8 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
     pub(super) loaded_workspace: loaded_workspace::LoadedWorkspace,
-    pub(super) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(super) workspace_packages:
+        Option<std::sync::Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     pub(super) dirs: WorkspaceDirs<'a>,
 }
 /// The projects the run installs, and how a selection narrows them.
@@ -121,7 +122,7 @@ impl<'a> InstallWorkspace<'a> {
             loaded_workspace.projects.as_deref(),
         );
         let workspace_packages =
-            workspace_packages_for_install(install, loaded_workspace.projects.as_deref(), options);
+            workspace_packages_for_install(install, &loaded_workspace, options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -140,18 +141,19 @@ impl<'a> InstallWorkspace<'a> {
         })
     }
 }
-fn workspace_packages_for_install<'s>(
+fn workspace_packages_for_install(
     install: InstallView<'_>,
-    loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
-    options: &InstallRunOptions<'s, '_>,
-) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+    loaded_workspace: &loaded_workspace::LoadedWorkspace,
+    options: &InstallRunOptions<'_, '_>,
+) -> Option<std::sync::Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
     (install.context.config.exclude_links_from_lockfile
         && install.context.config.link_workspace_packages.enabled_at_depth(0))
     .then(|| {
-        build_workspace_packages_map(workspace_projects(
-            loaded_workspace_projects,
-            options.selection.as_ref(),
-        ))
+        let projects =
+            workspace_projects(loaded_workspace.projects.as_deref(), options.selection.as_ref());
+        loaded_workspace
+            .packages_of(projects)
+            .or_else(|| build_workspace_packages_map(projects).map(std::sync::Arc::new))
     })
     .flatten()
 }

@@ -167,13 +167,13 @@ fn a_project_waiting_to_start_leaves_its_slot_to_ready_projects() {
             (
                 "w-waits",
                 serde_json::json!({ "a-slow": "workspace:*" }),
-                serde_json::json!({ "preinstall": "node -e \"\"" }),
+                serde_json::json!({ "preinstall": r#"node -e """# }),
             ),
             (
                 "y-ready",
                 serde_json::json!({ "c-fast": "workspace:*" }),
                 serde_json::json!({
-                    "postinstall": "node -e \"require('fs').writeFileSync('../../y-ready-done', '')\"",
+                    "postinstall": r#"node -e "require('fs').writeFileSync('../../y-ready-done', '')""#,
                 }),
             ),
         ],

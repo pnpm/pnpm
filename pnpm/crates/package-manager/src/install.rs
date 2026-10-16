@@ -420,18 +420,18 @@ pub struct DedicatedProjectInstall {
 }
 
 /// Every project of a workspace and the workspace-package index built from
-/// them, discovered once for all the per-project installs of a command.
+/// them, discovered once for all the per-project installs of a command. The
+/// index is built the first time an install asks for it.
 #[derive(Clone)]
 pub struct DiscoveredWorkspace {
     projects: Arc<[pnpm_workspace::Project]>,
-    packages: Arc<pnpm_resolving_resolver_base::WorkspacePackages>,
+    packages: Arc<std::sync::OnceLock<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>>,
 }
 
 impl DiscoveredWorkspace {
     #[must_use]
     pub fn new(projects: Vec<pnpm_workspace::Project>) -> Self {
-        let packages = build_workspace_packages_map(Some(&projects)).unwrap_or_default();
-        DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::new(packages) }
+        DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::default() }
     }
 
     /// The index of `projects` when they are this workspace's own list.
@@ -439,9 +439,11 @@ impl DiscoveredWorkspace {
         &self,
         projects: Option<&[pnpm_workspace::Project]>,
     ) -> Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
-        projects
-            .filter(|projects| std::ptr::eq(*projects, Arc::as_ptr(&self.projects)))
-            .map(|_| Arc::clone(&self.packages))
+        projects.filter(|projects| std::ptr::eq(*projects, Arc::as_ptr(&self.projects)))?;
+        let packages = self.packages.get_or_init(|| {
+            Arc::new(build_workspace_packages_map(Some(&self.projects)).unwrap_or_default())
+        });
+        Some(Arc::clone(packages))
     }
 }
 
