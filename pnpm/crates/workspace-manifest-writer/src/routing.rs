@@ -9,7 +9,7 @@ use super::{
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_workspace::{
     INCLUDE_KEY, IncludeError, IncludeSource, SettingOwner, SettingSlot, WorkspaceIncludes,
-    canonical_setting_name, rebase_path, rebase_specifier,
+    canonical_setting_name, rebase_path, rebase_setting, rebase_specifier,
 };
 use std::{
     collections::HashMap,
@@ -45,6 +45,21 @@ impl ManifestTarget {
     /// file's [`Self::base_dir`].
     pub(crate) fn path_from(&self, workspace_dir: &Path, value: &str) -> String {
         rebase_path(value, workspace_dir, &self.base_dir).unwrap_or_else(|| value.to_string())
+    }
+
+    /// The value of the setting `key`, with the relative paths it holds
+    /// measured from `workspace_dir`, measured from this file instead.
+    pub(crate) fn setting_from(
+        &self,
+        workspace_dir: &Path,
+        key: &str,
+        value: &serde_json::Value,
+    ) -> serde_json::Value {
+        let Ok(mut yaml) = yaml_serde::to_value(value) else {
+            return value.clone();
+        };
+        rebase_setting(canonical_setting_name(key), &mut yaml, workspace_dir, &self.base_dir);
+        serde_json::to_value(yaml).unwrap_or_else(|_| value.clone())
     }
 
     /// [`Self::path_from`] for a dependency specifier, which moves only when

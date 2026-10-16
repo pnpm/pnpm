@@ -226,3 +226,21 @@ fn a_local_catalog_entry_is_written_relative_to_the_file_owning_the_catalog() {
         "catalog:\n  local: link:../libs/local\n  react: ^19.0.0\n",
     );
 }
+
+#[test]
+fn a_path_set_on_an_included_file_keeps_meaning_what_it_means_in_the_root() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./config/settings.yaml: [storeDir, nodeLinker]\n",
+    )
+    .expect("seed root");
+    fs::create_dir(dir.path().join("config")).expect("create config dir");
+    fs::write(dir.path().join("config/settings.yaml"), "").expect("seed settings file");
+    update_workspace_setting(dir.path(), "storeDir", &"./store".into()).expect("set storeDir");
+    update_workspace_setting(dir.path(), "nodeLinker", &"hoisted".into()).expect("set nodeLinker");
+    assert_eq!(
+        read(dir.path(), "config/settings.yaml"),
+        "nodeLinker: hoisted\nstoreDir: ../store\n",
+    );
+}

@@ -10,7 +10,7 @@
 pub use error::IncludeError;
 pub use ownership::{Ownership, SettingOwner};
 pub use package::{PackageEntry, config_dependency_dir};
-pub use rebase::{rebase_path, rebase_specifier};
+pub use rebase::{rebase_path, rebase_setting, rebase_specifier};
 pub use selector::{SettingSlot, canonical_setting_name};
 
 use indexmap::IndexMap;

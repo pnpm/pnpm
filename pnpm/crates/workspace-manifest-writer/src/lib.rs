@@ -369,7 +369,7 @@ pub fn update_workspace_setting(
     value: &serde_json::Value,
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let target = WorkspaceManifests::read(dir)?.target_for_setting(key)?;
-    update_target_field(&target, key, value)
+    update_target_field(&target, key, &target.setting_from(dir, key, value))
 }
 
 fn update_target_field(

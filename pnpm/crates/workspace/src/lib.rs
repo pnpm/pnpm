@@ -17,7 +17,7 @@ pub use include::{
     SETTINGS_FORBIDDEN_TO_PACKAGES, SettingOwner, SettingSlot, WorkspaceIncludes,
     WorkspaceManifestDocument, canonical_setting_name, config_dependency_dir,
     load_workspace_manifest_document, merge_local_includes, read_workspace_manifest_document,
-    rebase_path, rebase_specifier,
+    rebase_path, rebase_setting, rebase_specifier,
 };
 pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
 pub use manifest::{
