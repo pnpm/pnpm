@@ -197,7 +197,11 @@ impl WorkspaceTreeCtx {
             take_locked(&mut self.cache.resolved_by_wanted),
             take_locked(&mut self.cache.resolved_workspace_by_wanted),
             take_locked(&mut self.cache.resolved_workspace_final_by_wanted),
-            take_locked(&mut self.children.specs_by_id),
+            std::mem::take(
+                self.children.specs_by_id
+                    .get_mut()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            ),
         );
         pnpm_fs::background_drop(dedup_caches);
         tree

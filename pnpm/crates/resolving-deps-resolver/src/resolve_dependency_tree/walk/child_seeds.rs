@@ -51,13 +51,18 @@ pub(super) fn child_specs_of(
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
 ) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
-    let cached =
-        lock_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
+    let cached = ctx.workspace.children.specs_by_id
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&pending.identity.id)
+        .cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
-        lock_recoverable(&ctx.workspace.children.specs_by_id)
+        ctx.workspace.children.specs_by_id
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .entry(Arc::clone(&pending.identity.id))
             .or_insert_with(|| Arc::clone(&specs));
         specs
