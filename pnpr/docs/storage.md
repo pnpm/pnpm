@@ -153,16 +153,16 @@ s3:
 
 When publishing packages to an S3 backend, pnpr coordinates uploads through a local write-ahead commit journal:
 
-1. **Local staging**: Incoming tarball uploads and attestation blobs are staged in the local cache directory under `<cache>/journal/`.
-2. **Object store upload**: The blob is uploaded to the S3 bucket.
-3. **Atomic commit**: The packument is updated using conditional writes (`If-Match` on the object's ETag or version ID).
+1. **Local staging**: Incoming blobs are staged under `<cache>/pnpr-hosted-staging/`.
+2. **Journal seal**: pnpr writes the transaction under `<cache>/.pnpr-journal/<txn>/` and seals it before applying object-store writes.
+3. **Apply**: pnpr uploads the blobs and conditionally updates the packument.
 4. **Journal cleanup**: The local journal entry is removed once the object store confirms the write.
 
 ### Multi-replica considerations
 
 The write-ahead journal is kept on the local disk of the replica handling the publish request. Keep these operational details in mind:
 
-- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically replays pending journal entries in its `<cache>/journal/` on next startup, completing or rolling back interrupted operations.
+- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically recovers pending journal entries in its `<cache>/.pnpr-journal/` on next startup, applying sealed transactions and rolling back unsealed ones.
 - **Ephemeral disks**: In containerized multi-replica environments where instances use ephemeral local storage, destroying a failed instance before it restarts means its local journal cannot be replayed. Any partially uploaded blobs in S3 remain as unreferenced objects.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
