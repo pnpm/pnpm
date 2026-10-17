@@ -7792,6 +7792,9 @@ importers:
       p-every:
         specifier: 'catalog:'
         version: 2.0.0
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

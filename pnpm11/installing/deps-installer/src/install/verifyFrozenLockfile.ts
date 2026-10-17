@@ -152,6 +152,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
+    skipLocalDirectoryDependencies: opts.deploy,
     resolution: {
       autoInstallPeers: opts.autoInstallPeers,
       catalogs: opts.catalogs,

@@ -18,6 +18,7 @@ import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
 import { safeReadParentPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pEvery from 'p-every'
+import { pathExists } from 'path-exists'
 import { clone } from 'ramda'
 import semver from 'semver'
 
@@ -103,7 +104,7 @@ export async function localDirectoryDepIsUpToDate (
 async function readDirectoryManifest (dir: string): Promise<DependencyManifest | undefined> {
   const manifest = await safeReadPackageJsonFromDir(dir)
   if (manifest != null) return manifest
-  if (!fs.existsSync(dir)) return undefined
+  if (!await pathExists(dir)) return undefined
   return (await safeReadParentPublishManifest(dir) as DependencyManifest | null) ?? { name: path.basename(dir) } as DependencyManifest
 }
 

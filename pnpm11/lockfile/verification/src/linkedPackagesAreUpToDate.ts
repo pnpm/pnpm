@@ -43,6 +43,13 @@ export interface LinkedPackagesContext {
   lockfileDir: string
   workspaceDir?: string
   injectWorkspacePackages?: boolean
+  /**
+   * Skips comparing the dependencies of local directory dependencies with
+   * their lockfile snapshots, for a lockfile whose snapshots already carry
+   * the effects of hooks, overrides, and peer binding, such as the one
+   * `pnpm deploy` writes.
+   */
+  skipLocalDirectoryDependencies?: boolean
   /** The settings and hooks the lockfile was resolved with. */
   resolution?: LocalDirectoryResolution
 }
@@ -113,7 +120,7 @@ async function checkLocalDirectoryDependency (
   if (pkgSnapshot == null) {
     return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
   }
-  if (!await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))) {
+  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
   return isWorkspaceRange

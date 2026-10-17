@@ -48,6 +48,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "p-every": "catalog:",
+    "path-exists": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
     "version-selector-type": "catalog:"

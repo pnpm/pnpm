@@ -2148,12 +2148,13 @@ test('allProjectsAreUpToDate(): returns true for an injected workspace dependenc
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
 })
 
-test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry', async () => {
+test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {
   expect(await checkLinkedPackagesAreUpToDate({
     linkWorkspacePackages: true,
     manifestsByDir: {},
     lockfilePackages: {},
     lockfileDir: '',
+    skipLocalDirectoryDependencies: true,
   }, {
     dir: 'bar',
     manifest: {
