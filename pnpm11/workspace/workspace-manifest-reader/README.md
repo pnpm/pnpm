@@ -2,12 +2,24 @@
 
 > Reads a workspace manifest file
 
-## Install
+## Installation
 
-```
+```sh
 pnpm add @pnpm/workspace.workspace-manifest-reader
 ```
 
-## LICENSE
+## Usage
+
+```ts
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
+
+// Asynchronous read
+const workspaceManifest = await readWorkspaceManifest(process.cwd())
+
+// Synchronous read
+const workspaceManifestSync = readWorkspaceManifestSync(process.cwd())
+```
+
+## License
 
 MIT
