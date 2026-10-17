@@ -7,15 +7,17 @@
 //! - every project deploys, and its deployed lockfile installs frozen,
 //! - a second resolution from scratch writes the same lockfile,
 //! - adding the dependencies one install at a time writes the same lockfile,
-//!   unless a [`Divergence`] of the fixture names the row,
+//!   apart from the entries a [`Divergence`] of the row owns,
 //! - `dedupe` after those installs writes the same lockfile.
 //!
 //! Every violation of a fixture is collected before the test fails, so one
 //! run reports the whole matrix.
 
 use crate::_utils::{ManifestDeps, WorkspaceFixture, write_project_manifest};
+use serde_json::Value;
 use std::{
     cell::RefCell,
+    collections::BTreeSet,
     fmt, fs,
     path::{Path, PathBuf},
     process::Output,
@@ -34,10 +36,20 @@ const fn project(dir: &'static str, deps: Deps) -> Project {
 }
 
 /// A known case where adding the dependencies one install at a time leaves a
-/// lockfile that differs from a fresh resolution.
+/// lockfile that differs from a fresh resolution. On every row it names, at
+/// least one [`lockfile_entries`] path under its `paths` differs.
 struct Divergence {
     issue: &'static str,
     rows: fn(Row) -> bool,
+    paths: &'static [&'static str],
+}
+
+impl Divergence {
+    fn owns(&self, entry: &str) -> bool {
+        self.paths
+            .iter()
+            .any(|path| entry.starts_with(path))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -139,7 +151,7 @@ impl Harness {
         let output = self.run(self.workspace(), &["install", "--frozen-lockfile"]);
         if !output.status.success() {
             self.violation(row, "a frozen install rejected the fresh lockfile", Some(&output));
-        } else if self.lockfile().as_deref() != Some(fresh) {
+        } else if self.lockfile() != fresh {
             self.violation(row, "a frozen install changed the fresh lockfile", None);
         }
     }
@@ -194,26 +206,37 @@ impl Harness {
                 return;
             }
         }
-        let incremental = self.lockfile().unwrap_or_default();
-        let known = self.divergences
+        let incremental = self.lockfile();
+        let changed = changed_entries(fresh, &incremental);
+        let known: Vec<&Divergence> = self.divergences
             .iter()
-            .find(|divergence| (divergence.rows)(row));
-        match (incremental == fresh, known) {
-            (true, Some(divergence)) => self.violation(
-                row,
-                &format!("the divergence tracked by {} no longer reproduces", divergence.issue),
-                None,
-            ),
-            (false, None) => {
-                let what = format!(
-                    "adding one dependency at a time differs:\n{}",
-                    diff(fresh, &incremental),
-                );
+            .filter(|divergence| (divergence.rows)(row))
+            .collect();
+        for divergence in &known {
+            if !changed
+                .iter()
+                .any(|(_, entry)| divergence.owns(entry))
+            {
+                let what =
+                    format!("the divergence tracked by {} no longer reproduces", divergence.issue);
                 self.violation(row, &what, None);
             }
-            _ => {}
         }
-        if incremental != fresh {
+        let unexplained: Vec<String> = changed
+            .iter()
+            .filter(|(_, entry)| {
+                !known
+                    .iter()
+                    .any(|divergence| divergence.owns(entry))
+            })
+            .map(|(sign, entry)| format!("{sign} {entry}"))
+            .collect();
+        if !unexplained.is_empty() {
+            let what =
+                format!("adding one dependency at a time differs:\n{}", unexplained.join("\n"));
+            self.violation(row, &what, None);
+        }
+        if !changed.is_empty() {
             self.check_dedupe_converges(row, fresh);
         }
     }
@@ -222,9 +245,10 @@ impl Harness {
         let output = self.run(self.workspace(), &["dedupe"]);
         if !output.status.success() {
             self.violation(row, "dedupe failed after incremental installs", Some(&output));
-        } else if let Some(deduped) = self.lockfile()
-            && deduped != fresh
-        {
+            return;
+        }
+        let deduped = self.lockfile();
+        if deduped != fresh {
             let what = format!(
                 "dedupe after incremental installs differs from a fresh install:\n{}",
                 diff(fresh, &deduped),
@@ -252,8 +276,9 @@ impl Harness {
             .join(format!("deploy-{}", project.dir))
     }
 
-    fn lockfile(&self) -> Option<String> {
-        fs::read_to_string(self.workspace().join("pnpm-lock.yaml")).ok()
+    /// Every command the harness runs writes a lockfile when it succeeds.
+    fn lockfile(&self) -> String {
+        fs::read_to_string(self.workspace().join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml")
     }
 
     fn dep_count(&self) -> usize {
@@ -306,7 +331,7 @@ impl Harness {
     fn install(&self, row: Row, what: &str) -> Option<String> {
         let output = self.run(self.workspace(), &["install", "--no-frozen-lockfile"]);
         if output.status.success() {
-            return self.lockfile();
+            return Some(self.lockfile());
         }
         self.violation(row, &format!("{what} failed"), Some(&output));
         None
@@ -337,22 +362,49 @@ fn last_lines(text: &str) -> String {
     lines[lines.len().saturating_sub(15)..].join("\n")
 }
 
-/// The lines only one side has, which is enough to point at a binding.
 fn diff(expected: &str, actual: &str) -> String {
-    let expected: Vec<&str> = expected.lines().collect();
-    let actual: Vec<&str> = actual.lines().collect();
-    let removed = expected
+    changed_entries(expected, actual)
         .iter()
-        .filter(|line| !actual.contains(line))
-        .map(|line| format!("-{line}"));
-    let added = actual
-        .iter()
-        .filter(|line| !expected.contains(line))
-        .map(|line| format!("+{line}"));
-    removed
-        .chain(added)
+        .map(|(sign, entry)| format!("{sign} {entry}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// The [`lockfile_entries`] only one side has, `-` for `expected` and `+`
+/// for `actual`.
+fn changed_entries(expected: &str, actual: &str) -> Vec<(char, String)> {
+    let expected = lockfile_entries(expected);
+    let actual = lockfile_entries(actual);
+    let removed = expected
+        .difference(&actual)
+        .map(|entry| ('-', entry.clone()));
+    let added = actual
+        .difference(&expected)
+        .map(|entry| ('+', entry.clone()));
+    removed.chain(added).collect()
+}
+
+/// Every leaf of `lockfile` as `key > key > ... = value`.
+fn lockfile_entries(lockfile: &str) -> BTreeSet<String> {
+    let value: Value = serde_saphyr::from_str(lockfile).expect("parse a lockfile");
+    let mut entries = BTreeSet::new();
+    collect_entries(&value, "", &mut entries);
+    entries
+}
+
+fn collect_entries(value: &Value, path: &str, entries: &mut BTreeSet<String>) {
+    match value {
+        Value::Object(map) if !map.is_empty() => {
+            for (key, child) in map {
+                let child_path =
+                    if path.is_empty() { key.clone() } else { format!("{path} > {key}") };
+                collect_entries(child, &child_path, entries);
+            }
+        }
+        _ => {
+            entries.insert(format!("{path} = {value}"));
+        }
+    }
 }
 
 #[test]
@@ -408,7 +460,15 @@ fn optional_peer_also_in_dependencies() {
                 ("@pnpm.e2e/bravo-dep", "1.0.0"),
             ],
         )],
-        vec![Divergence { issue: OPTIONAL_PEER_ALSO_IN_DEPS_ISSUE, rows: |row| !row.auto_dedupe }],
+        vec![Divergence {
+            issue: OPTIONAL_PEER_ALSO_IN_DEPS_ISSUE,
+            rows: |row| !row.auto_dedupe,
+            paths: &[
+                "importers > packages/app > dependencies > @pnpm.e2e/has-optional-peer-also-in-deps >",
+                "packages > @pnpm.e2e/has-optional-peer-also-in-deps@",
+                "snapshots > @pnpm.e2e/has-optional-peer-also-in-deps@",
+            ],
+        }],
     );
 }
 
@@ -551,10 +611,16 @@ fn workspace_package_with_a_peer() {
             Divergence {
                 issue: INJECTED_BEFORE_PROVIDER_ISSUE,
                 rows: |row| row.inject_workspace_packages,
+                paths: &[
+                    "importers > packages/a > dependencies > lib >",
+                    "importers > packages/b > dependencies > lib >",
+                    "snapshots > lib@file:",
+                ],
             },
             Divergence {
                 issue: AUTO_INSTALLED_PEER_MOVES_ISSUE,
                 rows: |row| row.auto_install_peers && !row.auto_dedupe,
+                paths: &["importers > packages/lib > dependencies > @pnpm.e2e/foo >"],
             },
         ],
     );
