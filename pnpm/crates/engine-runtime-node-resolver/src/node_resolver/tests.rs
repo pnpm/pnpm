@@ -520,19 +520,13 @@ async fn musl_reader_propagates_a_mirror_server_error() {
 
 #[tokio::test]
 async fn musl_reader_propagates_an_unreachable_mirror() {
-    // Binding and dropping a listener hands back a port the OS just confirmed
-    // free, so the connect is refused instead of answered or left hanging.
-    // `0.0.0.0` fails it at once on Windows too, unlike a refused loopback port.
-    let closed_port = std::net::TcpListener::bind("127.0.0.1:0")
-        .expect("bind an ephemeral port")
-        .local_addr()
-        .expect("read the bound address")
-        .port();
-
+    // No test binds a privileged port, so the connect is refused. A port
+    // freed by dropping an ephemeral listener can be taken by a mock
+    // registry in a parallel test. `0.0.0.0` fails at once on Windows too.
     let err = read_musl_assets(
         &ThrottledClient::new_for_installs(),
         &AuthHeaders::default(),
-        &format!("http://0.0.0.0:{closed_port}/download/release/"),
+        "http://0.0.0.0:1/download/release/",
         "22.11.0",
         None,
     )

@@ -18,7 +18,7 @@ use super::{
     install::{InstallArgs, resolve_bool_override},
     lockfile_dir::LockfileDirArg,
     package_manager::{
-        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
+        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, PinRoots, WantedPackageManager,
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
@@ -147,10 +147,7 @@ fn resolve_pin(
     config: Config,
     load: ConfigLoad,
 ) -> miette::Result<PinReading> {
-    let roots = PinRoots {
-        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
-        env: config.root_project_manifest_dir(dir).to_path_buf(),
-    };
+    let roots = PinRoots::of(&config, dir);
     let manifest = read_root_manifest(&roots.manifest);
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
@@ -424,17 +421,6 @@ impl SwitchTarget {
             }
         }
     }
-}
-
-/// The two directories the package-manager pin is read from and written to.
-///
-/// They differ when `lockfileDir` moves `pnpm-lock.yaml` off the workspace
-/// root: the manifest declaring the pin stays at the workspace root, while
-/// the env lockfile is the first document of the lockfile and follows it.
-#[derive(Debug, Clone)]
-struct PinRoots {
-    manifest: PathBuf,
-    env: PathBuf,
 }
 
 #[derive(Debug)]
