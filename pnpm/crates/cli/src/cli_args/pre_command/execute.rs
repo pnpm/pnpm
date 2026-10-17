@@ -18,7 +18,9 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            sync_env_lockfile(sync).await?;
+            // Boxed for `clippy::large_futures`: the sync future carries the
+            // whole install state and exceeds the lint's size on Windows.
+            Box::pin(sync_env_lockfile(sync)).await?;
             Ok(false)
         }
     }
