@@ -45,6 +45,13 @@ impl Layout {
             self.inject_workspace_packages,
         )
     }
+
+    /// A dedicated lockfile records an injected package's dependencies in its
+    /// `file:` snapshot, which the install fast path does not compare, so it
+    /// always refuses (pnpm/tasks#145).
+    fn offers_install_fast_path(self) -> bool {
+        self.shared_lockfile || !self.inject_workspace_packages
+    }
 }
 
 const PROJECTS: [&str; 3] = ["a", "b", "c"];
@@ -125,6 +132,12 @@ impl Scenario {
             .extend(groups);
         fs::write(&path, serde_json::to_string_pretty(&manifest).expect("serialize"))
             .expect("write package.json");
+    }
+
+    /// Runs `pnpm install` with `args` and tells whether it took the fast
+    /// path, or ran in a layout that never offers it.
+    fn install_takes_fast_path(&self, args: &[&str]) -> bool {
+        self.install(args) || !self.layout.offers_install_fast_path()
     }
 
     /// `pnpm install` with `args`, returning whether it took the fast path:
@@ -329,7 +342,7 @@ impl Scenario {
                 "{:?}: the install fast path was taken, but a full install changes the tree",
                 self.layout,
             );
-        } else if !conservative {
+        } else if !conservative && self.layout.offers_install_fast_path() {
             assert_ne!(
                 self.snapshot(),
                 before,
@@ -337,7 +350,11 @@ impl Scenario {
                 self.layout,
             );
         }
-        assert!(self.install(&[]), "{:?}: a repeat install must take the fast path", self.layout);
+        assert!(
+            self.install_takes_fast_path(&[]),
+            "{:?}: a repeat install must take the fast path",
+            self.layout,
+        );
     }
 
     /// Every gate over the workspace, then the convergence the install leaves.
@@ -549,7 +566,7 @@ fn a_filtered_install_reaching_a_workspace_dependency(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&["--filter", "c"]);
     assert!(
-        scenario.install(&["--filter", "c"]),
+        scenario.install_takes_fast_path(&["--filter", "c"]),
         "{layout:?}: a repeat of the same filtered install must take the fast path",
     );
     scenario.check_gates();
@@ -574,7 +591,7 @@ fn filtered_commands_for_every_project_after_a_pull(layout: Layout) {
         scenario.exec_installing(&[project]);
     }
     assert!(
-        scenario.install(&[]),
+        scenario.install_takes_fast_path(&[]),
         "{layout:?}: once every project was installed, a full install has nothing to do",
     );
     scenario.check_gates();
@@ -587,7 +604,10 @@ fn rewritten_but_unchanged_inputs_keep_the_fast_path(layout: Layout) {
     scenario.install(&[]);
     rewrite_unchanged(&scenario.lockfile_of("a"));
     rewrite_unchanged(&scenario.manifest_path("a"));
-    assert!(scenario.install(&[]), "{layout:?}: unchanged inputs keep the fast path");
+    assert!(
+        scenario.install_takes_fast_path(&[]),
+        "{layout:?}: unchanged inputs keep the fast path"
+    );
     scenario.check_gates();
 }
 
