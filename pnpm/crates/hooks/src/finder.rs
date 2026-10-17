@@ -160,14 +160,67 @@ pub fn load_pnpmfiles(
         // has to go through the wrapper, including a lone global one: its hash
         // must not become the project's.
         (1, 0) => hooks.into_iter().next(),
-        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks, checksum_skips })),
+        _ => Some(Arc::new(CombinedPnpmfileHooks {
+            workspace_hooks_from: hooks.len(),
+            hooks,
+            checksum_skips,
+        })),
     })
+}
+
+/// The pnpmfiles an install of a workspace project with its own lockfile
+/// runs: the project's own (see [`load_pnpmfiles`]), then the workspace
+/// root's that are not among them, global pnpmfile excluded. This is how pnpm
+/// v11 merges the hooks it loaded at the workspace root into each project's.
+/// The `pnpmfileChecksum` covers the project's pnpmfiles when the project
+/// defines any hooks, else the workspace root's.
+pub fn load_workspace_project_pnpmfiles(
+    project_dir: &Path,
+    workspace_root: &Path,
+    selection: PnpmfileSelection<'_>,
+) -> Result<Option<Arc<dyn PnpmfileHooks>>, MissingPnpmfileError> {
+    validate_configured_pnpmfiles(selection)?;
+    let project_paths = find_pnpmfiles(project_dir, selection);
+    let workspace_paths: Vec<PathBuf> =
+        find_pnpmfiles(workspace_root, PnpmfileSelection { global: None, ..selection })
+            .into_iter()
+            .filter(|path| !project_paths.contains(path))
+            .collect();
+    if workspace_paths.is_empty() {
+        return load_pnpmfiles(project_dir, selection);
+    }
+    let workspace_hooks_from = project_paths.len();
+    let hooks: Vec<_> = project_paths
+        .into_iter()
+        .chain(workspace_paths)
+        .map(load_pnpmfile_at)
+        .collect();
+    Ok(Some(Arc::new(CombinedPnpmfileHooks {
+        hooks,
+        checksum_skips: usize::from(selection.global.is_some()),
+        workspace_hooks_from,
+    })))
+}
+
+/// Whether any of `hooks` exports a `hooks` object, which is what makes a
+/// pnpmfile count toward `pnpmfileChecksum`.
+async fn defines_hooks(hooks: &[Arc<dyn PnpmfileHooks>]) -> bool {
+    for hook in hooks {
+        if hook.calculate_pnpmfile_checksum().await.is_some() {
+            return true;
+        }
+    }
+    false
 }
 
 struct CombinedPnpmfileHooks {
     hooks: Vec<Arc<dyn PnpmfileHooks>>,
     /// How many leading entries of [`Self::hooks`] the checksum leaves out.
     checksum_skips: usize,
+    /// Where the workspace root's hooks start (see
+    /// [`load_workspace_project_pnpmfiles`]), or `hooks.len()` when there are
+    /// none.
+    workspace_hooks_from: usize,
 }
 
 #[async_trait]
@@ -254,15 +307,16 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
     }
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
-        let mut includes_hooks = false;
-        for hook in &self.hooks {
-            includes_hooks |= hook.calculate_pnpmfile_checksum().await.is_some();
-        }
-        if !includes_hooks {
+        let (project_hooks, workspace_hooks) = self.hooks.split_at(self.workspace_hooks_from);
+        let checksummed = if defines_hooks(project_hooks).await {
+            &project_hooks[self.checksum_skips..]
+        } else if defines_hooks(workspace_hooks).await {
+            workspace_hooks
+        } else {
             return None;
-        }
+        };
 
-        let mut paths: Vec<&Path> = self.hooks[self.checksum_skips..]
+        let mut paths: Vec<&Path> = checksummed
             .iter()
             .filter_map(|hook| hook.source_path())
             .collect();

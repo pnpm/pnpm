@@ -88,8 +88,7 @@ pub(super) fn resolve_pnpmfile_hook(
     if config.ignore_pnpmfile {
         return Ok(None);
     }
-    pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
-        .map_err(InstallError::MissingPnpmfile)
+    crate::load_install_pnpmfiles(config, workspace_root).map_err(InstallError::MissingPnpmfile)
 }
 /// Borrow the rewritten manifests when a pass produced any, keeping the
 /// caller's own list otherwise.

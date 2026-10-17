@@ -6,6 +6,7 @@ pub use comver::*;
 pub use env_lockfile::*;
 pub use filter_by_importers::*;
 pub use freshness::*;
+pub use injected_deps::*;
 pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;

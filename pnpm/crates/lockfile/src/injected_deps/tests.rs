@@ -17,7 +17,7 @@ fn injected_in_groups(
     let lockfile: Lockfile = serde_saphyr::from_str(lockfile).unwrap();
     let mut aliases = lockfile
         .injected_dependencies(importer_id, groups)
-        .map(ToString::to_string)
+        .map(|dependency| dependency.alias.to_string())
         .collect::<Vec<_>>();
     aliases.sort();
     aliases

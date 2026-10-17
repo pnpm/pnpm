@@ -9,6 +9,10 @@ pnpm lets you hook directly into the installation process via special functions
 By default, `.pnpmfile.mjs` should be located in the same directory as the
 lockfile. For instance, in a [workspace](workspaces.md) with a shared lockfile,
 `.pnpmfile.mjs` should be in the root of the monorepo.
+In a workspace where each project has its own lockfile
+(`sharedWorkspaceLockfile: false`), each project runs the hooks of the
+pnpmfile in its own directory, then those of the pnpmfile in the root of the
+monorepo.
 
 ## Hooks
 

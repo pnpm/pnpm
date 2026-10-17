@@ -133,7 +133,7 @@ fn dependency_is_injected(
         .unwrap_or(false)
 }
 
-fn is_declared_local_directory(spec: &str) -> bool {
+pub(super) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
@@ -186,30 +186,17 @@ fn check_single_dep_spec_directory_freshness(
     Ok(())
 }
 
-/// The manifest the resolver described the dependency with. A workspace
-/// project injected as its `publishConfig.directory` is described by the
-/// project's own manifest, not by a `package.json` a build wrote into that
-/// directory. A `file:` dependency is described by the directory's
-/// `package.json`, and by the publishing project's only while that is
-/// missing.
 fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let manifests_by_dir = check.workspace.manifests_by_dir;
-    let project_manifest = || {
-        manifests_by_dir
-            .get(&pnpm_fs::lexical_normalize(dep.dir))
-            .map(|manifest| (*manifest).clone())
-    };
-    let on_disk = || pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten();
-    let publishing_project = || manifest_of_project_publishing_from(dep);
-    let local_manifest = if dep.declared_as_file {
-        project_manifest().or_else(on_disk).or_else(publishing_project)
-    } else {
-        project_manifest().or_else(publishing_project).or_else(on_disk)
-    };
-    let mut local_manifest = local_manifest.ok_or_else(|| dep.outdated())?;
+    let mut local_manifest = unhooked_manifest(&InjectedDirectory {
+        dir: dep.dir,
+        declared_as_file: dep.declared_as_file,
+        workspace_root: dep.dirs.workspace_root,
+        manifests_by_dir: check.workspace.manifests_by_dir,
+    })
+    .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(dep.dir));
@@ -217,18 +204,51 @@ fn read_and_override_manifest(
     Ok(local_manifest)
 }
 
+/// A local directory dependency's directory and where its manifest may come
+/// from.
+pub(super) struct InjectedDirectory<'a> {
+    pub(super) dir: &'a Path,
+    /// See [`LocalDepContext::declared_as_file`].
+    pub(super) declared_as_file: bool,
+    pub(super) workspace_root: &'a Path,
+    pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
+}
+
+/// The manifest the resolver described the dependency with, before any hook.
+/// A workspace project injected as its `publishConfig.directory` is
+/// described by the project's own manifest, not by a `package.json` a build
+/// wrote into that directory. A `file:` dependency is described by the
+/// directory's `package.json`, and by the publishing project's only while
+/// that is missing.
+pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<PackageManifest> {
+    let project_manifest = || {
+        injected.manifests_by_dir
+            .get(&pnpm_fs::lexical_normalize(injected.dir))
+            .map(|manifest| (*manifest).clone())
+    };
+    let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
+    let publishing_project = || manifest_of_project_publishing_from(injected);
+    if injected.declared_as_file {
+        project_manifest().or_else(on_disk).or_else(publishing_project)
+    } else {
+        project_manifest().or_else(publishing_project).or_else(on_disk)
+    }
+}
+
 /// The manifest of the workspace project whose `publishConfig.directory` is
-/// `dep.dir`: the project's entry in `manifests_by_dir` when it has one, else
-/// its `package.json`. Only projects between `dep.dir` and the workspace root
-/// are considered.
-fn manifest_of_project_publishing_from(dep: &LocalDepContext<'_>) -> Option<PackageManifest> {
-    let target = pnpm_fs::lexical_normalize(dep.dir);
-    if !target.starts_with(pnpm_fs::lexical_normalize(dep.dirs.workspace_root)) {
+/// `injected.dir`: the project's entry in `manifests_by_dir` when it has one,
+/// else its `package.json`. Only projects between `injected.dir` and the
+/// workspace root are considered.
+fn manifest_of_project_publishing_from(
+    injected: &InjectedDirectory<'_>,
+) -> Option<PackageManifest> {
+    let target = pnpm_fs::lexical_normalize(injected.dir);
+    if !target.starts_with(pnpm_fs::lexical_normalize(injected.workspace_root)) {
         return None;
     }
-    let mut candidate = dep.dir.parent()?;
+    let mut candidate = injected.dir.parent()?;
     loop {
-        let manifest = dep.dirs.manifests_by_dir
+        let manifest = injected.manifests_by_dir
             .get(&pnpm_fs::lexical_normalize(candidate))
             .map(|manifest| (*manifest).clone())
             .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
@@ -238,7 +258,7 @@ fn manifest_of_project_publishing_from(dep: &LocalDepContext<'_>) -> Option<Pack
         {
             return Some(manifest);
         }
-        if candidate == dep.dirs.workspace_root {
+        if candidate == injected.workspace_root {
             return None;
         }
         candidate = candidate.parent()?;
