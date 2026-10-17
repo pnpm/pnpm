@@ -151,18 +151,17 @@ impl<'a> RecursiveSelection<'a> {
 }
 
 /// The projects a gated recursive command holds to the modules-directory
-/// requirement: `project_dirs` themselves, plus, while the workspace shares
-/// one lockfile, every workspace dependency they reach that the install the
-/// gate spawns selects.
+/// requirement: `project_dirs` themselves, plus every workspace dependency
+/// they reach that the installs the gate spawns cover.
 ///
-/// That install selects the dependencies of the selected projects, so a
-/// workspace dependency without a modules directory leaves the selection out
-/// of date too. A negated selector reaches the install unchanged, so a
-/// dependency it excludes is not required; `project_dirs` themselves always
-/// are. With a lockfile per project the spawned
-/// install selects nothing beyond the project it installs, so the selection
-/// alone is what the check inspects. `prefix` is where the command's path
-/// selectors resolve.
+/// A workspace dependency that is not installed leaves the selection out of
+/// date too. With one shared lockfile, the install the gate spawns selects the
+/// dependencies of the selected projects, and a negated selector reaches it
+/// unchanged, so a dependency it excludes is not required; `project_dirs`
+/// themselves always are. With a lockfile per project the gate checks and
+/// installs each project on its own, and a workspace dependency the project
+/// injects is part of that project's own install. `prefix` is where the
+/// command's path selectors resolve.
 pub fn projects_to_verify<'dirs>(
     project_dirs: impl IntoIterator<Item = &'dirs Path>,
     selection: &RecursiveSelection<'_>,
@@ -172,20 +171,22 @@ pub fn projects_to_verify<'dirs>(
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(Vec::new());
     }
-    if !config.shares_one_lockfile() {
+    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
+    // An injected workspace dependency is a copy inside the project that
+    // depends on it, which that project's own install covers.
+    if !config.shares_one_lockfile() && config.inject_workspace_packages {
         return Ok(project_dirs
             .into_iter()
             .map(Path::to_path_buf)
             .collect());
     }
-    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
     let mut projects = projects_with_workspace_dependencies(
         project_dirs.iter().copied(),
         selection.full_graph(),
         selection.prod_all.as_ref(),
         &selection.prod_only_selected,
     );
-    if has_negated_selector(config) {
+    if config.shares_one_lockfile() && has_negated_selector(config) {
         let mut kept = install_selected_projects(selection, config, prefix)?;
         kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
         projects.retain(|project_dir| kept.contains(project_dir));
