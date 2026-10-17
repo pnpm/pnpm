@@ -512,7 +512,7 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },

@@ -1,7 +1,9 @@
 pub use package_identity::ResolvedPackageInput;
 pub(crate) use package_identity::{pkg_name, pkg_name_version};
+pub use peer_set::PeerSet;
 
 mod package_identity;
+mod peer_set;
 
 use crate::node_id::NodeId;
 use pnpm_deps_path::DepPath;
@@ -110,11 +112,9 @@ pub struct ResolvedPackage {
     /// `Arc::clone` instead of a deep copy of every `String` field
     /// on `ResolveResult` (id, alias, `resolved_via`, `name_ver`, ...).
     result: std::sync::Arc<ResolveResult>,
-    /// `peerDependencies` from the package's manifest, with names that
-    /// also appear in the package's own `dependencies` /
-    /// `optionalDependencies` filtered out. `BTreeMap` keeps iteration
-    /// order stable so peer-suffix construction is deterministic.
-    pub peer_dependencies: BTreeMap<String, PeerDep>,
+    /// `BTreeMap`s keep iteration order stable so peer-suffix
+    /// construction is deterministic.
+    pub peer_set: PeerSet,
     /// `true` when every path from any importer to this package goes
     /// through at least one `optionalDependencies` edge, computed by
     /// AND-fold:

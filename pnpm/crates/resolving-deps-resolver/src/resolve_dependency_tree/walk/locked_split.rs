@@ -257,7 +257,8 @@ impl LockedSplit {
                         .collect()
                 })
                 .unwrap_or_default(),
-            scope_dependent_peers: pkg.peer_dependencies
+            scope_dependent_peers: pkg.peer_set
+                .taken()
                 .iter()
                 .filter(|(_, peer)| peer.optional || !auto_install_peers)
                 .map(|(peer_name, _)| peer_name.clone())

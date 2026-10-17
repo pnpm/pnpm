@@ -72,7 +72,7 @@ function indexPeerRangesByNameVersion (
 }
 
 function getPeerRanges (resolvedPackage: ResolvedPackage): Record<string, string> {
-  return Object.fromEntries(Object.entries(resolvedPackage.peerDependencies).map(([peerName, { version: range }]) => [peerName, range]))
+  return Object.fromEntries(Object.entries(resolvedPackage.peers.taken).map(([peerName, { version: range }]) => [peerName, range]))
 }
 
 /**

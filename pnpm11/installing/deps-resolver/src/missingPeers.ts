@@ -28,7 +28,7 @@ interface PeerGraph {
 }
 
 type PeerGraphContext = Pick<ResolutionContext, 'childrenByParentId' | 'autoInstallPeersFromHighestMatch'> & {
-  resolvedPkgsById: Record<PkgResolutionId, Pick<ResolvedPackage, 'peerDependencies'>>
+  resolvedPkgsById: Record<PkgResolutionId, Pick<ResolvedPackage, 'peers'>>
 }
 
 type PeerGraphRoot = Pick<PkgAddress, 'alias' | 'pkgId'>
@@ -65,7 +65,7 @@ function indexRequiredPeers (ctx: PeerGraphContext, roots: PeerGraphRoot[]): Pee
     const pkg = ctx.resolvedPkgsById[pkgId]
     if (!pkg) continue
     const children = ctx.childrenByParentId[pkgId] ?? []
-    addPackageToPeerGraph(graph, { children, peerDependencies: pkg.peerDependencies, pkgId }, rootAliases)
+    addPackageToPeerGraph(graph, { children, peerDependencies: pkg.peers.taken, pkgId }, rootAliases)
     pending.push(...children.map(({ id }) => id))
   }
   return graph

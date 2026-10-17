@@ -70,7 +70,7 @@ fn make_node(
                 .map(|(alias, child)| (alias.to_string(), dp(child)))
                 .collect(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: crate::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: resolved_peers
                 .iter()

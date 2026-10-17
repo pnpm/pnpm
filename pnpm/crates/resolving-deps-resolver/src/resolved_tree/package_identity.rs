@@ -1,13 +1,13 @@
-use super::{PeerDep, ResolvedPackage};
+use super::{PeerSet, ResolvedPackage};
 use pnpm_resolving_resolver_base::ResolveResult;
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 /// The inputs of [`ResolvedPackage::new`].
 #[derive(Debug)]
 pub struct ResolvedPackageInput {
     pub id: Arc<str>,
     pub result: Arc<ResolveResult>,
-    pub peer_dependencies: BTreeMap<String, PeerDep>,
+    pub peer_set: PeerSet,
     pub optional: bool,
     pub is_leaf: bool,
 }
@@ -20,7 +20,7 @@ impl ResolvedPackage {
         let ResolvedPackageInput {
             id,
             result,
-            peer_dependencies,
+            peer_set,
             optional,
             is_leaf,
         } = input;
@@ -30,7 +30,7 @@ impl ResolvedPackage {
             name: name.into(),
             version: version.into(),
             result,
-            peer_dependencies,
+            peer_set,
             optional,
             is_leaf,
         }

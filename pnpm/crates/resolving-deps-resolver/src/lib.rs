@@ -25,7 +25,7 @@
 //!      `parentPkgs` filter.
 //!
 //!    Peer dependencies are **not** walked as regular edges during the
-//!    tree pass. They are recorded on [`ResolvedPackage::peer_dependencies`]
+//!    tree pass. They are recorded on [`ResolvedPackage::peer_set`]
 //!    and consumed by the peer pass.
 //!
 //! 2. **Peer pass** ([`fn@resolve_peers`]). Walks the tree, matches each
@@ -103,8 +103,8 @@ pub use resolve_workspace::{
     resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-    ResolvedPackageInput, ResolvedTree, TreeChildren,
+    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, PeerSet,
+    ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
 };
 
 mod dedupe_injected_deps;

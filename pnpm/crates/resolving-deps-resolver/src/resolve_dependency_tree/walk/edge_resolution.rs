@@ -1,7 +1,9 @@
+use crate::resolved_tree::PeerSet;
+
 use super::{
-    Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
-    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
-    SeededPackage, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
+    Arc, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer, ResolveDependencyTreeError,
+    ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver, SeededPackage, TreeCtx,
+    UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
     build_pkg_id_with_patch_hash, catalogs_for_children, current_pkg_from_lockfile,
     dependencies_named_as_peers, emit_deprecation_if_needed, ensure_same_registry_revision,
     extract_peer_dependencies, is_exotic_resolved_via, is_update_target, keeps_locked_version,
@@ -395,8 +397,8 @@ pub(super) fn register_seeded_package(
     }
     // A workspace-link node carries no peer dependencies: peer matching is the
     // linked importer's responsibility, not the parent's.
-    let peer_dependencies = if is_link {
-        BTreeMap::new()
+    let peer_set = if is_link {
+        PeerSet::default()
     } else {
         extract_peer_dependencies(
             result,
@@ -404,7 +406,7 @@ pub(super) fn register_seeded_package(
             catalogs_for_children(ctx, resolves_children_through_catalogs),
         )?
     };
-    register_peer_dep_names(ctx, &peer_dependencies);
+    register_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -412,7 +414,7 @@ pub(super) fn register_seeded_package(
         ResolvedPackage::new(ResolvedPackageInput {
             id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
-            peer_dependencies,
+            peer_set,
             optional: current_is_optional,
             is_leaf,
         }),

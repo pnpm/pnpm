@@ -5,6 +5,7 @@ import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.pruner'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
 import type { DependenciesGraph } from '../lib/index.js'
+import type { PeerDependencies, PeerSet } from '../lib/resolutionTypes.js'
 import { updateLockfile } from '../lib/updateLockfile.js'
 
 const TARBALL_URL = 'https://cdn.sheetjs.com/xlsx-0.18.5/xlsx-0.18.5.tgz'
@@ -28,7 +29,7 @@ function tarballGraph (
       optional: false,
       children: {},
       optionalDependencies: new Set<string>(),
-      peerDependencies: {},
+      peers: peerSetOf({}),
       transitivePeerDependencies: new Set<string>(),
       additionalInfo,
       hasBin: false,
@@ -182,3 +183,7 @@ test.each([
   })
   expect(lockfile.packages![DEP_PATH].engines).toStrictEqual(expected)
 })
+
+function peerSetOf (peers: PeerDependencies): PeerSet {
+  return { declared: peers, taken: peers }
+}

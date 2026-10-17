@@ -34,7 +34,8 @@ use crate::{
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies},
     resolved_tree::{
-        AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+        AncestorPkgIds, DirectDep, PeerDep, PeerSet, ResolvedPackage, ResolvedPackageInput,
+        TreeChildren,
     },
 };
 
@@ -420,7 +421,7 @@ where
         ctx,
         id,
         &result,
-        identity.peer_dependencies,
+        identity.peer_set,
         current_is_optional,
         identity.is_leaf,
     );
@@ -456,7 +457,7 @@ struct ReusedIdentity<'l> {
     /// A reused node's children come from the snapshot rather than
     /// from a manifest, so no `dependencies` entry of its synthesized
     /// manifest can be peer-shadowed.
-    peer_dependencies: BTreeMap<String, PeerDep>,
+    peer_set: PeerSet,
     child_refs: Vec<(String, PkgNameVerPeer)>,
     is_leaf: bool,
     node_id: NodeId,
@@ -472,12 +473,12 @@ fn reused_identity<'l>(
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(key));
-    let peer_dependencies = extract_peer_dependencies(result, &HashSet::default(), None)?;
-    let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
-    let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
+    let peer_set = extract_peer_dependencies(result, &HashSet::default(), None)?;
+    let child_refs = snapshot_child_refs(snapshot, peer_set.taken());
+    let is_leaf = child_refs.is_empty() && peer_set.taken().is_empty();
     Ok(ReusedIdentity {
         snapshot,
-        peer_dependencies,
+        peer_set,
         child_refs,
         is_leaf,
         node_id: node_id_for(is_leaf, id),
@@ -519,7 +520,7 @@ fn register_reused_package(
     ctx: &TreeCtx,
     id: String,
     result: &Arc<pnpm_resolving_resolver_base::ResolveResult>,
-    peer_dependencies: BTreeMap<String, PeerDep>,
+    peer_set: PeerSet,
     current_is_optional: bool,
     is_leaf: bool,
 ) -> (Arc<str>, bool) {
@@ -528,7 +529,7 @@ fn register_reused_package(
         existing.optional = existing.optional && current_is_optional;
         return (Arc::clone(&existing.id), false);
     }
-    record_peer_dep_names(ctx, &peer_dependencies);
+    record_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(&id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -536,7 +537,7 @@ fn register_reused_package(
         ResolvedPackage::new(ResolvedPackageInput {
             id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
-            peer_dependencies,
+            peer_set,
             optional: current_is_optional,
             is_leaf,
         }),

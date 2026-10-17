@@ -349,7 +349,7 @@ fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGrap
         edges: crate::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: crate::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
