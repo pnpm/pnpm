@@ -89,6 +89,49 @@ pub(super) async fn update_packument(
     rewrite_packument(state, identity, &target.source, &storage, &name, &mut packument).await
 }
 
+async fn read_hosted_packument(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+) -> Result<pnpr_storage::HostedDocumentForUpdate, Response> {
+    match storage.read_hosted_document_for_update(name).await {
+        Ok(Some(packument)) => Ok(packument),
+        Ok(None) => Err(no_published_packument(name).into_response()),
+        Err(err) => Err(err.into_response()),
+    }
+}
+
+fn prepare_packument_rewrite(
+    hosted_bytes: &[u8],
+    name: &CanonicalPackageName,
+    packument: &mut Value,
+) -> Result<(Value, Vec<String>), Response> {
+    let hosted: Value = serde_json::from_slice(hosted_bytes)
+        .map_err(|err| RegistryError::Json(err).into_response())?;
+    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
+        return Err(err.into_response());
+    }
+    preserve_existing_maintainers(&hosted, packument);
+    let removed = detect_removed_versions(&hosted, packument);
+    Ok((hosted, removed))
+}
+
+async fn record_removal_or_rollback(
+    storage: &pnpr_storage::Storage,
+    identity: &Identity,
+    name: &CanonicalPackageName,
+    hosted: &Value,
+    removed: &[String],
+    fallback: &[u8],
+) -> Result<(), RegistryError> {
+    if let Err(err) =
+        record_removed_versions_in_tombstone(storage, identity, name, hosted, removed).await
+    {
+        let _ = storage.write_hosted_document_if_current(name, fallback, None).await;
+        return Err(err);
+    }
+    Ok(())
+}
+
 /// Serialize against other same-package writers so the rewrite cannot
 /// interleave with a concurrent publish or dist-tag merge.
 async fn rewrite_packument(
@@ -100,34 +143,32 @@ async fn rewrite_packument(
     packument: &mut serde_json::Value,
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_document_for_update(name).await {
-        Ok(Some(packument)) => packument,
-        Ok(None) => return no_published_packument(name).into_response(),
-        Err(err) => return err.into_response(),
+    let hosted_packument = match read_hosted_packument(storage, name).await {
+        Ok(packument) => packument,
+        Err(response) => return response,
     };
-    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
-        Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
-        return err.into_response();
-    }
-    preserve_existing_maintainers(&hosted, packument);
-
-    let removed = detect_removed_versions(&hosted, packument);
-
+    let (hosted, removed) =
+        match prepare_packument_rewrite(&hosted_packument.bytes, name, packument) {
+            Ok(pair) => pair,
+            Err(response) => return response,
+        };
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let written =
-        storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
-            .await;
-    match written {
+    match storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
+        .await
+    {
         Ok(DocumentWrite::Written) => {
-            if let Err(err) =
-                record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed)
-                    .await
+            if let Err(err) = record_removal_or_rollback(
+                storage,
+                identity,
+                name,
+                &hosted,
+                &removed,
+                &hosted_packument.bytes,
+            )
+            .await
             {
                 return err.into_response();
             }
