@@ -241,6 +241,7 @@ impl PythonPrepare<'_> {
                 index_writer: Some(Arc::clone(self.store.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,
                 strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
+                max_unpacked_size: self.context.config.max_unpacked_size,
                 verified_files_cache: Arc::default(),
                 prefetched_cas_paths: None,
             },

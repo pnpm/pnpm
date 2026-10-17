@@ -46,12 +46,13 @@ export function createTarballFetcher (
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
-  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps'>
+  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps' | 'maxUnpackedSize'>
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
+    maxUnpackedSize: opts.maxUnpackedSize,
   })
 
   const remoteTarballFetcher = fetchFromTarball.bind(null, {
@@ -66,7 +67,7 @@ export function createTarballFetcher (
   }
 
   return {
-    localTarball: createLocalTarballFetcher(opts.storeIndex),
+    localTarball: createLocalTarballFetcher(opts.storeIndex, { maxUnpackedSize: opts.maxUnpackedSize }),
     remoteTarball: remoteTarballFetcher,
     gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
   }

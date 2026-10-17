@@ -1,6 +1,7 @@
 use super::{
-    Arc, AuthHeaders, FetchTarballForResolution, SilentReporter, StoreIndex, StoreIndexWriter,
-    ThrottledClient, fast_retry_opts, gzipped_archive, store_index_key, tempdir_with_leaked_path,
+    Arc, AuthHeaders, FetchTarballForResolution, ResolutionStore, SilentReporter, StoreIndex,
+    StoreIndexWriter, ThrottledClient, fast_retry_opts, gzipped_archive, store_index_key,
+    tempdir_with_leaked_path,
 };
 
 /// The row would be keyed by the subpackage (read from
@@ -29,8 +30,11 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
-        store_dir: store_path,
-        store_index_writer: Some(Arc::clone(&writer)),
+        store: ResolutionStore {
+            dir: store_path,
+            index_writer: Some(Arc::clone(&writer)),
+            max_unpacked_size: u64::MAX,
+        },
         package: crate::TarballPackage {
             integrity: None,
             unpacked_size: None,

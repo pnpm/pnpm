@@ -77,5 +77,6 @@ pub struct ConfigDependencyStore {
     pub dir: &'static StoreDir,
     pub verify_integrity: bool,
     pub strict_pkg_content_check: bool,
+    pub max_unpacked_size: u64,
     pub package_import_method: PackageImportMethod,
 }

@@ -178,6 +178,7 @@ fn options<'a>(
             dir: harness.store_dir,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             package_import_method: pnpm_config::PackageImportMethod::default(),
         },
         store_index: None,

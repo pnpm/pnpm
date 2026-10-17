@@ -318,8 +318,11 @@ impl ResolverChainInputs<'_> {
         .with_fetch_context(GitFetchContext {
             source_cache: Arc::clone(self.fetching.git_sources),
             http_client: Arc::clone(self.fetching.http_client),
-            store_dir: self.store.dir,
-            store_index_writer: Some(Arc::clone(self.store.index_writer)),
+            store: pnpm_tarball::ResolutionStore {
+                dir: self.store.dir,
+                index_writer: Some(Arc::clone(self.store.index_writer)),
+                max_unpacked_size: self.config.max_unpacked_size,
+            },
             auth_headers: Arc::clone(self.fetching.auth_headers),
             retry_opts: self.retry_opts(),
             git_shallow_hosts: self.config.git_shallow_hosts.clone(),
@@ -345,6 +348,7 @@ impl ResolverChainInputs<'_> {
                 cache_dir: Some(self.config.cache_dir.clone()),
                 store: pnpm_tarball::ArchiveStoreContext {
                     strict_pkg_content_check: false,
+                    max_unpacked_size: self.config.max_unpacked_size,
                     prefetched_cas_paths: None,
                     dir: self.store.dir,
                     index_writer: Some(Arc::clone(self.store.index_writer)),

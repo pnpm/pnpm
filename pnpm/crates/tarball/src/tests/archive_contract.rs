@@ -343,6 +343,7 @@ fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToS
             index_writer: input.store.index_writer.clone(),
             verify_integrity: input.store.verify_integrity,
             strict_pkg_content_check: input.store.strict_pkg_content_check,
+            max_unpacked_size: input.store.max_unpacked_size,
             verified_files_cache: Arc::clone(&input.store.verified_files_cache),
             prefetched_cas_paths: input.store.prefetched_cas_paths,
         },
@@ -416,6 +417,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                     index_writer: Some(Arc::clone(&writer)),
                     verify_integrity: true,
                     strict_pkg_content_check: true,
+                    max_unpacked_size: u64::MAX,
                     verified_files_cache: Arc::default(),
                     prefetched_cas_paths: None,
                 },
@@ -493,6 +495,7 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
                     index_writer: Some(Arc::clone(&writer)),
                     verify_integrity: true,
                     strict_pkg_content_check: true,
+                    max_unpacked_size: u64::MAX,
                     verified_files_cache: Arc::default(),
                     prefetched_cas_paths: None,
                 },
@@ -553,6 +556,7 @@ async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
             None,
             None,
             Some(16),
+            u64::MAX,
         )
         .await
         .unwrap_err();

@@ -153,6 +153,7 @@ impl InstallPackageFromRegistry<'_> {
                 index_writer: self.fetching.store_index_writer.cloned(),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
+                max_unpacked_size: config.max_unpacked_size,
                 verified_files_cache: SharedVerifiedFilesCache::clone(
                     self.fetching.verified_files_cache,
                 ),

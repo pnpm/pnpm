@@ -77,6 +77,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             index_writer: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
         },
@@ -109,7 +110,7 @@ fn extract_rejects_an_absolute_entry_path() {
         let (tempdir, store_path) = tempdir_with_leaked_path();
 
         let tar_bytes = tar_with_raw_entry_name(name, b"bytes");
-        let err = extract_tarball_entries(&tar_bytes, store_path, None)
+        let err = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
             .expect_err("an absolute entry path must be rejected");
 
         match err {
@@ -133,7 +134,7 @@ fn extract_rejects_backslash_traversal_in_entry_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt", b"bytes");
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, store_path, None, u64::MAX)
         .expect_err("a backslash-spelled traversal must be rejected");
 
     match err {

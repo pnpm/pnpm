@@ -85,6 +85,7 @@ pub(super) async fn extract_body_while_downloading<Reporter, Body, Guard>(
     package_url: &str,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_unpacked_size: u64,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
 where
     Reporter: self::Reporter,
@@ -93,7 +94,12 @@ where
     let (chunk_tx, chunk_rx) = body_chunk_channel();
     let extractor_ignore = ignore_file_pattern.clone();
     let extract_task = spawn_extraction(streaming_permit, move || {
-        stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
+        stream_extract_gzipped_channel(
+            chunk_rx,
+            store_dir,
+            extractor_ignore.as_deref(),
+            max_unpacked_size,
+        )
     });
 
     let mut feed = ExtractorFeed { chunk_tx, open: true };

@@ -302,6 +302,7 @@ impl WritePackageForPatch<'_> {
                 index_writer: Some(Arc::clone(store_index_writer)),
                 verify_integrity: self.config.verify_store_integrity,
                 strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                max_unpacked_size: self.config.max_unpacked_size,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
             },

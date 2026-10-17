@@ -240,7 +240,7 @@ macro_rules! identically_named_settings {
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db, add_missing_peer_types,
             resolve_peers_from_workspace_root, verify_store_integrity,
-            strict_store_pkg_content_check, frozen_store, store_index_format,
+            strict_store_pkg_content_check, max_unpacked_size, frozen_store, store_index_format,
             include_workspace_root, fail_if_no_match,
             ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,

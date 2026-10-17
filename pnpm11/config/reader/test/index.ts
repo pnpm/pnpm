@@ -57,6 +57,7 @@ test('getConfig()', async () => {
   expect(config.fetchRetryFactor).toBe(10)
   expect(config.fetchRetryMintimeout).toBe(10000)
   expect(config.fetchRetryMaxtimeout).toBe(60000)
+  expect(config.maxUnpackedSize).toBe(2147483648)
   // nodeVersion should not have a default value.
   // When not specified, the package-is-installable package detects nodeVersion automatically.
   expect(config.nodeVersion).toBeUndefined()
@@ -5381,6 +5382,28 @@ test('loads nodeDownloadMirrors from environment variable pnpm_config_node_downl
   })).toStrictEqual({
     release: 'https://cli.example.com/release/',
   })
+})
+
+test('maxUnpackedSize is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { maxUnpackedSize: 1048576 })
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxUnpackedSize).toBe(1048576)
+})
+
+test('maxUnpackedSize is read from the environment', async () => {
+  prepareEmpty()
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: { pnpm_config_max_unpacked_size: '2048' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxUnpackedSize).toBe(2048)
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {

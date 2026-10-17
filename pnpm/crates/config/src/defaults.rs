@@ -373,6 +373,11 @@ pub fn default_fetch_min_speed_ki_bps() -> u64 {
     pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
+/// Default `maxUnpackedSize` in bytes: 2 GiB.
+pub fn default_max_unpacked_size() -> u64 {
+    2 * 1024 * 1024 * 1024
+}
+
 /// Default `User-Agent`, in the format
 /// `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded

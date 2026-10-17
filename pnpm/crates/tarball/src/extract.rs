@@ -7,6 +7,7 @@ pub(crate) use streaming::{
     BodyChunkSender, STREAM_ENTRY_BUFFER_MAX, body_chunk_channel, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
+pub(crate) use unpacked_size::UnpackedSizeBudget;
 
 use super::{
     Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
@@ -120,6 +121,7 @@ pub(crate) fn extract_gzipped_tarball(
     unpacked_size: Option<usize>,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     // Route on the larger of the two claims about the unpacked size.
     // Neither is trustworthy, and taking the larger is the conservative
@@ -127,17 +129,29 @@ pub(crate) fn extract_gzipped_tarball(
     // that does not, or the other way round.
     let unpacked_size = unpacked_size.max(gzip_isize_hint(gz_data));
     if should_stream_extract(gz_data.len(), unpacked_size) {
-        return stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern);
+        return stream_extract_gzipped_tarball(
+            gz_data,
+            store_dir,
+            ignore_file_pattern,
+            max_unpacked_size,
+        );
     }
     match decompress_gzip(gz_data, unpacked_size) {
-        Ok(tar_data) => extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern),
+        Ok(tar_data) => {
+            extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern, max_unpacked_size)
+        }
         Err(error) if is_eager_decode_limit_exceeded(&error) => {
             tracing::debug!(
                 target: "pacquet::download",
                 gz_data_len = gz_data.len(),
                 "archive inflated past the eager decode ceiling; extracting it as a stream",
             );
-            stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern)
+            stream_extract_gzipped_tarball(
+                gz_data,
+                store_dir,
+                ignore_file_pattern,
+                max_unpacked_size,
+            )
         }
         Err(error) => Err(error),
     }
@@ -282,7 +296,9 @@ pub(crate) fn extract_tarball_entries(
     tar_data: &[u8],
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let mut budget = UnpackedSizeBudget::new(max_unpacked_size);
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let entries = archive
@@ -306,7 +322,7 @@ pub(crate) fn extract_tarball_entries(
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
+        let Some(meta) = entry_meta(&entry, ignore_file_pattern, &mut budget)? else {
             continue;
         };
         let entry_data = tar_entry_payload(tar_data, &entry)?;
@@ -461,7 +477,7 @@ pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
 }
 
 impl<'a> StreamingExtract<'a> {
-    fn new(store_dir: &'a StoreDir) -> Self {
+    fn new(store_dir: &'a StoreDir, max_unpacked_size: u64) -> Self {
         StreamingExtract {
             store_dir,
             written: Vec::new(),
@@ -469,6 +485,7 @@ impl<'a> StreamingExtract<'a> {
             batch_bytes: 0,
             manifest: None,
             triggers: BuildTriggers::default(),
+            budget: UnpackedSizeBudget::new(max_unpacked_size),
         }
     }
 
@@ -621,3 +638,5 @@ pub fn read_buffered_tar_entry(
     entry.read_to_end(&mut data)?;
     Ok(data)
 }
+
+mod unpacked_size;

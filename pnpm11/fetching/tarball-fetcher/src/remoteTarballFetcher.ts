@@ -18,6 +18,8 @@ import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes/index.js'
 
 export const MAX_BUFFERED_DOWNLOAD_SIZE = 64 * 1024 * 1024
+/** The default of the `maxUnpackedSize` setting, for callers that pass none. */
+export const DEFAULT_MAX_UNPACKED_SIZE = 2147483648 // 2 GiB
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -56,6 +58,7 @@ export interface CreateDownloaderOptions {
   }
   timeout?: number
   fetchMinSpeedKiBps?: number
+  maxUnpackedSize?: number
 }
 
 export function createDownloader (
@@ -70,6 +73,7 @@ export function createDownloader (
     ...gotOpts.retry,
   }
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
+  const maxUnpackedSize = gotOpts.maxUnpackedSize ?? DEFAULT_MAX_UNPACKED_SIZE
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = getSecureNodeMirrorAuthHeader(
@@ -90,6 +94,7 @@ export function createDownloader (
           fetchFromRegistry,
           fetchMinSpeedKiBps,
           gotOpts,
+          maxUnpackedSize,
           op,
           opts,
           reject,
@@ -108,6 +113,7 @@ interface DownloadAttemptContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxUnpackedSize: number
   op: ReturnType<typeof retry.operation>
   opts: DownloadOptions
   reject: (err: any) => void // eslint-disable-line
@@ -123,6 +129,7 @@ async function executeDownloadAttempt (ctx: DownloadAttemptContext): Promise<voi
       fetchFromRegistry: ctx.fetchFromRegistry,
       fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
       gotOpts: ctx.gotOpts,
+      maxUnpackedSize: ctx.maxUnpackedSize,
       opts: ctx.opts,
       url: ctx.url,
     })
@@ -146,6 +153,7 @@ interface FetchTarballContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxUnpackedSize: number
   opts: DownloadOptions
   url: string
 }
@@ -201,6 +209,7 @@ async function importDownloadedTarball (ctx: FetchTarballContext, data: Download
       pkg: ctx.opts.pkg,
       appendManifest: ctx.opts.appendManifest,
       ignoreFilePattern: ctx.opts.ignoreFilePattern,
+      maxUnpackedSize: ctx.maxUnpackedSize,
     })
   } finally {
     await data.cleanup?.()
@@ -356,6 +365,7 @@ function handleDownloadRetry (opts: {
     status === 404 ||
     opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
     opts.error.code === 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' ||
+    opts.error.code === 'ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED' ||
     isNonRetryableError(opts.error)
 
   if (isFatal) {

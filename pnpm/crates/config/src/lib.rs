@@ -82,8 +82,9 @@ use crate::{
         default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
         default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
         default_fetch_warn_timeout_ms, default_hoist_pattern, default_install_state_dir,
-        default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-        default_store_dir, default_tag_version_prefix, default_user_agent,
+        default_max_unpacked_size, default_modules_cache_max_age, default_modules_dir,
+        default_public_hoist_pattern, default_store_dir, default_tag_version_prefix,
+        default_user_agent,
     },
     npmrc_auth::NpmrcAuth,
 };

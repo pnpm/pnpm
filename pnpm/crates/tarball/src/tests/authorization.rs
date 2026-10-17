@@ -1,6 +1,6 @@
 use super::{
     AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL, FetchTarballForResolution,
-    HttpStatusError, SilentReporter, TarballError, ThrottledClient, assert_eq,
+    HttpStatusError, ResolutionStore, SilentReporter, TarballError, ThrottledClient, assert_eq,
     auth_header_for_package_download, fast_retry_opts, fetch_and_extract_with_retry, integrity,
     tempdir_with_leaked_path,
 };
@@ -54,8 +54,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: ResolutionStore { dir: store_path, index_writer: None, max_unpacked_size: u64::MAX },
         package: crate::TarballPackage {
             integrity: None,
             unpacked_size: None,
@@ -118,6 +117,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("server should accept the request once the bearer header is attached");
@@ -161,6 +161,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("server should accept the request once the scoped bearer header is attached");
@@ -218,6 +219,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         None,
         None,
         false,
+        u64::MAX,
     )
     .await
     .expect("retry attempt should also carry the bearer header");

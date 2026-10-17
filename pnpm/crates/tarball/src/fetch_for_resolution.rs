@@ -46,6 +46,28 @@ pub struct NotModifiedResponse {
     pub final_url: String,
 }
 
+/// The store a resolve-time fetch writes into, and the policy it writes
+/// under.
+#[derive(Clone)]
+pub struct ResolutionStore {
+    pub dir: &'static StoreDir,
+    pub index_writer: Option<Arc<StoreIndexWriter>>,
+    /// See [`crate::ArchiveStoreContext::max_unpacked_size`].
+    pub max_unpacked_size: u64,
+}
+
+impl crate::ArchiveStoreContext<'_> {
+    /// The part of this context a resolve-time fetch writes through.
+    #[must_use]
+    pub fn resolution_store(&self) -> ResolutionStore {
+        ResolutionStore {
+            dir: self.dir,
+            index_writer: self.index_writer.clone(),
+            max_unpacked_size: self.max_unpacked_size,
+        }
+    }
+}
+
 /// Download a remote tarball during *resolution*, settle its sha512
 /// integrity (computed from the bytes, or checked against the one the
 /// caller pins), extract it to the store, and read its bundled manifest.
@@ -58,8 +80,7 @@ pub struct NotModifiedResponse {
 /// `ResolveResult`.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,
-    pub store_dir: &'static StoreDir,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub store: ResolutionStore,
     /// The archive to read and what is already known about it.
     ///
     /// `id` is used for scoped auth lookup and for the store-index row
@@ -288,13 +309,14 @@ impl FetchTarballForResolution<'_> {
             UNPRIORITIZED,
             self.package.id,
             self.package.url,
-            self.store_dir,
+            self.store.dir,
             self.retry_opts,
             self.auth_headers,
             None,
             None,
             self.revision_addressed,
             if_none_match,
+            self.store.max_unpacked_size,
         )
         .await?;
         match fetched {
@@ -317,7 +339,7 @@ impl FetchTarballForResolution<'_> {
         let mut cas_paths = extracted.files;
         let mut pkg_files_idx = extracted.index;
         let integrity = extracted.integrity;
-        apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+        apply_placeholder_manifest(self.store.dir, &mut cas_paths, &mut pkg_files_idx)?;
         let root_manifest = pkg_files_idx.manifest.clone();
         let manifest = match self.manifest_subdir {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
@@ -353,7 +375,7 @@ impl FetchTarballForResolution<'_> {
             return;
         }
         let index_key = store_index_key(&integrity.to_string(), self.package.id);
-        if let Some(writer) = &self.store_index_writer {
+        if let Some(writer) = &self.store.index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {
             tracing::warn!(

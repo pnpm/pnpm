@@ -217,6 +217,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [verifyStoreIntegrity](./settings/store.md#verifystoreintegrity)
 * [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
+* [maxUnpackedSize](./settings/store.md#maxunpackedsize)
 * [frozenStore](./settings/store.md#frozenstore)
 * [storeIndexFormat](./settings/store.md#storeindexformat)
 

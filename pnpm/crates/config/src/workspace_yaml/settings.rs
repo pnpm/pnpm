@@ -385,6 +385,9 @@ pub struct WorkspaceSettings {
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     pub strict_store_pkg_content_check: Option<bool>,
+    /// The `maxUnpackedSize` YAML value in bytes. [`None`] leaves
+    /// [`Config::max_unpacked_size`](crate::settings::Config::max_unpacked_size) unchanged.
+    pub max_unpacked_size: Option<u64>,
     pub include_workspace_root: Option<bool>,
     pub fail_if_no_match: Option<bool>,
     pub ignore_workspace_cycles: Option<bool>,

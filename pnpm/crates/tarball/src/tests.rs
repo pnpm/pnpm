@@ -2,7 +2,7 @@ mod archive_contract;
 
 use super::{
     ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
-    RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
+    ResolutionStore, RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
         IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
         slow_download_warning, store_index_cache_key,
@@ -609,3 +609,5 @@ mod manifests;
 mod lockfile;
 
 mod fetch_for_resolution;
+
+mod unpacked_size;

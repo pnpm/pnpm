@@ -373,9 +373,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
             index_writer: Arc::clone(&store_index_writer),
             verified_files_cache: SharedVerifiedFilesCache::default(),
             logged_methods: Arc::new(AtomicU8::new(0)),
-            import_method: pnpm_config::PackageImportMethod::default(),
-            verify_integrity: true,
-            strict_pkg_content_check: true,
+            config: Box::leak(Box::new(pnpm_config::Config::new())),
         },
     })
     .await

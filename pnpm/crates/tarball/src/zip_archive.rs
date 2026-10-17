@@ -5,8 +5,8 @@
 
 use super::{
     Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError,
-    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
-    post_download_semaphore,
+    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, UnpackedSizeBudget,
+    allocate_tarball_buffer, post_download_semaphore,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -34,9 +34,11 @@ pub(crate) fn extract_zip_entries(
     store_dir: &StoreDir,
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let entry_count = archive.len();
     let mut extracted = ExtractedEntries::with_capacity(entry_count);
+    let mut budget = UnpackedSizeBudget::new(max_unpacked_size);
 
     // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
     // keeping entry paths verbatim when there is no prefix. The
@@ -53,9 +55,15 @@ pub(crate) fn extract_zip_entries(
                 url: package_url.to_string(),
                 source,
             })?;
-        let Some(cleaned) =
-            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
-        else {
+        let cleaned =
+            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?;
+        // Charged after the path check and before the filter's verdict, as
+        // the tar extractors do: a traversal is reported as such, and an
+        // ignored file still counts toward the archive's unpacked size.
+        if !entry.is_dir() {
+            budget.declare(entry.size())?;
+        }
+        let Some(cleaned) = cleaned else {
             continue;
         };
         let stored = store_zip_entry(&mut entry, package_url, &cleaned, store_dir)?;
@@ -134,79 +142,6 @@ fn store_zip_entry(
             checked_at,
         },
     ))
-}
-
-/// The canonical, prefix-stripped path of one zip entry, or `None` when the
-/// entry carries no payload to store (a directory, the prefix directory
-/// itself, or an ignored file).
-fn zip_entry_path(
-    entry: &zip::read::ZipFile<'_, Cursor<Vec<u8>>>,
-    package_url: &str,
-    basename_prefix: Option<&str>,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<Option<String>, TarballError> {
-    // Validate the path *before* the `is_dir()` early-skip so an
-    // archive carrying a directory entry like `../evil/` still
-    // surfaces [`TarballError::PathTraversal`] rather than being
-    // silently dropped. Pacquet wouldn't write that directory
-    // either way (only file entries take the CAS write path
-    // below), but rejecting outright keeps the "no unsafe entry
-    // accepted" contract intact for tooling that inspects the
-    // error code.
-    let raw_name = entry.name().to_string();
-    let traversal = |entry_path: String| TarballError::PathTraversal {
-        url: package_url.to_string(),
-        entry_path,
-        reason: "zip entry path is absolute or escapes the archive root",
-    };
-    // [`zip::read::ZipFile::enclosed_name`] returns `None` for
-    // absolute paths and any path with a `..` component — a
-    // single check covers both forms of path traversal.
-    let Some(enclosed) = entry.enclosed_name() else {
-        return Err(traversal(raw_name));
-    };
-    if entry.is_dir() {
-        return Ok(None);
-    }
-
-    // Rebuild the path as a forward-slash string from the sanitized
-    // components, so `.` segments collapse to one canonical key and
-    // the ignore filter matches against exactly that key.
-    //
-    // `enclosed_name` yields only `Normal` components, but a `\`
-    // inside one is an ordinary filename character on Unix, so the
-    // segments are re-checked by
-    // [`crate::extract::archive_entry_segments`], which treats it as
-    // a separator the way pnpm does.
-    let joined: String = enclosed
-        .components()
-        .map(|component| match component {
-            Component::Normal(name) => name.to_string_lossy().into_owned(),
-            _ => unreachable!("enclosed_name returns only Normal components: {:?}", enclosed),
-        })
-        .collect::<Vec<_>>()
-        .join("/");
-    let Some(segments) = crate::extract::archive_entry_segments(&joined) else {
-        return Err(traversal(raw_name));
-    };
-    let normalized = segments.join("/");
-
-    // Strip the archive's top-level basename (`prefix` on
-    // `pnpm_lockfile::BinaryResolution`) so the ignore filter
-    // sees paths relative to the archive root.
-    let cleaned = match basename_prefix {
-        Some(prefix) => normalized
-            .strip_prefix(prefix)
-            .unwrap_or(&normalized)
-            .to_string(),
-        None => normalized,
-    };
-    // An entry whose name was exactly the prefix directory leaves no
-    // relative payload behind.
-    if cleaned.is_empty() || ignore_file_pattern.is_some_and(|filter| filter(&cleaned)) {
-        return Ok(None);
-    }
-    Ok(Some(cleaned))
 }
 
 /// Hash one zip entry into the content-addressed store, holding it in
@@ -310,6 +245,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     max_bytes: Option<usize>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let (client, response_head, _) = crate::archive_request::request_archive::<Reporter>(
         http_client,
@@ -337,6 +273,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         package_url: package_url.to_string(),
         archive_prefix: archive_prefix.map(str::to_string),
         ignore_file_pattern,
+        max_unpacked_size,
     }
     .run(store_dir)
     .await?;
@@ -381,6 +318,8 @@ pub(crate) struct ZipExtraction {
     pub(crate) package_url: String,
     pub(crate) archive_prefix: Option<String>,
     pub(crate) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    /// See [`crate::ArchiveStoreContext::max_unpacked_size`].
+    pub(crate) max_unpacked_size: u64,
 }
 
 pub(crate) fn check_zip_size(
@@ -429,6 +368,7 @@ impl ZipExtraction {
             store_dir,
             self.archive_prefix.as_deref(),
             self.ignore_file_pattern.as_deref(),
+            self.max_unpacked_size,
         )
     }
 }
@@ -438,7 +378,7 @@ impl ZipExtraction {
 /// permanent errors fail fast, while transient errors retry with
 /// exponential backoff until [`RetryOpts::retries`] is exhausted.
 /// On success, emit `pnpm:progress fetched` once per resolved package.
-// 10 arguments — over the default clippy threshold for the same
+// 12 arguments — over the default clippy threshold for the same
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a
 // wrapper.
@@ -455,6 +395,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     max_bytes: Option<usize>,
+    max_unpacked_size: u64,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     crate::archive_retry::retry_archive::<Reporter, _, _>(
         package_url,
@@ -474,6 +415,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
                 archive_prefix,
                 ignore_file_pattern.clone(),
                 max_bytes,
+                max_unpacked_size,
             )
         },
     )
@@ -556,3 +498,6 @@ impl IngestZipArchiveToStore<'_> {
         }
     }
 }
+
+mod entry_path;
+use entry_path::zip_entry_path;

@@ -17,8 +17,7 @@ use pnpm_resolving_resolver_base::{
     GitResolveError, LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pnpm_store_dir::{StoreDir, StoreIndexWriter};
-use pnpm_tarball::{FetchTarballForResolution, RetryOpts};
+use pnpm_tarball::{FetchTarballForResolution, ResolutionStore, RetryOpts};
 use tokio::sync::OnceCell;
 
 use crate::{
@@ -76,8 +75,7 @@ pub trait GitProbe: Send + Sync {
 pub struct GitFetchContext {
     pub source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
     pub http_client: Arc<ThrottledClient>,
-    pub store_dir: &'static StoreDir,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub store: ResolutionStore,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
     /// Hosts that opt into `git init` + `git fetch --depth 1` instead
@@ -278,8 +276,7 @@ async fn read_archive(
     // `resolved → found_in_store → imported` event ordering.
     FetchTarballForResolution {
         http_client: &ctx.http_client,
-        store_dir: ctx.store_dir,
-        store_index_writer: ctx.store_index_writer.clone(),
+        store: ctx.store.clone(),
         // A git host's archive URL is the package's only identifier at
         // this point — its name is what this fetch is here to learn —
         // and such archives carry no scoped-registry auth or pinned hash.

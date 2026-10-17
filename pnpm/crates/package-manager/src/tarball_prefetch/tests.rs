@@ -97,6 +97,7 @@ fn revision_download(
             verified_files_cache: SharedVerifiedFilesCache::default(),
             verify_integrity: true,
             strict_pkg_content_check: true,
+            max_unpacked_size: u64::MAX,
             prefetched_cas_paths: None,
         },
         progress_reported: None,
@@ -226,6 +227,7 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
         verified_files_cache: SharedVerifiedFilesCache::default(),
         verify_integrity: true,
         strict_pkg_content_check: true,
+        max_unpacked_size: u64::MAX,
         prefetched_cas_paths: None,
     };
     assert!(context.index.is_some(), "readonly index should open after a write");

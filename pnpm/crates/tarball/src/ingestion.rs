@@ -111,6 +111,7 @@ impl ArchiveIngestion<'_> {
             package_url: self.package.url.to_string(),
             archive_prefix: prefix.map(str::to_string),
             ignore_file_pattern: self.ignore_file_pattern.clone(),
+            max_unpacked_size: self.store.max_unpacked_size,
         }
         .run(self.store.dir)
         .await?;
@@ -236,6 +237,7 @@ impl ArchiveIngestion<'_> {
                     self.ignore_file_pattern.clone(),
                     progress_key,
                     revision_addressed,
+                    self.store.max_unpacked_size,
                 )
                 .await
             }
@@ -263,6 +265,7 @@ impl ArchiveIngestion<'_> {
             prefix,
             self.ignore_file_pattern.clone(),
             max_bytes,
+            self.store.max_unpacked_size,
         )
         .await?;
         Ok((integrity.clone(), paths, index))

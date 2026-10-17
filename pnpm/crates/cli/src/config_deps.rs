@@ -448,6 +448,7 @@ impl EnvInstallerContext {
                 dir: Box::leak(Box::new(config.store_dir.clone())),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
+                max_unpacked_size: config.max_unpacked_size,
                 package_import_method: config.package_import_method,
             },
         })

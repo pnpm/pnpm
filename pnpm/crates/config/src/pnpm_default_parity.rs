@@ -146,6 +146,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("disallow-workspace-cycles", Bool(cfg.disallow_workspace_cycles)),
         ("ignore-workspace-cycles", Bool(cfg.ignore_workspace_cycles)),
         ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
+        ("max-unpacked-size", Int(cfg.max_unpacked_size as i64)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.

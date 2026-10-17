@@ -148,6 +148,7 @@ fn aliasless_tarball_resolver(
             cache_dir: Some(config.cache_dir.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
                 strict_pkg_content_check: false,
+                max_unpacked_size: config.max_unpacked_size,
                 prefetched_cas_paths: None,
                 dir: &config.store_dir,
                 index_writer: None,
@@ -341,8 +342,11 @@ pub(super) fn aliasless_git_resolver(
     .with_fetch_context(GitFetchContext {
         source_cache: Arc::clone(inputs.git_source_cache),
         http_client: Arc::clone(http_client),
-        store_dir: &config.store_dir,
-        store_index_writer: None,
+        store: pnpm_tarball::ResolutionStore {
+            dir: &config.store_dir,
+            index_writer: None,
+            max_unpacked_size: config.max_unpacked_size,
+        },
         auth_headers: Arc::clone(&config.auth_headers),
         retry_opts: config.retry_opts(),
         git_shallow_hosts: config.git_shallow_hosts.clone(),

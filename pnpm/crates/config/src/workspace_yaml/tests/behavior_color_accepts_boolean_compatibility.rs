@@ -158,6 +158,18 @@ fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
     assert!(!config.strict_store_pkg_content_check, "yaml override wins");
 }
 
+#[test]
+fn parses_max_unpacked_size_from_yaml_and_applies() {
+    let yaml = "maxUnpackedSize: 1048576\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.max_unpacked_size, Some(1_048_576));
+
+    let mut config = Config::new();
+    assert_eq!(config.max_unpacked_size, 2 * 1024 * 1024 * 1024);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.max_unpacked_size, 1_048_576);
+}
+
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
 /// pnpm-workspace.yaml.
 #[test]

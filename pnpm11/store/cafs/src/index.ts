@@ -76,8 +76,9 @@ export interface CreateCafsOpts {
 export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean, recordSymlinks?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
-  addFilesFromTarballBounded: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
-  addFilesFromTarballFile: (tarballFile: string, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
+  /** Without `maxUnpackedSize` the archive's unpacked size is not limited. */
+  addFilesFromTarballBounded: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean, maxUnpackedSize?: number) => Promise<AddToStoreResult>
+  addFilesFromTarballFile: (tarballFile: string, readManifest?: boolean, ignore?: (filename: string) => boolean, maxUnpackedSize?: number) => Promise<AddToStoreResult>
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
@@ -89,10 +90,10 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
       addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
-    addFilesFromTarballBounded: async (tarballBuffer, readManifest, callIgnore) =>
-      addFilesFromTarballBounded(addBuffer, tarballBuffer, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir }),
-    addFilesFromTarballFile: async (tarballFile, readManifest, callIgnore) =>
-      addFilesFromTarballFile(addBuffer, tarballFile, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir }),
+    addFilesFromTarballBounded: async (tarballBuffer, readManifest, callIgnore, maxUnpackedSize) =>
+      addFilesFromTarballBounded(addBuffer, tarballBuffer, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir, maxUnpackedSize }),
+    addFilesFromTarballFile: async (tarballFile, readManifest, callIgnore, maxUnpackedSize) =>
+      addFilesFromTarballFile(addBuffer, tarballFile, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir, maxUnpackedSize }),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }

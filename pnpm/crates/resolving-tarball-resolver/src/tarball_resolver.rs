@@ -171,8 +171,7 @@ impl TarballResolver {
     ) -> FetchTarballForResolution<'a> {
         FetchTarballForResolution {
             http_client: &self.http_client,
-            store_dir: ctx.store.dir,
-            store_index_writer: ctx.store.index_writer.clone(),
+            store: ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
                 integrity: None,
                 unpacked_size: None,

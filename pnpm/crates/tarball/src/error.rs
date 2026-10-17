@@ -142,6 +142,17 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
+    /// The archive's regular files declare more bytes in total than the
+    /// `maxUnpackedSize` setting allows. Raised before the entry that
+    /// crosses the limit is read, so nothing of it reaches the store.
+    #[from(ignore)]
+    #[display("Tarball unpacks to more than {limit} bytes")]
+    #[diagnostic(
+        code(ERR_PNPM_TARBALL_UNPACKED_SIZE_EXCEEDED),
+        help("If the package is expected to be this large, raise the `maxUnpackedSize` setting.")
+    )]
+    UnpackedSizeExceeded { limit: u64 },
+
     /// A concurrent request for the same tarball URL went through
     /// `run_with_mem_cache`, drove the network fetch, and failed.
     /// This task was parked on the shared `Notify` waiting for the
