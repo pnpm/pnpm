@@ -87,7 +87,7 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
 
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
-  return validateModifiedWorkspace(ctx, lockfilesScan.anyModified ? allManifestStats : modifiedProjects)
+  return validateModifiedWorkspace(ctx, lockfilesScan.anyModified || lockfilesScan.anyMissing ? allManifestStats : modifiedProjects)
 }
 
 async function validateModifiedWorkspace (ctx: WorkspaceDepsStatusContext, projectsToCheck: ProjectStats[]): Promise<CheckDepsStatusResult> {
