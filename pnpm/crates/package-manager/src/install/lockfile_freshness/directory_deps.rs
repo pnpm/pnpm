@@ -318,7 +318,8 @@ fn check_local_dep_children_freshness(
 }
 
 /// Whether the snapshot records a resolution of `child` that its spec
-/// accepts. An optional child the install leaves out is not compared.
+/// accepts. An optional child the install leaves out is only checked not to
+/// be recorded as a required one.
 fn child_is_fresh(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
@@ -326,7 +327,7 @@ fn child_is_fresh(
     (name, spec, optional, _): &ChildSpec,
 ) -> bool {
     if *optional && !check.config.optional {
-        return true;
+        return recorded_child(snapshot, name, false).is_none();
     }
     match recorded_child(snapshot, name, *optional) {
         Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded),

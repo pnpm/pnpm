@@ -444,3 +444,22 @@ fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
     });
     assert!(result.is_ok(), "the shadowed dependency is the peer check's: {result:?}");
 }
+
+/// A child that became optional is a change even when the install leaves
+/// optional dependencies out: the lockfile still records it as required.
+#[test]
+fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: false,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
+}
