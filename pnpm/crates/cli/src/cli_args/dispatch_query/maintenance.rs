@@ -162,7 +162,7 @@ pub(in super::super) fn self_update<'a>(
     args: SelfUpdateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let external_manager = super::super::self_update::check_externally_managed(dir)?;
+    let external_manager = super::super::self_update::find_external_manager()?;
     let config = (ctx.loaders.config_self_update)()?;
     Ok(Box::pin(args.run::<CliReporter>(config, dir, external_manager)))
 }

@@ -222,6 +222,52 @@ fn self_update_rewrites_a_dev_engines_pin_and_reports_the_declined_global_switch
     );
 }
 
+#[test]
+fn self_update_rewrites_the_workspace_root_pin_from_a_workspace_package() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    let package_dir = project.run_from_workspace_package();
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+    assert_eq!(
+        fs::read_to_string(package_dir.join("package.json")).expect("read package.json"),
+        r#"{"name":"app"}"#,
+    );
+}
+
+#[test]
+fn self_update_rewrites_the_workspace_root_pin_under_corepack_from_a_workspace_package() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    project.run_from_workspace_package();
+    project.pacquet.env("COREPACK_ROOT", "/fake/corepack");
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_skipped(
+        &output,
+        "The global pnpm was left alone because it is executed by Corepack.",
+    );
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_rewrites_a_package_yaml_pin() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    fs::remove_file(project.workspace.join("package.json")).expect("remove package.json");
+    let manifest_path = project.workspace.join("package.yaml");
+    fs::write(&manifest_path, "packageManager: pnpm@0.1.0\n").expect("write package.yaml");
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        fs::read_to_string(&manifest_path).expect("read package.yaml"),
+        format!("packageManager: pnpm@{OLDER_PNPM}\n"),
+    );
+}
+
 /// A project that pins pnpm, wired to a mocked registry serving
 /// `registry_latest` as pnpm's `latest` and to a throwaway `PNPM_HOME`.
 struct PinnedProject {
@@ -268,6 +314,19 @@ impl PinnedProject {
             _global_home: global_home,
             _npmrc_info: npmrc_info,
         }
+    }
+
+    /// Make the project a workspace root and run the command from a
+    /// workspace package that pins nothing itself. Returns that package.
+    fn run_from_workspace_package(&mut self) -> PathBuf {
+        fs::write(self.workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+            .expect("write pnpm-workspace.yaml");
+        let package_dir = self.workspace.join("packages/app");
+        fs::create_dir_all(&package_dir).expect("create the workspace package");
+        fs::write(package_dir.join("package.json"), r#"{"name":"app"}"#)
+            .expect("write the workspace package manifest");
+        self.pacquet.current_dir(&package_dir);
+        package_dir
     }
 
     fn self_update(&mut self) -> Output {

@@ -12,14 +12,16 @@
 pub(crate) mod install_pnpm;
 pub(crate) mod verify_engine;
 
-pub(crate) use externally_managed::{ExternalManager, check_externally_managed};
+pub(crate) use externally_managed::{ExternalManager, find_external_manager};
 
 mod externally_managed;
 mod global_bin;
 
+use super::package_manager::{PinRoots, wanted_package_manager};
 use crate::config_deps::{self, EnginePolicyViolation};
 use clap::Args;
 use derive_more::{Display, Error};
+use externally_managed::refuse_without_pin;
 use global_bin::{link_into_global_bin, link_into_legacy_home_dir};
 use miette::{Context, Diagnostic};
 use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir};
@@ -218,13 +220,15 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
+    let roots = PinRoots::of(config, dir);
+    let manifest = roots.read_manifest();
+    let external_manager = refuse_without_pin(external_manager, manifest.as_ref().ok())?;
+    let manifest = manifest.wrap_err("read the project manifest")?;
+    let wanted = manifest.as_ref().and_then(|manifest| wanted_package_manager(manifest.value()));
+
     let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
 
-    let wanted = super::package_manager::read_manifest_json(&dir.join("package.json"))?
-        .as_ref()
-        .and_then(super::package_manager::wanted_package_manager);
-
-    if let Some(hint) = crossed_major_hint(config, dir, wanted.as_ref(), &target_version) {
+    if let Some(hint) = crossed_major_hint(&roots.env, wanted.as_ref(), &target_version) {
         warn::<Reporter>(&prefix, hint);
     }
 
@@ -232,9 +236,14 @@ async fn handler<Reporter: self::Reporter + 'static>(
         .as_ref()
         .filter(|pm| pm.name == "pnpm");
     if let Some(pm) = pinned_pnpm
-        && let Some(refusal) =
-            Box::pin(project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest))
-                .await?
+        && let Some(refusal) = Box::pin(project_pin_refusal(
+            config,
+            &roots.env,
+            pm,
+            &target_version,
+            is_implicit_latest,
+        ))
+        .await?
     {
         return Ok(Some(refusal));
     }
@@ -256,9 +265,11 @@ async fn handler<Reporter: self::Reporter + 'static>(
         }
     };
 
-    let project_pin_message = match pinned_pnpm {
-        Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),
-        None => None,
+    let project_pin_message = match (pinned_pnpm, manifest) {
+        (Some(pm), Some(manifest)) => Some(
+            Box::pin(update_project_pin(config, &roots.env, manifest, pm, &target_version)).await?,
+        ),
+        _ => None,
     };
     Ok(join_messages(project_pin_message, global_message))
 }
@@ -342,8 +353,7 @@ async fn verify_target_engine<Reporter: self::Reporter + 'static>(
 /// crosses one. The project's pin is the source of truth for the version
 /// being left behind; the running binary stands in when nothing pins pnpm.
 fn crossed_major_hint(
-    config: &Config,
-    dir: &Path,
+    env_root: &Path,
     wanted: Option<&super::package_manager::WantedPackageManager>,
     target_version: &str,
 ) -> Option<&'static str> {
@@ -352,8 +362,7 @@ fn crossed_major_hint(
         // read the resolved version from the env lockfile to drive the
         // hint — otherwise crossing a major would silently skip it.
         Some(pm) if pm.name == "pnpm" => {
-            let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-            read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
+            read_project_pinned_pnpm_version(env_root, pm.version.as_deref())
                 .filter(|version| version != target_version)
         }
         _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
