@@ -37,6 +37,7 @@ mod filter_by_importers;
 mod freshness;
 mod git_branch_lockfile;
 mod git_merge_file;
+mod injected_deps;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;
