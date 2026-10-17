@@ -99,7 +99,7 @@ export async function listFilesFromDir (
     return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(dir, file)])) }
   }
   if (opts.packageRoot != null) {
-    // Walk the resolved directory, so a link retargeted after this check is not followed.
+    // Walk the resolved directory, so a link pointed elsewhere after this check is not followed.
     const start = await fs.realpath(dir)
     if (isOutside(await fs.realpath(opts.packageRoot), start)) {
       throw new PnpmError('INVALID_PATH', `Path "${dir}" is outside the package directory "${opts.packageRoot}"`)
