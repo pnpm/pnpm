@@ -8,6 +8,7 @@ use super::{
 };
 use crate::install::{Arc, Lockfile, PackageManifest, PathBuf};
 use pnpm_package_manifest::DependencyGroup;
+use std::collections::HashSet;
 
 /// The manifests of the dependencies `lockfile` records as injected into
 /// the importers of `inputs`, keyed by their directory, with
@@ -35,24 +36,31 @@ pub(super) async fn hooked_injected_manifests(
             extender.apply(manifest.manifest.value_mut());
         }
     }
-    if let Some(hook) = inputs.pnpmfile_hook {
-        for manifest in &mut injected {
-            // The resolver hands the hook the directory the lockfile records.
-            let ctx = pnpm_hooks::HookContext {
-                log: Arc::new(|_| {}),
-                dir: Some(manifest.recorded_directory.clone()),
-            };
-            let hooked = hook
-                .read_package(manifest.manifest.value().clone(), ctx)
-                .await
-                .map_err(FreshnessCheckError::ReadPackageHook)?;
-            *manifest.manifest.value_mut() = (*hooked).clone();
-        }
-    }
-    Ok(injected
-        .into_iter()
-        .map(|injected| (injected.dir, injected.manifest))
-        .collect())
+    let Some(hook) = inputs.pnpmfile_hook else {
+        return Ok(injected
+            .into_iter()
+            .map(|injected| (injected.dir, injected.manifest))
+            .collect());
+    };
+    futures_util::future::try_join_all(
+        injected
+            .into_iter()
+            .map(|injected| async move {
+                // The resolver hands the hook the directory the lockfile records.
+                let ctx = pnpm_hooks::HookContext {
+                    log: Arc::new(|_| {}),
+                    dir: Some(injected.recorded_directory),
+                };
+                let hooked = hook
+                    .read_package(injected.manifest.value().clone(), ctx)
+                    .await
+                    .map_err(FreshnessCheckError::ReadPackageHook)?;
+                let mut manifest = injected.manifest;
+                *manifest.value_mut() = (*hooked).clone();
+                Ok((injected.dir, manifest))
+            }),
+    )
+    .await
 }
 
 struct InjectedManifest {
@@ -71,17 +79,14 @@ fn unhooked_injected_manifests(
     );
     let workspace_root = inputs.config.workspace_dir.as_deref().unwrap_or(inputs.lockfile_dir);
     let mut manifests: Vec<InjectedManifest> = Vec::new();
+    let mut seen: HashSet<PathBuf> = HashSet::new();
     for (importer_id, _) in inputs.manifests {
         let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
         for dependency in lockfile.injected_dependencies(importer_id, groups) {
             let dir = pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(
                 &dependency.directory.directory,
             ));
-            if manifests_by_dir.contains_key(&dir)
-                || manifests
-                    .iter()
-                    .any(|seen| seen.dir == dir)
-            {
+            if manifests_by_dir.contains_key(&dir) || !seen.insert(dir.clone()) {
                 continue;
             }
             let Some(manifest) = unhooked_manifest(&InjectedDirectory {

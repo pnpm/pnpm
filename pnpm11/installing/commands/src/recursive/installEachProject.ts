@@ -191,7 +191,8 @@ async function installProject (
 
 async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
   if (opts.ignorePnpmfile) return {}
-  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
+  // The global pnpmfile is among the workspace hooks in `opts.hooks` already.
+  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, { ...opts, globalPnpmfile: undefined })
   return {
     ...opts.hooks,
     ...pnpmfileHooks,

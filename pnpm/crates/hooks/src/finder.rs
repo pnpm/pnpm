@@ -170,10 +170,9 @@ pub fn load_pnpmfiles(
 
 /// The pnpmfiles an install of a workspace project with its own lockfile
 /// runs: the project's own (see [`load_pnpmfiles`]), then the workspace
-/// root's that are not among them, global pnpmfile excluded. This is how pnpm
-/// v11 merges the hooks it loaded at the workspace root into each project's.
-/// The `pnpmfileChecksum` covers the project's pnpmfiles when the project
-/// defines any hooks, else the workspace root's.
+/// root's that are not among them, the global pnpmfile once. The
+/// `pnpmfileChecksum` covers the project's pnpmfiles when they define any
+/// hooks, else the workspace root's.
 pub fn load_workspace_project_pnpmfiles(
     project_dir: &Path,
     workspace_root: &Path,
@@ -308,10 +307,14 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
 
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
         let (project_hooks, workspace_hooks) = self.hooks.split_at(self.workspace_hooks_from);
+        let (global_hooks, project_hooks) = project_hooks.split_at(self.checksum_skips);
         let checksummed = if defines_hooks(project_hooks).await {
-            &project_hooks[self.checksum_skips..]
+            project_hooks
         } else if defines_hooks(workspace_hooks).await {
             workspace_hooks
+        } else if defines_hooks(global_hooks).await {
+            // A lone global pnpmfile still records a checksum, over no file.
+            project_hooks
         } else {
             return None;
         };

@@ -141,3 +141,23 @@ async fn workspace_project_pnpmfile_checksum_covers_the_root_pnpmfile_otherwise(
         Some(pnpm_crypto_hash::create_hash(ROOT_PNPMFILE)),
     );
 }
+
+/// The global pnpmfile is not the project's: with no pnpmfile of its own, the
+/// project's checksum covers the workspace root's.
+#[tokio::test]
+async fn workspace_project_pnpmfile_checksum_covers_the_root_pnpmfile_beside_a_global_one() {
+    let (tmp, project) = workspace_with_project(None);
+    let global = tmp.path().join("global.cjs");
+    std::fs::write(&global, PROJECT_PNPMFILE).expect("write global pnpmfile");
+    let hooks = finder::load_workspace_project_pnpmfiles(
+        &project,
+        tmp.path(),
+        finder::PnpmfileSelection { global: Some(&global), ..Default::default() },
+    )
+    .expect("no configured pnpmfile is missing")
+    .expect("the workspace root has a pnpmfile");
+    assert_eq!(
+        hooks.calculate_pnpmfile_checksum().await,
+        Some(pnpm_crypto_hash::create_hash(ROOT_PNPMFILE)),
+    );
+}
