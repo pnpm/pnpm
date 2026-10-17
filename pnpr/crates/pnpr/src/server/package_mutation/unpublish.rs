@@ -32,7 +32,10 @@ pub(crate) async fn delete_package(
     let storage = hosted_storage(state, Some(&target.org));
 
     let (maintainers, unpublished_versions) =
-        collect_package_tombstone_metadata(&storage, &name).await;
+        match collect_package_tombstone_metadata(&storage, &name).await {
+            Ok(metadata) => metadata,
+            Err(err) => return err.into_response(),
+        };
 
     let removed = match storage.remove_package(&name).await {
         Ok(removed) => removed,
@@ -59,22 +62,24 @@ pub(crate) async fn delete_package(
 async fn collect_package_tombstone_metadata(
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,
-) -> (Vec<String>, Vec<String>) {
+) -> Result<(Vec<String>, Vec<String>), RegistryError> {
     let mut maintainers = Vec::new();
     let mut unpublished_versions = Vec::new();
-    if let Ok(Some(existing_tombstone)) = storage.read_tombstone(name).await {
-        maintainers.extend(existing_tombstone.maintainers);
+    if let Some(existing_tombstone) = storage.read_tombstone(name).await? {
+        maintainers = existing_tombstone.maintainers;
         unpublished_versions.extend(existing_tombstone.unpublished_versions);
     }
-    let Ok(Some(doc)) = storage.read_hosted_document(name).await else {
-        return (maintainers, unpublished_versions);
-    };
-    let Ok(val) = serde_json::from_slice::<Value>(&doc) else {
-        return (maintainers, unpublished_versions);
-    };
-    collect_maintainers_from_value(&val, &mut maintainers);
-    collect_versions_from_value(&val, &mut unpublished_versions);
-    (maintainers, unpublished_versions)
+    if let Some(doc) = storage.read_hosted_document(name).await?
+        && let Ok(val) = serde_json::from_slice::<Value>(&doc)
+    {
+        let mut live_maintainers = Vec::new();
+        collect_maintainers_from_value(&val, &mut live_maintainers);
+        if !live_maintainers.is_empty() {
+            maintainers = live_maintainers;
+        }
+        collect_versions_from_value(&val, &mut unpublished_versions);
+    }
+    Ok((maintainers, unpublished_versions))
 }
 
 fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
@@ -144,6 +149,11 @@ pub(crate) async fn delete_tarball(
     };
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let storage = hosted_storage(state, Some(&target.org));
+    match package_exists(&storage, &name).await {
+        Ok(true) => {}
+        Ok(false) => return RegistryError::NotFound.into_response(),
+        Err(err) => return err.into_response(),
+    }
     let removed = match storage.remove_blob(&name, &canonical).await {
         Ok(removed) => removed,
         Err(err) => return err.into_response(),
@@ -151,9 +161,10 @@ pub(crate) async fn delete_tarball(
     let sigstore_name = name.sigstore_name_for_version(&version);
     let _ = storage.remove_blob(&name, &sigstore_name).await;
 
-    record_tarball_tombstone(&storage, identity, &name, &version).await;
-
     if removed {
+        if let Err(err) = record_tarball_tombstone(&storage, identity, &name, &version).await {
+            return err.into_response();
+        }
         log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
     }
     ok_created_response()
@@ -184,15 +195,25 @@ async fn resolve_and_authorize_unpublish(
     Ok(target)
 }
 
+async fn package_exists(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+) -> Result<bool, RegistryError> {
+    if storage.read_hosted_document(name).await?.is_some() {
+        return Ok(true);
+    }
+    Ok(storage.read_tombstone(name).await?.is_some())
+}
+
 async fn record_tarball_tombstone(
     storage: &pnpr_storage::Storage,
     identity: &Identity,
     name: &CanonicalPackageName,
     version: &str,
-) {
-    let mut tombstone = match storage.read_tombstone(name).await {
-        Ok(Some(existing)) => existing,
-        _ => PackageTombstone {
+) -> Result<(), RegistryError> {
+    let mut tombstone = match storage.read_tombstone(name).await? {
+        Some(existing) => existing,
+        None => PackageTombstone {
             package: name.as_str().to_string(),
             unpublished_by: identity.username().map(ToString::to_string),
             unpublished_at: chrono::Utc::now().to_rfc3339(),
@@ -205,8 +226,9 @@ async fn record_tarball_tombstone(
         .any(|existing| existing == version)
     {
         tombstone.unpublished_versions.push(version.to_string());
-        let _ = storage.write_tombstone(&tombstone).await;
+        storage.write_tombstone(&tombstone).await?;
     }
+    Ok(())
 }
 
 async fn read_maintainers_from_storage(

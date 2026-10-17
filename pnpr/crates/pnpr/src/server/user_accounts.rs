@@ -65,20 +65,16 @@ pub(crate) async fn get_user(
     let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
         return not_found();
     };
-    match check_user_exists(&state, name).await {
-        Ok(true) => {
-            let is_admin = state.inner.config.identity.admins.contains(name);
-            let roles = if is_admin { vec!["admin"] } else { Vec::new() };
-            json_response(
-                StatusCode::OK,
-                &json!({
-                    "_id": format!("org.couchdb.user:{name}"),
-                    "name": name,
-                    "email": "",
-                    "roles": roles,
-                }),
-            )
-        }
+    private_no_cache(match check_user_exists(&state, name).await {
+        Ok(true) => json_response(
+            StatusCode::OK,
+            &json!({
+                "_id": format!("org.couchdb.user:{name}"),
+                "name": name,
+                "email": "",
+                "roles": [],
+            }),
+        ),
         Ok(false) => (
             StatusCode::NOT_FOUND,
             [(header::CONTENT_TYPE, "application/json")],
@@ -90,19 +86,21 @@ pub(crate) async fn get_user(
         )
             .into_response(),
         Err(err) => err.into_response(),
-    }
+    })
 }
 
 pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bool, RegistryError> {
     if super::scim::is_deprovisioned(state, name)? {
         return Ok(false);
     }
-    if is_reserved_username(state, name) {
+    let users = &state.inner.identity.auth.users;
+    if users.password_hash(name).await?.is_some() {
         return Ok(true);
     }
-    let users = &state.inner.identity.auth.users;
-    let exists = users.password_hash(name).await?.is_some();
-    Ok(exists)
+    if super::scim::is_active_scim_user(state, name).await? {
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 /// The account routes capture their own parameter alongside the optional
@@ -222,7 +220,8 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
-        if is_reserved_username(state, name) {
+        if is_reserved_username(state, name) || super::scim::is_active_scim_user(state, name).await?
+        {
             return Err(RegistryError::ReservedUsername { name: name.to_string() });
         }
         // Tokens a removed account left behind must not reach the account

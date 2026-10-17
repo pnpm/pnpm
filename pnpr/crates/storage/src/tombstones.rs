@@ -1,4 +1,4 @@
-use super::{CanonicalPackageName, Result, Storage};
+use super::{CanonicalPackageName, DocumentWrite, Result, Storage};
 use serde::{Deserialize, Serialize};
 
 /// Reserved namespace for package tombstones.
@@ -37,14 +37,31 @@ impl Storage {
         Ok(Some(tombstone))
     }
 
+    async fn try_write_tombstone(&self, key: &str, bytes: &[u8]) -> Result<DocumentWrite> {
+        let Some(current) = self.hosted.read_record(TOMBSTONES_NAMESPACE, key).await? else {
+            if self.hosted.create_record(TOMBSTONES_NAMESPACE, key, bytes).await? {
+                return Ok(DocumentWrite::Written);
+            }
+            return Ok(DocumentWrite::Conflict);
+        };
+        self.hosted.replace_record_if_current(TOMBSTONES_NAMESPACE, key, &current, bytes).await
+    }
+
     pub async fn write_tombstone(&self, tombstone: &PackageTombstone) -> Result<()> {
         let name =
             CanonicalPackageName::parse(&tombstone.package, pnpr_package_name::Ecosystem::Npm)?;
         let key = tombstone_key(&name);
         let bytes = serde_json::to_vec_pretty(tombstone).map_err(pnpr_error::RegistryError::Json)?;
-        let _ = self.hosted.remove_record(TOMBSTONES_NAMESPACE, &key).await;
-        self.hosted.create_record(TOMBSTONES_NAMESPACE, &key, &bytes).await?;
-        Ok(())
+        for attempt in 0..5 {
+            if self.try_write_tombstone(&key, &bytes).await? == DocumentWrite::Written {
+                return Ok(());
+            }
+            if attempt + 1 < 5 {
+                tokio::time::sleep(std::time::Duration::from_millis(10 * (attempt + 1) as u64))
+                    .await;
+            }
+        }
+        Err(pnpr_error::RegistryError::DocumentWriteConflict { package: tombstone.package.clone() })
     }
 
     pub async fn remove_tombstone(&self, name: &CanonicalPackageName) -> Result<bool> {

@@ -375,6 +375,7 @@ pub(super) async fn is_package_owner(
     identity: &Identity,
     package: &str,
     org: Option<&str>,
+    action: Action,
 ) -> Result<bool, RegistryError> {
     let Some(username) = identity.username() else {
         return Ok(false);
@@ -406,8 +407,8 @@ pub(super) async fn is_package_owner(
             .iter()
             .any(|maintainer| maintainer == username));
     }
-    // Brand new package: initial publish claims the package
-    Ok(true)
+    // Brand new package: initial publish claims the package; cannot unpublish nonexistent package
+    Ok(matches!(action, Action::Publish))
 }
 
 pub(super) async fn authorize_package(
@@ -429,7 +430,7 @@ pub(super) async fn authorize_package(
         return Ok(());
     }
     if list.references_owners() && identity.is_authenticated() {
-        let is_owner = is_package_owner(state, identity, package, org).await?;
+        let is_owner = is_package_owner(state, identity, package, org, action).await?;
         if list.allows_with_context(identity, is_owner) {
             return Ok(());
         }

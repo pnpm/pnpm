@@ -94,8 +94,18 @@ impl UserStore {
         }
     }
 
+    fn sync_from_disk_if_path(&self) {
+        if let Some(path) = &self.path
+            && let Ok(raw) = std::fs::read_to_string(path)
+            && let Ok(fresh) = parse_htpasswd(&raw)
+        {
+            *self.users.lock().unwrap_or_else(PoisonError::into_inner) = fresh;
+        }
+    }
+
     /// Whether `username` is stored.
     pub(crate) fn holds(&self, username: &str) -> bool {
+        self.sync_from_disk_if_path();
         self.snapshot().contains_key(username)
     }
 
@@ -117,6 +127,30 @@ impl UserStore {
         Ok(())
     }
 
+    fn load_users_for_update(
+        path: Option<&std::path::Path>,
+        users: &Arc<Mutex<Users>>,
+    ) -> Result<Users> {
+        let Some(path) = path else {
+            return Ok(users
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone());
+        };
+        match std::fs::read_to_string(path) {
+            Ok(raw) => parse_htpasswd(&raw)
+                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                    path: path.display().to_string(),
+                    reason,
+                }),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(users
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     /// Apply `edit` to a copy of the users. When it reports a write, save
     /// the copy to the file, then make it the current users.
     ///
@@ -134,10 +168,7 @@ impl UserStore {
         let path = self.path.clone();
         tokio::task::spawn_blocking(move || {
             let _edit = edit_lock.lock().unwrap_or_else(PoisonError::into_inner);
-            let mut next = users
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clone();
+            let mut next = Self::load_users_for_update(path.as_deref(), &users)?;
             let out = match edit(&mut next)? {
                 Change::Keep(out) => return Ok(out),
                 Change::Write(out) => out,
@@ -197,6 +228,7 @@ impl UserBackend for UserStore {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        self.sync_from_disk_if_path();
 
         let existing_hash = self.snapshot().get(username).cloned();
         if let Some(stored) = existing_hash {
@@ -234,6 +266,7 @@ impl UserBackend for UserStore {
     }
 
     async fn list_users(&self) -> Result<Vec<String>> {
+        self.sync_from_disk_if_path();
         let mut names: Vec<String> = self
             .snapshot()
             .keys()
@@ -244,6 +277,7 @@ impl UserBackend for UserStore {
     }
 
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        self.sync_from_disk_if_path();
         Ok(self.snapshot().get(username).cloned())
     }
 

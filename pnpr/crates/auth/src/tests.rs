@@ -1018,3 +1018,42 @@ async fn tokens_scopes_and_kind_persist_across_reopen() {
     assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
     assert_eq!(looked_up.kind.as_deref(), Some("granular"));
 }
+
+#[tokio::test]
+async fn file_backed_user_store_picks_up_external_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store1 = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+    let store2 = UserStore::open(htpasswd_path, MaxUsers::Unlimited).unwrap();
+
+    assert!(store1.create_user("alice", "pass1").await.unwrap());
+    // store2 (simulating a running server or other process) should observe alice
+    assert!(
+        store2
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    // store2 updates alice's password
+    assert!(store2.set_password("alice", "pass2").await.unwrap());
+    // store1 adds bob
+    assert!(store1.create_user("bob", "pass3").await.unwrap());
+
+    // Both stores should observe both alice and bob without losing either edit
+    assert!(
+        store2
+            .password_hash("bob")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        store1
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+}

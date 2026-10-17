@@ -123,12 +123,24 @@ async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
 async fn get_couchdb_user_endpoint() {
     let (_dir, config) = config_with_packages(
         "packages:\n  '**':\n    access: $all\n    publish: $authenticated\n",
-        &["admin_alice"],
+        &["admin_alice", "unprovisioned_admin"],
     );
     let app = app_router(config, &["admin_alice"]).await;
     let (app, _) = add_user_and_get_token(app, "normal_bob", "secret123").await;
 
-    // Check configured admin user
+    // Check unprovisioned admin user returns NOT_FOUND
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/user/org.couchdb.user:unprovisioned_admin")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Check provisioned admin user
     let response = app
         .clone()
         .oneshot(
@@ -142,7 +154,7 @@ async fn get_couchdb_user_endpoint() {
     let doc = body_json(response.into_body()).await;
     assert_eq!(doc["name"], "admin_alice");
     assert_eq!(doc["_id"], "org.couchdb.user:admin_alice");
-    assert_eq!(doc["roles"], json!(["admin"]));
+    assert_eq!(doc["roles"], json!([]));
 
     // Check normal user in htpasswd auth backend
     let response = app
@@ -511,4 +523,31 @@ async fn scoped_package_ownership_and_unpublish() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn cannot_unpublish_or_lock_nonexistent_package() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  '**':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &["admin_alice"],
+    );
+    let app = app_router(config, &["admin_alice"]).await;
+    let (app, eve_token) = add_user_and_get_token(app, "eve", "secret123").await;
+
+    // Eve tries to DELETE a tarball for a nonexistent package
+    let res = app
+        .clone()
+        .oneshot(authed_delete("/unclaimed-pkg/-/unclaimed-pkg-1.0.0.tgz/-rev/1", &eve_token))
+        .await
+        .unwrap();
+    assert!(res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::NOT_FOUND);
+
+    // Eve can still claim the package normally by publishing it first
+    let doc = publish_doc("unclaimed-pkg", "1.0.0", b"legit");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/unclaimed-pkg", &eve_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
 }

@@ -142,11 +142,11 @@ async fn rewrite_packument(
 }
 
 fn preserve_existing_maintainers(hosted: &Value, packument: &mut Value) {
-    if packument.get("maintainers").is_none()
-        && let Some(existing) = hosted.get("maintainers")
-        && let Some(obj) = packument.as_object_mut()
-    {
+    let Some(obj) = packument.as_object_mut() else { return };
+    if let Some(existing) = hosted.get("maintainers") {
         obj.insert("maintainers".to_string(), existing.clone());
+    } else {
+        obj.remove("maintainers");
     }
 }
 

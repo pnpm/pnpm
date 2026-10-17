@@ -383,3 +383,58 @@ fn teams_managed_by_is_hosted_only() {
     Config::from_yaml_str(upstream, Path::new("/x"), listen(), None)
         .expect_err("an upstream has no roster to manage");
 }
+
+#[test]
+fn owners_token_rejected_in_read_access_and_accepted_in_publish() {
+    let bad_package_access = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    packages:
+      '**':
+        access: $owners
+        publish: $authenticated
+";
+    let err = Config::from_yaml_str(bad_package_access, Path::new("/x"), listen(), None)
+        .expect_err("$owners cannot be used for read access");
+    assert!(err.to_string().contains("$owners"), "{err}");
+
+    let bad_registry_access = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    access: $owners
+";
+    let err = Config::from_yaml_str(bad_registry_access, Path::new("/x"), listen(), None)
+        .expect_err("$owners cannot be used for registry access");
+    assert!(err.to_string().contains("$owners"), "{err}");
+
+    let good_publish_unpublish = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    packages:
+      '**':
+        access: $all
+        publish: $owners
+        unpublish: $owners
+";
+    let config =
+        Config::from_yaml_str(good_publish_unpublish, Path::new("/x"), listen(), None).unwrap();
+    let snapshot = config.routing.hosted["local"].rules.snapshot();
+    assert!(
+        snapshot.rules()[0].publish
+            .as_ref()
+            .unwrap()
+            .references_owners(),
+    );
+    assert!(
+        snapshot.rules()[0].unpublish
+            .as_ref()
+            .unwrap()
+            .references_owners(),
+    );
+}

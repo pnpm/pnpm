@@ -105,8 +105,7 @@ pub enum Command {
     AddUser {
         /// Username of the account to create or update.
         username: String,
-        /// Password for the account. Prompted from stdin if omitted.
-        #[arg(long)]
+        #[arg(skip)]
         password: Option<String>,
     },
 }

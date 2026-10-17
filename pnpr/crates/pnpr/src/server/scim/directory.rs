@@ -119,6 +119,21 @@ pub(in super::super) fn is_deprovisioned(
         .contains(username))
 }
 
+/// Whether a user exists and is active in the SCIM directory.
+pub(in super::super) async fn is_active_scim_user(
+    state: &AppState,
+    username: &str,
+) -> Result<bool, RegistryError> {
+    if state.inner.identity.managed.scim.is_none() {
+        return Ok(false);
+    }
+    if is_deprovisioned(state, username)? {
+        return Ok(false);
+    }
+    let (directory, _) = read_directory(state).await?;
+    Ok(directory.users.get(username).is_some_and(|user| user.active))
+}
+
 /// Read the directory and publish its inactive usernames. After a failed read
 /// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
 /// succeeded.
