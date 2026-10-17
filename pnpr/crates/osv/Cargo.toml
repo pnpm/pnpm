@@ -23,6 +23,7 @@ tracing = { workspace = true }
 zip = { workspace = true }
 
 [dev-dependencies]
+pnpr-fixtures = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 

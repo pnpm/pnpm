@@ -114,32 +114,6 @@ fn resolve_relative_joins_relative_paths_to_base() {
 }
 
 #[test]
-fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use pnpr_registry::{ConcreteKind, Resolved};
-    let config = Config::proxy(listen(), PathBuf::from("/tmp"));
-    assert!(config.routing.upstreams.contains_key("npmjs"));
-    assert_eq!(config.routing.registries.default_registry(), Some("main"));
-    // The flat-root hosted org serves the registry-mock fixture scopes.
-    assert_eq!(config.routing.hosted["local"].org, "");
-    assert_eq!(
-        config.routing.registries.resolve_default(
-            Ecosystem::Npm,
-            "@pnpm.e2e/dep-of-pkg-with-1-dep"
-        ),
-        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-    );
-    assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
-        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-    );
-    // Everything else proxies to the npm upstream.
-    assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "is-positive"),
-        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
-    );
-}
-
-#[test]
 fn backend_defaults_to_local_without_a_block() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
@@ -532,37 +506,23 @@ packages:
 
 #[test]
 fn bundled_default_config_enforces_its_protections() {
-    // The bundled YAML is the only place the registry-mock protections are
-    // declared, so building from it must yield every one of them.
-    let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    let rules = &config.routing.hosted["local"].rules;
-    // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
-    // specificity (both are declared, in either order).
-    let table = rules.snapshot();
-    let needs_auth = table.for_package("@pnpm.e2e/needs-auth");
-    assert!(!needs_auth.access.allows(&Identity::Anonymous));
-    assert!(needs_auth.access.allows(&user("alice")));
-    assert!(
-        !rules
-            .snapshot()
-            .for_package("@private/foo")
-            .access
-            .allows(&Identity::Anonymous),
-    );
-    let table = rules.snapshot();
-    let public = table.for_package("@pnpm.e2e/no-deps");
-    assert!(public.access.allows(&Identity::Anonymous));
-    assert!(!public.publish.allows(&Identity::Anonymous));
-    // The registry-mock contract: any authenticated user may unpublish.
-    assert!(public.unpublish.allows(&user("alice")));
-    assert!(!public.unpublish.allows(&Identity::Anonymous));
-    // `lodash` is not local: it is unclaimed by the hosted registry and
-    // resolves to the npmjs catch-all through the router.
     use pnpr_registry::{ConcreteKind, Resolved};
+    // The bundled YAML provides production-safe defaults: registration disabled,
+    // default public npmjs proxy, and an empty local hosted registry.
+    let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
+    assert!(config.routing.hosted.contains_key("local"));
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
+    assert_eq!(
+        config.routing.registries.resolve("local", Ecosystem::Npm, "private-pkg"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.resolution_cache_secret.len(), 32);
 }
 
 #[test]

@@ -9,6 +9,7 @@ use axum::{
 };
 use npm::{publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

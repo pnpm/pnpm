@@ -8,6 +8,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

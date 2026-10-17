@@ -12,6 +12,7 @@ use axum::{
 use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

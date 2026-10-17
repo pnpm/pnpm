@@ -5,6 +5,7 @@ use super::{
     router, router_with_auth, seed_hosted, seed_hosted_with_maintainer, to_bytes,
 };
 use crate::tokens::issue_token;
+use pnpr_fixtures::MockConfigPresets;
 
 #[tokio::test]
 async fn search_paginates_visible_results_and_filters_by_maintainer() {

@@ -13,6 +13,7 @@
 //! content resolves only when the pnpr server is configured with an
 //! access-bearing upstream the caller is authorized to use.
 
+use pnpr_fixtures::MockConfigPresets;
 use std::{
     collections::{BTreeMap, HashSet},
     net::{Ipv4Addr, SocketAddr},

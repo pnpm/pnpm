@@ -12,6 +12,7 @@ use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
     UpsertOutcome, UserBackend, router, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     fmt::Write as _,

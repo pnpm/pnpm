@@ -7,6 +7,7 @@ use pnpr::{
     AccessList, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules, Registries,
     Registry, UpstreamConfig,
 };
+use pnpr_fixtures::MockConfigPresets;
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
 use std::{

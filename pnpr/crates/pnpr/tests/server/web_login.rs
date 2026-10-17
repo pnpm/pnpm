@@ -2,6 +2,7 @@ use super::{
     Body, Config, Ipv4Addr, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode, TempDir,
     body_bytes, body_json, header, json, router,
 };
+use pnpr_fixtures::MockConfigPresets;
 
 fn config_without_oidc(storage: &TempDir) -> Config {
     let mut config = Config::static_serve(

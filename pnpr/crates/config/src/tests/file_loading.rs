@@ -73,16 +73,12 @@ fn from_default_yaml_parses_bundled_file() {
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
-    // The bundled file routes fixture scopes, the fixture packages living in
-    // real npm scopes, and test-published names to the local hosted org, and
-    // everything else — including the rest of those real scopes — to npmjs.
-    for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
-        assert_eq!(
-            config.routing.registries.resolve_default(Ecosystem::Npm, local),
-            Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-            "{local} must be hosted",
-        );
-    }
+    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
+    assert!(config.routing.hosted.contains_key("local"));
+    assert_eq!(config.logs.level, LogLevel::Info);
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.resolution_cache_secret.len(), 32);
+    // The bundled file defaults to npmjs, proxying public npm packages.
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
             config.routing.registries.resolve_default(Ecosystem::Npm, upstream),
@@ -90,6 +86,13 @@ fn from_default_yaml_parses_bundled_file() {
             "{upstream} must proxy npm",
         );
     }
+    assert_eq!(
+        config.routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    let rules = &config.routing.hosted["local"].rules;
+    assert!(!rules.access_admits("my-pkg", &super::Identity::Anonymous));
+    assert!(rules.access_admits("my-pkg", &super::Identity::user("alice")));
 }
 
 #[test]

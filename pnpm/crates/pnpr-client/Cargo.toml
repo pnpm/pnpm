@@ -38,6 +38,7 @@ base64 = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }
 pnpr = { workspace = true }
+pnpr-fixtures = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

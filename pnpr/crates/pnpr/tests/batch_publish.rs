@@ -11,6 +11,7 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use npm::{publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

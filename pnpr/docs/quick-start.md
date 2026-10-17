@@ -58,8 +58,8 @@ pnpr -c ./pnpr.yaml
 ```
 
 It listens on `127.0.0.1:7677`. (Running plain `pnpr` with no config works
-too, but the bundled default config is shaped for pnpm's own test registry —
-for anything real, pass your own config.)
+too, using the minimal production default that proxies npmjs and provides
+a local hosted registry at `/~local/`.)
 
 ## Point a client at it
 

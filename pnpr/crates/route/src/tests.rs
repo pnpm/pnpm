@@ -9,6 +9,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
+use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, Identity, RuleOverride};
 
 fn base_config() -> Config {
