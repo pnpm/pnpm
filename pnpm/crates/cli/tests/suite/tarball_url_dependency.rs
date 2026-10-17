@@ -927,7 +927,7 @@ fn remote_tarball_peer_of_a_linked_package_uses_the_manifest_version() {
             assert_eq!(
                 output.status.success(),
                 version == "1.0.0",
-                "provider {version}:\n{combined}"
+                "provider {version}:\n{combined}",
             );
             if version == "2.0.0" {
                 assert!(combined.contains("Installed: 2.0.0"), "{combined}");
