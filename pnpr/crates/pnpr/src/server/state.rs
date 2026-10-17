@@ -48,6 +48,7 @@ pub(super) struct ProxyState {
     /// every packument and tarball served through an upstream registry.
     pub(super) cache_namespaces: IndexMap<String, String>,
     pub(super) packument_singleflight: PackumentSingleflight,
+    pub(super) tar_variants: super::TarVariantQueue,
 }
 
 pub(super) struct MutationLocks {
@@ -122,6 +123,7 @@ impl ProxyState {
             upstreams,
             cache_namespaces: upstream_cache_namespaces,
             packument_singleflight: Singleflight::new(),
+            tar_variants: super::TarVariantQueue::new(),
         }
     }
 }

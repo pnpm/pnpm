@@ -1,7 +1,8 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig,
     LogFormat, LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings,
-    ScimConfig, SystemEnv, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
+    ScimConfig, SystemEnv, TarballFormat, UpstreamAuthFile, default_storage_string,
+    env_replace_lossy, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -73,6 +74,10 @@ pub(super) struct HostedFile {
     /// every name, default rules.
     #[serde(default)]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
+    /// The format this registry serves tarballs in at its own URL. Omitted ⇒
+    /// `tgz`.
+    #[serde(default)]
+    pub(super) tarballs: Option<TarballFormat>,
 }
 
 /// Disk shape of an `upstream:` registry — one external origin. Mirrors an
@@ -132,6 +137,10 @@ pub(super) struct UpstreamFile {
     /// arbitrary public names through its server-owned credential.
     #[serde(default)]
     pub(super) packages: IndexMap<String, Option<PackageAccess>>,
+    /// The format this registry serves tarballs in at its own URL. Omitted ⇒
+    /// `tgz`.
+    #[serde(default)]
+    pub(super) tarballs: Option<TarballFormat>,
 }
 
 /// Disk shape of a `router:` registry: an ordered list of concrete registry names.
@@ -141,6 +150,10 @@ pub(super) struct UpstreamFile {
 pub(super) struct RouterFile {
     #[serde(default)]
     pub(super) sources: Vec<String>,
+    /// The format this registry serves tarballs in at its own URL. Omitted ⇒
+    /// `tgz`.
+    #[serde(default)]
+    pub(super) tarballs: Option<TarballFormat>,
 }
 
 #[derive(Debug, Deserialize)]

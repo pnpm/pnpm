@@ -536,6 +536,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     auth_headers: &config.auth_headers,
                     retry_opts: pnpm_tarball::RetryOpts { retries: 0, ..Default::default() },
                     offline: true,
+                    tar_limits: pnpm_tarball::TarLimits::default(),
                 },
                 package: pnpm_tarball::TarballPackage {
                     integrity: None,

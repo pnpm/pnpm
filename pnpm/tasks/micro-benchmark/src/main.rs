@@ -167,6 +167,7 @@ async fn ingest_benchmark_package(
             retry_opts: RetryOpts::default(),
             auth_headers: &auth_headers,
             offline: false,
+            tar_limits: pnpm_tarball::TarLimits::default(),
         },
         store: pnpm_tarball::ArchiveStoreContext {
             dir: store_dir,

@@ -296,6 +296,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fetch_timeout, "FETCH_TIMEOUT");
         json_field!(settings, reader, fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
         json_field!(settings, reader, fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
+        json_field!(settings, reader, max_tarball_unpacked_size, "MAX_TARBALL_UNPACKED_SIZE");
         string_field!(settings, reader, user_agent, "USER_AGENT");
     }
 

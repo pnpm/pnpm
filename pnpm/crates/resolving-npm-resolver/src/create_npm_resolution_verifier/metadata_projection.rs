@@ -143,7 +143,7 @@ pub(super) fn project_artifact_history(
         current: crate::lookup_context::RegistryArtifact {
             revision: dist.revision.clone(),
             integrity: dist.integrity.clone(),
-            tarball: Some(dist.tarball.clone()),
+            tarball: (!dist.tarball.is_empty()).then(|| dist.tarball.clone()),
         },
         revisions,
     }

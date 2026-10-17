@@ -253,7 +253,7 @@ macro_rules! identically_named_settings {
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
-            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, max_tarball_unpacked_size, user_agent,
             tag_version_prefix,
             publish_wait_timeout,
             enable_global_virtual_store,

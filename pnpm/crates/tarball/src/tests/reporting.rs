@@ -29,6 +29,7 @@ async fn network_fetch_records_progress_key() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -103,6 +104,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -209,6 +211,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -249,6 +252,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -361,6 +365,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -412,6 +417,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),

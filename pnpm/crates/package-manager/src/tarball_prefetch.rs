@@ -82,6 +82,7 @@ pub(crate) struct PrefetchHttpClient {
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
     pub offline: bool,
+    pub tar_limits: pnpm_tarball::TarLimits,
 }
 
 pub(crate) struct TarballDownloadPackage {
@@ -437,6 +438,7 @@ impl PrefetchHttpClient {
             ),
             retry_opts: config.retry_opts(),
             offline: config.offline,
+            tar_limits: config.tar_limits(),
         }
     }
 
@@ -446,6 +448,7 @@ impl PrefetchHttpClient {
             auth_headers: &self.auth_headers,
             retry_opts: self.retry_opts,
             offline: self.offline,
+            tar_limits: self.tar_limits,
         }
     }
 }

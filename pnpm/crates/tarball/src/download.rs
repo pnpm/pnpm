@@ -4,19 +4,23 @@
 //! events the reporter renders during a fetch.
 
 pub(crate) use body::{BodyProgress, slow_download_warning};
+pub(crate) use buffered::{BufferedArchive, extract_tarball_buffer};
 pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 
 use super::{
-    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, Path, PathBuf,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    body_chunk_channel, extract_gzipped_tarball, local_file_tarball_path, non_gzip_body_error,
-    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
-    stream_extract_gzipped_channel, streaming_extract_semaphore,
+    Arc, BodyHasher, Duration, HashMap, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES,
+    NetworkError, Path, PathBuf, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys, TarLimits, TarballError,
+    VerifyChecksumError, allocate_tarball_buffer, body_chunk_channel,
+    content_coding::ContentCoding,
+    extract::{BodyChunkSender, ExtractedResource, StreamedResource},
+    extract_archive_bytes, extract_resource_stream,
+    extraction_task::spawn_extraction,
+    local_file_tarball_path, open_local_tarball, post_download_semaphore,
+    read_local_tarball_buffer, streaming_extract_semaphore,
 };
-use crate::{extract::BodyChunkSender, extraction_task::spawn_extraction};
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
     AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, is_permanent_error,
@@ -27,7 +31,7 @@ use pnpm_reporter::{
     Reporter, RequestRetryError,
 };
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, store_index_key};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tokio::sync::SemaphorePermit;
 
 /// Controls how archive files are projected into pnpm's content-addressable store.
@@ -220,7 +224,10 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
             "ERR_PNPM_TARBALL_STORE"
         }
         TarballError::TaskJoin(_) => "ERR_PNPM_TASK_JOIN",
-        TarballError::TarballTooLarge { .. } => "ERR_PNPM_TARBALL_TOO_LARGE",
+        TarballError::TarballTooLarge { .. } | TarballError::ArchiveLimit(_) => {
+            "ERR_PNPM_TARBALL_TOO_LARGE"
+        }
+        TarballError::UnsupportedContentEncoding { .. } => "ERR_PNPM_TARBALL_CONTENT_ENCODING",
         TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
         TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
@@ -259,8 +266,11 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         TarballError::FetchTarball(network) => !is_permanent_error(&network.error),
         TarballError::ReadLocalTarball { .. } => false,
         TarballError::WriteCasFile(write) => !is_storage_full(write),
-        // A route policy does not change between attempts.
-        TarballError::OffAllowlist { .. } => false,
+        // A route policy does not change between attempts, and neither does
+        // what a server sends that pnpm refuses to decode.
+        TarballError::OffAllowlist { .. }
+        | TarballError::UnsupportedContentEncoding { .. }
+        | TarballError::ArchiveLimit(_) => false,
         _ => true,
     }
 }
@@ -277,48 +287,6 @@ fn is_storage_full(error: &(dyn std::error::Error + 'static)) -> bool {
         source = error.source();
     }
     false
-}
-
-pub(crate) async fn extract_tarball_buffer(
-    buffer: Vec<u8>,
-    expected_integrity: Option<&Integrity>,
-    package_unpacked_size: Option<usize>,
-    package_url: &str,
-    store_dir: &'static StoreDir,
-    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    let expected_integrity = expected_integrity.cloned();
-    let package_url_owned = package_url.to_string();
-    let result = spawn_extraction(
-        post_download_permit,
-        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            let integrity = verify_tarball_integrity(
-                &buffer,
-                expected_integrity,
-                package_url_owned,
-            )?;
-            let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(
-                &buffer,
-                package_unpacked_size,
-                store_dir,
-                ignore_file_pattern.as_deref(),
-            )?;
-            Ok((integrity, cas_paths, pkg_files_idx))
-        },
-    )
-    .await
-    .map_err(TarballError::TaskJoin)??;
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
-
-    Ok(result)
 }
 
 pub(crate) fn verify_tarball_integrity(
@@ -352,12 +320,6 @@ impl<'a> BodyProgress<'a> {
             last_emitted_downloaded: 0,
             downloaded: 0,
             package_id,
-        }
-    }
-
-    pub(crate) fn on_chunks<Reporter: self::Reporter>(&mut self, chunks: &[bytes::Bytes]) {
-        for chunk in chunks {
-            self.on_chunk::<Reporter>(chunk.len());
         }
     }
 
@@ -432,6 +394,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     package_url: &str,
     expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     download_priority: u64,
     package_id: &str,
     requester: &str,
@@ -447,6 +410,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
         package_url,
         expected_integrity,
         package_unpacked_size,
+        tar_limits,
         download_priority,
         package_id,
         requester,
@@ -484,6 +448,7 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
     package_url: &str,
     expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     download_priority: u64,
     package_id: &str,
     requester: &str,
@@ -508,6 +473,7 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
                 package_url,
                 expected_integrity,
                 package_unpacked_size,
+                tar_limits,
                 download_priority,
                 package_id,
                 attempt,
@@ -538,9 +504,11 @@ pub(crate) fn store_index_cache_key(
 
 mod body;
 use body::{
-    BodyHasher, BufferBody, Buffered, advertises_large_body, buffer_body,
-    extract_body_while_downloading, starts_with_gzip_magic,
+    BodyVerification, BufferBody, Buffered, buffer_body, extract_body_while_downloading,
+    streams_while_downloading,
 };
+
+mod buffered;
 
 mod fetch;
 

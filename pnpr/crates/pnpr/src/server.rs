@@ -39,18 +39,30 @@ use osv_filtering::{
     is_osv_vulnerable_packument_version, resolve_version_or_tag,
 };
 
+mod tar_registry;
+use tar_registry::{
+    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, serve_package_tarball,
+    split_package_identifier, tar_integrities_of, tgz_integrity_key,
+};
+
+mod tar_responses;
+use tar_responses::{tar_integrity_of, tar_response};
+
+mod tar_variants;
+use tar_variants::{TarCopy, TarVariantQueue, open_variant};
+
 mod package_responses;
 use package_responses::{
-    DistBlock, TarballDist, expected_tarball_dist, packument_bytes_response, packument_response,
-    revision_tarball_response, tarball_integrity_error, tarball_response, tarball_stream_error,
-    tarball_stream_error_for_package,
+    DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
+    packument_response, revision_tarball_response, tarball_integrity_error, tarball_response,
+    tarball_stream_error, tarball_stream_error_for_package,
 };
 
 mod package_reads;
 use package_reads::{
     HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
     resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_tarball, serve_version_manifest,
+    serve_registry_tarball, serve_tarball, serve_version_manifest,
 };
 
 mod revision_refs;

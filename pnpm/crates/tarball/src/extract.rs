@@ -1,10 +1,12 @@
 //! Tarball decompression and entry extraction into the CAS.
 
+pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
 };
 pub(crate) use streaming::{
-    BodyChunkSender, STREAM_ENTRY_BUFFER_MAX, body_chunk_channel, stream_extract_gzipped_channel,
+    BodyChunkReceiver, BodyChunkSender, ExtractedResource, STREAM_ENTRY_BUFFER_MAX,
+    StreamedResource, body_chunk_channel, extract_resource_stream, stream_extract_channel,
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
 
@@ -101,6 +103,27 @@ pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
     )
 }
 
+/// Extract a fully buffered archive, a `.tgz` or a plain tar, into the CAFS.
+/// A body that opens with the gzip magic is a `.tgz`; any other body is a tar.
+pub(crate) fn extract_archive_bytes(
+    resource: &[u8],
+    unpacked_size: Option<usize>,
+    limits: TarLimits,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    if resource.starts_with(&GZIP_MAGIC) {
+        return extract_gzipped_tarball(
+            resource,
+            unpacked_size,
+            limits,
+            store_dir,
+            ignore_file_pattern,
+        );
+    }
+    extract_tarball_entries(resource, limits.for_tar(), store_dir, ignore_file_pattern)
+}
+
 /// Extract a fully buffered gzipped tarball into the CAFS through
 /// whichever of the two extractors suits its size.
 ///
@@ -112,12 +135,13 @@ pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
 /// before decoding, and [`decompress_gzip`]'s ceiling catches an
 /// archive that only turns out to be large once it inflates.
 ///
-/// No archive is refused for its size. Both outcomes route to
+/// No archive is refused for its size beyond `limits`. Both outcomes route to
 /// [`stream_extract_gzipped_tarball`], which decodes the same bytes
 /// with the same results in bounded memory.
 pub(crate) fn extract_gzipped_tarball(
     gz_data: &[u8],
     unpacked_size: Option<usize>,
+    limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
@@ -127,17 +151,17 @@ pub(crate) fn extract_gzipped_tarball(
     // that does not, or the other way round.
     let unpacked_size = unpacked_size.max(gzip_isize_hint(gz_data));
     if should_stream_extract(gz_data.len(), unpacked_size) {
-        return stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern);
+        return stream_extract_gzipped_tarball(gz_data, limits, store_dir, ignore_file_pattern);
     }
     match decompress_gzip(gz_data, unpacked_size) {
-        Ok(tar_data) => extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern),
+        Ok(tar_data) => extract_tarball_entries(&tar_data, limits, store_dir, ignore_file_pattern),
         Err(error) if is_eager_decode_limit_exceeded(&error) => {
             tracing::debug!(
                 target: "pacquet::download",
                 gz_data_len = gz_data.len(),
                 "archive inflated past the eager decode ceiling; extracting it as a stream",
             );
-            stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern)
+            stream_extract_gzipped_tarball(gz_data, limits, store_dir, ignore_file_pattern)
         }
         Err(error) => Err(error),
     }
@@ -171,20 +195,6 @@ pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
     usize::try_from(u32::from_le_bytes(trailer)).ok()
 }
 
-/// The decode error a body whose first bytes are not gzip will produce,
-/// raised from those bytes alone so a response that cannot be an
-/// archive is never buffered in full. `decode_gzip` rejects on the
-/// magic number, so the verdict does not depend on how much of the body
-/// has arrived.
-pub(crate) fn non_gzip_body_error(prefix_len: usize) -> TarballError {
-    let status = if prefix_len < GZIP_MAGIC.len() {
-        DecodeErrorStatus::InsufficientData
-    } else {
-        DecodeErrorStatus::CorruptData
-    };
-    TarballError::DecodeGzip(zune_inflate::errors::InflateDecodeErrors::new_with_error(status))
-}
-
 /// First bytes of every gzip member, and all a reader needs to tell an
 /// archive from whatever else a server might answer with.
 pub(crate) const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
@@ -208,7 +218,7 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// contiguous buffer, which for a large package multiplies across every
 /// concurrently extracting task. Stream once either signal says the
 /// archive is large: the exact compressed length, or an unpacked-size
-/// claim ([`crate::extract_gzipped_tarball`] takes the larger of the
+/// claim ([`extract_gzipped_tarball`] takes the larger of the
 /// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
 /// attacker-controlled, but here it only picks between two correct
 /// extraction paths — a lying value costs at most the wrong path's
@@ -280,9 +290,11 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
 /// handling, so a mixed install against the shared `index.db` agrees.
 pub(crate) fn extract_tarball_entries(
     tar_data: &[u8],
+    limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let budget = TarBudget::new(limits);
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let entries = archive
@@ -306,6 +318,7 @@ pub(crate) fn extract_tarball_entries(
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        budget.announce_file(entry.size())?;
         let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
             continue;
         };
@@ -324,6 +337,7 @@ pub(crate) fn extract_tarball_entries(
             size: meta.size,
         });
     }
+    budget.check_buffered_end(tar_data, archive.into_inner().position())?;
 
     let written = write_pending_files(store_dir, &pending)?;
     Ok(assemble_extract_output(written, manifest, triggers.requires_build()))
@@ -587,6 +601,9 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
     }
     (!segments.is_empty()).then_some(segments)
 }
+
+mod limits;
+use limits::{MAX_NON_PAYLOAD_BYTES, TarBudget, check_trailer};
 
 mod streaming;
 

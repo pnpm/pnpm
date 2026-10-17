@@ -10,12 +10,12 @@ use super::{
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_install_state_dir, default_modules_cache_max_age,
-    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
-    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
-    default_unsafe_perm, default_user_agent, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_ci, npmrc_auth, side_effects_cache_remote_env,
-    workspace_yaml,
+    default_hoist_pattern, default_install_state_dir, default_max_tarball_unpacked_size,
+    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
+    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
+    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
+    side_effects_cache_remote_env, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -1013,6 +1013,12 @@ pub struct Config {
     #[default(_code = "default_fetch_min_speed_ki_bps()")]
     pub fetch_min_speed_ki_bps: u64,
 
+    /// Ceiling, in bytes, on the summed size of the files one package
+    /// archive may unpack to. The `maxTarballUnpackedSize` setting (default
+    /// 4 GiB). A tar's `dist.unpackedSize` can only lower it.
+    #[default(_code = "default_max_tarball_unpacked_size()")]
+    pub max_tarball_unpacked_size: u64,
+
     /// Value of the `User-Agent` header sent on every registry request.
     /// The `userAgent` setting; the default is the
     /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
@@ -1828,6 +1834,12 @@ pub struct Config {
 }
 
 impl Config {
+    /// The decoded-output budget archives are extracted under.
+    #[must_use]
+    pub fn tar_limits(&self) -> pnpm_tarball::TarLimits {
+        pnpm_tarball::TarLimits::new(self.max_tarball_unpacked_size)
+    }
+
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
     /// under [`force_ignores_platform`](Self::force_ignores_platform).

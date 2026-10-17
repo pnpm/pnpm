@@ -13,7 +13,7 @@ use super::{
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     IngestTarballToStore {
-fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false},
+fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false, tar_limits: crate::TarLimits::default()},
 package: crate::TarballPackage {integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
 store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
 
@@ -141,6 +141,7 @@ async fn falls_through_when_digest_is_malformed() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -215,6 +216,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
                 auth_headers: &AuthHeaders::default(),
                 retry_opts: test_retry_opts(),
                 offline: true,
+                tar_limits: crate::TarLimits::default(),
             },
             package: crate::TarballPackage {
                 integrity: package_integrity,
@@ -292,6 +294,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
         &url,
         Some(&pkg_integrity),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",
@@ -328,8 +331,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
             integrity: None,
             unpacked_size: None,
@@ -339,6 +341,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
         },
         auth_headers: &AuthHeaders::default(),
         retry_opts: fast_retry_opts(),
+        tar_limits: crate::TarLimits::default(),
         manifest_subdir: None,
         revision_addressed: false,
     }
@@ -383,6 +386,7 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
             url,
             Some(pinned),
             None,
+            crate::TarLimits::default(),
             0,
             "noise@1.0.0",
             "",
@@ -405,8 +409,8 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
 
     let err = fetch_err(&url, &matching, store_path).await;
     assert!(
-        matches!(err, TarballError::DecodeGzip(_)),
-        "a body that hashes correctly but is not gzip must report the decode failure, got {err:?}",
+        matches!(err, TarballError::ReadTarballEntries(_)),
+        "a body that hashes correctly but is neither gzip nor tar must report the parse failure, got {err:?}",
     );
 
     mock.assert_async().await;
@@ -434,6 +438,7 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
         &url,
         Some(&wrong),
         None,
+        crate::TarLimits::default(),
         0,
         "noise@1.0.0",
         "",
@@ -473,6 +478,7 @@ async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
         &url,
         Some(&wrong),
         None,
+        crate::TarLimits::default(),
         0,
         "noise@1.0.0",
         "",

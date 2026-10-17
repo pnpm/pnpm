@@ -194,13 +194,13 @@ impl Default for NetworkSettings {
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
-    default_clients: ClientPair,
+    default_clients: ClientSet,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
     /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present —
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
-    per_registry: tls::PerRegistryMap<ClientPair>,
+    per_registry: tls::PerRegistryMap<ClientSet>,
     /// Per-origin socket cap (the `maxSockets` setting), proxy socket cap,
     /// and the cap a fetch timeout lowers to one request.
     origin_limits: OriginLimits,
@@ -220,6 +220,23 @@ struct ClientPair {
 impl ClientPair {
     fn select(&self, follow_redirects: bool) -> &Client {
         if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
+    }
+}
+
+/// The clients one TLS configuration is served by, alike in everything but the
+/// two choices [`ClientSet::select`] makes.
+#[derive(Debug)]
+struct ClientSet {
+    decoding: ClientPair,
+    /// Leave `Content-Encoding` on the response, for a caller that decodes the
+    /// body itself.
+    archive: ClientPair,
+}
+
+impl ClientSet {
+    fn select(&self, follow_redirects: bool, decode_content: bool) -> &Client {
+        let pair = if decode_content { &self.decoding } else { &self.archive };
+        pair.select(follow_redirects)
     }
 }
 
@@ -436,7 +453,7 @@ impl ThrottledClient {
             permit,
             host_permit: None,
             origin_permit: None,
-            client: &self.default_clients.follow_redirects,
+            client: self.default_clients.select(true, true),
             acquired_at: Instant::now(),
         }
     }
@@ -486,6 +503,20 @@ impl ThrottledClient {
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
         self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
+    }
+
+    /// [`Self::acquire_for_url_with_priority`] for an archive download. The
+    /// client sends no `Accept-Encoding` and leaves the response's
+    /// `Content-Encoding` in place, so the caller negotiates and decodes the
+    /// content coding itself.
+    pub async fn acquire_archive_for_url_with_priority(
+        &self,
+        url: &str,
+        priority: u64,
+        follow_redirects: bool,
+    ) -> ThrottledClientGuard<'_> {
+        self.acquire_with_client(url, priority, |clients| clients.select(follow_redirects, false))
+            .await
     }
 }
 
@@ -584,8 +615,8 @@ use certificates::{AppliedTls, TrustRoots, apply_tls, load_node_extra_ca_certs, 
 
 mod client_builder;
 use client_builder::{
-    CappedDnsResolver, ClientBuildInputs, build_client_with_root_fallback, configured_proxy,
-    is_redirect_status,
+    CappedDnsResolver, ClientBuildInputs, ClientVariant, build_client_with_root_fallback,
+    configured_proxy, is_redirect_status,
 };
 use redirect_guard::MAX_REDIRECT_HOPS;
 

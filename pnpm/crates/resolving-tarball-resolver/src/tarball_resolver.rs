@@ -24,6 +24,7 @@ pub struct TarballFetchContext {
     pub mem_cache: Option<Arc<MemCache>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    pub tar_limits: pnpm_tarball::TarLimits,
     /// What the prior lockfile recorded for each remote-tarball entry,
     /// keyed by `pkg_id`. Lets a re-resolve reuse the already-extracted
     /// store content instead of re-downloading. Empty on a first install.
@@ -171,8 +172,7 @@ impl TarballResolver {
     ) -> FetchTarballForResolution<'a> {
         FetchTarballForResolution {
             http_client: &self.http_client,
-            store_dir: ctx.store.dir,
-            store_index_writer: ctx.store.index_writer.clone(),
+            store: ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
                 integrity: None,
                 unpacked_size: None,
@@ -182,6 +182,7 @@ impl TarballResolver {
             },
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
+            tar_limits: ctx.tar_limits,
             manifest_subdir: None,
             // A direct URL tarball carries no registry revision.
             revision_addressed: false,

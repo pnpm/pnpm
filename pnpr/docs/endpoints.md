@@ -182,12 +182,14 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}` | Scoped package packument. |
 | `GET` | `/{name}/{version-or-tag}` | Unscoped version manifest by exact version or dist-tag. |
 | `GET` | `/@scope/{name}/{version-or-tag}` | Scoped version manifest by exact version or dist-tag. |
-| `GET` | `/{name}/-/{filename}` | Unscoped tarball. |
-| `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. |
+| `GET` | `/{name}/-/{filename}` | Unscoped tarball. Not served by a [tar registry](configuration.md#tar-registries). |
+| `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. Not served by a tar registry. |
+| `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
+| `GET` | `/@scope/{name}@{version}` | Scoped tarball by exact version. |
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and, since v0.1.0-alpha.11, the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable artifact by its base64url SHA-512 digest, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). |
+| `GET` | `/-/tarballs/sha512/{digest}` | Immutable artifact by its base64url SHA-512 digest, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). Not served by a tar registry. |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.

@@ -124,7 +124,11 @@ impl TestRegistryInstance {
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
         // the npm upstream — matching how registry-mock served pacquet's tests.
         let mut config = match mode {
-            RegistryMode::Proxy => Config::proxy(listen, storage),
+            RegistryMode::Proxy => {
+                let mut config = Config::proxy(listen, storage);
+                pnpr_fixtures::with_tar_registry(&mut config);
+                config
+            }
             RegistryMode::Static => Config::static_serve(listen, storage),
         };
         config.http.public_url = url.trim_end_matches('/').to_string();

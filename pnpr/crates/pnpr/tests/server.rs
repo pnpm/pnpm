@@ -31,6 +31,9 @@ mod tarball_proxy;
 #[path = "server/packuments.rs"]
 mod packuments;
 
+#[path = "server/tar_registry.rs"]
+mod tar_registry;
+
 #[path = "server/packument_caching.rs"]
 mod packument_caching;
 

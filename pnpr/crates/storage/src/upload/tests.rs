@@ -398,13 +398,18 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
     let second = TempDir::new().unwrap();
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
-    let storage = |temp: &TempDir| Storage {
-        hosted: std::sync::Arc::new(crate::s3::S3Store::new(
-            std::sync::Arc::clone(&objects),
-            "images/".into(),
-            temp.path().join("scratch"),
-        )),
-        cached: crate::Store::new(temp.path().join("cache")),
+    let storage = |temp: &TempDir| {
+        let hosted: std::sync::Arc<dyn crate::backend::HostedBackend> =
+            std::sync::Arc::new(crate::s3::S3Store::new(
+                std::sync::Arc::clone(&objects),
+                "images/".into(),
+                temp.path().join("scratch"),
+            ));
+        Storage {
+            tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
+            hosted,
+            cached: crate::Store::new(temp.path().join("cache")),
+        }
     };
     (storage(&first), storage(&second), first, second)
 }

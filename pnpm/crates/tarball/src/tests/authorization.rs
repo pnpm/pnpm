@@ -54,8 +54,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
             integrity: None,
             unpacked_size: None,
@@ -65,6 +64,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         },
         auth_headers: &auth_headers,
         retry_opts: fast_retry_opts(),
+        tar_limits: crate::TarLimits::default(),
         manifest_subdir: None,
         revision_addressed: false,
     }
@@ -109,6 +109,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         &url,
         Some(&pkg_integrity),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",
@@ -152,6 +153,7 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
         &url,
         Some(&pkg_integrity),
         None,
+        crate::TarLimits::default(),
         0,
         "@scope/test-pkg@1.0.0",
         "",
@@ -209,6 +211,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         &url,
         Some(&pkg_integrity),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",

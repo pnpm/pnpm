@@ -1,8 +1,9 @@
 use super::{
-    Action, AppState, CacheValidators, CanonicalPackageName, Duration, Ecosystem, HeaderMap,
-    HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response, Upstream,
-    authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_read_namespace,
-    not_found, packument_response, resolve_registry_source, timed, upstream_cache_namespace,
+    Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
+    HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
+    Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
+    hosted_read_namespace, not_found, packument_response, resolve_registry_source, timed,
+    upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 use std::sync::Arc;
@@ -275,7 +276,7 @@ pub(super) async fn serve_packument_via_upstream(
     upstream: &str,
     name: &CanonicalPackageName,
     tarball_base: &str,
-    revision_registry: Option<&str>,
+    view: DistView<'_>,
 ) -> Response {
     let ttl = match authorized_upstream(state, identity, upstream) {
         Ok(upstream) => upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl),
@@ -290,7 +291,7 @@ pub(super) async fn serve_packument_via_upstream(
         name,
         &bytes,
         tarball_base,
-        revision_registry,
+        view,
         state.inner.osv_index.as_ref(),
         headers,
         ttl.as_secs(),

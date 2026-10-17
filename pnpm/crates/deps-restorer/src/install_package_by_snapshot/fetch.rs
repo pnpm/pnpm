@@ -209,6 +209,7 @@ impl InstallPackageBySnapshot<'_> {
                 auth_headers: &config.auth_headers,
                 retry_opts: config.retry_opts(),
                 offline: config.offline,
+                tar_limits: config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
                 integrity: metadata.resolution.checkable_integrity(),

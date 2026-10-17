@@ -80,6 +80,7 @@ pub struct GitFetchContext {
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    pub tar_limits: pnpm_tarball::TarLimits,
     /// Hosts that opt into `git init` + `git fetch --depth 1` instead
     /// of a full clone, for the repos with no archive endpoint. Mirrors
     /// `Config::git_shallow_hosts`.
@@ -278,8 +279,10 @@ async fn read_archive(
     // `resolved → found_in_store → imported` event ordering.
     FetchTarballForResolution {
         http_client: &ctx.http_client,
-        store_dir: ctx.store_dir,
-        store_index_writer: ctx.store_index_writer.clone(),
+        store: pnpm_tarball::ResolutionStore {
+            dir: ctx.store_dir,
+            index_writer: ctx.store_index_writer.clone(),
+        },
         // A git host's archive URL is the package's only identifier at
         // this point — its name is what this fetch is here to learn —
         // and such archives carry no scoped-registry auth or pinned hash.
@@ -292,6 +295,7 @@ async fn read_archive(
         },
         auth_headers: &ctx.auth_headers,
         retry_opts: ctx.retry_opts,
+        tar_limits: ctx.tar_limits,
         // `#path:/packages/foo` points at one directory of the repo; the
         // archive spans the whole repo, so its root `package.json` is
         // the repo's, not this package's.

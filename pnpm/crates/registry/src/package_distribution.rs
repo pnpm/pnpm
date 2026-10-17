@@ -14,6 +14,10 @@ pub struct PackageDistribution {
     /// version, on purpose.
     pub integrity: Option<Integrity>,
     pub shasum: Option<String>,
+    /// The tarball URL, or empty when the registry names none. A registry
+    /// with a declared URL layout may omit it, and the resolver then
+    /// rebuilds it from the package's identity.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tarball: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<serde_json::Value>,

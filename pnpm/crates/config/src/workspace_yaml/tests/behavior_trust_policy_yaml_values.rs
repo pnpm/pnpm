@@ -103,6 +103,7 @@ fn parses_registry_declarations_from_yaml_and_normalizes_the_keys() {
 registries:
   https://artifactory.example/artifactory/api/npm/npm-virtual: {serverType: artifactory}
   https://npm.example.com/: {serverType: npm}
+  https://pnpr.example/~zstd/: {serverType: pnpr}
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
@@ -118,6 +119,12 @@ registries:
             .get("https://npm.example.com/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Npm)),
+    );
+    assert_eq!(
+        config.registry_options_by_url
+            .get("https://pnpr.example/~zstd/")
+            .map(|options| options.server_type),
+        Some(Some(RegistryServerType::Pnpr)),
     );
 }
 

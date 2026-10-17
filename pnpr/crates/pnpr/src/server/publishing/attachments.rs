@@ -4,7 +4,7 @@ use super::{
     PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
     cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
     hosted_storage, integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
-    stream_decode_verify_and_write, write_sigstore_bundle,
+    stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
 };
 
 /// What kind of payload an attachment carries.
@@ -275,12 +275,31 @@ pub(super) async fn write_attachment_slot(
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
     let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
+    let tgz_integrity = match prepared.kind {
+        AttachmentKind::Tarball => prepared.dist.as_object().and_then(tgz_integrity_key),
+        AttachmentKind::Sigstore => None,
+    };
     let result = tokio::task::spawn_blocking(move || {
-        decode_and_write_attachment(&prepared.attachment, prepared.kind, &prepared.dist, &tmp_path)
+        decode_and_write_attachment(
+            &prepared.attachment,
+            prepared.kind,
+            &prepared.dist,
+            &tmp_path,
+        )?;
+        // A tar registry describes the version by the tar this `.tgz` decodes to.
+        let tar_integrity = tgz_integrity
+            .zip(std::fs::File::open(&tmp_path).ok())
+            .and_then(|(key, tgz)| Some((key, tar_integrity_of(std::io::BufReader::new(tgz))?)));
+        Ok::<_, RegistryError>(tar_integrity)
     })
     .await;
     match result {
-        Ok(Ok(())) => Ok(slot),
+        Ok(Ok(tar_integrity)) => {
+            if let Some((key, tar_integrity)) = tar_integrity {
+                storage.record_tar_integrity(name, &key, &tar_integrity.to_string()).await?;
+            }
+            Ok(slot)
+        }
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;

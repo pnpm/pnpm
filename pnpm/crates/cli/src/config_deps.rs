@@ -437,6 +437,7 @@ impl EnvInstallerContext {
             registries,
             retry_opts,
             offline: config.offline,
+            tar_limits: config.tar_limits(),
         };
         let resolver = network.resolver(config);
 
@@ -469,6 +470,7 @@ impl EnvInstallerContext {
                 auth_headers: &self.network.auth_headers,
                 retry_opts: self.network.retry_opts,
                 offline: self.network.offline,
+                tar_limits: self.network.tar_limits,
             },
             platform: pnpm_package_is_installable::InstallabilityOptions {
                 supported_architectures: None,

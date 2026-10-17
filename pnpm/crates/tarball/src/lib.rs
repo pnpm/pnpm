@@ -3,20 +3,23 @@ extern crate pnpm_http as reqwest;
 
 pub use archive_options::*;
 pub use archive_request::CacheHeaders;
+pub(crate) use body_hasher::BodyHasher;
 pub use bounded_reader::BoundedReader;
 pub use download::*;
 pub use error::*;
-pub use extract::read_buffered_tar_entry;
+pub use extract::{
+    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits, read_buffered_tar_entry,
+};
 pub(crate) use extract::{
-    GZIP_MAGIC, STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
     apply_placeholder_manifest, body_chunk_channel, clean_archive_entry_path, decompress_gzip,
-    extract_gzipped_tarball, is_eager_decode_limit_exceeded, non_gzip_body_error,
-    normalize_bundled_manifest, oversized_manifest_error, stream_extract_gzipped_channel,
-    tar_entry_payload,
+    extract_archive_bytes, extract_resource_stream, is_eager_decode_limit_exceeded,
+    normalize_bundled_manifest, oversized_manifest_error, tar_entry_payload,
 };
 pub use fetch_for_resolution::{
-    FetchTarballForResolution, NotModifiedResponse, ResolvedTarball, TarballResolutionFetch,
+    FetchTarballForResolution, NotModifiedResponse, ResolutionStore, ResolvedTarball,
+    TarballResolutionFetch,
 };
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;
@@ -27,7 +30,9 @@ pub use zip_archive::*;
 mod archive_options;
 mod archive_request;
 mod archive_retry;
+mod body_hasher;
 mod bounded_reader;
+mod content_coding;
 mod download;
 mod error;
 mod extract;
