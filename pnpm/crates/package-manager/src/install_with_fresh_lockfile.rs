@@ -369,7 +369,7 @@ pub(crate) struct FreshProjectInputs {
     /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
     /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
     /// behavior.
-    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
 }
 
 /// Output of [`InstallWithFreshLockfile::run`].

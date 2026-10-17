@@ -156,7 +156,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     )
     .await?;
     Ok(ResolverSetup {
-        workspace_packages: owned.projects.workspace_packages.take().map(Arc::new),
+        workspace_packages: owned.projects.workspace_packages.take(),
         completion_observer: resolution_observer,
         observer,
         shape,

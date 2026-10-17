@@ -115,19 +115,22 @@ impl State {
 
     /// Make this state's install one project's among the several a command
     /// runs: it shares `caches`, the tarball cache included, with the
-    /// others, and waits for `dependencies_installed` where its project's
-    /// installed dependencies start to matter.
+    /// others, waits for `dependencies_installed` where its project's
+    /// installed dependencies start to matter, and reads `workspace`, when
+    /// given, instead of walking the workspace.
     #[must_use]
     pub(crate) fn into_dedicated_project(
         self,
         caches: &DedicatedCaches,
         dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+        workspace: Option<pnpm_package_manager::DiscoveredWorkspace>,
     ) -> Self {
         State {
             tarball_mem_cache: Arc::clone(&caches.tarballs),
             dedicated: Some(DedicatedProjectInstall {
                 caches: caches.install.clone(),
                 dependencies_installed,
+                workspace,
             }),
             ..self
         }

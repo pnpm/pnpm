@@ -863,6 +863,37 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     );
 }
 
+/// A dedicated install reuses the command's workspace-package index only
+/// for the very project list it was built from, never for a selection's or
+/// an embedder's projects that merely look the same.
+#[test]
+fn discovered_workspace_index_serves_only_its_own_projects() {
+    let project = |name: &str| pnpm_workspace::Project {
+        root_dir: std::path::PathBuf::from("ws").join(name),
+        manifest: PackageManifest::from_value(
+            std::path::PathBuf::from("ws").join(name).join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0" }),
+        ),
+        dependency_manifest: None,
+    };
+    let workspace = crate::DiscoveredWorkspace::new(vec![project("lib")]);
+
+    let index = workspace
+        .packages_of(Some(&workspace.projects))
+        .expect("index of its own projects");
+    assert!(
+        index
+            .get("lib")
+            .is_some_and(|by_version| by_version.contains_key("1.0.0")),
+    );
+    assert!(
+        workspace
+            .packages_of(Some(&[project("lib")]))
+            .is_none(),
+    );
+    assert!(workspace.packages_of(None).is_none());
+}
+
 #[cfg(unix)]
 fn setup_symlinked_workspace(dir: &std::path::Path, outside: &std::path::Path) {
     let target_dir = outside.join("target-pkg");

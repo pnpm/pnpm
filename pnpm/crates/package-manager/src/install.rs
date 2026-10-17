@@ -414,6 +414,37 @@ pub struct DedicatedProjectInstall {
     /// installs of the workspace projects it depends on produce. `None`
     /// waits for nothing.
     pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+    /// The workspace the command already discovered, which the install
+    /// reads instead of walking the workspace itself. `None` walks it.
+    pub workspace: Option<DiscoveredWorkspace>,
+}
+
+/// Every project of a workspace and the workspace-package index built from
+/// them, discovered once for all the per-project installs of a command. The
+/// index is built the first time an install asks for it.
+#[derive(Clone)]
+pub struct DiscoveredWorkspace {
+    projects: Arc<[pnpm_workspace::Project]>,
+    packages: Arc<std::sync::OnceLock<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>>,
+}
+
+impl DiscoveredWorkspace {
+    #[must_use]
+    pub fn new(projects: Vec<pnpm_workspace::Project>) -> Self {
+        DiscoveredWorkspace { projects: Arc::from(projects), packages: Arc::default() }
+    }
+
+    /// The index of `projects` when they are this workspace's own list.
+    fn packages_of(
+        &self,
+        projects: Option<&[pnpm_workspace::Project]>,
+    ) -> Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
+        projects.filter(|projects| std::ptr::eq(*projects, Arc::as_ptr(&self.projects)))?;
+        let packages = self.packages.get_or_init(|| {
+            Arc::new(build_workspace_packages_map(Some(&self.projects)).unwrap_or_default())
+        });
+        Some(Arc::clone(packages))
+    }
 }
 
 /// Resolves once the installs of the workspace projects a project depends
