@@ -1239,8 +1239,7 @@ test('the release-age upgrade of a changed full document revalidates with its ne
  */
 // A full document is already the most complete form a registry serves, so a
 // pick that reads full metadata has nothing to upgrade to, even when the
-// registry omits `time`. Upgrading it downloaded the same document again
-// after every 304 and rewrote the full mirror without its ETag.
+// registry omits `time`.
 test('a full metadata pick of a document without time revalidates its mirror on later installs', async () => {
   const cacheDir = temporaryDirectory()
   const cachePath = path.join(cacheDir, `${FULL_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
@@ -1300,8 +1299,8 @@ function partialTimeMeta (): PackageMeta {
 }
 
 /**
- * Resolves once the file's mtime has moved off the epoch the test dated it
- * to, polling up to four times 500ms apart.
+ * Resolves once the existing file's mtime has moved off the epoch the test
+ * dated it to, polling up to four times 500ms apart. Throws when it has not.
  */
 async function waitForMtimeAfterEpoch (filePath: string): Promise<void> {
   /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */

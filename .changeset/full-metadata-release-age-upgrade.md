@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-With `minimumReleaseAge` set and full metadata in use, pnpm no longer downloads a package's metadata again after the registry confirms its cached copy is current. This applies to registries whose full metadata has no publish times.
+With `minimumReleaseAge` set and full metadata in use, pnpm now keeps using cached metadata that the registry confirms is current, also when that metadata has no publish times. Previously, pnpm downloaded such metadata again on every install.
