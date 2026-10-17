@@ -42,6 +42,8 @@ pub(super) struct DistBlock {
     /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
     #[serde(default)]
     pub(super) shasum: Option<String>,
+    #[serde(default, rename = "unpackedSize")]
+    pub(super) unpacked_size: Option<u64>,
 }
 
 pub(super) fn expected_tarball_dist(

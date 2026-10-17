@@ -64,7 +64,7 @@ impl BufferedExtraction {
         mut self,
     ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
         let body = std::mem::take(&mut self.buffer);
-        let resource = match decode_buffered_body(self.content_coding, body) {
+        let resource = match decode_buffered_body(self.content_coding, body, self.unpacked_size) {
             Ok(resource) => resource,
             Err(encoded) => return self.extract_encoded_stream(&encoded),
         };
@@ -106,12 +106,28 @@ impl BufferedExtraction {
 /// The resource a buffered body holds, with its content coding removed, as
 /// long as it fits under [`MAX_UNTRUSTED_PREALLOC_BYTES`]. A larger one, or
 /// one that does not decode, comes back as the encoded body to extract as a
-/// stream, whose diagnostics then report it.
-fn decode_buffered_body(content_coding: ContentCoding, body: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
+/// stream, whose diagnostics then report it. A body whose `unpacked_size` or
+/// zstd frame header already says it is larger is not decoded here at all.
+fn decode_buffered_body(
+    content_coding: ContentCoding,
+    body: Vec<u8>,
+    unpacked_size: Option<usize>,
+) -> Result<Vec<u8>, Vec<u8>> {
     if content_coding == ContentCoding::Identity {
         return Ok(body);
     }
     let limit = MAX_UNTRUSTED_PREALLOC_BYTES as u64;
+    let frame_size = match content_coding {
+        ContentCoding::Zstd => zstd::zstd_safe::get_frame_content_size(&body).ok().flatten(),
+        ContentCoding::Gzip | ContentCoding::Identity => None,
+    };
+    if [unpacked_size.map(|size| size as u64), frame_size]
+        .into_iter()
+        .flatten()
+        .any(|size| size > limit)
+    {
+        return Err(body);
+    }
     let mut decoded = Vec::new();
     let read = content_coding
         .decode(body.as_slice())
@@ -125,3 +141,6 @@ fn decode_buffered_body(content_coding: ContentCoding, body: Vec<u8>) -> Result<
         _ => Err(body),
     }
 }
+
+#[cfg(test)]
+mod tests;

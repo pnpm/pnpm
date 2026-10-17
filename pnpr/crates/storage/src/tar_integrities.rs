@@ -42,12 +42,21 @@ impl TarIntegrityCache {
         (cached.read_at.elapsed() < CACHE_TTL).then(|| Arc::clone(&cached.table))
     }
 
-    fn put(&self, name: &CanonicalPackageName, table: Table) {
+    /// Cache `table` as `name`'s table as of `read_at`, unless the cache
+    /// already holds a newer one: a read that started before a record
+    /// finished must not replace what the record wrote.
+    fn put(&self, name: &CanonicalPackageName, table: Table, read_at: Instant) {
         let mut tables = self.tables.lock().expect("tar integrity cache lock poisoned");
+        if tables
+            .get(name.as_str())
+            .is_some_and(|cached| cached.read_at > read_at)
+        {
+            return;
+        }
         if tables.len() >= CACHE_CAPACITY {
             tables.clear();
         }
-        tables.insert(name.as_str().to_string(), CachedTable { read_at: Instant::now(), table });
+        tables.insert(name.as_str().to_string(), CachedTable { read_at, table });
     }
 }
 
@@ -70,13 +79,14 @@ impl Storage {
         if let Some(table) = self.tar_integrity_cache.get(name) {
             return Ok(table);
         }
+        let read_at = Instant::now();
         let document = self.tar_integrities.read_document(name).await?;
         let table: Arc<BTreeMap<String, String>> = Arc::new(
             document
                 .and_then(|bytes| serde_json::from_slice(&bytes).ok())
                 .unwrap_or_default(),
         );
-        self.tar_integrity_cache.put(name, Arc::clone(&table));
+        self.tar_integrity_cache.put(name, Arc::clone(&table), read_at);
         Ok(table)
     }
 
@@ -120,10 +130,13 @@ impl Storage {
                 self.tar_integrities.write_document_if_current(name, &bytes, version.as_ref())
                     .await?;
             if write == DocumentWrite::Written {
-                self.tar_integrity_cache.put(name, Arc::new(table));
+                self.tar_integrity_cache.put(name, Arc::new(table), Instant::now());
                 return Ok(());
             }
         }
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

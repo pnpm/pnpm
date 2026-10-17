@@ -5,9 +5,10 @@ use super::{
     AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, HeaderMap, Identity,
     PackumentDists, RegistrySource, Response, StatusCode, TarSource, TarballOrigin, TgzTrust,
     UpstreamTarball, Value, addressed_registry, authorized_upstream, caller_scoped,
-    declared_tarball_integrity, is_tar_registry, not_found, read_source_packument,
-    resolve_registry_source, serve_bound_upstream_tarball, serve_registry_tarball, tar_response,
-    tarball_basename, tarball_cache_name, tgz_integrity_key, upstream_cache_namespace,
+    declared_tarball_integrity, ensure_osv_allowed, is_tar_registry, not_found,
+    read_source_packument, resolve_registry_source, serve_bound_upstream_tarball,
+    serve_registry_tarball, tar_decode_limit, tar_response, tarball_basename, tarball_cache_name,
+    tgz_integrity_key, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 
@@ -44,6 +45,11 @@ impl VersionRequest<'_> {
                 Ok(name) => name,
                 Err(err) => return err.into_response(),
             };
+        // Screen the requested version: a hosted manifest's tarball filename
+        // may name another version.
+        if let Err(err) = ensure_osv_allowed(self.state, &name, self.version) {
+            return err.into_response();
+        }
         let source = resolve_registry_source(self.state, self.target, name.as_str());
         let packument = match read_source_packument(self.state, self.identity, &source, &name).await
         {
@@ -71,26 +77,32 @@ impl VersionRequest<'_> {
         if !is_tar_registry(self.state, self.target) || response.status() != StatusCode::OK {
             return response;
         }
-        let source = self.tar_source(name, tgz.integrity_key, &source, trust).await;
+        let source = self.tar_source(name, tgz, &source, trust).await;
         tar_response(self.state, headers, response, source).await
     }
 
     async fn tar_source(
         &self,
         name: CanonicalPackageName,
-        tgz_integrity: Option<String>,
+        tgz: VersionTgz,
         source: &RegistrySource,
         trust: TgzTrust,
     ) -> TarSource {
-        let tar_integrity_known = match &tgz_integrity {
+        let tar_integrity_known = match &tgz.integrity_key {
             Some(key) => self.state.inner.storage
                 .read_tar_integrities(&name)
                 .await
                 .is_ok_and(|table| table.contains_key(key)),
             None => false,
         };
-        let keeps_content = keeps_content(self.state, source);
-        TarSource { name, tgz_integrity, keeps_content, trust, tar_integrity_known }
+        TarSource {
+            name,
+            tgz_integrity: tgz.integrity_key,
+            keeps_content: keeps_content(self.state, source),
+            trust,
+            tar_integrity_known,
+            decode_limit: tar_decode_limit(tgz.dist.unpacked_size),
+        }
     }
 
     /// Serve an upstream version from the dist already read, so the packument

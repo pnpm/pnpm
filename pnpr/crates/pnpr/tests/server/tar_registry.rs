@@ -1,7 +1,8 @@
 use super::{
     AuthState, Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt,
-    StatusCode, TempDir, body_bytes, body_json, config_for, header, hosted_publish_request,
-    hosted_with_access, router, router_with_auth, sha512_integrity,
+    StatusCode, TempDir, body_bytes, body_json, config_for, enable_osv, header,
+    hosted_publish_request, hosted_with_access, osv_database, router, router_with_auth,
+    sha512_integrity,
 };
 use crate::tokens::issue_token;
 use std::io::Write;
@@ -458,10 +459,23 @@ async fn a_tar_registry_serves_no_integrity_addressed_tgz() {
 #[tokio::test]
 async fn publishing_without_a_tar_registry_derives_no_tar_hash() {
     let tmp = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
     let mut config = acme_config(tmp.path().to_path_buf());
     config.routing.tar_registries.clear();
+    assert_publish_derives_no_tar_hash(config, tmp.path()).await;
+}
+
+#[tokio::test]
+async fn publishing_to_a_registry_no_tar_registry_reaches_derives_no_tar_hash() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.routing.tar_registries.clear();
+    config.routing.tar_registries.insert("npmjs".to_string());
+    assert_publish_derives_no_tar_hash(config, tmp.path()).await;
+}
+
+async fn assert_publish_derives_no_tar_hash(config: Config, storage: &std::path::Path) {
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let publish = app
         .clone()
@@ -475,12 +489,7 @@ async fn publishing_without_a_tar_registry_derives_no_tar_hash() {
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
-    assert!(
-        !tmp.path()
-            .join(".tar-integrity")
-            .exists(),
-        "no tar registry serves a tar hash",
-    );
+    assert!(!storage.join(".tar-integrity").exists(), "no tar registry serves a tar hash");
 }
 
 /// A version that only carries the legacy SHA-1 `shasum` still gets a tar.
@@ -566,4 +575,32 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     let encoded = get(&app, "/~zstd/@acme%2Fwidget@1.0.0", None).await;
     assert_eq!(encoded.status(), StatusCode::OK);
     assert_eq!(body_bytes(encoded.into_body()).await.as_slice(), tar.as_slice());
+}
+
+#[tokio::test]
+async fn the_version_route_refuses_a_vulnerable_version() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let osv = osv_database("@acme/widget", &["1.0.0"]);
+    let mut config = acme_config(tmp.path().to_path_buf());
+    enable_osv(&mut config, osv.path());
+    let app = router_with_auth(config, auth);
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &gzip(&widget_tar()),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    for path in ["/~zstd/@acme/widget@1.0.0", "/@acme/widget@1.0.0"] {
+        let response = get(&app, path, Some("zstd")).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{path}");
+    }
 }

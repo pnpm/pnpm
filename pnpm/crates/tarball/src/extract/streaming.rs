@@ -1,8 +1,8 @@
 use super::{
     Archive, BuildTriggers, CafsFileInfo, GZIP_MAGIC, HashMap, IgnoreEntryFilter,
-    MAX_NON_PAYLOAD_BYTES, PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TAR_BLOCK,
-    TarBudget, TarLimits, TarballError, check_trailer, clean_archive_entry_path, file_mode,
-    is_tar_block, write_pending_files,
+    PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TAR_BLOCK, TarBudget, TarLimits,
+    TarballError, check_trailer, clean_archive_entry_path, file_mode, is_tar_block,
+    write_pending_files,
 };
 use crate::{BodyHasher, content_coding::ContentCoding};
 use ssri::Integrity;
@@ -168,8 +168,25 @@ pub(crate) fn extract_resource_stream(
                 )
             }
         });
-    let integrity =
-        drain_after_archive(&mut hashing).and_then(|()| hashing.hasher.finish(package_url));
+    finish_resource(hashing, extracted, limits.max_non_payload, package_url)
+}
+
+/// Drain what follows the archive into its hash and pair the hash with the
+/// extraction's verdict. A failed drain leaves no hash, and an extraction
+/// error then says why.
+fn finish_resource(
+    mut hashing: HashingReader<impl Read>,
+    extracted: Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
+    max_non_payload: u64,
+    package_url: &str,
+) -> ExtractedResource {
+    let integrity = match drain_after_archive(&mut hashing, max_non_payload) {
+        Ok(()) => hashing.hasher.finish(package_url),
+        Err(drain) => match extracted {
+            Err(error) => return ExtractedResource::failed(error),
+            Ok(_) => Err(drain),
+        },
+    };
     ExtractedResource { integrity, extracted }
 }
 
@@ -186,10 +203,8 @@ fn read_prefix(reader: &mut impl Read, prefix: &mut [u8]) -> Result<usize, Tarba
     Ok(filled)
 }
 
-/// Read the rest of the resource into its hash, failing past the
-/// non-payload limit.
-fn drain_after_archive(reader: &mut impl Read) -> Result<(), TarballError> {
-    let limit = MAX_NON_PAYLOAD_BYTES;
+/// Read the rest of the resource into its hash, failing past `limit`.
+fn drain_after_archive(reader: &mut impl Read, limit: u64) -> Result<(), TarballError> {
     let drained = std::io::copy(&mut reader.take(limit + 1), &mut std::io::sink())
         .map_err(TarballError::ReadTarballEntries)?;
     if drained > limit {

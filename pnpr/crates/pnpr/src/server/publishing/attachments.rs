@@ -3,9 +3,22 @@ use super::{
     HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
     PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
     cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
-    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
-    stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
+    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
+    resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
+    tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
 };
+
+/// Whether a tar registry serves `name` from the hosted registry `org`, so
+/// a publish there has a tar hash worth deriving. Without `org`, any hosted
+/// registry counts.
+fn served_as_tar(state: &AppState, org: Option<&str>, name: &CanonicalPackageName) -> bool {
+    state.inner.config.routing.tar_registries
+        .iter()
+        .any(|registry| match resolve_registry_source(state, registry, name.as_str()) {
+            RegistrySource::Hosted(source) => org.is_none_or(|org| org == source),
+            _ => false,
+        })
+}
 
 /// What kind of payload an attachment carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,8 +208,7 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    // Only a tar registry serves what a tar hash describes.
-    let derive_tars = !state.inner.config.routing.tar_registries.is_empty();
+    let derive_tars = served_as_tar(state, org, &name);
     let written_slots = write_attachment_slots(&storage, &name, prepared, derive_tars).await?;
     Ok(StagedPublish {
         name,
@@ -302,8 +314,12 @@ pub(super) async fn write_attachment_slot(
     .await;
     match result {
         Ok(Ok(tar_integrity)) => {
-            if let Some((key, tar_integrity)) = tar_integrity {
-                storage.record_tar_integrity(name, &key, &tar_integrity.to_string()).await?;
+            // The first tar response derives a hash publish failed to record.
+            if let Some((key, tar_integrity)) = tar_integrity
+                && let Err(err) =
+                    storage.record_tar_integrity(name, &key, &tar_integrity.to_string()).await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
             Ok(slot)
         }

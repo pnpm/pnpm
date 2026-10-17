@@ -609,7 +609,7 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
 }
 
 mod limits;
-use limits::{MAX_NON_PAYLOAD_BYTES, TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
+use limits::{TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
 
 mod streaming;
 

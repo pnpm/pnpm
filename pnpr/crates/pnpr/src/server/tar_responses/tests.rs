@@ -33,6 +33,7 @@ fn accept_encoding_prefers_the_higher_quality_and_zstd_on_a_tie() {
 async fn decode_and_derive(
     tgz: Vec<u8>,
     expected: &str,
+    limit: u64,
 ) -> (Option<Vec<u8>>, Option<ssri::Integrity>) {
     let (sender, receiver) = std::sync::mpsc::channel();
     let storage_dir = tempfile::TempDir::new().unwrap();
@@ -50,10 +51,12 @@ async fn decode_and_derive(
         runtime: tokio::runtime::Handle::current(),
     };
     let derived =
-        super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale };
-    let body = super::gunzip_body(axum::body::Body::from(tgz), derived, move |integrity| {
-        let _ = sender.send(integrity);
-    });
+        super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale, limit };
+    let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+    let body =
+        super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, move |integrity| {
+            let _ = sender.send(integrity);
+        });
     let tar = axum::body::to_bytes(body, usize::MAX).await.ok().map(|bytes| bytes.to_vec());
     (
         tar,
@@ -77,11 +80,66 @@ async fn only_bytes_that_match_the_digest_complete_a_tar_response() {
     other.input(b"another tgz");
     let stale = other.result().to_string();
 
-    let (served, derived) = decode_and_derive(tgz.clone(), &matching).await;
+    let limit = super::tar_decode_limit(None);
+    let (served, derived) = decode_and_derive(tgz.clone(), &matching, limit).await;
     assert_eq!(served, Some(tar));
     assert!(derived.is_some(), "matching bytes derive the tar integrity");
 
-    let (served, derived) = decode_and_derive(tgz, &stale).await;
+    let (served, derived) = decode_and_derive(tgz, &stale, limit).await;
     assert_eq!(served, None, "stale bytes end the response with an error");
     assert!(derived.is_none(), "stale bytes derive nothing");
+}
+
+#[tokio::test]
+async fn a_tar_response_stops_at_its_decode_limit() {
+    let tar = vec![0u8; 4096];
+    let tgz = gzip(&tar);
+    let integrity = ssri::Integrity::from(&tgz).to_string();
+    let (served, _) = decode_and_derive(tgz.clone(), &integrity, 4096).await;
+    assert_eq!(served, Some(tar));
+    let (served, derived) = decode_and_derive(tgz, &integrity, 4095).await;
+    assert_eq!(served, None, "a tar past the limit ends the response with an error");
+    assert!(derived.is_none());
+}
+
+#[test]
+fn the_decode_limit_admits_what_pnpm_admits_for_the_declared_size() {
+    let non_payload = 256 * 1024 * 1024 + 10 * 1024;
+    assert_eq!(super::tar_decode_limit(Some(1024)), 1024 + non_payload);
+    assert_eq!(super::tar_decode_limit(Some(u64::MAX)), super::tar_decode_limit(None));
+}
+
+#[tokio::test]
+async fn a_tar_response_decodes_only_with_a_permit() {
+    let tar = vec![7u8; 1024];
+    let tgz = gzip(&tar);
+    let storage_dir = tempfile::TempDir::new().unwrap();
+    let storage = pnpr_storage::Storage::new(
+        &pnpr_config::HostedStoreConfig::Fs,
+        storage_dir.path().join("storage"),
+        storage_dir.path().join("cache"),
+    )
+    .unwrap();
+    let stale = super::StaleTgz {
+        storage,
+        name: super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
+            .unwrap(),
+        cached: None,
+        runtime: tokio::runtime::Handle::current(),
+    };
+    let derived = super::DerivedFrom {
+        check: None,
+        hash: false,
+        copy: None,
+        stale,
+        limit: super::tar_decode_limit(None),
+    };
+    let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+    let held = std::sync::Arc::clone(&decodes).acquire_owned().await.unwrap();
+    let body = super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, |_| {});
+    let read = tokio::spawn(axum::body::to_bytes(body, usize::MAX));
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(!read.is_finished(), "no decode runs while every permit is taken");
+    drop(held);
+    assert_eq!(read.await.unwrap().unwrap().to_vec(), tar);
 }

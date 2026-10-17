@@ -12,7 +12,7 @@
 //! as they stream, and a mismatch fails the response. Hosted and freshly
 //! fetched `.tgz` files are already verified, so they are not hashed again.
 
-pub(super) use decode::tar_integrity_of;
+pub(super) use decode::{MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of};
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
 use axum::body::Body;
@@ -38,6 +38,8 @@ pub(super) struct TarSource {
     pub(super) trust: TgzTrust,
     /// Whether the tar-integrity table already records this `.tgz`'s tar.
     pub(super) tar_integrity_known: bool,
+    /// See [`decode::tar_decode_limit`].
+    pub(super) decode_limit: u64,
 }
 
 /// What is known about the `.tgz` bytes a tar response serves.
@@ -73,10 +75,10 @@ pub(super) async fn tar_response(
                 copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, &source.name, key)
                     .await;
             }
-            decoded_response(storage.clone(), tgz, source, copy)
+            decoded_response(state, tgz, source, copy)
         }
         TarCoding::Gzip => gzip_response(storage.clone(), tgz, source),
-        TarCoding::Identity => decoded_response(storage.clone(), tgz, source, None),
+        TarCoding::Identity => decoded_response(state, tgz, source, None),
     }
 }
 
@@ -135,11 +137,12 @@ fn encoded_response(tgz: Response, body: Body, len: Option<u64>, coding: &'stati
 /// `.tgz` matched the version's integrity, record the tar's integrity and hand
 /// `copy` to the variant worker.
 fn decoded_response(
-    storage: Storage,
+    state: &AppState,
     tgz: Response,
     source: TarSource,
     copy: Option<TarCopy>,
 ) -> Response {
+    let storage = state.inner.storage.clone();
     let (mut parts, body) = tgz.into_parts();
     describe_tar_headers(&mut parts.headers);
     let tgz_integrity = source.tgz_integrity.clone();
@@ -148,10 +151,12 @@ fn decoded_response(
         check: source.check(),
         hash: tgz_integrity.is_some() && !source.tar_integrity_known,
         copy,
+        limit: source.decode_limit,
         stale: source.stale(storage.clone()),
     };
     let runtime = tokio::runtime::Handle::current();
-    let body = gunzip_body(body, derived, move |tar_integrity| {
+    let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
+    let body = gunzip_body(body, derived, decodes, move |tar_integrity| {
         let Some(key) = tgz_integrity else { return };
         runtime.spawn(async move {
             if let Err(err) =

@@ -284,6 +284,40 @@ fn skipped_entry_bodies_count_as_non_payload() {
         .expect("the default limit admits the archive");
 }
 
+/// Extraction stops at the entry that breaks the payload ceiling, and the
+/// rest of the body is then drained into the hash. That rest overrunning the
+/// non-payload limit must not hide the payload failure.
+#[tokio::test]
+async fn a_streamed_payload_failure_is_reported_over_the_drain_that_follows() {
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let tar = tar_with_entries(&[("package/data.bin", &[7u8; 4096])]);
+    let (_server, _mock, url) = serve(zstd_bytes(&tar), Some("zstd")).await;
+    let mut limits = crate::TarLimits::new(1024);
+    limits.max_non_payload = 1024;
+    // Declaring more than fits in memory routes the body to the streaming
+    // extractor.
+    let streamed_size = Some(crate::MAX_UNTRUSTED_PREALLOC_BYTES + 1);
+    let error = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        None,
+        streamed_size,
+        limits,
+        0,
+        "tar-pkg@1.0.0",
+        "",
+        store_dir,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, TarballError::ArchiveLimit(ArchiveLimit::Payload(_))), "got {error:?}");
+}
+
 #[tokio::test]
 async fn an_html_page_is_not_an_archive() {
     let (_store_keep, store_dir) = tempdir_with_leaked_path();
