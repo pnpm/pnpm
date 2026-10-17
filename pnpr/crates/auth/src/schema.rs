@@ -8,7 +8,7 @@ pub const CURRENT_SCHEMA_VERSION: i64 = 2;
 /// Table storing schema migrations applied to the auth database.
 pub(crate) const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
     "CREATE TABLE IF NOT EXISTS auth_schema_migrations (
-        version     INTEGER PRIMARY KEY,
+        version     BIGINT PRIMARY KEY,
         applied_at  BIGINT NOT NULL
     )";
 
@@ -48,7 +48,7 @@ fn apply_sqlite_v1(conn: &rusqlite::Connection) -> Result<()> {
     conn.execute(super::token_store::sqlite::TOKENS_INDEX_SQL, [])?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1)",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1) ON CONFLICT (version) DO NOTHING",
         rusqlite::params![now],
     )?;
     Ok(())
@@ -61,7 +61,7 @@ fn apply_sqlite_v2(conn: &rusqlite::Connection) -> Result<()> {
     add_column_if_missing_sqlite(conn, "ALTER TABLE tokens ADD COLUMN kind VARCHAR(64)")?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1)",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1) ON CONFLICT (version) DO NOTHING",
         rusqlite::params![now],
     )?;
     Ok(())
@@ -101,7 +101,7 @@ async fn apply_libsql_v1(conn: &libsql::Connection) -> Result<()> {
     conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1)",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1) ON CONFLICT (version) DO NOTHING",
         libsql::params![now],
     )
     .await?;
@@ -116,7 +116,7 @@ async fn apply_libsql_v2(conn: &libsql::Connection) -> Result<()> {
     add_column_if_missing_libsql(conn, "ALTER TABLE tokens ADD COLUMN kind VARCHAR(64)").await?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1)",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1) ON CONFLICT (version) DO NOTHING",
         libsql::params![now],
     )
     .await?;
@@ -157,7 +157,7 @@ async fn apply_postgres_v1(pool: &sqlx::PgPool) -> Result<()> {
     sqlx::query(super::token_store::sqlite::TOKENS_INDEX_SQL).execute(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, $1)")
+    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, $1) ON CONFLICT (version) DO NOTHING")
         .bind(now)
         .execute(pool)
         .await?;
@@ -174,7 +174,7 @@ async fn apply_postgres_v2(pool: &sqlx::PgPool) -> Result<()> {
     sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS kind VARCHAR(64)").execute(pool)
         .await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, $1)")
+    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, $1) ON CONFLICT (version) DO NOTHING")
         .bind(now)
         .execute(pool)
         .await?;
@@ -226,7 +226,7 @@ async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
     create_token_index_mysql(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?)")
+    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (1, ?)")
         .bind(now)
         .execute(pool)
         .await?;
@@ -250,7 +250,7 @@ async fn apply_mysql_v2(pool: &sqlx::MySqlPool) -> Result<()> {
     .execute(pool)
     .await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?)")
+    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (2, ?)")
         .bind(now)
         .execute(pool)
         .await?;

@@ -172,6 +172,25 @@ async fn create_token_with_scopes_and_kind() {
 }
 
 #[tokio::test]
+async fn create_token_rejects_overlong_kind() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+
+    let payload = json!({
+        "password": "secret123",
+        "kind": "a".repeat(65),
+    });
+
+    let res = app
+        .clone()
+        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn create_token_under_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

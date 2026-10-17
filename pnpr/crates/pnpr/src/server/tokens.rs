@@ -93,7 +93,7 @@ pub(super) async fn create_token(
         Ok(p) => p,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = validate_cidr_whitelist(&payload.cidr_whitelist) {
+    if let Err(err) = validate_token_payload(&payload) {
         return err.into_response();
     }
     let now = token_store_unix_seconds();
@@ -117,6 +117,18 @@ pub(super) async fn create_token(
         Ok((raw, record)) => json_response(StatusCode::OK, &create_token_response(&raw, &record)),
         Err(err) => err.into_response(),
     }
+}
+
+fn validate_token_payload(payload: &CreateTokenPayload) -> Result<(), RegistryError> {
+    validate_cidr_whitelist(&payload.cidr_whitelist)?;
+    if let Some(kind) = payload.kind.as_deref()
+        && kind.chars().count() > 64
+    {
+        return Err(RegistryError::BadRequest {
+            reason: "kind must be at most 64 characters".to_string(),
+        });
+    }
+    Ok(())
 }
 
 fn parse_create_token_payload(body: &[u8]) -> Result<CreateTokenPayload, RegistryError> {
