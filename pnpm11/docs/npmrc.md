@@ -160,10 +160,6 @@ The value follows these rules:
 * `authToken` is the only credential field. It is a bearer token.
 * Since v11.28.0, `authToken` can reference an environment variable as
   `${NAME}`.
-* pnpm skips a key that does not start with `@` and prints a warning. A key
-  that holds an `authToken` but lacks the `@`, such as `org`, is an error.
-* Any other malformed value is an error, such as invalid JSON or an unknown
-  credential field.
 
 Each entry also routes packages to its URL. `"@"` makes the URL the default
 registry, and `"@org"` sends `@org/*` packages there. This routing has the
