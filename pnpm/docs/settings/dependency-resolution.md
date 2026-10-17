@@ -610,6 +610,8 @@ URL of a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server.
 
 When set, `pnpm install` offloads dependency resolution to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, and the server resolves the dependency graph against those registries, streaming back resolved package metadata frames as it walks the graph so pnpm can download tarballs in parallel. Once resolution finishes, the server returns the complete lockfile and pnpm links `node_modules` locally.
 
+Public packages are fetched directly from their respective registries in parallel. Private packages configured through pnpr are fetched from its registry endpoint using server-side upstream credentials; client upstream registry credentials are not sent to the pnpr server.
+
 ```yaml title="pnpm-workspace.yaml"
 pnprServer: https://pnpr.example.com/
 ```

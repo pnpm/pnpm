@@ -61,9 +61,14 @@ Here is a Vector configuration that extracts `pnpr::audit` events from pnpr's co
 type = "docker_logs"
 include_containers = ["pnpr"]
 
+[transforms.parse_pnpr_logs]
+type = "remap"
+inputs = ["pnpr_logs"]
+source = ". = parse_json!(.message)"
+
 [transforms.filter_audit_events]
 type = "filter"
-inputs = ["pnpr_logs"]
+inputs = ["parse_pnpr_logs"]
 condition = '.target == "pnpr::audit"'
 
 [sinks.webhook_dispatcher]
