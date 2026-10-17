@@ -362,6 +362,9 @@ async fn run_add_user_command(
         Some(password) => password,
         None => read_password()?,
     };
+    if password.is_empty() {
+        return Err(miette::miette!("password cannot be empty"));
+    }
     if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
         return Err(miette::miette!(
             "password cannot exceed {} bytes",

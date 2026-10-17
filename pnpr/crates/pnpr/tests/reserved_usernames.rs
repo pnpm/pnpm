@@ -220,3 +220,34 @@ async fn cli_add_user_rejects_in_memory_auth_backend() {
         "unexpected error: {err}",
     );
 }
+
+#[tokio::test]
+async fn cli_add_user_rejects_empty_password() {
+    let dir = TempDir::new().unwrap();
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let htpasswd = dir.path().join("htpasswd");
+    std::fs::write(&htpasswd, "").unwrap();
+    let yaml = format!(
+        "\
+storage: {}
+auth:
+  htpasswd:
+    file: ./htpasswd
+    max_users: 100
+registries:
+  local:
+    type: hosted
+",
+        storage.display(),
+    );
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, yaml).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+
+    let cmd =
+        Command::AddUser { username: "admin_alice".to_string(), password: Some(String::new()) };
+    let err = pnpr::cli_commands::run_command(&config, cmd).await.unwrap_err();
+    assert!(err.to_string().contains("password cannot be empty"), "unexpected error: {err}");
+}
