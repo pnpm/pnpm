@@ -276,12 +276,20 @@ async fn send_once<'a>(
 /// Convert a stored `modified` value — the packument's ISO-8601
 /// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
 /// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
-/// `toUTCString()`. A value already in HTTP-date form is kept. `None` when
+/// `toUTCString()`. A date without a time is midnight UTC, as JavaScript's
+/// `Date` reads it. A value already in HTTP-date form is kept. `None` when
 /// the value parses as neither, so it is dropped instead of sent — a
 /// recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
     if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
         return Some(httpdate::fmt_http_date(datetime.into()));
+    }
+    if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return Some(httpdate::fmt_http_date(
+            date.and_time(chrono::NaiveTime::MIN)
+                .and_utc()
+                .into(),
+        ));
     }
     httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
 }
