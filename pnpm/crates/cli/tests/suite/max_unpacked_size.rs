@@ -11,8 +11,9 @@ fn set_max_unpacked_size(workspace: &std::path::Path, bytes: u64) {
 
 #[test]
 fn install_fails_when_a_package_unpacks_past_max_unpacked_size() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     set_max_unpacked_size(&workspace, 1);
 
     let output = pacquet
@@ -29,8 +30,9 @@ fn install_fails_when_a_package_unpacks_past_max_unpacked_size() {
 
 #[test]
 fn install_succeeds_when_max_unpacked_size_covers_the_package() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     set_max_unpacked_size(&workspace, 1024 * 1024);
 
     pacquet

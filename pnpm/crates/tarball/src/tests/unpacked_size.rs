@@ -52,9 +52,8 @@ fn streaming_extract_rejects_an_archive_past_the_unpacked_size_limit() {
 fn ignored_entries_count_toward_the_unpacked_size_limit() {
     let (_tempdir, store_path) = tempdir_with_leaked_path();
     let drop_first = |path: &str| path == "a.bin";
-    let error =
-        extract_tarball_entries(&two_files(600, 600), store_path, Some(&drop_first), LIMIT)
-            .expect_err("the ignored 600 bytes still count");
+    let error = extract_tarball_entries(&two_files(600, 600), store_path, Some(&drop_first), LIMIT)
+        .expect_err("the ignored 600 bytes still count");
     assert_limit_exceeded(&error);
 }
 
@@ -63,7 +62,8 @@ fn ignored_entries_count_toward_the_unpacked_size_limit() {
 #[test]
 fn gzip_bomb_is_rejected_by_the_unpacked_size_limit() {
     let (_tempdir, store_path) = tempdir_with_leaked_path();
-    let bomb = gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
     let limit = 1024 * 1024;
     let error = extract_gzipped_tarball(&bomb, None, store_path, None, limit)
         .expect_err("a 64 MiB file exceeds a 1 MiB limit");
