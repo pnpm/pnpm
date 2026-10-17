@@ -165,6 +165,37 @@ describe('determineProvenance', () => {
     )
   })
 
+  test.each([
+    'https://registry.example/npm/private',
+    'https://registry.example/npm/private/',
+  ])('preserves registry path in the visibility request: %s', async (registry) => {
+    const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ public: true }),
+    }))
+    const context: ProvenanceContext = {
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: mockFetch,
+      process: { env: {} },
+    }
+
+    await determineProvenance({
+      authToken,
+      idToken: createIdToken({ repository_visibility: 'public' }),
+      packageName,
+      registry,
+      context,
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: 'https://registry.example/npm/private/-/package/@pnpm%2ftest-package/visibility',
+      }),
+      expect.anything()
+    )
+  })
+
   test('returns true when package is public in GitLab', async () => {
     const mockFetch = jest.fn<ProvenanceContext['fetch']>(async () => ({
       ok: true,

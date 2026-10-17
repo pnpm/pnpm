@@ -95,6 +95,33 @@ async fn public_github_package_enables_provenance() {
 }
 
 #[tokio::test]
+async fn visibility_check_preserves_registry_path_with_or_without_trailing_slash() {
+    github_sys!(Sys, |request: OidcRequest<'_>| {
+        assert_eq!(
+            request.url,
+            "https://registry.example/npm/private/-/package/@scope%2fpkg/visibility"
+        );
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"public":true}"#.to_owned() })
+    });
+
+    let token = id_token(&repository_visibility("public"));
+    for registry in
+        ["https://registry.example/npm/private", "https://registry.example/npm/private/"]
+    {
+        let result = determine_provenance::<Sys>(
+            "auth",
+            &token,
+            "@scope/pkg",
+            registry,
+            &OidcHttpOptions::default(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, Some(true));
+    }
+}
+
+#[tokio::test]
 async fn private_visibility_yields_no_provenance() {
     github_sys!(Sys, |_: OidcRequest<'_>| Ok(OidcResponse {
         ok: true,
