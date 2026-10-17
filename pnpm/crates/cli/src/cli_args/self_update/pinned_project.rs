@@ -1,5 +1,5 @@
 use super::{
-    Config, Context, ExternalManager, PNPM_VERSION, PackageManifest, Path,
+    Config, Context, ExternalManager, PNPM_VERSION, Path,
     externally_managed::refuse_without_pin,
     project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin},
 };
@@ -9,7 +9,6 @@ use crate::cli_args::package_manager::{PinRoots, WantedPackageManager, wanted_pa
 /// reads it (see [`PinRoots`]).
 pub(super) struct ProjectPin {
     roots: PinRoots,
-    manifest: Option<PackageManifest>,
     wanted: Option<WantedPackageManager>,
 }
 
@@ -28,7 +27,7 @@ impl ProjectPin {
         let manifest = manifest.wrap_err("read the project manifest")?;
         let wanted =
             manifest.as_ref().and_then(|manifest| wanted_package_manager(manifest.value()));
-        Ok((Self { roots, manifest, wanted }, external_manager))
+        Ok((Self { roots, wanted }, external_manager))
     }
 
     fn pinned_pnpm(&self) -> Option<&WantedPackageManager> {
@@ -79,15 +78,25 @@ impl ProjectPin {
 
     /// Point a pnpm pin at `target_version`, returning the message that
     /// reports it. `None` when the project does not pin pnpm.
+    ///
+    /// The manifest is read again, since the global install that runs
+    /// before this can take long enough for the user to edit it.
     pub(super) async fn update(
         self,
         config: &'static Config,
         target_version: &str,
     ) -> miette::Result<Option<String>> {
-        let Self { roots, manifest, wanted } = self;
-        let (Some(pm), Some(manifest)) = (wanted.filter(|pm| pm.name == "pnpm"), manifest) else {
+        let Self { roots, wanted } = self;
+        let Some(pm) = wanted.filter(|pm| pm.name == "pnpm") else {
             return Ok(None);
         };
+        let manifest_dir = roots.manifest.display();
+        let manifest = roots
+            .read_manifest()
+            .and_then(|manifest| {
+                manifest.ok_or_else(|| miette::miette!("no manifest in {manifest_dir}"))
+            })
+            .wrap_err("read the project manifest")?;
         Box::pin(update_project_pin(config, &roots.env, manifest, &pm, target_version))
             .await
             .map(Some)
