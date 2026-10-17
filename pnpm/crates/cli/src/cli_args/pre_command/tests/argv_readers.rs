@@ -9,7 +9,7 @@ use crate::{
         reporter::ReporterFlags,
     },
 };
-use clap::{Arg, CommandFactory, FromArgMatches};
+use clap::{Arg, CommandFactory};
 use std::{collections::HashSet, ffi::OsString};
 
 /// The global flags of [`CliArgs`] the pre-command pass does not read. They
@@ -198,9 +198,7 @@ fn assert_readers_agree(flags: &[String]) {
 }
 
 fn parse(argv: &[OsString]) -> (SwitchInput, ReporterFlags) {
-    let args = with_boolean_negations(CliArgs::command())
-        .try_get_matches_from(argv)
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
+    let args = crate::parse_cli_args(with_boolean_negations(CliArgs::command()), argv.to_vec())
         .unwrap_or_else(|error| panic!("parse {argv:?}: {error}"));
     (SwitchInput::from_cli_args(&args), args.reporter_flags())
 }

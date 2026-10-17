@@ -150,23 +150,30 @@ impl BootstrapTokens {
     /// the local prefix, as it does for a parsed command line.
     pub(in crate::cli_args::pre_command) fn parse(self) -> BootstrapArgv {
         let command = BootstrapArgv::command();
-        let accepted = self.0
-            .into_iter()
-            .filter(|flag| {
-                command
-                    .clone()
-                    .try_get_matches_from(flag)
-                    .is_ok()
-            })
-            .flatten();
         let matches = command
             .clone()
-            .ignore_errors(true)
-            .try_get_matches_from(accepted)
-            .expect("`ignore_errors` keeps every bootstrap parse from failing");
+            .try_get_matches_from(self.0.iter().flatten())
+            .unwrap_or_else(|_| {
+                let accepted = self.0
+                    .iter()
+                    .filter(|flag| {
+                        command
+                            .clone()
+                            .try_get_matches_from(*flag)
+                            .is_ok()
+                    })
+                    .flatten();
+                command
+                    .clone()
+                    .ignore_errors(true)
+                    .try_get_matches_from(accepted)
+                    .expect("`ignore_errors` keeps every bootstrap parse from failing")
+            });
         let mut flags = BootstrapArgv::from_arg_matches(&matches)
             .expect("the matches come from the command `BootstrapArgv` derives");
-        if matches.value_source("dir") != Some(ValueSource::CommandLine) {
+        flags.paths.dir_from_command_line =
+            matches.value_source("dir") == Some(ValueSource::CommandLine);
+        if !flags.paths.dir_from_command_line {
             flags.paths.dir = local_prefix_or_cwd();
         }
         flags
