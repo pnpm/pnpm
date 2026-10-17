@@ -240,6 +240,13 @@ fn unparsed_argv_steps_over_short_option_values() {
 }
 
 #[test]
+fn the_version_scan_names_a_command_by_its_own_name() {
+    let input = version_switch_input(&["pnpm", "ic", "--version"].map(OsString::from));
+    assert_eq!(input.command.as_deref(), Some("ci"));
+    assert_eq!(input.frozen_lockfile, Some(true));
+}
+
+#[test]
 fn unparsed_argv_names_a_command_by_its_own_name() {
     for (alias, command) in
         [("c", "config"), ("ic", "ci"), ("clean-install", "ci"), ("rt", "runtime")]

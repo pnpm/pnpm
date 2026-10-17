@@ -40,7 +40,7 @@ fn absorb_until_command(
             return None;
         }
         if !token.starts_with('-') {
-            return Some(token.to_string());
+            return Some(canonical_command_name(token));
         }
         let next = argv
             .get(index + 1)
