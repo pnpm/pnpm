@@ -3,7 +3,7 @@ use pnpr_fixtures::MockConfigPresets;
 use std::{
     net::{Ipv4Addr, TcpListener},
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{Arc, LazyLock, Mutex, PoisonError},
     thread,
 };
 
@@ -15,18 +15,69 @@ pub struct TestRegistry {
     /// outright. [`None`] for the process-global instance, whose storage
     /// every other test reads.
     storage: Option<PathBuf>,
+    /// The requests answered so far, for a registry started with
+    /// [`Self::start_recording_with_own_storage`].
+    requests: Option<RequestLog>,
 }
+
+/// One request the registry answered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordedRequest {
+    pub method: String,
+    pub path: String,
+    pub accept: Option<String>,
+    pub if_none_match: Option<String>,
+    pub if_modified_since: Option<String>,
+    pub status: u16,
+    /// The response's `ETag`.
+    pub etag: Option<String>,
+}
+
+type RequestLog = Arc<Mutex<Vec<RecordedRequest>>>;
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { url: TestRegistryInstance::get().url.clone(), storage: None }
+        Self { url: TestRegistryInstance::get().url.clone(), storage: None, requests: None }
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
         Self {
             url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
             storage: Some(storage.to_path_buf()),
+            requests: None,
         }
+    }
+
+    /// Like [`Self::start_with_own_storage`], and records every request it
+    /// answers for [`Self::take_requests`].
+    pub fn start_recording_with_own_storage(root: &Path) -> Self {
+        let storage = root.join("registry-storage");
+        pnpr_fixtures::build_storage_at_with_substitutions(
+            &pnpr_fixtures::packages_dir(),
+            &storage,
+            &[],
+        );
+        let requests = RequestLog::default();
+        let instance = TestRegistryInstance::start_with_log(
+            storage.clone(),
+            RegistryMode::Proxy,
+            Some(Arc::clone(&requests)),
+        );
+        Self { url: instance.url, storage: Some(storage), requests: Some(requests) }
+    }
+
+    /// The requests answered since the last call, in the order they finished.
+    pub fn take_requests(&self) -> Vec<RecordedRequest> {
+        let requests = self.requests
+            .as_ref()
+            .expect(
+                "only a registry started with start_recording_with_own_storage records requests",
+            );
+        requests
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .drain(..)
+            .collect()
     }
 
     /// Build fixture storage under `root` and start a registry over it.
@@ -58,6 +109,7 @@ impl TestRegistry {
         Self {
             url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
             storage: Some(storage.to_path_buf()),
+            requests: None,
         }
     }
 
@@ -114,6 +166,10 @@ impl TestRegistryInstance {
     }
 
     fn start(storage: PathBuf, mode: RegistryMode) -> Self {
+        Self::start_with_log(storage, mode, None)
+    }
+
+    fn start_with_log(storage: PathBuf, mode: RegistryMode, requests: Option<RequestLog>) -> Self {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
             .expect("bind test registry to an unused localhost port");
         listener.set_nonblocking(true).expect("set test registry listener to nonblocking");
@@ -136,14 +192,14 @@ impl TestRegistryInstance {
         config.http.packument_ttl = std::time::Duration::from_hours(8760);
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())
-            .spawn(move || run_registry(config, listener))
+            .spawn(move || run_registry(config, listener, requests))
             .expect("spawn test registry thread");
 
         Self { url }
     }
 }
 
-fn run_registry(config: Config, listener: TcpListener) {
+fn run_registry(config: Config, listener: TcpListener, requests: Option<RequestLog>) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -151,6 +207,48 @@ fn run_registry(config: Config, listener: TcpListener) {
 
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::from_std(listener).expect("create tokio listener");
-        pnpr::serve_listener(config, listener).await.expect("serve test registry");
+        let Some(requests) = requests else {
+            pnpr::serve_listener(config, listener).await.expect("serve test registry");
+            return;
+        };
+        let app = pnpr::router(config)
+            .layer(axum::middleware::from_fn_with_state(requests, record_request));
+        axum::serve(listener, app).await.expect("serve test registry");
     });
+}
+
+async fn record_request(
+    axum::extract::State(requests): axum::extract::State<RequestLog>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let headers = request.headers();
+    let accept = header_text(headers, &axum::http::header::ACCEPT);
+    let if_none_match = header_text(headers, &axum::http::header::IF_NONE_MATCH);
+    let if_modified_since = header_text(headers, &axum::http::header::IF_MODIFIED_SINCE);
+    let method = request.method().to_string();
+    let path = request.uri().path().to_string();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    let etag = header_text(response.headers(), &axum::http::header::ETAG);
+    requests
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(RecordedRequest {
+            method,
+            path,
+            accept,
+            if_none_match,
+            if_modified_since,
+            status,
+            etag,
+        });
+    response
+}
+
+fn header_text(headers: &axum::http::HeaderMap, name: &axum::http::HeaderName) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
 }
