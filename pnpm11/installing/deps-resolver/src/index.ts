@@ -56,7 +56,7 @@ export {
 }
 export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
 export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
-export { getDeclaredPeerDependencies, peerDependenciesWithoutOwn } from './resolvedPackage.js'
+export { getPeerSet } from './resolvedPackage.js'
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 

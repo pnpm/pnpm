@@ -5,11 +5,10 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import {
-  getDeclaredPeerDependencies,
   getNonDevWantedDependencies,
+  getPeerSet,
   lockedVersionSatisfies,
   type ManifestWantedDependency,
-  peerDependenciesWithoutOwn,
   prepareDependencyManifest,
 } from '@pnpm/installing.deps-resolver'
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
@@ -149,15 +148,14 @@ async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: De
 }
 
 /**
- * The lockfile records the peers the package declares (see
- * `getDeclaredPeerDependencies`). A lockfile written before those included
- * the peers that are also `dependencies` records only the rest (see
- * `peerDependenciesWithoutOwn`).
+ * The lockfile records the peers the package declares. A lockfile written
+ * before it recorded every declared peer records only the peers taken without
+ * any shadowing, the ones that are not also `dependencies`.
  */
 function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot): boolean {
-  const declared = getDeclaredPeerDependencies(manifest)
+  const { declared, taken } = getPeerSet(manifest)
   const recorded = pkgSnapshot.peerDependencies ?? {}
-  return Object.keys(peerDependenciesWithoutOwn(manifest)).every((name) => Object.hasOwn(recorded, name)) &&
+  return Object.keys(taken).every((name) => Object.hasOwn(recorded, name)) &&
     Object.keys(recorded).every((name) => {
       const peer = declared[name]
       return peer != null &&
@@ -183,7 +181,7 @@ function recordedChildrenAreExpected (
 ): boolean {
   const expected = new Set([
     ...children.map(({ alias }) => alias),
-    ...Object.keys(peerDependenciesWithoutOwn(manifest)),
+    ...Object.keys(getPeerSet(manifest).declared),
     ...Object.keys(manifest.peerDependencies ?? {}),
   ])
   return [...Object.keys(pkgSnapshot.dependencies ?? {}), ...Object.keys(pkgSnapshot.optionalDependencies ?? {})]
