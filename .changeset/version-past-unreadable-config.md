@@ -2,4 +2,4 @@
 "pnpm": patch
 ---
 
-`pnpm --version` no longer fails when a config file has a setting pnpm cannot read.
+`pnpm --version` now prints the version when a config file has a setting pnpm cannot read.
