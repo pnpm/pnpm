@@ -170,3 +170,75 @@ async fn resolve_latest_returns_none_for_non_http_specifiers() {
         .unwrap();
     assert!(info.is_none());
 }
+
+#[tokio::test]
+async fn method_not_allowed_on_head_falls_back_to_get() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock_head = server
+        .mock("HEAD", "/pkg-1.0.0.tgz")
+        .with_status(405)
+        .create_async()
+        .await;
+    let _mock_get = server
+        .mock("GET", "/pkg-1.0.0.tgz")
+        .with_status(200)
+        .with_header("cache-control", "immutable")
+        .create_async()
+        .await;
+    let url = format!("{}/pkg-1.0.0.tgz", server.url());
+
+    let resolver = build_resolver();
+    let wanted = WantedDependency {
+        alias: Some("pkg".to_string()),
+        bare_specifier: Some(url.clone()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claim");
+
+    assert_eq!(tarball_url(&result.resolution), url);
+}
+
+#[tokio::test]
+async fn method_not_allowed_on_head_falls_back_to_get_with_redirect() {
+    let mut server = mockito::Server::new_async().await;
+    let final_path = "/canonical-1.0.0.tgz";
+    let final_url = format!("{}{}", server.url(), final_path);
+    let _mock_head = server
+        .mock("HEAD", "/redirected-1.0.0.tgz")
+        .with_status(405)
+        .create_async()
+        .await;
+    let _redirect = server
+        .mock("GET", "/redirected-1.0.0.tgz")
+        .with_status(301)
+        .with_header("location", &final_url)
+        .create_async()
+        .await;
+    let _final = server
+        .mock("GET", final_path)
+        .with_status(200)
+        .with_header("cache-control", "immutable")
+        .create_async()
+        .await;
+    let requested_url = format!("{}/redirected-1.0.0.tgz", server.url());
+
+    let resolver = build_resolver();
+    let wanted = WantedDependency {
+        alias: Some("pkg".to_string()),
+        bare_specifier: Some(requested_url.clone()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claim");
+
+    assert_eq!(result.id.to_string(), requested_url);
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
+    assert_eq!(tarball_url(&result.resolution), final_url);
+}
