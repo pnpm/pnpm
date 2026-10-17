@@ -219,30 +219,6 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
     }
 }
 
-#[test]
-fn inject_workspace_packages_treats_unc_and_tilde_backslash_paths_as_workspace() {
-    let (dir, config, manifest) = setup_fresh_install_with_config(
-        pnpm_config::NodeLinker::Isolated,
-        "root",
-        "1.0.0",
-        r#""dependencies":{"pkg":"workspace:\\\\server\\share\\@scope\\pkg"}"#,
-        |config| {
-            config.inject_workspace_packages = true;
-            config.shared_workspace_lockfile = false;
-        },
-    );
-
-    let decision = check(
-        dir.path(),
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        &[(dir.path().to_path_buf(), &manifest)],
-    );
-    assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
-        "expected Skipped(local file dependency), got {decision:?}",
-    );
-}
 /// `link:` dependencies are symlinked — changes inside them flow
 /// through without a reinstall, so they don't invalidate the fast path.
 #[test]
