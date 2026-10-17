@@ -42,6 +42,15 @@ ignore = [
   # entry would also silence the advisory on the 0.4 line. The `h2` bans below
   # hold that line instead.
   { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
+  # `zip` 8.6.0 has advisories for `ZipArchive::extract()` and
+  # `ZipStreamReader::extract()` preserving SUID/SGID bits and allowing symlink
+  # traversal. pnpm and pnpr do not call `extract()`; extraction iterates entries
+  # directly in `pnpm-tarball` with safe path sanitization via `enclosed_name()`
+  # and explicit target validation, while `pnpr-osv` and `pnpr` only read
+  # entry streams into memory.
+  { id = "RUSTSEC-2026-0367", reason = "pnpm and pnpr do not use ZipArchive::extract() or stream extraction; zip extraction iterates entries manually with enclosed_name validation and explicit safe file writing." },
+  { id = "RUSTSEC-2026-0368", reason = "pnpm and pnpr do not use ZipArchive::extract(); symlink validation is handled independently in pnpm-tarball." },
+  { id = "RUSTSEC-2026-0369", reason = "pnpm and pnpr do not use ZipStreamReader::extract(); zip streams are never extracted through the vulnerable API." },
 ]
 
 # --- Licenses ------------------------------------------------------------
