@@ -10,7 +10,9 @@ import { pathTemp } from 'path-temp'
 import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
 import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
+import { loadWorkspaceState } from './loadWorkspaceState.js'
 import type { ProjectsList, WorkspaceState, WorkspaceStateSettings } from './types.js'
+import { recordValidation } from './validation.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
@@ -19,11 +21,38 @@ export interface UpdateWorkspaceStateOptions {
   pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
+  /**
+   * Records which projects this write proves installed. Left out by a writer
+   * that cannot tell, which records nothing.
+   */
+  validation?: StateValidationOptions
+}
+
+export interface StateValidationOptions {
+  lockfileDir: string
+  wantedLockfileName: string
+  /** The patch files and the pnpmfiles every project shares. */
+  sharedInputs: string[]
+  /**
+   * The root directories of the projects this write vouches for, or
+   * `undefined` for every project. The others keep their recorded state.
+   */
+  vouchedProjects?: string[]
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
   logger.debug({ msg: 'updating workspace state' })
   const workspaceState = createWorkspaceState(opts)
+  if (opts.validation != null) {
+    const { vouchedProjects, ...validation } = opts.validation
+    recordValidation(workspaceState, {
+      ...validation,
+      allProjects: opts.allProjects,
+      workspaceDir: opts.workspaceDir,
+      vouchedProjects: vouchedProjects == null ? undefined : new Set(vouchedProjects),
+      previous: vouchedProjects == null ? undefined : loadWorkspaceState(opts.workspaceDir),
+    })
+  }
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
   const tempFile = pathTemp(cacheDir)
