@@ -583,7 +583,7 @@ test('explicitly specifying a version at install will ignore an override that re
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe('100.0.0')
 })
 
-test('overrides with local file, link and bare path specs', async () => {
+test('overrides with local file, link, bare path and workspace path specs', async () => {
   interface LocationAndManifest {
     location: string
     package: ProjectManifest

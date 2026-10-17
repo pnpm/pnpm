@@ -610,9 +610,8 @@ fn bare_tarball_override_is_reanchored_against_pkg_dir() {
     );
 }
 
-/// The shape pnpm/pnpm#17010 reports: a `workspace:` path is resolved
-/// from the package that declares it, so it moves with the file that
-/// declared it the way its `link:` spelling does.
+/// The shape pnpm/pnpm#17010 reports: a `workspace:` path moves with the
+/// file that declared it, the way its `link:` spelling does.
 #[test]
 fn workspace_path_override_is_reanchored_against_pkg_dir() {
     let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
@@ -629,8 +628,6 @@ fn workspace_path_override_is_reanchored_against_pkg_dir() {
     assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("workspace:../../foo"));
 }
 
-/// Rendered absolute, a `workspace:` path would read as a version range,
-/// so a manifest with no directory keeps the value as declared.
 #[test]
 fn workspace_path_override_is_kept_as_declared_without_a_pkg_dir() {
     let overrides = parsed(&[("foo", "workspace:./packages/foo")]);

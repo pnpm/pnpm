@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
 #[test]
-fn workspace_path_override_links_the_package_the_root_names() {
+fn workspace_path_override_links_the_workspace_relative_target() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -36,7 +36,7 @@ fn workspace_path_override_links_the_package_the_root_names() {
 }
 
 #[test]
-fn workspace_path_override_installs_the_package_the_root_names_when_injecting() {
+fn workspace_path_override_installs_the_workspace_relative_target_when_injected() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -62,7 +62,8 @@ fn workspace_path_override_installs_the_package_the_root_names_when_injecting() 
 
 fn write_fixture(workspace: &Path, inject_workspace_packages: bool) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml = fs::read_to_string(&workspace_yaml_path).unwrap_or_default();
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(
         &workspace_yaml_path,
         format!(

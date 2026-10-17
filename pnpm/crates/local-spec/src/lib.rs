@@ -147,7 +147,8 @@ impl LocalSpec {
     /// Relative-form specifiers are re-anchored against `consumer_dir` so
     /// they read sensibly from the consumer's perspective; absolute-form
     /// ones, and every specifier when `consumer_dir` is `None`, are emitted
-    /// as the absolute path.
+    /// as the absolute path. A `workspace:` path needs `consumer_dir`; see
+    /// [`Self::needs_consumer_dir`].
     #[must_use]
     pub fn render(&self, consumer_dir: Option<&Path>) -> String {
         // Every branch routes through `normalize_path` so the absolute

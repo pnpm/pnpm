@@ -179,7 +179,6 @@ function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir
   } else if (override.newBareSpecifier.startsWith('link:')) {
     protocol = 'link:'
   } else if (override.newBareSpecifier.startsWith('workspace:.')) {
-    // The only `workspace:` shape the resolver reads as a path.
     protocol = 'workspace:'
   } else if (barePathIsUnambiguous(override.newBareSpecifier)) {
     protocol = ''
