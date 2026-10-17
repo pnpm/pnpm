@@ -299,16 +299,18 @@ fn check_local_dep_children_freshness(
         workspace_dir: check.config.workspace_dir.as_deref(),
         package_dir: dep.dir,
     });
-    let children = local_directory_child_specs(local_manifest.value(), dep.name, catalogs)
-        .map_err(|error| match error {
-            ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
-                FreshnessCheckError::InvalidCatalog(error)
-            }
-            _ => dep.outdated(),
-        })?;
+    let is_peer_shadowed = |name: &str| shadowed.contains(name);
+    let children =
+        local_directory_child_specs(local_manifest.value(), dep.name, is_peer_shadowed, catalogs)
+            .map_err(|error| match error {
+                ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
+                    FreshnessCheckError::InvalidCatalog(error)
+                }
+                _ => dep.outdated(),
+            })?;
     check_snapshot_keys_are_children(check, dep, local_manifest, (&children, snapshot))?;
     for child in &children {
-        if !child_is_fresh(check, dep, snapshot, shadowed, child) {
+        if !child_is_fresh(check, dep, snapshot, child) {
             return Err(dep.outdated());
         }
     }
@@ -316,16 +318,14 @@ fn check_local_dep_children_freshness(
 }
 
 /// Whether the snapshot records a resolution of `child` that its spec
-/// accepts. A child a peer of the package supplies is the peer check's, and
-/// an optional child the install leaves out is not compared.
+/// accepts. An optional child the install leaves out is not compared.
 fn child_is_fresh(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     snapshot: &pnpm_lockfile::SnapshotEntry,
-    shadowed: &HashSet<&str>,
     (name, spec, optional, _): &ChildSpec,
 ) -> bool {
-    if (*optional && !check.config.optional) || (!*optional && shadowed.contains(name.as_str())) {
+    if *optional && !check.config.optional {
         return true;
     }
     match recorded_child(snapshot, name, *optional) {

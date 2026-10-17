@@ -69,24 +69,43 @@ pub struct ChildCatalogs<'a> {
     pub package_dir: &'a Path,
 }
 
+/// What the walk does with a package's child specs before resolving them:
+/// it drops the required children that the package's own peers supply
+/// (`is_peer_shadowed`), then resolves `catalog:` specs.
+pub(super) fn walked_child_specs(
+    specs: &[super::ChildSpec],
+    is_peer_shadowed: impl Fn(&str) -> bool,
+    catalogs: Option<(&Catalogs, CatalogAnchor<'_>)>,
+) -> Result<Vec<super::ChildSpec>, ResolveDependencyTreeError> {
+    let walked = specs
+        .iter()
+        .filter(|(name, _, optional, _)| *optional || !is_peer_shadowed(name))
+        .cloned()
+        .collect();
+    match catalogs {
+        Some((catalogs, anchor)) => resolve_catalog_specifiers(walked, catalogs, anchor),
+        None => Ok(walked),
+    }
+}
+
 /// The child specs the resolver walks for a package resolved from a local
-/// directory: [`manifest_child_specs`], with `catalog:` specs resolved
-/// through `catalogs` when the package is a workspace project, as the
-/// walk resolves them.
+/// directory: [`manifest_child_specs`], less the required children its own
+/// peers supply (`is_peer_shadowed`), with `catalog:` specs resolved through
+/// `catalogs` when the package is a workspace project.
 ///
 /// [`manifest_child_specs`]: crate::manifest_child_specs
 pub fn local_directory_child_specs(
     manifest: &serde_json::Value,
     parent: &str,
+    is_peer_shadowed: impl Fn(&str) -> bool,
     catalogs: Option<ChildCatalogs<'_>>,
 ) -> Result<Vec<super::ChildSpec>, ResolveDependencyTreeError> {
     let specs = super::manifest::manifest_child_specs(manifest, parent)?;
-    match catalogs {
-        Some(catalogs) if !catalogs.catalogs.is_empty() => resolve_catalog_specifiers(
-            specs,
-            catalogs.catalogs,
-            catalog_anchor(catalogs.workspace_dir, Some(catalogs.package_dir)),
-        ),
-        _ => Ok(specs),
-    }
+    let catalogs = catalogs
+        .filter(|catalogs| !catalogs.catalogs.is_empty())
+        .map(|catalogs| {
+            let anchor = catalog_anchor(catalogs.workspace_dir, Some(catalogs.package_dir));
+            (catalogs.catalogs, anchor)
+        });
+    walked_child_specs(&specs, is_peer_shadowed, catalogs)
 }

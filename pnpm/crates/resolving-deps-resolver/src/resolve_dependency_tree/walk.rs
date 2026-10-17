@@ -28,8 +28,7 @@ use workspace_resolution::resolve_wanted_cached;
 mod child_seeds;
 use child_seeds::{
     ChildSeedScope, catalogs_for_children, child_wanted, landed_on_prior_entry,
-    overlay_lookup_names, resolve_catalog_child_specs, resolves_children_through_catalogs,
-    seed_node_children,
+    overlay_lookup_names, resolves_children_through_catalogs, seed_node_children, walk_child_specs,
 };
 
 mod level_walk;
@@ -80,9 +79,8 @@ use crate::{
 };
 
 use super::{
-    CatalogAnchor, ResolveDependencyTreeError, SkippedOptionalDependency,
-    SkippedOptionalDependencyParent,
-    catalogs::{catalog_anchor, resolve_catalog_specifier},
+    ResolveDependencyTreeError, SkippedOptionalDependency, SkippedOptionalDependencyParent,
+    catalogs::catalog_anchor,
     lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_children,

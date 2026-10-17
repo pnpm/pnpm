@@ -1,10 +1,10 @@
 use super::{
-    Arc, CatalogAnchor, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path,
-    PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
-    Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
+    Arc, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path, PendingNode,
+    Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError, Resolver,
+    ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
     keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
-    real_package_name_of, resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
+    real_package_name_of, resolve_node_seed, warm_children_resolutions,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -62,29 +62,34 @@ pub(super) fn child_specs_of(
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };
-    let child_specs = if peer_shadowed.is_empty() {
-        child_specs
-    } else {
-        child_specs
-            .iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
-            .cloned()
-            .collect::<Vec<ChildSpec>>()
-            .pipe(Arc::new)
-    };
-    Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-        Some(catalogs) => {
-            let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
-            let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
-            child_specs
-                .iter()
-                .cloned()
-                .collect::<Vec<ChildSpec>>()
-                .pipe(|specs| resolve_catalog_child_specs(specs, catalogs, anchor))?
-                .pipe(Arc::new)
-        }
-        None => child_specs,
-    })
+    if peer_shadowed.is_empty()
+        && catalogs_for_children(ctx, pending.resolves_children_through_catalogs).is_none()
+    {
+        return Ok(child_specs);
+    }
+    walk_child_specs(
+        ctx,
+        &pending.result,
+        &child_specs,
+        (peer_shadowed, pending.resolves_children_through_catalogs),
+    )
+    .map(Arc::new)
+}
+
+/// [`walked_child_specs`](super::super::catalogs::walked_child_specs) of
+/// `specs`, the children of `result`.
+pub(super) fn walk_child_specs(
+    ctx: &TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    specs: &[ChildSpec],
+    (peer_shadowed, through_catalogs): (&HashSet<String>, bool),
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    let catalogs = catalogs_for_children(ctx, through_catalogs);
+    let declaring_dir = catalogs.and_then(|_| declaring_manifest_dir(ctx, result));
+    let catalogs = catalogs.map(|catalogs| {
+        (catalogs, catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref()))
+    });
+    super::super::catalogs::walked_child_specs(specs, |name| peer_shadowed.contains(name), catalogs)
 }
 
 /// What every child edge of one occurrence resolves against.
@@ -279,21 +284,4 @@ pub(super) fn catalogs_for_children(
     resolves_children_through_catalogs: bool,
 ) -> Option<&Catalogs> {
     (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
-}
-
-/// `anchor` names the injected workspace package's own directory as the
-/// consumer — that manifest declares these children — so a `file:` /
-/// `link:` catalog entry lands on the path it would have written.
-pub(super) fn resolve_catalog_child_specs(
-    child_specs: Vec<ChildSpec>,
-    catalogs: &Catalogs,
-    anchor: CatalogAnchor<'_>,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    child_specs
-        .into_iter()
-        .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs, anchor)
-                .map(|(name, range)| (name, range, optional, injected))
-        })
-        .collect()
 }

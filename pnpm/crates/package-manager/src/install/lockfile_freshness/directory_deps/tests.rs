@@ -417,3 +417,30 @@ fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
         "expected the catalog error, got {error:?}",
     );
 }
+
+/// The resolver drops a dependency that the package's own peer supplies
+/// before it resolves `catalog:` specs, so a missing catalog entry on it is
+/// no error.
+#[test]
+fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "dependencies": { "react": "catalog:missing" },
+            "peerDependencies": { "react": "^18.0.0" },
+        }),
+        metadata: serde_json::json!({
+            "resolution": { "type": "directory", "directory": "lib" },
+            "peerDependencies": { "react": "^18.0.0" },
+        }),
+        snapshot: serde_json::json!({ "dependencies": { "react": "18.3.1" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::from([(
+            "default".to_string(),
+            std::collections::BTreeMap::from([("is-positive".to_string(), "1.0.0".to_string())]),
+        )]),
+    });
+    assert!(result.is_ok(), "the shadowed dependency is the peer check's: {result:?}");
+}
