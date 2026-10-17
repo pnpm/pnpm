@@ -15,7 +15,7 @@ use super::{
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::set_mtime_ms;
+use pnpm_testing_utils::fs::{mtime_ms, set_mtime_ms};
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -647,6 +647,16 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
         RunDepsStatus::UpToDate,
     );
     assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn date_lockfile_after_keeps_the_lockfile_mtime_off_an_exact_second() {
+    let (dir, _) = setup_content_check_project();
+    let recorded = 1_700_000_000_000 - MTIME_STEP_MS;
+    date_lockfile_after(dir.path(), recorded);
+    let mtime = mtime_ms(&dir.path().join(Lockfile::FILE_NAME));
+    assert!(mtime > recorded, "{mtime} must be past {recorded}");
+    assert_ne!(mtime % 1_000, 0);
 }
 
 #[test]
