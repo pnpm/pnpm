@@ -115,21 +115,19 @@ fn prepare_packument_rewrite(
     Ok((hosted, removed))
 }
 
-async fn record_removal_or_rollback(
+async fn rollback_hosted_packument(
     storage: &pnpr_storage::Storage,
-    identity: &Identity,
     name: &CanonicalPackageName,
-    hosted: &Value,
-    removed: &[String],
-    fallback: &[u8],
-) -> Result<(), RegistryError> {
-    if let Err(err) =
-        record_removed_versions_in_tombstone(storage, identity, name, hosted, removed).await
+    written_bytes: &[u8],
+    fallback_bytes: &[u8],
+) {
+    if let Ok(Some(current)) = storage.read_hosted_document_for_update(name).await
+        && current.bytes == written_bytes
     {
-        let _ = storage.write_hosted_document_if_current(name, fallback, None).await;
-        return Err(err);
+        let _ =
+            storage.write_hosted_document_if_current(name, fallback_bytes, Some(&current.version))
+                .await;
     }
-    Ok(())
 }
 
 /// Serialize against other same-package writers so the rewrite cannot
@@ -160,16 +158,11 @@ async fn rewrite_packument(
         .await
     {
         Ok(DocumentWrite::Written) => {
-            if let Err(err) = record_removal_or_rollback(
-                storage,
-                identity,
-                name,
-                &hosted,
-                &removed,
-                &hosted_packument.bytes,
-            )
-            .await
+            if let Err(err) =
+                record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed)
+                    .await
             {
+                rollback_hosted_packument(storage, name, &bytes, &hosted_packument.bytes).await;
                 return err.into_response();
             }
             log_packument_update(identity, name, source);
