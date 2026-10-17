@@ -3,12 +3,19 @@ use super::{
     importers::{real_name, self_aliased_file_ver},
     optional_children_of,
 };
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
     BundledDependencies, LockfileFormError, LockfileFormOptions, LockfileResolution, PackageKey,
     PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions,
     SnapshotDepRef, SnapshotEntry, registry_for_package, registry_server_type,
 };
-use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pnpm_resolving_deps_resolver::{
+    DepPath, DependenciesGraph, DependenciesGraphNode, declared_peer_dependencies,
+};
 use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -39,6 +46,7 @@ pub(super) fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
     sources: &PackageMetadataSources<'_>,
+    catalogs: &Catalogs,
 ) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
     // Every node's snapshot and metadata read only that node plus the
     // shared inputs, so the nodes fan out across the rayon pool; the
@@ -56,7 +64,13 @@ pub(super) fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     for built_node in built {
         let Some(BuiltNode { node, snapshot_key, snapshot }) = built_node? else { continue };
-        insert_package_metadata(&mut packages, node, snapshot_key.without_peer(), sources)?;
+        insert_package_metadata(
+            &mut packages,
+            node,
+            snapshot_key.without_peer(),
+            sources,
+            catalogs,
+        )?;
         snapshots.insert(snapshot_key, snapshot);
     }
 
@@ -96,6 +110,7 @@ pub(super) fn insert_package_metadata(
     node: &DependenciesGraphNode,
     metadata_key: PackageKey,
     sources: &PackageMetadataSources<'_>,
+    catalogs: &Catalogs,
 ) -> Result<(), DependenciesGraphToLockfileError> {
     let std::collections::hash_map::Entry::Vacant(entry) = packages.entry(metadata_key) else {
         return Ok(());
@@ -109,6 +124,7 @@ pub(super) fn insert_package_metadata(
             server_type: registry_server_type(sources.registry_options_by_url, registry),
             include_tarball_url,
         },
+        catalogs,
     )
     .map_err(DependenciesGraphToLockfileError::LockfileForm)?;
     carry_previous_deprecation(&mut metadata, entry.key(), sources);
@@ -169,9 +185,10 @@ pub(super) fn build_package_metadata(
     node: &DependenciesGraphNode,
     metadata_key: &PackageKey,
     lockfile_form: LockfileFormOptions<'_>,
+    catalogs: &Catalogs,
 ) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = node.resolve_result.package.manifest.as_deref();
-    let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
+    let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node, catalogs);
     let resolution_version = match metadata_key.suffix.registry_qualified() {
         Some((_, version)) => version.to_string(),
         None => metadata_key.suffix.version().to_string(),
@@ -293,23 +310,52 @@ pub fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
 /// Returned `Option`-pair from [`build_peer_dep_blocks`].
 pub(super) type PeerDepBlocks =
     (Option<HashMap<String, String>>, Option<HashMap<String, PeerDependencyMeta>>);
-/// Split the resolver's `peer_dependencies` into the
+/// Split the package's [`declared_peer_dependencies`] into the
 /// `peerDependencies` (name → range) and `peerDependenciesMeta`
-/// (name → `{ optional: true }`) blocks written onto `packages:`.
-pub(super) fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
-    if node.edges.peer_dependencies.is_empty() {
+/// (name → `{ optional: true }`) blocks written onto `packages:`. They are
+/// recorded whether or not this install supplies each one as a peer, so
+/// the entry is the same for every scope the package resolves in. A range
+/// the resolver dereferenced from a catalog is recorded dereferenced.
+pub(super) fn build_peer_dep_blocks(
+    node: &DependenciesGraphNode,
+    catalogs: &Catalogs,
+) -> PeerDepBlocks {
+    let declared = node.resolve_result.package.manifest
+        .as_deref()
+        .map(declared_peer_dependencies)
+        .unwrap_or_default();
+    if declared.is_empty() && node.edges.peer_dependencies.is_empty() {
         return (None, None);
     }
     let mut peers: HashMap<String, String> = HashMap::new();
     let mut peers_meta: HashMap<String, PeerDependencyMeta> = HashMap::new();
-    for (name, peer) in &node.edges.peer_dependencies {
-        peers.insert(name.clone(), peer.version.clone());
+    for (name, peer) in declared.iter().chain(&node.edges.peer_dependencies) {
+        let version = node.edges.peer_dependencies
+            .get(name)
+            .map_or_else(
+                || catalog_range(name, &peer.version, catalogs),
+                |taken| taken.version.clone(),
+            );
+        peers.insert(name.clone(), version);
         if peer.optional {
             peers_meta.insert(name.clone(), PeerDependencyMeta { optional: true });
         }
     }
     let peers_meta = (!peers_meta.is_empty()).then_some(peers_meta);
     (Some(peers), peers_meta)
+}
+
+/// `range` with a `catalog:` reference replaced by the catalog's entry, as
+/// the resolver dereferences the peers a workspace package takes.
+fn catalog_range(name: &str, range: &str, catalogs: &Catalogs) -> String {
+    let wanted =
+        CatalogWantedDependency { alias: name.to_string(), bare_specifier: range.to_string() };
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
+        CatalogResolutionResult::Found(found) => found.resolution.specifier,
+        CatalogResolutionResult::Unused | CatalogResolutionResult::Misconfiguration(_) => {
+            range.to_string()
+        }
+    }
 }
 /// Build the per-snapshot [`SnapshotEntry`] for this depPath: the
 /// `dependencies` / `optionalDependencies` partition follows the

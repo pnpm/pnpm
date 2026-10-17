@@ -9,6 +9,7 @@ import semver from 'semver'
 
 import { type DroppedEdges, recordDroppedEdge } from './droppedEdges.js'
 import type { GraphEdits } from './tryComposeFastUpdates.js'
+import { getPeerNames } from './tryFastUpdateOverrides.js'
 import { isDirectoryDependency } from './tryFastUpdateSettings.js'
 
 export interface Project {
@@ -62,8 +63,9 @@ export function tryFastUpdateImporters (
     if (pruned == null) return false
     changed = pruned
   }
+  const peerNames = getPeerNames(lockfile)
   for (const project of opts.projects) {
-    const updated = updateProjectImporter(lockfile, project, { opts, edits })
+    const updated = updateProjectImporter(lockfile, project, { opts, edits, peerNames })
     if (updated == null) return false
     changed ||= updated
   }
@@ -73,6 +75,12 @@ export function tryFastUpdateImporters (
 interface ImporterUpdateContext {
   opts: FastImportersUpdateOptions
   edits: GraphEdits
+  /**
+   * Every name the lockfile records as a peer. A direct dependency added
+   * under one of them changes what the peer binds to, which only the resolver
+   * can redo.
+   */
+  peerNames: Set<string>
 }
 
 interface ImporterEdge {
@@ -191,7 +199,7 @@ function applySpecifierChange (
   const reference = recordedIn == null ? undefined : importer[recordedIn]![alias]
   if (semver.validRange(specifier) == null) return null
   if (reference == null) {
-    return addImporterEdge(lockfile, { ...edge, opts: context.opts }, context.edits) ? 'added' : null
+    return addImporterEdge(lockfile, { ...edge, opts: context.opts, peerNames: context.peerNames }, context.edits) ? 'added' : null
   }
   if (!repointImporterEdge(lockfile, { edge, recordedIn: recordedIn!, reference }, context)) return null
   importer.specifiers[alias] = specifier
@@ -333,14 +341,15 @@ function addImporterEdge (
     specifier: string
     project: Project
     opts: FastImportersUpdateOptions
+    peerNames: Set<string>
   },
   edits: GraphEdits
 ): boolean {
-  const { importer, alias, specifier, project, opts } = edge
+  const { importer, alias, specifier, project, opts, peerNames } = edge
   // A recorded specifier with nothing to point at is a lockfile only the
   // resolver can make sense of.
   if (ownValue(importer.specifiers, alias) != null) return false
-  if (isDirectoryDependency(alias, specifier, opts.workspacePackages)) return false
+  if (isDirectoryDependency(alias, specifier, opts.workspacePackages) || peerNames.has(alias)) return false
   const wanted = lockedVersionResolutionWouldPick(lockfile, alias, {
     specifier,
     resolutionPicksLowest: opts.resolutionPicksLowest,

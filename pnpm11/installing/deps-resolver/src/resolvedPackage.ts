@@ -80,6 +80,7 @@ export function getResolvedPackage (
   }
 ): ResolvedPackage {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
+  const declaredPeerDependencies = getDeclaredPeerDependencies(options.pkg)
 
   return {
     additionalInfo: {
@@ -105,6 +106,7 @@ export function getResolvedPackage (
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,
     peerDependencies,
+    declaredPeerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
@@ -173,10 +175,24 @@ export function detectRegistryRevisionConflict (
 }
 
 export function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
+  return peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {}))
+}
+
+/**
+ * Every peer the package declares, which the lockfile records whether or not
+ * this install supplies it as a peer. A peer that is also one of the package's
+ * `dependencies` is supplied as a peer only in the scopes that shadow that
+ * dependency, so the record must not depend on which scope wrote it.
+ */
+function getDeclaredPeerDependencies (pkg: PackageManifest): PeerDependencies {
+  return peerDependenciesExcept(pkg, [])
+}
+
+function peerDependenciesExcept (pkg: PackageManifest, dependencies: string[]): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
     pkg.name,
-    ...Object.keys(pkg.dependencies ?? {}),
+    ...dependencies,
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
   const result: PeerDependencies = {}

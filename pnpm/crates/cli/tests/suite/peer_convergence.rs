@@ -460,15 +460,24 @@ fn optional_peer_also_in_dependencies() {
                 ("@pnpm.e2e/bravo-dep", "1.0.0"),
             ],
         )],
-        vec![Divergence {
-            issue: OPTIONAL_PEER_ALSO_IN_DEPS_ISSUE,
-            rows: |row| !row.auto_dedupe,
-            paths: &[
-                "importers > packages/app > dependencies > @pnpm.e2e/has-optional-peer-also-in-deps >",
-                "packages > @pnpm.e2e/has-optional-peer-also-in-deps@",
-                "snapshots > @pnpm.e2e/has-optional-peer-also-in-deps@",
-            ],
-        }],
+        vec![],
+    );
+}
+
+#[test]
+fn optional_peer_also_in_dependencies_provided_by_another_project() {
+    Harness::check(
+        vec![
+            project("a", &[("@pnpm.e2e/has-optional-peer-also-in-deps", "1.0.0")]),
+            project(
+                "b",
+                &[
+                    ("@pnpm.e2e/has-optional-peer-also-in-deps", "1.0.0"),
+                    ("@pnpm.e2e/bravo-dep", "1.0.0"),
+                ],
+            ),
+        ],
+        vec![],
     );
 }
 
@@ -626,6 +635,5 @@ fn workspace_package_with_a_peer() {
     );
 }
 
-const OPTIONAL_PEER_ALSO_IN_DEPS_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17056";
 const INJECTED_BEFORE_PROVIDER_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17057";
 const AUTO_INSTALLED_PEER_MOVES_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17058";

@@ -14,9 +14,10 @@
 //! so extending a scope costs one level's aliases rather than a copy of
 //! everything above it; only membership is ever asked of it.
 
+use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::Value;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// One level's aliases, chained onto the levels above it.
 #[derive(Debug, Default)]
@@ -108,6 +109,40 @@ pub fn own_dependency_names(
         .filter(move |name| !peer_shadowed(name))
         .chain(names("optionalDependencies"))
         .chain(manifest.get("name").and_then(Value::as_str))
+}
+
+/// Every peer `manifest` declares: its `peerDependencies`, plus each
+/// `optional` `peerDependenciesMeta` entry without one as an optional
+/// `"*"` peer. The names it resolves itself in every scope, its
+/// `optionalDependencies` and its own name, are left out. A
+/// `dependencies` entry of the same name stays, since whether it is
+/// supplied as a peer depends on the scope
+/// ([`peer_shadowed_dependency_names`]).
+#[must_use]
+pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep> {
+    let own: HashSet<&str> = own_dependency_names(manifest, |_| true).collect();
+    let object = |key| manifest.get(key).and_then(Value::as_object);
+    let mut peers: BTreeMap<String, PeerDep> = object("peerDependencies")
+        .into_iter()
+        .flatten()
+        .filter(|(name, _)| !own.contains(name.as_str()))
+        .filter_map(|(name, range)| {
+            let version = range.as_str()?.to_string();
+            Some((name.clone(), PeerDep { version, optional: false }))
+        })
+        .collect();
+    for (name, info) in object("peerDependenciesMeta").into_iter().flatten() {
+        if own.contains(name.as_str())
+            || info.get("optional").and_then(Value::as_bool) != Some(true)
+        {
+            continue;
+        }
+        peers
+            .entry(name.clone())
+            .and_modify(|entry| entry.optional = true)
+            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
+    }
+    peers
 }
 
 /// The `dependencies` entries of `manifest` that its own

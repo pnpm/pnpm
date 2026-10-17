@@ -896,6 +896,16 @@ fn assert_optional_peer_also_in_deps_is_installed(auto_install_peers: bool) {
         ["@pnpm.e2e/bravo-dep 1.0.0"],
         "the snapshot must keep the dependency at its own range",
     );
+    let lockfile = read_lockfile(&lockfile_path);
+    let metadata = &lockfile.packages.as_ref().expect("packages")
+        [&"@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0".parse().expect("package key")];
+    assert_eq!(
+        metadata.peer_dependencies
+            .as_ref()
+            .and_then(|peers| peers.get("@pnpm.e2e/bravo-dep")),
+        Some(&"^1.0.0".to_string()),
+        "the package entry records the peer the dependency supplies in this scope",
+    );
 
     fs::write(
         &manifest_path,

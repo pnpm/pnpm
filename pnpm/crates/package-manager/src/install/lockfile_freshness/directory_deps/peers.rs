@@ -1,17 +1,19 @@
 //! The peers of a local directory dependency, as the resolver reads them.
 
-use super::{LocalDepContext, optional_peer_names};
+use super::LocalDepContext;
 use crate::install::lockfile_freshness::FreshnessCheckError;
 use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{own_dependency_names, peer_shadowed_dependency_names};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_deps_resolver::{
+    declared_peer_dependencies, own_dependency_names, peer_shadowed_dependency_names,
+};
 use std::collections::{HashMap, HashSet};
 
 /// How the resolver treats the names a package declares both as one of its
-/// own dependencies and as a peer. The resolver's own rule decides it, with
-/// the peers the lockfile recorded standing in for the parent scope.
+/// own dependencies and as a peer, decided by the resolver's own rule in
+/// the scope the package resolved in.
 pub(super) struct PeerShadowing<'m> {
     /// The `dependencies` entries the peer edge supplies instead, so the
     /// snapshot records the peer's resolution for them. See
@@ -24,16 +26,12 @@ pub(super) struct PeerShadowing<'m> {
 impl<'m> PeerShadowing<'m> {
     pub(super) fn of(
         manifest: &'m PackageManifest,
-        pkg_meta: &pnpm_lockfile::PackageMetadata,
+        in_scope: impl Fn(&str) -> bool,
         auto_install_peers: bool,
     ) -> Self {
-        let recorded = pkg_meta.peer_dependencies.as_ref();
-        let shadowed: HashSet<&str> = peer_shadowed_dependency_names(
-            Some(manifest.value()),
-            |name| recorded.is_some_and(|recorded| recorded.contains_key(name)),
-            auto_install_peers,
-        )
-        .collect();
+        let shadowed: HashSet<&str> =
+            peer_shadowed_dependency_names(Some(manifest.value()), in_scope, auto_install_peers)
+                .collect();
         let own = own_dependency_names(manifest.value(), |name| shadowed.contains(name)).collect();
         PeerShadowing { shadowed, own }
     }
@@ -42,92 +40,74 @@ impl<'m> PeerShadowing<'m> {
     /// resolved peers in the snapshot are whatever the parent provides, such as
     /// a `link:` to a workspace project or a version outside the range (an unmet
     /// peer only warns), so they say nothing about whether the lockfile is stale.
+    ///
+    /// The lockfile records every [`declared_peer_dependencies`] entry, and one
+    /// written before it did records only the peers the package takes in its
+    /// scope, so both are fresh.
     pub(super) fn check_local_peer_deps_freshness(
         &self,
         dep: &LocalDepContext<'_>,
         local_manifest: &PackageManifest,
         pkg_meta: &pnpm_lockfile::PackageMetadata,
     ) -> Result<(), FreshnessCheckError> {
-        let mut manifest_peers: HashMap<&str, &str> = local_manifest
-            .dependencies([DependencyGroup::Peer])
-            .filter(|(name, _)| !self.own.contains(name))
+        let declared = declared_peer_dependencies(local_manifest.value());
+        let taken: HashSet<&str> = declared
+            .keys()
+            .map(String::as_str)
+            .filter(|name| !self.own.contains(name))
             .collect();
-        for name in self.optional_peer_names(local_manifest) {
-            manifest_peers.entry(name).or_insert("*");
-        }
-        check_recorded_peer_specs_match(dep, &manifest_peers, pkg_meta)?;
-        self.check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)
-    }
-
-    fn optional_peer_names<'a>(
-        &'a self,
-        manifest: &'a PackageManifest,
-    ) -> impl Iterator<Item = &'a str> {
-        optional_peer_names(manifest).filter(|name| !self.own.contains(name))
-    }
-
-    fn check_peer_dependencies_meta_freshness(
-        &self,
-        dep: &LocalDepContext<'_>,
-        local_manifest: &PackageManifest,
-        pkg_meta: &pnpm_lockfile::PackageMetadata,
-    ) -> Result<(), FreshnessCheckError> {
-        let manifest_meta = local_manifest
-            .value()
-            .get("peerDependenciesMeta")
-            .and_then(serde_json::Value::as_object);
-        let recorded_meta = pkg_meta.peer_dependencies_meta.as_ref();
-        let manifest_optional_count = self.optional_peer_names(local_manifest).count();
-        let recorded_optional_count = recorded_meta
-            .map(|meta| {
-                meta.values()
-                    .filter(|m| m.optional)
-                    .count()
-            })
-            .unwrap_or(0);
-        if manifest_optional_count != recorded_optional_count {
+        let declared_specs: HashMap<&str, &str> = declared
+            .iter()
+            .map(|(name, peer)| (name.as_str(), peer.version.as_str()))
+            .collect();
+        check_recorded_peer_specs_match(dep, &declared_specs, &taken, pkg_meta)?;
+        let recorded_optional: HashSet<&str> = pkg_meta.peer_dependencies_meta
+            .iter()
+            .flatten()
+            .filter(|(_, meta)| meta.optional)
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let optional_matches = recorded_optional
+            .iter()
+            .all(|name| declared.get(*name).is_some_and(|peer| peer.optional))
+            && declared
+                .iter()
+                .filter(|(name, peer)| peer.optional && taken.contains(name.as_str()))
+                .all(|(name, _)| recorded_optional.contains(name.as_str()));
+        if !optional_matches {
             return Err(dep.outdated());
-        }
-        if let Some(recorded) = recorded_meta {
-            for (name, meta) in recorded {
-                let manifest_optional = manifest_meta
-                    .and_then(|m| m.get(name))
-                    .and_then(|entry| entry.get("optional"))
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                if meta.optional != manifest_optional {
-                    return Err(dep.outdated());
-                }
-            }
         }
         Ok(())
     }
 }
 
+/// Every recorded peer is `declared` with the recorded range, and every
+/// `taken` one is recorded.
 pub(super) fn check_recorded_peer_specs_match(
     dep: &LocalDepContext<'_>,
-    manifest_peers: &HashMap<&str, &str>,
+    declared: &HashMap<&str, &str>,
+    taken: &HashSet<&str>,
     pkg_meta: &pnpm_lockfile::PackageMetadata,
 ) -> Result<(), FreshnessCheckError> {
-    let recorded_count = pkg_meta.peer_dependencies
-        .as_ref()
-        .map(HashMap::len)
-        .unwrap_or(0);
-    if manifest_peers.len() != recorded_count {
+    let recorded = pkg_meta.peer_dependencies.as_ref();
+    let recorded_names = || recorded.into_iter().flat_map(HashMap::keys);
+    if recorded_names().any(|name| !declared.contains_key(name.as_str()))
+        || taken
+            .iter()
+            .any(|name| recorded.is_none_or(|recorded| !recorded.contains_key(*name)))
+    {
         return Err(dep.outdated());
     }
-    for (name, spec) in manifest_peers {
-        let recorded_spec = pkg_meta.peer_dependencies
-            .as_ref()
-            .and_then(|p| p.get(*name));
+    for name in recorded_names() {
+        let spec = declared[name.as_str()];
+        let recorded_spec = recorded.and_then(|p| p.get(name));
         if recorded_spec.map(String::as_str) == Some(spec) {
             continue;
         }
         if dep.catalogs.is_empty() {
             return Err(dep.outdated());
         }
-        let wanted =
-            WantedDependency { alias: (*name).to_string(), bare_specifier: (*spec).to_string() };
+        let wanted = WantedDependency { alias: name.clone(), bare_specifier: spec.to_string() };
         match resolve_from_catalog(dep.catalogs, &wanted, CatalogAnchor::AsWritten) {
             CatalogResolutionResult::Found(found)
                 if recorded_spec == Some(&found.resolution.specifier) => {}

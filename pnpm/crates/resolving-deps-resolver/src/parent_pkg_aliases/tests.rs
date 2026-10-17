@@ -1,4 +1,7 @@
-use super::{ParentPkgAliases, own_dependency_names, peer_shadowed_dependencies};
+use super::{
+    ParentPkgAliases, declared_peer_dependencies, own_dependency_names, peer_shadowed_dependencies,
+};
+use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 
 fn names<const COUNT: usize>(names: [&str; COUNT]) -> HashSet<String> {
@@ -85,4 +88,27 @@ fn own_dependencies_are_the_unshadowed_ones_plus_optional_deps_and_the_name() {
         own_dependency_names(&manifest, |name| shadowed.contains(name)).collect();
 
     assert_eq!(own, HashSet::from_iter(["kept", "also-optional", "pkg"]));
+}
+
+#[test]
+fn declared_peers_keep_a_same_named_dependency_and_drop_optional_deps_and_the_name() {
+    let manifest = serde_json::json!({
+        "name": "pkg",
+        "dependencies": { "dep": "1.0.0" },
+        "optionalDependencies": { "optional": "1.0.0" },
+        "peerDependencies": { "dep": "^1.0.0", "optional": "^1.0.0", "pkg": "*", "peer": "^2.0.0" },
+        "peerDependenciesMeta": { "dep": { "optional": true }, "meta-only": { "optional": true } },
+    });
+
+    let declared: Vec<(String, PeerDep)> =
+        declared_peer_dependencies(&manifest).into_iter().collect();
+
+    assert_eq!(
+        declared,
+        [
+            ("dep".to_string(), PeerDep { version: "^1.0.0".to_string(), optional: true }),
+            ("meta-only".to_string(), PeerDep { version: "*".to_string(), optional: true }),
+            ("peer".to_string(), PeerDep { version: "^2.0.0".to_string(), optional: false }),
+        ],
+    );
 }

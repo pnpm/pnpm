@@ -188,8 +188,12 @@ pub fn dependencies_graph_to_lockfile(
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let optional_overrides =
         compute_corrected_optional(&opts.importers, opts.graph, opts.settings.auto_install_peers);
-    let (packages, snapshots) =
-        build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
+    let (packages, snapshots) = build_packages_and_snapshots(
+        opts.graph,
+        &optional_overrides,
+        &opts.metadata_sources,
+        opts.catalogs,
+    )?;
     let importers = build_importers(&opts)?;
     let mut lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))

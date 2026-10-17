@@ -8,7 +8,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{PackageMetadata, StalenessReason};
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -91,7 +91,12 @@ fn check_peer_spec(
         "peerDependencies": { "foo": recorded_spec },
     }))
     .expect("parse local package metadata");
-    check_recorded_peer_specs_match(&dep, &HashMap::from([("foo", manifest_spec)]), &metadata)
+    check_recorded_peer_specs_match(
+        &dep,
+        &HashMap::from([("foo", manifest_spec)]),
+        &HashSet::from(["foo"]),
+        &metadata,
+    )
 }
 
 fn project(
@@ -164,9 +169,10 @@ fn freshness_workspace_packages_prefer_the_dependency_manifest() {
 
 /// Check a directory dependency declaring `react` both as a dependency
 /// (`19.2.7`) and as a peer (`^18.0.0`) against a lockfile that resolved it
-/// to `locked` and recorded `recorded_peers` for the package.
+/// to `locked` and recorded `recorded_peers` for the package, for an importer
+/// whose dependencies are `scope`.
 fn check_dependency_that_is_also_a_peer(
-    auto_install_peers: bool,
+    (auto_install_peers, scope): (bool, &[&str]),
     recorded_peers: &serde_json::Value,
     locked: &str,
 ) -> Result<(), FreshnessCheckError> {
@@ -179,35 +185,38 @@ fn check_dependency_that_is_also_a_peer(
         pnpm_lockfile::PkgName::parse("react").unwrap(),
         locked.parse::<pnpm_lockfile::SnapshotDepRef>().unwrap(),
     )]);
-    check_local_dep_peers(auto_install_peers, manifest, recorded_peers, &snapshot_deps)
+    check_local_dep_peers((auto_install_peers, scope), manifest, recorded_peers, &snapshot_deps)
 }
 
 /// Check the production dependencies and peers of a directory dependency
 /// with `manifest` against a lockfile that recorded `snapshot_deps` and
-/// `recorded_peers` for it.
+/// `recorded_peers` for it, for an importer whose dependencies are `scope`.
 fn check_local_dep_peers(
-    auto_install_peers: bool,
+    (auto_install_peers, scope): (bool, &[&str]),
     manifest: serde_json::Value,
     recorded_peers: &serde_json::Value,
     snapshot_deps: &HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
 ) -> Result<(), FreshnessCheckError> {
-    check_directory_dep(&DirectoryDepCase {
-        manifest,
-        metadata: serde_json::json!({
-            "resolution": { "type": "directory", "directory": "lib" },
-            "peerDependencies": recorded_peers,
-        }),
-        snapshot: serde_json::json!({
-            "dependencies": snapshot_deps
-                .iter()
-                .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
-                .collect::<serde_json::Map<String, serde_json::Value>>(),
-        }),
-        allow_unresolved: false,
-        auto_install_peers,
-        include_optional: true,
-        catalogs: Catalogs::new(),
-    })
+    check_directory_dep_in_scope(
+        &DirectoryDepCase {
+            manifest,
+            metadata: serde_json::json!({
+                "resolution": { "type": "directory", "directory": "lib" },
+                "peerDependencies": recorded_peers,
+            }),
+            snapshot: serde_json::json!({
+                "dependencies": snapshot_deps
+                    .iter()
+                    .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
+                    .collect::<serde_json::Map<String, serde_json::Value>>(),
+            }),
+            allow_unresolved: false,
+            auto_install_peers,
+            include_optional: true,
+            catalogs: Catalogs::new(),
+        },
+        scope,
+    )
 }
 
 /// A directory dependency `lib` at `/ws/lib` in a workspace at `/ws`.
@@ -224,6 +233,21 @@ struct DirectoryDepCase {
 }
 
 fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckError> {
+    check_directory_dep_in_scope(case, &[])
+}
+
+/// [`check_directory_dep`] for an importer whose dependencies are `scope`.
+fn check_directory_dep_in_scope(
+    case: &DirectoryDepCase,
+    scope: &[&str],
+) -> Result<(), FreshnessCheckError> {
+    let importer: pnpm_lockfile::ProjectSnapshot = serde_json::from_value(serde_json::json!({
+        "dependencies": scope
+            .iter()
+            .map(|name| (name.to_string(), serde_json::json!({ "specifier": "*", "version": "1.0.0" })))
+            .collect::<serde_json::Map<String, serde_json::Value>>(),
+    }))
+    .expect("parse the importer");
     let dep_dir = PathBuf::from("/ws/lib");
     let local_manifest =
         PackageManifest::from_value(dep_dir.join("package.json"), case.manifest.clone());
@@ -268,16 +292,24 @@ fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckErro
         },
         catalogs,
     };
-    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
+    super::check_single_directory_dep_freshness(
+        &check,
+        &importer,
+        &dep,
+        (Some(&snapshot), &metadata),
+    )
 }
 
 #[test]
 fn an_auto_installed_peer_supplies_the_dependency_it_shadows() {
     let peer = serde_json::json!({ "react": "^18.0.0" });
-    let result = check_dependency_that_is_also_a_peer(true, &peer, "18.3.1");
+    let result = check_dependency_that_is_also_a_peer((true, &[]), &peer, "18.3.1");
     assert!(result.is_ok(), "the snapshot records the peer's resolution: {result:?}");
     // The peer range still counts: the lockfile must have recorded it.
-    assert!(check_dependency_that_is_also_a_peer(true, &serde_json::json!({}), "18.3.1").is_err());
+    assert!(
+        check_dependency_that_is_also_a_peer((true, &[]), &serde_json::json!({}), "18.3.1")
+            .is_err(),
+    );
 }
 
 /// The resolver reads a dependency whose value is not a string as no child,
@@ -290,26 +322,42 @@ fn a_non_string_dependency_still_keeps_its_name_out_of_the_peers() {
         "dependencies": { "react": true },
         "peerDependencies": { "react": "^18.0.0" },
     });
-    let result = check_local_dep_peers(false, manifest, &serde_json::json!({}), &HashMap::new());
+    let result =
+        check_local_dep_peers((false, &[]), manifest, &serde_json::json!({}), &HashMap::new());
     assert!(result.is_ok(), "the lockfile the resolver writes is fresh: {result:?}");
 }
 
 #[test]
-fn a_peer_the_parent_provided_shadows_the_dependency_without_auto_install() {
+fn a_peer_the_importer_provides_shadows_the_dependency_without_auto_install() {
     let peer = serde_json::json!({ "react": "^18.0.0" });
-    let result = check_dependency_that_is_also_a_peer(false, &peer, "18.3.1");
-    assert!(result.is_ok(), "the recorded peer shows the parent supplied it: {result:?}");
+    let result = check_dependency_that_is_also_a_peer((false, &["react"]), &peer, "18.3.1");
+    assert!(result.is_ok(), "the importer supplied the peer: {result:?}");
 }
 
 #[test]
-fn an_unshadowed_dependency_is_compared_and_recorded_as_no_peer() {
-    let no_peers = serde_json::json!({});
-    let result = check_dependency_that_is_also_a_peer(false, &no_peers, "19.2.7");
+fn an_unshadowed_dependency_is_compared_against_its_own_spec() {
+    let peer = serde_json::json!({ "react": "^18.0.0" });
+    let result = check_dependency_that_is_also_a_peer((false, &[]), &peer, "19.2.7");
     assert!(result.is_ok(), "the dependency resolved as a regular one: {result:?}");
     assert!(
-        check_dependency_that_is_also_a_peer(false, &no_peers, "18.3.1").is_err(),
+        check_dependency_that_is_also_a_peer((false, &[]), &peer, "18.3.1").is_err(),
         "an unshadowed dependency must still satisfy its own spec",
     );
+}
+
+/// A lockfile written before every declared peer was recorded left out the
+/// ones the package resolved as its own dependencies.
+#[test]
+fn an_unshadowed_peer_may_be_missing_from_the_recorded_peers() {
+    let result =
+        check_dependency_that_is_also_a_peer((false, &[]), &serde_json::json!({}), "19.2.7");
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[test]
+fn a_recorded_peer_the_manifest_does_not_declare_is_stale() {
+    let peers = serde_json::json!({ "react": "^18.0.0", "vue": "^3.0.0" });
+    assert!(check_dependency_that_is_also_a_peer((false, &[]), &peers, "19.2.7").is_err());
 }
 
 /// Check a directory dependency whose own manifest declares `is-positive`
