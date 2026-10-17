@@ -30,6 +30,7 @@ test('file-backed tarballs are verified before extraction', async () => {
       storeDir: source.storeDir,
       filesIndexFile: 'test',
       integrity: `sha512-${crypto.hash('sha512', 'wrong', 'base64')}`,
+      maxUnpackedSize: 2147483648,
     })
     expect(result).toMatchObject({ status: 'error', error: { type: 'integrity_validation_failed', found: source.integrity } })
     expect(fs.existsSync(source.storeDir)).toBe(false)
@@ -48,6 +49,7 @@ test.each([false, true])('file-backed extraction retains the tarball integrity (
       filesIndexFile: 'test',
       pkgId: 'test@1.0.0',
       integrity: pinned ? source.integrity : undefined,
+      maxUnpackedSize: 2147483648,
     })
     expect(result).toMatchObject({ status: 'success', value: { integrity: source.integrity } })
     expect('indexWrites' in result && result.indexWrites).toHaveLength(pinned ? 1 : 2)
