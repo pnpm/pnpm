@@ -88,10 +88,7 @@ async fn user_store_rejects_invalid_username_before_persisting() {
         );
     }
     assert!(
-        store.users
-            .lock()
-            .expect("UserStore mutex poisoned")
-            .is_empty(),
+        store.is_empty_for_test(),
         "invalid username should be rejected before any persistence",
     );
 }
@@ -100,11 +97,8 @@ async fn user_store_rejects_invalid_username_before_persisting() {
 async fn user_store_rejects_invalid_username_before_lookup() {
     let store = test_user_store();
     let hash = bcrypt::hash("secret", TEST_COST).unwrap();
-    {
-        let mut users = store.users.lock().expect("UserStore mutex poisoned");
-        for username in INVALID_USERNAMES {
-            users.insert((*username).to_string(), hash.clone());
-        }
+    for username in INVALID_USERNAMES {
+        store.insert_user_for_test((*username).to_string(), hash.clone());
     }
 
     for username in INVALID_USERNAMES {
@@ -1056,4 +1050,61 @@ async fn file_backed_user_store_picks_up_external_edits() {
             .unwrap()
             .is_some(),
     );
+}
+
+#[tokio::test]
+async fn holds_fails_closed_on_corrupt_htpasswd_and_reflects_deletion() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+
+    assert!(store.create_user("alice", "pass1").await.unwrap());
+    assert!(store.holds("alice").unwrap());
+    assert!(!store.holds("bob").unwrap());
+
+    // Corrupt the htpasswd file
+    std::fs::write(&htpasswd_path, b"invalid htpasswd line without colon\n").unwrap();
+    assert!(store.holds("alice").is_err(), "must fail closed on corrupt htpasswd");
+
+    // Delete the htpasswd file: accounts are cleared
+    std::fs::remove_file(&htpasswd_path).unwrap();
+    assert!(!store.holds("alice").unwrap(), "deleted file must reflect as empty store");
+}
+
+#[tokio::test]
+async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store =
+        std::sync::Arc::new(UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap());
+
+    assert!(store.create_user("alice", "pass1").await.unwrap());
+
+    let mut handles = Vec::new();
+    for index in 0..10 {
+        let store = std::sync::Arc::clone(&store);
+        handles.push(tokio::spawn(async move {
+            for _ in 0..20 {
+                let _ = store.holds("alice");
+                let _ = store.password_hash("alice").await;
+                let _ = store.list_users().await;
+                tokio::time::sleep(std::time::Duration::from_millis((index % 3) + 1)).await;
+            }
+        }));
+    }
+
+    let replacer = tokio::spawn(async move {
+        for round in 0..10 {
+            let _ = std::fs::remove_file(&htpasswd_path);
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+            let hash = bcrypt::hash(format!("pass{round}"), TEST_COST).unwrap();
+            std::fs::write(&htpasswd_path, format!("alice:{hash}\n")).unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    });
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    replacer.await.unwrap();
 }
