@@ -91,10 +91,15 @@ pub(super) async fn tar_response(
     }
     if accepted.gzip {
         let (parts, body) = tgz.into_parts();
+        let expected = source.expected();
+        // A client stops reading at a declared length, so a mismatch reported
+        // after the last byte would reach it only as a dropped connection it
+        // never sees. Without the length, the missing final chunk fails it.
         let len = parts.headers
             .get(header::CONTENT_LENGTH)
-            .and_then(|value| value.to_str().ok()?.parse().ok());
-        let body = verified_body(body, source.expected(), source.stale(storage.clone()));
+            .and_then(|value| value.to_str().ok()?.parse().ok())
+            .filter(|_| expected.is_none());
+        let body = verified_body(body, expected, source.stale(storage.clone()));
         return encoded_response(Response::from_parts(parts, Body::empty()), body, len, "gzip");
     }
     decoded_response(storage.clone(), tgz, source, None)

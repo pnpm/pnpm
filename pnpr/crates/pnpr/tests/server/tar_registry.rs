@@ -405,9 +405,10 @@ async fn stale_cached_tgz_scenario(accept: Option<&str>) {
         .create_async()
         .await;
 
-    let stale = get(&app, "/~zstd/left-pad@1.0.0", accept).await;
-    let body = axum::body::to_bytes(stale.into_body(), usize::MAX).await;
-    assert!(body.is_err(), "stale bytes must not complete a tar response ({accept:?})");
+    assert!(
+        !completes_over_http(&app, "/~zstd/left-pad@1.0.0", accept).await,
+        "stale bytes must not complete a tar response ({accept:?})",
+    );
 
     let mut refetched = Vec::new();
     for _ in 0..50 {
@@ -419,4 +420,28 @@ async fn stale_cached_tgz_scenario(accept: Option<&str>) {
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
     assert_eq!(refetched, new_tar, "the evicted tgz is refetched from the upstream ({accept:?})");
+}
+
+/// Whether a GET of `path` completes over a real connection, as a client sees
+/// it: one that stops at a declared `Content-Length` never sees an error the
+/// server reports after the last byte.
+async fn completes_over_http(app: &axum::Router, path: &str, accept: Option<&str>) -> bool {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(axum::serve(listener, app.clone()).into_future());
+    let client = reqwest::Client::builder()
+        .no_gzip()
+        .no_zstd()
+        .build()
+        .unwrap();
+    let mut request = client.get(format!("http://{addr}{path}"));
+    if let Some(accept) = accept {
+        request = request.header(header::ACCEPT_ENCODING, accept);
+    }
+    let completed = match request.send().await {
+        Ok(response) => response.status().is_success() && response.bytes().await.is_ok(),
+        Err(_) => false,
+    };
+    server.abort();
+    completed
 }
