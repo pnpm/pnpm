@@ -68,9 +68,11 @@ mod mirror_persistence;
 use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 
 mod release_age_upgrade;
+mod route;
 use release_age_upgrade::{
     UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age, persist_upgraded_to_mirror,
 };
+use route::DiskFirst;
 
 mod version_pick;
 use cache_hit::handle_cache_hit;
@@ -177,8 +179,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    if (ctx.cache_policy.network.reads_cache_first()
-        || (opts.pick_lowest_version && state.mirror_may_answer(ctx).await))
+    let disk_first = match DiskFirst::decide(ctx.cache_policy.network, opts.pick_lowest_version) {
+        DiskFirst::Never => false,
+        DiskFirst::Always => true,
+        DiskFirst::UnlessUncacheable => state.mirror_may_answer(ctx).await,
+    };
+    if disk_first
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);

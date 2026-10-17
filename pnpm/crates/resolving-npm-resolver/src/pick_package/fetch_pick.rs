@@ -17,7 +17,7 @@ use crate::{
 use super::{
     PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
     PickState, UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age,
-    persist_upgraded_to_mirror, pick_from_meta,
+    persist_upgraded_to_mirror, pick_from_meta, route::fetch_failure_falls_back,
 };
 
 impl PickState<'_> {
@@ -177,27 +177,20 @@ impl PickState<'_> {
         }
     }
 
-    /// The mirror a failed fetch may fall back to.
+    /// The mirror a failed fetch may fall back to, when
+    /// [`fetch_failure_falls_back`] allows it. The fallback reads only the
+    /// scoped mirror `pkg_mirror` already points at.
     ///
     /// The fetcher already saved a 200 to disk before it returned (when it
     /// returned Ok). If it returned Err, an existing mirror is good enough
     /// to pick from, even if the latest sync failed.
-    ///
-    /// A private route must fail closed on a `401`/`403`/private-`404`: a
-    /// revoked credential or a hidden private package must not keep serving
-    /// the last cached packument, even from its own (same-namespace) mirror.
-    /// Only a transport failure (`5xx`/timeout/network) falls back, and only
-    /// within the scoped mirror `pkg_mirror` already points at. A public
-    /// route (the CLI / public registries) keeps the original
-    /// fall-back-on-any-error behavior.
     async fn disk_fallback(
         &self,
         error: &FetchMetadataError,
         disk_meta: Option<Arc<Package>>,
     ) -> Option<Arc<Package>> {
-        let allow_fallback =
-            matches!(self.scope, MetadataCacheScope::Public) || !error.is_access_denied();
-        if !allow_fallback {
+        let public_scope = matches!(self.scope, MetadataCacheScope::Public);
+        if !fetch_failure_falls_back(public_scope, error.is_access_denied()) {
             return None;
         }
         match disk_meta {
