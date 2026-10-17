@@ -276,7 +276,7 @@ fn an_unverified_cache_hit_without_a_pick_revalidates() {
         assert_eq!(
             CacheHitCheck::decide(&inputs, false, false),
             CacheHitCheck::Revalidate,
-            "{name}"
+            "{name}",
         );
     }
 }
