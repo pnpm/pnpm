@@ -11,6 +11,10 @@ Setup does the following actions:
 * adds the pnpm home directory to the `PATH` by updating the shell configuration file
 * copies the pnpm executable to the pnpm home directory
 
+If `pnpm setup` cannot tell which shell configuration file to update, for example
+in a container where `SHELL` is not set, it still installs pnpm. It then prints the
+`PNPM_HOME` and `PATH` lines to add to your shell configuration yourself.
+
 Since v11.18.0, when running on GitHub Actions, `pnpm setup` also appends `PNPM_HOME` and the global bin directory to the GitHub Actions environment files (`GITHUB_ENV` and `GITHUB_PATH`), so later steps in the same job can run `pnpm add --global` and other global commands.
 
 :::tip

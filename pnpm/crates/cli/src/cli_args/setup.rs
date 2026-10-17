@@ -12,7 +12,8 @@ use crate::process::Command;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use path_extender::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
+    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
+    PathExtenderReport,
 };
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
@@ -73,7 +74,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             .wrap_err("create the pnpm alias scripts")?;
     }
 
-    let report = path_extender::add_dir_to_env_path(
+    let env_path_result = path_extender::add_dir_to_env_path(
         &pnpm_home_dir,
         &AddDirToEnvPathOpts {
             config_section_name: "pnpm",
@@ -82,10 +83,36 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             overwrite: force,
             position: AddingPosition::Start,
         },
-    )?;
+    );
+    let output = render_env_path_outcome(env_path_result, &pnpm_home_dir)?;
     gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
     remove_legacy_homedir_shims(&pnpm_home_dir);
-    Ok(render_setup_output(&report))
+    Ok(output)
+}
+
+/// The output of a setup whose CLI install succeeded.
+///
+/// A shell that names no config file to edit, as in a container with no
+/// `SHELL`, still leaves pnpm installed, so setup succeeds and prints the
+/// lines to add by hand. Every other error fails the setup.
+fn render_env_path_outcome(
+    result: Result<PathExtenderReport, PathExtenderError>,
+    pnpm_home_dir: &Path,
+) -> miette::Result<String> {
+    match result {
+        Ok(report) => Ok(render_setup_output(&report)),
+        Err(
+            error @ (PathExtenderError::UnknownShell | PathExtenderError::NoShellConfig { .. }),
+        ) => Ok(render_manual_setup_output(&error, pnpm_home_dir)),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    format!(
+        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME=\"{}\"\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        pnpm_home_dir.display(),
+    )
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
