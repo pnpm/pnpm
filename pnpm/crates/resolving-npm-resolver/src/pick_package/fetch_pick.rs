@@ -16,8 +16,7 @@ use crate::{
 
 use super::{
     PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    PickState, UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age,
-    persist_upgraded_to_mirror, pick_from_meta, route::fetch_failure_falls_back,
+    PickState, pick_from_meta, route::fetch_failure_falls_back,
 };
 
 impl PickState<'_> {
@@ -89,16 +88,7 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         meta: Arc<Package>,
     ) -> Result<(Arc<Package>, Arc<Package>, Option<Arc<PackageVersion>>), PickPackageError> {
-        let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
-            ctx,
-            spec,
-            opts,
-            self.full_metadata,
-            &self.cache_key,
-            meta,
-        )
-        .await?;
-        let meta = self.persist_release_age_upgrade(ctx, opts, &upgrade);
+        let meta = self.upgrade_for_release_age(ctx, spec, opts, meta).await?.meta;
         let (picked_meta, picked) =
             pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
         Ok((meta, picked_meta, picked))
@@ -136,29 +126,6 @@ impl PickState<'_> {
             return Ok(PickPackageResult { meta, picked_package: picked });
         }
         Err(error.into())
-    }
-
-    fn persist_release_age_upgrade<Cache: PackageMetaCache>(
-        &self,
-        ctx: &PickPackageContext<'_, Cache>,
-        opts: &PickPackageOptions<'_>,
-        upgrade: &UpgradeOutcome,
-    ) -> Arc<Package> {
-        let mut meta = Arc::clone(&upgrade.meta);
-        if upgrade.upgraded() {
-            if !opts.request.dry_run
-                && let Some(reloaded) = self.pkg_mirror
-                    .as_deref()
-                    .and_then(|path| {
-                        persist_upgraded_to_mirror(path, upgrade, self.use_filtered_full_metadata)
-                    })
-            {
-                meta = Arc::new(reloaded);
-            }
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
-        }
-
-        meta
     }
 
     fn cached_fetch_options<'ctx, Cache: PackageMetaCache>(
