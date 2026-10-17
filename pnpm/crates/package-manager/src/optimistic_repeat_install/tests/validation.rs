@@ -134,3 +134,13 @@ fn a_filtered_write_carries_the_other_records_while_the_shared_inputs_stand() {
     assert_eq!(manifests.keys().collect::<Vec<_>>(), ["a"]);
     assert!(drifted.filtered_install, "a project left unproven makes the state filtered");
 }
+
+/// pnpm v11 hashes manifests the same way, so either CLI recognizes what the
+/// other recorded. The TypeScript test of `manifestDigest` pins the same value.
+#[test]
+fn a_manifest_digest_matches_the_one_pnpm_v11_computes() {
+    let manifest = manifest(
+        r#"{"name":"a","version":"1.0.0","dependencies":{"@scope/x":"^1.0.0","y":"2"},"peerDependenciesMeta":{"y":{"optional":true}},"files":["lib"],"weird":[1,2.5,null,false,"é"]}"#,
+    );
+    assert_eq!(manifest_digest(&manifest), "0684f5a6122e59859b6c170262a4c110");
+}
