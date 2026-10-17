@@ -4,14 +4,14 @@ import type {
   LockfileObject,
 } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId, type ReadPackageHook } from '@pnpm/types'
 import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
 import { catalogResolutionsAreUpToDate } from './catalogResolutionsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
-import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
+import { linkedPackagesAreUpToDate, type LinkedPackagesContext } from './linkedPackagesAreUpToDate.js'
 import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
 import { satisfiesPackageManifest } from './satisfiesPackageManifest.js'
 
@@ -23,6 +23,7 @@ export async function allProjectsAreUpToDate (
     excludeLinksFromLockfile: boolean
     ignoredOptionalDependencies?: string[]
     linkWorkspacePackages: boolean
+    readPackageHook?: ReadPackageHook
     wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
     lockfileDir: string
@@ -36,21 +37,12 @@ export async function allProjectsAreUpToDate (
     return false
   }
 
-  const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
   })
-  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
-    linkWorkspacePackages: opts.linkWorkspacePackages,
-    manifestsByDir,
-    workspacePackages: opts.workspacePackages,
-    lockfilePackages: opts.wantedLockfile.packages,
-    lockfileDir: opts.lockfileDir,
-    workspaceDir: opts.workspaceDir,
-    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
-  })
+  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, createLinkedPackagesContext(opts))
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),
     lockfilePackages: opts.wantedLockfile.packages,
@@ -74,4 +66,18 @@ export async function allProjectsAreUpToDate (
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
       _linkedPackagesAreUpToDate(projectInfo)
   })
+}
+
+function createLinkedPackagesContext (opts: Parameters<typeof allProjectsAreUpToDate>[1]): LinkedPackagesContext {
+  return {
+    catalogs: opts.catalogs,
+    linkWorkspacePackages: opts.linkWorkspacePackages,
+    manifestsByDir: opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {},
+    workspacePackages: opts.workspacePackages,
+    lockfilePackages: opts.wantedLockfile.packages,
+    lockfileDir: opts.lockfileDir,
+    workspaceDir: opts.workspaceDir,
+    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
+    readPackageHook: opts.readPackageHook,
+  }
 }

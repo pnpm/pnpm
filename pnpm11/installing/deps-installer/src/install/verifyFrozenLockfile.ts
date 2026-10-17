@@ -145,6 +145,7 @@ async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean>
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
   const manifestsByDir = ctx.workspacePackages ? getWorkspacePackagesByDirectory(ctx.workspacePackages) : {}
   const checkLinkedPackages: CheckLinkedPackages = checkLinkedPackagesAreUpToDate.bind(null, {
+    catalogs: opts.catalogs,
     linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
     manifestsByDir,
     workspacePackages: ctx.workspacePackages,
@@ -152,6 +153,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
+    readPackageHook: opts.readPackageHook,
     skipLocalDirectoryDependencies: true,
   })
   const checkManifest = satisfiesPackageManifest.bind(null, {

@@ -164,6 +164,7 @@ export function upToDateCheckOptions (
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
     linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+    readPackageHook: opts.readPackageHook,
     wantedLockfile,
     workspacePackages: ctx.workspacePackages,
     lockfileDir: opts.lockfileDir,

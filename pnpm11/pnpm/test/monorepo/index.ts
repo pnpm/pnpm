@@ -2447,6 +2447,57 @@ test('issue 7209: updates injected dependency when sharedWorkspaceLockfile is fa
   expect(appLockfile.packages).toHaveProperty(['is-negative@1.0.0'])
 })
 
+test('pnpm install --frozen-lockfile fails when a dependency of an injected package changes and sharedWorkspaceLockfile is false', async () => {
+  const projects = preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+      peerDependencies: {
+        'is-positive': '*',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+  await execPnpm(['--filter', 'app', 'install', '--frozen-lockfile'])
+
+  projects['shared'].writePackageJson({
+    name: 'shared',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '2.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '*',
+    },
+  })
+
+  await expect(
+    execPnpm(['--filter', 'app', 'install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
 test('an injected dependency with a postinstall script is hard linked when sharedWorkspaceLockfile is false', async () => {
   preparePackages([
     {

@@ -2110,3 +2110,132 @@ test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a
     detailedReason: 'The lockfile has no package entry for local directory dependency "foo" (file:foo)',
   })
 })
+
+describe('checkLinkedPackagesAreUpToDate() when skipping local directory dependencies', () => {
+  const injectedProject = {
+    dir: 'bar',
+    manifest: {
+      dependencies: {
+        foo: 'workspace:*',
+      },
+    },
+    snapshot: {
+      dependencies: {
+        foo: 'file:foo(react@18.2.0)',
+      },
+      specifiers: {
+        foo: 'workspace:*',
+      },
+    },
+  }
+  const injectedPackageSnapshot: PackageSnapshot = {
+    resolution: { directory: 'foo', type: 'directory' },
+    dependencies: {
+      'is-even': '1.0.0',
+      'is-number': '6.0.0',
+      'is-odd': '3.0.1',
+      react: '18.2.0',
+    },
+    peerDependencies: {
+      react: '*',
+    },
+  }
+  const injectedManifest: DependencyManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-even': '^0.1.0',
+      'is-number': '6.0.0',
+      'is-odd': 'catalog:',
+    },
+    peerDependencies: {
+      react: '*',
+    },
+  }
+  const ctx = {
+    catalogs: { default: { 'is-odd': '3.0.1' } },
+    injectWorkspacePackages: true,
+    linkWorkspacePackages: true,
+    lockfileDir: '',
+    lockfilePackages: {
+      ['foo@file:foo(react@18.2.0)' as DepPath]: injectedPackageSnapshot,
+    },
+    readPackageHook: <Pkg extends { dependencies?: Record<string, string> }>(pkg: Pkg): Pkg => {
+      if (pkg.dependencies?.['is-even'] != null) pkg.dependencies['is-even'] = '1.0.0'
+      return pkg
+    },
+    skipLocalDirectoryDependencies: true,
+  }
+
+  test('accepts an injected workspace package whose dependencies match its snapshot', async () => {
+    expect(await checkLinkedPackagesAreUpToDate({
+      ...ctx,
+      manifestsByDir: { foo: injectedManifest },
+    }, injectedProject)).toStrictEqual({ upToDate: true })
+  })
+
+  test('reports an injected workspace package whose dependency changed', async () => {
+    expect(await checkLinkedPackagesAreUpToDate({
+      ...ctx,
+      manifestsByDir: {
+        foo: {
+          ...injectedManifest,
+          dependencies: { ...injectedManifest.dependencies, 'is-number': '7.0.0' },
+        },
+      },
+    }, injectedProject)).toStrictEqual({
+      upToDate: false,
+      detailedReason: 'The dependencies of local directory dependency "foo" do not match the lockfile',
+    })
+  })
+
+  test('reports an injected workspace package whose peer dependency range changed', async () => {
+    expect(await checkLinkedPackagesAreUpToDate({
+      ...ctx,
+      manifestsByDir: {
+        foo: { ...injectedManifest, peerDependencies: { react: '^18.0.0' } },
+      },
+    }, injectedProject)).toStrictEqual({
+      upToDate: false,
+      detailedReason: 'The dependencies of local directory dependency "foo" do not match the lockfile',
+    })
+  })
+
+  test('accepts a dependency also declared as a peer that the lockfile resolves as an own dependency', async () => {
+    expect(await checkLinkedPackagesAreUpToDate({
+      ...ctx,
+      lockfilePackages: {
+        ['foo@file:foo(react@18.2.0)' as DepPath]: {
+          ...injectedPackageSnapshot,
+          dependencies: { ...injectedPackageSnapshot.dependencies, qar: '1.0.0' },
+        },
+      },
+      manifestsByDir: {
+        foo: {
+          ...injectedManifest,
+          dependencies: { ...injectedManifest.dependencies, qar: '^1.0.0' },
+          peerDependencies: { ...injectedManifest.peerDependencies, qar: '*' },
+        },
+      },
+    }, injectedProject)).toStrictEqual({ upToDate: true })
+  })
+
+  test('does not compare the dependencies of a file: directory dependency', async () => {
+    expect(await checkLinkedPackagesAreUpToDate({
+      ...ctx,
+      manifestsByDir: {
+        foo: {
+          ...injectedManifest,
+          dependencies: { ...injectedManifest.dependencies, 'is-number': '7.0.0' },
+        },
+      },
+    }, {
+      dir: 'bar',
+      manifest: { dependencies: { foo: 'file:foo' } },
+      snapshot: {
+        dependencies: { foo: 'file:foo(react@18.2.0)' },
+        specifiers: { foo: 'file:foo' },
+      },
+    })).toStrictEqual({ upToDate: true })
+  })
+})
