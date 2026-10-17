@@ -75,16 +75,27 @@ pub(crate) fn prior_child_key(
                 .and_then(|deps| deps.get(&name))
         })?;
     let key = dep_ref.resolve(&name)?;
-    let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
+    locked_child_admits(&name, &key, bare_specifier)?.then_some(key)
+}
+
+/// Whether the version locked as `key` for the child `alias` still satisfies
+/// `bare_specifier`. `None` when the reuse gate cannot judge the specifier: it
+/// is neither a semver range nor a named-registry specifier naming `key`'s
+/// registry, and the resolver resolves it again.
+#[must_use]
+pub fn locked_child_admits(
+    alias: &PkgName,
+    key: &PkgNameVerPeer,
+    bare_specifier: &str,
+) -> Option<bool> {
+    if let Some((registry_name, version)) = key.suffix.registry_qualified() {
         let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
             .parse::<Range>()
             .ok()?;
-        range.satisfies(version)
-    } else {
-        let range = bare_specifier.parse::<Range>().ok()?;
-        key.name == name && range.satisfies(key.suffix.version_semver()?)
-    };
-    satisfied.then_some(key)
+        return Some(range.satisfies(version));
+    }
+    let range = bare_specifier.parse::<Range>().ok()?;
+    Some(key.name == *alias && range.satisfies(key.suffix.version_semver()?))
 }
 
 /// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to

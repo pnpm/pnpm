@@ -266,3 +266,29 @@ fn a_loaded_project_whose_package_json_links_outside_the_workspace_is_not_truste
     .unwrap();
     assert!(!loaded_target_satisfies(&workspace_root, target_dir));
 }
+
+fn registry_spec_satisfies(spec: &str, recorded: &str) -> bool {
+    let recorded =
+        recorded.parse::<pnpm_lockfile::SnapshotDepRef>().expect("parse the recorded reference");
+    super::npm_or_registry_spec_satisfies("foo", spec, &recorded)
+}
+
+/// A named-registry specifier is judged as the resolver's reuse gate judges
+/// it, against the version locked from that registry.
+#[test]
+fn a_named_registry_spec_is_compared_with_the_locked_version() {
+    assert!(registry_spec_satisfies("work:^1.0.0", "work:1.2.0"));
+    assert!(!registry_spec_satisfies("work:^2.0.0", "work:1.2.0"));
+}
+
+/// The resolver resolves a tag again, which a freshness check cannot do.
+#[test]
+fn a_tag_is_accepted() {
+    assert!(registry_spec_satisfies("latest", "1.2.0"));
+}
+
+#[test]
+fn a_range_is_compared_with_the_locked_version() {
+    assert!(registry_spec_satisfies("^1.0.0", "1.2.0"));
+    assert!(!registry_spec_satisfies("^2.0.0", "1.2.0"));
+}
