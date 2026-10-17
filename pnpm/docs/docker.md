@@ -26,9 +26,23 @@ An official pnpm base image is published to GitHub Container Registry as [`ghcr.
 | --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `12.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `12`).         |
-| `latest`              | Most recent stable pnpm release. Not updated for prereleases.           |
+| `latest`              | Highest stable pnpm version. Not updated for prereleases.               |
+| `<version>-alpine`, `<major>-alpine`, `alpine` | The same, based on Alpine Linux. |
 
 Supported platforms: `linux/amd64`, `linux/arm64`.
+
+### Adding pnpm to your own image
+
+Copy `/opt/pnpm` from the image whose C library matches your base image, and link the binary onto `PATH`.
+Copy the whole directory, because it also contains the `node-gyp` that pnpm uses to build native dependencies.
+
+```dockerfile title="Dockerfile"
+FROM node:24-alpine
+COPY --from=ghcr.io/pnpm/pnpm:12-alpine /opt/pnpm /opt/pnpm
+RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
+```
+
+For a Debian- or Ubuntu-based image, such as `node:24-slim`, copy from `ghcr.io/pnpm/pnpm:12` instead.
 
 ### Installing Node.js
 

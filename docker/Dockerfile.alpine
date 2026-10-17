@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.7
+
+# Refresh periodically: resolve with
+#   docker buildx imagetools inspect alpine:3.24 --format '{{.Manifest.Digest}}'
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+
+ARG PNPM_VERSION
+ARG PNPM_SHA256_AMD64
+ARG PNPM_SHA256_ARM64
+ARG TARGETARCH
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME/bin:$PATH
+
+# The musl Node.js builds that `pnpm runtime` installs link against libstdc++ and libgcc.
+RUN apk add --no-cache ca-certificates curl libgcc libstdc++
+
+RUN --mount=type=bind,source=install-pnpm.sh,target=/tmp/install-pnpm.sh \
+    PNPM_ASSET_SUFFIX=-musl sh /tmp/install-pnpm.sh
+
+WORKDIR /app
