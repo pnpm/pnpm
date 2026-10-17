@@ -180,3 +180,39 @@ async fn a_failed_save_of_a_cacheable_upgrade_keeps_the_previous_mirror() {
     assert_eq!(headers.etag.as_deref(), Some(ABBREVIATED_ETAG));
     assert!(load_meta(&mirror.path()).is_some());
 }
+
+/// A `304` to the validator-free upgrade request is about nothing the mirror
+/// holds. It must fail the upgrade, for the caller to decline, and leave the
+/// abbreviated mirror unchanged rather than renew it as revalidated.
+#[tokio::test]
+async fn an_unsolicited_304_to_an_upgrade_leaves_the_abbreviated_mirror_alone() {
+    let mut server = mockito::Server::new_async().await;
+    let mirror = AbbreviatedMirror::new(&server);
+    let backdated = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(mirror.path())
+        .and_then(|file| file.set_modified(backdated))
+        .expect("backdate the mirror");
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", ACCEPT_FULL)
+        .match_header("if-none-match", Matcher::Missing)
+        .with_status(304)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let error = fetch_release_age_upgrade("acme", &mirror.opts(), true).await
+        .expect_err("an unsolicited 304 cannot upgrade");
+    assert!(
+        matches!(error, crate::FetchMetadataError::NotModifiedWithoutCache { .. }),
+        "expected NotModifiedWithoutCache, got {error:?}",
+    );
+    mock.assert_async().await;
+
+    let mtime = std::fs::metadata(mirror.path()).and_then(|metadata| metadata.modified());
+    assert_eq!(mtime.expect("mirror mtime"), backdated);
+    let headers = load_meta_headers(&mirror.path()).expect("headers readable");
+    assert_eq!(headers.etag.as_deref(), Some(ABBREVIATED_ETAG));
+}
