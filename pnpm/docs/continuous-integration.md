@@ -20,13 +20,13 @@ install pnpm with the standalone script. If `get.pnpm.io` fails, the second
 command downloads the same script from jsDelivr:
 
 ```sh
-curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
-  || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
-sh /tmp/pnpm-install.sh
+{ curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+  || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh; } \
+  && sh /tmp/pnpm-install.sh
 ```
 
-The script is saved to a file before it runs, so a download that fails partway
-through never runs a partial script.
+The script is saved to a file before it runs, and it runs only if one of the
+downloads succeeded, so a failed download never runs a partial script.
 
 Two things make this convenient in CI:
 
@@ -114,9 +114,9 @@ steps:
     displayName: Cache pnpm
 
   - bash: |
-      curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
-        || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
-      sh /tmp/pnpm-install.sh
+      { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+        || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh; } \
+        && sh /tmp/pnpm-install.sh
       echo "##vso[task.prependpath]$PNPM_HOME/bin"
       "$PNPM_HOME/bin/pnpm" config set store-dir "$pnpm_config_cache"
     displayName: "Setup pnpm"
@@ -189,9 +189,9 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
-              || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
-            sh /tmp/pnpm-install.sh
+            { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+              || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh; } \
+              && sh /tmp/pnpm-install.sh
             echo 'export PATH="$PNPM_HOME/bin:$PATH"' >> "$BASH_ENV"
             "$PNPM_HOME/bin/pnpm" config set store-dir .pnpm-store
       - run:
@@ -289,9 +289,9 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \\
-                      || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
-                    sh /tmp/pnpm-install.sh
+                    { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \\
+                      || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh; } \\
+                      && sh /tmp/pnpm-install.sh
                 '''
                 sh 'pnpm install'
             }
