@@ -7,7 +7,7 @@
 //! and every replica then refuses the username (see
 //! [`directory::is_deprovisioned`]).
 
-pub(super) use directory::{ScimState, is_deprovisioned, is_scim_provisioned, reload_directory};
+pub(super) use directory::{ScimState, is_deprovisioned, reload_directory};
 
 mod directory;
 mod discovery;
