@@ -16,7 +16,7 @@ pub(crate) async fn execute_plan(
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
     match plan {
-        PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
+        PreCommandPlan::Switch(plan) => Box::pin(execute_switch(plan, child_argv)).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
             sync_env_lockfile(sync).await?;
             Ok(false)
