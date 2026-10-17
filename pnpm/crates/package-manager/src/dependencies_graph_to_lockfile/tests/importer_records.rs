@@ -3,16 +3,14 @@ use super::{
     EMPTY_CATALOGS, EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, GIT_TARBALL_URL,
     NPM_REGISTRIES, dependencies_graph_to_lockfile, error_from_single_node_graph, git_hosted_node,
     injected_link_fixture, make_link_node, make_node, make_node_with_optional,
-    previous_importers_with_link, single_importer_opts, write_manifest,
+    single_importer_opts, write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
     GitResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
     VariationsResolution,
 };
-use pnpm_resolving_deps_resolver::{
-    DependenciesGraph, DependenciesGraphNode, PeerDep, UpdateReuseScope,
-};
+use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
@@ -551,11 +549,6 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             pnpmfile_checksum: None,
             untracked_pnpmfile_read_package_hook: None,
         },
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: None,
-            scope: UpdateReuseScope::All,
-            scopes_by_importer: BTreeMap::new(),
-        },
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -643,11 +636,6 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
             untracked_pnpmfile_read_package_hook: None,
-        },
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: None,
-            scope: UpdateReuseScope::All,
-            scopes_by_importer: BTreeMap::new(),
         },
     });
 
@@ -759,38 +747,10 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
         .expect("auto-installed peer entry");
     assert_eq!(entry.specifier, "^1.0.0");
 }
-// pnpm/pnpm#10433: a plain install (UpdateReuseScope::All) that does not
-// target a workspace dependency must keep its prior `link:` importer
-// entry, even though the fresh resolution landed on a divergent `file:`.
+// An injected workspace dependency whose peers diverge from its project's
+// records the `file:` resolution.
 #[test]
-fn injected_workspace_dep_keeps_prior_link_on_untargeted_install() {
-    let (_tmp, manifest, graph, direct) = injected_link_fixture();
-    let previous = previous_importers_with_link("n", "workspace:*", "../n");
-
-    let lockfile = dependencies_graph_to_lockfile({
-        let mut base_options =
-            single_importer_opts(&manifest, &graph, direct, false, false, None, None);
-        base_options.metadata_sources.registries_by_prefix = &EMPTY_NAMED_REGISTRIES;
-        base_options.metadata_sources.registry_options_by_url = &EMPTY_REGISTRY_OPTIONS;
-        base_options.reuse.previous_importers = Some(&previous);
-        base_options.reuse.scope = UpdateReuseScope::All;
-        base_options
-    });
-
-    let importer = lockfile.root_project().expect("root importer");
-    let entry = importer.dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
-        .expect("n entry");
-    match &entry.version {
-        ImporterDepVersion::Link(target) => assert_eq!(target, "../n"),
-        other => panic!("expected the prior Link(..) to be preserved, got {other:?}"),
-    }
-}
-// Without a previous `link:` to preserve (a first install), the divergent
-// `file:` resolution stands — the guard only preserves, never invents.
-#[test]
-fn injected_workspace_dep_renders_file_without_prior_link() {
+fn injected_workspace_dep_renders_its_divergent_file_resolution() {
     let (_tmp, manifest, graph, direct) = injected_link_fixture();
 
     let lockfile = dependencies_graph_to_lockfile({
@@ -799,8 +759,6 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
         base_options.metadata_sources.registries_by_prefix = &EMPTY_NAMED_REGISTRIES;
         base_options.metadata_sources.registry_options_by_url = &EMPTY_REGISTRY_OPTIONS;
         base_options.metadata_sources.previous_packages = None;
-        base_options.reuse.previous_importers = None;
-        base_options.reuse.scope = UpdateReuseScope::All;
         base_options
     });
 
@@ -811,7 +769,7 @@ fn injected_workspace_dep_renders_file_without_prior_link() {
         .expect("n entry");
     assert!(
         matches!(&entry.version, ImporterDepVersion::File(_)),
-        "expected File(..) with no prior link to preserve, got {:?}",
+        "expected File(..), got {:?}",
         entry.version,
     );
 }

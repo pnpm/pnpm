@@ -82,11 +82,6 @@ pub(super) fn build_resolved_lockfile<Reporter>(
     build_lockfile(FreshLockfileBuildOptions {
         inputs: FreshLockfileInputs {
             prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior {
-                importers: resolved.reuse.guard_previous_importers,
-                scope: resolved.reuse.guard_update_reuse_scope.clone(),
-                scopes_by_importer: resolved.reuse
-                    .guard_update_reuse_scopes_by_importer
-                    .clone(),
                 lockfile: views.wanted_lockfile,
             },
             resolution:
@@ -387,11 +382,6 @@ pub(super) fn build_fresh_lockfile(
             inputs.resolution.overrides,
             inputs.resolution.include_peer_dependencies,
         ),
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: inputs.prior.importers,
-            scope: inputs.prior.scope,
-            scopes_by_importer: inputs.prior.scopes_by_importer,
-        },
     })
 }
 /// Same merge the resolver chain performs; the config was already

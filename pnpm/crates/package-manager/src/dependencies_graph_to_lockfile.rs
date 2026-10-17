@@ -30,9 +30,7 @@ use pnpm_lockfile::{
     ResolvedCatalogEntry,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
-};
+use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use serde_json::Value;
 
 /// One importer's contribution to [`dependencies_graph_to_lockfile`].
@@ -81,7 +79,6 @@ pub struct GraphToLockfileOptions<'a> {
     pub settings: pnpm_lockfile::LockfileSettings,
     pub metadata_sources: crate::PackageMetadataSources<'a>,
     pub manifest_settings: crate::LockfileManifestSettings,
-    pub reuse: crate::LockfileImporterReuse<'a>,
 }
 
 pub struct LockfileManifestSettings {
@@ -108,29 +105,6 @@ pub struct LockfileManifestSettings {
     /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
     pub untracked_pnpmfile_read_package_hook: Option<bool>,
-}
-
-pub struct LockfileImporterReuse<'a> {
-    /// The previous run's importer entries (the wanted lockfile's
-    /// `importers:` map), keyed by the same importer ids as
-    /// [`GraphToLockfileOptions::importers`]. Used to preserve a workspace dependency's
-    /// prior `link:` entry when this install does not target it — see
-    /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
-    /// previous lockfile (a first install) or when `dedupeInjectedDeps`
-    /// is off.
-    pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
-    /// How this install reuses the prior resolution, mapped from the
-    /// `pacquet update` seed policy. Together with a spec change it
-    /// decides whether an importer's workspace dependency is *targeted*
-    /// by the run (and so may legitimately change its `link:`/`file:`
-    /// form) — see `build_importer`. This is the workspace-wide default;
-    /// [`Self::scopes_by_importer`] overrides it per importer.
-    pub scope: UpdateReuseScope,
-    /// Per-importer update scopes, mirroring the resolver's
-    /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
-    /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
-    /// with the named packages recorded per importer here.
-    pub scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
