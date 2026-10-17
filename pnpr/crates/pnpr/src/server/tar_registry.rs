@@ -8,8 +8,8 @@
 
 use super::{
     AppState, CanonicalPackageName, Ecosystem, HeaderMap, Identity, PackumentDists, RegistryError,
-    RegistrySource, Response, StatusCode, Value, addressed_registry, caller_scoped, not_found,
-    read_source_packument, resolve_registry_source, revision_source_registry,
+    RegistrySource, Response, StatusCode, TarSource, Value, addressed_registry, caller_scoped,
+    not_found, read_source_packument, resolve_registry_source, revision_source_registry,
     serve_registry_tarball, tar_response, tarball_basename,
 };
 use axum::response::IntoResponse;
@@ -161,7 +161,15 @@ async fn serve_version_tarball(
     if !is_tar_registry(state, target) || response.status() != StatusCode::OK {
         return response;
     }
-    tar_response(state, headers, response, name, tgz.integrity_key).await
+    let keeps_content = match &source {
+        RegistrySource::Upstream(upstream) => {
+            state.inner.proxy.upstreams.get(upstream).is_some_and(pnpr_upstream::Upstream::caches)
+        }
+        RegistrySource::Hosted(_) => true,
+        RegistrySource::Unclaimed | RegistrySource::NotFound => false,
+    };
+    let source = TarSource { name, tgz_integrity: tgz.integrity_key, keeps_content };
+    tar_response(state, headers, response, source).await
 }
 
 struct VersionTgz {

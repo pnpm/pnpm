@@ -279,3 +279,61 @@ async fn a_level_19_variant_replaces_the_streamed_encoding() {
     assert_eq!(stored.headers()[header::CONTENT_ENCODING], "zstd");
     assert_eq!(zstd::decode_all(body_bytes(stored.into_body()).await.as_slice()).unwrap(), tar);
 }
+
+#[tokio::test]
+async fn an_uncached_upstream_gets_no_tar_variants() {
+    let tar = tar_of(&[("package/package.json", br#"{"name":"left-pad","version":"1.0.0"}"#)]);
+    let tgz = gzip(&tar);
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = serde_json::json!({
+        "name": "left-pad",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "left-pad", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/left-pad/-/left-pad-1.0.0.tgz", upstream.url()),
+            "integrity": sha512_integrity(&tgz),
+        } } },
+    });
+    let _packument = upstream
+        .mock("GET", "/left-pad")
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let _tarball = upstream
+        .mock("GET", "/left-pad/-/left-pad-1.0.0.tgz")
+        .with_body(&tgz)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().cache = false;
+    let graph = vec![
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        ("zstd".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] }),
+    ];
+    config.routing.registries = Registries::new(graph.into_iter().collect(), None);
+    config.routing.tar_registries.insert("zstd".to_string());
+    let cache_dir = config.storage.cache_dir.clone();
+    let app = router(config);
+
+    for _ in 0..2 {
+        let served = get(&app, "/~zstd/left-pad@1.0.0", Some("zstd")).await;
+        assert_eq!(served.status(), StatusCode::OK);
+        assert_eq!(zstd::decode_all(body_bytes(served.into_body()).await.as_slice()).unwrap(), tar);
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let persisted: Vec<_> = walkdir::WalkDir::new(&cache_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .to_string_lossy()
+                .contains("tar-zstd19")
+        })
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| entry.path().to_path_buf())
+        .collect();
+    assert!(persisted.is_empty(), "a cache: false upstream persists no tar: {persisted:?}");
+}

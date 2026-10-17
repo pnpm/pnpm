@@ -3,6 +3,7 @@ pub use lifecycle::{recover_publish_journal, serve, serve_listener};
 pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -46,7 +47,7 @@ use tar_registry::{
 };
 
 mod tar_responses;
-use tar_responses::{tar_integrity_of, tar_response};
+use tar_responses::{TarSource, tar_integrity_of, tar_response};
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};

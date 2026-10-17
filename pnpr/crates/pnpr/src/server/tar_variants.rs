@@ -21,7 +21,7 @@ use std::{
 use tokio::sync::mpsc;
 
 /// Cache namespace the variants, and the tar copies they are made from, live in.
-const NAMESPACE: &str = "~tar-zstd19";
+pub(crate) const NAMESPACE: &str = "~tar-zstd19";
 
 /// Copies waiting for the worker. A copy offered to a full queue is dropped,
 /// and the version's next zstd request offers it again.
