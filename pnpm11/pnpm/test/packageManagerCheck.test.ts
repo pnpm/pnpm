@@ -1014,3 +1014,24 @@ function canWriteTo (dir: string): boolean {
   fs.rmSync(probe)
   return true
 }
+
+test.each([
+  { args: ['--version'], status: 0 },
+  { args: ['help'], status: 1 },
+])('$args records no pin past an unreadable setting when the running pnpm satisfies it', async ({ args, status }) => {
+  prepare()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: { name: 'pnpm', version: pnpmVersion, onFail: 'download' },
+    },
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const result = execPnpmSync(args, { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(result.status).toBe(status)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})

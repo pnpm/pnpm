@@ -18,6 +18,11 @@ export interface PackageManagerHandlingOptions {
   config: Config
   context: ConfigContext
   rejectUnknownOptions: boolean
+  /**
+   * False when the config was read past settings that could not be read: the
+   * lockfile is then written only by a switch to another pnpm.
+   */
+  recordPinWithoutSwitch: boolean
 }
 
 /**
@@ -57,7 +62,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
     // Corepack owns version switching; pnpm only switches versions when
     // the user is running pnpm directly.
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await switchCliVersion(config, context)
+      await switchCliVersion(config, context, { recordPinWithoutSwitch: opts.recordPinWithoutSwitch })
     })
     return
   }
@@ -69,7 +74,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
   // it only writes to the lockfile when the project opted in (via
   // `devEngines.packageManager`, or a v12+ `packageManager` pin).
   checkPackageManager(pm, { config, underCorepack: isExecutedByCorepack() })
-  if (!opts.rejectUnknownOptions) {
+  if (!opts.rejectUnknownOptions && opts.recordPinWithoutSwitch) {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
       await syncEnvLockfile(config, context)
     })
@@ -100,7 +105,7 @@ export async function switchPastUnreadableConfig (
   const pm = loaded.context.wantedPackageManager
   if (pm?.name !== 'pnpm' || pm.onFail !== 'download') return
   try {
-    await switchCliVersion(loaded.config, loaded.context)
+    await switchCliVersion(loaded.config, loaded.context, { recordPinWithoutSwitch: false })
   } catch {
     // The configuration's own failure is the one to report.
   }
