@@ -1245,14 +1245,17 @@ test('a full metadata pick of a document without time revalidates its mirror on 
   const cacheDir = temporaryDirectory()
   const cachePath = path.join(cacheDir, `${FULL_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
   const withoutTime = { ...isPositiveAbbreviatedMeta, modified: isPositiveMeta.time.modified }
-  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  // Installs two and three.
-  agent.intercept({ path: '/is-positive', method: 'GET', headers: { 'if-none-match': '"full-etag"' } })
-    .reply(304, '')
-    .times(2)
-  // Install one.
-  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/json/ } })
-    .reply(200, withoutTime, { headers: { etag: '"full-etag"' } })
+  const requests: string[] = []
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply((request) => {
+      const ifNoneMatch = (request.headers as Record<string, string | undefined>)['if-none-match']
+      requests.push(ifNoneMatch ?? 'unconditional')
+      return ifNoneMatch === '"full-etag"'
+        ? { statusCode: 304, data: '' }
+        : { statusCode: 200, data: withoutTime, responseOptions: { headers: { etag: '"full-etag"' } } }
+    })
+    .persist()
 
   for (const install of [1, 2, 3]) {
     if (install > 1) {
@@ -1277,7 +1280,7 @@ test('a full metadata pick of a document without time revalidates its mirror on 
     expect(resolveResult!.id).toBe('is-positive@3.1.0')
   }
 
-  getMockAgent().assertNoPendingInterceptors()
+  expect(requests).toStrictEqual(['unconditional', '"full-etag"', '"full-etag"'])
   const headers = await loadMetaHeaders(cachePath)
   expect(headers).toMatchObject({ etag: '"full-etag"' })
   expect(headers?.fullEtag).toBeUndefined()
