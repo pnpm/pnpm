@@ -409,8 +409,8 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
 
     let err = fetch_err(&url, &matching, store_path).await;
     assert!(
-        matches!(err, TarballError::ReadTarballEntries(_)),
-        "a body that hashes correctly but is neither gzip nor tar must report the parse failure, got {err:?}",
+        matches!(err, TarballError::UnrecognizedArchive),
+        "a body that hashes correctly but is neither gzip nor tar must say so, got {err:?}",
     );
 
     mock.assert_async().await;

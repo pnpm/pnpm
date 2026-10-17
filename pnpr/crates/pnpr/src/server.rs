@@ -42,12 +42,15 @@ use osv_filtering::{
 
 mod tar_registry;
 use tar_registry::{
-    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, serve_package_tarball,
-    split_package_identifier, tar_integrities_of, tgz_integrity_key,
+    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, split_package_identifier,
+    tar_integrities_of, tgz_integrity_key,
 };
 
 mod tar_responses;
-use tar_responses::{CachedTgz, TarSource, tar_integrity_of, tar_response};
+use tar_responses::{CachedTgz, TarSource, TgzTrust, tar_integrity_of, tar_response};
+
+mod version_tarballs;
+use version_tarballs::serve_package_tarball;
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
@@ -79,7 +82,10 @@ use revision_tarballs::{
 };
 
 mod upstream_tarballs;
-use upstream_tarballs::{cached_upstream_tarball, serve_tarball_via_upstream};
+use upstream_tarballs::{
+    TarballOrigin, UpstreamTarball, cached_upstream_tarball, serve_bound_upstream_tarball,
+    serve_tarball_via_upstream, tarball_cache_name,
+};
 
 mod upstream_integrity;
 mod upstream_packuments;

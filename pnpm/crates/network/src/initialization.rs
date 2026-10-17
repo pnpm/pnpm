@@ -1,11 +1,10 @@
 use super::{
-    Arc, Client, ClientBuildInputs, ClientPair, ClientSet, ClientVariant,
-    DEFAULT_FETCH_MIN_SPEED_KI_BPS, DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError,
-    HostSocketLimit, NetworkSettings, NoProxyMatcher, OriginLimits, PerRegistryTls,
-    PrioritySemaphore, ProxyConfig, ProxyRouting, RedirectGuard, RegistryLimits, Resolve,
-    ThrottledClient, TlsConfig, build_client_with_root_fallback, configured_proxy,
-    default_network_concurrency, ignore_warning, load_node_extra_ca_certs, merge_tls,
-    native_dns_resolver, tls,
+    Arc, Client, ClientPair, ClientSet, DEFAULT_FETCH_MIN_SPEED_KI_BPS,
+    DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError, HostSocketLimit, NetworkSettings,
+    NoProxyMatcher, OriginLimits, OwnedClientInputs, PerRegistryTls, PrioritySemaphore,
+    ProxyConfig, ProxyRouting, RedirectGuard, RegistryLimits, Resolve, ThrottledClient, TlsConfig,
+    configured_proxy, default_network_concurrency, ignore_warning, load_node_extra_ca_certs,
+    merge_tls, native_dns_resolver, tls,
 };
 
 impl ThrottledClient {
@@ -167,39 +166,20 @@ impl ThrottledClient {
         let proxy_routing = resolve_proxy_routing(proxy)?;
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let inputs = ClientBuildInputs {
-            settings,
+        let inputs = Arc::new(OwnedClientInputs {
+            settings: settings.clone(),
             https: proxy_routing.https.clone(),
             http: proxy_routing.http.clone(),
             no_proxy: Arc::clone(&proxy_routing.no_proxy),
             extra_ca_certs,
-            redirect_guard,
+            redirect_guard: redirect_guard.cloned(),
             dns_resolver,
-        };
-        let build_clients = |effective_tls: &TlsConfig| -> Result<ClientSet, ForInstallsError> {
-            let build = |forbid_redirects, decode_content| {
-                build_client_with_root_fallback(
-                    &inputs,
-                    effective_tls,
-                    ClientVariant { forbid_redirects, decode_content },
-                )
-            };
-            Ok(ClientSet {
-                decoding: ClientPair {
-                    follow_redirects: build(false, true)?,
-                    no_redirects: build(true, true)?,
-                },
-                archive: ClientPair {
-                    follow_redirects: build(false, false)?,
-                    no_redirects: build(true, false)?,
-                },
-            })
-        };
-
-        let default_clients = build_clients(tls)?;
+        });
+        let default_clients = ClientSet::build(&inputs, tls)?;
         // Build one client set per per-registry override.
-        let per_registry =
-            per_registry.try_map(|override_| build_clients(&merge_tls(tls, override_)))?;
+        let per_registry = per_registry.try_map(|override_| {
+            ClientSet::build(&inputs, &merge_tls(tls, override_))
+        })?;
 
         Ok(Self::from_client_pairs(default_clients, per_registry, proxy_routing, settings))
     }
@@ -240,16 +220,13 @@ impl ThrottledClient {
         let semaphore = PrioritySemaphore::new(default_network_concurrency());
         ThrottledClient {
             semaphore,
-            default_clients: ClientSet {
-                archive: ClientPair {
+            default_clients: ClientSet::with_archive(
+                ClientPair {
                     follow_redirects: client.clone(),
                     no_redirects: client_without_redirects.clone(),
                 },
-                decoding: ClientPair {
-                    follow_redirects: client,
-                    no_redirects: client_without_redirects,
-                },
-            },
+                ClientPair { follow_redirects: client, no_redirects: client_without_redirects },
+            ),
             per_registry: tls::PerRegistryMap::default(),
             origin_limits: OriginLimits::new(RegistryLimits::default(), HostSocketLimit::new(None)),
             proxy_routing: ProxyRouting::default(),

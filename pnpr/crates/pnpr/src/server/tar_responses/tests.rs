@@ -1,4 +1,4 @@
-use super::{AcceptedCodings, HeaderMap, header, tar_integrity_within};
+use super::{HeaderMap, TarCoding, decode::tar_integrity_within, header, preferred_coding};
 use std::io::Write;
 
 fn gzip(bytes: &[u8]) -> Vec<u8> {
@@ -15,17 +15,19 @@ fn a_tgz_that_decodes_past_the_limit_has_no_tar() {
 }
 
 #[test]
-fn accept_encoding_honors_refusals_and_the_wildcard() {
-    let accepted = |value: &str| {
+fn accept_encoding_prefers_the_higher_quality_and_zstd_on_a_tie() {
+    let preferred = |value: &str| {
         let mut headers = HeaderMap::new();
         headers.insert(header::ACCEPT_ENCODING, value.parse().unwrap());
-        let AcceptedCodings { zstd, gzip } = AcceptedCodings::of(&headers);
-        (zstd, gzip)
+        preferred_coding(&headers)
     };
-    assert_eq!(accepted("zstd, gzip"), (true, true));
-    assert_eq!(accepted("gzip;q=0.5, zstd;q=0"), (false, true));
-    assert_eq!(accepted("*"), (true, true));
-    assert_eq!(accepted("br"), (false, false));
+    assert_eq!(preferred("zstd, gzip"), TarCoding::Zstd);
+    assert_eq!(preferred("gzip;q=0.5, zstd;q=0"), TarCoding::Gzip);
+    assert_eq!(preferred("zstd;q=0.1, gzip;q=1"), TarCoding::Gzip);
+    assert_eq!(preferred("x-gzip"), TarCoding::Gzip);
+    assert_eq!(preferred("*"), TarCoding::Zstd);
+    assert_eq!(preferred("*;q=0.5, zstd;q=0"), TarCoding::Gzip);
+    assert_eq!(preferred("br"), TarCoding::Identity);
 }
 
 async fn decode_and_derive(
@@ -47,7 +49,8 @@ async fn decode_and_derive(
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };
-    let derived = super::DerivedFrom { expected: expected.parse().ok(), copy: None, stale };
+    let derived =
+        super::DerivedFrom { check: expected.parse().ok(), derive: true, copy: None, stale };
     let body = super::gunzip_body(axum::body::Body::from(tgz), derived, move |integrity| {
         let _ = sender.send(integrity);
     });

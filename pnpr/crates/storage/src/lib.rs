@@ -161,6 +161,7 @@ pub struct Storage {
     /// The hosted backend's tar-integrity namespace, shared by every
     /// organization; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
+    tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -219,7 +220,7 @@ impl Storage {
             )),
         };
         let tar_integrities = hosted.namespaced(tar_integrities::NAMESPACE);
-        Ok(Self { hosted, cached, tar_integrities })
+        Ok(Self { hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -306,6 +307,7 @@ impl Storage {
             hosted: self.hosted.namespaced(org),
             cached: self.cached.clone(),
             tar_integrities: Arc::clone(&self.tar_integrities),
+            tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
         }
     }
 

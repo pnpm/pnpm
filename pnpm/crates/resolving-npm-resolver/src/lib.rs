@@ -31,6 +31,7 @@ pub use create_npm_resolution_verifier::{
 };
 pub use errors::{
     FetchMetadataError, InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
+    MissingTarballUrlError,
 };
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
 pub use fetch_full_metadata::{

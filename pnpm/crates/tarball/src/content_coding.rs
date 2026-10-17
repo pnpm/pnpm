@@ -5,7 +5,10 @@
 //! decoder holds in memory.
 
 use crate::TarballError;
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+    sync::{Arc, OnceLock},
+};
 
 /// The `Accept-Encoding` an archive request sends.
 pub(crate) const ARCHIVE_ACCEPT_ENCODING: &str = "zstd, gzip";
@@ -56,13 +59,15 @@ impl ContentCoding {
         }
     }
 
-    /// `body` with this coding removed.
+    /// `body` with this coding removed, and the watch that tells a failure of
+    /// the coding itself from one of the archive it carries.
     pub(crate) fn decode<'body>(
         self,
         body: impl Read + 'body,
-    ) -> io::Result<Box<dyn Read + 'body>> {
-        Ok(match self {
-            Self::Identity => Box::new(body),
+    ) -> io::Result<(Box<dyn Read + 'body>, DecodeWatch)> {
+        let watch = DecodeWatch { coding: self, failure: Arc::default() };
+        let decoder: Box<dyn Read + 'body> = match self {
+            Self::Identity => return Ok((Box::new(body), watch)),
             Self::Gzip => Box::new(flate2::read::MultiGzDecoder::new(body)),
             #[cfg(not(target_family = "wasm"))]
             Self::Zstd => {
@@ -72,6 +77,51 @@ impl ContentCoding {
             }
             #[cfg(target_family = "wasm")]
             Self::Zstd => unreachable!("wasm bodies arrive decoded"),
+        };
+        let reader = WatchedDecoder { inner: decoder, failure: Arc::clone(&watch.failure) };
+        Ok((Box::new(reader), watch))
+    }
+
+    fn token(self) -> &'static str {
+        match self {
+            Self::Identity => "identity",
+            Self::Gzip => "gzip",
+            Self::Zstd => "zstd",
+        }
+    }
+}
+
+/// Records why a content decoder failed, such as a zstd frame whose window
+/// exceeds the limit.
+pub(crate) struct DecodeWatch {
+    coding: ContentCoding,
+    failure: Arc<OnceLock<String>>,
+}
+
+impl DecodeWatch {
+    /// The error for a response whose content coding did not decode. The
+    /// server sends the same bytes again, so it is not retried.
+    pub(crate) fn error(&self, package_url: &str) -> Option<TarballError> {
+        let reason = self.failure.get()?;
+        Some(TarballError::ContentDecode {
+            url: package_url.to_string(),
+            encoding: self.coding.token(),
+            reason: reason.clone(),
         })
+    }
+}
+
+struct WatchedDecoder<'body> {
+    inner: Box<dyn Read + 'body>,
+    failure: Arc<OnceLock<String>>,
+}
+
+impl Read for WatchedDecoder<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner
+            .read(buf)
+            .inspect_err(|error| {
+                let _ = self.failure.set(error.to_string());
+            })
     }
 }

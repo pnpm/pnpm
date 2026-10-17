@@ -445,3 +445,79 @@ async fn completes_over_http(app: &axum::Router, path: &str, accept: Option<&str
     server.abort();
     completed
 }
+
+#[tokio::test]
+async fn a_tar_registry_serves_no_integrity_addressed_tgz() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(acme_config(tmp.path().to_path_buf()));
+    let digest = "a".repeat(86);
+    let response = get(&app, &format!("/~zstd/-/tarballs/sha512/{digest}"), None).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn publishing_without_a_tar_registry_derives_no_tar_hash() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let mut config = acme_config(tmp.path().to_path_buf());
+    config.routing.tar_registries.clear();
+    let app = router_with_auth(config, auth);
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &gzip(&widget_tar()),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+    assert!(
+        !tmp.path()
+            .join(".tar-integrity")
+            .exists(),
+        "no tar registry serves a tar hash",
+    );
+}
+
+/// A version that only carries the legacy SHA-1 `shasum` still gets a tar.
+#[tokio::test]
+async fn a_shasum_only_upstream_version_is_served_as_a_tar() {
+    let tar = tar_of(&[("package/package.json", br#"{"name":"old-pkg","version":"1.0.0"}"#)]);
+    let tgz = gzip(&tar);
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = serde_json::json!({
+        "name": "old-pkg",
+        "versions": { "1.0.0": { "name": "old-pkg", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/old-pkg/-/old-pkg-1.0.0.tgz", upstream.url()),
+            "shasum": super::sha1_hex_of(&tgz),
+        } } },
+    });
+    let _packument = upstream
+        .mock("GET", "/old-pkg")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let _tarball = upstream
+        .mock("GET", "/old-pkg/-/old-pkg-1.0.0.tgz")
+        .with_body(&tgz)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let graph = vec![
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        ("zstd".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] }),
+    ];
+    config.routing.registries = Registries::new(graph.into_iter().collect(), None);
+    config.routing.tar_registries.insert("zstd".to_string());
+    let app = router(config);
+
+    let served = get(&app, "/~zstd/old-pkg@1.0.0", None).await;
+    assert_eq!(served.status(), StatusCode::OK);
+    assert_eq!(body_bytes(served.into_body()).await, tar);
+}

@@ -195,7 +195,9 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let written_slots = write_attachment_slots(&storage, &name, prepared).await?;
+    // Only a tar registry serves what a tar hash describes.
+    let derive_tars = !state.inner.config.routing.tar_registries.is_empty();
+    let written_slots = write_attachment_slots(&storage, &name, prepared, derive_tars).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
@@ -252,10 +254,11 @@ pub(super) async fn write_attachment_slots(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: Vec<PreparedAttachment>,
+    derive_tars: bool,
 ) -> Result<Vec<pnpr_storage::BlobSlot>, RegistryError> {
     let mut written_slots = Vec::with_capacity(prepared.len());
     for attachment in prepared {
-        match write_attachment_slot(storage, name, attachment).await {
+        match write_attachment_slot(storage, name, attachment, derive_tars).await {
             Ok(slot) => written_slots.push(slot),
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -272,11 +275,15 @@ pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
+    derive_tars: bool,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
     let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
     let tgz_integrity = match prepared.kind {
-        AttachmentKind::Tarball => prepared.dist.as_object().and_then(tgz_integrity_key),
+        AttachmentKind::Tarball if derive_tars => {
+            prepared.dist.as_object().and_then(tgz_integrity_key)
+        }
+        AttachmentKind::Tarball => None,
         AttachmentKind::Sigstore => None,
     };
     let result = tokio::task::spawn_blocking(move || {

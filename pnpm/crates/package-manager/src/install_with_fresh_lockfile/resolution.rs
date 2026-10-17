@@ -302,7 +302,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                             .cloned()
                             .map(Arc::new)
                     }),
-                subtrees: lockfile_reuse_seed.is_some(),
+                // A reused subtree keeps its recorded integrities, which
+                // `--update-checksums` is there to refresh.
+                subtrees: lockfile_reuse_seed.is_some() && !self.install.update_checksums,
                 scope: self.prep.reuse.scope.clone(),
                 scopes_by_importer: self.prep.reuse.by_importer.clone(),
                 depth: self.owned.resolution.update_seed_policy.max_depth(),

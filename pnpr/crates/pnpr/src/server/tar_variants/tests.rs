@@ -38,3 +38,37 @@ fn a_copy_stops_at_the_variant_size_limit() {
     assert!(!copy.reserve(MAX_VARIANT_TAR_BYTES + 1));
     assert_eq!(queue.copies.reserved.load(Ordering::Acquire), 0);
 }
+
+#[tokio::test]
+async fn a_copy_offered_to_a_full_queue_is_dropped() {
+    let storage_dir = tempfile::TempDir::new().unwrap();
+    let storage = pnpr_storage::Storage::new(
+        &pnpr_config::HostedStoreConfig::Fs,
+        storage_dir.path().join("storage"),
+        storage_dir.path().join("cache"),
+    )
+    .unwrap();
+    let name =
+        super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let queue = TarVariantQueue::new();
+    let (sender, receiver) = tokio::sync::mpsc::channel(1);
+    let mut kept = Vec::new();
+    for key in ["sha512-a", "sha512-b"] {
+        let copy = super::TarCopy::start_with_sender(&queue, &storage, &name, key, sender.clone())
+            .await
+            .unwrap();
+        let path = copy.job.copy.tar_path.clone();
+        copy.write(b"tar bytes")
+            .unwrap()
+            .submit();
+        kept.push(path);
+    }
+    assert!(kept[0].exists(), "the first copy waits in the queue");
+    assert!(!kept[1].exists(), "the queue was full, so the second copy is removed");
+    assert_eq!(
+        queue.copies.reserved.load(Ordering::Acquire),
+        9,
+        "only the queued copy holds quota",
+    );
+    drop(receiver);
+}

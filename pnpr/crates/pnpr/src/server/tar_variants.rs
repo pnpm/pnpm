@@ -156,6 +156,16 @@ impl TarCopy {
         name: &CanonicalPackageName,
         tgz_integrity: &str,
     ) -> Option<Self> {
+        Self::start_with_sender(queue, storage, name, tgz_integrity, queue.sender()).await
+    }
+
+    async fn start_with_sender(
+        queue: &TarVariantQueue,
+        storage: &Storage,
+        name: &CanonicalPackageName,
+        tgz_integrity: &str,
+        sender: mpsc::Sender<VariantJob>,
+    ) -> Option<Self> {
         let variant = variant_filename(tgz_integrity);
         if !queue.claim(&variant) {
             return None;
@@ -171,7 +181,7 @@ impl TarCopy {
         let (file, _, tar_path) = write.into_temp_file().await.ok()?;
         copy.tar_path = tar_path;
         let job = VariantJob { storage: storage.clone(), name: name.clone(), copy };
-        Some(Self { file: file.into_std().await, job, sender: queue.sender() })
+        Some(Self { file: file.into_std().await, job, sender })
     }
 
     /// Append decoded bytes. `None` once the copy is dropped: it outgrew

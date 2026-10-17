@@ -84,7 +84,7 @@ impl BufferedExtraction {
         &self,
         encoded: &[u8],
     ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-        let reader =
+        let (reader, watch) =
             self.content_coding.decode(encoded).map_err(TarballError::ReadTarballEntries)?;
         let resource = StreamedResource {
             hasher: BodyHasher::new(self.expected_integrity.as_ref()),
@@ -94,6 +94,9 @@ impl BufferedExtraction {
             ignore_file_pattern: self.ignore_file_pattern.as_deref(),
         };
         let ExtractedResource { integrity, extracted } = extract_resource_stream(reader, resource);
+        if let Some(error) = watch.error(&self.package_url) {
+            return Err(error);
+        }
         let integrity = integrity?;
         let (cas_paths, pkg_files_idx) = extracted?;
         Ok((integrity, cas_paths, pkg_files_idx))
@@ -112,7 +115,7 @@ fn decode_buffered_body(content_coding: ContentCoding, body: Vec<u8>) -> Result<
     let mut decoded = Vec::new();
     let read = content_coding
         .decode(body.as_slice())
-        .and_then(|reader| {
+        .and_then(|(reader, _)| {
             reader
                 .take(limit + 1)
                 .read_to_end(&mut decoded)

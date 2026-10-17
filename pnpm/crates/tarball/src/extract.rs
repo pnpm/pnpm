@@ -112,6 +112,12 @@ pub(crate) fn extract_archive_bytes(
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    if !resource.starts_with(&GZIP_MAGIC)
+        && !resource.is_empty()
+        && !is_tar_block(&resource[..resource.len().min(TAR_BLOCK)])
+    {
+        return Err(TarballError::UnrecognizedArchive);
+    }
     if resource.starts_with(&GZIP_MAGIC) {
         return extract_gzipped_tarball(
             resource,
@@ -603,7 +609,7 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
 }
 
 mod limits;
-use limits::{MAX_NON_PAYLOAD_BYTES, TarBudget, check_trailer};
+use limits::{MAX_NON_PAYLOAD_BYTES, TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
 
 mod streaming;
 

@@ -63,11 +63,11 @@ pub(super) async fn serve_registry_version_manifest(
             Ok(read) => read,
             Err(response) => return response,
         };
-    let tar_integrities = match tar_integrities_of(state, registry, &name).await {
+    let tar_integrities = match tar_integrities_of(state, registry, &resolved_source, &name).await {
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
     let manifest = match view {
         DistView::Tgz {
             revision_registry: Some(source_registry),
@@ -275,11 +275,11 @@ pub(super) async fn serve_registry_packument(
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let tar_integrities = match tar_integrities_of(state, registry, &name).await {
+    let tar_integrities = match tar_integrities_of(state, registry, &resolved_source, &name).await {
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served

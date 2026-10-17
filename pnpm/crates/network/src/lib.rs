@@ -211,35 +211,6 @@ pub struct ThrottledClient {
     warning_handler: std::sync::RwLock<fn(&str)>,
 }
 
-#[derive(Debug)]
-struct ClientPair {
-    follow_redirects: Client,
-    no_redirects: Client,
-}
-
-impl ClientPair {
-    fn select(&self, follow_redirects: bool) -> &Client {
-        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
-    }
-}
-
-/// The clients one TLS configuration is served by, alike in everything but the
-/// two choices [`ClientSet::select`] makes.
-#[derive(Debug)]
-struct ClientSet {
-    decoding: ClientPair,
-    /// Leave `Content-Encoding` on the response, for a caller that decodes the
-    /// body itself.
-    archive: ClientPair,
-}
-
-impl ClientSet {
-    fn select(&self, follow_redirects: bool, decode_content: bool) -> &Client {
-        let pair = if decode_content { &self.decoding } else { &self.archive };
-        pair.select(follow_redirects)
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ProxyRouting {
     pub(crate) https: Option<reqwest::Url>,
@@ -612,6 +583,9 @@ mod certificates;
 #[cfg(target_vendor = "apple")]
 use certificates::is_platform_verifier_available;
 use certificates::{AppliedTls, TrustRoots, apply_tls, load_node_extra_ca_certs, merge_tls};
+
+mod client_set;
+use client_set::{ClientPair, ClientSet, OwnedClientInputs};
 
 mod client_builder;
 use client_builder::{

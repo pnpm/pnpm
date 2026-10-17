@@ -291,10 +291,8 @@ fn default_client_builder(
     default_headers.insert(USER_AGENT, user_agent);
     Client::builder()
         .http1_only()
-        // Packuments are the largest payloads pulled during resolution, and
-        // zstd shrinks them further than gzip. Both default to on with their
-        // reqwest features, but are set explicitly so the intent is visible
-        // and survives a change to that default.
+        // Metadata clients let reqwest remove the content coding; archive
+        // clients leave it to the fetcher, which bounds the zstd window.
         .gzip(decode_content)
         .zstd(decode_content)
         .default_headers(default_headers)

@@ -1,10 +1,11 @@
 use super::{
-    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution, Package,
-    PackageDistribution, PackageVersion, PackageVersionPolicy, PickedFromRegistry, PkgName,
-    PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec, RegistryResponseError,
-    RegistryRevisionSelector, RegistryServerType, ResolveError, ResolveOptions, ResolveResult,
-    TarballResolution, TarballRevision, TarballUrlOptions, TrustCheckOptions, TrustPolicy, Utc,
-    Version, WantedDependency, npm_tarball_url,
+    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution,
+    MissingTarballUrlError, Package, PackageDistribution, PackageVersion, PackageVersionPolicy,
+    PickedFromRegistry, PkgName, PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec,
+    RegistryResponseError, RegistryRevisionSelector, RegistryServerType, ResolveError,
+    ResolveOptions, ResolveResult, TarballResolution, TarballRevision, TarballUrlOptions,
+    TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency, npm_tarball_url,
+    redact_and_sanitize,
     release_policy::{
         detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
     },
@@ -352,6 +353,12 @@ pub(super) fn picked_tarball_resolution(
     let integrity = dist_integrity(&picked.dist)?;
     let revision = tarball_revision(picked, integrity.as_ref(), source.registry)?;
     let tarball = if picked.dist.tarball.is_empty() {
+        if source.server_type.is_none() {
+            return Err(Box::new(MissingTarballUrlError {
+                package: format!("{}@{}", picked.name, picked.version),
+                registry: redact_and_sanitize(source.registry),
+            }) as ResolveError);
+        }
         npm_tarball_url(
             &picked.name,
             &picked.version.to_string(),

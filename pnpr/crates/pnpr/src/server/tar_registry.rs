@@ -3,19 +3,14 @@
 //!
 //! A tar registry's metadata describes the gzip-decoded content of each
 //! published `.tgz`, and its tarball route serves that tar, encoded for the
-//! request by [`tar_response`]. Its hash is derived at publish or on the first
+//! request by [`super::tar_responses::tar_response`]. Its hash is derived at publish or on the first
 //! decode, and kept in the storage's tar-integrity table.
 
 use super::{
-    AppState, CachedTgz, CanonicalPackageName, Ecosystem, HeaderMap, Identity, PackumentDists,
-    RegistryError, RegistrySource, Response, StatusCode, TarSource, Value, addressed_registry,
-    caller_scoped, not_found, read_source_packument, resolve_registry_source,
-    revision_source_registry, serve_registry_tarball, tar_response, tarball_basename,
-    upstream_cache_namespace,
+    AppState, CanonicalPackageName, RegistryError, RegistrySource, Value, revision_source_registry,
 };
-use axum::response::IntoResponse;
 use ssri::{Algorithm, Integrity};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
@@ -28,13 +23,16 @@ pub(super) enum DistView<'a> {
     Tar(&'a BTreeMap<String, String>),
 }
 
-/// The tar-integrity table of `name` when `registry` is a tar registry.
+/// The tar-integrity table of `name` when `registry` is a tar registry and
+/// `source` can serve the package.
 pub(super) async fn tar_integrities_of(
     state: &AppState,
     registry: &str,
+    source: &RegistrySource,
     name: &CanonicalPackageName,
-) -> Result<Option<BTreeMap<String, String>>, RegistryError> {
-    if !is_tar_registry(state, registry) {
+) -> Result<Option<Arc<BTreeMap<String, String>>>, RegistryError> {
+    let servable = matches!(source, RegistrySource::Upstream(_) | RegistrySource::Hosted(_));
+    if !servable || !is_tar_registry(state, registry) {
         return Ok(None);
     }
     state.inner.storage.read_tar_integrities(name).await.map(Some)
@@ -117,87 +115,4 @@ pub(super) fn split_package_identifier(identifier: &str) -> Option<(&str, &str)>
         .filter(|at| *at > 0)?;
     let (name, version) = (&identifier[..at], &identifier[at + 1..]);
     (!version.is_empty() && !name.ends_with('/')).then_some((name, version))
-}
-
-/// `GET {base}/<name>@<version>`: the version's tarball, as the published
-/// `.tgz` on a `.tgz` registry and as its tar on a tar registry.
-pub(super) async fn serve_package_tarball(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    registry: Option<&str>,
-    package: (&str, &str),
-) -> Response {
-    let (raw_name, version) = package;
-    let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
-        return not_found();
-    };
-    let response =
-        serve_version_tarball(state, identity, headers, &target, raw_name, version).await;
-    caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
-}
-
-async fn serve_version_tarball(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    target: &str,
-    raw_name: &str,
-    version: &str,
-) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(name) => name,
-        Err(err) => return err.into_response(),
-    };
-    let source = resolve_registry_source(state, target, name.as_str());
-    let packument = match read_source_packument(state, identity, &source, &name).await {
-        Ok(Some(packument)) => packument,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let Some(tgz) = version_tgz(&packument, version) else {
-        return not_found();
-    };
-    let response = serve_registry_tarball(state, identity, target, raw_name, &tgz.filename).await;
-    if !is_tar_registry(state, target) || response.status() != StatusCode::OK {
-        return response;
-    }
-    let keeps_content = match &source {
-        RegistrySource::Upstream(upstream) => {
-            state.inner.proxy.upstreams.get(upstream).is_some_and(pnpr_upstream::Upstream::caches)
-        }
-        RegistrySource::Hosted(_) => true,
-        RegistrySource::Unclaimed | RegistrySource::NotFound => false,
-    };
-    let cached_tgz = match &source {
-        RegistrySource::Upstream(upstream) => Some(CachedTgz {
-            namespace: upstream_cache_namespace(state, upstream),
-            filename: tgz.filename,
-        }),
-        RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
-    };
-    let source = TarSource { name, tgz_integrity: tgz.integrity_key, keeps_content, cached_tgz };
-    tar_response(state, headers, response, source).await
-}
-
-struct VersionTgz {
-    filename: String,
-    integrity_key: Option<String>,
-}
-
-fn version_tgz(packument: &[u8], version: &str) -> Option<VersionTgz> {
-    let packument: PackumentDists = serde_json::from_slice(packument).ok()?;
-    let dist = packument.versions.get(version)?.dist.as_ref()?;
-    let filename = dist.tarball
-        .as_deref()
-        .and_then(tarball_basename)?
-        .to_string();
-    let mut fields = serde_json::Map::new();
-    if let Some(integrity) = &dist.integrity {
-        fields.insert("integrity".to_string(), Value::String(integrity.clone()));
-    }
-    if let Some(shasum) = &dist.shasum {
-        fields.insert("shasum".to_string(), Value::String(shasum.clone()));
-    }
-    Some(VersionTgz { filename, integrity_key: tgz_integrity_key(&fields) })
 }

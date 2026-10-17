@@ -1,8 +1,8 @@
 use super::{
     Archive, BuildTriggers, CafsFileInfo, GZIP_MAGIC, HashMap, IgnoreEntryFilter,
-    MAX_NON_PAYLOAD_BYTES, PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TarBudget,
-    TarLimits, TarballError, check_trailer, clean_archive_entry_path, file_mode,
-    write_pending_files,
+    MAX_NON_PAYLOAD_BYTES, PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TAR_BLOCK,
+    TarBudget, TarLimits, TarballError, check_trailer, clean_archive_entry_path, file_mode,
+    is_tar_block, write_pending_files,
 };
 use crate::{BodyHasher, content_coding::ContentCoding};
 use ssri::Integrity;
@@ -86,14 +86,16 @@ pub(crate) fn stream_extract_channel(
     content_coding: ContentCoding,
     resource: StreamedResource<'_>,
 ) -> ExtractedResource {
+    let package_url = resource.package_url;
     match content_coding.decode(ChannelBytesReader::new(rx)) {
-        Ok(reader) => extract_resource_stream(reader, resource),
-        Err(error) => ExtractedResource {
-            integrity: Err(TarballError::ReadTarballEntries(error)),
-            extracted: Err(TarballError::ReadTarballEntries(std::io::Error::other(
-                "the content decoder could not start",
-            ))),
-        },
+        Ok((reader, watch)) => {
+            let extracted = extract_resource_stream(reader, resource);
+            match watch.error(package_url) {
+                Some(error) => ExtractedResource::failed(error),
+                None => extracted,
+            }
+        }
+        Err(error) => ExtractedResource::failed(TarballError::ReadTarballEntries(error)),
     }
 }
 
@@ -113,6 +115,18 @@ pub(crate) struct ExtractedResource {
     pub(crate) extracted: Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
 }
 
+impl ExtractedResource {
+    /// A resource that failed before either verdict could be reached.
+    pub(crate) fn failed(error: TarballError) -> Self {
+        Self {
+            integrity: Err(error),
+            extracted: Err(TarballError::ReadTarballEntries(std::io::Error::other(
+                "the resource was not read",
+            ))),
+        }
+    }
+}
+
 /// Hash `reader`, the resource with any content coding removed, and extract
 /// it as a `.tgz` when it opens with the gzip magic and as a tar otherwise.
 ///
@@ -130,12 +144,15 @@ pub(crate) fn extract_resource_stream(
         ignore_file_pattern,
     } = resource;
     let mut hashing = HashingReader { inner: reader, hasher };
-    let mut magic = [0u8; GZIP_MAGIC.len()];
-    let extracted = read_prefix(&mut hashing, &mut magic)
-        .and_then(|prefix_len| {
-            let prefix = &magic[..prefix_len];
+    let mut head = [0u8; TAR_BLOCK];
+    let extracted = read_prefix(&mut hashing, &mut head)
+        .and_then(|head_len| {
+            let prefix = &head[..head_len];
+            if !prefix.starts_with(&GZIP_MAGIC) && !prefix.is_empty() && !is_tar_block(prefix) {
+                return Err(TarballError::UnrecognizedArchive);
+            }
             let body = prefix.chain(&mut hashing);
-            if prefix == GZIP_MAGIC {
+            if prefix.starts_with(&GZIP_MAGIC) {
                 extract_tarball_entries_streaming(
                     flate2::read::GzDecoder::new(body),
                     limits,
@@ -284,6 +301,7 @@ fn walk_tar_stream(
         extract.add_entry(&mut entry, meta)?;
     }
     check_trailer(archive.into_inner())?;
+    budget.ensure_within()?;
     budget.check_not_empty()?;
     extract.finish()
 }

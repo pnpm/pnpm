@@ -208,11 +208,18 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
         errno: None,
         code: None,
     };
+    match err {
+        TarballError::HttpStatus(http) => out.http_status_code = Some(http.status.to_string()),
+        _ => out.code = retry_error_code(err).map(str::to_string),
+    }
+    out
+}
+
+/// The `code` [`tarball_error_to_request_retry`] reports for `err`. `None` for
+/// an HTTP status, which is reported as `httpStatusCode` instead.
+fn retry_error_code(err: &TarballError) -> Option<&'static str> {
     let code = match err {
-        TarballError::HttpStatus(http) => {
-            out.http_status_code = Some(http.status.to_string());
-            return out;
-        }
+        TarballError::HttpStatus(_) => return None,
         TarballError::FetchTarball(_) => "ERR_PNPM_FETCH",
         TarballError::OffAllowlist { .. } => "ERR_PNPM_REGISTRY_OFF_ALLOWLIST",
         TarballError::Checksum(_) => "ERR_PNPM_TARBALL_INTEGRITY",
@@ -227,7 +234,10 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
         TarballError::TarballTooLarge { .. } | TarballError::ArchiveLimit(_) => {
             "ERR_PNPM_TARBALL_TOO_LARGE"
         }
-        TarballError::UnsupportedContentEncoding { .. } => "ERR_PNPM_TARBALL_CONTENT_ENCODING",
+        TarballError::UnsupportedContentEncoding { .. } | TarballError::ContentDecode { .. } => {
+            "ERR_PNPM_TARBALL_CONTENT_ENCODING"
+        }
+        TarballError::UnrecognizedArchive => "ERR_PNPM_TARBALL_UNRECOGNIZED",
         TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
         TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
@@ -248,8 +258,7 @@ pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetry
             "ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"
         }
     };
-    out.code = Some(code.to_string());
-    out
+    Some(code)
 }
 
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
@@ -270,6 +279,7 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         // what a server sends that pnpm refuses to decode.
         TarballError::OffAllowlist { .. }
         | TarballError::UnsupportedContentEncoding { .. }
+        | TarballError::ContentDecode { .. }
         | TarballError::ArchiveLimit(_) => false,
         _ => true,
     }

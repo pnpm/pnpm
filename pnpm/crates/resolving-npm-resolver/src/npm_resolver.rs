@@ -81,7 +81,7 @@ use crate::{
     errors::{
         AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
         InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
-        MalformedRevisionHistoryError, NoMatchingRevisionError,
+        MalformedRevisionHistoryError, MissingTarballUrlError, NoMatchingRevisionError,
     },
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},

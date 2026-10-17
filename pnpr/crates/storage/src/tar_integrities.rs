@@ -1,10 +1,55 @@
 use super::{CanonicalPackageName, DocumentWrite, RegistryError, Result, Storage};
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 /// The hosted-backend namespace of the tar-integrity tables. A leading `.`
 /// keeps it apart from every organization and package name, and out of the
 /// hosted inventories.
 pub(super) const NAMESPACE: &str = ".tar-integrity";
+
+/// How long a replica serves a table it read before reading it again, so a
+/// hash another replica recorded shows up in this replica's metadata after at
+/// most this long.
+const CACHE_TTL: Duration = Duration::from_secs(30);
+
+/// Tables kept in memory before the cache starts over.
+const CACHE_CAPACITY: usize = 4096;
+
+/// The tables this process read or wrote recently, keyed by package name, so
+/// a metadata request does not cost a hosted-backend read.
+#[derive(Debug, Default)]
+pub(super) struct TarIntegrityCache {
+    tables: Mutex<HashMap<String, CachedTable>>,
+}
+
+/// A tar-integrity table, keyed by the `.tgz` integrity each entry was
+/// derived from.
+type Table = Arc<BTreeMap<String, String>>;
+
+#[derive(Debug)]
+struct CachedTable {
+    read_at: Instant,
+    table: Table,
+}
+
+impl TarIntegrityCache {
+    fn get(&self, name: &CanonicalPackageName) -> Option<Table> {
+        let tables = self.tables.lock().expect("tar integrity cache lock poisoned");
+        let cached = tables.get(name.as_str())?;
+        (cached.read_at.elapsed() < CACHE_TTL).then(|| Arc::clone(&cached.table))
+    }
+
+    fn put(&self, name: &CanonicalPackageName, table: Table) {
+        let mut tables = self.tables.lock().expect("tar integrity cache lock poisoned");
+        if tables.len() >= CACHE_CAPACITY {
+            tables.clear();
+        }
+        tables.insert(name.as_str().to_string(), CachedTable { read_at: Instant::now(), table });
+    }
+}
 
 /// Conflicting writes [`Storage::record_tar_integrity`] retries before
 /// leaving the entry to be derived again.
@@ -21,11 +66,18 @@ impl Storage {
     pub async fn read_tar_integrities(
         &self,
         name: &CanonicalPackageName,
-    ) -> Result<BTreeMap<String, String>> {
+    ) -> Result<Arc<BTreeMap<String, String>>> {
+        if let Some(table) = self.tar_integrity_cache.get(name) {
+            return Ok(table);
+        }
         let document = self.tar_integrities.read_document(name).await?;
-        Ok(document
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default())
+        let table: Arc<BTreeMap<String, String>> = Arc::new(
+            document
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+                .unwrap_or_default(),
+        );
+        self.tar_integrity_cache.put(name, Arc::clone(&table));
+        Ok(table)
     }
 
     /// Record that the `.tgz` with integrity `tgz_integrity` decodes to a tar
@@ -63,6 +115,7 @@ impl Storage {
                 self.tar_integrities.write_document_if_current(name, &bytes, version.as_ref())
                     .await?;
             if write == DocumentWrite::Written {
+                self.tar_integrity_cache.put(name, Arc::new(table));
                 return Ok(());
             }
         }

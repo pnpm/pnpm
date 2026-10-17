@@ -5,66 +5,51 @@
 //!   until one exists the decoded tar, which the response compression layer
 //!   encodes at its default level.
 //! - neither: the decoded tar.
+//!
+//! A cached upstream `.tgz` is served without a re-check against the current
+//! packument, and a client of a tar registry may have no tar hash to check what
+//! it receives. Its bytes are checked against the version's `.tgz` integrity
+//! as they stream, and a mismatch fails the response. Hosted and freshly
+//! fetched `.tgz` files are already verified, so they are not hashed again.
+
+pub(super) use decode::tar_integrity_of;
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
-use axum::body::{Body, Bytes};
-use futures_util::StreamExt;
+use axum::body::Body;
+use decode::{DerivedFrom, gunzip_body};
+use negotiation::{TarCoding, preferred_coding};
 use pnpr_storage::{Storage, streaming};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
-use std::io::{self, Read};
-use tokio::sync::mpsc;
+use ssri::Integrity;
+use verify::{CheckedReader, StaleTgz, verified_body};
 
-/// The most a `.tgz` may decode to before pnpr stops: what pnpm's default
-/// decoded-output budget admits, 4 GiB of files plus 256 MiB of headers.
-/// Above it the version has no tar: publish records no tar hash, and a tar
-/// response ends with an error.
-const MAX_DECODED_TAR_BYTES: u64 = (4 * 1024 + 256) * 1024 * 1024;
+mod decode;
+mod negotiation;
+mod verify;
 
 /// The version a tar response serves.
 pub(super) struct TarSource {
     pub(super) name: CanonicalPackageName,
     /// The version's `.tgz` integrity, which keys what is derived from it:
-    /// the tar's integrity and the level-19 variant. Both are derived only
-    /// from bytes that match it.
+    /// the tar's integrity and the level-19 variant.
     pub(super) tgz_integrity: Option<String>,
     /// Whether the source may persist package content. A `cache: false`
     /// upstream may not, so it gets no variants.
     pub(super) keeps_content: bool,
-    /// Where an upstream's `.tgz` is cached. A cached `.tgz` is served without
-    /// a re-check against the current packument, so one that no longer
-    /// matches is evicted for the next request to refetch.
-    pub(super) cached_tgz: Option<CachedTgz>,
+    pub(super) trust: TgzTrust,
+}
+
+/// What is known about the `.tgz` bytes a tar response serves.
+pub(super) enum TgzTrust {
+    /// Hosted, or fetched from the upstream and verified as it streamed.
+    Verified,
+    /// A cached upstream copy, which may no longer match the packument. A
+    /// mismatch evicts it so the next request fetches the current bytes.
+    Cached(CachedTgz),
 }
 
 pub(super) struct CachedTgz {
     pub(super) namespace: String,
     pub(super) filename: String,
-}
-
-/// What to do about a `.tgz` whose bytes did not match the version's
-/// integrity: fail the response, which ends after the bytes, and evict the
-/// cached copy.
-struct StaleTgz {
-    storage: Storage,
-    name: CanonicalPackageName,
-    cached: Option<CachedTgz>,
-    runtime: tokio::runtime::Handle,
-}
-
-impl StaleTgz {
-    fn evict(self) -> io::Error {
-        if let Some(cached) = self.cached {
-            self.runtime.spawn(async move {
-                let removed = self.storage
-                    .remove_upstream_blob(&cached.namespace, &self.name, &cached.filename)
-                    .await;
-                if let Err(err) = removed {
-                    tracing::warn!(?err, package = %self.name.as_str(), "evicting a stale tgz failed");
-                }
-            });
-        }
-        io::Error::other("the tarball does not match the integrity its metadata declares")
-    }
 }
 
 /// Serve the tar of the `.tgz` response `tgz`, encoded as the request
@@ -76,124 +61,61 @@ pub(super) async fn tar_response(
     source: TarSource,
 ) -> Response {
     let storage = &state.inner.storage;
-    let accepted = AcceptedCodings::of(headers);
-    let variant_key = source.tgz_integrity.as_deref().filter(|_| source.keeps_content);
-    if accepted.zstd {
-        let mut copy = None;
-        if let Some(key) = variant_key {
-            if let Some((file, len)) = open_variant(storage, &source.name, key).await {
-                return encoded_response(tgz, streaming::stream_file(file), Some(len), "zstd");
+    match preferred_coding(headers) {
+        TarCoding::Zstd => {
+            let mut copy = None;
+            if let Some(key) = source.tgz_integrity.as_deref().filter(|_| source.keeps_content) {
+                if let Some((file, len)) = open_variant(storage, &source.name, key).await {
+                    return encoded_response(tgz, streaming::stream_file(file), Some(len), "zstd");
+                }
+                copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, &source.name, key)
+                    .await;
             }
-            copy =
-                TarCopy::start(&state.inner.proxy.tar_variants, storage, &source.name, key).await;
+            decoded_response(storage.clone(), tgz, source, copy)
         }
-        return decoded_response(storage.clone(), tgz, source, copy);
+        TarCoding::Gzip => gzip_response(storage.clone(), tgz, source),
+        TarCoding::Identity => decoded_response(storage.clone(), tgz, source, None),
     }
-    if accepted.gzip {
-        let (parts, body) = tgz.into_parts();
-        let expected = source.expected();
-        // A client stops reading at a declared length, so a mismatch reported
-        // after the last byte would reach it only as a dropped connection it
-        // never sees. Without the length, the missing final chunk fails it.
-        let len = parts.headers
-            .get(header::CONTENT_LENGTH)
-            .and_then(|value| value.to_str().ok()?.parse().ok())
-            .filter(|_| expected.is_none());
-        let body = verified_body(body, expected, source.stale(storage.clone()));
-        return encoded_response(Response::from_parts(parts, Body::empty()), body, len, "gzip");
-    }
-    decoded_response(storage.clone(), tgz, source, None)
 }
 
 impl TarSource {
-    fn expected(&self) -> Option<Integrity> {
-        self.tgz_integrity
-            .as_deref()
-            .and_then(|key| key.parse().ok())
+    /// The integrity the served bytes still have to be checked against.
+    fn check(&self) -> Option<Integrity> {
+        match self.trust {
+            TgzTrust::Cached(_) => self.tgz_integrity
+                .as_deref()?
+                .parse()
+                .ok(),
+            TgzTrust::Verified => None,
+        }
     }
 
     fn stale(self, storage: Storage) -> StaleTgz {
         StaleTgz {
             storage,
             name: self.name,
-            cached: self.cached_tgz,
+            cached: match self.trust {
+                TgzTrust::Cached(cached) => Some(cached),
+                TgzTrust::Verified => None,
+            },
             runtime: tokio::runtime::Handle::current(),
         }
     }
 }
 
-/// `body`, checked against `expected` as it streams. A body that does not
-/// match ends with an error and has `stale` evicted.
-fn verified_body(body: Body, expected: Option<Integrity>, stale: StaleTgz) -> Body {
-    let Some(expected) = expected else { return body };
-    let state = (body.into_data_stream(), Some((IntegrityChecker::new(expected), stale)));
-    let chunks = futures_util::stream::unfold(state, |(mut chunks, mut check)| async move {
-        match chunks.next().await {
-            Some(Ok(chunk)) => {
-                if let Some((checker, _)) = &mut check {
-                    checker.input(&chunk);
-                }
-                Some((Ok(chunk), (chunks, check)))
-            }
-            Some(Err(err)) => Some((Err(io::Error::other(err)), (chunks, None))),
-            None => {
-                let (checker, stale) = check?;
-                let mismatch = checker
-                    .result()
-                    .is_err()
-                    .then(|| stale.evict());
-                mismatch.map(|err| (Err(err), (chunks, None)))
-            }
-        }
-    });
-    Body::from_stream(chunks)
-}
-
-/// Which of the codings pnpr encodes tars in the request's `Accept-Encoding`
-/// allows. A coding with `q=0` is refused, and `*` stands for any.
-#[derive(Default)]
-struct AcceptedCodings {
-    zstd: bool,
-    gzip: bool,
-}
-
-impl AcceptedCodings {
-    fn of(headers: &HeaderMap) -> Self {
-        headers
-            .get_all(header::ACCEPT_ENCODING)
-            .iter()
-            .flat_map(|value| {
-                value
-                    .to_str()
-                    .unwrap_or_default()
-                    .split(',')
-            })
-            .filter_map(accepted_coding)
-            .fold(Self::default(), |accepted, coding| match coding.as_str() {
-                "zstd" => Self { zstd: true, ..accepted },
-                "gzip" | "x-gzip" => Self { gzip: true, ..accepted },
-                "*" => Self { zstd: true, gzip: true },
-                _ => accepted,
-            })
-    }
-}
-
-/// The lowercased coding of one `Accept-Encoding` entry, or `None` when the
-/// entry refuses it with `q=0`.
-fn accepted_coding(entry: &str) -> Option<String> {
-    let mut parts = entry.split(';');
-    let coding = parts
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
-    let refused = parts.any(|param| {
-        param
-            .trim()
-            .strip_prefix("q=")
-            .is_some_and(|quality| quality.trim().parse::<f32>() == Ok(0.0))
-    });
-    (!refused).then_some(coding)
+/// The `.tgz` itself as a gzip-encoded tar.
+fn gzip_response(storage: Storage, tgz: Response, source: TarSource) -> Response {
+    let (parts, body) = tgz.into_parts();
+    let check = source.check();
+    // A client stops reading at a declared length, so a mismatch reported
+    // after the last byte would reach it only as a dropped connection it never
+    // sees. Without the length, the missing final chunk fails it.
+    let len = parts.headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok()?.parse().ok())
+        .filter(|_| check.is_none());
+    let body = verified_body(body, check, source.stale(storage));
+    encoded_response(Response::from_parts(parts, Body::empty()), body, len, "gzip")
 }
 
 /// `tgz`'s status and caller-scoping headers with an already encoded tar body.
@@ -207,10 +129,9 @@ fn encoded_response(tgz: Response, body: Body, len: Option<u64>, coding: &'stati
     Response::from_parts(parts, body)
 }
 
-/// Serve the tar `tgz` decodes to. Once the whole of it decoded from bytes
-/// that match the version's `.tgz` integrity, record the tar's integrity and
-/// hand `copy` to the variant worker. A cached `.tgz` is not re-checked
-/// against the packument when it is served, so the bytes may be stale.
+/// Serve the tar `tgz` decodes to. Once the whole of it decoded, and a cached
+/// `.tgz` matched the version's integrity, record the tar's integrity and hand
+/// `copy` to the variant worker.
 fn decoded_response(
     storage: Storage,
     tgz: Response,
@@ -219,12 +140,16 @@ fn decoded_response(
 ) -> Response {
     let (mut parts, body) = tgz.into_parts();
     describe_tar_headers(&mut parts.headers);
-    let expected = source.expected();
     let tgz_integrity = source.tgz_integrity.clone();
     let name = source.name.clone();
-    let stale = source.stale(storage.clone());
+    let derived = DerivedFrom {
+        check: source.check(),
+        derive: tgz_integrity.is_some(),
+        copy,
+        stale: source.stale(storage.clone()),
+    };
     let runtime = tokio::runtime::Handle::current();
-    let body = gunzip_body(body, DerivedFrom { expected, copy, stale }, move |tar_integrity| {
+    let body = gunzip_body(body, derived, move |tar_integrity| {
         let Some(key) = tgz_integrity else { return };
         runtime.spawn(async move {
             if let Err(err) =
@@ -245,192 +170,6 @@ fn describe_tar_headers(headers: &mut HeaderMap) {
     headers.remove("content-digest");
     headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/x-tar"));
     headers.append(header::VARY, header::HeaderValue::from_static("accept-encoding"));
-}
-
-/// Compute the integrity of the tar a stored `.tgz` decodes to. `None` when
-/// the `.tgz` is not a sequence of gzip members.
-pub(super) fn tar_integrity_of(tgz: impl Read) -> Option<Integrity> {
-    tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
-}
-
-fn tar_integrity_within(tgz: impl Read, limit: u64) -> Option<Integrity> {
-    let mut decoder = flate2::read::MultiGzDecoder::new(tgz).take(limit.saturating_add(1));
-    let mut decoded = 0u64;
-    let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-    let mut buf = vec![0u8; 64 * 1024];
-    loop {
-        match decoder.read(&mut buf) {
-            Ok(0) => return (decoded <= limit).then(|| hasher.result()),
-            Ok(len) => {
-                decoded += len as u64;
-                hasher.input(&buf[..len]);
-            }
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
-            Err(_) => return None,
-        }
-    }
-}
-
-/// What a decode may derive from: the `.tgz` integrity its compressed bytes
-/// have to match, and the copy it feeds.
-struct DerivedFrom {
-    expected: Option<Integrity>,
-    copy: Option<TarCopy>,
-    stale: StaleTgz,
-}
-
-/// Decode a gzip body as it streams, copying the decoded bytes into
-/// `derived.copy`. Once every member decoded and the compressed bytes matched
-/// `derived.expected`, submit the copy and call `on_complete` with the
-/// integrity of the decoded bytes. A body that fails to decode ends the
-/// response with an error.
-fn gunzip_body(
-    body: Body,
-    derived: DerivedFrom,
-    on_complete: impl FnOnce(Integrity) + Send + 'static,
-) -> Body {
-    const CHANNEL_CHUNKS: usize = 16;
-    let (compressed_tx, compressed_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
-    let (tar_tx, tar_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
-    tokio::spawn(forward_body(body, compressed_tx));
-    tokio::task::spawn_blocking(move || {
-        derive_from_decode(compressed_rx, &tar_tx, derived, on_complete);
-    });
-    let chunks = futures_util::stream::unfold(tar_rx, |mut tar_rx| async move {
-        tar_rx
-            .recv()
-            .await
-            .map(|chunk| (chunk, tar_rx))
-    });
-    // The compression layer polls its input once more after it ends.
-    Body::from_stream(chunks.fuse())
-}
-
-/// Decode the compressed chunks into `tar_tx`, then derive from them what
-/// `derived` allows once they matched its digest.
-fn derive_from_decode(
-    compressed_rx: mpsc::Receiver<io::Result<Bytes>>,
-    tar_tx: &mpsc::Sender<io::Result<Bytes>>,
-    derived: DerivedFrom,
-    on_complete: impl FnOnce(Integrity),
-) {
-    let DerivedFrom { expected, mut copy, stale } = derived;
-    let mut compressed = CheckedReader {
-        inner: ChannelReader::new(compressed_rx),
-        checker: expected.map(IntegrityChecker::new),
-    };
-    let decoder = flate2::read::MultiGzDecoder::new(&mut compressed)
-        .take(MAX_DECODED_TAR_BYTES.saturating_add(1));
-    let Some(integrity) = decode_into(decoder, tar_tx, &mut copy) else { return };
-    match compressed.checker.map(|checker| checker.result().is_ok()) {
-        Some(true) => {}
-        Some(false) => {
-            let _ = tar_tx.blocking_send(Err(stale.evict()));
-            return;
-        }
-        // Nothing to check the bytes against, so nothing is derived.
-        None => return,
-    }
-    if let Some(copy) = copy {
-        copy.submit();
-    }
-    on_complete(integrity);
-}
-
-async fn forward_body(body: Body, chunks: mpsc::Sender<io::Result<Bytes>>) {
-    let mut body = body.into_data_stream();
-    while let Some(chunk) = body.next().await {
-        let chunk = chunk.map_err(io::Error::other);
-        let failed = chunk.is_err();
-        if chunks.send(chunk).await.is_err() || failed {
-            return;
-        }
-    }
-}
-
-/// Send what `decoder` reads to `out` and into `copy`, returning the integrity
-/// of all of it once it ends. `None` when the decode failed or the response
-/// was dropped.
-fn decode_into(
-    mut decoder: impl Read,
-    out: &mpsc::Sender<io::Result<Bytes>>,
-    copy: &mut Option<TarCopy>,
-) -> Option<Integrity> {
-    let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-    let mut decoded = 0u64;
-    loop {
-        let mut buf = vec![0u8; 64 * 1024];
-        let len = match decoder.read(&mut buf) {
-            Ok(0) if decoded > MAX_DECODED_TAR_BYTES => {
-                let _ = out.blocking_send(Err(io::Error::other(format!(
-                    "the tar exceeds the {MAX_DECODED_TAR_BYTES}-byte decode limit",
-                ))));
-                return None;
-            }
-            Ok(0) => return Some(hasher.result()),
-            Ok(len) => len,
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
-            Err(err) => {
-                let _ = out.blocking_send(Err(err));
-                return None;
-            }
-        };
-        decoded += len as u64;
-        buf.truncate(len);
-        hasher.input(&buf);
-        *copy = copy
-            .take()
-            .and_then(|copy| copy.write(&buf));
-        out.blocking_send(Ok(Bytes::from(buf)))
-            .ok()?;
-    }
-}
-
-/// Feeds every byte read through it into an [`IntegrityChecker`], when there
-/// is one to match.
-struct CheckedReader<Inner> {
-    inner: Inner,
-    checker: Option<IntegrityChecker>,
-}
-
-impl<Inner: Read> Read for CheckedReader<Inner> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let len = self.inner.read(buf)?;
-        if let Some(checker) = &mut self.checker {
-            checker.input(&buf[..len]);
-        }
-        Ok(len)
-    }
-}
-
-/// Blocking [`Read`] over a channel of body chunks, for a decoder on a
-/// blocking thread. A closed channel is end-of-stream.
-struct ChannelReader {
-    rx: mpsc::Receiver<io::Result<Bytes>>,
-    current: Bytes,
-}
-
-impl ChannelReader {
-    fn new(rx: mpsc::Receiver<io::Result<Bytes>>) -> Self {
-        Self { rx, current: Bytes::new() }
-    }
-}
-
-impl Read for ChannelReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() {
-            return Ok(0);
-        }
-        while self.current.is_empty() {
-            match self.rx.blocking_recv() {
-                Some(chunk) => self.current = chunk?,
-                None => return Ok(0),
-            }
-        }
-        let len = self.current.len().min(buf.len());
-        buf[..len].copy_from_slice(&self.current.split_to(len));
-        Ok(len)
-    }
 }
 
 #[cfg(test)]

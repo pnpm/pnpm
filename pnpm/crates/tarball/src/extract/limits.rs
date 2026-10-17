@@ -22,6 +22,9 @@ const MAX_TRAILER_BYTES: u64 = 512 + 10 * 1024;
 pub struct TarLimits {
     /// Ceiling on the summed size of regular-file entries.
     max_payload: u64,
+    /// Ceiling on the bytes that are not file payload, at
+    /// [`MAX_NON_PAYLOAD_BYTES`] outside tests.
+    pub(crate) max_non_payload: u64,
     /// The package's `dist.unpackedSize`, which tightens the ceiling of a tar.
     unpacked_size: Option<u64>,
 }
@@ -35,7 +38,7 @@ impl Default for TarLimits {
 impl TarLimits {
     #[must_use]
     pub const fn new(max_payload: u64) -> Self {
-        Self { max_payload, unpacked_size: None }
+        Self { max_payload, max_non_payload: MAX_NON_PAYLOAD_BYTES, unpacked_size: None }
     }
 
     /// Record the package's `dist.unpackedSize`, the exact sum of its file
@@ -52,7 +55,7 @@ impl TarLimits {
     pub(crate) fn for_tar(self) -> Self {
         let max_payload =
             self.unpacked_size.map_or(self.max_payload, |size| size.min(self.max_payload));
-        Self { max_payload, unpacked_size: None }
+        Self { max_payload, unpacked_size: None, ..self }
     }
 }
 
@@ -97,8 +100,9 @@ impl TarBudget {
 
     /// Check the non-payload limit given how far into the archive a walk got.
     fn check_consumed(&self, consumed: u64) -> Result<(), TarballError> {
-        if consumed.saturating_sub(self.announced_payload.get()) > MAX_NON_PAYLOAD_BYTES {
-            return Err(self.exceed(ArchiveLimit::NonPayload(MAX_NON_PAYLOAD_BYTES)));
+        let limit = self.limits.max_non_payload;
+        if consumed.saturating_sub(self.announced_payload.get()) > limit {
+            return Err(self.exceed(ArchiveLimit::NonPayload(limit)));
         }
         Ok(())
     }
@@ -119,6 +123,15 @@ impl TarBudget {
             .and_then(|start| tar_data.get(start..))
             .unwrap_or_default();
         check_trailer(rest)
+    }
+
+    /// Fail a walk whose reader overran a limit that a caller swallowed, as
+    /// [`check_trailer`] does with read errors.
+    pub(crate) fn ensure_within(&self) -> Result<(), TarballError> {
+        match self.exceeded.get() {
+            Some(limit) => Err(TarballError::ArchiveLimit(limit)),
+            None => Ok(()),
+        }
     }
 
     /// Fail a walk that read nothing: an empty body is not an archive.
@@ -180,6 +193,32 @@ fn empty_archive_error() -> TarballError {
         io::ErrorKind::UnexpectedEof,
         "the archive is empty",
     ))
+}
+
+/// The size of a tar header and of the records a tar is made of.
+pub(crate) const TAR_BLOCK: usize = 512;
+
+/// Whether `block`, the first block of a body, opens a tar: a header whose
+/// checksum matches, or the zero block of an empty archive.
+pub(crate) fn is_tar_block(block: &[u8]) -> bool {
+    let Ok(block) = <&[u8; TAR_BLOCK]>::try_from(block) else { return false };
+    if block.iter().all(|byte| *byte == 0) {
+        return true;
+    }
+    let stored = std::str::from_utf8(&block[148..156])
+        .ok()
+        .map(|field| field.trim_matches(['\0', ' ']))
+        .and_then(|field| u32::from_str_radix(field, 8).ok());
+    let computed: u32 = block
+        .iter()
+        .enumerate()
+        .map(
+            |(index, byte)| {
+                if (148..156).contains(&index) { u32::from(b' ') } else { u32::from(*byte) }
+            },
+        )
+        .sum();
+    stored == Some(computed)
 }
 
 /// Fail an archive with more than [`MAX_TRAILER_BYTES`] after its first

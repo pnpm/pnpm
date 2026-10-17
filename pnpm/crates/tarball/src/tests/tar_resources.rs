@@ -82,9 +82,12 @@ async fn serve(
 async fn a_tar_body_is_hashed_and_extracted_under_every_content_coding() {
     let tar = small_tar();
     let expected = sha512(&tar);
-    for (body, encoding) in
-        [(tar.clone(), None), (zstd_bytes(&tar), Some("zstd")), (gzip_bytes(&tar), Some("gzip"))]
-    {
+    for (body, encoding) in [
+        (tar.clone(), None),
+        (zstd_bytes(&tar), Some("zstd")),
+        (gzip_bytes(&tar), Some("gzip")),
+        (gzip_bytes(&tar), Some("x-gzip")),
+    ] {
         let (_store_keep, store_dir) = tempdir_with_leaked_path();
         let (_server, mock, url) = serve(body, encoding).await;
         let (integrity, files) = fetch(&url, Some(&expected), None, store_dir)
@@ -101,7 +104,9 @@ async fn a_tar_body_is_hashed_and_extracted_under_every_content_coding() {
 async fn a_large_tar_is_extracted_while_it_downloads() {
     let tar = large_tar();
     let expected = sha512(&tar);
-    for (body, encoding) in [(tar.clone(), None), (zstd_bytes(&tar), Some("zstd"))] {
+    for (body, encoding) in
+        [(tar.clone(), None), (zstd_bytes(&tar), Some("zstd")), (gzip_bytes(&tar), Some("gzip"))]
+    {
         let (_store_keep, store_dir) = tempdir_with_leaked_path();
         let (_server, mock, url) = serve(body, encoding).await;
         let (integrity, files) = fetch(&url, None, Some(tar.len()), store_dir)
@@ -148,7 +153,7 @@ async fn a_zstd_window_above_8_mib_is_refused() {
     let (_server, _mock, url) = serve(encoder.finish().unwrap(), Some("zstd")).await;
     let error = fetch(&url, None, None, store_dir).await.unwrap_err();
     assert!(
-        matches!(error, TarballError::ReadTarballEntries(_)),
+        matches!(error, TarballError::ContentDecode { encoding: "zstd", .. }),
         "a 16 MiB window must not decode, got {error:?}",
     );
 }
@@ -241,4 +246,49 @@ async fn an_empty_body_is_not_an_archive() {
     let (_server, _mock, url) = serve(Vec::new(), None).await;
     let error = fetch(&url, None, None, store_dir).await.unwrap_err();
     assert!(matches!(error, TarballError::ReadTarballEntries(_)), "got {error:?}");
+}
+
+/// A tar whose only entry is a skipped one with a body of `len` bytes.
+fn tar_with_skipped_entry(len: usize) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Char);
+    header.set_size(len as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    builder
+        .append_data(&mut header, "package/device", vec![0u8; len].as_slice())
+        .unwrap();
+    builder.into_inner().unwrap()
+}
+
+/// The bodies of skipped entries count against the non-payload limit, on the
+/// eager path and the streaming one.
+#[test]
+fn skipped_entry_bodies_count_as_non_payload() {
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let tar = tar_with_skipped_entry(4096);
+    let mut limits = crate::TarLimits::default();
+    limits.max_non_payload = 1024;
+    let eager = super::extract_tarball_entries(&tar, limits, store_dir, None).unwrap_err();
+    let streamed =
+        super::stream_extract_gzipped_tarball(&gzip_bytes(&tar), limits, store_dir, None)
+            .unwrap_err();
+    for error in [eager, streamed] {
+        assert!(
+            matches!(error, TarballError::ArchiveLimit(ArchiveLimit::NonPayload(1024))),
+            "got {error:?}",
+        );
+    }
+    super::extract_tarball_entries(&tar, crate::TarLimits::default(), store_dir, None)
+        .expect("the default limit admits the archive");
+}
+
+#[tokio::test]
+async fn an_html_page_is_not_an_archive() {
+    let (_store_keep, store_dir) = tempdir_with_leaked_path();
+    let page = b"<!doctype html><title>Sign in</title>".repeat(64);
+    let (_server, _mock, url) = serve(page, None).await;
+    let error = fetch(&url, None, None, store_dir).await.unwrap_err();
+    assert!(matches!(error, TarballError::UnrecognizedArchive), "got {error:?}");
 }
