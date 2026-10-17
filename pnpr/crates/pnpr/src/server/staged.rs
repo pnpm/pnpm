@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
+    Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
     commit_publishes, json_response, not_found, private_no_cache,
     publishing::{ValidatedPublish, cleanup_tmp_slots, report_unrecorded},
     resolve_write_target, stage_publish, validate_publish_doc,
@@ -430,13 +430,15 @@ async fn authorize_staged(
     let name =
         CanonicalPackageName::parse(&record.package_name, pnpr_package_name::Ecosystem::Npm)?;
     let target = resolve_write_target(state, identity, record.registry.as_deref(), &name)?;
-    authorize(
+    authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source),
         name.as_str(),
         Action::Publish,
+        Some(&target.org),
     )
+    .await
 }
 
 async fn read_staged_record(

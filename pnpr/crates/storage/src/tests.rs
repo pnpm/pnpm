@@ -1,6 +1,6 @@
 use super::{
     AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefWrite,
-    HostedStoreConfig, MAX_HOSTED_REVISION_REFS, RegistryError, Storage,
+    HostedStoreConfig, MAX_HOSTED_REVISION_REFS, PackageTombstone, RegistryError, Storage,
     atomic_write::create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
@@ -330,4 +330,115 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
             .unwrap()
             .is_none(),
     );
+}
+
+fn add_tombstone_ban(
+    existing: Option<PackageTombstone>,
+    package: &str,
+    maintainer: &str,
+    version: &str,
+) -> PackageTombstone {
+    let mut tombstone = existing.unwrap_or_else(|| PackageTombstone {
+        package: package.to_string(),
+        unpublished_by: Some(maintainer.to_string()),
+        unpublished_at: "2026-01-01T00:00:00Z".to_string(),
+        maintainers: vec![maintainer.to_string()],
+        unpublished_versions: Vec::new(),
+    });
+    if !tombstone.maintainers
+        .iter()
+        .any(|user| user == maintainer)
+    {
+        tombstone.maintainers.push(maintainer.to_string());
+    }
+    if !tombstone.unpublished_versions
+        .iter()
+        .any(|ver| ver == version)
+    {
+        tombstone.unpublished_versions.push(version.to_string());
+    }
+    tombstone
+}
+
+#[tokio::test]
+async fn concurrent_tombstone_writers_retain_all_version_bans() {
+    let tmp = TempDir::new().unwrap();
+    let storage = std::sync::Arc::new(storage_in(&tmp));
+    let name = pkg("concurrent-pkg");
+
+    let mut handles = Vec::new();
+    for i in 0..10 {
+        let storage = std::sync::Arc::clone(&storage);
+        let name = name.clone();
+        let version = format!("1.{i}.0");
+        let maintainer = format!("user-{i}");
+        handles.push(tokio::spawn(async move {
+            storage
+                .update_tombstone(&name, |existing| {
+                    add_tombstone_ban(existing, name.as_str(), &maintainer, &version)
+                })
+                .await
+                .unwrap();
+        }));
+    }
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+
+    let tombstone = storage
+        .read_tombstone(&name)
+        .await
+        .unwrap()
+        .expect("tombstone exists");
+    assert_eq!(tombstone.package, "concurrent-pkg");
+    assert_eq!(tombstone.unpublished_versions.len(), 10);
+    for i in 0..10 {
+        let version = format!("1.{i}.0");
+        assert!(
+            tombstone.unpublished_versions.contains(&version),
+            "missing unpublished version {version}",
+        );
+        let maintainer = format!("user-{i}");
+        assert!(tombstone.maintainers.contains(&maintainer), "missing maintainer {maintainer}");
+    }
+}
+
+#[tokio::test]
+async fn concurrent_write_tombstone_merges_version_bans() {
+    let tmp = TempDir::new().unwrap();
+    let storage = std::sync::Arc::new(storage_in(&tmp));
+    let name = pkg("concurrent-write-pkg");
+
+    let mut handles = Vec::new();
+    for i in 0..5 {
+        let storage = std::sync::Arc::clone(&storage);
+        let name = name.clone();
+        let version = format!("2.{i}.0");
+        handles.push(tokio::spawn(async move {
+            let tombstone = PackageTombstone {
+                package: name.as_str().to_string(),
+                unpublished_by: Some("admin".to_string()),
+                unpublished_at: "2026-01-01T00:00:00Z".to_string(),
+                maintainers: vec!["admin".to_string()],
+                unpublished_versions: vec![version],
+            };
+            storage.write_tombstone(&tombstone).await.unwrap();
+        }));
+    }
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+
+    let tombstone = storage
+        .read_tombstone(&name)
+        .await
+        .unwrap()
+        .expect("tombstone exists");
+    assert_eq!(tombstone.unpublished_versions.len(), 5);
+    for i in 0..5 {
+        let version = format!("2.{i}.0");
+        assert!(tombstone.unpublished_versions.contains(&version));
+    }
 }

@@ -172,19 +172,22 @@ async fn record_removed_versions_in_tombstone(
     if removed_versions.is_empty() {
         return Ok(());
     }
-    let mut tombstone = match storage.read_tombstone(name).await? {
-        Some(existing) => existing,
-        None => new_tombstone_from_hosted(identity, name, hosted),
-    };
-    for version in removed_versions {
-        if !tombstone.unpublished_versions
-            .iter()
-            .any(|existing| existing == version)
-        {
-            tombstone.unpublished_versions.push(version.clone());
+    let fallback = new_tombstone_from_hosted(identity, name, hosted);
+    let removed = removed_versions.to_vec();
+    storage.update_tombstone(name, move |existing| {
+        let mut tombstone = existing.unwrap_or_else(|| fallback.clone());
+        for version in &removed {
+            if !tombstone.unpublished_versions
+                .iter()
+                .any(|existing| existing == version)
+            {
+                tombstone.unpublished_versions.push(version.clone());
+            }
         }
-    }
-    storage.write_tombstone(&tombstone).await
+        tombstone
+    })
+    .await?;
+    Ok(())
 }
 
 fn new_tombstone_from_hosted(

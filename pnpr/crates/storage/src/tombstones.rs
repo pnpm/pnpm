@@ -1,4 +1,7 @@
-use super::{CanonicalPackageName, DocumentWrite, Result, Storage};
+use super::{
+    COMMIT_DOCUMENT_WRITE_RETRIES, CanonicalPackageName, DocumentWrite, Result, Storage,
+    wait_after_document_write_conflict,
+};
 use serde::{Deserialize, Serialize};
 
 /// Reserved namespace for package tombstones.
@@ -23,6 +26,60 @@ fn tombstone_key(name: &CanonicalPackageName) -> String {
     format!("{}.json", name.as_str())
 }
 
+fn merge_tombstones(
+    mut current: PackageTombstone,
+    incoming: &PackageTombstone,
+) -> PackageTombstone {
+    for maintainer in &incoming.maintainers {
+        if !current.maintainers
+            .iter()
+            .any(|user| user == maintainer)
+        {
+            current.maintainers.push(maintainer.clone());
+        }
+    }
+    for version in &incoming.unpublished_versions {
+        if !current.unpublished_versions
+            .iter()
+            .any(|ver| ver == version)
+        {
+            current.unpublished_versions.push(version.clone());
+        }
+    }
+    if incoming.unpublished_by.is_some() {
+        current.unpublished_by.clone_from(&incoming.unpublished_by);
+    }
+    current.unpublished_at.clone_from(&incoming.unpublished_at);
+    current
+}
+
+fn parse_tombstone(bytes: Option<&[u8]>) -> Result<Option<PackageTombstone>> {
+    let Some(bytes) = bytes else {
+        return Ok(None);
+    };
+    serde_json::from_slice(bytes).map(Some).map_err(pnpr_error::RegistryError::Json)
+}
+
+async fn write_tombstone_record(
+    storage: &Storage,
+    key: &str,
+    current: Option<&[u8]>,
+    updated: &[u8],
+) -> Result<DocumentWrite> {
+    match current {
+        None => {
+            if storage.hosted.create_record(TOMBSTONES_NAMESPACE, key, updated).await? {
+                Ok(DocumentWrite::Written)
+            } else {
+                Ok(DocumentWrite::Conflict)
+            }
+        }
+        Some(prev) => {
+            storage.hosted.replace_record_if_current(TOMBSTONES_NAMESPACE, key, prev, updated).await
+        }
+    }
+}
+
 impl Storage {
     pub async fn read_tombstone(
         &self,
@@ -37,31 +94,45 @@ impl Storage {
         Ok(Some(tombstone))
     }
 
-    async fn try_write_tombstone(&self, key: &str, bytes: &[u8]) -> Result<DocumentWrite> {
-        let Some(current) = self.hosted.read_record(TOMBSTONES_NAMESPACE, key).await? else {
-            if self.hosted.create_record(TOMBSTONES_NAMESPACE, key, bytes).await? {
-                return Ok(DocumentWrite::Written);
+    pub async fn update_tombstone<Mutate>(
+        &self,
+        name: &CanonicalPackageName,
+        mutate: Mutate,
+    ) -> Result<PackageTombstone>
+    where
+        Mutate: Fn(Option<PackageTombstone>) -> PackageTombstone,
+    {
+        let key = tombstone_key(name);
+        for attempt in 0..COMMIT_DOCUMENT_WRITE_RETRIES {
+            let current = self.hosted.read_record(TOMBSTONES_NAMESPACE, &key).await?;
+            let current_tombstone = parse_tombstone(current.as_deref())?;
+            let updated = mutate(current_tombstone);
+            let updated_bytes =
+                serde_json::to_vec_pretty(&updated).map_err(pnpr_error::RegistryError::Json)?;
+
+            if write_tombstone_record(self, &key, current.as_deref(), &updated_bytes).await?
+                == DocumentWrite::Written
+            {
+                return Ok(updated);
             }
-            return Ok(DocumentWrite::Conflict);
-        };
-        self.hosted.replace_record_if_current(TOMBSTONES_NAMESPACE, key, &current, bytes).await
+
+            if attempt + 1 < COMMIT_DOCUMENT_WRITE_RETRIES {
+                wait_after_document_write_conflict(attempt).await;
+            }
+        }
+        Err(pnpr_error::RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
     }
 
     pub async fn write_tombstone(&self, tombstone: &PackageTombstone) -> Result<()> {
         let name =
             CanonicalPackageName::parse(&tombstone.package, pnpr_package_name::Ecosystem::Npm)?;
-        let key = tombstone_key(&name);
-        let bytes = serde_json::to_vec_pretty(tombstone).map_err(pnpr_error::RegistryError::Json)?;
-        for attempt in 0..5 {
-            if self.try_write_tombstone(&key, &bytes).await? == DocumentWrite::Written {
-                return Ok(());
-            }
-            if attempt + 1 < 5 {
-                tokio::time::sleep(std::time::Duration::from_millis(10 * (attempt + 1) as u64))
-                    .await;
-            }
-        }
-        Err(pnpr_error::RegistryError::DocumentWriteConflict { package: tombstone.package.clone() })
+        let incoming = tombstone.clone();
+        self.update_tombstone(&name, move |existing| match existing {
+            Some(current) => merge_tombstones(current, &incoming),
+            None => incoming.clone(),
+        })
+        .await?;
+        Ok(())
     }
 
     pub async fn remove_tombstone(&self, name: &CanonicalPackageName) -> Result<bool> {

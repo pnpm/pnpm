@@ -111,6 +111,25 @@ fn authed_delete(path: &str, token: &str) -> Request<Body> {
         .unwrap()
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called with owned literals; by-value keeps call sites clean"
+)]
+fn authed_post(path: &str, token: &str, body: Value) -> Request<Body> {
+    Request::post(path)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
+}
+
+fn authed_get(path: &str, token: &str) -> Request<Body> {
+    Request::get(path)
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap()
+}
+
 async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
     let auth = pnpr::AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
     for admin in admins {
@@ -550,4 +569,61 @@ async fn cannot_unpublish_or_lock_nonexistent_package() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'staged-owner-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+
+    // Alice publishes 1.0.0 directly -> Alice becomes maintainer
+    let doc1 = publish_doc("staged-owner-pkg", "1.0.0", b"v1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/staged-owner-pkg", &alice_token, doc1))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Alice stages 1.1.0
+    let doc2 = publish_doc("staged-owner-pkg", "1.1.0", b"v2");
+    let res = app
+        .clone()
+        .oneshot(authed_post("/-/stage/package/staged-owner-pkg", &alice_token, doc2))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
+    let stage_id = body["stageId"].as_str().unwrap();
+
+    // Bob (not maintainer) attempts to approve the staged publish -> 403 Forbidden
+    let res = app
+        .clone()
+        .oneshot(authed_post(&format!("/-/stage/{stage_id}/approve"), &bob_token, json!({})))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // Alice (maintainer) approves the staged publish -> 201 Created
+    let res = app
+        .clone()
+        .oneshot(authed_post(&format!("/-/stage/{stage_id}/approve"), &alice_token, json!({})))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Verify 1.1.0 is published
+    let res = app
+        .clone()
+        .oneshot(authed_get("/staged-owner-pkg", &alice_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let packument: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
+    assert!(packument["versions"]["1.1.0"].is_object());
 }

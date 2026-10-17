@@ -211,23 +211,30 @@ async fn record_tarball_tombstone(
     name: &CanonicalPackageName,
     version: &str,
 ) -> Result<(), RegistryError> {
-    let mut tombstone = match storage.read_tombstone(name).await? {
-        Some(existing) => existing,
-        None => PackageTombstone {
-            package: name.as_str().to_string(),
-            unpublished_by: identity.username().map(ToString::to_string),
-            unpublished_at: chrono::Utc::now().to_rfc3339(),
-            maintainers: read_maintainers_from_storage(storage, name).await,
-            unpublished_versions: Vec::new(),
-        },
-    };
-    if !tombstone.unpublished_versions
-        .iter()
-        .any(|existing| existing == version)
-    {
-        tombstone.unpublished_versions.push(version.to_string());
-        storage.write_tombstone(&tombstone).await?;
-    }
+    let maintainers = read_maintainers_from_storage(storage, name).await;
+    let user = identity.username().map(ToString::to_string);
+    let version = version.to_string();
+    let name_str = name.as_str().to_string();
+    storage.update_tombstone(name, move |existing| {
+        let mut tombstone = match existing {
+            Some(existing) => existing,
+            None => PackageTombstone {
+                package: name_str.clone(),
+                unpublished_by: user.clone(),
+                unpublished_at: chrono::Utc::now().to_rfc3339(),
+                maintainers: maintainers.clone(),
+                unpublished_versions: Vec::new(),
+            },
+        };
+        if !tombstone.unpublished_versions
+            .iter()
+            .any(|existing| existing == &version)
+        {
+            tombstone.unpublished_versions.push(version.clone());
+        }
+        tombstone
+    })
+    .await?;
     Ok(())
 }
 
