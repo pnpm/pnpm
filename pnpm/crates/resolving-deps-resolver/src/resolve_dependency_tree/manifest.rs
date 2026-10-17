@@ -9,7 +9,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::resolved_tree::PeerDep;
+use crate::{parent_pkg_aliases::own_dependency_names, resolved_tree::PeerDep};
 
 use super::{
     CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
@@ -265,22 +265,8 @@ pub(super) fn extract_peer_dependencies(
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
-    let dep_names = |key| {
-        manifest
-            .get(key)
-            .and_then(Value::as_object)
-            .into_iter()
-            .flat_map(|map| map.keys().cloned())
-    };
-    // Only `dependencies` are shadowed, so an entry that is *also* an
-    // optional dependency still supplies the name itself.
-    let mut own_deps: HashSet<String> = dep_names("dependencies")
-        .filter(|name| !peer_shadowed.contains(name))
-        .chain(dep_names("optionalDependencies"))
-        .collect();
-    if let Some(name) = manifest.get("name").and_then(Value::as_str) {
-        own_deps.insert(name.to_string());
-    }
+    let own_deps: HashSet<&str> =
+        own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
 
     if let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) {
         insert_declared_peers(&mut peers, map, &own_deps, catalogs)?;
@@ -296,11 +282,11 @@ pub(super) fn extract_peer_dependencies(
 fn insert_declared_peers(
     peers: &mut BTreeMap<String, PeerDep>,
     map: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<String>,
+    own_deps: &HashSet<&str>,
     catalogs: Option<&Catalogs>,
 ) -> Result<(), ResolveDependencyTreeError> {
     for (name, range) in map {
-        if own_deps.contains(name) {
+        if own_deps.contains(name.as_str()) {
             continue;
         }
         let Some(range_str) = range.as_str() else { continue };
@@ -328,10 +314,12 @@ fn insert_declared_peers(
 fn insert_optional_meta_peers(
     peers: &mut BTreeMap<String, PeerDep>,
     meta: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<String>,
+    own_deps: &HashSet<&str>,
 ) {
     for (name, info) in meta {
-        if own_deps.contains(name) || info.get("optional").and_then(Value::as_bool) != Some(true) {
+        if own_deps.contains(name.as_str())
+            || info.get("optional").and_then(Value::as_bool) != Some(true)
+        {
             continue;
         }
         peers

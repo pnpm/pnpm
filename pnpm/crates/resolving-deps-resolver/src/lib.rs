@@ -68,7 +68,9 @@ pub use dependencies_graph::{
     PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
 };
 pub use node_id::NodeId;
-pub use parent_pkg_aliases::ParentPkgAliases;
+pub use parent_pkg_aliases::{
+    ParentPkgAliases, own_dependency_names, peer_shadowed_dependency_names,
+};
 pub use peer_provider::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
     get_hoistable_optional_peers, hoist_peers,
