@@ -23,7 +23,7 @@ use pnpm_network::{
 };
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::{
     FetchMetadataError,
@@ -341,39 +341,76 @@ async fn one_metadata_attempt(
     if response.status() == StatusCode::NOT_MODIFIED {
         return Ok(MetadataDocument::NotModified);
     }
-    let started_at = client.acquired_at();
     let mirror_write = MirrorWrite::on_response(kind, response.headers());
-    document_from_response(client, response, opts, url, started_at, mirror_write).await
+    let meta = decode_metadata_response(
+        MetadataResponse { client, response, url, http_client: opts.http.http_client },
+        mirror_write.normalizes_to_abbreviated(),
+        Ok,
+    )
+    .await?;
+    Ok(MetadataDocument::Modified { meta: Box::new(meta), mirror_write })
 }
 
-async fn document_from_response(
-    client: pnpm_network::ThrottledClientGuard<'_>,
-    response: reqwest::Response,
-    opts: &FetchFullMetadataOptions<'_>,
-    url: &str,
-    started_at: Instant,
-    mirror_write: MirrorWrite,
-) -> Result<MetadataDocument, FetchMetadataError> {
+/// A metadata response together with the network permit it holds.
+pub(crate) struct MetadataResponse<'a> {
+    pub client: ThrottledClientGuard<'a>,
+    pub response: Response,
+    pub url: &'a str,
+    pub http_client: &'a ThrottledClient,
+}
+
+/// Read a metadata response's body, then parse it and hand it to `finish`
+/// off the reactor.
+///
+/// - A non-`2xx` status fails with [`FetchMetadataError::Network`].
+/// - The connection and its network-concurrency permit are released once
+///   the body is buffered, before the parse, so the permit bounds sockets,
+///   not parses.
+/// - `finish` runs on the blocking pool too, so it may write the mirror.
+/// - The slow-request warning counts from the permit's acquisition to the
+///   end of the parse.
+pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
+    response: MetadataResponse<'_>,
+    normalize_to_abbreviated: bool,
+    finish: impl FnOnce(Package) -> Result<Output, FetchMetadataError> + Send + 'static,
+) -> Result<Output, FetchMetadataError> {
+    let MetadataResponse { client, response, url, http_client } = response;
+    let started_at = client.acquired_at();
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    let normalize_to_abbreviated = mirror_write.normalizes_to_abbreviated();
     let raw_body = read_self_delimiting_text(response).await
-        .inspect_err(|error| opts.http.http_client.downscale_on_timeout(url, error))
+        .inspect_err(|error| http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit, then parse off the reactor.
     drop(client);
-    let (meta, elapsed) =
-        decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at).await?;
-    warn_if_request_is_slow(opts.http.http_client, elapsed, url);
-    Ok(MetadataDocument::Modified { meta: Box::new(meta), mirror_write })
+    // Packuments run to several megabytes for high-release-cadence packages
+    // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a tokio
+    // worker for hundreds of milliseconds and stalls every socket that
+    // worker pumps.
+    let task_url = url.to_string();
+    let (output, elapsed) = tokio::task::spawn_blocking(move || {
+        let mut meta = serde_json::from_str::<Package>(&raw_body)
+            .map_err(|error| FetchMetadataError::Decode {
+                url: redact_url_credentials(&task_url),
+                error,
+            })?;
+        meta.drop_incomplete_publish_times();
+        let elapsed = started_at.elapsed();
+        if normalize_to_abbreviated {
+            meta = normalize_abbreviated_meta(meta);
+        }
+        Ok::<_, FetchMetadataError>((finish(meta)?, elapsed))
+    })
+    .await
+    .map_err(|error| FetchMetadataError::ParseTask { url: redact_url_credentials(url), error })??;
+    warn_if_request_is_slow(http_client, elapsed, url);
+    Ok(output)
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
@@ -411,32 +448,3 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
 
 #[cfg(test)]
 mod tests;
-
-/// Parse a buffered packument off the reactor after releasing the network permit.
-async fn decode_full_metadata(
-    url: &str,
-    raw_body: String,
-    normalize_to_abbreviated: bool,
-    started_at: Instant,
-) -> Result<(Package, Duration), FetchMetadataError> {
-    let task_url = url.to_string();
-    let (meta, elapsed) =
-        tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
-            let mut meta = serde_json::from_str::<Package>(&raw_body)
-                .map_err(|error| FetchMetadataError::Decode {
-                    url: redact_url_credentials(&task_url),
-                    error,
-                })?;
-            meta.drop_incomplete_publish_times();
-            let elapsed = started_at.elapsed();
-            let meta =
-                if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
-            Ok((meta, elapsed))
-        })
-        .await
-        .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(url),
-            error,
-        })??;
-    Ok((meta, elapsed))
-}

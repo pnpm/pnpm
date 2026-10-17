@@ -721,6 +721,67 @@ async fn fetch_full_metadata_decodes_zstd_packuments() {
     mock.assert_async().await;
 }
 
+const FULL_DOC_WITH_INSTALL_IRRELEVANT_FIELDS: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.0.0" },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "readme": "drop me",
+            "scripts": { "postinstall": "node install.js" },
+            "dependencies": { "bar": "^1.0.0" },
+            "dist": { "tarball": "https://example.test/acme-1.0.0.tgz" }
+        }
+    }
+}"#;
+
+#[tokio::test]
+async fn only_an_abbreviated_request_answered_with_the_full_document_is_normalized() {
+    for (full_metadata, keeps_readme) in [(false, false), (true, true)] {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(FULL_DOC_WITH_INSTALL_IRRELEVANT_FIELDS)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let registry = format!("{}/", server.url());
+        let http_client = ThrottledClient::default();
+        let auth_headers = AuthHeaders::default();
+        let opts = FetchFullMetadataOptions {
+            registry: &registry,
+            full_metadata,
+            etag: None,
+            modified: None,
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: no_retry_opts(),
+            },
+        };
+
+        let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("200 → ok"));
+        let manifest = pkg.versions.get("1.0.0").expect("manifest");
+        assert_eq!(
+            manifest.other.contains_key("readme"),
+            keeps_readme,
+            "full_metadata={full_metadata}",
+        );
+        assert_eq!(
+            manifest.dependencies
+                .as_ref()
+                .and_then(|deps| deps.get("bar"))
+                .map(String::as_str),
+            Some("^1.0.0"),
+        );
+        mock.assert_async().await;
+    }
+}
+
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let mut server = mockito::Server::new_async().await;
