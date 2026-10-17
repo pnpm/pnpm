@@ -10,9 +10,13 @@
 use super::{CanonicalPackageName, ecosystem::sha256_hex};
 use pnpr_storage::Storage;
 use std::{
+    collections::HashSet,
     io::{self, Read, Write},
     path::PathBuf,
-    sync::OnceLock,
+    sync::{
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 use tokio::sync::mpsc;
 
@@ -27,6 +31,11 @@ const QUEUE_DEPTH: usize = 32;
 /// its variant in memory while it compresses.
 const MAX_VARIANT_TAR_BYTES: u64 = 256 * 1024 * 1024;
 
+/// Ceiling on the bytes all tar copies waiting for, or held by, the worker may
+/// take together. A copy reserves each chunk before writing it and is dropped
+/// when the quota has no room.
+const COPY_QUOTA_BYTES: u64 = 1024 * 1024 * 1024;
+
 const LEVEL: i32 = 19;
 
 /// The largest window `Content-Encoding: zstd` allows (RFC 9659), as `log2`.
@@ -36,18 +45,65 @@ const WINDOW_LOG: u32 = 23;
 /// no runtime to be constructed.
 pub(super) struct TarVariantQueue {
     sender: OnceLock<mpsc::Sender<VariantJob>>,
+    copies: Arc<CopyQuota>,
+}
+
+/// What the tar copies in flight hold: their bytes, and the variants they are
+/// for, so concurrent misses for one version share a single copy.
+#[derive(Default)]
+struct CopyQuota {
+    reserved: AtomicU64,
+    variants: Mutex<HashSet<String>>,
+}
+
+/// One copy's share of the [`CopyQuota`], and its file. Dropping it removes
+/// the file and returns both.
+struct CopyReservation {
+    quota: Arc<CopyQuota>,
+    variant: String,
+    bytes: u64,
+    tar_path: PathBuf,
+}
+
+impl CopyReservation {
+    fn reserve(&mut self, bytes: u64) -> bool {
+        let total = self.bytes.saturating_add(bytes);
+        if total > MAX_VARIANT_TAR_BYTES {
+            return false;
+        }
+        let granted =
+            self.quota.reserved.fetch_update(Ordering::AcqRel, Ordering::Acquire, |reserved| {
+                reserved
+                    .checked_add(bytes)
+                    .filter(|reserved| *reserved <= COPY_QUOTA_BYTES)
+            });
+        if granted.is_ok() {
+            self.bytes = total;
+        }
+        granted.is_ok()
+    }
+}
+
+impl Drop for CopyReservation {
+    fn drop(&mut self) {
+        remove_copy(&self.tar_path);
+        self.quota.reserved.fetch_sub(self.bytes, Ordering::AcqRel);
+        self.quota.variants
+            .lock()
+            .expect("copy quota lock poisoned")
+            .remove(&self.variant);
+    }
 }
 
 struct VariantJob {
     storage: Storage,
     name: CanonicalPackageName,
-    filename: String,
-    tar_path: PathBuf,
+    copy: CopyReservation,
 }
 
 impl TarVariantQueue {
     pub(super) fn new() -> Self {
-        Self { sender: OnceLock::new() }
+        Self { sender: OnceLock::new(), copies: Arc::default() }
     }
 
     fn sender(&self) -> mpsc::Sender<VariantJob> {
@@ -58,6 +114,14 @@ impl TarVariantQueue {
                 sender
             })
             .clone()
+    }
+
+    /// Claim the copy for `variant`, unless another request is making it.
+    fn claim(&self, variant: &str) -> bool {
+        self.copies.variants
+            .lock()
+            .expect("copy quota lock poisoned")
+            .insert(variant.to_string())
     }
 }
 
@@ -79,62 +143,57 @@ pub(super) async fn open_variant(
 /// and offered to the worker once the decode succeeded.
 pub(super) struct TarCopy {
     file: std::fs::File,
-    written: u64,
     job: VariantJob,
     sender: mpsc::Sender<VariantJob>,
 }
 
 impl TarCopy {
     /// Start a copy for the tar of the `.tgz` with integrity `tgz_integrity`.
+    /// `None` when another request is already copying it.
     pub(super) async fn start(
         queue: &TarVariantQueue,
         storage: &Storage,
         name: &CanonicalPackageName,
         tgz_integrity: &str,
     ) -> Option<Self> {
+        let variant = variant_filename(tgz_integrity);
+        if !queue.claim(&variant) {
+            return None;
+        }
+        let mut copy = CopyReservation {
+            quota: Arc::clone(&queue.copies),
+            variant,
+            bytes: 0,
+            tar_path: PathBuf::new(),
+        };
         let copy_name = format!("{}.copy", sha256_hex(tgz_integrity.as_bytes()));
         let write = storage.open_upstream_blob_tmp(NAMESPACE, name, &copy_name).await.ok()?;
         let (file, _, tar_path) = write.into_temp_file().await.ok()?;
-        let job = VariantJob {
-            storage: storage.clone(),
-            name: name.clone(),
-            filename: variant_filename(tgz_integrity),
-            tar_path,
-        };
-        Some(Self { file: file.into_std().await, written: 0, job, sender: queue.sender() })
+        copy.tar_path = tar_path;
+        let job = VariantJob { storage: storage.clone(), name: name.clone(), copy };
+        Some(Self { file: file.into_std().await, job, sender: queue.sender() })
     }
 
-    /// Append decoded bytes. `None` once the copy is abandoned: it grew past
-    /// [`MAX_VARIANT_TAR_BYTES`] or failed to write.
+    /// Append decoded bytes. `None` once the copy is dropped: it outgrew
+    /// [`MAX_VARIANT_TAR_BYTES`] or the [`COPY_QUOTA_BYTES`], or failed to
+    /// write.
     pub(super) fn write(mut self, bytes: &[u8]) -> Option<Self> {
-        self.written = self.written.saturating_add(bytes.len() as u64);
-        if self.written > MAX_VARIANT_TAR_BYTES || self.file.write_all(bytes).is_err() {
-            self.discard();
-            return None;
-        }
-        Some(self)
+        let fits = self.job.copy.reserve(bytes.len() as u64);
+        (fits && self.file.write_all(bytes).is_ok()).then_some(self)
     }
 
-    /// Offer the complete copy to the worker.
+    /// Offer the complete copy to the worker. A full queue drops it.
     pub(super) fn submit(self) {
-        let Self { file, job, sender, .. } = self;
+        let Self { file, job, sender } = self;
         drop(file);
-        if let Err(rejected) = sender.try_send(job) {
-            let job = match rejected {
-                mpsc::error::TrySendError::Full(job) | mpsc::error::TrySendError::Closed(job) => {
-                    job
-                }
-            };
-            remove_copy(&job.tar_path);
-        }
-    }
-
-    pub(super) fn discard(self) {
-        remove_copy(&self.job.tar_path);
+        let _ = sender.try_send(job);
     }
 }
 
 fn remove_copy(path: &std::path::Path) {
+    if path.as_os_str().is_empty() {
+        return;
+    }
     if let Err(err) = std::fs::remove_file(path)
         && err.kind() != io::ErrorKind::NotFound
     {
@@ -151,24 +210,23 @@ async fn run_worker(mut receiver: mpsc::Receiver<VariantJob>) {
         if let Err(err) = write_variant(&job).await {
             tracing::warn!(?err, package = %job.name.as_str(), "writing a tar variant failed");
         }
-        remove_copy(&job.tar_path);
     }
 }
 
 async fn write_variant(job: &VariantJob) -> io::Result<()> {
     if job.storage
-        .open_upstream_blob(NAMESPACE, &job.name, &job.filename)
+        .open_upstream_blob(NAMESPACE, &job.name, &job.copy.variant)
         .await
         .is_ok_and(|found| found.is_some())
     {
         return Ok(());
     }
-    let tar_path = job.tar_path.clone();
+    let tar_path = job.copy.tar_path.clone();
     let encoded = tokio::task::spawn_blocking(move || encode_level_19(&tar_path))
         .await
         .map_err(io::Error::other)??;
     let mut variant = job.storage
-        .open_upstream_blob_tmp(NAMESPACE, &job.name, &job.filename)
+        .open_upstream_blob_tmp(NAMESPACE, &job.name, &job.copy.variant)
         .await
         .map_err(io::Error::other)?;
     variant.write_all(&encoded).await?;
@@ -185,3 +243,6 @@ fn encode_level_19(tar_path: &std::path::Path) -> io::Result<Vec<u8>> {
     encoder.write_all(&tar)?;
     encoder.finish()
 }
+
+#[cfg(test)]
+mod tests;

@@ -14,6 +14,12 @@ use ssri::{Algorithm, Integrity, IntegrityOpts};
 use std::io::{self, Read};
 use tokio::sync::mpsc;
 
+/// The most a `.tgz` may decode to before pnpr stops: what pnpm's default
+/// decoded-output budget admits, 4 GiB of files plus 256 MiB of headers.
+/// Above it the version has no tar: publish records no tar hash, and a tar
+/// response ends with an error.
+const MAX_DECODED_TAR_BYTES: u64 = (4 * 1024 + 256) * 1024 * 1024;
+
 /// Serve the tar of the `.tgz` response `tgz`, encoded as the request
 /// accepts. `tgz_integrity` keys what is derived from it: the tar's integrity,
 /// recorded once a decode finishes, and the level-19 variant.
@@ -141,13 +147,21 @@ fn describe_tar_headers(headers: &mut HeaderMap) {
 /// Compute the integrity of the tar a stored `.tgz` decodes to. `None` when
 /// the `.tgz` is not a sequence of gzip members.
 pub(super) fn tar_integrity_of(tgz: impl Read) -> Option<Integrity> {
-    let mut decoder = flate2::read::MultiGzDecoder::new(tgz);
+    tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
+}
+
+fn tar_integrity_within(tgz: impl Read, limit: u64) -> Option<Integrity> {
+    let mut decoder = flate2::read::MultiGzDecoder::new(tgz).take(limit.saturating_add(1));
+    let mut decoded = 0u64;
     let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
     let mut buf = vec![0u8; 64 * 1024];
     loop {
         match decoder.read(&mut buf) {
-            Ok(0) => return Some(hasher.result()),
-            Ok(len) => hasher.input(&buf[..len]),
+            Ok(0) => return (decoded <= limit).then(|| hasher.result()),
+            Ok(len) => {
+                decoded += len as u64;
+                hasher.input(&buf[..len]);
+            }
             Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
             Err(_) => return None,
         }
@@ -167,11 +181,12 @@ fn gunzip_body(
     let (tar_tx, tar_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
     tokio::spawn(forward_body(body, compressed_tx));
     tokio::task::spawn_blocking(move || {
-        let decoder = flate2::read::MultiGzDecoder::new(ChannelReader::new(compressed_rx));
+        let decoder = flate2::read::MultiGzDecoder::new(ChannelReader::new(compressed_rx))
+            .take(MAX_DECODED_TAR_BYTES.saturating_add(1));
         let mut copy = copy;
         let integrity = decode_into(decoder, &tar_tx, &mut copy);
-        if let Some(copy) = copy {
-            if integrity.is_some() { copy.submit() } else { copy.discard() }
+        if let Some(copy) = copy.filter(|_| integrity.is_some()) {
+            copy.submit();
         }
         if let Some(integrity) = integrity {
             on_complete(integrity);
@@ -207,9 +222,16 @@ fn decode_into(
     copy: &mut Option<TarCopy>,
 ) -> Option<Integrity> {
     let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    let mut decoded = 0u64;
     loop {
         let mut buf = vec![0u8; 64 * 1024];
         let len = match decoder.read(&mut buf) {
+            Ok(0) if decoded > MAX_DECODED_TAR_BYTES => {
+                let _ = out.blocking_send(Err(io::Error::other(format!(
+                    "the tar exceeds the {MAX_DECODED_TAR_BYTES}-byte decode limit",
+                ))));
+                return None;
+            }
             Ok(0) => return Some(hasher.result()),
             Ok(len) => len,
             Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
@@ -218,6 +240,7 @@ fn decode_into(
                 return None;
             }
         };
+        decoded += len as u64;
         buf.truncate(len);
         hasher.input(&buf);
         *copy = copy
@@ -257,3 +280,6 @@ impl Read for ChannelReader {
         Ok(len)
     }
 }
+
+#[cfg(test)]
+mod tests;

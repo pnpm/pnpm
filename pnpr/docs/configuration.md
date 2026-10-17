@@ -346,6 +346,7 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
   - Any other client gets the tar uncompressed.
 - A hosted registry learns a tar's hash at publish. An upstream registry learns it the first time it serves the tar with `zstd` or no compression, after verifying the upstream `.tgz`. Until then the version's metadata carries no `dist.integrity`, and pnpm hashes the tar it downloads.
 - Tar hashes are kept in the hosted storage under `.tar-integrity/`, which every replica shares.
+- pnpr decodes at most 4.25 GiB from one `.tgz`, the most pnpm accepts by default. A version past that has no tar. Copies of tars waiting for the level-19 encoding share a 1 GiB quota, and a request makes no copy when it is full or when another request is already copying that version.
 - `tarballs` is accepted only on npm registries.
 
 ## Teams {#teams}
