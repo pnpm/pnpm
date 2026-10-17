@@ -26,7 +26,7 @@ An official pnpm base image is published to GitHub Container Registry as [`ghcr.
 | --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `11.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `11`).         |
-| `latest`              | Most recent stable pnpm release. Not updated for prereleases.           |
+| `latest`              | Highest stable pnpm version. Not updated for prereleases.               |
 
 Supported platforms: `linux/amd64`, `linux/arm64`.
 

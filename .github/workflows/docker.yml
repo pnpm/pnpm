@@ -64,13 +64,27 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           MAJOR: ${{ steps.meta.outputs.major }}
           PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           tags="${IMAGE}:${VERSION}"
           alpine_tags="${IMAGE}:${VERSION}-alpine"
           if [ "$PRERELEASE" != "true" ]; then
-            tags="${tags},${IMAGE}:${MAJOR},${IMAGE}:latest"
-            alpine_tags="${alpine_tags},${IMAGE}:${MAJOR}-alpine,${IMAGE}:alpine"
+            # Maintenance releases of an older line are published after newer
+            # ones, so the mutable tags move only for the newest stable version.
+            stable="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                        --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+                      | sed -n 's/^v\([0-9]*\.[0-9]*\.[0-9]*\)$/\1/p')"
+            newest="$(printf '%s\n' "$stable" "$VERSION" | sort -V | tail -n 1)"
+            newest_in_major="$(printf '%s\n' "$stable" "$VERSION" | grep "^${MAJOR}\." | sort -V | tail -n 1)"
+            if [ "$VERSION" = "$newest_in_major" ]; then
+              tags="${tags},${IMAGE}:${MAJOR}"
+              alpine_tags="${alpine_tags},${IMAGE}:${MAJOR}-alpine"
+            fi
+            if [ "$VERSION" = "$newest" ]; then
+              tags="${tags},${IMAGE}:latest"
+              alpine_tags="${alpine_tags},${IMAGE}:alpine"
+            fi
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
           echo "alpine_tags=$alpine_tags" >> "$GITHUB_OUTPUT"

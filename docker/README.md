@@ -14,7 +14,7 @@ Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not*
 | --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `11.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `11`).         |
-| `latest`              | Most recent stable pnpm release. Not updated for prereleases.           |
+| `latest`              | Highest stable pnpm version. Not updated for prereleases.               |
 | `<version>-alpine`, `<major>-alpine`, `alpine` | The same, based on Alpine Linux with the musl build of pnpm. |
 
 ## Alpine variant
