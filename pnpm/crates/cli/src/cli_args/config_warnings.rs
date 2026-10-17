@@ -218,6 +218,11 @@ pub(crate) fn report_workspace_key_issues(
     Ok(())
 }
 
+/// Whether [`report_workspace_key_issues`] fails under `strict`.
+pub(crate) fn key_issues_fail_when_strict(issues: &WorkspaceKeyIssues) -> bool {
+    !issues.unrecognized.is_empty() || issues.unrecognized_task_settings.total > 0
+}
+
 fn warn_unrecognized_permissions(permissions: &UnrecognizedSettings) {
     let Some(paths) = render_unrecognized_settings(permissions) else { return };
     emit_config_warning(&format!(

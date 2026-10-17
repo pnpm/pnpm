@@ -17,10 +17,14 @@ impl ConfigLoad {
     pub(super) const PIN_DECISION: Self =
         Self { settings_read: SettingsRead::PinDecision, resolve_store: false };
 
-    /// What a switch or a record of the pin reads: everything this pnpm can
-    /// read, since the pnpm the project pins may read what this one cannot.
-    pub(super) const REGISTRY: Self =
+    /// What a switch reads: everything this pnpm can read, since the pnpm
+    /// the project pins may read what this one cannot.
+    pub(super) const SWITCH: Self =
         Self { settings_read: SettingsRead::Readable, resolve_store: true };
+
+    /// What recording the pin reads: the configuration the command runs
+    /// with.
+    pub(super) const RECORD: Self = Self { settings_read: SettingsRead::All, resolve_store: true };
 }
 
 /// Load the configuration the pre-command pass reads, with the global

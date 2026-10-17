@@ -1,6 +1,6 @@
 //! Reporting the warnings of the configuration a command loads.
 
-use super::{emit_config_warning, report_workspace_key_issues};
+use super::{emit_config_warning, key_issues_fail_when_strict, report_workspace_key_issues};
 use crate::cli_args::{
     cli_command::CliCommand,
     config::ConfigSubcommand,
@@ -60,6 +60,18 @@ impl ConfigWarnings {
         Self { key_issues, global: is_global(command) }
     }
 
+    /// What `pnpm --version` reports: it must work on a broken
+    /// `pnpm-workspace.yaml`.
+    pub(crate) fn for_version_flag() -> Self {
+        Self { key_issues: KeyIssueReporting::WarnOnly, global: false }
+    }
+
+    /// What a command line clap rejected reports: none, as the command does
+    /// not run.
+    pub(crate) fn for_unparsed_argv() -> Self {
+        Self { key_issues: KeyIssueReporting::Skip, global: false }
+    }
+
     /// Report the warnings `config`, loaded for the project in `dir`,
     /// collected. Only the first call reports.
     pub(crate) fn report(self, config: &Config, dir: &Path) -> miette::Result<()> {
@@ -67,10 +79,20 @@ impl ConfigWarnings {
             return Ok(());
         }
         emit_npmrc_warnings(&config.npmrc_warnings);
-        let strict = self.key_issues == KeyIssueReporting::Enforce
+        report_workspace_key_issues(&config.workspace_key_issues, self.strict(config, dir))
+    }
+
+    /// Whether [`Self::report`] fails the command, which reports nothing.
+    pub(crate) fn fail(self, config: &Config, dir: &Path) -> bool {
+        key_issues_fail_when_strict(&config.workspace_key_issues) && self.strict(config, dir)
+    }
+
+    /// Whether an unrecognized key fails the command: the running pnpm is
+    /// the version the project pins, so no version-skew excuse remains.
+    fn strict(self, config: &Config, dir: &Path) -> bool {
+        self.key_issues == KeyIssueReporting::Enforce
             && !self.global
-            && runs_the_pinned_pnpm(config, dir);
-        report_workspace_key_issues(&config.workspace_key_issues, strict)
+            && runs_the_pinned_pnpm(config, dir)
     }
 
     /// Report the `.npmrc` warnings a load that failed collected, since they

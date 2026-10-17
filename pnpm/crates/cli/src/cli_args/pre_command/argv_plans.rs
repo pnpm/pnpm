@@ -6,6 +6,7 @@ use super::{
     input::{UnparsedArgv, VersionArgv},
     pre_command_plan_from_input,
 };
+use crate::cli_args::config_warnings::ConfigWarnings;
 
 /// The `pnpm --version` path, which clap answers before a command is
 /// parsed. pnpm checks the package manager there too, but skips the runtime
@@ -23,6 +24,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             skip_pm_handling: false,
             check_runtimes: false,
             reporter,
+            warnings: ConfigWarnings::for_version_flag(),
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -61,6 +63,7 @@ pub(crate) fn switch_plan_for_unparsed_argv(
             skip_pm_handling: false,
             check_runtimes: false,
             reporter,
+            warnings: ConfigWarnings::for_unparsed_argv(),
         },
         config_overrides,
         SwitchProcessState::current(),

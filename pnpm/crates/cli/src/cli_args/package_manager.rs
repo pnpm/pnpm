@@ -258,12 +258,6 @@ pub(crate) fn exact_version(version: &str) -> Option<String> {
     (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
-/// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:
-/// true })`, the call every version pin is read with — a package manager's
-/// and a runtime's alike.
-///
-/// A version no parser accepts satisfies nothing, as upstream `satisfies`
-/// answers `false` for one rather than throwing.
 /// Whether the pin `wanted` names the pnpm that is running.
 pub(crate) fn pins_running_pnpm(wanted: Option<&WantedPackageManager>) -> bool {
     wanted.is_some_and(|pm| {
@@ -272,6 +266,12 @@ pub(crate) fn pins_running_pnpm(wanted: Option<&WantedPackageManager>) -> bool {
     })
 }
 
+/// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:
+/// true })`, the call every version pin is read with — a package manager's
+/// and a runtime's alike.
+///
+/// A version no parser accepts satisfies nothing, as upstream `satisfies`
+/// answers `false` for one rather than throwing.
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
     node_semver::Version::parse(version)
         .is_ok_and(|version| IncludePrereleaseRange::parse(wanted_range).satisfies(&version))

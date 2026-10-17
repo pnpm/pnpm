@@ -29,7 +29,10 @@ use super::{
     with::{PackageManagerCheck, spawn_pnpm},
 };
 use crate::{
-    cli_args::{config_warnings::emit_config_warning, dispatch::seed_config},
+    cli_args::{
+        config_warnings::{ConfigWarnings, emit_config_warning},
+        dispatch::seed_config,
+    },
     config_deps,
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
@@ -85,6 +88,7 @@ pub(crate) fn pre_command_plan(
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
             reporter: args.reporter_flags(),
+            warnings: ConfigWarnings::of(&args.command),
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -188,8 +192,10 @@ enum PreCommandAction {
     Continue { config: Config, package_manager_to_sync: Option<PackageManagerToSync> },
 }
 
-/// A switch or a record of the pin reaches the registry, so it reads every
-/// setting this pnpm can read.
+/// A switch reads every setting this pnpm can read, since the pinned pnpm
+/// may read what this one cannot. Recording the pin writes the lockfile, so
+/// it waits for a configuration the command can run with: one it cannot is
+/// left to the command to report, with nothing recorded.
 fn plan_pin_action(
     outcome: PinOutcome,
     input: &PreCommandInput,
@@ -200,7 +206,7 @@ fn plan_pin_action(
     match outcome {
         PinOutcome::Switch(target) => {
             let mut config =
-                load_pre_command_config(input, config_overrides, dir, ConfigLoad::REGISTRY)?;
+                load_pre_command_config(input, config_overrides, dir, ConfigLoad::SWITCH)?;
             // A global command does not act on the project. Without a
             // workspace, the approvals go to the project, as a regular
             // install's do.
@@ -211,9 +217,15 @@ fn plan_pin_action(
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config =
-                load_pre_command_config(input, config_overrides, dir, ConfigLoad::REGISTRY)?;
-            Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
+            let record = load_pre_command_config(input, config_overrides, dir, ConfigLoad::RECORD)
+                .ok()
+                .filter(|config| !input.warnings.fail(config, dir));
+            Ok(match record {
+                Some(config) => {
+                    PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) }
+                }
+                None => PreCommandAction::Continue { config, package_manager_to_sync: None },
+            })
         }
         PinOutcome::Sync(None) => {
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: None })

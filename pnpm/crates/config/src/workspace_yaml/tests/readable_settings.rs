@@ -137,3 +137,27 @@ fn the_pin_decision_reads_only_its_own_settings() {
     assert_eq!(settings.minimum_release_age, None);
     assert!(settings.key_issues.is_empty(), "{:?}", settings.key_issues);
 }
+
+#[test]
+fn the_pin_decision_reads_its_settings_from_a_flow_mapping() {
+    let settings = find_and_read_selecting(
+        "{pmOnFail: warn, nodeLinker: hoisted, lockfile: {recordsSomethingNew: true}, frozenLockfile: true}\n",
+        SettingsRead::PinDecision,
+    );
+
+    assert_eq!(settings.pm_on_fail, Some(PmOnFail::Warn));
+    assert_eq!(settings.frozen_lockfile, Some(true));
+    assert_eq!(settings.lockfile, None, "an unreadable pin decision setting is left out");
+    assert_eq!(settings.node_linker, None);
+}
+
+#[test]
+fn the_pin_decision_reads_the_workspace_packages() {
+    let settings = find_and_read_selecting(
+        "packages:\n  - packages/*\nnodeLinker: hoisted\n",
+        SettingsRead::PinDecision,
+    );
+
+    assert_eq!(settings.packages, Some(vec!["packages/*".to_string()]));
+    assert_eq!(settings.node_linker, None);
+}

@@ -104,6 +104,16 @@ impl CliArgs {
         }
     }
 
+    /// Report the warnings of the fast path's configuration. `None` when one
+    /// fails the command, which the full path then reports.
+    fn report_fast_path_warnings(&self, config: &Config, dir: &Path) -> Option<()> {
+        let warnings = ConfigWarnings::of(&self.command);
+        if warnings.fail(config, dir) {
+            return None;
+        }
+        warnings.report(config, dir).ok()
+    }
+
     /// `--store-dir` and `--state-dir`. `None` when the store directory
     /// cannot be applied.
     fn apply_fast_path_dir_flags(&self, config: &mut Config, dir: &Path) -> Option<()> {
@@ -135,8 +145,8 @@ impl CliArgs {
             config_overrides,
         )
         .current::<Host>(&dir)
-        .ok()
-        .filter(warns_about_nothing)?;
+        .ok()?;
+        self.report_fast_path_warnings(&config, &dir)?;
         config_overrides.apply(&mut config, &dir);
         self.network.apply(&mut config);
         self.apply_fast_path_dir_flags(&mut config, &dir)?;
@@ -420,12 +430,6 @@ fn exit_on_json_error(result: miette::Result<()>, print_json_errors: bool) -> mi
         std::process::exit(1);
     }
     result
-}
-
-/// Whether the configuration carries no warning, which only the full path
-/// reports.
-fn warns_about_nothing(config: &Config) -> bool {
-    config.npmrc_warnings.is_empty() && config.workspace_key_issues.is_empty()
 }
 
 #[cfg(test)]

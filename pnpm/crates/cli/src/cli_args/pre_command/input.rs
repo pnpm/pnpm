@@ -11,6 +11,7 @@ use super::{
 };
 use crate::cli_args::{
     cli_command::{CliPathArgs, PresentationArgs},
+    config_warnings::ConfigWarnings,
     install::InstallLockfileArgs,
     install_options::OfflineArgs,
 };
@@ -21,6 +22,9 @@ pub(super) struct PreCommandInput {
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
     pub(super) reporter: ReporterFlags,
+    /// How the command reports the warnings of its configuration, which
+    /// decides whether a configuration it fails on may record the pin.
+    pub(super) warnings: ConfigWarnings,
 }
 
 impl PreCommandInput {
