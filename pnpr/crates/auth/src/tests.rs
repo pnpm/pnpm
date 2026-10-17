@@ -1107,4 +1107,38 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
         handle.await.unwrap();
     }
     replacer.await.unwrap();
+
+    assert!(store.holds("alice").unwrap());
+    assert!(
+        store
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(store.list_users().await.unwrap(), vec!["alice".to_string()]);
+}
+
+#[tokio::test]
+async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+
+    let hash_alice = bcrypt::hash("pass_alice", TEST_COST).unwrap();
+    let initial_content = format!("alice:{hash_alice}\n");
+    std::fs::write(&htpasswd_path, &initial_content).unwrap();
+
+    assert!(store.holds("alice").unwrap());
+
+    let hash_bob = bcrypt::hash("pass_bob00", TEST_COST).unwrap();
+    let replacement = format!("bob00:{hash_bob}\n");
+    assert_eq!(initial_content.len(), replacement.len());
+
+    let tmp_path = dir.path().join("htpasswd.tmp");
+    std::fs::write(&tmp_path, &replacement).unwrap();
+    std::fs::rename(&tmp_path, &htpasswd_path).unwrap();
+
+    assert!(store.holds("bob00").unwrap());
+    assert!(!store.holds("alice").unwrap());
 }

@@ -16,10 +16,36 @@ use std::{
 /// cost (`$2y$10$...`) so we never need to remember per-record metadata.
 type Users = HashMap<String, String>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileStamp {
+    mtime: std::time::SystemTime,
+    len: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(unix)]
+    ctime: (i64, i64),
+}
+
+impl FileStamp {
+    fn from_metadata(meta: &std::fs::Metadata) -> Self {
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+
+        Self {
+            mtime: meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+            len: meta.len(),
+            #[cfg(unix)]
+            inode: meta.ino(),
+            #[cfg(unix)]
+            ctime: (meta.ctime(), meta.ctime_nsec()),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct UserStoreState {
     users: Users,
-    last_synced: Option<(std::time::SystemTime, u64)>,
+    last_synced: Option<FileStamp>,
 }
 
 /// File-backed (or in-memory) htpasswd store.
@@ -82,12 +108,7 @@ impl UserStore {
                     })?;
                 let meta = std::fs::metadata(&path)
                     .ok()
-                    .map(|metadata| {
-                        (
-                            metadata.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-                            metadata.len(),
-                        )
-                    });
+                    .map(|metadata| FileStamp::from_metadata(&metadata));
                 (parsed, meta)
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => (HashMap::new(), None),
@@ -150,11 +171,9 @@ impl UserStore {
         if !meta.is_file() {
             return Ok(());
         }
-        let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-        let len = meta.len();
-        if let Some((prev_mtime, prev_len)) = state.last_synced
-            && prev_mtime == mtime
-            && prev_len == len
+        let stamp = FileStamp::from_metadata(&meta);
+        if let Some(prev) = state.last_synced
+            && prev == stamp
         {
             return Ok(());
         }
@@ -165,7 +184,7 @@ impl UserStore {
                 reason,
             })?;
         state.users = fresh;
-        state.last_synced = Some((mtime, len));
+        state.last_synced = Some(stamp);
         Ok(())
     }
 
@@ -233,17 +252,12 @@ fn lock_htpasswd(path: Option<&std::path::Path>) -> Result<Option<std::fs::File>
 fn persist_users_to_disk(
     path: Option<&std::path::Path>,
     users: &Users,
-) -> Result<Option<(std::time::SystemTime, u64)>> {
+) -> Result<Option<FileStamp>> {
     let Some(path) = path else {
         return Ok(None);
     };
     write_atomic(path, serialize_htpasswd(users).as_bytes())?;
-    let sync = std::fs::metadata(path)
-        .ok()
-        .map(|meta| {
-            let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-            (mtime, meta.len())
-        });
+    let sync = std::fs::metadata(path).ok().map(|meta| FileStamp::from_metadata(&meta));
     Ok(sync)
 }
 
