@@ -56,6 +56,18 @@ pub struct ResolutionStore {
     pub max_unpacked_size: u64,
 }
 
+impl crate::ArchiveStoreContext<'_> {
+    /// The part of this context a resolve-time fetch writes through.
+    #[must_use]
+    pub fn resolution_store(&self) -> ResolutionStore {
+        ResolutionStore {
+            dir: self.dir,
+            index_writer: self.index_writer.clone(),
+            max_unpacked_size: self.max_unpacked_size,
+        }
+    }
+}
+
 /// Download a remote tarball during *resolution*, settle its sha512
 /// integrity (computed from the bytes, or checked against the one the
 /// caller pins), extract it to the store, and read its bundled manifest.

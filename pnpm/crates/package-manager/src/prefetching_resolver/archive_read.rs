@@ -217,11 +217,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         }
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
-            store: pnpm_tarball::ResolutionStore {
-                dir: self.ctx.store.dir,
-                index_writer: self.ctx.store.index_writer.clone(),
-                max_unpacked_size: self.ctx.store.max_unpacked_size,
-            },
+            store: self.ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
                 // A resolution that already pins a hash is only read here
                 // for its manifest, and an unchecked archive would put
