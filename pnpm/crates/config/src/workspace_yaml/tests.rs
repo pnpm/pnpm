@@ -97,4 +97,6 @@ mod env_placeholders;
 
 mod readable_settings;
 
+mod no_proxy;
+
 mod side_effects_cache_exclude;

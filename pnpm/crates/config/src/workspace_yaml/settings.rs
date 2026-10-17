@@ -981,6 +981,7 @@ impl WorkspaceSettings {
                 path: path.to_path_buf(),
                 source,
             })?;
+        settings.validate_no_proxy()?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;

@@ -18,6 +18,7 @@ import type {
 } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 
+import { normalizeProxySettings } from './proxySettings.js'
 import { translateRegistrySettings } from './registrySettings.js'
 import { replaceEnvInSettings } from './replaceEnvInSettings.js'
 import {
@@ -43,6 +44,7 @@ export type OptionsFromRootManifest = {
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
   httpProxy?: string
+  noProxy?: string | boolean
   httpsProxy?: string
   /** The lookups the `registries` setting is split into. */
   registriesByScope?: Record<string, string>
@@ -104,14 +106,6 @@ export function getOptionsFromPnpmSettings (
   }
 
   return settings
-}
-
-/** A null proxy leaves the key unset, so a proxy from a lower-priority config file still applies. */
-function normalizeProxySettings (settings: OptionsFromRootManifest): void {
-  for (const key of ['httpProxy', 'httpsProxy'] as const) {
-    if (settings[key] == null) delete settings[key]
-    else assertString(settings[key], key)
-  }
 }
 
 function toGetOptionsFromPnpmSettingsOptions (
