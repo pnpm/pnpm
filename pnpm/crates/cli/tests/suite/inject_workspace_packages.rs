@@ -844,11 +844,12 @@ fn write_workspace_with_publish_directory(workspace: &std::path::Path) {
     .expect("write project-2/package.json");
 }
 
-/// The lockfile describes an injected publish directory with its project's
-/// manifest, so a `package.json` the build wrote there with other
-/// dependencies does not make the lockfile look outdated.
-#[test]
-fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_project() {
+/// A `workspace:` dependency on a project that publishes from a directory is
+/// resolved from the project's manifest, and a `file:` dependency on that
+/// directory from the `package.json` in it. The lockfile is checked against
+/// the same manifest, so one that differs from the other does not make it
+/// look outdated.
+fn assert_frozen_install_accepts_a_publish_directory_declared_as(spec: &str) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -859,6 +860,7 @@ fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_pr
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace_with_publish_directory(&workspace);
+    // No `prepare` script, so the install leaves `dist/package.json` as written.
     fs::write(
         workspace.join("project-1/package.json"),
         serde_json::json!({
@@ -873,9 +875,24 @@ fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_pr
     fs::create_dir_all(workspace.join("project-1/dist")).expect("mkdir dist");
     fs::write(
         workspace.join("project-1/dist/package.json"),
-        serde_json::json!({ "name": "project-1", "version": "1.0.0" }).to_string(),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
     )
     .expect("write dist/package.json");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": spec },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
 
     pacquet
         .with_arg("install")
@@ -890,6 +907,16 @@ fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_pr
         .success();
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_project() {
+    assert_frozen_install_accepts_a_publish_directory_declared_as("workspace:1.0.0");
+}
+
+#[test]
+fn frozen_install_accepts_a_file_dependency_on_a_publish_directory() {
+    assert_frozen_install_accepts_a_publish_directory_declared_as("file:../project-1/dist");
 }
 
 #[test]

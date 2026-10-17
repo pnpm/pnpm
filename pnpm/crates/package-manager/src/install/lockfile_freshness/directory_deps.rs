@@ -22,25 +22,24 @@ pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
 
 /// Each project's manifest as another importer's injected dependency reads
 /// it: the project's entry in `dependency_manifests` when it has one, else
-/// its importer manifest. It is keyed by the project directory and by the
-/// `publishConfig.directory` injected in its place, which the resolver also
-/// describes with the project's manifest.
+/// its importer manifest.
 pub(crate) fn project_manifests_by_dir<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
     dependency_manifests: Option<&ProjectManifestsByDir<'a>>,
 ) -> ProjectManifestsByDir<'a> {
-    let projects = manifests
+    let mut by_dir: ProjectManifestsByDir<'a> = manifests
         .into_iter()
-        .filter_map(|manifest| Some((manifest.path().parent()?.to_path_buf(), manifest)));
-    let dependency_projects = dependency_manifests
-        .into_iter()
-        .flatten()
-        .map(|(dir, manifest)| (dir.clone(), *manifest));
-    let mut by_dir = ProjectManifestsByDir::new();
-    for (dir, manifest) in projects.chain(dependency_projects) {
-        let publish_dir = publish_source_dir(&dir, Some(manifest.value()));
-        by_dir.insert(pnpm_fs::lexical_normalize(&publish_dir), manifest);
-        by_dir.insert(pnpm_fs::lexical_normalize(&dir), manifest);
+        .filter_map(|manifest| {
+            let dir = manifest.path().parent()?;
+            Some((pnpm_fs::lexical_normalize(dir), manifest))
+        })
+        .collect();
+    if let Some(dependency_manifests) = dependency_manifests {
+        by_dir.extend(
+            dependency_manifests
+                .iter()
+                .map(|(dir, manifest)| (dir.clone(), *manifest)),
+        );
     }
     by_dir
 }
@@ -64,6 +63,10 @@ pub(crate) fn dependency_manifests_by_dir(
 
 struct LocalDepContext<'a> {
     name: &'a str,
+    /// The importer declared the dependency with a `file:` spec, which the
+    /// resolver reads from the directory itself rather than from a workspace
+    /// project.
+    declared_as_file: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -168,6 +171,7 @@ fn check_single_dep_spec_directory_freshness(
             .and_then(|s| s.get(&pkg_key));
         let dep = LocalDepContext {
             name: &dep_str,
+            declared_as_file: is_declared_local_directory(&dep_spec.specifier),
             rel_path: &dir_res.directory,
             dir: &local_dep_dir,
             dirs: SpecDirs {
@@ -182,16 +186,30 @@ fn check_single_dep_spec_directory_freshness(
     Ok(())
 }
 
+/// The manifest the resolver described the dependency with. A workspace
+/// project injected as its `publishConfig.directory` is described by the
+/// project's own manifest, not by a `package.json` a build wrote into that
+/// directory. A `file:` dependency is described by the directory's
+/// `package.json`, and by the publishing project's only while that is
+/// missing.
 fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = check.workspace.manifests_by_dir
-        .get(&pnpm_fs::lexical_normalize(dep.dir))
-        .map(|manifest| (*manifest).clone())
-        .or_else(|| manifest_of_project_publishing_from(dep))
-        .or_else(|| pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten())
-        .ok_or_else(|| dep.outdated())?;
+    let manifests_by_dir = check.workspace.manifests_by_dir;
+    let project_manifest = || {
+        manifests_by_dir
+            .get(&pnpm_fs::lexical_normalize(dep.dir))
+            .map(|manifest| (*manifest).clone())
+    };
+    let on_disk = || pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten();
+    let publishing_project = || manifest_of_project_publishing_from(dep);
+    let local_manifest = if dep.declared_as_file {
+        project_manifest().or_else(on_disk).or_else(publishing_project)
+    } else {
+        project_manifest().or_else(publishing_project).or_else(on_disk)
+    };
+    let mut local_manifest = local_manifest.ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(dep.dir));
@@ -199,12 +217,10 @@ fn read_and_override_manifest(
     Ok(local_manifest)
 }
 
-/// A workspace project that publishes from `publishConfig.directory` is
-/// injected as that directory rather than its root, and the resolver
-/// describes it with the project's own manifest, not with whatever
-/// `package.json` a build wrote into the directory, which may not exist yet.
-/// Walk up from `dep.dir` toward the workspace root looking for the project
-/// whose manifest resolves its publish directory back to `dep.dir`.
+/// The manifest of the workspace project whose `publishConfig.directory` is
+/// `dep.dir`: the project's entry in `manifests_by_dir` when it has one, else
+/// its `package.json`. Only projects between `dep.dir` and the workspace root
+/// are considered.
 fn manifest_of_project_publishing_from(dep: &LocalDepContext<'_>) -> Option<PackageManifest> {
     let target = pnpm_fs::lexical_normalize(dep.dir);
     if !target.starts_with(pnpm_fs::lexical_normalize(dep.dirs.workspace_root)) {
@@ -212,8 +228,11 @@ fn manifest_of_project_publishing_from(dep: &LocalDepContext<'_>) -> Option<Pack
     }
     let mut candidate = dep.dir.parent()?;
     loop {
-        if let Some(manifest) =
-            pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
+        let manifest = dep.dirs.manifests_by_dir
+            .get(&pnpm_fs::lexical_normalize(candidate))
+            .map(|manifest| (*manifest).clone())
+            .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
+        if let Some(manifest) = manifest
             && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
                 == target
         {

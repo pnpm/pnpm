@@ -77,6 +77,7 @@ fn check_peer_spec(
 ) -> Result<(), FreshnessCheckError> {
     let dep = LocalDepContext {
         name: "lib",
+        declared_as_file: false,
         rel_path: "lib",
         dir: Path::new("lib"),
         dirs: SpecDirs {
@@ -200,6 +201,7 @@ fn check_local_dep_peers(
     let catalogs = Catalogs::new();
     let dep = LocalDepContext {
         name: "lib",
+        declared_as_file: false,
         rel_path: "lib",
         dir: Path::new("/ws/lib"),
         dirs: SpecDirs {
@@ -304,6 +306,7 @@ fn check_dep_with_an_unresolved_entry(
     };
     let dep = LocalDepContext {
         name: "lib",
+        declared_as_file: false,
         rel_path: "lib",
         dir: &dep_dir,
         dirs: SpecDirs {
