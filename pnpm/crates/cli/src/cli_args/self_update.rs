@@ -16,38 +16,24 @@ pub(crate) use externally_managed::{ExternalManager, find_external_manager};
 
 mod externally_managed;
 mod global_bin;
+mod pinned_project;
 
-use super::package_manager::{PinRoots, wanted_package_manager};
 use crate::config_deps::{self, EnginePolicyViolation};
 use clap::Args;
 use derive_more::{Display, Error};
-use externally_managed::refuse_without_pin;
 use global_bin::{link_into_global_bin, link_into_legacy_home_dir};
 use miette::{Context, Diagnostic};
+use pinned_project::ProjectPin;
 use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
 use project_pin::{
-    NoUpgradeKind, implicit_latest_no_upgrade_message, project_pin_refusal,
-    read_project_pinned_pnpm_version, registry_latest_ignoring_maturity, update_project_pin,
+    NoUpgradeKind, implicit_latest_no_upgrade_message, registry_latest_ignoring_maturity,
 };
 use serde_json::Value;
 use std::{io::IsTerminal, path::Path};
-
-/// Migration guidance printed once when `self-update` crosses a major
-/// boundary. Add an entry per future major that ships breaking changes
-/// users need to act on.
-fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
-    match target_major {
-        11 => Some(
-            "pnpm v11 removed or renamed several v10 settings. \
-             See https://pnpm.io/11.x/migration for migration instructions.",
-        ),
-        _ => None,
-    }
-}
 
 /// Errors specific to `self-update`. The codes carry the shared
 /// `ERR_PNPM_` prefix, so a code already starting with `PNPM_` becomes
@@ -220,30 +206,15 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
-    let roots = PinRoots::of(config, dir);
-    let manifest = roots.read_manifest();
-    let external_manager = refuse_without_pin(external_manager, manifest.as_ref().ok())?;
-    let manifest = manifest.wrap_err("read the project manifest")?;
-    let wanted = manifest.as_ref().and_then(|manifest| wanted_package_manager(manifest.value()));
+    let (pin, external_manager) = ProjectPin::read(config, dir, external_manager)?;
 
     let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
 
-    if let Some(hint) = crossed_major_hint(&roots.env, wanted.as_ref(), &target_version) {
+    if let Some(hint) = pin.crossed_major_hint(&target_version) {
         warn::<Reporter>(&prefix, hint);
     }
 
-    let pinned_pnpm = wanted
-        .as_ref()
-        .filter(|pm| pm.name == "pnpm");
-    if let Some(pm) = pinned_pnpm
-        && let Some(refusal) = Box::pin(project_pin_refusal(
-            config,
-            &roots.env,
-            pm,
-            &target_version,
-            is_implicit_latest,
-        ))
-        .await?
+    if let Some(refusal) = Box::pin(pin.refusal(config, &target_version, is_implicit_latest)).await?
     {
         return Ok(Some(refusal));
     }
@@ -265,12 +236,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         }
     };
 
-    let project_pin_message = match (pinned_pnpm, manifest) {
-        (Some(pm), Some(manifest)) => Some(
-            Box::pin(update_project_pin(config, &roots.env, manifest, pm, &target_version)).await?,
-        ),
-        _ => None,
-    };
+    let project_pin_message = Box::pin(pin.update(config, &target_version)).await?;
     Ok(join_messages(project_pin_message, global_message))
 }
 
@@ -349,30 +315,6 @@ async fn verify_target_engine<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-/// The migration hint for the major boundary this update crosses, if it
-/// crosses one. The project's pin is the source of truth for the version
-/// being left behind; the running binary stands in when nothing pins pnpm.
-fn crossed_major_hint(
-    env_root: &Path,
-    wanted: Option<&super::package_manager::WantedPackageManager>,
-    target_version: &str,
-) -> Option<&'static str> {
-    let previous_version = match wanted {
-        // A range pin (`^10.0.0`) has no recoverable major on its own, so
-        // read the resolved version from the env lockfile to drive the
-        // hint — otherwise crossing a major would silently skip it.
-        Some(pm) if pm.name == "pnpm" => {
-            read_project_pinned_pnpm_version(env_root, pm.version.as_deref())
-                .filter(|version| version != target_version)
-        }
-        _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
-        _ => None,
-    }?;
-    let previous_major = coerce_major(&previous_version)?;
-    let target = node_semver::Version::parse(target_version).ok()?;
-    (target.major > previous_major).then(|| major_upgrade_hint(target.major))?
-}
-
 /// The message explaining why the global install is left alone, when this
 /// update would not move it forward. Otherwise install and activate the
 /// target engine.
@@ -443,10 +385,6 @@ fn is_installed_globally(global_pkg_dir: Option<&Path>, version: &str) -> miette
     Ok(install_pnpm::find_global_engines(global_pkg_dir, version)?
         .iter()
         .any(|(pkg, alias)| install_pnpm::pnpm_executable_path(&pkg.install_dir, alias).exists()))
-}
-
-fn coerce_major(version: &str) -> Option<u64> {
-    node_semver::Version::parse(version).ok().map(|version| version.major)
 }
 
 pub(super) fn version_lt(left: &str, right: &str) -> bool {
