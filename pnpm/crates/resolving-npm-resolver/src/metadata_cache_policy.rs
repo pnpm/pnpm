@@ -68,11 +68,13 @@ impl DocumentKind {
         }
     }
 
-    /// The request that revalidates `stored`, the mirror this kind was chosen
-    /// for.
+    /// The request for this kind of document over `stored`, the header line
+    /// of the mirror slot it fills.
     ///
     /// - `bypass` drops the mirror: no validators, and `Cache-Control:
     ///   no-cache`, so only a body can answer.
+    /// - A mirror that recorded another kind sends no validators: they
+    ///   describe the other representation.
     /// - A mirror the registry marked uncacheable keeps its validators and
     ///   adds `Cache-Control: no-cache`, so an intermediary must ask the
     ///   origin, which can still answer `304`.
@@ -81,7 +83,10 @@ impl DocumentKind {
         stored: Option<&MetaHeaders>,
         bypass: bool,
     ) -> Revalidation<'_> {
-        let Some(stored) = stored.filter(|_| !bypass) else {
+        let recorded_here = |stored: &&MetaHeaders| {
+            DocumentKind::for_mirror(self == DocumentKind::Full, Some(stored)) == self
+        };
+        let Some(stored) = stored.filter(|_| !bypass).filter(recorded_here) else {
             return Revalidation { etag: None, modified: None, bypass_cache: bypass };
         };
         let etag = match self {
@@ -126,14 +131,11 @@ impl MirrorWrite {
                 .and_then(|value| value.to_str().ok())
                 .map(str::to_string),
             uncacheable: metadata_response_is_uncacheable(headers),
-            normalize_to_abbreviated: kind == DocumentKind::Abbreviated
-                && !is_abbreviated_content_type(headers),
+            normalize_to_abbreviated: normalizes_to_abbreviated(kind, headers),
         }
     }
 
-    /// The registry ignored the abbreviated `Accept` header and served the
-    /// full document, which [`crate::fetch_full_metadata::normalize_abbreviated_meta`]
-    /// strips before it is picked from or stored.
+    /// [`normalizes_to_abbreviated`] for this response.
     pub(crate) fn normalizes_to_abbreviated(&self) -> bool {
         self.normalize_to_abbreviated
     }
@@ -160,6 +162,13 @@ impl MirrorWrite {
             let _ = std::fs::remove_file(path);
         }
     }
+}
+
+/// Whether a `2xx` answer to a `kind` request is the full document a
+/// registry served while ignoring the abbreviated `Accept` header, which
+/// [`crate::fetch_full_metadata::normalize_abbreviated_meta`] strips.
+pub(crate) fn normalizes_to_abbreviated(kind: DocumentKind, headers: &HeaderMap) -> bool {
+    kind == DocumentKind::Abbreviated && !is_abbreviated_content_type(headers)
 }
 
 /// Whether a pick may be answered from the mirror without asking the

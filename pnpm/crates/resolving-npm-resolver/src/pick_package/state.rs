@@ -18,7 +18,7 @@ use crate::{
 use super::{
     PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
     PickerOpts, UpgradeOutcome, handle_cache_hit, maybe_upgrade_abbreviated_meta_for_release_age,
-    metadata_cache_key, persist_upgraded_to_mirror,
+    metadata_cache_key,
 };
 
 /// The route classification and cache keys every layer of one pick shares.
@@ -163,16 +163,8 @@ impl<'a> PickState<'a> {
         Ok(upgrade.meta)
     }
 
-    /// [`maybe_upgrade_abbreviated_meta_for_release_age`] over `meta`, with
-    /// an upgraded document persisted to the mirror (except in a dry run)
-    /// and marked so no later pick in this install repeats the request.
-    ///
-    /// Persisting can hand back the document reloaded from the mirror, and
-    /// only the one the caller caches is worth marking, so the outcome's
-    /// `meta` is that document. A registry whose full form is no more
-    /// complete than its abbreviated one still answers `200`, so a
-    /// successful upgrade has to be marked too: otherwise every dependency
-    /// edge re-asks for the same full document.
+    /// [`maybe_upgrade_abbreviated_meta_for_release_age`] over `meta`, for
+    /// this pick's metadata shape and cache key.
     pub(super) async fn upgrade_for_release_age<Cache: PackageMetaCache>(
         &self,
         ctx: &PickPackageContext<'_, Cache>,
@@ -180,7 +172,7 @@ impl<'a> PickState<'a> {
         opts: &PickPackageOptions<'_>,
         meta: Arc<Package>,
     ) -> Result<UpgradeOutcome, PickPackageError> {
-        let mut upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+        maybe_upgrade_abbreviated_meta_for_release_age(
             ctx,
             spec,
             opts,
@@ -188,20 +180,6 @@ impl<'a> PickState<'a> {
             &self.cache_key,
             meta,
         )
-        .await?;
-        if !upgrade.upgraded() {
-            return Ok(upgrade);
-        }
-        if !opts.request.dry_run
-            && let Some(reloaded) = self.pkg_mirror
-                .as_deref()
-                .and_then(|path| {
-                    persist_upgraded_to_mirror(path, &upgrade, self.use_filtered_full_metadata)
-                })
-        {
-            upgrade.meta = Arc::new(reloaded);
-        }
-        ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &upgrade.meta);
-        Ok(upgrade)
+        .await
     }
 }

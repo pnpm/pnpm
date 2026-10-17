@@ -80,6 +80,7 @@ fn only_the_abbreviated_document_is_requested_as_abbreviated() {
 
 #[test]
 fn revalidation_sends_the_validators_of_the_requested_representation() {
+    let abbreviated = stored(Some(ABBREVIATED_ETAG), None, false);
     let both_tags = stored(Some(ABBREVIATED_ETAG), Some(FULL_ETAG), false);
     let uncacheable = stored(Some(ABBREVIATED_ETAG), None, true);
     let none = Revalidation { etag: None, modified: None, bypass_cache: false };
@@ -89,10 +90,13 @@ fn revalidation_sends_the_validators_of_the_requested_representation() {
         (DocumentKind::Abbreviated, None, true, bypassed),
         (
             DocumentKind::Abbreviated,
-            Some(&both_tags),
+            Some(&abbreviated),
             false,
             Revalidation { etag: Some(ABBREVIATED_ETAG), modified: Some(MODIFIED), ..none },
         ),
+        // A mirror that recorded the other representation sends no validators.
+        (DocumentKind::Abbreviated, Some(&both_tags), false, none),
+        (DocumentKind::FullInAbbreviatedMirror, Some(&abbreviated), false, none),
         (
             DocumentKind::Full,
             Some(&both_tags),
