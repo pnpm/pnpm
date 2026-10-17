@@ -18,13 +18,14 @@ use std::{
 /// writing is disabled (`lockfile: false`), or when there is no
 /// current lockfile to restore from (a dependency-less project).
 /// A write failure falls through to the full install path rather than
-/// reporting up-to-date while leaving the lockfile missing.
+/// reporting up-to-date while leaving the lockfile missing. Returns whether it
+/// wrote the lockfile.
 pub(super) fn regenerate_wanted_lockfile_if_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
     loaded_current: Option<Lockfile>,
-) -> Result<(), &'static str> {
+) -> Result<bool, &'static str> {
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
-        return Ok(());
+        return Ok(false);
     }
     let current = match loaded_current {
         Some(current) => Some(current),
@@ -32,10 +33,11 @@ pub(super) fn regenerate_wanted_lockfile_if_missing(
             .map_err(|_| "the current lockfile cannot be loaded")?,
     };
     let Some(current) = current else {
-        return Ok(());
+        return Ok(false);
     };
     current
         .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        .map(|()| true)
         .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }
 impl<'a> LinkedPackagesContext<'a> {

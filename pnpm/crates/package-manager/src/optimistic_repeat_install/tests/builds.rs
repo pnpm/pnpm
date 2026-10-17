@@ -1,13 +1,10 @@
 use super::{
-    super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install_ignoring,
-        deps_status::RunDepsStatus, settings::current_settings,
-    },
+    super::{Decision, deps_status::RunDepsStatus, settings::current_settings},
     MTIME_STEP_MS, backdate_validated_files, check, isolated_included, recorded_timestamp,
     single_project_deps_status, workspace_deps_status, write_empty_lockfile, write_state,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
 use pnpm_workspace_state::ProjectEntry;
@@ -184,11 +181,13 @@ fn assert_newer_patch_content_compared_with_lockfile(
     set_mtime_ms(&patch_path, rewritten_ms);
     assert_eq!(deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
 
-    // The passing hash check was recorded, so the same patch mtime does not
-    // trigger another one.
+    // An edit that keeps the recorded mtime is still an edit.
     fs::write(&patch_path, "--- a\n+++ b\n+unchecked\n").unwrap();
     set_mtime_ms(&patch_path, rewritten_ms);
-    assert_eq!(deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert!(matches!(
+        deps_status(&dir, config, &project_manifests),
+        RunDepsStatus::Outdated { issue, .. } if issue == "Patches were modified"
+    ));
 
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
     assert!(matches!(
@@ -239,25 +238,6 @@ fn returns_skipped_when_allow_builds_drift() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
-
-    let decision = check_optimistic_repeat_install_ignoring(
-        &OptimisticRepeatInstallCheck {
-            workspace_root,
-            config,
-            project_manifests: &[(workspace_root.to_path_buf(), &manifest)],
-            is_workspace_install: false,
-            lockfile: MaybeLazyLockfile::Loaded(None),
-            catalogs: &BTreeMap::default(),
-            layout: crate::RepeatInstallLayout {
-                node_linker: pnpm_config::NodeLinker::Isolated,
-                included: isolated_included(),
-                supported_architectures: None,
-            },
-            manifests: crate::RepeatInstallManifests::ON_DISK,
-        },
-        &["allowBuilds"],
-    );
-    assert_eq!(decision, Decision::UpToDate);
 }
 /// `allowBuilds` is the one field where pnpm and pacquet round-trip
 /// an empty configured value differently: pnpm writes `Some({})` for

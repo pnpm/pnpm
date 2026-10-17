@@ -12,7 +12,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     diagnostics::assert_diagnostic_contains,
-    fs::{backdate_existing_files, bump_mtime},
+    fs::bump_mtime,
 };
 use serde_json::json;
 use std::{fs, path::Path};
@@ -235,7 +235,7 @@ fn install_action_reruns_a_production_only_install() {
 }
 
 #[test]
-fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
+fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -271,20 +271,27 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         "x",
     );
 
-    let mut state = pnpm_workspace_state::load_workspace_state(&workspace)
-        .expect("read workspace state")
-        .expect("installed workspace state");
-    state.last_validated_timestamp = backdate_existing_files(&workspace);
-    pnpm_workspace_state::update_workspace_state(&workspace, &state)
-        .expect("record backdated validation");
-
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
     pacquet_in(&workspace)
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    let regenerated_lockfile =
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
+    pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xh",
+        "a regenerated lockfile with the same content needs no install",
+    );
+
+    // The same lockfile in another layout has to be content-checked, and the
+    // run gate checks it without `dedupePeers`, as pnpm's does.
+    let relaid_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read regenerated lockfile")
+        + "\n";
+    fs::write(workspace.join("pnpm-lock.yaml"), &relaid_lockfile).expect("rewrite the lockfile");
 
     let output = pacquet_in(&workspace)
         .with_args(["run", "hello"])
@@ -313,11 +320,11 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml"))
             .expect("read lockfile after verifier install"),
-        regenerated_lockfile,
+        relaid_lockfile,
     );
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xxh",
+        "xhxh",
     );
 
     pacquet_in(&workspace)
@@ -326,7 +333,7 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         .success();
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xxhh",
+        "xhxhh",
     );
 
     drop((root, mock_instance));

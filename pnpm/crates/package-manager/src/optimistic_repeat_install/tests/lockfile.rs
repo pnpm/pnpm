@@ -332,11 +332,27 @@ fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
 }
+/// A lockfile edit that restores both its size and its mtime still moves the
+/// inode change time, which the recorded signature compares.
+#[cfg(unix)]
+#[test]
+fn a_lockfile_edit_that_restores_its_size_and_mtime_is_detected() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+
+    poison_lockfile_content(dir.path());
+    assert!(matches!(
+        content_check_decision(&dir, config, true, &project_manifests),
+        Decision::Skipped { .. }
+    ));
+}
 /// An empty lockfile followed by 17 MiB of comment lines, then `tail`.
 fn large_lockfile(tail: Option<&str>) -> String {
     const COMMENT_LINE: &str =
         "# padding padding padding padding padding padding padding padding\n";
-    let mut lockfile = String::from("lockfileVersion: '9.0'\n");
+    let mut lockfile = String::from("lockfileVersion: '9.0'\nimporters:\n  .: {}\n");
     let target = 17 * 1024 * 1024;
     lockfile.reserve(target + COMMENT_LINE.len());
     while lockfile.len() < target {
@@ -620,12 +636,12 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
         manifests: crate::RepeatInstallManifests::ON_DISK,
     };
     let state = load_workspace_state(dir.path()).unwrap().unwrap();
-    let drift = InputDrift::stat(&check, &state).unwrap();
-    assert!(drift.lockfile_unchanged(&check));
+    let drift = InputDrift::compute(&check, &state);
+    assert!(drift.lockfile_unchanged());
 
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     set_mtime_ms(&lockfile_path, recorded_timestamp(dir.path()) + MTIME_STEP_MS);
-    assert!(!drift.lockfile_unchanged(&check));
+    assert!(!drift.lockfile_unchanged());
 }
 
 #[test]
@@ -642,12 +658,16 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
     let refreshed = recorded_timestamp(dir.path());
     assert!(refreshed > before);
 
-    poison_lockfile_content(dir.path());
+    let recorded = super::recorded_state_text(dir.path());
     assert_eq!(
         single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
         RunDepsStatus::UpToDate,
     );
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
 }
 
 #[test]
@@ -670,9 +690,13 @@ fn single_project_repeat_install_converges_after_lockfile_content_matches() {
     let refreshed = recorded_timestamp(dir.path());
     assert!(refreshed > before);
 
-    poison_lockfile_content(dir.path());
+    let recorded = super::recorded_state_text(dir.path());
     assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
 }
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.

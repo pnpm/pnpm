@@ -1,4 +1,4 @@
-use super::super::build_workspace_state;
+use super::super::workspace_state::build_workspace_state;
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Clock, IncludedDependencies};
 use pnpm_package_manifest::PackageManifest;
@@ -49,7 +49,6 @@ fn empty_project_list_produces_empty_projects_map() {
         None,
         &BTreeMap::default(),
         &[],
-        false,
         None,
     );
     assert!(state.projects.is_empty());
@@ -71,7 +70,6 @@ fn prefers_the_manifest_mtime_over_the_clock() {
         None,
         &BTreeMap::default(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
         None,
     );
     assert_eq!(state.last_validated_timestamp, pnpm_testing_utils::fs::mtime_ms(manifest.path()));
@@ -99,7 +97,6 @@ fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
             None,
             &BTreeMap::default(),
             &[(dir.path().to_path_buf(), &manifest)],
-            false,
             filesystem_now_ms,
         )
     };
@@ -143,7 +140,6 @@ fn records_every_workspace_project_keyed_by_root_dir() {
         None,
         &BTreeMap::default(),
         &project_manifests,
-        false,
         None,
     );
 
@@ -180,7 +176,6 @@ fn records_config_dependencies_from_config() {
         None,
         &BTreeMap::default(),
         &[],
-        false,
         None,
     );
     assert_eq!(state.config_dependencies, config.config_dependencies);

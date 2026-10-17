@@ -336,10 +336,6 @@ pub struct InstallLockfilePolicy {
     /// check before any install setup, and the "nothing to materialize"
     /// return once the lockfile has been verified against the manifests.
     pub disable_optimistic_repeat: bool,
-    /// How the workspace-state check learns whether a project manifest
-    /// changed: from its `package.json` mtime, or by content when the
-    /// caller supplied the manifests in memory.
-    pub manifest_freshness: crate::ManifestFreshness,
 }
 
 impl InstallLockfilePolicy {
@@ -355,7 +351,6 @@ impl InstallLockfilePolicy {
             update_checksums: false,
             excludes: PolicyExcludes::Skip,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         }
     }
 }

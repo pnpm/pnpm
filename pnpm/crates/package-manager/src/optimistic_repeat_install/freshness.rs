@@ -1,19 +1,24 @@
 //! The content phase the install fast path and the verify-deps-before-run
 //! gate share. Each gate first rules out the drift its recorded settings and
-//! static inputs can show; this phase then decides from the inputs' mtimes,
-//! and from their content where one changed, whether the tree is current, and
-//! records a passing check.
+//! static inputs can show; this phase then decides from the content digests
+//! the last validation recorded which projects are still proven installed,
+//! checks the rest that the gate covers against the lockfile, and records a
+//! passing check.
+
+pub(crate) use drift::{InputDrift, ProjectStatus};
 
 use super::{
-    FileMtime, Host, Lockfile, ManifestFreshness, ManifestStat, OptimisticRepeatInstallCheck,
-    WorkspaceState, filesystem_now_ms_in_modules, lockfile_modified_since,
-    manifest_drift_reference_ms, modified_manifests_match_lockfile, patches_modified_since,
+    Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+    filesystem_now_ms_in_modules, held_projects_match_lockfile,
     relocation::{prove_move, rekeyed_validation_now},
     settle::{
         current_lockfile_unusable_with_non_empty_wanted, regenerate_wanted_lockfile_if_missing,
     },
-    stat_manifests, unstatted_manifests, wanted_lockfile_mtime,
+    validation::{FileDigest, Vouched},
 };
+use std::collections::HashSet;
+
+mod drift;
 
 /// What a gate does differently in the shared content phase.
 pub(super) struct GatePolicy {
@@ -41,9 +46,9 @@ pub(super) enum MissingWantedLockfile {
     RequireStandIn,
 }
 
-/// What a gate does with a patch file newer than the last validation. An
-/// edit in place keeps the `patchedDependencies` entry, so the settings
-/// comparison cannot see it, but it changes the patched output.
+/// What a gate does with a patch file whose content changed since the last
+/// validation. An edit in place keeps the `patchedDependencies` entry, so the
+/// settings comparison cannot see it, but it changes the patched output.
 pub(super) enum NewerPatch {
     /// Report the tree stale.
     Refuse,
@@ -62,15 +67,35 @@ pub(super) enum RecordedGroups {
     Kept,
 }
 
+/// The projects a gate holds to being installed. Whatever the gate reports
+/// must be something the install it leads to can fix: a filtered install
+/// leaves every project outside its selection as it is.
+#[derive(Clone, Copy)]
+pub(crate) enum Scope<'a> {
+    /// Every project, for an unfiltered install.
+    Workspace,
+    /// The selected projects and the workspace projects they depend on, for a
+    /// filtered install or a filtered command.
+    Selected(&'a [&'a Path]),
+    /// An unfiltered command run from the selected projects. Its install
+    /// covers the whole workspace, so a project whose recorded install went
+    /// stale is held anywhere. A project never installed is held only where
+    /// the selection depends on it, so an install filtered to other projects
+    /// does not make every command install again.
+    Command(&'a [&'a Path]),
+}
+
 /// Why the content phase cannot report the tree current. Each gate words it
 /// for its own audience.
-#[derive(Clone, Copy)]
-pub(super) enum Stale {
-    /// A manifest could not be stat'd, so freshness cannot be proven.
+pub(crate) enum Stale {
+    /// An input could not be read, so freshness cannot be proven.
     Unprovable,
     /// The wanted lockfile has packages but no current lockfile records an
     /// install.
     NothingInstalled,
+    /// The current lockfile does not list a project with dependencies, named
+    /// by its id.
+    ProjectNotInstalled(String),
     /// A tree that moved cannot be reused from where it is now.
     MoveRefused(&'static str),
     /// Neither lockfile exists to check against.
@@ -86,149 +111,75 @@ pub(super) fn check_freshness(
     state: &WorkspaceState,
     moved: bool,
     policy: &GatePolicy,
+    scope: Scope<'_>,
 ) -> Result<(), Stale> {
-    let drift = InputDrift::stat(check, state).ok_or(Stale::Unprovable)?;
+    let drift = InputDrift::compute(check, state);
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
     }
-    let modified = drift.modified();
-    if modified.is_empty() && !drift.shared_input_modified() {
-        require_installed(check)?;
-        return settle_missing_wanted_lockfile(check, policy, None);
+    if matches!(drift.lockfile, FileDigest::Unreadable) {
+        return Err(Stale::Unprovable);
+    }
+    match current_lockfile_unusable_with_non_empty_wanted(check) {
+        Ok(true) => return Err(Stale::NothingInstalled),
+        Ok(false) => {}
+        Err(reason) => return Err(Stale::Content(reason)),
+    }
+    let held = drift.held(check, scope);
+    if held.is_empty() && !drift.patches_modified {
+        return settle_proven_tree(check, state, &drift, policy, scope);
     }
     // Probed before any content is read, so a file edited while the checks
-    // run is newer than the recorded validation. The unchanged tree above
-    // records nothing, so it is spared the probe.
-    let refresh = drift.refreshes_state(check).then(|| validation_now(check));
+    // run is newer than the recorded validation.
+    let filesystem_now = validation_now(check);
     if drift.patches_modified {
-        match policy.newer_patch {
-            NewerPatch::Refuse => {
-                return Err(Stale::Content("a patch file is newer than the last validation"));
-            }
-            NewerPatch::CompareHash => patches_match_lockfile(check).map_err(Stale::Content)?,
-        }
+        check_newer_patches(check, policy)?;
     }
-    require_installed(check)?;
-    let projects_to_check = drift.projects_to_check(modified);
-    // Only a patch changed: the hash check above covered it, and no project
-    // or lockfile content is left to compare.
-    let loaded_current = if projects_to_check.is_empty() && !drift.lockfile_modified {
+    let loaded_current = if held.is_empty() {
         None
     } else {
-        modified_manifests_match_lockfile(check, state, &projects_to_check, policy.dedupe_peers)
-            .map_err(Stale::Content)?
+        held_projects_match_lockfile(check, state, &held, policy.dedupe_peers)?
     };
-    let refresh = refresh.filter(|_| drift.lockfile_unchanged(check));
     settle_missing_wanted_lockfile(check, policy, loaded_current)?;
-    if let Some(filesystem_now) = refresh {
-        record_state(check, state, filesystem_now, policy);
+    if drift.lockfile_unchanged() {
+        let vouched = drift.proven_dirs(&held);
+        record_state_at(check, state, &vouched, policy, filesystem_now);
     }
     Ok(())
 }
 
-/// A single project whose wanted lockfile has packages must have a current
-/// lockfile recording their install.
-fn require_installed(check: &OptimisticRepeatInstallCheck<'_>) -> Result<(), Stale> {
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => Err(Stale::NothingInstalled),
-        Ok(false) => Ok(()),
-        Err(reason) => Err(Stale::Content(reason)),
+/// The phase for a tree whose every held project is still proven installed.
+/// It records the inputs as they are now when the last validation could not
+/// stand for them, which spares the next run reading them again.
+fn settle_proven_tree(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &InputDrift<'_>,
+    policy: &GatePolicy,
+    scope: Scope<'_>,
+) -> Result<(), Stale> {
+    // A full install reads a changed lockfile even when no project records
+    // it.
+    if drift.lockfile_changed && matches!(scope, Scope::Workspace) {
+        check.lockfile
+            .get()
+            .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
+    let restored = settle_missing_wanted_lockfile(check, policy, None)?;
+    if drift.rehashed || drift.lockfile_changed || restored {
+        record_state(check, state, &drift.proven_dirs(&[]), policy);
+    }
+    Ok(())
 }
 
-/// Every input the content phase compares against the last validation, with
-/// the mtimes it read them at.
-///
-/// A passing check refreshes `lastValidatedTimestamp` wherever the next run
-/// measures an input against it: always in a workspace, and in a single
-/// project once its lockfile or a patch changed. A single project's manifest
-/// drift is measured against the lockfile's mtime instead
-/// ([#14890](https://github.com/pnpm/pnpm/issues/14890)), so a manifest change
-/// alone needs no refresh there.
-pub(crate) struct InputDrift<'a> {
-    pub(super) stats: Vec<ManifestStat<'a>>,
-    /// A lockfile-only change, such as a `git checkout` of just
-    /// `pnpm-lock.yaml`, leaves every manifest untouched but still
-    /// invalidates the install. A missing lockfile reports `false` here and is
-    /// left to the existence and stand-in checks.
-    pub(super) lockfile_modified: bool,
-    /// Whether a configured patch file is newer than the last validation.
-    patches_modified: bool,
-    /// Per [`manifest_drift_reference_ms`].
-    manifest_reference_ms: i64,
-    /// The wanted lockfile's mtime when [`Self::stat`] ran.
-    lockfile_mtime: Option<FileMtime>,
-}
-
-impl<'a> InputDrift<'a> {
-    /// `None` when a manifest cannot be stat'd, which leaves freshness
-    /// unprovable. In-memory manifests ([`ManifestFreshness::Content`]) are
-    /// not stat'd: each one counts as possibly modified, so the content
-    /// re-check covers them all.
-    pub(crate) fn stat(
-        check: &OptimisticRepeatInstallCheck<'a>,
-        state: &WorkspaceState,
-    ) -> Option<Self> {
-        let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
-        let stats = match check.manifests.freshness {
-            ManifestFreshness::Mtime => stat_manifests(check.project_manifests)?,
-            ManifestFreshness::Content => unstatted_manifests(check.project_manifests),
-        };
-        Some(Self {
-            stats,
-            lockfile_modified: lockfile_mtime.is_some_and(|mtime| {
-                lockfile_modified_since(mtime, state.last_validated_timestamp)
-            }),
-            patches_modified: patches_modified_since(
-                check.workspace_root,
-                check.config,
-                state.last_validated_timestamp,
-            ),
-            manifest_reference_ms: manifest_drift_reference_ms(
-                check.config,
-                check.is_workspace_install,
-                state.last_validated_timestamp,
-                lockfile_mtime,
-            ),
-            lockfile_mtime,
-        })
-    }
-
-    pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
-        self.stats
-            .iter()
-            .filter(|stat| stat.possibly_modified_since(self.manifest_reference_ms))
-            .collect()
-    }
-
-    /// Whether an input every project shares changed.
-    fn shared_input_modified(&self) -> bool {
-        self.lockfile_modified || self.patches_modified
-    }
-
-    /// Whether a passing check refreshes `lastValidatedTimestamp`, per the
-    /// rule on [`InputDrift`].
-    fn refreshes_state(&self, check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-        check.is_workspace_install || self.shared_input_modified()
-    }
-
-    /// The projects the content check covers: every one when the lockfile
-    /// itself changed, else the modified ones.
-    fn projects_to_check<'s>(
-        &'s self,
-        modified: Vec<&'s ManifestStat<'a>>,
-    ) -> Vec<&'s ManifestStat<'a>> {
-        if self.lockfile_modified { self.stats.iter().collect() } else { modified }
-    }
-
-    /// Whether the wanted lockfile still has the mtime [`Self::stat`] saw.
-    /// A content check that passed validated the lockfile it read, so a
-    /// lockfile rewritten since must not have its mtime recorded as
-    /// validated.
-    pub(crate) fn lockfile_unchanged(&self, check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-        let mtime_ns = |mtime: Option<FileMtime>| mtime.map(|mtime| mtime.ns);
-        mtime_ns(self.lockfile_mtime)
-            == mtime_ns(wanted_lockfile_mtime(check.workspace_root, check.config))
+/// Apply the gate's [`NewerPatch`] policy to a patch whose content changed.
+fn check_newer_patches(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    policy: &GatePolicy,
+) -> Result<(), Stale> {
+    match policy.newer_patch {
+        NewerPatch::Refuse => Err(Stale::Content("a patch file changed since the last validation")),
+        NewerPatch::CompareHash => patches_match_lockfile(check).map_err(Stale::Content),
     }
 }
 
@@ -244,7 +195,11 @@ fn settle_moved_tree(
     let filesystem_now = rekeyed_validation_now(check, state, drift);
     prove_move(check, drift).map_err(Stale::MoveRefused)?;
     settle_missing_wanted_lockfile(check, policy, None)?;
-    record_state(check, state, filesystem_now, policy);
+    let every_project = drift.stats
+        .iter()
+        .map(|stat| stat.root_dir.to_path_buf())
+        .collect();
+    record_state_at(check, state, &every_project, policy, filesystem_now);
     Ok(())
 }
 
@@ -252,18 +207,21 @@ pub(super) fn validation_now(check: &OptimisticRepeatInstallCheck<'_>) -> Option
     filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(check.workspace_root))
 }
 
-/// Apply the gate's [`MissingWantedLockfile`] policy. `loaded_current` is the
-/// current lockfile when the content check already loaded it.
+/// Apply the gate's [`MissingWantedLockfile`] policy, returning whether it
+/// wrote the wanted lockfile. `loaded_current` is the current lockfile when
+/// the content check already loaded it.
 fn settle_missing_wanted_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     policy: &GatePolicy,
     loaded_current: Option<Lockfile>,
-) -> Result<(), Stale> {
+) -> Result<bool, Stale> {
     match policy.missing_wanted_lockfile {
         MissingWantedLockfile::Restore => {
             regenerate_wanted_lockfile_if_missing(check, loaded_current).map_err(Stale::Content)
         }
-        MissingWantedLockfile::RequireStandIn => missing_wanted_lockfile_stand_in_ok(check),
+        MissingWantedLockfile::RequireStandIn => {
+            missing_wanted_lockfile_stand_in_ok(check).map(|()| false)
+        }
     }
 }
 
@@ -309,15 +267,26 @@ fn patches_match_lockfile(check: &OptimisticRepeatInstallCheck<'_>) -> Result<()
     }
 }
 
-/// Record a passing check at `filesystem_now`. A failed write only costs the
-/// next run a repeat of the check.
+/// [`record_state_at`] at the filesystem's current time.
 fn record_state(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    filesystem_now: Option<i64>,
+    vouched: &HashSet<PathBuf>,
     policy: &GatePolicy,
 ) {
-    let new_state = refreshed_state(check, state, filesystem_now, policy);
+    record_state_at(check, state, vouched, policy, validation_now(check));
+}
+
+/// Record a passing check at `filesystem_now`, vouching for the `vouched`
+/// projects. A failed write only costs the next run a repeat of the check.
+fn record_state_at(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    vouched: &HashSet<PathBuf>,
+    policy: &GatePolicy,
+    filesystem_now: Option<i64>,
+) {
+    let new_state = refreshed_state(check, state, vouched, filesystem_now, policy);
     let modules_dir = check.config.workspace_state_modules_dir(check.workspace_root);
     let Err(error) =
         pnpm_workspace_state::update_workspace_state_in_modules(&modules_dir, &new_state)
@@ -340,46 +309,27 @@ fn record_state(
 }
 
 /// `state` validated again at `filesystem_now`. Nothing was materialized, so
-/// the previous run's `filtered_install` carries forward: clearing it would
-/// claim every importer is materialized when a filtered install left the
-/// unselected ones untouched.
+/// only the `vouched` projects are proven; the others keep their records.
 fn refreshed_state(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    vouched: &HashSet<PathBuf>,
     filesystem_now: Option<i64>,
     policy: &GatePolicy,
 ) -> WorkspaceState {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    let mut new_state = crate::install::build_workspace_state::<Host>(
-        workspace_root,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        catalogs,
-        project_manifests,
-        state.filtered_install,
-        filesystem_now,
-    );
-    new_state.settings.auto_dedupe =
-        crate::install::recorded_auto_dedupe(config, state.settings.auto_dedupe);
-    if matches!(policy.recorded_groups, RecordedGroups::Kept) {
-        new_state.settings.dev = state.settings.dev;
-        new_state.settings.optional = state.settings.optional;
-        new_state.settings.production = state.settings.production;
-    }
-    new_state
+    crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root: check.workspace_root,
+        config: check.config,
+        layout: check.layout,
+        catalogs: check.catalogs,
+        project_manifests: check.project_manifests,
+        filesystem_now_ms: filesystem_now,
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: state.settings.auto_dedupe,
+            kept_groups: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
+                &state.settings,
+            ),
+        },
+        vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
+    })
 }

@@ -65,7 +65,6 @@ async fn install(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

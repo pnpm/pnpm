@@ -236,6 +236,22 @@ impl<'w> InstallScope<'w> {
         }
     }
 
+    /// The directories of the projects a filtered install requested.
+    fn requested_project_dirs(&self, workspace_root: &Path) -> Option<Vec<&Path>> {
+        let requested = self.importers.requested_importer_ids.as_ref()?;
+        let dirs = self.project_manifests
+            .iter()
+            .map(|(project_dir, _)| project_dir.as_path())
+            .filter(|project_dir| {
+                requested.contains(&pnpm_workspace::importer_id_from_root_dir(
+                    workspace_root,
+                    project_dir,
+                ))
+            })
+            .collect();
+        Some(dirs)
+    }
+
     pub(super) fn repeat_install_verdict(
         &self,
         install: InstallView<'_>,
@@ -243,7 +259,13 @@ impl<'w> InstallScope<'w> {
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
     ) -> Result<RepeatInstallVerdict, InstallError> {
+        let selected_dirs = self.requested_project_dirs(&workspace.dirs.workspace_root);
         repeat_install_verdict(&UpToDateCheck {
+            scope: selected_dirs
+                .as_deref()
+                .map_or(crate::optimistic_repeat_install::Scope::Workspace, |selected| {
+                    crate::optimistic_repeat_install::Scope::Selected(selected)
+                }),
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,
                 workspace_root: &workspace.dirs.workspace_root,
@@ -259,7 +281,6 @@ impl<'w> InstallScope<'w> {
                         .as_ref(),
                 },
                 manifests: crate::RepeatInstallManifests {
-                    freshness: install.lockfile_policy.manifest_freshness,
                     dependency_manifests: self.dependency_manifests.as_ref(),
                 },
             },

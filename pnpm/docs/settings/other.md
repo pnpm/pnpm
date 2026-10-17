@@ -327,6 +327,8 @@ Added in: v10.1.0
 
 When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster.
 
+The check compares the manifests, the lockfile, and the patch files by content, so an edit is noticed even when it keeps the file's modification time. A filtered install checks only the selected projects and the workspace projects they depend on.
+
 When the check finds that nothing changed, pnpm skips the install, including the projects' own lifecycle scripts, such as `prepare`. Set this to `false` to run those scripts on every install.
 
 ### requiredScripts

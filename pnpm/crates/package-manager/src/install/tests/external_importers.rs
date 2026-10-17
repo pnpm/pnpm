@@ -113,7 +113,6 @@ async fn run_capsule(
     );
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
-            manifest_freshness: crate::ManifestFreshness::Content,
             frozen: !matches!(mode, Mode::Install),
             ..install.lockfile_policy
         },

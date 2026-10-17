@@ -58,7 +58,6 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -139,7 +138,6 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -260,7 +258,6 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

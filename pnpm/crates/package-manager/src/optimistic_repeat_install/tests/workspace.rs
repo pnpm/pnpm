@@ -20,28 +20,26 @@ use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
-/// A filtered install refreshes `lastValidatedTimestamp` while leaving
-/// the projects it did not select untouched, so its state cannot prove
-/// the workspace is current: the next install re-validates for real.
+/// A filtered install that did not materialize a project leaves no proof that
+/// it is installed, so the next install covering it re-validates for real.
 #[test]
-fn returns_skipped_when_the_previous_install_was_filtered() {
-    let (dir, config, manifest) =
-        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    let mut state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
-    state.filtered_install = true;
-    update_workspace_state(dir.path(), &state).expect("write workspace state");
-
-    let decision = check(
-        dir.path(),
-        config,
+fn returns_skipped_for_a_project_the_previous_install_did_not_materialize() {
+    let (dir, config, manifest) = setup_fresh_install(
         pnpm_config::NodeLinker::Isolated,
-        &[(dir.path().to_path_buf(), &manifest)],
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"1.0.0"}"#,
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(
+        check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::UpToDate,
+        "a project the install materialized is proven installed",
     );
 
-    assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("previous install was filtered")),
-        "unexpected decision: {decision:?}",
-    );
+    super::record_filtered_install(dir.path(), &[]);
+    let decision = check(dir.path(), config, pnpm_config::NodeLinker::Isolated, &project_manifests);
+    assert!(matches!(decision, Decision::Skipped { .. }), "unexpected decision: {decision:?}");
 }
 /// A `file:` dependency must never short-circuit: nothing the fast
 /// path stats covers the dependency's *contents*, so the full install
@@ -680,7 +678,7 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         .unwrap()
         .last_validated_timestamp;
 
-    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    fs::write(dir.path().join("package.json"), super::FOO_MANIFEST_EDITED).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
     let decision =
