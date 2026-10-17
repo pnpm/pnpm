@@ -78,8 +78,9 @@ test('install should not fail for packageManager field with hash', async () => {
 })
 
 test('the version prints past an unreadable setting under a pin the running pnpm satisfies', async () => {
+  prepare()
   const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
-  prepare({
+  writeJsonFileSync('package.json', {
     packageManager: `pnpm@${pnpmVersion}`,
   })
   const configHome = path.resolve('xdg-config')
@@ -90,6 +91,22 @@ test('the version prints past an unreadable setting under a pin the running pnpm
 
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
+test('the version fails on a mismatched pin past an unreadable setting', async () => {
+  prepare({
+    packageManager: 'pnpm@0.0.0',
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stderr } = execPnpmSync(['--version'], {
+    env: { XDG_CONFIG_HOME: configHome, pnpm_config_pm_on_fail: 'error' },
+  })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.0 of pnpm')
 })
 
 test('a global command does not warn about a pnpm pin that the running pnpm satisfies', async () => {
