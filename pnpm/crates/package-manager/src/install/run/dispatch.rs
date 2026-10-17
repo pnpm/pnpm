@@ -422,7 +422,9 @@ pub(super) async fn auto_frozen_path(
         Err(
             error @ (FreshnessCheckError::InvalidCatalog(_)
             | FreshnessCheckError::InvalidOverrides(_)
-            | FreshnessCheckError::CalcPatchHashes(_)),
+            | FreshnessCheckError::CalcPatchHashes(_)
+            | FreshnessCheckError::InvalidPackageExtensionSelector(_)
+            | FreshnessCheckError::ReadPackageHook(_)),
         ) => Err(error.into()),
     }
 }

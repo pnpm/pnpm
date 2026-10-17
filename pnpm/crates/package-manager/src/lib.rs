@@ -173,6 +173,59 @@ pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
 #[cfg(test)]
 mod tests;
 
+/// Load the pnpmfiles an install whose lockfile sits in `lockfile_dir` runs.
+/// A workspace project with its own lockfile also runs the workspace root's
+/// (see [`pnpm_hooks::finder::load_workspace_project_pnpmfiles`]).
+pub fn load_install_pnpmfiles(
+    config: &pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Result<
+    Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pnpm_hooks::finder::MissingPnpmfileError,
+> {
+    let selection = pnpmfile_selection(config);
+    match workspace_root_of_own_lockfile_project(config, lockfile_dir) {
+        Some(workspace_root) => pnpm_hooks::finder::load_workspace_project_pnpmfiles(
+            lockfile_dir,
+            workspace_root,
+            selection,
+        ),
+        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, selection),
+    }
+}
+
+/// The pnpmfiles [`load_install_pnpmfiles`] would load, without loading them.
+#[must_use]
+pub fn find_install_pnpmfiles(
+    config: &pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Vec<std::path::PathBuf> {
+    let selection = pnpmfile_selection(config);
+    let mut paths = pnpm_hooks::finder::find_pnpmfiles(lockfile_dir, selection);
+    if let Some(workspace_root) = workspace_root_of_own_lockfile_project(config, lockfile_dir) {
+        for path in pnpm_hooks::finder::find_pnpmfiles(workspace_root, selection) {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
+    paths
+}
+
+/// The workspace root when `lockfile_dir` is a workspace project's own
+/// lockfile directory (`sharedWorkspaceLockfile: false`).
+fn workspace_root_of_own_lockfile_project<'a>(
+    config: &'a pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Option<&'a std::path::Path> {
+    if config.shares_one_lockfile() {
+        return None;
+    }
+    let workspace_root = config.workspace_dir.as_deref()?;
+    (pnpm_fs::lexical_normalize(workspace_root) != pnpm_fs::lexical_normalize(lockfile_dir))
+        .then_some(workspace_root)
+}
+
 /// The pnpmfiles an install runs, as configured. Every entry point that loads
 /// hooks or asks whether any exist reads the same settings.
 #[must_use]

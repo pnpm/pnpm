@@ -191,11 +191,18 @@ async function installProject (
 
 async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
   if (opts.ignorePnpmfile) return {}
-  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
+  // The workspace root's pnpmfile is the one `opts.hooks` was loaded from.
+  if (opts.workspaceDir != null && path.resolve(rootDir) === path.resolve(opts.workspaceDir)) return opts.hooks ?? {}
+  // The global pnpmfile is among the workspace hooks in `opts.hooks` already.
+  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, { ...opts, globalPnpmfile: undefined })
+  // Each hook list the install runs holds the project's hooks, then the workspace's.
   return {
     ...opts.hooks,
     ...pnpmfileHooks,
     afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+    customFetchers: [...(pnpmfileHooks.customFetchers ?? []), ...(opts.hooks?.customFetchers ?? [])],
+    customResolvers: [...(pnpmfileHooks.customResolvers ?? []), ...(opts.hooks?.customResolvers ?? [])],
+    preResolution: [...(pnpmfileHooks.preResolution ?? []), ...(opts.hooks?.preResolution ?? [])],
     readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
   }
 }

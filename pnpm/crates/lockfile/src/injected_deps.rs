@@ -1,6 +1,6 @@
 //! Which direct dependencies of an importer are injected.
 
-use crate::{Lockfile, LockfileResolution, PkgName};
+use crate::{DirectoryResolution, Lockfile, LockfileResolution, PkgName, ResolvedDependencySpec};
 use pnpm_package_manifest::DependencyGroup;
 
 impl Lockfile {
@@ -17,23 +17,30 @@ impl Lockfile {
         &'a self,
         importer_id: &str,
         groups: impl IntoIterator<Item = DependencyGroup> + 'a,
-    ) -> impl Iterator<Item = &'a PkgName> + 'a {
+    ) -> impl Iterator<Item = InjectedDependency<'a>> + 'a {
         let packages = self.packages.as_ref();
         self.importers
             .get(importer_id)
             .map(|importer| importer.dependencies_by_groups(groups))
             .into_iter()
             .flatten()
-            .filter(move |(alias, spec)| {
-                spec.version
-                    .resolved_key(alias)
-                    .and_then(|key| packages?.get(&key.without_peer()))
-                    .is_some_and(|metadata| {
-                        matches!(metadata.resolution, LockfileResolution::Directory(_))
-                    })
+            .filter_map(move |(alias, spec)| {
+                let metadata = packages?.get(&spec.version.resolved_key(alias)?.without_peer())?;
+                match &metadata.resolution {
+                    LockfileResolution::Directory(directory) => {
+                        Some(InjectedDependency { alias, spec, directory })
+                    }
+                    _ => None,
+                }
             })
-            .map(|(alias, _)| alias)
     }
+}
+
+/// One entry of [`Lockfile::injected_dependencies`].
+pub struct InjectedDependency<'a> {
+    pub alias: &'a PkgName,
+    pub spec: &'a ResolvedDependencySpec,
+    pub directory: &'a DirectoryResolution,
 }
 
 #[cfg(test)]

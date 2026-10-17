@@ -11,6 +11,8 @@ pub(crate) use manifest::{
     check_importer_satisfies,
 };
 
+mod injected_manifests;
+
 use rayon::prelude::*;
 
 use super::{
@@ -339,19 +341,28 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    check_importer_freshness(lockfile, inputs, parsed_overrides_opt.as_deref())
+    let injected = injected_manifests::hooked_injected_manifests(lockfile, inputs).await?;
+    check_importer_freshness(lockfile, inputs, (parsed_overrides_opt.as_deref(), &injected))
 }
 
 // Parallel checks settle before the serial fold reports the first error in importer order.
 fn check_importer_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    (parsed_overrides, injected): (
+        Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+        &[(PathBuf, PackageManifest)],
+    ),
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
-    let project_manifests = project_manifests_by_dir(
+    let mut project_manifests = project_manifests_by_dir(
         inputs.manifests.iter().map(|(_, manifest)| *manifest),
         inputs.dependency_manifests,
+    );
+    project_manifests.extend(
+        injected
+            .iter()
+            .map(|(dir, manifest)| (dir.clone(), manifest)),
     );
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
