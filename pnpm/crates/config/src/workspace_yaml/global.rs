@@ -2,8 +2,9 @@
 
 use super::{
     ErrorKind, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, Path, SystemEnv,
-    WorkspaceSettings, fs, read_readable_settings, settings::parse_settings,
+    WorkspaceSettings, fs, read_readable_settings, select_settings, settings::parse_settings,
 };
+use crate::SettingsRead;
 
 impl WorkspaceSettings {
     /// Read the global config.yaml at `<config_dir>/config.yaml`, if
@@ -17,14 +18,13 @@ impl WorkspaceSettings {
     /// Returns `Ok(None)` when the file does not exist. Read or parse
     /// failures propagate.
     pub fn load_global(config_dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::load_global_skipping_unreadable(config_dir, false)
+        Self::load_global_reading(config_dir, SettingsRead::All)
     }
 
-    /// [`Self::load_global`], leaving out each top-level setting that does
-    /// not parse on its own when `skip_unreadable` is set.
-    pub fn load_global_skipping_unreadable(
+    /// [`Self::load_global`], reading the settings `settings_read` selects.
+    pub fn load_global_reading(
         config_dir: &Path,
-        skip_unreadable: bool,
+        settings_read: SettingsRead,
     ) -> Result<Option<Self>, LoadWorkspaceYamlError> {
         let path = config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
         let text = match fs::read_to_string(&path) {
@@ -33,13 +33,14 @@ impl WorkspaceSettings {
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
         let read = parse_settings::<SystemEnv>;
-        let mut settings =
-            if skip_unreadable { read_readable_settings(&text, read) } else { read(&text) }
-                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                    path: path.clone(),
-                    source,
-                })?;
-        settings.validate_sections(skip_unreadable)?;
+        let selected = select_settings(&text, settings_read);
+        let mut settings = if settings_read.skips_unreadable() {
+            read_readable_settings(&selected, read)
+        } else {
+            read(&selected)
+        }
+        .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
+        settings.validate_sections(settings_read.skips_unreadable())?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))

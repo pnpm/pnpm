@@ -169,7 +169,7 @@ impl Config {
 
     /// Find the workspace root and read its `pnpm-workspace.yaml`. One
     /// that cannot be read at all keeps only the root when
-    /// [`Config::skip_unreadable_settings`] is set.
+    /// [`Config::settings_read`] skips unreadable ones.
     pub(super) fn resolve_workspace_yaml<Sys>(
         &self,
         start_dir: &std::path::Path,
@@ -204,9 +204,9 @@ impl Config {
         let workspace_yaml = if self.ignore_workspace {
             None
         } else if let Some(env_dir) = env_workspace_dir {
-            Some(read_env_workspace_yaml::<Sys>(env_dir, self.skip_unreadable_settings)?)
+            Some(read_env_workspace_yaml::<Sys>(env_dir, self.settings_read)?)
         } else {
-            WorkspaceSettings::find_and_read(start_dir, self.skip_unreadable_settings)?
+            WorkspaceSettings::find_and_read(start_dir, self.settings_read)?
                 .map(|(path, settings)| {
                     let base_dir = path
                         .parent()
@@ -227,12 +227,12 @@ impl Config {
 /// applies, because the user has said where the workspace lives.
 fn read_env_workspace_yaml<Sys: EnvVar>(
     env_dir: PathBuf,
-    skip_unreadable: bool,
+    settings_read: crate::SettingsRead,
 ) -> Result<(PathBuf, Option<WorkspaceSettings>), LoadWorkspaceYamlError> {
     let Some(document) = read_workspace_document(&env_dir)? else {
         return Ok((env_dir, None));
     };
-    let settings = WorkspaceSettings::read_document(document, skip_unreadable, |text, path| {
+    let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
         parse_settings::<Sys>(text)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                 path: path.to_path_buf(),

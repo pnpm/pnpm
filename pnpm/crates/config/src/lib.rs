@@ -42,6 +42,7 @@ pub use setting_types::{
     VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
+pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
 };
@@ -348,7 +349,9 @@ mod registry_options;
 mod layout;
 
 mod loading;
+
 mod network_policy;
+mod settings_read;
 
 mod derive_layout;
 

@@ -11,6 +11,13 @@ pub(super) struct AuthSources {
     pub(super) trusted_auth: NpmrcAuth,
 }
 
+impl AuthSources {
+    /// No source read, for a load that needs no registry.
+    pub(super) fn none() -> Self {
+        Self { npmrc_auth: NpmrcAuth::default(), trusted_auth: NpmrcAuth::default() }
+    }
+}
+
 /// The project `.npmrc`, parsed as untrusted unless the user-level auth
 /// file explicitly points at it.
 fn project_auth_source<Sys>(
@@ -151,6 +158,29 @@ pub(super) fn note_declared_registries(
 }
 
 impl Config {
+    /// [`Self::collect_auth_sources`], or none for a load that reads only
+    /// the [`crate::PIN_DECISION_SETTINGS`].
+    pub(super) fn read_auth_sources<Sys>(
+        &mut self,
+        start_dir: &std::path::Path,
+        workspace_yaml: Option<&(PathBuf, Option<WorkspaceSettings>)>,
+        global_settings: Option<&WorkspaceSettings>,
+        global_config_dir: Option<&Path>,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        if self.settings_read == crate::SettingsRead::PinDecision {
+            return Ok(AuthSources::none());
+        }
+        self.collect_auth_sources::<Sys>(
+            start_dir,
+            workspace_yaml,
+            global_settings,
+            global_config_dir,
+        )
+    }
+
     /// The `.npmrc` layers that contribute credentials, folded into the merged
     /// view plus the trusted-only view the bootstrap and the `tokenHelper`
     /// check need.
@@ -216,7 +246,7 @@ impl Config {
         // trusted, non-repo source. Leaving out the unreadable leaves out the
         // project `.npmrc` that names one, keeping the trusted sources.
         let trusted = crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth);
-        if trusted.is_err() && self.skip_unreadable_settings {
+        if trusted.is_err() && self.settings_read.skips_unreadable() {
             npmrc_auth = trusted_auth.clone();
         } else {
             trusted?;

@@ -132,7 +132,8 @@ fn unreadable_configuration_does_not_stop_the_switch_to_the_pinned_version() {
 
 /// A repository that breaks its own `pnpm-workspace.yaml` loses only that
 /// file: the machine's own settings still apply, so its opt-out from version
-/// switching holds and the failure is reported.
+/// switching holds. Printing the version reads no other setting, so the
+/// broken file does not fail it.
 #[test]
 fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
     let CommandTempCwd {
@@ -159,17 +160,20 @@ fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
 
     let output = run(pacquet, root.path(), &["--version"]);
 
-    assert_failure(&output);
-    assert_ne!(stdout(&output), "9.3.0\n", "the machine opted out of switching");
-    assert_contains(&stderr(&output), "load configuration");
+    assert_success(&output);
+    assert_eq!(
+        stdout(&output),
+        format!("{}\n", pnpm_config::PNPM_VERSION),
+        "the machine opted out of switching",
+    );
 
     drop((root, mock_instance));
 }
 
-/// The workspace file's settings are left out whole when one of them fails
-/// to apply, so none applied before the failure stays in force.
+/// A setting outside the pin decision is not read to decide, so one that
+/// fails to apply cannot drop the `pmOnFail` beside it.
 #[test]
-fn a_workspace_setting_that_fails_to_apply_leaves_out_the_rest_of_the_file() {
+fn a_setting_outside_the_pin_decision_does_not_drop_pm_on_fail() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -187,7 +191,7 @@ fn a_workspace_setting_that_fails_to_apply_leaves_out_the_rest_of_the_file() {
     let output = run(pacquet, root.path(), &["--version"]);
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "9.3.0\n");
+    assert_eq!(stdout(&output), format!("{}\n", pnpm_config::PNPM_VERSION));
 
     drop((root, mock_instance));
 }
@@ -371,6 +375,56 @@ fn a_global_command_warns_under_a_satisfied_pin() {
         &stderr(&output),
         r#"[WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
     );
+}
+
+/// A pin the lockfile does not record keeps its resolution in the global
+/// packages directory, so the machine's `globalDir` is read to decide.
+#[test]
+fn a_pin_the_lockfile_does_not_record_is_kept_in_the_machines_global_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    let global_config = root.path().join("xdg-config/pnpm");
+    fs::create_dir_all(&global_config).expect("create the global config dir");
+    let global_dir = root.path().join("machine-global");
+    fs::write(
+        global_config.join("config.yaml"),
+        format!("globalDir: {}\n", serde_json::to_string(&global_dir).expect("quote the path")),
+    )
+    .expect("write the global config");
+    let mut pacquet = pacquet;
+    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), "9.3.0\n");
+    let lockfile = global_dir.join("v11/pnpm-lock.yaml");
+    assert!(lockfile.is_file(), "the resolution is not under globalDir: {}", lockfile.display());
+
+    drop((root, mock_instance));
+}
+
+/// Printing the version decides the pin from the pin decision settings
+/// alone, so a setting this pnpm cannot read does not fail it, even under a
+/// pin the running pnpm satisfies.
+#[test]
+fn the_version_prints_past_an_unreadable_setting_under_a_satisfied_pin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_yaml(&workspace, "nodeLinker: [hoisted]\n");
+    write_package_manager_pin(&workspace);
+
+    let output = run(pacquet, root.path(), &["--version"]);
+
+    assert_success(&output);
+    assert_eq!(stdout(&output), format!("{}\n", pnpm_config::PNPM_VERSION));
 }
 
 /// A key carrying terminal escapes reaches stderr and any CI log, so the

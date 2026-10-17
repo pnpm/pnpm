@@ -5,10 +5,9 @@ pub(super) use argv_scan::{UnparsedArgv, VersionArgv};
 mod argv_scan;
 
 use super::{
-    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation,
-    ConfigSubcommand, InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString,
-    PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf, ReporterFlags, pre_command_emit,
-    resolve_bool_override,
+    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation, InstallArgs,
+    LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf,
+    ReporterFlags, pre_command_emit, resolve_bool_override,
 };
 use crate::cli_args::{
     cli_command::{CliPathArgs, PresentationArgs},
@@ -22,40 +21,11 @@ pub(super) struct PreCommandInput {
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
     pub(super) reporter: ReporterFlags,
-    pub(super) key_issues: KeyIssueReporting,
 }
 
 impl PreCommandInput {
     pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
         pre_command_emit(self.reporter.configure_with(config))
-    }
-}
-
-/// What to do about the problem keys of the project's `pnpm-workspace.yaml`
-/// (see [`report_workspace_key_issues`](crate::cli_args::config_warnings::report_workspace_key_issues)), decided per invocation.
-#[derive(Clone, Copy, PartialEq)]
-pub(super) enum KeyIssueReporting {
-    /// `pnpm config get <key>` prints one value for a script to capture, so
-    /// config-load warnings stay off it entirely, as pnpm keeps them off.
-    Skip,
-    /// The other `pnpm config` subcommands are how a user inspects and
-    /// repairs the config, so they must keep working on a broken file:
-    /// unrecognized keys warn even under a satisfied pin.
-    WarnOnly,
-    /// Unrecognized keys warn, or fail the command when the running pnpm is
-    /// the version the project pins (no version-skew excuse remains).
-    Enforce,
-}
-
-pub(super) fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
-    match command {
-        CliCommand::Get(get) if get.args.key.is_some() => KeyIssueReporting::Skip,
-        CliCommand::Config(args) => match &args.command {
-            ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
-            _ => KeyIssueReporting::WarnOnly,
-        },
-        CliCommand::Get(_) | CliCommand::Set(_) => KeyIssueReporting::WarnOnly,
-        _ => KeyIssueReporting::Enforce,
     }
 }
 
@@ -169,7 +139,7 @@ fn typed_flag(on: bool, off: bool) -> Option<bool> {
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
 /// and runtime pins — a global install does not belong to the project.
-pub(super) fn is_global(command: &CliCommand) -> bool {
+pub(crate) fn is_global(command: &CliCommand) -> bool {
     match command {
         CliCommand::Add(args) => args.target.global,
         CliCommand::ApproveBuilds(args) => args.global,
@@ -196,7 +166,7 @@ pub(super) fn is_global(command: &CliCommand) -> bool {
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
-pub(super) fn should_skip_command(command: &CliCommand) -> bool {
+pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
     // Declaring which package manager a project uses is not that package
     // manager's work, so a project pinned to another one can still be
     // told to use a different one — or to use this one. Adding anything

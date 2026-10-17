@@ -265,15 +265,11 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
-    /// Leave out what this pnpm cannot read, which a newer pnpm may give a
-    /// shape or a value this one rejects: each top-level setting of the
-    /// global `config.yaml` and `pnpm-workspace.yaml` that does not parse or
-    /// validate on its own, and any source that still fails, such as `_auth`
-    /// or a project `.npmrc` `tokenHelper`. Every other source still applies,
-    /// so a repository that breaks its own files cannot drop the machine's
-    /// settings. Only for loading configuration that decides whether to
-    /// switch to the pnpm the project pins.
-    pub skip_unreadable_settings: bool,
+    /// Which settings the load reads. Anything but
+    /// [`SettingsRead::All`](crate::SettingsRead::All) is only for the configuration that decides
+    /// whether to switch to the pnpm the project pins, and that carries the
+    /// switch out.
+    pub settings_read: crate::SettingsRead,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.

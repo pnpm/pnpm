@@ -7,6 +7,10 @@
 //! config-load warnings and the project checks that run before the command
 //! belong here.
 
+pub(crate) use load_report::ConfigWarnings;
+
+mod load_report;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{

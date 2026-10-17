@@ -1,7 +1,38 @@
 use super::{Deserialize, Deserializer, IgnoredAny, WorkspaceSettings};
+use crate::{PIN_DECISION_SETTINGS, SettingsRead};
 use serde::de::{MapAccess, Visitor};
 use serde_saphyr::Spanned;
-use std::{fmt, ops::Range};
+use std::{borrow::Cow, fmt, marker::PhantomData, ops::Range};
+
+/// `text` with only the top-level settings `settings_read` reads.
+///
+/// [`SettingsRead::PinDecision`] keeps the blocks of the
+/// [`PIN_DECISION_SETTINGS`] and blanks the rest, so what is left keeps its
+/// lines. A document that is not a block mapping with one string key per line
+/// keeps none of its settings.
+pub(crate) fn select_settings(text: &str, settings_read: SettingsRead) -> Cow<'_, str> {
+    if settings_read != SettingsRead::PinDecision {
+        return Cow::Borrowed(text);
+    }
+    let Some(keys) = top_level_keys::<String>(text) else {
+        return Cow::Borrowed("");
+    };
+    let key_lines: Vec<usize> = keys
+        .iter()
+        .map(|(line, _)| *line)
+        .collect();
+    let mut lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let line_count = lines.len();
+    for ((_, name), setting) in keys
+        .iter()
+        .zip(setting_lines(&key_lines, line_count))
+    {
+        if !PIN_DECISION_SETTINGS.contains(&name.as_str()) {
+            lines[setting].fill("\n");
+        }
+    }
+    Cow::Owned(lines.concat())
+}
 
 /// Read `text` with `read`, leaving out each top-level setting that `read`
 /// rejects on its own.
@@ -57,34 +88,45 @@ fn setting_lines(key_lines: &[usize], line_count: usize) -> impl Iterator<Item =
 /// The 0-based line of each top-level key, in document order, or `None`
 /// when the document is not a block mapping with one key per line.
 fn top_level_key_lines(text: &str) -> Option<Vec<usize>> {
-    let TopLevelKeys(keys) = serde_saphyr::from_str(text).ok()?;
-    let mut lines = Vec::with_capacity(keys.len());
+    top_level_keys::<IgnoredAny>(text)
+        .map(|keys| {
+            keys.into_iter()
+                .map(|(line, _)| line)
+                .collect()
+        })
+}
+
+/// Each top-level key with its 0-based line, in document order, or `None`
+/// when the document is not a block mapping with one key per line.
+fn top_level_keys<Key: for<'de> Deserialize<'de>>(text: &str) -> Option<Vec<(usize, Key)>> {
+    let TopLevelKeys(keys) = serde_saphyr::from_str::<TopLevelKeys<Key>>(text).ok()?;
+    let mut lines: Vec<(usize, Key)> = Vec::with_capacity(keys.len());
     for key in keys {
         let line = usize::try_from(key.referenced.line()).ok()?.checked_sub(1)?;
         if key.referenced.column() != 1
             || lines
                 .last()
-                .is_some_and(|&last| last >= line)
+                .is_some_and(|&(last, _)| last >= line)
         {
             return None;
         }
-        lines.push(line);
+        lines.push((line, key.value));
     }
     Some(lines)
 }
 
-struct TopLevelKeys(Vec<Spanned<IgnoredAny>>);
+struct TopLevelKeys<Key>(Vec<Spanned<Key>>);
 
-impl<'de> Deserialize<'de> for TopLevelKeys {
+impl<'de, Key: Deserialize<'de>> Deserialize<'de> for TopLevelKeys<Key> {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        deserializer.deserialize_map(TopLevelKeysVisitor)
+        deserializer.deserialize_map(TopLevelKeysVisitor(PhantomData))
     }
 }
 
-struct TopLevelKeysVisitor;
+struct TopLevelKeysVisitor<Key>(PhantomData<Key>);
 
-impl<'de> Visitor<'de> for TopLevelKeysVisitor {
-    type Value = TopLevelKeys;
+impl<'de, Key: Deserialize<'de>> Visitor<'de> for TopLevelKeysVisitor<Key> {
+    type Value = TopLevelKeys<Key>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a mapping")
@@ -92,7 +134,7 @@ impl<'de> Visitor<'de> for TopLevelKeysVisitor {
 
     fn visit_map<Map: MapAccess<'de>>(self, mut map: Map) -> Result<Self::Value, Map::Error> {
         let mut keys = Vec::new();
-        while let Some(key) = map.next_key::<Spanned<IgnoredAny>>()? {
+        while let Some(key) = map.next_key::<Spanned<Key>>()? {
             map.next_value::<IgnoredAny>()?;
             keys.push(key);
         }

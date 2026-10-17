@@ -1,5 +1,10 @@
-use super::{LoadWorkspaceYamlError, WorkspaceSettings, parse_settings, read_readable_settings};
-use crate::{api::EnvVar, known_settings::is_known_setting_key, naming_cases::is_camel_case};
+use super::{
+    LoadWorkspaceYamlError, WorkspaceSettings, parse_settings, read_readable_settings,
+    select_settings,
+};
+use crate::{
+    SettingsRead, api::EnvVar, known_settings::is_known_setting_key, naming_cases::is_camel_case,
+};
 use pnpm_workspace::{
     Delegation, IncludeError, IncludeSource, SettingSlot, WorkspaceIncludes,
     WorkspaceManifestDocument,
@@ -67,20 +72,23 @@ impl WorkspaceSettings {
     /// file it is in.
     pub(crate) fn read_document(
         document: WorkspaceManifestDocument,
-        skip_unreadable: bool,
+        settings_read: SettingsRead,
         read: impl Fn(&str, &Path) -> Result<Self, LoadWorkspaceYamlError>,
     ) -> Result<Self, LoadWorkspaceYamlError> {
         let WorkspaceManifestDocument { path, text, includes } = document;
+        // The settings an include contributes decide nothing about the pin.
+        let includes = includes.filter(|_| settings_read != SettingsRead::PinDecision);
         if let Some(includes) = &includes {
             check_delegations(includes)?;
             // Read leniently below, like the merged settings, so a command
             // that repairs a setting can still load them.
-            if !skip_unreadable {
+            if !settings_read.skips_unreadable() {
                 read_fragments(includes, &read)?;
             }
         }
         let read_merged = |text: &str| read(text, &path);
-        let mut settings = if skip_unreadable {
+        let text = select_settings(&text, settings_read);
+        let mut settings = if settings_read.skips_unreadable() {
             read_readable_settings(&text, read_merged)
         } else {
             read_merged(&text)

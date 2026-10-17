@@ -264,6 +264,14 @@ pub(crate) fn exact_version(version: &str) -> Option<String> {
 ///
 /// A version no parser accepts satisfies nothing, as upstream `satisfies`
 /// answers `false` for one rather than throwing.
+/// Whether the pin `wanted` names the pnpm that is running.
+pub(crate) fn pins_running_pnpm(wanted: Option<&WantedPackageManager>) -> bool {
+    wanted.is_some_and(|pm| {
+        pm.name == "pnpm"
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+    })
+}
+
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
     node_semver::Version::parse(version)
         .is_ok_and(|version| IncludePrereleaseRange::parse(wanted_range).satisfies(&version))
