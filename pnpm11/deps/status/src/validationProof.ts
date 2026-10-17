@@ -1,5 +1,8 @@
+import path from 'node:path'
+
 import type { ProjectManifest } from '@pnpm/types'
 import {
+  fileSignatureTrusted,
   importerIdOf,
   lockfileDigest,
   manifestDigest,
@@ -26,12 +29,19 @@ export interface ValidationProof {
   lockfileChanged: boolean
   /** Whether the lockfile could not be read, so nothing about it is proven. */
   lockfileUnreadable: boolean
+  /**
+   * Whether the lockfile's recorded stat no longer stood for its content, which
+   * was read again and found unchanged.
+   */
+  rehashed: boolean
   proofOf: (rootDir: string, manifest: ProjectManifest) => ProjectProof
 }
 
 /**
  * What the validation `workspaceState` records still proves, or `undefined`
- * for a state that records none, which is left to the modification times.
+ * when it cannot tell, which leaves the check to the modification times: the
+ * state records no validation, or the wanted lockfile is missing and the
+ * current one stands in for it.
  */
 export function validationProof (
   workspaceState: WorkspaceState,
@@ -41,10 +51,13 @@ export function validationProof (
   const validation = workspaceState.validation
   if (validation == null) return undefined
   const lockfile = lockfileDigest(validation, lockfileDir, wantedLockfileName)
+  if (lockfile.path !== path.join(lockfileDir, wantedLockfileName)) return undefined
   const digest = lockfile.digest.kind === 'present' ? lockfile.digest.signature.digest : undefined
+  const lockfileChanged = digest !== validation.files?.[lockfile.path]?.digest
   return {
-    lockfileChanged: digest !== validation.files?.[lockfile.path]?.digest,
+    lockfileChanged,
     lockfileUnreadable: lockfile.digest.kind === 'unreadable',
+    rehashed: digest != null && !lockfileChanged && !fileSignatureTrusted(validation, lockfile.path),
     proofOf: (rootDir, manifest) => proofOf(validation, importerIdOf(lockfileDir, rootDir), manifest, digest),
   }
 }

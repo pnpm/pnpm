@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it } from '@jest/globals'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { type LockfileObject, writeCurrentLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { DepPath, Project, ProjectId, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
-import { updateWorkspaceState } from '@pnpm/workspace.state'
+import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 
 const SETTINGS = {
+  autoInstallPeers: true,
+  peersSuffixMaxLength: 1000,
   excludeLinksFromLockfile: false,
   linkWorkspacePackages: true,
   preferWorkspacePackages: true,
@@ -76,6 +78,8 @@ async function installedWorkspace (lockfile: LockfileObject): Promise<RecordedWo
   return workspace
 }
 
+const CONFIG_DEPENDENCIES = { 'pnpm-plugin-x': '1.0.0+sha512-x' }
+
 /** Record the state an install leaves, vouching for `vouched` projects only when set. */
 async function recordInstall (workspace: RecordedWorkspace, vouched?: string[]): Promise<void> {
   await updateWorkspaceState({
@@ -83,6 +87,7 @@ async function recordInstall (workspace: RecordedWorkspace, vouched?: string[]):
     workspaceDir: workspace.workspaceDir,
     pnpmfiles: [],
     settings: SETTINGS,
+    configDependencies: CONFIG_DEPENDENCIES,
     filteredInstall: vouched != null,
     validation: {
       lockfileDir: workspace.workspaceDir,
@@ -108,6 +113,7 @@ function check (workspace: RecordedWorkspace, selected?: string[]): ReturnType<t
     rootProjectManifest: workspace.rootManifest,
     sharedWorkspaceLockfile: true,
     pnpmfile: [],
+    configDependencies: CONFIG_DEPENDENCIES,
     selectedProjectsGraph,
   } as CheckDepsStatusOptions
   return checkDepsStatus(opts)
@@ -167,5 +173,40 @@ describe('checkDepsStatus with recorded validations', () => {
     workspace.manifestOf('b').dependencies = { foo: '1.0.0' }
     await recordInstall(workspace, ['a'])
     expect(await check(workspace, ['b'])).toMatchObject({ upToDate: false })
+  })
+
+  it('keeps the configuration dependencies when it records a passing check', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    workspace.manifestOf('b').description = 'edited'
+    expect(await check(workspace)).toMatchObject({ upToDate: true })
+    expect(loadWorkspaceState(workspace.workspaceDir)?.configDependencies).toStrictEqual(CONFIG_DEPENDENCIES)
+    expect(await check(workspace)).toMatchObject({ upToDate: true })
+  })
+
+  it('restores a deleted wanted lockfile from the current one', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    const current = lockfileWith({ bar: '1.0.0' })
+    current.packages!['baz@1.0.0' as DepPath] = { resolution: { integrity: 'sha512-baz' } }
+    await writeCurrentLockfile(path.join(workspace.workspaceDir, 'node_modules/.pnpm'), current)
+    await fs.rm(path.join(workspace.workspaceDir, 'pnpm-lock.yaml'))
+    const result = await check(workspace)
+    expect(result).toMatchObject({ upToDate: true })
+    expect(result.wantedLockfileToRestore).toBeDefined()
+  })
+
+  // A lockfile written in the clock tick its validation was recorded in is
+  // read again, and recorded again once that record can be trusted.
+  it('records the stat of a lockfile it read again and found unchanged', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    const statePath = path.join(workspace.workspaceDir, 'node_modules/.pnpm-workspace-state-v1.json')
+    const state = loadWorkspaceState(workspace.workspaceDir)!
+    const lockfilePath = path.join(workspace.workspaceDir, 'pnpm-lock.yaml')
+    const signature = state.validation!.files![lockfilePath]
+    state.validation!.recordedAtNs = Math.max(signature.mtimeNs, signature.ctimeNs ?? 0)
+    await fs.writeFile(statePath, JSON.stringify(state))
+    expect(await check(workspace)).toMatchObject({ upToDate: true })
+    const refreshed = loadWorkspaceState(workspace.workspaceDir)!
+    expect(refreshed.validation!.recordedAtNs).toBeGreaterThan(state.validation!.recordedAtNs)
+    expect(refreshed.validation!.manifests).toStrictEqual(state.validation!.manifests)
   })
 })

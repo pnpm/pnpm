@@ -12,7 +12,7 @@ import { getFilePath } from './filePath.js'
 import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 import { loadWorkspaceState } from './loadWorkspaceState.js'
 import type { ProjectsList, WorkspaceState, WorkspaceStateSettings } from './types.js'
-import { recordValidation } from './validation.js'
+import { recordValidation, trustsEveryFile } from './validation.js'
 
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
@@ -38,25 +38,25 @@ export interface StateValidationOptions {
    * `undefined` for every project. The others keep their recorded state.
    */
   vouchedProjects?: string[]
+  /**
+   * Write only a record the next check trusts every file of. A refresh that
+   * only re-records unchanged files would otherwise be repeated by the next
+   * check, which reads them again anyway.
+   */
+  onlyIfTrusted?: boolean
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
   logger.debug({ msg: 'updating workspace state' })
   const workspaceState = createWorkspaceState(opts)
-  if (opts.validation != null) {
-    const { vouchedProjects, ...validation } = opts.validation
-    recordValidation(workspaceState, {
-      ...validation,
-      allProjects: opts.allProjects,
-      workspaceDir: opts.workspaceDir,
-      vouchedProjects: vouchedProjects == null ? undefined : new Set(vouchedProjects),
-      previous: vouchedProjects == null ? undefined : loadWorkspaceState(opts.workspaceDir),
-    })
-  }
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
   const tempFile = pathTemp(cacheDir)
   try {
+    if (opts.validation != null) {
+      recordStateValidation(workspaceState, opts, opts.validation)
+      if (opts.validation.onlyIfTrusted && !(workspaceState.validation != null && trustsEveryFile(workspaceState.validation))) return
+    }
     if (opts.settings.nodeLinker === 'hoisted') {
       await recordHoistedModulesDirs(workspaceState, opts.allProjects)
     }
@@ -66,6 +66,30 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   } catch (err: unknown) {
     await fs.promises.rm(tempFile, { force: true }).catch(() => {})
     globalWarn(`Failed to write the workspace state: ${isError(err) ? err.message : String(err)}`)
+  }
+}
+
+/**
+ * Records in `workspaceState` what `validation` proves. A record that cannot
+ * be made leaves the state without one, which the next check proves from the
+ * lockfiles.
+ */
+function recordStateValidation (
+  workspaceState: WorkspaceState,
+  opts: UpdateWorkspaceStateOptions,
+  { vouchedProjects, onlyIfTrusted: _onlyIfTrusted, ...validation }: StateValidationOptions
+): void {
+  try {
+    recordValidation(workspaceState, {
+      ...validation,
+      allProjects: opts.allProjects,
+      workspaceDir: opts.workspaceDir,
+      vouchedProjects: vouchedProjects == null ? undefined : new Set(vouchedProjects),
+      previous: vouchedProjects == null ? undefined : loadWorkspaceState(opts.workspaceDir),
+    })
+  } catch (err: unknown) {
+    delete workspaceState.validation
+    globalWarn(`Failed to record the validation in the workspace state: ${isError(err) ? err.message : String(err)}`)
   }
 }
 

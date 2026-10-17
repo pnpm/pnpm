@@ -23,8 +23,9 @@ export interface WorkspaceState {
   configDependencies?: ConfigDependencies
   settings: WorkspaceStateSettings
   /**
-   * What the last validation proved about each project. A state an older
-   * pnpm wrote has none.
+   * What the last validation proved about each project. Absent when it
+   * recorded nothing, which leaves every project to be proven from the
+   * lockfiles.
    */
   validation?: Validation
 }

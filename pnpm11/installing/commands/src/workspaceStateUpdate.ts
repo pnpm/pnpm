@@ -53,7 +53,7 @@ export async function updateSingleProjectWorkspaceState (
 export async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'lockfileCheck' | 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
@@ -109,8 +109,14 @@ async function stateValidation (
   }
 }
 
-function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly' | 'saveWorkspaceState'>): boolean {
-  return !opts.lockfileOnly && opts.saveWorkspaceState !== false
+/**
+ * A check-only install (`pnpm dedupe --check`, `--dry-run`) links nothing, so
+ * it proves nothing installed.
+ */
+function shouldSaveWorkspaceState (
+  opts: Pick<InstallDepsOptions, 'dryRun' | 'lockfileCheck' | 'lockfileOnly' | 'saveWorkspaceState'>
+): boolean {
+  return !opts.lockfileOnly && opts.lockfileCheck == null && opts.dryRun !== true && opts.saveWorkspaceState !== false
 }
 
 /**

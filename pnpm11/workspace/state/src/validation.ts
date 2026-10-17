@@ -134,6 +134,11 @@ export function fileDigestOf (recorded: Validation | undefined, filePath: string
   }
 }
 
+/** Whether the next check trusts the stat of every file `validation` records. */
+export function trustsEveryFile (validation: Validation): boolean {
+  return Object.values(validation.files ?? {}).every((signature) => signatureTrusted(signature, validation.recordedAtNs))
+}
+
 /** Whether the signature `recorded` holds for `filePath` stands for its content. */
 export function fileSignatureTrusted (recorded: Validation | undefined, filePath: string): boolean {
   const signature = trustedSignature(recorded, filePath)
@@ -150,9 +155,13 @@ export function fileSignatureTrusted (recorded: Validation | undefined, filePath
 function trustedSignature (recorded: Validation | undefined, filePath: string): FileSignature | undefined {
   const signature = recorded?.files?.[filePath]
   if (signature == null) return undefined
+  return signatureTrusted(signature, recorded!.recordedAtNs) ? signature : undefined
+}
+
+function signatureTrusted (signature: FileSignature, recordedAtNs: number): boolean {
   const changedNs = Math.max(signature.mtimeNs, signature.ctimeNs ?? signature.mtimeNs)
   const window = changedNs % 1_000_000_000 === 0 ? WHOLE_SECOND_GRANULARITY_NS : 0
-  return changedNs + window < recorded!.recordedAtNs ? signature : undefined
+  return changedNs + window < recordedAtNs
 }
 
 interface FileStat {
@@ -171,7 +180,7 @@ function statFile (filePath: string): FileStat | 'unreadable' | undefined {
   return {
     signature: {
       mtimeNs: Number(stats.mtimeNs),
-      ctimeNs: process.platform === 'win32' ? undefined : Number(stats.ctimeNs),
+      ctimeNs: Number(stats.ctimeNs),
       size: Number(stats.size),
     },
   }
@@ -325,6 +334,11 @@ function filesystemNowNs (dir: string): number | undefined {
   } catch {
     return undefined
   } finally {
-    fs.rmSync(probe, { force: true })
+    try {
+      fs.rmSync(probe, { force: true })
+    } catch {
+      // A probe left behind, as a scanner holding it open on Windows leaves
+      // it, does not make the clock it read wrong.
+    }
   }
 }

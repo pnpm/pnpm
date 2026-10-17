@@ -142,6 +142,7 @@ async function validateModifiedWorkspace (
     pnpmfiles: workspaceState.pnpmfiles,
     settings: opts,
     filteredInstall: workspaceState.filteredInstall,
+    configDependencies: workspaceState.configDependencies,
     validation: recorded == null
       ? undefined
       : {
@@ -186,12 +187,43 @@ async function checkRecordedWorkspace (
   const unchanged = held.length === 0 && !patchesRevalidated
     ? await checkUnchangedWorkspace(ctx)
     : undefined
-  if (unchanged != null) return unchanged
+  if (unchanged != null) {
+    if (proof.rehashed) await recordTrustedRefresh(ctx, provenProjects(allManifestStats, proof))
+    return unchanged
+  }
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
   return validateModifiedWorkspace(ctx, held, {
-    vouchedProjects: allManifestStats
-      .filter((stats) => held.includes(stats) || proof.proofOf(stats.project.rootDir, stats.project.manifest) === 'proven')
-      .map(({ project }) => project.rootDir),
+    vouchedProjects: [...held.map(({ project }) => project.rootDir), ...provenProjects(allManifestStats, proof)],
+  })
+}
+
+function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProof): string[] {
+  return allManifestStats
+    .filter(({ project }) => proof.proofOf(project.rootDir, project.manifest) === 'proven')
+    .map(({ project }) => project.rootDir)
+}
+
+/**
+ * Records the lockfile's stat again after its content was read and found
+ * unchanged, so the next check need not read it, once the record would be
+ * trusted.
+ */
+async function recordTrustedRefresh (ctx: WorkspaceDepsStatusContext, vouchedProjects: string[]): Promise<void> {
+  const { allProjects, opts, workspaceDir, workspaceState } = ctx
+  await updateWorkspaceState({
+    allProjects,
+    workspaceDir,
+    pnpmfiles: workspaceState.pnpmfiles,
+    settings: opts,
+    filteredInstall: workspaceState.filteredInstall,
+    configDependencies: workspaceState.configDependencies,
+    validation: {
+      lockfileDir: workspaceLockfileDir(ctx),
+      wantedLockfileName: ctx.wantedLockfileName,
+      sharedInputs: sharedInputPaths(workspaceLockfileDir(ctx), opts.patchedDependencies, opts.pnpmfile),
+      vouchedProjects,
+      onlyIfTrusted: true,
+    },
   })
 }
 

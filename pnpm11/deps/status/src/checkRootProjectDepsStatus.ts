@@ -95,12 +95,13 @@ async function checkRecordedRootProject (
   lockfiles: RootProjectLockfiles,
   proof: ValidationProof
 ): Promise<CheckDepsStatusResult> {
-  const { opts, rootProjectManifest, rootProjectManifestDir, workspaceState } = ctx
+  const { rootProjectManifest, rootProjectManifestDir, workspaceState } = ctx
   if (proof.lockfileUnreadable) return outdatedResult('Cannot check whether dependencies are outdated', workspaceState)
   const projectProof = proof.proofOf(rootProjectManifestDir, rootProjectManifest)
   if (projectProof === 'proven') {
     logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
     if (!lockfiles.currentLockfileStats) await assertNoDependenciesRequired(lockfiles.wantedLockfilePromise, rootProjectManifestDir)
+    if (proof.rehashed) await recordRootProject(ctx, true)
     return upToDateRootProjectResult(lockfiles, ctx)
   }
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
@@ -110,19 +111,32 @@ async function checkRecordedRootProject (
   } catch (err) {
     return outdatedResult(errorMessageOf(err), workspaceState)
   }
+  await recordRootProject(ctx, false)
+  return upToDateRootProjectResult(lockfiles, ctx)
+}
+
+/**
+ * Records the project as proven installed. `onlyIfTrusted` is set for a
+ * refresh that only records the lockfile's stat again.
+ */
+async function recordRootProject (
+  { opts, rootProjectManifest, rootProjectManifestDir, wantedLockfileName, workspaceState }: RootProjectDepsStatusContext,
+  onlyIfTrusted: boolean
+): Promise<void> {
   await updateWorkspaceState({
     allProjects: [{ rootDir: rootProjectManifestDir as ProjectRootDir, manifest: rootProjectManifest }],
     workspaceDir: rootProjectManifestDir,
     pnpmfiles: workspaceState.pnpmfiles,
     settings: opts,
     filteredInstall: workspaceState.filteredInstall,
+    configDependencies: workspaceState.configDependencies,
     validation: {
       lockfileDir: rootProjectManifestDir,
-      wantedLockfileName: ctx.wantedLockfileName,
+      wantedLockfileName,
       sharedInputs: sharedInputPaths(rootProjectManifestDir, opts.patchedDependencies, opts.pnpmfile),
+      onlyIfTrusted,
     },
   })
-  return upToDateRootProjectResult(lockfiles, ctx)
 }
 
 /** The current lockfile records what the wanted one asks to install. */

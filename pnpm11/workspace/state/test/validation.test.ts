@@ -88,3 +88,19 @@ test('updateWorkspaceState() carries the records of the projects a filtered inst
 test('sharedInputPaths() lists no pnpmfile when --ignore-pnpmfile left them unloaded', () => {
   expect(sharedInputPaths('/repo', { foo: 'patches/foo.patch' }, undefined)).toStrictEqual([path.resolve('/repo', 'patches/foo.patch')])
 })
+
+test('updateWorkspaceState() warns instead of failing when the previous state cannot be read', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  fs.writeFileSync('pnpm-lock.yaml', "lockfileVersion: '9.0'\n")
+  fs.mkdirSync('node_modules/.pnpm-workspace-state-v1.json', { recursive: true })
+  const rootDir = path.join(workspaceDir, 'a') as ProjectRootDir
+  await expect(updateWorkspaceState({
+    allProjects: [{ rootDir, manifest: { name: 'a' } }],
+    settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: false, preferWorkspacePackages: false },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: true,
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [], vouchedProjects: [rootDir] },
+  })).resolves.toBeUndefined()
+})
