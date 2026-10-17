@@ -79,25 +79,25 @@ impl ProjectPin {
     /// Point a pnpm pin at `target_version`, returning the message that
     /// reports it. `None` when the project does not pin pnpm.
     ///
-    /// The manifest is read again, since the global install that runs
-    /// before this can take long enough for the user to edit it.
+    /// The manifest and its pin are read again, since the global install
+    /// that runs before this can take long enough for the user to edit them.
     pub(super) async fn update(
         self,
         config: &'static Config,
         target_version: &str,
     ) -> miette::Result<Option<String>> {
-        let Self { roots, wanted } = self;
-        let Some(pm) = wanted.filter(|pm| pm.name == "pnpm") else {
+        if self.pinned_pnpm().is_none() {
+            return Ok(None);
+        }
+        let Some(manifest) = self.roots.read_manifest().wrap_err("read the project manifest")?
+        else {
             return Ok(None);
         };
-        let manifest_dir = roots.manifest.display();
-        let manifest = roots
-            .read_manifest()
-            .and_then(|manifest| {
-                manifest.ok_or_else(|| miette::miette!("no manifest in {manifest_dir}"))
-            })
-            .wrap_err("read the project manifest")?;
-        Box::pin(update_project_pin(config, &roots.env, manifest, &pm, target_version))
+        let Some(pm) = wanted_package_manager(manifest.value()).filter(|pm| pm.name == "pnpm")
+        else {
+            return Ok(None);
+        };
+        Box::pin(update_project_pin(config, &self.roots.env, manifest, &pm, target_version))
             .await
             .map(Some)
     }
