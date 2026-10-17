@@ -113,6 +113,9 @@ walkdir = { workspace = true }
 home = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 # Without it a contended shard lock panics on wasm instead of parking.
 # See <https://github.com/pnpm/pnpm/pull/16951>.

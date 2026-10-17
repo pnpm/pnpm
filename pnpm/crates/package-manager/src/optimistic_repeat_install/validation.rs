@@ -122,7 +122,7 @@ impl<'a> FileDigests<'a> {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return FileDigest::Absent,
             Err(_) => return FileDigest::Unreadable,
         };
-        let Some(stat) = FileStat::of(&metadata) else {
+        let Some(stat) = FileStat::of(path, &metadata) else {
             return FileDigest::Unreadable;
         };
         if let Some(recorded) = self.recorded_signature(path)
@@ -153,7 +153,7 @@ impl<'a> FileDigests<'a> {
         };
         fs::metadata(path)
             .ok()
-            .and_then(|metadata| FileStat::of(&metadata))
+            .and_then(|metadata| FileStat::of(path, &metadata))
             .is_some_and(|stat| stat.matches(recorded))
     }
 
@@ -205,10 +205,10 @@ pub(crate) struct FileStat {
 impl FileStat {
     /// `None` when the file cannot be stat'd.
     pub(crate) fn at(path: &Path) -> Option<Self> {
-        Self::of(&fs::metadata(path).ok()?)
+        Self::of(path, &fs::metadata(path).ok()?)
     }
 
-    fn of(metadata: &fs::Metadata) -> Option<Self> {
+    fn of(path: &Path, metadata: &fs::Metadata) -> Option<Self> {
         let elapsed = metadata
             .modified()
             .ok()?
@@ -216,7 +216,7 @@ impl FileStat {
             .ok()?;
         Some(Self {
             mtime_ns: i64::try_from(elapsed.as_nanos()).ok()?,
-            ctime_ns: ctime_ns(metadata),
+            ctime_ns: ctime_ns(path, metadata),
             size: metadata.len(),
         })
     }
@@ -232,8 +232,9 @@ fn last_change_ns(mtime_ns: i64, ctime_ns: Option<i64>) -> i64 {
     ctime_ns.map_or(mtime_ns, |ctime_ns| ctime_ns.max(mtime_ns))
 }
 
+/// The inode change time, which also moves when an edit restores the mtime.
 #[cfg(unix)]
-fn ctime_ns(metadata: &fs::Metadata) -> Option<i64> {
+fn ctime_ns(_path: &Path, metadata: &fs::Metadata) -> Option<i64> {
     use std::os::unix::fs::MetadataExt as _;
     metadata
         .ctime()
@@ -241,8 +242,44 @@ fn ctime_ns(metadata: &fs::Metadata) -> Option<i64> {
         .checked_add(metadata.ctime_nsec())
 }
 
-#[cfg(not(unix))]
-fn ctime_ns(_metadata: &fs::Metadata) -> Option<i64> {
+/// NTFS's change time, which also moves when an edit restores the mtime. It
+/// is what Node.js reports as `ctime` on Windows.
+#[cfg(windows)]
+fn ctime_ns(path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
+    use std::os::windows::{fs::OpenOptionsExt as _, io::AsRawHandle as _};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_BASIC_INFO, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, FileBasicInfo, GetFileInformationByHandleEx,
+    };
+    /// 100-nanosecond intervals between 1601-01-01 and the Unix epoch.
+    const UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;
+
+    let file = fs::OpenOptions::new()
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .open(path)
+        .ok()?;
+    let mut info = std::mem::MaybeUninit::<FILE_BASIC_INFO>::uninit();
+    // SAFETY: the handle stays open for the call, and `info` is a writable
+    // buffer of exactly the size passed.
+    let succeeded = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FileBasicInfo,
+            info.as_mut_ptr().cast(),
+            u32::try_from(size_of::<FILE_BASIC_INFO>()).ok()?,
+        )
+    };
+    if succeeded == 0 {
+        return None;
+    }
+    // SAFETY: the call succeeded, so it filled `info`.
+    let change_ticks = unsafe { info.assume_init() }.ChangeTime;
+    change_ticks.checked_sub(UNIX_EPOCH_TICKS)?.checked_mul(100)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn ctime_ns(_path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
     None
 }
 
