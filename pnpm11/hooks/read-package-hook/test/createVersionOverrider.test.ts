@@ -464,6 +464,68 @@ test('createVersionsOverrider() overrides dependencies with bare relative tarbal
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with workspace relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'deep', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:../../qar',
+    },
+  })
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, rootDir)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:./packages/qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() keeps a workspace relative path as declared for a package without a directory', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:./packages/qar',
+    },
+  })
+})
+
 test('createVersionsOverrider() does not rewrite remote tarball URLs', () => {
   const rootDir = process.cwd()
   const overrider = createVersionsOverrider([
