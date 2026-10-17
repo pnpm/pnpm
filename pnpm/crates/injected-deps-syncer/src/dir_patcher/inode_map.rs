@@ -37,36 +37,43 @@ fn list_files(
 }
 
 /// The packlist names a symlinked directory as one entry, where the walk of
-/// every file lists what it finds under it. Replace the entry with what that
-/// walk of `dir` lists there, so the copy gets the same tree whichever walk
-/// read the source.
+/// every file lists the files under it. Replace the entry with those files,
+/// with links confined to `dir` as that walk confines them, so the copy gets
+/// the same tree whichever walk read the source.
 fn add_files_under_listed_directories(
     dir: &Path,
     files_map: &HashMap<String, PathBuf>,
     inode_map: &mut InodeMap,
 ) -> Result<(), PatchError> {
-    let directories: Vec<&str> = files_map
+    let directories: Vec<&String> = files_map
         .keys()
         .filter(|path| inode_map.get(*path) == Some(&Value::Dir))
-        .map(String::as_str)
         .collect();
-    if directories.is_empty() {
-        return Ok(());
+    for directory in directories {
+        inode_map.remove(directory);
+        let nested: HashMap<String, PathBuf> = list_all_files_within(dir, directory)?
+            .into_iter()
+            .map(|(path, real_path)| (format!("{directory}/{path}"), real_path))
+            .collect();
+        inode_map.extend(extend_files_map(&nested)?);
     }
-    for directory in &directories {
-        inode_map.remove(*directory);
-    }
-    let nested: HashMap<String, PathBuf> = list_files(dir, false)?
-        .into_iter()
-        .filter(|(path, _)| directories.iter().any(|directory| is_under(path, directory)))
-        .collect();
-    inode_map.extend(extend_files_map(&nested)?);
     Ok(())
 }
 
-fn is_under(path: &str, directory: &str) -> bool {
-    path.strip_prefix(directory)
-        .is_some_and(|rest| rest.starts_with('/'))
+fn list_all_files_within(
+    dir: &Path,
+    directory: &str,
+) -> Result<HashMap<String, PathBuf>, PatchError> {
+    let directory = dir.join(directory);
+    DirectoryFetcher {
+        directory: directory.clone(),
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .list_all_files_within(dir)
+    .map_err(|error| PatchError::ReadDir { dir: directory, error })
 }
 
 /// Expand a relative-path → real-path map into an [`InodeMap`] that

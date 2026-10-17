@@ -248,21 +248,19 @@ async function readInodeMap (dir: string, includeOnlyPackageFiles?: boolean): Pr
 
 /**
  * The packlist names a symlinked directory as one entry, where the walk of
- * every file lists what it finds under it. Replace the entry with what that
- * walk of `dir` lists there, so the copy gets the same tree whichever walk
- * read the source.
+ * every file lists the files under it. Replace the entry with those files, so
+ * the copy gets the same tree whichever walk read the source.
  */
 async function addFilesUnderListedDirectories (dir: string, filesMap: Map<string, string>, inodeMap: InodeMap): Promise<InodeMap> {
   const directories = Array.from(filesMap.keys()).filter((relativePath) => inodeMap[relativePath] === DIR)
-  if (directories.length === 0) return inodeMap
-  for (const directory of directories) {
+  const nestedMaps = await Promise.all(directories.map(async (directory) => {
     delete inodeMap[directory]
-  }
-  const everyFile = await listFilesFromDir(dir, LIST_FILES_OPTIONS)
-  const nested = new Map(Array.from(everyFile.filesMap).filter(([relativePath]) =>
-    directories.some((directory) => relativePath.startsWith(`${directory}/`))
-  ))
-  return { ...inodeMap, ...await extendFilesMap({ filesMap: nested, filesStats: everyFile.filesStats }) }
+    const listed = await listFilesFromDir(path.join(dir, directory), LIST_FILES_OPTIONS)
+    return extendFilesMap({
+      filesMap: new Map(Array.from(listed.filesMap, ([relativePath, realPath]) => [`${directory}/${relativePath}`, realPath])),
+    })
+  }))
+  return nestedMaps.reduce((merged, nestedMap) => ({ ...merged, ...nestedMap }), inodeMap)
 }
 
 /**
