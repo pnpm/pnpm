@@ -844,6 +844,54 @@ fn write_workspace_with_publish_directory(workspace: &std::path::Path) {
     .expect("write project-2/package.json");
 }
 
+/// The lockfile describes an injected publish directory with its project's
+/// manifest, so a `package.json` the build wrote there with other
+/// dependencies does not make the lockfile look outdated.
+#[test]
+fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "publishConfig": { "directory": "dist" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::create_dir_all(workspace.join("project-1/dist")).expect("mkdir dist");
+    fs::write(
+        workspace.join("project-1/dist/package.json"),
+        serde_json::json!({ "name": "project-1", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write dist/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for dir in ["node_modules", "project-1/node_modules", "project-2/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn injected_copy_of_a_package_that_publishes_from_a_directory_gets_the_prepare_output() {
     let CommandTempCwd {

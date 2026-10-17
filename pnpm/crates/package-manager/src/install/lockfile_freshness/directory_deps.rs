@@ -22,24 +22,25 @@ pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
 
 /// Each project's manifest as another importer's injected dependency reads
 /// it: the project's entry in `dependency_manifests` when it has one, else
-/// its importer manifest.
+/// its importer manifest. It is keyed by the project directory and by the
+/// `publishConfig.directory` injected in its place, which the resolver also
+/// describes with the project's manifest.
 pub(crate) fn project_manifests_by_dir<'a>(
     manifests: impl IntoIterator<Item = &'a PackageManifest>,
     dependency_manifests: Option<&ProjectManifestsByDir<'a>>,
 ) -> ProjectManifestsByDir<'a> {
-    let mut by_dir: ProjectManifestsByDir<'a> = manifests
+    let projects = manifests
         .into_iter()
-        .filter_map(|manifest| {
-            let dir = manifest.path().parent()?;
-            Some((pnpm_fs::lexical_normalize(dir), manifest))
-        })
-        .collect();
-    if let Some(dependency_manifests) = dependency_manifests {
-        by_dir.extend(
-            dependency_manifests
-                .iter()
-                .map(|(dir, manifest)| (dir.clone(), *manifest)),
-        );
+        .filter_map(|manifest| Some((manifest.path().parent()?.to_path_buf(), manifest)));
+    let dependency_projects = dependency_manifests
+        .into_iter()
+        .flatten()
+        .map(|(dir, manifest)| (dir.clone(), *manifest));
+    let mut by_dir = ProjectManifestsByDir::new();
+    for (dir, manifest) in projects.chain(dependency_projects) {
+        let publish_dir = publish_source_dir(&dir, Some(manifest.value()));
+        by_dir.insert(pnpm_fs::lexical_normalize(&publish_dir), manifest);
+        by_dir.insert(pnpm_fs::lexical_normalize(&dir), manifest);
     }
     by_dir
 }
@@ -188,8 +189,8 @@ fn read_and_override_manifest(
     let mut local_manifest = check.workspace.manifests_by_dir
         .get(&pnpm_fs::lexical_normalize(dep.dir))
         .map(|manifest| (*manifest).clone())
+        .or_else(|| manifest_of_project_publishing_from(dep))
         .or_else(|| pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten())
-        .or_else(|| workspace_manifest_for_unbuilt_publish_dir(dep))
         .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
@@ -199,17 +200,16 @@ fn read_and_override_manifest(
 }
 
 /// A workspace project that publishes from `publishConfig.directory` is
-/// injected as that directory rather than its root, so a fresh checkout (or
-/// a clean before `--frozen-lockfile`) has nothing at `dep.dir` until the
-/// project's own build script runs. Walk up from `dep.dir` toward the
-/// workspace root looking for the project whose manifest resolves its
-/// publish directory back to `dep.dir`, and read its manifest from there
-/// instead of reporting the lockfile outdated over a directory the coming
-/// install step is about to create.
-fn workspace_manifest_for_unbuilt_publish_dir(
-    dep: &LocalDepContext<'_>,
-) -> Option<PackageManifest> {
+/// injected as that directory rather than its root, and the resolver
+/// describes it with the project's own manifest, not with whatever
+/// `package.json` a build wrote into the directory, which may not exist yet.
+/// Walk up from `dep.dir` toward the workspace root looking for the project
+/// whose manifest resolves its publish directory back to `dep.dir`.
+fn manifest_of_project_publishing_from(dep: &LocalDepContext<'_>) -> Option<PackageManifest> {
     let target = pnpm_fs::lexical_normalize(dep.dir);
+    if !target.starts_with(pnpm_fs::lexical_normalize(dep.dirs.workspace_root)) {
+        return None;
+    }
     let mut candidate = dep.dir.parent()?;
     loop {
         if let Some(manifest) =
