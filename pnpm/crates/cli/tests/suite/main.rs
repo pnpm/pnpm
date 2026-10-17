@@ -154,6 +154,7 @@ mod relocated_install;
 mod remove;
 mod removed_overrides;
 mod repeat_install;
+mod repeat_install_oracle;
 mod repo;
 mod reporter_setting;
 mod restart;
