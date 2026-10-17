@@ -511,3 +511,22 @@ fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies()
     });
     assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
 }
+
+/// A frozen install keeps an optional child the lockfile could not resolve,
+/// but one the lockfile records as required has changed.
+#[test]
+fn a_dependency_that_became_optional_is_outdated_on_a_frozen_install() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: true,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
+}

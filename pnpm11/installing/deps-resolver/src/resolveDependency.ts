@@ -5,7 +5,6 @@ import { PnpmError } from '@pnpm/error'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo } from '@pnpm/patching.config'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { detectMinReleaseAgeViolation, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type {
   DirectoryResolution,
@@ -19,6 +18,7 @@ import { pathExists } from 'path-exists'
 import { omit } from 'ramda'
 
 import { addResolvedPackageToGraph, type ResolvedManifest } from './addResolvedPackageToGraph.js'
+import { prepareDependencyManifest } from './dependencyManifest.js'
 import type { WantedDependency } from './getWantedDependencies.js'
 import { startPackageResolution, waitForPackageResolutionTurn } from './packageResolutionBarrier.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
@@ -30,7 +30,6 @@ import {
 } from './requestDependencyPackage.js'
 import type {
   LinkedDependency,
-  ParentPkgAliases,
   ResolutionContext,
   ResolveDependencyOptions,
   ResolveDependencyResult,
@@ -257,10 +256,7 @@ async function readResolvedManifest (
   if (!pkg.version) {
     pkg.version = '0.0.0'
   }
-  pkg = omitPeersFromDependencies(pkg, { autoInstallPeers: ctx.autoInstallPeers, parentPkgAliases: options.parentPkgAliases })
-  if (pkg.engines?.runtime != null) {
-    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
-  }
+  pkg = prepareDependencyManifest(pkg, { autoInstallPeers: ctx.autoInstallPeers, parentPkgAliases: options.parentPkgAliases })
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
@@ -296,23 +292,6 @@ function keepLockedPeerDependencies (
     pkg.peerDependenciesMeta = Object.fromEntries(
       Object.entries(snapshot.peerDependenciesMeta).map(([peerName, peerMeta]) => [peerName, { ...peerMeta }])
     )
-  }
-}
-
-function omitPeersFromDependencies (
-  pkg: PackageManifest,
-  { autoInstallPeers, parentPkgAliases }: { autoInstallPeers: boolean, parentPkgAliases: ParentPkgAliases }
-): PackageManifest {
-  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
-  if (!peerDependencies || !dependencies) return pkg
-  const isAutoInstalledPeer = (peerDep: string): boolean =>
-    autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
-  return {
-    ...pkg,
-    dependencies: omit(
-      Object.keys(peerDependencies).filter((peerDep) => isAutoInstalledPeer(peerDep) || parentPkgAliases[peerDep]),
-      dependencies
-    ),
   }
 }
 

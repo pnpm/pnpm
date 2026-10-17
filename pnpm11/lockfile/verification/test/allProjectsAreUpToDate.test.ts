@@ -1127,6 +1127,9 @@ describe('local file dependency', () => {
           },
           dev: false,
         },
+        'is-positive@2.0.0': {
+          resolution: { integrity: 'sha512-AAAA' },
+        },
       },
       lockfileVersion: LOCKFILE_VERSION,
     } as LockfileObject,
@@ -1215,6 +1218,73 @@ describe('local file dependency', () => {
       lockfileDir: process.cwd(),
     })).toBeFalsy()
   })
+
+  test('allProjectsAreUpToDate(): returns true if the locked version satisfies a range in local file', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '^2.0.0' } })
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): reads the dependencies of local file after the readPackage hook', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '3.0.0' } })
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      readPackageHook: (manifest) => ({ ...manifest, dependencies: { 'is-positive': '2.0.0' } }),
+    })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): resolves a catalog dependency of local file from the catalogs', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': 'catalog:' } })
+    const wantedLockfile = { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } }
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      catalogs: { default: { 'is-positive': '2.0.0' } },
+      wantedLockfile,
+    })).toBeTruthy()
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      catalogs: { default: { 'is-positive': '3.0.0' } },
+      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '3.0.0', version: '3.0.0' } } } },
+    })).toBeFalsy()
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional when unresolved optional dependencies are allowed', async () => {
+    await writeLocalDirManifest({ optionalDependencies: { 'is-positive': '2.0.0' } })
+    expect((await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { allowUnresolvedOptionalDependencies: true },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate).toBe(false)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts an unresolved optional dependency of local file when unresolved optional dependencies are allowed', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '2.0.0' }, optionalDependencies: { 'is-odd': '1.0.0' } })
+    const check = async (allowUnresolvedOptionalDependencies: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { allowUnresolvedOptionalDependencies },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(true)).toBe(true)
+    expect(await check(false)).toBe(false)
+  })
+
+  async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
+    await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
+  }
 })
 
 describe('local tgz file dependency', () => {
@@ -2078,13 +2148,12 @@ test('allProjectsAreUpToDate(): returns true for an injected workspace dependenc
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
 })
 
-test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {
+test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry', async () => {
   expect(await checkLinkedPackagesAreUpToDate({
     linkWorkspacePackages: true,
     manifestsByDir: {},
     lockfilePackages: {},
     lockfileDir: '',
-    skipLocalDirectoryDependencies: true,
   }, {
     dir: 'bar',
     manifest: {

@@ -54,6 +54,9 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
+export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+export { peerDependenciesWithoutOwn } from './resolvedPackage.js'
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 

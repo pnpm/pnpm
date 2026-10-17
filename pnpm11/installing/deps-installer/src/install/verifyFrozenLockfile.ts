@@ -152,7 +152,12 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     injectWorkspacePackages: opts.injectWorkspacePackages ?? ctx.wantedLockfile.settings?.injectWorkspacePackages,
-    skipLocalDirectoryDependencies: true,
+    resolution: {
+      autoInstallPeers: opts.autoInstallPeers,
+      catalogs: opts.catalogs,
+      readPackageHook: opts.readPackageHook,
+      allowUnresolvedOptionalDependencies: frozenLockfile,
+    },
   })
   const checkManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
