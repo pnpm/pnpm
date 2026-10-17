@@ -8,7 +8,8 @@
 pub(crate) use drift::{InputDrift, ProjectStatus};
 
 use super::{
-    Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+    OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+    current_lockfile::CurrentLockfile,
     filesystem_now_ms_in_modules, held_projects_match_lockfile,
     relocation::{prove_move, rekeyed_validation_now},
     settle::{
@@ -133,14 +134,12 @@ pub(super) fn check_freshness(
     // run is newer than the recorded validation.
     let filesystem_now = validation_now(check);
     if drift.patches_modified {
-        check_newer_patches(check, policy)?;
+        check_newer_patches(check, policy, &drift.current)?;
     }
-    let loaded_current = if held.is_empty() {
-        None
-    } else {
-        held_projects_match_lockfile(check, state, &held, policy.dedupe_peers)?
-    };
-    settle_missing_wanted_lockfile(check, policy, loaded_current)?;
+    if !held.is_empty() {
+        held_projects_match_lockfile(check, state, &held, &drift.current, policy.dedupe_peers)?;
+    }
+    settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     if drift.lockfile_unchanged() {
         let vouched = drift.proven_dirs(&held);
         record_state_at(check, state, &vouched, policy, filesystem_now);
@@ -165,7 +164,7 @@ fn settle_proven_tree(
             .get()
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
-    let restored = settle_missing_wanted_lockfile(check, policy, None)?;
+    let restored = settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let vouched = drift.proven_dirs(&[]);
     if drift.lockfile_changed || restored {
         record_state(check, state, &vouched, policy);
@@ -184,10 +183,11 @@ fn settle_proven_tree(
 fn check_newer_patches(
     check: &OptimisticRepeatInstallCheck<'_>,
     policy: &GatePolicy,
+    current: &CurrentLockfile<'_>,
 ) -> Result<(), Stale> {
     match policy.newer_patch {
         NewerPatch::Refuse => Err(Stale::Content("a patch file changed since the last validation")),
-        NewerPatch::CompareHash => patches_match_lockfile(check).map_err(Stale::Content),
+        NewerPatch::CompareHash => patches_match_lockfile(check, current).map_err(Stale::Content),
     }
 }
 
@@ -202,7 +202,7 @@ fn settle_moved_tree(
 ) -> Result<(), Stale> {
     let filesystem_now = rekeyed_validation_now(check, state, drift);
     prove_move(check, drift).map_err(Stale::MoveRefused)?;
-    settle_missing_wanted_lockfile(check, policy, None)?;
+    settle_missing_wanted_lockfile(check, policy, &drift.current)?;
     let every_project = drift.stats
         .iter()
         .map(|stat| stat.root_dir.to_path_buf())
@@ -216,19 +216,18 @@ pub(super) fn validation_now(check: &OptimisticRepeatInstallCheck<'_>) -> Option
 }
 
 /// Apply the gate's [`MissingWantedLockfile`] policy, returning whether it
-/// wrote the wanted lockfile. `loaded_current` is the current lockfile when
-/// the content check already loaded it.
+/// wrote the wanted lockfile.
 fn settle_missing_wanted_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     policy: &GatePolicy,
-    loaded_current: Option<Lockfile>,
+    current: &CurrentLockfile<'_>,
 ) -> Result<bool, Stale> {
     match policy.missing_wanted_lockfile {
         MissingWantedLockfile::Restore => {
-            regenerate_wanted_lockfile_if_missing(check, loaded_current).map_err(Stale::Content)
+            regenerate_wanted_lockfile_if_missing(check, current).map_err(Stale::Content)
         }
         MissingWantedLockfile::RequireStandIn => {
-            missing_wanted_lockfile_stand_in_ok(check).map(|()| false)
+            missing_wanted_lockfile_stand_in_ok(check, current).map(|()| false)
         }
     }
 }
@@ -237,33 +236,34 @@ fn settle_missing_wanted_lockfile(
 /// written.
 fn missing_wanted_lockfile_stand_in_ok(
     check: &OptimisticRepeatInstallCheck<'_>,
+    current: &CurrentLockfile<'_>,
 ) -> Result<(), Stale> {
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(());
     }
-    match Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir) {
-        Ok(Some(_)) => Ok(()),
-        Ok(None) => Err(Stale::NoLockfile),
-        Err(_) => Err(Stale::Content("the current lockfile cannot be loaded")),
+    match current.get() {
+        Some(Some(_)) => Ok(()),
+        Some(None) => Err(Stale::NoLockfile),
+        None => Err(Stale::Content("the current lockfile cannot be loaded")),
     }
 }
 
 /// Whether the configured patch files still hash to what the lockfile
 /// records. A missing lockfile passes here and is left to the
 /// [`MissingWantedLockfile`] policy.
-fn patches_match_lockfile(check: &OptimisticRepeatInstallCheck<'_>) -> Result<(), &'static str> {
+fn patches_match_lockfile(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    current: &CurrentLockfile<'_>,
+) -> Result<(), &'static str> {
     const PATCHES_MODIFIED: &str = "Patches were modified";
     let hashes = check.config.patched_dependency_hashes().map_err(|_| PATCHES_MODIFIED)?;
-    let mut current = None;
     let lockfile = match check.lockfile.get() {
         Ok(Some(wanted)) => wanted,
-        Ok(None) => {
-            match Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir) {
-                Ok(Some(loaded)) => &*current.insert(loaded),
-                Ok(None) => return Ok(()),
-                Err(_) => return Err("the current lockfile cannot be loaded"),
-            }
-        }
+        Ok(None) => match current.get() {
+            Some(Some(current)) => current,
+            Some(None) => return Ok(()),
+            None => return Err("the current lockfile cannot be loaded"),
+        },
         Err(_) => return Err("the wanted lockfile cannot be read or parsed"),
     };
     let empty = std::collections::BTreeMap::new();

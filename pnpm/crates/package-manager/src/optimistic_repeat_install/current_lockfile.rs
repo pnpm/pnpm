@@ -1,6 +1,28 @@
-use super::{DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, WorkspaceState};
+use super::{DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, Path, WorkspaceState};
 use pnpm_modules_yaml::IncludedDependencies;
-use std::collections::HashSet;
+use std::{cell::OnceCell, collections::HashSet};
+
+/// The current lockfile of one check, loaded the first time a phase needs it.
+pub(crate) struct CurrentLockfile<'a> {
+    install_state_dir: &'a Path,
+    loaded: OnceCell<Option<Option<Lockfile>>>,
+}
+
+impl<'a> CurrentLockfile<'a> {
+    pub(crate) fn new(install_state_dir: &'a Path) -> Self {
+        Self { install_state_dir, loaded: OnceCell::new() }
+    }
+
+    /// `None` when the file exists but cannot be loaded.
+    pub(crate) fn get(&self) -> Option<Option<&Lockfile>> {
+        self.loaded
+            .get_or_init(|| {
+                Lockfile::load_current_from_install_state_dir(self.install_state_dir).ok()
+            })
+            .as_ref()
+            .map(Option::as_ref)
+    }
+}
 
 /// pnpm's issue wording for a current lockfile that does not record what the
 /// wanted lockfile materializes (`RUN_CHECK_DEPS_OUTDATED_DEPS`).

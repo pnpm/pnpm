@@ -1,5 +1,6 @@
 use super::{
-    OptimisticRepeatInstallCheck, manifest_agreement::LinkedPackagesContext, manifest_string_field,
+    OptimisticRepeatInstallCheck, current_lockfile::CurrentLockfile,
+    manifest_agreement::LinkedPackagesContext, manifest_string_field,
 };
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
@@ -22,17 +23,12 @@ use std::{
 /// wrote the lockfile.
 pub(super) fn regenerate_wanted_lockfile_if_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
-    loaded_current: Option<Lockfile>,
+    current: &CurrentLockfile<'_>,
 ) -> Result<bool, &'static str> {
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(false);
     }
-    let current = match loaded_current {
-        Some(current) => Some(current),
-        None => Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-            .map_err(|_| "the current lockfile cannot be loaded")?,
-    };
-    let Some(current) = current else {
+    let Some(current) = current.get().ok_or("the current lockfile cannot be loaded")? else {
         return Ok(false);
     };
     current

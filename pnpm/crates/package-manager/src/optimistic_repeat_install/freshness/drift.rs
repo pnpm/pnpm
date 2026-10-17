@@ -4,9 +4,10 @@
 use super::{
     super::{
         ManifestStat, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+        current_lockfile::CurrentLockfile,
         validation::{FileDigest, FileDigests},
     },
-    Lockfile, Scope,
+    Scope,
 };
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{FileSignature, Validation};
@@ -36,6 +37,8 @@ impl ProjectStatus {
 /// Every input the content phase compares against the last validation.
 pub(crate) struct InputDrift<'a> {
     pub(crate) stats: Vec<ManifestStat<'a>>,
+    /// Every phase of the check reads the current lockfile from here.
+    pub(super) current: CurrentLockfile<'a>,
     lockfile_path: PathBuf,
     /// The lockfile the project records are compared with, as it was when
     /// [`Self::compute`] read it.
@@ -71,6 +74,7 @@ impl<'a> InputDrift<'a> {
         let stats = project_stats(check, recorded, lockfile.digest());
         Self {
             stats,
+            current: CurrentLockfile::new(&check.config.install_state_dir),
             lockfile_path,
             lockfile,
             lockfile_changed,
@@ -104,7 +108,7 @@ impl<'a> InputDrift<'a> {
             .filter(|stat| {
                 held_anywhere(stat.status)
                     || reached
-                        .get_or_insert_with(|| reached_importers(check, selected))
+                        .get_or_insert_with(|| reached_importers(check, &self.current, selected))
                         .as_ref()
                         .is_none_or(|reached| {
                             reached.contains(&importer_id_from_root_dir(
@@ -169,8 +173,8 @@ fn patch_drift(
                 drift.modified |= now.digest != then.digest;
                 drift.rehashed |= !digests.trusts(&patch);
             }
-            // A state pnpm v11 wrote records no digests, and its timestamp is
-            // the only evidence there is. A patch added since changed
+            // A state without validation records has no digests, and its
+            // timestamp is the only evidence there is. A patch added since changed
             // `patchedDependencies`, which the settings comparison catches.
             (FileDigest::Present(_), None) => {
                 drift.modified |=
@@ -212,21 +216,16 @@ fn project_stats<'a>(
 /// be read, which leaves every project held.
 fn reached_importers(
     check: &OptimisticRepeatInstallCheck<'_>,
+    current: &CurrentLockfile<'_>,
     selected: &[&Path],
 ) -> Option<HashSet<String>> {
     let selected_ids: HashSet<String> = selected
         .iter()
         .map(|dir| importer_id_from_root_dir(check.workspace_root, dir))
         .collect();
-    let current;
     let lockfile = match check.lockfile.get() {
         Ok(Some(wanted)) => wanted,
-        Ok(None) => {
-            current =
-                Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-                    .ok()??;
-            &current
-        }
+        Ok(None) => current.get()??,
         Err(_) => return None,
     };
     let mut reached = crate::materialization_closure(

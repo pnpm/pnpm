@@ -4,7 +4,8 @@ use super::{
     Config, DependencyGroup, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
     PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
     current_lockfile::{
-        OUTDATED_DEPS, selection_has_dependencies, selection_matches_wanted_lockfile,
+        CurrentLockfile, OUTDATED_DEPS, selection_has_dependencies,
+        selection_matches_wanted_lockfile,
     },
     freshness::{ProjectStatus, Stale},
     validation::manifest_digest,
@@ -41,18 +42,17 @@ pub(crate) fn manifest_stats<'a>(
 /// Check the `held` projects against the wanted lockfile: each manifest must
 /// still be satisfied by it, and the current lockfile must record what it
 /// materializes for each project whose install was never proven against it.
-/// Returns the current lockfile when it substitutes for a missing wanted
-/// lockfile.
+/// `current` stands in for a missing wanted lockfile.
 pub(crate) fn held_projects_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     held: &[&ManifestStat<'_>],
+    current: &CurrentLockfile<'_>,
     dedupe_peers: bool,
-) -> Result<Option<Lockfile>, Stale> {
+) -> Result<(), Stale> {
     let lockfile = check.lockfile
         .get()
         .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
-    let mut loaded_current = None;
     let wanted = match lockfile {
         Some(wanted) => {
             require_installed(check, state, wanted, held)?;
@@ -69,23 +69,22 @@ pub(crate) fn held_projects_match_lockfile(
         // The current lockfile stands in for the wanted one, so there is no
         // second lockfile for an install to fall behind.
         None => {
-            let current =
-                Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-                    .map_err(|_| Stale::Content("the current lockfile cannot be loaded"))?;
+            let current = current
+                .get()
+                .ok_or(Stale::Content("the current lockfile cannot be loaded"))?;
             let Some(current) = current else {
                 // Without either lockfile only a project with nothing to
                 // install is current.
                 return if held.iter().any(|stat| super::manifest_has_runtime_deps(stat.manifest)) {
                     Err(Stale::NoLockfile)
                 } else {
-                    Ok(None)
+                    Ok(())
                 };
             };
-            &*loaded_current.insert(current)
+            current
         }
     };
-    check_projects_content(check, wanted, held, dedupe_peers).map_err(Stale::Content)?;
-    Ok(loaded_current)
+    check_projects_content(check, wanted, held, dedupe_peers).map_err(Stale::Content)
 }
 
 /// The current lockfile records what `wanted` materializes for each `held`
