@@ -29,10 +29,10 @@ use crate::{
     FetchMetadataError,
     errors::legacy_mirror_hint,
     fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
-        is_abbreviated_content_type, metadata_response_is_uncacheable, normalize_abbreviated_meta,
-        response_etag, send_metadata_request, warn_if_request_is_slow,
+        MetadataRequestOptions, normalize_abbreviated_meta, send_metadata_request,
+        warn_if_request_is_slow,
     },
+    metadata_cache_policy::{DocumentKind, MirrorWrite},
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
         find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
@@ -170,6 +170,7 @@ async fn fetch_metadata_cached(
         url: &url,
         opts,
         mirror_path: mirror_path.as_deref(),
+        kind: DocumentKind::for_mirror(opts.full_metadata, cache_headers.as_ref()),
         cache_headers,
         cache_bypass: AtomicBool::new(bypass_cache),
     };
@@ -184,6 +185,7 @@ struct FetchAttempt<'a> {
     url: &'a str,
     opts: &'a FetchFullMetadataCachedOptions<'a>,
     mirror_path: Option<&'a Path>,
+    kind: DocumentKind,
     cache_headers: Option<MetaHeaders>,
     cache_bypass: AtomicBool,
 }
@@ -244,53 +246,29 @@ impl FetchAttempt<'_> {
     }
 
     fn decoder(&self, response: &Response, started_at: Instant) -> DecodeMeta {
-        let full_meta_in_abbreviated_mirror = self.stored_full_etag().is_some();
         DecodeMeta {
             url: self.url.to_string(),
             mirror_path: self.mirror_path.map(Path::to_path_buf),
-            etag: response_etag(response),
-            uncacheable: metadata_response_is_uncacheable(response.headers()),
-            normalize_to_abbreviated: !self.opts.full_metadata
-                && !full_meta_in_abbreviated_mirror
-                && !is_abbreviated_content_type(response.headers()),
-            full_meta_in_abbreviated_mirror,
+            mirror_write: MirrorWrite::on_response(self.kind, response.headers()),
             should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
             started_at,
         }
     }
 
-    /// The full document's entity tag when this abbreviated mirror holds a
-    /// document a `minimumReleaseAge` upgrade stored there. That document is
-    /// revalidated as what it is, so a registry with per-representation tags
-    /// can still answer `304`.
-    fn stored_full_etag(&self) -> Option<&str> {
-        if self.opts.full_metadata {
-            return None;
-        }
-        self.cache_headers
-            .as_ref()?
-            .full_etag
-            .as_deref()
-            .filter(|etag| !etag.is_empty())
-    }
-
-    /// A mirror the registry marked uncacheable is revalidated with the
-    /// origin: its validators go out with `Cache-Control: no-cache`.
     fn metadata_request(&self) -> MetadataRequestOptions<'_> {
         let opts = self.opts;
-        let mirror_lost = self.cache_bypass.load(Ordering::Relaxed);
-        let cache_headers = self.cache_headers.as_ref().filter(|_| !mirror_lost);
-        let stored_uncacheable = cache_headers.is_some_and(|headers| headers.uncacheable);
-        let full_etag = self.stored_full_etag();
-        let requests_full = opts.full_metadata || full_etag.is_some();
+        let revalidation = self.kind.revalidation(
+            self.cache_headers.as_ref(),
+            self.cache_bypass.load(Ordering::Relaxed),
+        );
         MetadataRequestOptions {
             pkg_name: self.pkg_name,
             url: self.url,
-            accept: if requests_full { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
+            accept: self.kind.accept(),
             priority: opts.priority,
-            etag: cache_headers.and_then(|headers| full_etag.or(headers.etag.as_deref())),
-            modified: cache_headers.and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: stored_uncacheable || mirror_lost,
+            etag: revalidation.etag,
+            modified: revalidation.modified,
+            bypass_cache: revalidation.bypass_cache,
             http: opts.http.one_attempt(),
         }
     }
@@ -354,15 +332,7 @@ async fn legacy_mirror_for(
 struct DecodeMeta {
     url: String,
     mirror_path: Option<PathBuf>,
-    etag: Option<String>,
-    /// The response `Cache-Control` forbade reusing this document, so the
-    /// next install must refetch it instead of revalidating the mirror.
-    uncacheable: bool,
-    normalize_to_abbreviated: bool,
-    /// The response is the full document revalidating an abbreviated mirror
-    /// that a `minimumReleaseAge` upgrade filled, so its tag is recorded as
-    /// the full document's.
-    full_meta_in_abbreviated_mirror: bool,
+    mirror_write: MirrorWrite,
     should_filter_metadata: bool,
     started_at: Instant,
 }
@@ -376,7 +346,7 @@ impl DecodeMeta {
             })?;
         meta.drop_incomplete_publish_times();
         let elapsed = self.started_at.elapsed();
-        if self.normalize_to_abbreviated {
+        if self.mirror_write.normalizes_to_abbreviated() {
             meta = normalize_abbreviated_meta(meta);
         }
         if self.should_filter_metadata {
@@ -404,36 +374,20 @@ impl DecodeMeta {
     /// hydration.
     fn persist(&self, meta: &Package) -> Option<Package> {
         let path = self.mirror_path.as_deref()?;
-        let headers = if self.full_meta_in_abbreviated_mirror {
-            MetaHeaders::for_full_meta_in_abbreviated_mirror(
-                meta,
-                self.etag.as_deref(),
-                self.uncacheable,
-            )
-        } else {
-            MetaHeaders::new(meta, self.etag.as_deref(), self.uncacheable)
-        };
+        let headers = self.mirror_write.headers(meta);
         if self.should_filter_metadata {
             if let Err(error) = save_meta_ndjson_with_headers(path, meta, &headers) {
                 warn_mirror_write_failed(&error, path);
-                self.drop_mirror_that_would_revalidate(path);
+                self.mirror_write.discard_after_failed_save(path);
             }
             return None;
         }
         if let Err(error) = save_meta_indexed_with_headers(path, meta, &headers) {
             warn_mirror_write_failed(&error, path);
-            self.drop_mirror_that_would_revalidate(path);
+            self.mirror_write.discard_after_failed_save(path);
             return None;
         }
         load_meta(path)
-    }
-
-    /// A failed write leaves the previous header, whose validators the next
-    /// fetch would send. An uncacheable response must not keep that file.
-    fn drop_mirror_that_would_revalidate(&self, path: &Path) {
-        if self.uncacheable {
-            let _ = std::fs::remove_file(path);
-        }
     }
 }
 

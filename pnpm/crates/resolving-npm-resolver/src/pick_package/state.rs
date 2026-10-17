@@ -170,7 +170,7 @@ impl<'a> PickState<'a> {
             meta,
         )
         .await?;
-        if !upgrade.upgraded {
+        if !upgrade.upgraded() {
             // A cache hit re-runs the release-age upgrade check, so serving
             // this meta from memory can't bypass the upgrade.
             self.promote_unverified(ctx, opts, &upgrade.meta);

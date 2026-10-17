@@ -145,7 +145,7 @@ impl PickState<'_> {
         upgrade: &UpgradeOutcome,
     ) -> Arc<Package> {
         let mut meta = Arc::clone(&upgrade.meta);
-        if upgrade.upgraded {
+        if upgrade.upgraded() {
             if !opts.request.dry_run
                 && let Some(reloaded) = self.pkg_mirror
                     .as_deref()

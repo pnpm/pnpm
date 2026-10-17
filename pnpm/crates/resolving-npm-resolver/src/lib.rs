@@ -90,6 +90,7 @@ mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
 mod infer_range_spec_style;
 mod lookup_context;
+mod metadata_cache_policy;
 mod named_registry;
 mod named_registry_resolver;
 mod npm_resolver;

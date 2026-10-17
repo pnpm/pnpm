@@ -55,8 +55,8 @@ pub(super) async fn handle_cache_hit<Cache: PackageMetaCache>(
     .await?;
     let mut meta = Arc::clone(&upgrade.meta);
     // The upgrade fetch (re)validated the packument against the registry.
-    let registry_verified = cached.registry_verified || upgrade.upgraded;
-    if upgrade.upgraded && !opts.request.dry_run {
+    let registry_verified = cached.registry_verified || upgrade.upgraded();
+    if upgrade.upgraded() && !opts.request.dry_run {
         persist_upgrade_to_mirror(
             ctx,
             pkg_mirror,
@@ -66,7 +66,7 @@ pub(super) async fn handle_cache_hit<Cache: PackageMetaCache>(
             &mut meta,
         );
     }
-    if upgrade.upgraded {
+    if upgrade.upgraded() {
         ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let unfiltered_meta = Arc::clone(&meta);

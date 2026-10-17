@@ -99,7 +99,7 @@ use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError,
+    FetchFullMetadataOptions, FetchMetadataError,
     mirror::{clear_meta, get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed},
     pick_package_from_meta::{
         PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
@@ -177,13 +177,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    // An online lowest-version pick must not reuse a mirror the registry
-    // marked uncacheable. Offline and prefer-offline still may.
-    let online_lowest_must_refetch = opts.pick_lowest_version
-        && !ctx.cache_policy.network.reads_cache_first()
-        && state.mirror_is_uncacheable().await;
-    if !online_lowest_must_refetch
-        && (ctx.cache_policy.network.reads_cache_first() || opts.pick_lowest_version)
+    if (ctx.cache_policy.network.reads_cache_first()
+        || (opts.pick_lowest_version && state.mirror_may_answer(ctx).await))
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);
