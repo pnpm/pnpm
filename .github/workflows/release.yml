@@ -42,8 +42,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The jobs that build-rust's Windows legs depend on run on GitHub-hosted
+  # runners, because SignPath signs only builds whose whole job chain ran on them.
   validate-release-ref:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions: {}
     steps:
       - name: Validate release ref
@@ -72,7 +74,7 @@ jobs:
   verify-release-tag:
     name: Verify the release tag is maintainer-signed
     needs: validate-release-ref
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -134,7 +136,7 @@ jobs:
     needs:
       - validate-release-ref
       - verify-release-tag
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -570,7 +572,7 @@ jobs:
 
   build-node-gyp-payload:
     name: Bundle node-gyp
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     needs: plan
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
@@ -625,19 +627,22 @@ jobs:
       - build-node-gyp-payload
     if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
     permissions:
+      actions: read # needed by SignPath to download the unsigned artifact
       contents: read
       id-token: write # needed for actions/attest-build-provenance
       attestations: write
     strategy:
       matrix:
         include:
-          - os: blacksmith-8vcpu-windows-2025
+          - os: windows-2025
             target: x86_64-pc-windows-msvc
             code-target: win32-x64
+            environment: signpath
 
-          - os: blacksmith-8vcpu-windows-2025
+          - os: windows-2025
             target: aarch64-pc-windows-msvc
             code-target: win32-arm64
+            environment: signpath
 
           - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-gnu
@@ -689,6 +694,8 @@ jobs:
 
     name: Package pnpm (Rust) ${{ matrix.code-target }}
     runs-on: ${{ matrix.os }}
+    # Only the Windows legs enter the environment that holds the SignPath token.
+    environment: ${{ matrix.environment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -729,6 +736,52 @@ jobs:
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
+      - name: Stage unsigned binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir unsigned
+          mv target/${{ matrix.target }}/release/pnpm.exe unsigned/pnpm.exe
+
+      - name: Upload unsigned binary
+        id: upload-unsigned
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: unsigned-pnpm-${{ matrix.code-target }}
+          path: unsigned/pnpm.exe
+
+      - name: Sign binary
+        if: runner.os == 'Windows'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ID }}
+          project-slug: ${{ vars.SIGNPATH_SLUG }}
+          signing-policy-slug: test-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Release signing waits for a maintainer to approve the request.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Check the binary is signed
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          $signature = Get-AuthenticodeSignature signed/pnpm.exe
+          if (-not $signature.SignerCertificate) {
+            throw "signed/pnpm.exe carries no Authenticode signature"
+          }
+          $signature.SignerCertificate | Format-List Subject, Issuer, NotAfter
+          $info = (Get-Item signed/pnpm.exe).VersionInfo
+          if ($info.ProductName -ne 'pnpm' -or $info.ProductVersion -ne $env:VERSION) {
+            throw "signed/pnpm.exe names product '$($info.ProductName)' version '$($info.ProductVersion)', expected 'pnpm' version '$env:VERSION'"
+          }
+
       - name: Smoke-test Linux ppc64le startup
         if: matrix.target == 'powerpc64le-unknown-linux-gnu'
         shell: bash
@@ -767,7 +820,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
+          mv signed/pnpm.exe pnpm.exe
           tar xzf node-gyp-payload/node-gyp-payload.tar.gz
           7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
 
