@@ -128,6 +128,14 @@ fn reanchors_a_workspace_path_against_the_consumer() {
     );
 }
 
+#[test]
+fn reanchors_a_backslash_separated_workspace_path() {
+    assert_eq!(
+        render_workspace_path(r"workspace:.\packages\target", "packages/deep/consumer").as_deref(),
+        Some("workspace:../../target"),
+    );
+}
+
 /// The resolver reads a `workspace:` value as a path only when it opens
 /// with `.`, so a re-anchored path keeps its `./` prefix.
 #[test]
