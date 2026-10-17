@@ -8,8 +8,8 @@ use super::{
     },
     FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
     backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
-    date_lockfile_after, isolated_included, lockfile_mtime_after, poison_lockfile_content,
-    recorded_timestamp, setup_content_check_project, setup_fresh_install,
+    date_lockfile_after, isolated_included, lockfile_mtime_after, recorded_timestamp,
+    setup_content_check_project, setup_fresh_install,
     setup_fresh_install_with_config, single_project_deps_status, validate_existing_files,
     write_bare_tarball_lockfile, write_state,
 };
@@ -332,6 +332,19 @@ fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
 }
+/// Rewrite the wanted lockfile so a content check would report the project
+/// outdated, keeping its size and its mtime.
+#[cfg(unix)]
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::write(&path, super::FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    pnpm_testing_utils::fs::set_mtime(&path, modified);
+}
+
 /// A lockfile edit that restores both its size and its mtime still moves the
 /// inode change time, which the recorded signature compares.
 #[cfg(unix)]

@@ -543,19 +543,6 @@ fn lockfile_mtime_after(recorded: i64) -> i64 {
     if ms % 1_000 == 0 { ms - 1 } else { ms }
 }
 
-/// Rewrite the wanted lockfile so a content check would report the
-/// project outdated while leaving its mtime untouched, so an up-to-date
-/// verdict after this can only have come from the pure-mtime fast path.
-fn poison_lockfile_content(workspace_root: &std::path::Path) {
-    let path = workspace_root.join(Lockfile::FILE_NAME);
-    let modified = fs::metadata(&path)
-        .unwrap()
-        .modified()
-        .unwrap();
-    fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
-    set_mtime(&path, modified);
-}
-
 /// The workspace state file as the last write left it.
 fn recorded_state_text(workspace_root: &std::path::Path) -> String {
     fs::read_to_string(pnpm_workspace_state::get_file_path(workspace_root))
