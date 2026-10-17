@@ -27,7 +27,10 @@ pub struct RecordedRequest {
     pub path: String,
     pub accept: Option<String>,
     pub if_none_match: Option<String>,
+    pub if_modified_since: Option<String>,
     pub status: u16,
+    /// The response's `ETag`.
+    pub etag: Option<String>,
 }
 
 type RequestLog = Arc<Mutex<Vec<RecordedRequest>>>;
@@ -222,14 +225,24 @@ async fn record_request(
     let headers = request.headers();
     let accept = header_text(headers, &axum::http::header::ACCEPT);
     let if_none_match = header_text(headers, &axum::http::header::IF_NONE_MATCH);
+    let if_modified_since = header_text(headers, &axum::http::header::IF_MODIFIED_SINCE);
     let method = request.method().to_string();
     let path = request.uri().path().to_string();
     let response = next.run(request).await;
     let status = response.status().as_u16();
+    let etag = header_text(response.headers(), &axum::http::header::ETAG);
     requests
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .push(RecordedRequest { method, path, accept, if_none_match, status });
+        .push(RecordedRequest {
+            method,
+            path,
+            accept,
+            if_none_match,
+            if_modified_since,
+            status,
+            etag,
+        });
     response
 }
 

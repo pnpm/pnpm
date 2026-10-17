@@ -8,7 +8,7 @@ use pnpm_testing_utils::{
     registry::RecordedRequest,
 };
 use pretty_assertions::assert_eq;
-use std::fs;
+use std::{collections::HashMap, fs, io};
 
 const PKG: &str = "/@pnpm.e2e%2Fpkg-with-1-dep";
 const DEP: &str = "/@pnpm.e2e%2Fdep-of-pkg-with-1-dep";
@@ -33,40 +33,72 @@ fn three_installs(settings: &str, args: &[&str]) -> [Vec<String>; 3] {
     fs::write(&workspace_yaml, format!("{yaml}{settings}")).expect("write pnpm-workspace.yaml");
     pacquet.arg("install").args(args);
 
-    let logs = [(); 3].map(|()| {
+    let installs = [(); 3].map(|()| {
         // Remove what the last install wrote, so this one resolves again.
-        let _ = fs::remove_dir_all(workspace.join("node_modules"));
-        let _ = fs::remove_file(workspace.join("pnpm-lock.yaml"));
+        remove_if_present(fs::remove_dir_all(workspace.join("node_modules")));
+        remove_if_present(fs::remove_file(workspace.join("pnpm-lock.yaml")));
         pacquet.assert().success();
-        let mut log: Vec<String> = mock_instance
-            .take_requests()
+        mock_instance.take_requests()
+    });
+    drop(root);
+
+    let etags: HashMap<(String, &str), String> = installs
+        .iter()
+        .flatten()
+        .filter(|request| request.status == 200)
+        .filter_map(|request| {
+            let etag = request.etag.clone()?;
+            Some(((request.path.clone(), document(request)), etag))
+        })
+        .collect();
+    installs.map(|requests| {
+        let mut log: Vec<String> = requests
             .iter()
-            .map(describe)
+            .map(|request| describe(request, &etags))
             .collect();
         log.sort();
         log
-    });
-    drop(root);
-    logs
+    })
 }
 
-fn describe(request: &RecordedRequest) -> String {
+fn remove_if_present(result: io::Result<()>) {
+    if let Err(error) = result {
+        assert_eq!(error.kind(), io::ErrorKind::NotFound, "clean the workspace: {error}");
+    }
+}
+
+fn document(request: &RecordedRequest) -> &'static str {
+    match request.accept.as_deref() {
+        Some(accept) if accept.starts_with("application/vnd.npm.install-v1+json") => "abbreviated",
+        _ => "full",
+    }
+}
+
+/// A metadata request reads `etag` when it sends the `ETag` this registry
+/// gave the same representation, `other-etag` for any other value, and
+/// `since` when it sends `If-Modified-Since`.
+fn describe(request: &RecordedRequest, etags: &HashMap<(String, &str), String>) -> String {
     let RecordedRequest {
         method,
         path,
-        accept,
         if_none_match,
+        if_modified_since,
         status,
+        ..
     } = request;
     if path.ends_with(".tgz") {
         return format!("{method} {path} {status}");
     }
-    let document = match accept.as_deref() {
-        Some(accept) if accept.starts_with("application/vnd.npm.install-v1+json") => "abbreviated",
-        _ => "full",
-    };
-    let conditional = if if_none_match.is_some() { " conditional" } else { "" };
-    format!("{method} {path} {document}{conditional} {status}")
+    let document = document(request);
+    let mut validators = String::new();
+    if let Some(sent) = if_none_match {
+        let own = etags.get(&(path.clone(), document)) == Some(sent);
+        validators.push_str(if own { " etag" } else { " other-etag" });
+    }
+    if if_modified_since.is_some() {
+        validators.push_str(" since");
+    }
+    format!("{method} {path} {document}{validators} {status}")
 }
 
 fn first_install(document: &str) -> Vec<String> {
@@ -80,19 +112,18 @@ fn first_install(document: &str) -> Vec<String> {
     log
 }
 
-fn revalidation(document: &str) -> Vec<String> {
-    vec![
-        format!("GET {DEP} {document} conditional 304"),
-        format!("GET {PKG} {document} conditional 304"),
-    ]
+/// `request` is the document kind and the validators, as [`describe`]
+/// spells them.
+fn revalidation(request: &str) -> Vec<String> {
+    vec![format!("GET {DEP} {request} 304"), format!("GET {PKG} {request} 304")]
 }
 
 #[test]
 fn abbreviated_metadata_is_revalidated_with_its_etag() {
     let [first, second, third] = three_installs("minimumReleaseAge: 0\n", &[]);
     assert_eq!(first, first_install("abbreviated"));
-    assert_eq!(second, revalidation("abbreviated"));
-    assert_eq!(third, revalidation("abbreviated"));
+    assert_eq!(second, revalidation("abbreviated etag"));
+    assert_eq!(third, revalidation("abbreviated etag"));
 }
 
 #[test]
@@ -100,8 +131,8 @@ fn full_metadata_is_revalidated_with_its_etag() {
     let [first, second, third] =
         three_installs("minimumReleaseAge: 0\ntrustPolicy: no-downgrade\n", &[]);
     assert_eq!(first, first_install("full"));
-    assert_eq!(second, revalidation("full"));
-    assert_eq!(third, revalidation("full"));
+    assert_eq!(second, revalidation("full etag since"));
+    assert_eq!(third, revalidation("full etag since"));
 }
 
 /// A mirror written after the `minimumReleaseAge` cutoff cannot be missing a
