@@ -579,6 +579,31 @@ fn filtered_install_re_resolves_a_dependency_injected_by_the_workspace_setting()
     drop((root, mock_instance));
 }
 
+#[test]
+fn filtered_lockfile_only_install_re_resolves_a_dependency_injected_by_the_workspace_setting() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_per_project_injection_workspace(pacquet, &workspace, Injection::WorkspaceSetting);
+
+    write_project_1(&workspace, &serde_json::json!({ "is-positive": "2.0.0" }));
+    pnpm_in(&workspace)
+        .with_args(["--filter=project-2", "install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("project-2/pnpm-lock.yaml"))
+        .expect("read project-2/pnpm-lock.yaml");
+    assert!(lockfile.contains("is-positive@2.0.0"), "{lockfile}");
+
+    drop((root, mock_instance));
+}
+
 fn write_workspace_with_prepare(workspace: &std::path::Path, settings: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
