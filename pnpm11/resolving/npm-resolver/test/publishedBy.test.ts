@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -13,6 +13,7 @@ import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
 
+import { loadMetaHeaders } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
@@ -1236,6 +1237,52 @@ test('the release-age upgrade of a changed full document revalidates with its ne
  * some of the versions it serves would answer, with `modified` recent enough
  * to make the release-age check ask for the full document.
  */
+// A full document is already the most complete form a registry serves, so a
+// pick that reads full metadata has nothing to upgrade to, even when the
+// registry omits `time`. Upgrading it downloaded the same document again
+// after every 304 and rewrote the full mirror without its ETag.
+test('a full metadata pick of a document without time revalidates its mirror on later installs', async () => {
+  const cacheDir = temporaryDirectory()
+  const cachePath = path.join(cacheDir, `${FULL_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
+  const withoutTime = { ...isPositiveAbbreviatedMeta, modified: isPositiveMeta.time.modified }
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // Installs two and three.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { 'if-none-match': '"full-etag"' } })
+    .reply(304, '')
+    .times(2)
+  // Install one.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/json/ } })
+    .reply(200, withoutTime, { headers: { etag: '"full-etag"' } })
+
+  for (const install of [1, 2, 3]) {
+    if (install > 1) {
+      // The mirror write and the mtime renewal after a 304 run in the
+      // background. Wait for them, then date the mirror before the cutoff so
+      // the install revalidates it.
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.etag === '"full-etag"')
+      fs.utimesSync(cachePath, new Date(0), new Date(0))
+    }
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+      fullMetadata: true,
+      ignoreMissingTimeField: true,
+    })
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+      publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+    })
+    expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  }
+
+  getMockAgent().assertNoPendingInterceptors()
+  const headers = await loadMetaHeaders(cachePath)
+  expect(headers).toMatchObject({ etag: '"full-etag"' })
+  expect(headers?.fullEtag).toBeUndefined()
+})
+
 function partialTimeMeta (): PackageMeta {
   return {
     ...isPositiveAbbreviatedMeta,

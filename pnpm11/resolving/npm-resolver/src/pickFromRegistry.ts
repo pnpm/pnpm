@@ -143,7 +143,7 @@ async function serveValidatedMeta (request: PickRequest, cached: PackageMeta): P
     const now = new Date()
     fs.utimes(pkgMirror, now, now).catch(() => {})
   }
-  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
+  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, request, cached)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
   // Pick before caching, so a corrupt fragment never leaves the document in
   // the in-memory cache.
