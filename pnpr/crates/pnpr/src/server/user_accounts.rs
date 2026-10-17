@@ -54,6 +54,57 @@ pub(crate) async fn get_profile(
     private_no_cache(serve_profile(&identity))
 }
 
+/// `GET /-/user/org.couchdb.user:{name}` — fetch a `CouchDB` user document.
+/// Used by `npm owner add` to verify that the prospective maintainer exists
+/// before mutating the package document.
+pub(crate) async fn get_user(
+    State(state): State<AppState>,
+    TargetRegistry(_): TargetRegistry,
+    Path(path): Path<UserPath>,
+) -> Response {
+    let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
+        return not_found();
+    };
+    match check_user_exists(&state, name).await {
+        Ok(true) => {
+            let is_admin = state.inner.config.identity.admins.contains(name);
+            let roles = if is_admin { vec!["admin"] } else { Vec::new() };
+            json_response(
+                StatusCode::OK,
+                &json!({
+                    "_id": format!("org.couchdb.user:{name}"),
+                    "name": name,
+                    "email": "",
+                    "roles": roles,
+                }),
+            )
+        }
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            [(header::CONTENT_TYPE, "application/json")],
+            json!({
+                "error": "not_found",
+                "reason": "User not found",
+            })
+            .to_string(),
+        )
+            .into_response(),
+        Err(err) => err.into_response(),
+    }
+}
+
+pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bool, RegistryError> {
+    if super::scim::is_deprovisioned(state, name)? {
+        return Ok(false);
+    }
+    if is_reserved_username(state, name) {
+        return Ok(true);
+    }
+    let users = &state.inner.identity.auth.users;
+    let exists = users.password_hash(name).await?.is_some();
+    Ok(exists)
+}
+
 /// The account routes capture their own parameter alongside the optional
 /// `{registry}`, so each needs a named shape rather than a bare `Path<String>`:
 /// the prefixed registration captures two segments and a single-value `Path`

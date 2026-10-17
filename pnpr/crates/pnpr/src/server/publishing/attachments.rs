@@ -1,9 +1,9 @@
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentForUpdate,
     HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
-    PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
-    cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
-    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
+    PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
+    authorize_package, cleanup_tmp_slots, create_hex_hash, extract_attachments,
+    extract_predicate_type, hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
     resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
     tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
 };
@@ -63,13 +63,18 @@ pub(in super::super) async fn validate_publish_doc(
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
-    authorize(
+    authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    )?;
+        Some(&target.org),
+    )
+    .await?;
+
+    let storage = hosted_storage(state, Some(&target.org));
+    check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
@@ -78,6 +83,32 @@ pub(in super::super) async fn validate_publish_doc(
     // canonical storage filename, matching version, and payload kind.
     let prepared = prepare_attachments(&name, &incoming, attachments)?;
     Ok((ValidatedPublish { name, incoming, prepared }, target))
+}
+
+async fn check_publish_tombstone(
+    state: &AppState,
+    identity: &Identity,
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+) -> Result<(), RegistryError> {
+    let Some(tombstone) = storage.read_tombstone(name).await? else {
+        return Ok(());
+    };
+    if storage.read_hosted_document(name).await?.is_some() {
+        return Ok(());
+    }
+    let username = identity.username();
+    let is_admin =
+        username.is_some_and(|user| state.inner.config.identity.admins.contains(user));
+    let is_former_maintainer = username.is_some_and(|user| {
+        tombstone.maintainers
+            .iter()
+            .any(|maintainer| maintainer == user)
+    });
+    if !is_admin && !is_former_maintainer {
+        return Err(RegistryError::PackageTombstoned { package: name.as_str().to_string() });
+    }
+    Ok(())
 }
 
 fn prepare_attachments(
@@ -136,6 +167,9 @@ fn parse_attachment_kind(
 }
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
+    if let Identity::User { username, .. } = identity {
+        record_publisher_in_maintainers(incoming, username);
+    }
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
@@ -144,10 +178,28 @@ pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
             Identity::User { username, .. } => {
                 manifest.insert("_npmUser".to_string(), json!({ "name": username }));
             }
-            Identity::Anonymous | _ => {
+            _ => {
                 manifest.remove("_npmUser");
             }
         }
+    }
+}
+
+fn record_publisher_in_maintainers(incoming: &mut Value, username: &str) {
+    let Some(incoming_obj) = incoming.as_object_mut() else { return };
+    let maintainers = incoming_obj
+        .entry("maintainers")
+        .or_insert_with(|| json!([]));
+    let publisher = json!({ "name": username });
+    let Some(list) = maintainers.as_array_mut() else {
+        *maintainers = json!([publisher]);
+        return;
+    };
+    let already_present = list
+        .iter()
+        .any(|entry| entry.get("name").and_then(Value::as_str) == Some(username));
+    if !already_present {
+        list.insert(0, publisher);
     }
 }
 
@@ -187,13 +239,11 @@ pub(in super::super) async fn stage_publish(
     let (hosted, base_version) =
         parse_hosted_packument(storage.read_hosted_document_for_update(&name).await?)?;
 
+    check_tombstoned_versions(&storage, &name, &incoming).await?;
+
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    // A hosted registry has no upstream, so a publish seeds the merge only from
-    // the org's own hosted packument; a brand-new package starts from `None`.
-    let mut merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
-    attach_sigstore_attestations(&mut merged, &name, &prepared);
-    let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
+    let document = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso)?;
     let original_refs = prepared
         .iter()
         .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
@@ -213,12 +263,46 @@ pub(in super::super) async fn stage_publish(
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
-        document: merged_bytes,
+        document,
         base_version,
         slots: written_slots,
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
+}
+
+async fn check_tombstoned_versions(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    incoming: &Value,
+) -> Result<(), RegistryError> {
+    let Some(tombstone) = storage.read_tombstone(name).await? else {
+        return Ok(());
+    };
+    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for version in incoming_versions.keys() {
+        if tombstone.unpublished_versions.contains(version) {
+            return Err(RegistryError::CannotRepublishUnpublishedVersion {
+                package: name.as_str().to_string(),
+                version: version.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn prepare_staged_document(
+    name: &CanonicalPackageName,
+    hosted: Option<&Value>,
+    incoming: &Value,
+    prepared: &[PreparedAttachment],
+    now_iso: &str,
+) -> Result<Vec<u8>, RegistryError> {
+    let mut merged = merge_manifest(hosted, incoming, hosted, now_iso);
+    attach_sigstore_attestations(&mut merged, name, prepared);
+    serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)
 }
 
 fn attach_sigstore_attestations(

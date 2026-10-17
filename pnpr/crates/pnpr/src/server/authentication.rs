@@ -370,6 +370,83 @@ pub(super) fn authorize(
     }
 }
 
+pub(super) async fn is_package_owner(
+    state: &AppState,
+    identity: &Identity,
+    package: &str,
+    org: Option<&str>,
+) -> Result<bool, RegistryError> {
+    let Some(username) = identity.username() else {
+        return Ok(false);
+    };
+    if state.inner.config.identity.admins.contains(username) {
+        return Ok(true);
+    }
+    let Ok(canonical) =
+        pnpr_package_name::CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
+    else {
+        return Ok(false);
+    };
+    let storage = super::hosted_storage(state, org);
+    if let Some(bytes) = storage.read_hosted_document(&canonical).await? {
+        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            && let Some(maintainers) = val.get("maintainers").and_then(serde_json::Value::as_array)
+        {
+            let is_maintainer = maintainers
+                .iter()
+                .any(|entry| {
+                    entry.get("name").and_then(serde_json::Value::as_str) == Some(username)
+                });
+            return Ok(is_maintainer);
+        }
+        return Ok(false);
+    }
+    if let Some(tombstone) = storage.read_tombstone(&canonical).await? {
+        return Ok(tombstone.maintainers
+            .iter()
+            .any(|maintainer| maintainer == username));
+    }
+    // Brand new package: initial publish claims the package
+    Ok(true)
+}
+
+pub(super) async fn authorize_package(
+    state: &AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    package: &str,
+    action: Action,
+    org: Option<&str>,
+) -> Result<(), RegistryError> {
+    let rules = source_rules(state, source).snapshot();
+    let effective = rules.for_package(package);
+    let list = match action {
+        Action::Access => &effective.access,
+        Action::Publish => &effective.publish,
+        Action::Unpublish => &effective.unpublish,
+    };
+    if list.allows(identity) {
+        return Ok(());
+    }
+    if list.references_owners() && identity.is_authenticated() {
+        let is_owner = is_package_owner(state, identity, package, org).await?;
+        if list.allows_with_context(identity, is_owner) {
+            return Ok(());
+        }
+    }
+    match identity {
+        Identity::Anonymous => {
+            Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
+        }
+        Identity::User { username, .. } => Err(RegistryError::Forbidden {
+            user: username.clone(),
+            action: action.label(),
+            resource: format!("package {package:?}"),
+        }),
+        _ => Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") }),
+    }
+}
+
 /// The raw credentials of an `Authorization: Bearer <token>` header, or
 /// `None` for any other scheme. The scheme is matched case-insensitively,
 /// matching [`pnpr_auth::identify`].

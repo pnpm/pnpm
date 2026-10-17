@@ -11,8 +11,8 @@ use pnpr_policy::Identity;
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, publish::now_iso};
 
 use crate::server::{
-    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    Action, AppState, RegistrySource, authorize_package, filter_osv_vulnerable_dist_tags,
+    hosted_storage, load_packument_for_read, not_found, resolve_write_target,
 };
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
@@ -152,13 +152,16 @@ where
         Ok(target) => target,
         Err(err) => return (err.into_response(), None),
     };
-    if let Err(err) = authorize(
+    if let Err(err) = authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    ) {
+        Some(&target.org),
+    )
+    .await
+    {
         return (err.into_response(), None);
     }
     let org = target.org;
@@ -173,18 +176,18 @@ where
     )
     .await;
     match outcome {
-        Ok(DocumentUpdate::Written) => {}
-        Ok(DocumentUpdate::NotFound) => return (not_found(), None),
-        Err(err) => return (err.into_response(), None),
+        Ok(DocumentUpdate::Written) => (ok_created_response(), Some(target.source)),
+        Ok(DocumentUpdate::NotFound) => (not_found(), None),
+        Err(err) => (err.into_response(), None),
     }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    let response = Response::builder()
+}
+
+fn ok_created_response() -> Response {
+    Response::builder()
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds");
-    (response, Some(target.source))
+        .body(Body::from(r#"{"ok":true}"#))
+        .expect("static-shape response always builds")
 }
 
 /// The stored packument with its `dist-tags` mutated and `time.modified`

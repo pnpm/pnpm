@@ -1,0 +1,514 @@
+//! Integration tests for package ownership, the maintainer model,
+//! $owners policy token, npm owner mutations, and package tombstones.
+
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
+use pnpr::Config;
+use serde_json::{Value, json};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+use crate::npm::publish_doc;
+
+fn listen() -> SocketAddr {
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+}
+
+fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Config) {
+    let dir = TempDir::new().unwrap();
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let nested: String = packages_block
+        .strip_prefix("packages:\n")
+        .expect("callers pass a packages: block")
+        .lines()
+        .map(|line| format!("    {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let admin_line = if admins.is_empty() {
+        String::new()
+    } else {
+        let items: Vec<String> = admins
+            .iter()
+            .map(|admin| format!(r#""{admin}""#))
+            .collect();
+        format!("  admins: [{}]\n", items.join(", "))
+    };
+    let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
+    let yaml = format!(
+        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{admin_line}registries:\n  \
+         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
+         main:\n    type: router\n    sources: [local]\n\
+         defaultRegistry: main\n",
+        storage.display(),
+    );
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, yaml).unwrap();
+    let config =
+        Config::from_yaml(&path, listen(), Some("http://example.test".to_string())).unwrap();
+    (dir, config)
+}
+
+async fn body_bytes(body: Body) -> Vec<u8> {
+    to_bytes(body, usize::MAX).await.expect("read body").to_vec()
+}
+
+async fn body_json(body: Body) -> Value {
+    serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
+}
+
+async fn add_user_and_get_token(
+    app: axum::Router,
+    username: &str,
+    password: &str,
+) -> (axum::Router, String) {
+    let path = format!("/-/user/org.couchdb.user:{username}");
+    let body = json!({
+        "_id": format!("org.couchdb.user:{username}"),
+        "name": username,
+        "password": password,
+        "email": format!("{username}@example.test"),
+        "type": "user",
+        "roles": [],
+    });
+    let request = Request::put(&path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let payload = body_json(response.into_body()).await;
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
+    (app, token)
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called with owned literals; by-value keeps call sites clean"
+)]
+fn authed_put(path: &str, token: &str, body: Value) -> Request<Body> {
+    Request::put(path)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
+}
+
+fn authed_delete(path: &str, token: &str) -> Request<Body> {
+    Request::delete(path)
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap()
+}
+
+async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
+    let auth = pnpr::AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    for admin in admins {
+        auth.users.create_user(admin, "secret123").await.unwrap();
+    }
+    pnpr::router_with_auth(config, auth)
+}
+
+#[tokio::test]
+async fn get_couchdb_user_endpoint() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  '**':\n    access: $all\n    publish: $authenticated\n",
+        &["admin_alice"],
+    );
+    let app = app_router(config, &["admin_alice"]).await;
+    let (app, _) = add_user_and_get_token(app, "normal_bob", "secret123").await;
+
+    // Check configured admin user
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/user/org.couchdb.user:admin_alice")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let doc = body_json(response.into_body()).await;
+    assert_eq!(doc["name"], "admin_alice");
+    assert_eq!(doc["_id"], "org.couchdb.user:admin_alice");
+    assert_eq!(doc["roles"], json!(["admin"]));
+
+    // Check normal user in htpasswd auth backend
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/user/org.couchdb.user:normal_bob")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let doc = body_json(response.into_body()).await;
+    assert_eq!(doc["name"], "normal_bob");
+    assert_eq!(doc["_id"], "org.couchdb.user:normal_bob");
+
+    // Check non-existent user
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/user/org.couchdb.user:nobody")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let err = body_json(response.into_body()).await;
+    assert_eq!(err["error"], "not_found");
+}
+
+#[tokio::test]
+async fn first_publish_claims_package_in_maintainers() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  '**':\n    access: $all\n    publish: $authenticated\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let doc = publish_doc("my-pkg", "1.0.0", b"tarball-v1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/my-pkg", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/my-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let packument = body_json(response.into_body()).await;
+    let maintainers = packument["maintainers"].as_array().expect("maintainers array");
+    assert_eq!(maintainers.len(), 1);
+    assert_eq!(maintainers[0]["name"], "alice");
+}
+
+#[tokio::test]
+async fn owners_policy_restricts_subsequent_publish() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'owned-lib':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &["admin_user"],
+    );
+    let app = app_router(config, &["admin_user"]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let (app, admin_token) = add_user_and_get_token(app, "admin_user", "secret123").await;
+
+    // Initial publish by Alice claims the package
+    let doc = publish_doc("owned-lib", "1.0.0", b"tarball-1");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/owned-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Bob (not an owner, not an admin) is rejected from publishing version 1.0.1
+    let doc = publish_doc("owned-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/owned-lib", &bob_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Alice (the owner) can publish version 1.0.1
+    let doc = publish_doc("owned-lib", "1.0.1", b"tarball-2");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/owned-lib", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Admin can also publish version 1.0.2
+    let doc = publish_doc("owned-lib", "1.0.2", b"tarball-3");
+    let response = app
+        .clone()
+        .oneshot(authed_put("/owned-lib", &admin_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn npm_owner_maintainer_mutation_flow() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'team-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &["admin_z"],
+    );
+    let app = app_router(config, &["admin_z"]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let (app, admin_token) = add_user_and_get_token(app, "admin_z", "secret123").await;
+
+    // Alice claims team-pkg
+    let doc = publish_doc("team-pkg", "1.0.0", b"content-1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Non-owner Bob tries to mutate maintainers -> 403
+    let mutation = json!({
+        "_id": "team-pkg",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "bob" }]
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg/-rev/1-abc", &bob_token, mutation))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // Owner Alice tries to empty maintainers -> 400 EmptyMaintainers
+    let empty_mutation = json!({
+        "_id": "team-pkg",
+        "_rev": "1-abc",
+        "maintainers": []
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg/-rev/1-abc", &alice_token, empty_mutation))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // Alice adds Bob as maintainer
+    let add_bob_mutation = json!({
+        "_id": "team-pkg",
+        "_rev": "1-abc",
+        "maintainers": [
+            { "name": "alice" },
+            { "name": "bob" }
+        ]
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg/-rev/1-abc", &alice_token, add_bob_mutation))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Now Bob is an owner and can publish 1.0.1
+    let doc = publish_doc("team-pkg", "1.0.1", b"content-2");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg", &bob_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Admin removes Alice, leaving only Bob
+    let admin_mutation = json!({
+        "_id": "team-pkg",
+        "_rev": "2-def",
+        "maintainers": [{ "name": "bob" }]
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg/-rev/2-def", &admin_token, admin_mutation))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Alice is no longer a maintainer -> 403 on publish
+    let doc = publish_doc("team-pkg", "1.0.2", b"content-3");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/team-pkg", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn package_tombstones_prevent_squatting_and_version_republishing() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'tomb-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, charlie_token) = add_user_and_get_token(app, "charlie", "secret123").await;
+
+    // Alice publishes 1.0.0 and 1.1.0
+    let doc1 = publish_doc("tomb-pkg", "1.0.0", b"v1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc1))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let doc2 = publish_doc("tomb-pkg", "1.1.0", b"v2");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc2))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Alice unpublishes the entire package
+    let res = app
+        .clone()
+        .oneshot(authed_delete("/tomb-pkg/-rev/1", &alice_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Charlie (not former maintainer) tries to publish tomb-pkg -> rejected 403 PackageTombstoned
+    let doc_squat = publish_doc("tomb-pkg", "1.0.0", b"malicious");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &charlie_token, doc_squat))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    let doc_squat_new = publish_doc("tomb-pkg", "2.0.0", b"malicious2");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &charlie_token, doc_squat_new))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // Alice (former maintainer) tries to republish previously unpublished version 1.0.0 -> rejected 403
+    let doc_repub = publish_doc("tomb-pkg", "1.0.0", b"v1-again");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_repub))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // Alice can republish the package with a new version 2.0.0
+    let doc_new = publish_doc("tomb-pkg", "2.0.0", b"v2-new");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_new))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Alice partial-unpublishes 2.0.0 by deleting tarball
+    let res = app
+        .clone()
+        .oneshot(authed_delete("/tomb-pkg/-/tomb-pkg-2.0.0.tgz/-rev/1", &alice_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Now 2.0.0 is unpublished and cannot be republished
+    let doc_repub_2 = publish_doc("tomb-pkg", "2.0.0", b"v2-again");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_repub_2))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // But 2.0.1 can be published
+    let doc_201 = publish_doc("tomb-pkg", "2.0.1", b"v2.0.1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_201))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn scoped_package_ownership_and_unpublish() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  '@my-org/*':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
+    let (app, charlie_token) = add_user_and_get_token(app, "charlie", "secret123").await;
+
+    // Alice publishes @my-org/core@1.0.0
+    let doc = publish_doc("@my-org/core", "1.0.0", b"scoped-1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/@my-org/core", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Bob cannot update maintainers
+    let mutation = json!({
+        "_id": "@my-org/core",
+        "_rev": "1-abc",
+        "maintainers": [{ "name": "bob" }]
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/@my-org/core/-rev/1-abc", &bob_token, mutation))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // Alice adds Bob as maintainer
+    let add_bob = json!({
+        "_id": "@my-org/core",
+        "_rev": "1-abc",
+        "maintainers": [
+            { "name": "alice" },
+            { "name": "bob" }
+        ]
+    });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/@my-org/core/-rev/1-abc", &alice_token, add_bob))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Bob unpublishes the scoped package
+    let res = app
+        .clone()
+        .oneshot(authed_delete("/@my-org/core/-rev/1", &bob_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // Charlie cannot squat @my-org/core -> 403 PackageTombstoned
+    let squat = publish_doc("@my-org/core", "1.0.0", b"evil");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/@my-org/core", &charlie_token, squat))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}

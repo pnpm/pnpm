@@ -1,3 +1,20 @@
+pub(super) use super::{
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
+    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, addressed_registry, authenticate,
+    authorize_package, batch, caller_scoped, cargo, delete_package, delete_tarball, get_dist_tags,
+    get_org_teams, get_team_members,
+    health::{serve_live, serve_ping, serve_ready},
+    hosted_storage, is_tar_registry, not_found, oci, package_mutation, pnpr_protocols_disabled,
+    private_no_cache, publish_package, pypi, remove_dist_tag, resolve_write_target,
+    serve_batch_publish, serve_metrics, serve_metrics_or_packument, serve_org_packages,
+    serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_revision_tarball,
+    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
+    staged,
+    team_access::{grant_team_access, list_team_packages, revoke_team_access},
+    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    update_packument,
+};
+
 mod account_handlers;
 use account_handlers::account_routes;
 
@@ -12,8 +29,8 @@ use npm_handlers::{
     delete_package_dist_tag, get_package_dist_tags, get_packument,
     get_packument_or_version_manifest, get_revision_tarball, get_scoped_tarball,
     get_scoped_version_manifest, get_search, get_tarball, put_package, put_package_dist_tag,
-    put_packument_revision, put_scoped_package, unpublish_package, unpublish_scoped_tarball,
-    unpublish_tarball,
+    put_packument_revision, put_scoped_package, put_scoped_packument_revision, unpublish_package,
+    unpublish_scoped_package, unpublish_scoped_tarball, unpublish_tarball,
 };
 
 mod observability;
@@ -34,22 +51,6 @@ use pnpr_auth::AuthState;
 use pnpr_config::Config;
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
-
-use super::{
-    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
-    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, addressed_registry, authenticate,
-    authorize, batch, caller_scoped, cargo, delete_package, delete_tarball, get_dist_tags,
-    get_org_teams, get_team_members,
-    health::{serve_live, serve_ping, serve_ready},
-    is_tar_registry, not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache,
-    publish_package, pypi, remove_dist_tag, resolve_write_target, serve_batch_publish,
-    serve_metrics, serve_metrics_or_packument, serve_org_packages, serve_package_tarball,
-    serve_packument, serve_pnpr_handshake, serve_revision_tarball, serve_search, serve_tarball,
-    serve_version_manifest, set_dist_tag, split_package_identifier, staged,
-    team_access::{grant_team_access, list_team_packages, revoke_team_access},
-    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
-    update_packument,
-};
 
 pub(super) fn router_with_auth_and_osv(
     config: Config,
@@ -291,6 +292,10 @@ fn npm_registry_routes() -> Router<AppState> {
             .route(
                 &path("/{name}/-rev/{rev}"),
                 put(put_packument_revision).delete(unpublish_package),
+            )
+            .route(
+                &path("/{scope}/{name}/-rev/{rev}"),
+                put(put_scoped_packument_revision).delete(unpublish_scoped_package),
             )
             .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
             .route(&path("/{scope}/{name}/-/{filename}"), get(get_scoped_tarball))

@@ -152,7 +152,7 @@ mod web_ui;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize},
+    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
     documents::RegistryDocuments,
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{

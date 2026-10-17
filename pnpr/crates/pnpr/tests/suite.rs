@@ -27,6 +27,7 @@ mod cross_ecosystem_publish;
 mod journal_recovery;
 mod multi_replica;
 mod oci_registry;
+mod package_ownership;
 mod policy;
 mod provenance;
 mod pypi_registry;

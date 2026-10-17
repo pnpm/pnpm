@@ -358,6 +358,13 @@ fn merge_manifest_field(
     let merged = match key.as_str() {
         "versions" => merge_versions(out.get(key), value, hosted),
         "dist-tags" | "time" => merge_objects(out.get(key), value),
+        "maintainers" => {
+            if let Some(existing) = hosted.and_then(|h| h.get("maintainers")) {
+                existing.clone()
+            } else {
+                value.clone()
+            }
+        }
         // Already stripped by extract_attachments; if it slips through
         // somehow, drop it so we don't persist base64 blobs alongside the
         // packument.

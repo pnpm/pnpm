@@ -39,6 +39,7 @@ fn token_parsing_maps_builtins_and_usernames() {
     assert_eq!(AccessToken::from("$all"), AccessToken::All);
     assert_eq!(AccessToken::from("$authenticated"), AccessToken::Authenticated);
     assert_eq!(AccessToken::from("$anonymous"), AccessToken::Anonymous);
+    assert_eq!(AccessToken::from("$owners"), AccessToken::Owners);
     assert_eq!(AccessToken::from("admin"), AccessToken::User("admin".to_string()));
     // Only the `$`-sigiled spellings are built-ins. The alias spellings
     // verdaccio accepted are plain usernames here — YAML loading rejects
@@ -47,6 +48,17 @@ fn token_parsing_maps_builtins_and_usernames() {
     assert_eq!(AccessToken::from("@all"), AccessToken::User("@all".to_string()));
     assert_eq!(AccessToken::from("all"), AccessToken::User("all".to_string()));
     assert_eq!(AccessToken::from("authenticated"), AccessToken::User("authenticated".to_string()));
+}
+
+#[test]
+fn owners_admits_only_owners() {
+    let list = list("$owners");
+    assert!(list.references_owners());
+    assert!(!list.allows(&Identity::Anonymous));
+    assert!(!list.allows(&user("alice")));
+    assert!(!list.allows_with_context(&Identity::Anonymous, true));
+    assert!(list.allows_with_context(&user("alice"), true));
+    assert!(!list.allows_with_context(&user("alice"), false));
 }
 
 #[test]
