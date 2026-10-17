@@ -138,15 +138,35 @@ fn injected_deps_block_fast_path(config: &pnpm_config::Config) -> bool {
 }
 
 fn has_injected_dep(check: &OptimisticRepeatInstallCheck<'_>, lockfile: &Lockfile) -> bool {
+    let included_groups = dependency_fields(check)
+        .into_iter()
+        .filter_map(|(_, group, included)| included.then_some(group))
+        .collect::<Vec<_>>();
     check.project_manifests
         .iter()
         .any(|(project_dir, _)| {
             let importer_id = importer_id_from_root_dir(check.workspace_root, project_dir);
             lockfile
-                .injected_dependencies(&importer_id)
+                .injected_dependencies(&importer_id, included_groups.iter().copied())
                 .next()
                 .is_some()
         })
+}
+
+/// Each manifest dependency field, its group, and whether this install
+/// includes it.
+fn dependency_fields(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> [(&'static str, DependencyGroup, bool); 3] {
+    [
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
+        (
+            "optionalDependencies",
+            DependencyGroup::Optional,
+            check.layout.included.includes_project_optional_dependencies(),
+        ),
+    ]
 }
 
 /// What the manifests' `file:` dependencies amount to.
@@ -161,15 +181,7 @@ fn scan_local_tarball_deps(
     check: &OptimisticRepeatInstallCheck<'_>,
     overrides: &[VersionOverride],
 ) -> LocalTarballScan {
-    let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
-        (
-            "optionalDependencies",
-            DependencyGroup::Optional,
-            check.layout.included.includes_project_optional_dependencies(),
-        ),
-    ];
+    let fields = dependency_fields(check);
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
         if !scan_project_manifest_tarballs(

@@ -1,10 +1,22 @@
 use crate::Lockfile;
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
+const ALL_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+
 fn injected(lockfile: &str, importer_id: &str) -> Vec<String> {
+    injected_in_groups(lockfile, importer_id, ALL_GROUPS)
+}
+
+fn injected_in_groups(
+    lockfile: &str,
+    importer_id: &str,
+    groups: impl IntoIterator<Item = DependencyGroup> + 'static,
+) -> Vec<String> {
     let lockfile: Lockfile = serde_saphyr::from_str(lockfile).unwrap();
     let mut aliases = lockfile
-        .injected_dependencies(importer_id)
+        .injected_dependencies(importer_id, groups)
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     aliases.sort();
@@ -29,6 +41,9 @@ importers:
       registry:
         specifier: 1.0.0
         version: 1.0.0
+      renamed:
+        specifier: workspace:injected-renamed@*
+        version: injected-renamed@file:injected-renamed
     devDependencies:
       injected-dev:
         specifier: file:injected-dev
@@ -44,6 +59,9 @@ packages:
   injected-prod@file:injected-prod:
     resolution: {directory: injected-prod, type: directory}
 
+  injected-renamed@file:injected-renamed:
+    resolution: {directory: injected-renamed, type: directory}
+
   local-tarball@file:local.tgz:
     resolution: {integrity: sha512-AAAA, tarball: file:local.tgz}
 
@@ -56,6 +74,8 @@ snapshots:
 
   injected-prod@file:injected-prod: {}
 
+  injected-renamed@file:injected-renamed: {}
+
   local-tarball@file:local.tgz: {}
 
   registry@1.0.0: {}
@@ -63,7 +83,12 @@ snapshots:
 
 #[test]
 fn directory_copies_are_injected() {
-    assert_eq!(injected(LOCKFILE, "."), ["injected-dev", "injected-prod"]);
+    assert_eq!(injected(LOCKFILE, "."), ["injected-dev", "injected-prod", "renamed"]);
+}
+
+#[test]
+fn only_the_given_groups_are_read() {
+    assert_eq!(injected_in_groups(LOCKFILE, ".", [DependencyGroup::Dev]), ["injected-dev"]);
 }
 
 #[test]
