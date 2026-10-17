@@ -7,6 +7,10 @@
 //! config-load warnings and the project checks that run before the command
 //! belong here.
 
+pub(crate) use load_report::ConfigWarnings;
+
+mod load_report;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{
@@ -212,6 +216,11 @@ pub(crate) fn report_workspace_key_issues(
         return Err(UnrecognizedTaskSettingsError { settings }.into());
     }
     Ok(())
+}
+
+/// Whether [`report_workspace_key_issues`] fails under `strict`.
+pub(crate) fn key_issues_fail_when_strict(issues: &WorkspaceKeyIssues) -> bool {
+    !issues.unrecognized.is_empty() || issues.unrecognized_task_settings.total > 0
 }
 
 fn warn_unrecognized_permissions(permissions: &UnrecognizedSettings) {

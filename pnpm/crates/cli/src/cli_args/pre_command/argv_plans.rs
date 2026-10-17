@@ -2,11 +2,11 @@
 //! read from argv directly.
 
 use super::{
-    ConfigOverrides, KeyIssueReporting, OsString, PreCommandInput, PreCommandPlan,
-    SwitchProcessState,
+    ConfigOverrides, OsString, PreCommandInput, PreCommandPlan, SwitchProcessState,
     input::{UnparsedArgv, VersionArgv},
     pre_command_plan_from_input,
 };
+use crate::cli_args::config_warnings::ConfigWarnings;
 
 /// The `pnpm --version` path, which clap answers before a command is
 /// parsed. pnpm checks the package manager there too, but skips the runtime
@@ -24,9 +24,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             skip_pm_handling: false,
             check_runtimes: false,
             reporter,
-            // Printing the version must work in a project whose
-            // `pnpm-workspace.yaml` is broken, like the runtime checks above.
-            key_issues: KeyIssueReporting::WarnOnly,
+            warnings: ConfigWarnings::for_version_flag(),
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -65,7 +63,7 @@ pub(crate) fn switch_plan_for_unparsed_argv(
             skip_pm_handling: false,
             check_runtimes: false,
             reporter,
-            key_issues: KeyIssueReporting::Skip,
+            warnings: ConfigWarnings::for_unparsed_argv(),
         },
         config_overrides,
         SwitchProcessState::current(),

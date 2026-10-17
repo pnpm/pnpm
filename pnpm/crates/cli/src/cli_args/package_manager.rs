@@ -258,6 +258,14 @@ pub(crate) fn exact_version(version: &str) -> Option<String> {
     (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
+/// Whether the pin `wanted` names the pnpm that is running.
+pub(crate) fn pins_running_pnpm(wanted: Option<&WantedPackageManager>) -> bool {
+    wanted.is_some_and(|pm| {
+        pm.name == "pnpm"
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+    })
+}
+
 /// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:
 /// true })`, the call every version pin is read with — a package manager's
 /// and a runtime's alike.

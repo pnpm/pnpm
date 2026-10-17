@@ -112,6 +112,7 @@ pub(super) struct ConfigTarget<'a> {
     pub(super) anchor: &'a Path,
     pub(super) is_global: bool,
     pub(super) store_use: StoreUse,
+    pub(super) warnings: crate::cli_args::config_warnings::ConfigWarnings,
 }
 
 /// How a command uses the package store, which decides whether its config

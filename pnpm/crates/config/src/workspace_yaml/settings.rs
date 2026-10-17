@@ -958,16 +958,17 @@ impl WorkspaceSettings {
     /// `pnpm-workspace.yaml`, or permission denied) propagates, matching
     /// pnpm where `ENOENT` is the only silent case.
     pub fn load_at(dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
-        Self::read_at(dir, false)
+        Self::read_at(dir, crate::SettingsRead::All)
     }
 
-    /// [`Self::load_at`], leaving out each top-level setting that does not
-    /// read on its own when `skip_unreadable`
-    /// (see [`super::readable::read_readable_settings`]).
-    fn read_at(dir: &Path, skip_unreadable: bool) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+    /// [`Self::load_at`], reading the settings `settings_read` selects.
+    fn read_at(
+        dir: &Path,
+        settings_read: crate::SettingsRead,
+    ) -> Result<Option<Self>, LoadWorkspaceYamlError> {
         read_workspace_document(dir)?
             .map(|document| {
-                Self::read_document(document, skip_unreadable, |text, path| {
+                Self::read_document(document, settings_read, |text, path| {
                     Self::read_valid(text, path)
                 })
             })
@@ -994,16 +995,16 @@ impl WorkspaceSettings {
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
-        Self::find_and_read(start_dir, false)
+        Self::find_and_read(start_dir, crate::SettingsRead::All)
     }
 
-    /// [`Self::find_and_load`], with [`Self::read_at`]'s `skip_unreadable`.
+    /// [`Self::find_and_load`], with [`Self::read_at`]'s `settings_read`.
     pub(crate) fn find_and_read(
         start_dir: &Path,
-        skip_unreadable: bool,
+        settings_read: crate::SettingsRead,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
         for dir in start_dir.ancestors() {
-            if let Some(settings) = Self::read_at(dir, skip_unreadable)? {
+            if let Some(settings) = Self::read_at(dir, settings_read)? {
                 return Ok(Some((dir.join(WORKSPACE_MANIFEST_FILENAME), settings)));
             }
         }

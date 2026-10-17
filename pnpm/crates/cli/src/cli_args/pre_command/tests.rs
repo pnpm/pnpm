@@ -1,6 +1,6 @@
 use super::{
-    CliArgs, CliCommand, CliNetworkArgs, ConfigLoad, KeyIssueReporting, PackageManagerToSync,
-    PinRoots, PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
+    CliArgs, CliCommand, CliNetworkArgs, ConfigLoad, PackageManagerToSync, PinRoots,
+    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
     load_pre_command_config, locked_package_manager_to_fetch, pre_command_plan_from_input,
     switch_target,
 };
@@ -8,6 +8,7 @@ use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
         cli_command::CliPathArgs,
+        config_warnings::ConfigWarnings,
         pre_command::input::{PinFlags, UnparsedArgv, VersionArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
@@ -351,7 +352,7 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
     let input = PreCommandInput { switch, ..pre_command_input(&dir) };
 
     let config =
-        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::default())
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
             .expect("load the pre-command config");
 
     assert_eq!(
@@ -375,7 +376,7 @@ fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
     let input = PreCommandInput { switch, ..pre_command_input(&dir) };
 
     let config =
-        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::default())
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
             .expect("load the pre-command config");
 
     assert_eq!(config.package_manager_bootstrap.registry, "https://mirror.example.com/npm/");
@@ -964,25 +965,88 @@ fn pre_command_plan_switches_past_a_setting_this_pnpm_rejects() {
     assert_eq!(plan.target.spec, "99.0.0");
 }
 
+/// The decision reads the pin decision settings alone, so a setting outside
+/// them is left to the command's own load to report, unreadable or not.
 #[test]
-fn pre_command_plan_reports_a_setting_it_cannot_read_when_it_does_not_switch() {
+fn pre_command_plan_decides_past_a_setting_outside_the_decision() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), "99.0.0");
     write_workspace_manifest(
         root.path(),
-        &format!("pmOnFail: warn\n{UNREADABLE_LOCKFILE_SETTING}"),
+        &format!("pmOnFail: warn\nnodeLinker: [hoisted]\n{UNREADABLE_LOCKFILE_SETTING}"),
     );
 
-    let error = pre_command_plan_from_input(
+    let plan = pre_command_plan_from_input(
         &pre_command_input(root.path()),
         &ConfigOverrides::default(),
         SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
     )
-    .expect_err("the unreadable setting is reported");
+    .expect("the unreadable settings are not the decision's to report");
 
-    let message = format!("{error:?}");
-    eprintln!("{message}");
-    assert!(message.contains("Failed to parse pnpm-workspace.yaml"));
+    assert!(
+        !matches!(plan, Some(PreCommandPlan::Switch(_))),
+        "pmOnFail: warn keeps the running pnpm: {plan:?}",
+    );
+}
+
+/// A manifest that pins nothing these checks act on needs no setting, so a
+/// workspace file that is not even YAML does not reach them.
+#[test]
+fn pre_command_plan_reads_no_setting_for_a_manifest_without_pins() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"name":"project"}"#);
+    write_workspace_manifest(root.path(), "packages: [\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("no setting is read");
+
+    assert!(plan.is_none(), "{plan:?}");
+}
+
+/// A workspace package follows the pin at the workspace root, which the
+/// decision finds through the workspace's `packages`.
+#[test]
+fn pre_command_plan_switches_a_workspace_package_to_the_root_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), "packages:\n  - packages/*\n");
+    let package_dir = root.path().join("packages/app");
+    fs::create_dir_all(&package_dir).expect("create the workspace package");
+    write_manifest(&package_dir, r#"{"name":"app"}"#);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(&package_dir),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+/// Recording the pin writes the lockfile, so a configuration the command
+/// cannot run with records nothing and is left to the command to report.
+#[test]
+fn pre_command_plan_records_no_pin_under_an_unreadable_setting() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_workspace_manifest(root.path(), "nodeLinker: [hoisted]\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("the unreadable setting is the command's to report");
+
+    assert!(plan.is_none(), "{plan:?}");
 }
 
 const UNREADABLE_LOCKFILE_SETTING: &str = "lockfile:\n  recordsSomethingNew: true\n";
@@ -1066,7 +1130,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         skip_pm_handling: false,
         check_runtimes: true,
         reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
-        key_issues: KeyIssueReporting::Enforce,
+        warnings: ConfigWarnings::for_version_flag(),
     }
 }
 
