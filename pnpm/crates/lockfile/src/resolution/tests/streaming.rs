@@ -67,7 +67,7 @@ fn npm_tarball_url_keeps_the_scope_in_the_artifactory_filename() {
 fn npm_tarball_url_addresses_the_package_identifier_in_the_pnpr_layout() {
     for (name, version, expected) in [
         ("@acme/widget", "1.2.3", "@acme/widget@1.2.3"),
-        ("@acme/widget", "1.2.3+build.4", "@acme/widget@1.2.3"),
+        ("@acme/widget", "1.2.3+build.4", "@acme/widget@1.2.3+build.4"),
         ("widget", "1.2.3-beta.1", "widget@1.2.3-beta.1"),
     ] {
         let received = npm_tarball_url(

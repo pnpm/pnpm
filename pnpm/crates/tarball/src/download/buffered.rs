@@ -117,11 +117,7 @@ fn decode_buffered_body(
         return Ok(body);
     }
     let limit = MAX_UNTRUSTED_PREALLOC_BYTES as u64;
-    let frame_size = match content_coding {
-        ContentCoding::Zstd => zstd::zstd_safe::get_frame_content_size(&body).ok().flatten(),
-        ContentCoding::Gzip | ContentCoding::Identity => None,
-    };
-    if [unpacked_size.map(|size| size as u64), frame_size]
+    if [unpacked_size.map(|size| size as u64), content_coding.declared_size(&body)]
         .into_iter()
         .flatten()
         .any(|size| size > limit)

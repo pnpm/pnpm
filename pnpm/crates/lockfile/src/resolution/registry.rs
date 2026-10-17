@@ -192,6 +192,11 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
     let TarballUrlOptions { registry, server_type } = opts;
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    // The pnpr layout addresses the version by its exact key, build metadata
+    // included; `.tgz` filenames drop it.
+    if server_type == Some(RegistryServerType::Pnpr) {
+        return format!("{registry}{name}@{version}");
+    }
     let version = version
         .split_once('+')
         .map(|(base, _)| base)
@@ -199,9 +204,8 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
     // Artifactory keeps the scope in the filename of a scoped package's tarball
     // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
     let filename_name = match server_type {
-        Some(RegistryServerType::Pnpr) => return format!("{registry}{name}@{version}"),
         Some(RegistryServerType::Artifactory) => name,
-        Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
+        _ => match name.strip_prefix('@') {
             Some(scoped) => scoped
                 .split_once('/')
                 .map(|(_, bare)| bare)

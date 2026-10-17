@@ -82,6 +82,16 @@ impl ContentCoding {
         Ok((Box::new(reader), watch))
     }
 
+    /// The decoded size `body`'s own header declares: a zstd frame's content
+    /// size. Gzip declares none worth trusting.
+    pub(crate) fn declared_size(self, body: &[u8]) -> Option<u64> {
+        match self {
+            #[cfg(not(target_family = "wasm"))]
+            Self::Zstd => zstd::zstd_safe::get_frame_content_size(body).ok().flatten(),
+            _ => None,
+        }
+    }
+
     fn token(self) -> &'static str {
         match self {
             Self::Identity => "identity",
