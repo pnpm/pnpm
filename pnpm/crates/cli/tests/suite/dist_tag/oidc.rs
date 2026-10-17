@@ -30,7 +30,7 @@ fn run_with_oidc(
 fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
+    let registry = format!("{}/npm/private", server.url());
     let identity_url = format!("{}/identity", server.url());
     let identity = server
         .mock("GET", "/identity")
@@ -38,32 +38,32 @@ fn oidc_authenticates_add_rm_and_ls_with_registry_override() {
         .expect(0)
         .create();
     let exchange = server
-        .mock("POST", "/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg")
+        .mock("POST", "/npm/private/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg")
         .match_header("authorization", Matcher::Exact(format!("Bearer {NPM_ID_TOKEN}")))
         .with_status(200)
         .with_body(r#"{"token":"oidc-registry-token"}"#)
         .expect(3)
         .create();
     let add = server
-        .mock("PUT", "/-/package/@scope%2fpkg/dist-tags/beta")
+        .mock("PUT", "/npm/private/-/package/@scope%2fpkg/dist-tags/beta")
         .match_header("authorization", "Bearer oidc-registry-token")
         .match_body(Matcher::Exact(r#""1.0.0""#.to_string()))
         .with_status(201)
         .create();
     let tags = server
-        .mock("GET", "/-/package/@scope%2fpkg/dist-tags")
+        .mock("GET", "/npm/private/-/package/@scope%2fpkg/dist-tags")
         .match_header("authorization", "Bearer oidc-registry-token")
         .with_status(200)
         .with_body(r#"{"beta":"1.0.0"}"#)
         .expect(2)
         .create();
     let remove = server
-        .mock("DELETE", "/-/package/@scope%2fpkg/dist-tags/beta")
+        .mock("DELETE", "/npm/private/-/package/@scope%2fpkg/dist-tags/beta")
         .match_header("authorization", "Bearer oidc-registry-token")
         .with_status(200)
         .create();
     let visibility = server
-        .mock("GET", "/-/package/@scope%2fpkg/visibility")
+        .mock("GET", "/npm/private/-/package/@scope%2fpkg/visibility")
         .expect(0)
         .create();
     let auth_contents = format!("{}:_authToken=configured-token\n", nerf(&registry));

@@ -24,7 +24,7 @@ jest.unstable_mockModule('ci-info', () => ({
 // Importing publishPackedPkg transitively loads `@pnpm/network.fetch`, whose
 // `dispatcher.ts` calls `setGlobalDispatcher(...)` on load. We therefore install the
 // MockAgent *after* this import so it isn't clobbered.
-const { fetchTokenAndProvenanceByOidc } = await import('../../src/publish/publishPackedPkg.js')
+const { createPublishOptions, fetchTokenAndProvenanceByOidc } = await import('../../src/publish/publishPackedPkg.js')
 
 const REGISTRY_ORIGIN = 'https://registry.npmjs.org'
 const REGISTRY = `${REGISTRY_ORIGIN}/`
@@ -78,6 +78,23 @@ afterAll(() => {
 })
 
 describe('fetchTokenAndProvenanceByOidc', () => {
+  test('publish uses the OIDC token for a path-prefixed registry', async () => {
+    const pool = mockAgent.get(REGISTRY_ORIGIN)
+    pool.intercept({ path: `/npm/private${TOKEN_EXCHANGE_PATH}`, method: 'POST' })
+      .reply(200, { token: 'oidc-auth-token' })
+
+    const result = await createPublishOptions(
+      { name: PACKAGE_NAME, version: '1.0.0', publishConfig: { registry: `${REGISTRY_ORIGIN}/npm/private` } },
+      { ...baseOptions, provenance: false }
+    )
+
+    expect(result).toMatchObject({
+      registry: `${REGISTRY_ORIGIN}/npm/private/`,
+      '//registry.npmjs.org/npm/private/:_authToken': 'oidc-auth-token',
+    })
+    mockAgent.assertNoPendingInterceptors()
+  })
+
   test('returns the OIDC-derived authToken and determined provenance when both registry calls succeed', async () => {
     const pool = mockAgent.get(REGISTRY_ORIGIN)
     pool.intercept({ path: TOKEN_EXCHANGE_PATH, method: 'POST' })
