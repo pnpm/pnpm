@@ -185,8 +185,8 @@ function misspelledTaskSettingField (field: string): string | undefined {
 // runs before what it meant to wait for.
 function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
   assertObjectSetting(tasks, 'tasks')
-  for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
-    assertValidTask(`tasks['${taskName}']`, task)
+  for (const taskName of Object.keys(tasks as object)) {
+    assertValidTask(`tasks['${taskName}']`, (tasks as Record<string, unknown>)[taskName] ??= {})
   }
 }
 
