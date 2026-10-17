@@ -28,6 +28,7 @@ import {
 import {
   maybeUpgradeAbbreviatedMetaForReleaseAge,
   parseModifiedDate,
+  revalidationOfHeldFullDocument,
   upgradeMetaForCache,
 } from './releaseAgeUpgrade.js'
 
@@ -195,10 +196,14 @@ async function upgradeFreshMetaForReleaseAge (request: PickRequest, fetched: Fet
     const content = encodeMirror(ctx, fetched, { meta: fetched.meta, etag, body: { uncacheable: fetched.uncacheable, fullEtag } })
     saveMetaBestEffort(request.pkgMirror, content, fetched.uncacheable === true)
   }
+  // A response to a full request already is the full document, tagged as such
+  // in the abbreviated mirror, so the upgrade revalidates it.
+  const heldFullEtag = fetched.fullMetadata === true ? fetched.etag : undefined
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
     fullMetadata: true,
     registry: opts.registry,
+    ...revalidationOfHeldFullDocument(heldFullEtag, fetched.meta, fetched.uncacheable),
   })
   if (fullFetchResult.notModified) {
     return { meta: fetched.meta, resultToSave: fetched, attemptedReleaseAgeUpgrade: true }
