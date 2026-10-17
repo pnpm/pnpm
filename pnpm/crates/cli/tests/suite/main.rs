@@ -129,6 +129,7 @@ mod package_manager_check;
 mod package_yaml;
 mod patch;
 mod patched_engines;
+mod peer_convergence;
 mod peer_error_output;
 mod peers;
 mod ping;
