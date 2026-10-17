@@ -14,7 +14,7 @@ use super::{
     settle::{
         current_lockfile_unusable_with_non_empty_wanted, regenerate_wanted_lockfile_if_missing,
     },
-    validation::{FileDigest, Vouched},
+    validation::{FileDigest, Vouched, trusts_every_file},
 };
 use std::collections::HashSet;
 
@@ -166,8 +166,16 @@ fn settle_proven_tree(
             .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     }
     let restored = settle_missing_wanted_lockfile(check, policy, None)?;
-    if drift.rehashed || drift.lockfile_changed || restored {
-        record_state(check, state, &drift.proven_dirs(&[]), policy);
+    let vouched = drift.proven_dirs(&[]);
+    if drift.lockfile_changed || restored {
+        record_state(check, state, &vouched, policy);
+    } else if drift.rehashed {
+        // A file changed in the same clock tick as this record is read again
+        // next time anyway, so writing it would only repeat the write then.
+        let new_state = refreshed_state(check, state, &vouched, validation_now(check), policy);
+        if new_state.validation.as_ref().is_some_and(trusts_every_file) {
+            write_state(check, &new_state, policy);
+        }
     }
     Ok(())
 }
@@ -278,7 +286,7 @@ fn record_state(
 }
 
 /// Record a passing check at `filesystem_now`, vouching for the `vouched`
-/// projects. A failed write only costs the next run a repeat of the check.
+/// projects.
 fn record_state_at(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
@@ -287,9 +295,19 @@ fn record_state_at(
     filesystem_now: Option<i64>,
 ) {
     let new_state = refreshed_state(check, state, vouched, filesystem_now, policy);
+    write_state(check, &new_state, policy);
+}
+
+/// Write `new_state`. A failed write only costs the next run a repeat of the
+/// check.
+fn write_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    new_state: &WorkspaceState,
+    policy: &GatePolicy,
+) {
     let modules_dir = check.config.workspace_state_modules_dir(check.workspace_root);
     let Err(error) =
-        pnpm_workspace_state::update_workspace_state_in_modules(&modules_dir, &new_state)
+        pnpm_workspace_state::update_workspace_state_in_modules(&modules_dir, new_state)
     else {
         return;
     };

@@ -240,6 +240,7 @@ fn write_state_with_pnpmfiles(
     };
     record_validation_on_disk(workspace_root, &mut state);
     update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
 }
 
 /// Record in the state on disk that an install materialized
@@ -531,7 +532,22 @@ fn collide_mtimes_with_recorded_state(
 /// Date the wanted lockfile [`lockfile_mtime_after`] `recorded`, the
 /// state's `lastValidatedTimestamp`, so the next check compares its content.
 fn date_lockfile_after(workspace_root: &std::path::Path, recorded: i64) {
-    set_mtime_ms(&workspace_root.join(Lockfile::FILE_NAME), lockfile_mtime_after(recorded));
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    set_mtime_ms(&path, lockfile_mtime_after(recorded));
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Wait until the filesystem clock moves past every write so far, so a check
+/// that records a file records a stat the next check trusts.
+fn wait_for_the_next_filesystem_tick(workspace_root: &std::path::Path) {
+    let now = || {
+        super::timestamps::filesystem_now_ns_in_modules(&workspace_root.join("node_modules"))
+            .unwrap()
+    };
+    let written = now();
+    while now() <= written {
+        std::thread::yield_now();
+    }
 }
 
 /// [`MTIME_STEP_MS`] past `recorded`, never on an exact second. The check

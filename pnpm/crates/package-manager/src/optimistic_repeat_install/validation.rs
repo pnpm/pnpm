@@ -177,10 +177,21 @@ impl<'a> FileDigests<'a> {
     fn recorded_signature(&self, path: &Path) -> Option<&'a FileSignature> {
         let recorded = self.recorded?;
         let signature = recorded.files.get(&*path.to_string_lossy())?;
-        let changed_ns = signature.ctime_ns.unwrap_or(signature.mtime_ns).max(signature.mtime_ns);
-        let window = if changed_ns % 1_000_000_000 == 0 { WHOLE_SECOND_GRANULARITY_NS } else { 0 };
-        (changed_ns.saturating_add(window) < recorded.recorded_at_ns).then_some(signature)
+        signature_trusted(signature, recorded.recorded_at_ns).then_some(signature)
     }
+}
+
+/// Whether the next check trusts the stat of every file `validation` records.
+pub(crate) fn trusts_every_file(validation: &Validation) -> bool {
+    validation.files
+        .values()
+        .all(|signature| signature_trusted(signature, validation.recorded_at_ns))
+}
+
+fn signature_trusted(signature: &FileSignature, recorded_at_ns: i64) -> bool {
+    let changed_ns = last_change_ns(signature.mtime_ns, signature.ctime_ns);
+    let window = if changed_ns % 1_000_000_000 == 0 { WHOLE_SECOND_GRANULARITY_NS } else { 0 };
+    changed_ns.saturating_add(window) < recorded_at_ns
 }
 
 /// The parts of a file's stat a [`FileSignature`] records.
@@ -215,6 +226,10 @@ impl FileStat {
             && self.ctime_ns == signature.ctime_ns
             && self.size == signature.size
     }
+}
+
+fn last_change_ns(mtime_ns: i64, ctime_ns: Option<i64>) -> i64 {
+    ctime_ns.map_or(mtime_ns, |ctime_ns| ctime_ns.max(mtime_ns))
 }
 
 #[cfg(unix)]

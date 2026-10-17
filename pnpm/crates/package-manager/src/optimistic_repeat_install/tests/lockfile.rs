@@ -978,6 +978,7 @@ fn a_lockfile_recorded_in_the_same_tick_is_read_once_more() {
     validation.recorded_at_ns =
         signature.ctime_ns.unwrap_or(signature.mtime_ns).max(signature.mtime_ns);
     update_workspace_state(dir.path(), &state).unwrap();
+    super::wait_for_the_next_filesystem_tick(dir.path());
 
     assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
     let recorded = super::recorded_state_text(dir.path());
