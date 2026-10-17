@@ -72,7 +72,7 @@ impl CopyReservation {
             return false;
         }
         let granted =
-            self.quota.reserved.fetch_update(Ordering::AcqRel, Ordering::Acquire, |reserved| {
+            self.quota.reserved.try_update(Ordering::AcqRel, Ordering::Acquire, |reserved| {
                 reserved
                     .checked_add(bytes)
                     .filter(|reserved| *reserved <= COPY_QUOTA_BYTES)
