@@ -51,6 +51,64 @@ fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
     }
 }
 
+#[test]
+fn remote_tarball_peer_versions_of_linked_packages_use_metadata() {
+    let tarball = "https://example.com/provider.tgz";
+    for version in ["1.0.0", "2.0.0"] {
+        let temp = tempfile::tempdir().unwrap();
+        let lib_dir = temp.path().join("packages/lib");
+        std::fs::create_dir_all(&lib_dir).unwrap();
+        std::fs::create_dir_all(temp.path().join("packages/app")).unwrap();
+        std::fs::write(
+            lib_dir.join("package.json"),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let lockfile = serde_json::from_value(serde_json::json!({
+            "lockfileVersion": "9.0",
+            "importers": {
+                "packages/app": { "dependencies": {
+                    "lib": { "specifier": "workspace:*", "version": "link:../lib" },
+                    "provider": { "specifier": tarball, "version": tarball },
+                } },
+                "packages/lib": {},
+            },
+            "packages": {
+                format!("provider@{tarball}"): {
+                    "resolution": { "integrity": "sha512-provider", "tarball": tarball },
+                    "version": version,
+                },
+            },
+            "snapshots": { format!("provider@{tarball}"): {} },
+        }))
+        .expect("parse lockfile");
+        let report = super::peer_issues_for_lockfile(
+            &lockfile,
+            temp.path(),
+            &["packages/app".to_string()],
+            &PeerDependencyRules::default(),
+            None,
+            true,
+        )
+        .expect("inspect peers");
+        if version == "1.0.0" {
+            assert!(
+                report.is_none(),
+                "unexpected peer report: {:?}",
+                report.as_ref().map(super::PeerIssuesReport::issues),
+            );
+        } else {
+            let report = report.expect("incompatible peer must be reported");
+            assert_eq!(report.issues()["packages/app"].bad["provider"][0].found_version, version);
+        }
+    }
+}
+
 fn have_common_version(version_ranges: &[String]) -> bool {
     intersect_multiple_ranges(version_ranges).is_some()
 }
