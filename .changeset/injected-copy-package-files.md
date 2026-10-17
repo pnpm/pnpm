@@ -1,5 +1,6 @@
 ---
 "@pnpm/workspace.injected-deps-syncer": patch
+"@pnpm/fetching.directory-fetcher": patch
 "@pnpm/exec.commands": patch
 "@pnpm/exec.lifecycle": patch
 "@pnpm/building.after-install": patch

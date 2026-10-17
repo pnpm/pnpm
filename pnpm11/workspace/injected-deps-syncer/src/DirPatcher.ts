@@ -255,7 +255,7 @@ async function addFilesUnderListedDirectories (dir: string, filesMap: Map<string
   const directories = Array.from(filesMap.keys()).filter((relativePath) => inodeMap[relativePath] === DIR)
   const nestedMaps = await Promise.all(directories.map(async (directory) => {
     delete inodeMap[directory]
-    const listed = await listFilesFromDir(path.join(dir, directory), LIST_FILES_OPTIONS)
+    const listed = await listFilesFromDir(path.join(dir, directory), { ...LIST_FILES_OPTIONS, packageRoot: dir })
     return extendFilesMap({
       filesMap: new Map(Array.from(listed.filesMap, ([relativePath, realPath]) => [`${directory}/${relativePath}`, realPath])),
     })
