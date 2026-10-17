@@ -204,11 +204,10 @@ pnpr --disable-registry
 
 pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`:
 
-1. **Readiness probe marks unready**: Upon receiving either signal, pnpr immediately changes its readiness probe response (`GET /-/readyz`) from `200 OK` to `503 Service Unavailable` (`{"status":"shutting_down"}`). This signals upstream load balancers and reverse proxies to stop routing new traffic to the terminating instance.
-2. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
-3. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
+1. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
+2. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
 
-Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica becomes ready before the old replica drains and shuts down.
+Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica's readiness probe (`GET /-/ready`) passes before the old replica receives `SIGTERM` and drains.
 
 ## Exit codes
 

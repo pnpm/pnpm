@@ -50,7 +50,7 @@ When configured with `log.format: json`, pnpr outputs each audit event as a sing
 }
 ```
 
-Lightweight log shippers such as [Vector](https://vector.dev/), [Fluent Bit](https://fluentbit.io/), or [Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) can filter for `target == "pnpr::audit"` and forward these events to an HTTP webhook endpoint, Slack, or a message broker (such as Kafka, RabbitMQ, or AWS SQS).
+Lightweight log shippers such as [Vector](https://vector.dev/), [Fluent Bit](https://fluentbit.io/), or [Fluentd](https://www.fluentd.org/) can filter for `target == "pnpr::audit"` and forward these events to an HTTP webhook endpoint, Slack, or a message broker (such as Kafka, RabbitMQ, or AWS SQS).
 
 #### Example: Forwarding audit logs to a webhook with Vector
 

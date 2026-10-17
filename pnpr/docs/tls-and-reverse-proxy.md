@@ -61,8 +61,9 @@ Do not set `trustedProxies` to trust all addresses (`0.0.0.0/0`). An overly perm
 
 Reverse proxies and load balancers should be configured with health probes:
 
-- **Liveness probe (`GET /-/healthz`)**: Returns `200 OK` (`{"status":"ok"}`) as long as the process is alive.
-- **Readiness probe (`GET /-/readyz`)**: Returns `200 OK` (`{"status":"ready"}`) once storage, routes, and auth are initialized. During graceful shutdown (after receiving `SIGTERM` or `SIGINT`), `/-/readyz` immediately returns `503 Service Unavailable` (`{"status":"shutting_down"}`) to signal the load balancer to remove the instance from service while active in-flight requests finish draining.
+- **Liveness probe (`GET /-/live`)**: Returns `200 OK` (`{"status":"ok"}`) when the server process is alive and handling requests.
+- **Readiness probe (`GET /-/ready`)**: Returns `200 OK` (`{"status":"ok","storage":"ok","auth":"ok"}`) when storage and auth backends are healthy, or `503 Service Unavailable` (`{"status":"unhealthy",...}`) if a backend is unreachable.
+- **Health ping (`GET /-/ping`)**: Minimal health check returning `200 OK` (`{}`) on success or `503` on failure.
 
 ## Configuration recipes
 
@@ -152,7 +153,7 @@ services:
       - "traefik.http.routers.pnpr.entrypoints=websecure"
       - "traefik.http.routers.pnpr.tls.certresolver=letsencrypt"
       - "traefik.http.services.pnpr.loadbalancer.server.port=7677"
-      - "traefik.http.services.pnpr.loadbalancer.healthcheck.path=/-/readyz"
+      - "traefik.http.services.pnpr.loadbalancer.healthcheck.path=/-/ready"
       - "traefik.http.services.pnpr.loadbalancer.healthcheck.interval=10s"
 ```
 
@@ -161,7 +162,7 @@ services:
 When deploying behind an AWS Application Load Balancer:
 
 1. Create a Target Group with target type **IP** or **Instance** on port 7677 using HTTP.
-2. Set the health check path to `/-/readyz` with an HTTP status code of `200`.
+2. Set the health check path to `/-/ready` with an HTTP status code of `200`.
 3. Create an HTTPS listener on port 443 with your ACM certificate, forwarding traffic to the Target Group.
 4. Ensure the ALB idle timeout is set high enough for large package uploads (for example, 300 seconds).
 5. In `pnpr.yaml`, add the VPC CIDR block (such as `10.0.0.0/16`) to `trustedProxies`.
@@ -173,5 +174,5 @@ pnpr configurations are immutable during a process lifecycle. pnpr does not impl
 To apply configuration changes without downtime:
 
 1. **Deploy with an orchestrator**: In container orchestrators like Kubernetes, Docker Swarm, or AWS ECS, trigger a rolling deployment.
-2. **Readiness probe shifts traffic**: The orchestrator launches a new pnpr container. Once its `/-/readyz` check passes, the load balancer begins routing new requests to the new instance.
-3. **Graceful shutdown**: The orchestrator sends `SIGTERM` to the old container. pnpr immediately marks `/-/readyz` as `503 Service Unavailable`, stops accepting new connections on its listener, and drains active in-flight requests before exiting cleanly.
+2. **Readiness probe shifts traffic**: The orchestrator launches a new pnpr container. Once its `/-/ready` check passes, the load balancer begins routing new requests to the new instance.
+3. **Graceful shutdown**: The orchestrator sends `SIGTERM` to the old container. pnpr ceases accepting new connections on its listener and drains active in-flight requests before exiting cleanly.
