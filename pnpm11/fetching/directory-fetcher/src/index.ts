@@ -62,7 +62,7 @@ export function createDirectoryFetcher (
 }
 
 export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions & {
-  /** Walk every file and confine links to this directory, which holds the one walked, instead of to the walked directory. */
+  /** Confine the walk, and the links it follows, to this directory, which holds the one walked. */
   packageRoot?: string
 }
 
@@ -94,19 +94,21 @@ export async function listFilesFromDir (
   dir: string,
   opts: FetchFromDirOptions
 ): Promise<Pick<FetchResult, 'filesMap' | 'filesStats'>> {
+  const start = opts.packageRoot == null ? dir : await resolveInsidePackage(dir, opts.packageRoot)
   if (opts.includeOnlyPackageFiles) {
-    const files = await packlist(dir)
-    return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(dir, file)])) }
+    const files = await packlist(start)
+    return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(start, file)])) }
   }
-  if (opts.packageRoot != null) {
-    // Walk the resolved directory, so a link pointed elsewhere after this check is not followed.
-    const start = await fs.realpath(dir)
-    if (isOutside(await fs.realpath(opts.packageRoot), start)) {
-      throw new PnpmError('INVALID_PATH', `Path "${dir}" is outside the package directory "${opts.packageRoot}"`)
-    }
-    return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start)
+  return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start)
+}
+
+/** The real path of `dir`, which a walk uses so a link pointed elsewhere after this check is not followed. */
+async function resolveInsidePackage (dir: string, packageRoot: string): Promise<string> {
+  const start = await fs.realpath(dir)
+  if (isOutside(await fs.realpath(packageRoot), start)) {
+    throw new PnpmError('INVALID_PATH', `Path "${dir}" is outside the package directory "${packageRoot}"`)
   }
-  return _fetchAllFilesFromDir(await createReadFileStat(dir, opts), dir)
+  return start
 }
 
 function isOutside (root: string, realPath: string): boolean {

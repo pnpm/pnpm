@@ -300,8 +300,11 @@ test('listFilesFromDir rejects a directory that resolves outside the package roo
     fs.mkdirSync(path.join(root, 'outside'))
     fs.writeFileSync(path.join(root, 'outside/secret.txt'), 'secret')
     fs.symlinkSync(path.join(root, 'outside'), path.join(root, 'pkg/linked'), 'dir')
-    await expect(listFilesFromDir(path.join(root, 'pkg/linked'), { packageRoot: path.join(root, 'pkg') }))
-      .rejects.toThrow('outside the package directory')
+    for (const includeOnlyPackageFiles of [false, true]) {
+      // eslint-disable-next-line no-await-in-loop -- one case at a time keeps the failure readable
+      await expect(listFilesFromDir(path.join(root, 'pkg/linked'), { includeOnlyPackageFiles, packageRoot: path.join(root, 'pkg') }))
+        .rejects.toThrow('outside the package directory')
+    }
   } finally {
     rimrafSync(root)
   }
