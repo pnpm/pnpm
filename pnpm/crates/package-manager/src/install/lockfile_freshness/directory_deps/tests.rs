@@ -170,23 +170,33 @@ fn check_dependency_that_is_also_a_peer(
     recorded_peers: &serde_json::Value,
     locked: &str,
 ) -> Result<(), FreshnessCheckError> {
-    let manifest = PackageManifest::from_value(
-        PathBuf::from("/ws/lib/package.json"),
-        serde_json::json!({
-            "name": "lib",
-            "dependencies": { "react": "19.2.7" },
-            "peerDependencies": { "react": "^18.0.0" },
-        }),
-    );
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "react": "19.2.7" },
+        "peerDependencies": { "react": "^18.0.0" },
+    });
+    let snapshot_deps = HashMap::from([(
+        pnpm_lockfile::PkgName::parse("react").unwrap(),
+        locked.parse::<pnpm_lockfile::SnapshotDepRef>().unwrap(),
+    )]);
+    check_local_dep_peers(auto_install_peers, manifest, recorded_peers, &snapshot_deps)
+}
+
+/// Check the production dependencies and peers of a directory dependency
+/// with `manifest` against a lockfile that recorded `snapshot_deps` and
+/// `recorded_peers` for it.
+fn check_local_dep_peers(
+    auto_install_peers: bool,
+    manifest: serde_json::Value,
+    recorded_peers: &serde_json::Value,
+    snapshot_deps: &HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
+) -> Result<(), FreshnessCheckError> {
+    let manifest = PackageManifest::from_value(PathBuf::from("/ws/lib/package.json"), manifest);
     let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
         "resolution": { "type": "directory", "directory": "lib" },
         "peerDependencies": recorded_peers,
     }))
     .expect("parse local package metadata");
-    let snapshot_deps = HashMap::from([(
-        pnpm_lockfile::PkgName::parse("react").unwrap(),
-        locked.parse::<pnpm_lockfile::SnapshotDepRef>().unwrap(),
-    )]);
     let catalogs = Catalogs::new();
     let dep = LocalDepContext {
         name: "lib",
@@ -204,7 +214,7 @@ fn check_dependency_that_is_also_a_peer(
         &dep,
         &manifest,
         DependencyGroup::Prod,
-        Some(&snapshot_deps),
+        Some(snapshot_deps),
         (false, &peers.shadowed),
     )?;
     peers.check_local_peer_deps_freshness(&dep, &manifest, &metadata)
@@ -217,6 +227,20 @@ fn an_auto_installed_peer_supplies_the_dependency_it_shadows() {
     assert!(result.is_ok(), "the snapshot records the peer's resolution: {result:?}");
     // The peer range still counts: the lockfile must have recorded it.
     assert!(check_dependency_that_is_also_a_peer(true, &serde_json::json!({}), "18.3.1").is_err());
+}
+
+/// The resolver reads a dependency whose value is not a string as no child,
+/// but still as the package's own name, so it records neither a dependency
+/// nor a peer for it.
+#[test]
+fn a_non_string_dependency_still_keeps_its_name_out_of_the_peers() {
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "react": true },
+        "peerDependencies": { "react": "^18.0.0" },
+    });
+    let result = check_local_dep_peers(false, manifest, &serde_json::json!({}), &HashMap::new());
+    assert!(result.is_ok(), "the lockfile the resolver writes is fresh: {result:?}");
 }
 
 #[test]
