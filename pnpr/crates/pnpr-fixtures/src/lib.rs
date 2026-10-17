@@ -1,7 +1,7 @@
 pub mod presets;
 pub use presets::{
-    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, proxy_config, registry_mock_graph,
-    registry_mock_rules, static_serve_config,
+    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,
+    registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 
 mod tarball;

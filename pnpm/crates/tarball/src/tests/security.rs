@@ -63,6 +63,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -109,8 +110,9 @@ fn extract_rejects_an_absolute_entry_path() {
         let (tempdir, store_path) = tempdir_with_leaked_path();
 
         let tar_bytes = tar_with_raw_entry_name(name, b"bytes");
-        let err = extract_tarball_entries(&tar_bytes, store_path, None)
-            .expect_err("an absolute entry path must be rejected");
+        let err =
+            extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+                .expect_err("an absolute entry path must be rejected");
 
         match err {
             TarballError::ReadTarballEntries(io_err) => {
@@ -133,7 +135,7 @@ fn extract_rejects_backslash_traversal_in_entry_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_raw_entry_name(br"package/..\..\evil.txt", b"bytes");
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
         .expect_err("a backslash-spelled traversal must be rejected");
 
     match err {

@@ -67,6 +67,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -151,6 +152,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -512,6 +514,7 @@ async fn falls_through_when_cafs_file_missing() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -591,6 +594,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&pkg_integrity),
@@ -702,6 +706,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: true,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
             integrity: Some(&integrity),

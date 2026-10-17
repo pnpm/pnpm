@@ -4805,6 +4805,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-patching",
  "pnpm-store-dir",
+ "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-versioning",
  "pnpm-workspace",
@@ -6443,6 +6444,7 @@ dependencies = [
  "tracing",
  "url",
  "zip",
+ "zstd",
  "zune-inflate",
 ]
 
@@ -6747,6 +6749,7 @@ dependencies = [
  "walkdir",
  "wax",
  "zip",
+ "zstd",
 ]
 
 [[package]]

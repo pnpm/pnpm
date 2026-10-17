@@ -12,6 +12,7 @@ pub(super) struct EnvironmentNetwork {
     pub(super) registries: HashMap<String, String>,
     pub(super) retry_opts: RetryOpts,
     pub(super) offline: bool,
+    pub(super) tar_limits: pnpm_tarball::TarLimits,
 }
 
 impl EnvironmentNetwork {
@@ -34,6 +35,9 @@ impl EnvironmentNetwork {
                 full_metadata: config.requires_full_metadata_for_resolution(),
                 needs_full_metadata_for: None,
                 filter_metadata: config.requires_full_metadata_for_resolution(),
+                registry_options_by_url: std::sync::Arc::new(
+                    config.registry_options_by_url.clone(),
+                ),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: NetworkPolicy::from_settings(self.offline, config.prefer_offline),

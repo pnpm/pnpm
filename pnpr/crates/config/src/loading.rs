@@ -217,7 +217,12 @@ impl Config {
             file.pipeline,
             overrides,
         )?;
-        let ResolvedFileRegistries { upstreams, hosted, registries } = resolve_file_registries(
+        let ResolvedFileRegistries {
+            upstreams,
+            hosted,
+            registries,
+            tar_registries,
+        } = resolve_file_registries(
             file.registries,
             file.default_registry,
             features.registry.enabled,
@@ -236,6 +241,7 @@ impl Config {
                 route_policy: build_route_policy(file.routes)?,
                 registries,
                 hosted,
+                tar_registries,
             },
         })
     }

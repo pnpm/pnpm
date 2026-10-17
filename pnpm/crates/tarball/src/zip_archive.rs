@@ -3,6 +3,8 @@
 //! Wheels and runtime binaries use ZIP decoding within the shared artifact
 //! request, integrity, retry, progress and store-publication lifecycle.
 
+pub(crate) use download::check_zip_size;
+
 use super::{
     Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError,
     PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
@@ -320,6 +322,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         attempt,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::DecodedByClient,
     )
     .await?;
     let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes)
@@ -346,34 +349,6 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     Ok(result)
 }
 
-async fn download_zip_body<Reporter: self::Reporter>(
-    response_head: reqwest::Response,
-    package_url: &str,
-    package_id: &str,
-    max_bytes: Option<usize>,
-) -> Result<Vec<u8>, TarballError> {
-    use futures_util::StreamExt;
-    let expected_size = response_head.content_length();
-    check_zip_size(expected_size.unwrap_or(0), max_bytes, package_url)?;
-    let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
-    let mut stream = response_head.bytes_stream();
-    let mut progress = crate::download::BodyProgress::new(expected_size, package_id);
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| {
-            TarballError::FetchTarball(NetworkError::new(package_url, error))
-        })?;
-        check_zip_size(
-            (buf.len() as u64).saturating_add(chunk.len() as u64),
-            max_bytes,
-            package_url,
-        )?;
-        buf.extend_from_slice(&chunk);
-        progress.on_chunk::<Reporter>(chunk.len());
-    }
-    progress.finish::<Reporter>();
-    Ok(buf)
-}
-
 /// A downloaded archive with what its extraction task owns.
 pub(crate) struct ZipExtraction {
     pub(crate) buffer: Vec<u8>,
@@ -381,17 +356,6 @@ pub(crate) struct ZipExtraction {
     pub(crate) package_url: String,
     pub(crate) archive_prefix: Option<String>,
     pub(crate) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-}
-
-pub(crate) fn check_zip_size(
-    size: u64,
-    max_bytes: Option<usize>,
-    url: &str,
-) -> Result<(), TarballError> {
-    if max_bytes.is_some_and(|limit| size > limit as u64) {
-        return Err(TarballError::TarballTooLarge { url: url.to_string(), advertised_size: size });
-    }
-    Ok(())
 }
 
 impl ZipExtraction {
@@ -556,3 +520,6 @@ impl IngestZipArchiveToStore<'_> {
         }
     }
 }
+
+mod download;
+use download::download_zip_body;

@@ -365,6 +365,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
                 max_timeout: Duration::ZERO,
             },
             offline: true,
+            tar_limits: pnpm_tarball::TarLimits::default(),
             requester: "test".to_string(),
         },
         store: crate::cargo_deps::materialize::CrateStore {

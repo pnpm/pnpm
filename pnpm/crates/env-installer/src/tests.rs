@@ -97,6 +97,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,
@@ -165,6 +166,7 @@ fn options<'a>(
             auth_headers: &harness.auth_headers,
             retry_opts: RetryOpts::default(),
             offline: false,
+            tar_limits: pnpm_tarball::TarLimits::default(),
         },
         platform: pnpm_package_is_installable::InstallabilityOptions {
             supported_architectures: None,

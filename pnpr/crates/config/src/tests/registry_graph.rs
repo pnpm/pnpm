@@ -461,3 +461,36 @@ fn ecosystem_default_requires_a_router_source_for_that_ecosystem() {
         }
     }
 }
+
+#[test]
+fn tarballs_tar_marks_a_registry_as_a_tar_registry() {
+    let yaml = "
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  zstd:
+    type: router
+    sources: [npmjs]
+    tarballs: tar
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.routing.tar_registries.contains("zstd"));
+    assert!(!config.routing.tar_registries.contains("npmjs"));
+}
+
+#[test]
+fn tarballs_is_refused_outside_npm() {
+    let yaml = "
+registries:
+  crates:
+    type: upstream
+    ecosystem: cargo
+    url: https://index.crates.io/
+    public: true
+    tarballs: tar
+";
+    let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(error.to_string().contains("tarballs"), "{error}");
+}

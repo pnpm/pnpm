@@ -87,6 +87,7 @@ pub(crate) struct CrateDownload {
     pub(super) download_template: String,
     pub(super) retry_opts: RetryOpts,
     pub(super) offline: bool,
+    pub(super) tar_limits: pnpm_tarball::TarLimits,
     pub(super) requester: String,
 }
 
@@ -220,6 +221,7 @@ impl CrateDownload {
             download_template,
             retry_opts: options.config.retry_opts(),
             offline: options.config.offline,
+            tar_limits: options.config.tar_limits(),
             requester: options.requester.clone(),
         }
     }
@@ -230,6 +232,7 @@ impl CrateDownload {
             auth_headers: &self.auth_headers,
             retry_opts: self.retry_opts,
             offline: self.offline,
+            tar_limits: self.tar_limits,
         }
     }
 }

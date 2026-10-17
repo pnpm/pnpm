@@ -60,7 +60,7 @@ async fn orphaned_namespaces_are_pruned_while_active_remain() {
     let tmp = TempDir::new().unwrap();
     let config = test_config(&tmp);
     let active = active_cache_namespaces(&config);
-    assert_eq!(active.len(), 2);
+    assert_eq!(active.len(), 3, "the two upstreams and the tar variants");
 
     let active_ns = active.iter().next().unwrap();
     let active_file = tmp
@@ -301,4 +301,22 @@ async fn in_flight_tmp_files_are_preserved_during_eviction() {
     assert_eq!(report.files_evicted, 1);
     assert!(!expired_file.exists());
     assert!(in_flight_tmp.exists());
+}
+
+#[tokio::test]
+async fn ttl_eviction_covers_the_tar_variants() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let variant = tmp.path().join("~tar-zstd19/left-pad/0123.tar.zst");
+    create_file_with_age(&variant, b"variant", Duration::from_hours(240));
+
+    let options = CacheGcOptions {
+        dry_run: false,
+        max_size: None,
+        max_age: Some(Duration::from_hours(24)),
+        orphans_only: false,
+    };
+    let report = collect_cache(&config, &options).await.unwrap();
+    assert_eq!(report.files_evicted, 1);
+    assert!(!variant.exists(), "an expired variant is evicted");
 }

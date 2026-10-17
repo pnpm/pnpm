@@ -28,7 +28,7 @@ An entry may carry:
 | [`ecosystem`](#ecosystem)                 | `string`   | The package ecosystem, `npm`, `cargo`, or `pypi`.                    |
 | [`packages`](#packages)                   | `string[]` | The Python package names or prefixes routed to this registry.       |
 | [`prefix`](#prefix)                       | `string`   | The bare-specifier prefix this registry answers to.                  |
-| [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm` or `artifactory`.        |
+| [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm`, `artifactory`, or `pnpr`. |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
 | [`networkConcurrency`](#networkconcurrency) | `number` | The most requests pnpm keeps in flight to this registry's origin.    |
 
@@ -72,13 +72,14 @@ Prefixes declared here follow the same rules as the deprecated [`namedRegistries
 
 ### serverType
 
-Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry — the lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it. It has three states:
+Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry — the lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it:
 
 | `serverType`  | Meaning                                                                                                                                                                                                                                                                       |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | *undeclared*  | Strict: a tarball URL is omitted only when it is exactly the canonical npm-layout URL (`<registry>/<name>/-/<scopeless-name>-<version>.tgz`). This is how every registry but `registry.npmjs.org` is read by default.                                                          |
 | `npm`         | The server behaves like `registry.npmjs.org`, which serves a scoped package from the percent-encoded path (`/@acme%2Fwidget/...`) as well as the unencoded one. A faithful mirror or caching proxy of the public registry is this. Built in for `registry.npmjs.org` itself.   |
 | `artifactory` | The server repeats the scope in a scoped package's tarball filename: `@acme/widget/-/@acme/widget-1.0.0.tgz`, where the npm layout strips it (`@acme/widget/-/widget-1.0.0.tgz`).                                                                                              |
+| `pnpr`        | The server serves a version's tarball at `<registry>/<name>@<version>`, such as `@acme/widget@1.0.0`. This is the layout of every [pnpr](#tar-registries) registry.                                                                                                          |
 
 For a JFrog Artifactory registry this is the difference between a lockfile that records a host-specific tarball URL for **every scoped package** and one that records none of them:
 
@@ -96,6 +97,7 @@ Values for common servers:
 | JFrog Artifactory                                     | `artifactory`                                                                                                              |
 | GitLab package registry                               | `artifactory` — it uses the same layout, repeating the scope in the filename.                                              |
 | A faithful mirror or caching proxy of the npm registry | `npm`                                                                                                                      |
+| pnpr                                                  | `pnpr`                                                                                                                     |
 | Verdaccio, Sonatype Nexus, Azure Artifacts            | None needed — they serve the exact canonical npm layout, which the strict default already reconstructs.                    |
 | GitHub Packages                                       | None — its download URLs contain a content digest that cannot be derived from the package's identity, so they are kept in the lockfile. |
 | GitHub Enterprise Server                              | None — it serves a scoped package only from the percent-encoded path, which the strict default keeps in the lockfile and requests verbatim.  |
@@ -107,6 +109,27 @@ The layout is declared, never inferred: a virtual repository can serve both layo
 `serverType` is a claim about the server that only its operator can make, and the lockfile depends on it: an omitted tarball URL is rebuilt using the declared layout on every install, including `--frozen-lockfile` installs. Declare a layout the server actually serves, and expect a one-time lockfile diff after declaring one — URLs that pnpm can now rebuild disappear from the lockfile on the next install that writes it.
 
 :::
+
+### Tar registries
+
+Added in: v12.15.0
+
+A tar registry serves each package as an uncompressed tar instead of a `.tgz`. The tar is the gzip-decoded content of the published `.tgz`, sent with HTTP content coding: zstd or gzip, as the request accepts. Its metadata pins the hash of the tar in `dist.integrity`, so the registry can compress the tar however it likes without changing any hash. pnpr exposes one with [`tarballs: tar`](/pnpr/configuration#tar-registries).
+
+A project uses a tar registry by keying its URL and declaring its layout:
+
+```yaml title="pnpm-workspace.yaml"
+registries:
+  https://pnpr.corp.example/~zstd/:
+    scopes: ["@"]
+    serverType: pnpr
+```
+
+pnpm tells a tar from a `.tgz` by the first bytes of the decoded response, so nothing else needs to be declared. The lockfile keeps its `integrity` field, which for packages from a tar registry holds the hash of the tar.
+
+- **Switching** a project between a `.tgz` registry and a tar registry changes what the registry serves, so the recorded hashes no longer match. Run `pnpm install --update-checksums` after the switch.
+- **A missing hash.** A tar registry that does not know a version's tar hash yet omits `dist.integrity`. pnpm then downloads the tarball during resolution and records the hash of the tar it received.
+- **Size limits.** pnpm checks a tarball's hash only after it decoded it, so it bounds what it decodes first. The files of one package may not exceed [`maxTarballUnpackedSize`](./settings/network.md#maxtarballunpackedsize). The files of a tar may not exceed the package's `dist.unpackedSize` either. The headers and skipped entries of one archive may not exceed 256 MiB, and a zstd response may not use a window larger than 8 MiB.
 
 ### supportsTimeField
 

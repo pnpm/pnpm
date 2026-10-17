@@ -424,6 +424,9 @@ pub struct WorkspaceSettings {
     /// The `fetchMinSpeedKiBps` YAML value in KiB/s. [`None`] leaves
     /// [`Config::fetch_min_speed_ki_bps`](crate::settings::Config::fetch_min_speed_ki_bps) unchanged.
     pub fetch_min_speed_ki_bps: Option<u64>,
+    /// The `maxTarballUnpackedSize` YAML value in bytes. [`None`] leaves
+    /// [`Config::max_tarball_unpacked_size`](crate::settings::Config::max_tarball_unpacked_size) unchanged.
+    pub max_tarball_unpacked_size: Option<u64>,
     pub user_agent: Option<String>,
     /// `npmrcAuthFile` is read only from the global `config.yaml`
     /// (consumed by [`crate::Config::current`] to choose the user-level

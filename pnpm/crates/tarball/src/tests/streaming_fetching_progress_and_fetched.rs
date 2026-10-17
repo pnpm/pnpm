@@ -71,6 +71,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         &url,
         Some(&pkg_integrity),
         None,
+        crate::TarLimits::default(),
         0,
         "@fastify/error@3.3.0",
         "",
@@ -401,7 +402,8 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
     }
 
     let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+            .expect("extract the tarball");
 
     assert!(
         cas_paths.contains_key("bin/nested/tool.js"),
@@ -490,6 +492,7 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
             &url,
             None,
             None,
+            crate::TarLimits::default(),
             0,
             "noise@1.0.0",
             "",
@@ -553,6 +556,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
         &url,
         Some(&pinned),
         None,
+        crate::TarLimits::default(),
         0,
         "noise@1.0.0",
         "",
@@ -571,7 +575,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
-        stream_extract_gzipped_tarball(&body, reference_store, None)
+        stream_extract_gzipped_tarball(&body, crate::TarLimits::default(), reference_store, None)
             .expect("the reference extraction of the same bytes must succeed");
     assert_eq!(
         cas_paths.keys().collect::<std::collections::BTreeSet<_>>(),
@@ -625,6 +629,7 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
         &url,
         Some(&pinned),
         None,
+        crate::TarLimits::default(),
         0,
         "noise@1.0.0",
         "",
@@ -668,6 +673,7 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
         &url,
         Some(&pinned),
         None,
+        crate::TarLimits::default(),
         0,
         "noise@1.0.0",
         "",
@@ -733,7 +739,8 @@ fn extract_keeps_only_regular_file_entries() {
     }
 
     let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+            .expect("extract the tarball");
 
     assert_eq!(
         cas_paths.keys().collect::<Vec<_>>(),
@@ -750,7 +757,8 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
 
     let tar_bytes = tar_with_raw_entry_name(b"./package/package.json", b"bytes");
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+            .expect("extract the tarball");
 
     assert_eq!(cas_paths.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
     assert_eq!(pkg_files_idx.files.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
@@ -770,7 +778,8 @@ fn extract_keys_a_root_level_entry_by_its_own_name() {
 
     let tar_bytes = tar_with_root_level_entries();
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+            .expect("extract the tarball");
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
@@ -794,8 +803,13 @@ fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_root_level_entries();
-    let (cas_paths, _) = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
-        .expect("extract the tarball");
+    let (cas_paths, _) = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect("extract the tarball");
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
@@ -812,7 +826,7 @@ fn extract_rejects_an_entry_naming_the_archive_root() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let tar_bytes = tar_with_raw_entry_name(b"./.", b"bytes");
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
         .expect_err("an entry naming the archive root must be rejected");
 
     match err {
@@ -834,7 +848,8 @@ fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
 
     let tar_bytes = tar_with_raw_entry_name(br"package/bin\tool.js", b"bytes");
     let (cas_paths, _) =
-        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
+            .expect("extract the tarball");
 
     assert!(
         cas_paths.contains_key("bin/tool.js"),

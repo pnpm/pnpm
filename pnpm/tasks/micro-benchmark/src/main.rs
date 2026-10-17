@@ -67,6 +67,9 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
         file_count: None,
     };
     group.throughput(Throughput::Bytes(file.len() as u64));
+    // An install builds one client per process, so its construction stays out
+    // of the measured download.
+    let http_client = ThrottledClient::new_for_installs();
     group.bench_function("download_dependency", |bencher| {
         bencher
             .to_async(&rt)
@@ -79,7 +82,6 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                     .pipe(StoreDir::from)
                     .pipe(Box::new)
                     .pipe(Box::leak);
-                let http_client = ThrottledClient::new_for_installs();
 
                 let cas_map = ingest_benchmark_package(&package, &http_client, store_dir)
                     .await
@@ -105,6 +107,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
         u64::try_from(BATCH_TARBALL_COUNT * BATCH_FILES_PER_TARBALL)
             .expect("benchmark file count fits u64"),
     ));
+    let http_client = ThrottledClient::new_for_installs();
     group.bench_function("cold_store_many_medium_tarballs", |bencher| {
         bencher
             .to_async(&rt)
@@ -116,7 +119,6 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     .pipe(StoreDir::from)
                     .pipe(Box::new)
                     .pipe(Box::leak);
-                let http_client = ThrottledClient::new_for_installs();
                 future::try_join_all(
                     packages
                         .iter()
@@ -167,6 +169,7 @@ async fn ingest_benchmark_package(
             retry_opts: RetryOpts::default(),
             auth_headers: &auth_headers,
             offline: false,
+            tar_limits: pnpm_tarball::TarLimits::default(),
         },
         store: pnpm_tarball::ArchiveStoreContext {
             dir: store_dir,

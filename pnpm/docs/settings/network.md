@@ -154,3 +154,14 @@ Added in: v10.18.0
 * Type: **Number**
 
 A warning message is displayed if the download speed of a tarball from the registry falls below the specified threshold (in KiB/s).
+
+### maxTarballUnpackedSize
+
+Added in: v12.15.0
+
+* Default: **4294967296 (4 GiB)**
+* Type: **Number**
+
+The most bytes the files of one package may unpack to. A package whose files total more fails to install. A package from a [tar registry](../registries.md#tar-registries) is also held to its `dist.unpackedSize`.
+
+pnpm checks this as it decodes a tarball, before it can verify the tarball's hash, so a hostile registry cannot make it write more than this much.

@@ -3,6 +3,7 @@ pub use lifecycle::{recover_publish_journal, serve, serve_listener};
 pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
@@ -39,18 +40,36 @@ use osv_filtering::{
     is_osv_vulnerable_packument_version, resolve_version_or_tag,
 };
 
+mod tar_registry;
+use tar_registry::{
+    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, split_package_identifier,
+    tar_integrities_of, tgz_integrity_key,
+};
+
+mod tar_responses;
+use tar_responses::{
+    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
+    tar_response,
+};
+
+mod version_tarballs;
+use version_tarballs::serve_package_tarball;
+
+mod tar_variants;
+use tar_variants::{TarCopy, TarVariantQueue, open_variant};
+
 mod package_responses;
 use package_responses::{
-    DistBlock, TarballDist, expected_tarball_dist, packument_bytes_response, packument_response,
-    revision_tarball_response, tarball_integrity_error, tarball_response, tarball_stream_error,
-    tarball_stream_error_for_package,
+    DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
+    packument_response, revision_tarball_response, tarball_integrity_error, tarball_response,
+    tarball_stream_error, tarball_stream_error_for_package,
 };
 
 mod package_reads;
 use package_reads::{
     HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
     resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_tarball, serve_version_manifest,
+    serve_registry_tarball, serve_tarball, serve_version_manifest,
 };
 
 mod revision_refs;
@@ -66,7 +85,10 @@ use revision_tarballs::{
 };
 
 mod upstream_tarballs;
-use upstream_tarballs::{cached_upstream_tarball, serve_tarball_via_upstream};
+use upstream_tarballs::{
+    TarballOrigin, UpstreamTarball, cached_upstream_tarball, serve_bound_upstream_tarball,
+    serve_tarball_via_upstream, tarball_cache_name,
+};
 
 mod upstream_integrity;
 mod upstream_packuments;

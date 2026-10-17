@@ -232,6 +232,20 @@ pub struct RoutingConfig {
     /// namespace and an access policy gating its packages. The only registry kind
     /// that accepts writes.
     pub hosted: IndexMap<String, HostedConfig>,
+    /// The registries, by key, that declare `tarballs: tar`: their metadata
+    /// and tarball routes describe uncompressed tars instead of `.tgz` files.
+    pub tar_registries: BTreeSet<String>,
+}
+
+/// The format a registry serves tarballs in at its own URL.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TarballFormat {
+    /// The published `.tgz`, as npm serves it.
+    #[default]
+    Tgz,
+    /// The gzip-decoded `.tgz`, encoded per request with HTTP content coding.
+    Tar,
 }
 
 /// Authentication and byte limits for the OCI distribution surface.

@@ -64,6 +64,25 @@ fn npm_tarball_url_keeps_the_scope_in_the_artifactory_filename() {
 }
 
 #[test]
+fn npm_tarball_url_addresses_the_package_identifier_in_the_pnpr_layout() {
+    for (name, version, expected) in [
+        ("@acme/widget", "1.2.3", "@acme/widget@1.2.3"),
+        ("@acme/widget", "1.2.3+build.4", "@acme/widget@1.2.3+build.4"),
+        ("widget", "1.2.3-beta.1", "widget@1.2.3-beta.1"),
+    ] {
+        let received = npm_tarball_url(
+            name,
+            version,
+            TarballUrlOptions {
+                registry: "https://pnpr.example/~zstd",
+                server_type: Some(RegistryServerType::Pnpr),
+            },
+        );
+        assert_eq!(received, format!("https://pnpr.example/~zstd/{expected}"));
+    }
+}
+
+#[test]
 fn npm_tarball_url_matches_the_npm_layout_for_an_unscoped_package() {
     for server_type in [None, Some(RegistryServerType::Npm), Some(RegistryServerType::Artifactory)]
     {

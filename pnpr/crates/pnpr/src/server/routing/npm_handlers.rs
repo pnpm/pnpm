@@ -4,9 +4,10 @@ use super::{
     Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
     StatusCode, TargetRegistry, addressed_registry, authorize, caller_scoped, delete_package,
-    delete_tarball, get_dist_tags, not_found, package_mutation, private_no_cache, publish_package,
-    remove_dist_tag, resolve_write_target, serve_packument, serve_revision_tarball, serve_search,
-    serve_tarball, serve_version_manifest, set_dist_tag, update_packument,
+    delete_tarball, get_dist_tags, is_tar_registry, not_found, package_mutation, private_no_cache,
+    publish_package, remove_dist_tag, resolve_write_target, serve_package_tarball, serve_packument,
+    serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
+    split_package_identifier, update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -74,6 +75,16 @@ pub(super) async fn get_packument(
     headers: HeaderMap,
     Path(path): Path<NamePath>,
 ) -> Response {
+    if let Some((name, version)) = split_package_identifier(&path.name) {
+        return serve_package_tarball(
+            &state,
+            &identity,
+            &headers,
+            registry.as_deref(),
+            (name, version),
+        )
+        .await;
+    }
     serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
 }
 
@@ -89,6 +100,17 @@ pub(super) async fn get_packument_or_version_manifest(
 ) -> Response {
     let TwoSegments { first, second } = path;
     if first.starts_with('@') && !first.contains('/') {
+        if let Some((bare_name, version)) = split_package_identifier(&second) {
+            let name = format!("{first}/{bare_name}");
+            return serve_package_tarball(
+                &state,
+                &identity,
+                &headers,
+                registry.as_deref(),
+                (&name, version),
+            )
+            .await;
+        }
         let name = format!("{first}/{second}");
         return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
     }
@@ -146,6 +168,9 @@ pub(super) async fn get_revision_tarball(
     let Some(target) = addressed_registry(&state, registry.as_deref(), Ecosystem::Npm) else {
         return not_found();
     };
+    if is_tar_registry(&state, &target) {
+        return not_found();
+    }
     serve_revision_tarball(&state, &identity, &target, &path.digest).await
 }
 

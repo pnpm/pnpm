@@ -48,7 +48,12 @@ use workspace_pick::{
 mod store_peek;
 use store_peek::fast_path_pick;
 
-use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
@@ -56,8 +61,9 @@ use pnpm_config::{
     DEFAULT_JSR_REGISTRY, NeedsFullMetadataFor, TrustPolicy, version_policy::PackageVersionPolicy,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, PkgNameVer, TarballResolution, TarballRevision,
-    is_integrity_addressed_registry_tarball_url,
+    LockfileResolution, PkgName, PkgNameVer, RegistryOptions, RegistryServerType,
+    TarballResolution, TarballRevision, TarballUrlOptions,
+    is_integrity_addressed_registry_tarball_url, npm_tarball_url, registry_server_type,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
@@ -75,7 +81,7 @@ use crate::{
     errors::{
         AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
         InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
-        MalformedRevisionHistoryError, NoMatchingRevisionError,
+        MalformedRevisionHistoryError, MissingTarballUrlError, NoMatchingRevisionError,
     },
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
@@ -166,6 +172,10 @@ pub struct RegistryMetadataFormat {
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
+    /// The declared per-registry settings, keyed like
+    /// `Config::registry_options_by_url`. A version without `dist.tarball`
+    /// gets its URL rebuilt in the layout its registry declares.
+    pub registry_options_by_url: Arc<BTreeMap<String, RegistryOptions>>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -315,6 +325,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             resolved_via: NPM_REGISTRY_RESOLVED_VIA,
             registry,
             registry_name: None,
+            server_type: registry_server_type(&self.format.registry_options_by_url, registry),
         }
         .build_result(
             picked,
@@ -370,6 +381,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             resolved_via: JSR_REGISTRY_RESOLVED_VIA,
             registry,
             registry_name: None,
+            server_type: registry_server_type(&self.format.registry_options_by_url, registry),
         }
         .build_result(
             &picked,

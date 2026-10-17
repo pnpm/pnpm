@@ -129,6 +129,36 @@ pub(super) fn tarball_cache_name(
     }
 }
 
+/// Where a served upstream tarball's bytes came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TarballOrigin {
+    /// The namespaced cache, verified when it was written but not against the
+    /// packument as it stands now.
+    Cache,
+    /// The upstream, verified against `dist.integrity` as it streams.
+    Upstream,
+}
+
+/// Serve an upstream tarball whose version and integrity the caller already
+/// read from the packument, so it is not parsed again.
+pub(super) async fn serve_bound_upstream_tarball(
+    state: &AppState,
+    upstream: &Upstream,
+    tarball: UpstreamTarball<'_>,
+    version: &str,
+) -> (Response, TarballOrigin) {
+    if let Err(err) = ensure_osv_allowed(state, tarball.name, version) {
+        return (err.into_response(), TarballOrigin::Upstream);
+    }
+    if upstream.caches()
+        && let Some(response) =
+            cached_upstream_tarball(state, tarball.namespace, tarball.name, tarball.filename).await
+    {
+        return (response, TarballOrigin::Cache);
+    }
+    (fetch_upstream_tarball(state, upstream, tarball).await, TarballOrigin::Upstream)
+}
+
 /// Bind a tarball request to the version and integrity the upstream's own
 /// packument declares for it. `None` means the packument names no such
 /// tarball.

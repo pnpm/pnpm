@@ -5,11 +5,14 @@ pub(super) use namespace::{
 
 mod namespace;
 
+use std::collections::BTreeSet;
+
 use super::{
     AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
     IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
-    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, TeamDirectory,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
+    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat,
+    TeamDirectory, UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams,
+    resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -102,7 +105,7 @@ pub(super) fn build_registries(
     registry_files: IndexMap<String, RegistryGroupFile>,
     default_registry: Option<DefaultRegistryFile>,
     resolve_upstreams: bool,
-) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
+) -> Result<ResolvedRegistryGraph, RegistryError> {
     let registry_files = flatten_registry_groups(registry_files)?;
     let (default_registry, defaults) = resolve_default_registry(default_registry)?;
     let mut builder = RegistryGraphBuilder::default();
@@ -124,7 +127,11 @@ pub(super) fn build_registries(
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
-    Ok((builder.hosted, registries))
+    Ok(ResolvedRegistryGraph {
+        hosted: builder.hosted,
+        registries,
+        tar_registries: builder.tar_registries,
+    })
 }
 
 /// The shared default registry, or the per-ecosystem defaults qualified
@@ -155,6 +162,7 @@ pub(super) struct RegistryGraphBuilder {
     pub(super) hosted: IndexMap<String, HostedConfig>,
     pub(super) graph: IndexMap<String, Registry>,
     pub(super) ecosystems: IndexMap<String, Ecosystem>,
+    pub(super) tar_registries: BTreeSet<String>,
 }
 
 impl RegistryGraphBuilder {
@@ -172,6 +180,9 @@ impl RegistryGraphBuilder {
                     "registry {name:?} collides with another registry or upstream of the same name",
                 ),
             });
+        }
+        if declares_tar_tarballs(&name, &file)? {
+            self.tar_registries.insert(name.clone());
         }
         match file {
             RegistryFile::Hosted(registry) => {
@@ -196,6 +207,29 @@ impl RegistryGraphBuilder {
         }
         Ok(())
     }
+}
+
+/// Whether `file` declares `tarballs: tar`, which only an npm registry may.
+fn declares_tar_tarballs(name: &str, file: &RegistryFile) -> Result<bool, RegistryError> {
+    let (tarballs, ecosystem) = match file {
+        RegistryFile::Hosted(hosted) => (hosted.tarballs, hosted.ecosystem),
+        RegistryFile::Upstream(upstream) => (upstream.tarballs, upstream.ecosystem),
+        RegistryFile::Router(router) => (
+            router.tarballs,
+            Ecosystem::all().find(|ecosystem| name.starts_with(&format!("{ecosystem}/"))),
+        ),
+    };
+    if tarballs != Some(TarballFormat::Tar) {
+        return Ok(false);
+    }
+    if ecosystem.is_some_and(|ecosystem| ecosystem != Ecosystem::Npm) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {name:?} declares `tarballs`, which only an npm registry serves",
+            ),
+        });
+    }
+    Ok(true)
 }
 
 /// Each ecosystem's default, addressed the way the registries name it.
@@ -408,10 +442,18 @@ pub(super) fn validate_upstream_access(
     Ok(())
 }
 
+/// What [`build_registries`] builds from the `registries:` block.
+pub(super) struct ResolvedRegistryGraph {
+    pub(super) hosted: IndexMap<String, HostedConfig>,
+    pub(super) registries: Registries,
+    pub(super) tar_registries: BTreeSet<String>,
+}
+
 pub(super) struct ResolvedFileRegistries {
     pub(super) upstreams: IndexMap<String, UpstreamConfig>,
     pub(super) hosted: IndexMap<String, HostedConfig>,
     pub(super) registries: Registries,
+    pub(super) tar_registries: BTreeSet<String>,
 }
 
 pub(super) fn resolve_file_registries(
@@ -420,7 +462,7 @@ pub(super) fn resolve_file_registries(
     registry_enabled: bool,
 ) -> Result<ResolvedFileRegistries, RegistryError> {
     let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
-    let (hosted, registries) =
+    let ResolvedRegistryGraph { hosted, registries, tar_registries } =
         build_registries(&mut upstreams, registries, default_registry, registry_enabled)?;
-    Ok(ResolvedFileRegistries { upstreams, hosted, registries })
+    Ok(ResolvedFileRegistries { upstreams, hosted, registries, tar_registries })
 }
