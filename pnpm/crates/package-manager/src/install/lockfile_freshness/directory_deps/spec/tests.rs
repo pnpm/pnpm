@@ -292,3 +292,11 @@ fn a_range_is_compared_with_the_locked_version() {
     assert!(registry_spec_satisfies("^1.0.0", "1.2.0"));
     assert!(!registry_spec_satisfies("^2.0.0", "1.2.0"));
 }
+
+/// A named-registry spec that names no package names the alias, so a
+/// different package recorded under the alias does not satisfy it.
+#[test]
+fn a_bare_named_registry_spec_needs_the_alias_package() {
+    assert!(!registry_spec_satisfies("work:^1.0.0", "bar@work:1.2.0"));
+    assert!(registry_spec_satisfies("work:bar@^1.0.0", "bar@work:1.2.0"));
+}

@@ -89,10 +89,11 @@ pub fn locked_child_admits(
     bare_specifier: &str,
 ) -> Option<bool> {
     if let Some((registry_name, version)) = key.suffix.registry_qualified() {
-        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
-            .parse::<Range>()
-            .ok()?;
-        return Some(range.satisfies(version));
+        let reduced = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?;
+        let range = reduced.parse::<Range>().ok()?;
+        // A spec that names no package (`<registry>:<range>`) names the alias.
+        let names_no_package = bare_specifier.len() == registry_name.len() + 1 + reduced.len();
+        return Some((!names_no_package || key.name == *alias) && range.satisfies(version));
     }
     let range = bare_specifier.parse::<Range>().ok()?;
     Some(key.name == *alias && range.satisfies(key.suffix.version_semver()?))
