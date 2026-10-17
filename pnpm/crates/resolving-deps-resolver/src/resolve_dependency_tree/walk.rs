@@ -88,8 +88,8 @@ use super::{
     },
     reuse::{
         ReuseSource, higher_direct_dep_version, node_depends_on_changed_direct_dep,
-        pinned_specifier, real_package_name_of, resolve_reused_node, try_reuse_node,
-        wanted_lockfile_contains_satisfying_entry,
+        pinned_specifier, real_package_name_of, resolve_reused_node, reuse_matches_peer_scope,
+        try_reuse_node, wanted_lockfile_contains_satisfying_entry,
     },
     tree_ctx::{
         TreeCtx, declaring_manifest_dir, opts_relative_to_declaring_manifest,

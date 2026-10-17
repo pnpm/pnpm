@@ -239,7 +239,7 @@ pub(super) fn override_replacement(
         .ok()?;
     Some(PkgNameVerPeer::new(alias.clone(), new_suffix))
 }
-pub(super) fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
+pub(crate) fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
     let mut result = HashSet::new();
     for metadata in lockfile.packages
         .as_ref()

@@ -318,7 +318,7 @@ function isMovableSnapshot (snapshot: PackageSnapshot): boolean {
     !('type' in snapshot.resolution && snapshot.resolution.type != null)
 }
 
-function getPeerNames (lockfile: LockfileObject): Set<string> {
+export function getPeerNames (lockfile: LockfileObject): Set<string> {
   const result = new Set<string>()
   for (const snapshot of Object.values(lockfile.packages ?? {})) {
     for (const name of Object.keys(snapshot.peerDependencies ?? {})) result.add(name)

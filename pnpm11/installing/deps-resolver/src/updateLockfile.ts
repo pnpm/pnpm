@@ -101,7 +101,7 @@ function toLockfileDependency (
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  addPeerDependencies(result, pkg.peerDependencies ?? {})
+  addPeerDependencies(result, pkg.declaredPeerDependencies ?? {})
   addPlatformRequirements(result, pkg.additionalInfo)
   const deprecated = getDeprecationToRecord(opts.prevSnapshot, lockfileResolution, pkg.additionalInfo.deprecated)
   if (deprecated != null) {

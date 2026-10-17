@@ -9,7 +9,7 @@ mod locked_versions;
 
 use crate::{
     fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
-    fast_update_settings::workspace_package_names,
+    fast_update_overrides::get_peer_names, fast_update_settings::workspace_package_names,
 };
 use node_semver::Range;
 use pnpm_lockfile::{
@@ -37,6 +37,10 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
     /// Importers no project claims, to drop before the rest replays.
     stale: Vec<String>,
     workspace_package_names: HashSet<String>,
+    /// Every name the lockfile records as a peer. A direct dependency added
+    /// under one of them changes what the peer binds to, which only the
+    /// resolver can redo.
+    peer_names: HashSet<PkgName>,
     /// Whether `resolutionMode` resolves a direct dependency to its
     /// lowest satisfying version rather than its highest.
     resolution_picks_lowest: bool,
@@ -77,6 +81,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
             manifest_dependencies,
             stale,
             workspace_package_names: workspace_package_names(project_manifests),
+            peer_names: get_peer_names(lockfile),
             resolution_picks_lowest,
         })
     } else {

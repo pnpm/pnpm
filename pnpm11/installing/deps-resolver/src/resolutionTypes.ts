@@ -251,6 +251,8 @@ export interface ResolvedPackage {
   name: string
   version: string
   peerDependencies: PeerDependencies
+  /** The peers the lockfile records for the package. See `getDeclaredPeerDependencies`. */
+  declaredPeerDependencies: PeerDependencies
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
