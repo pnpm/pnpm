@@ -16,14 +16,6 @@ import {
 const PKG_NAME = 'acme'
 const CUTOFF = new Date('2026-10-01T00:00:00Z')
 
-function rangePick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInputs['ctx'] = {}): RouteInputs {
-  return { ctx, spec: { type: 'range', name: PKG_NAME }, opts: overrides }
-}
-
-function versionPick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInputs['ctx'] = {}): RouteInputs {
-  return { ctx, spec: { type: 'version', name: PKG_NAME }, opts: overrides }
-}
-
 const RANGE_SHORTCUTS: MirrorShortcuts = {
   exactVersion: false,
   dominantLockfileVersion: true,
@@ -146,3 +138,11 @@ describe('decideCacheHitCheck', () => {
     expect(decideCacheHitCheck(inputs, false, true)).toBe(expected)
   })
 })
+
+function rangePick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInputs['ctx'] = {}): RouteInputs {
+  return { ctx, spec: { type: 'range', name: PKG_NAME }, opts: overrides }
+}
+
+function versionPick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInputs['ctx'] = {}): RouteInputs {
+  return { ctx, spec: { type: 'version', name: PKG_NAME }, opts: overrides }
+}
