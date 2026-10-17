@@ -2,10 +2,7 @@ use super::{
     Catalogs, Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, StalenessReason, assert_eq,
     check_lockfile_settings, settings_check, text_block,
 };
-
-// ---------------------------------------------------------------------------
 // `ignoredOptionalDependencies` — umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_both_sides_empty() {
@@ -90,10 +87,7 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
     assert_eq!(l, vec!["foo".to_string()]);
     assert!(c.is_empty());
 }
-
-// ---------------------------------------------------------------------------
 // `overrides` drift — the lockfile-side overrides check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_overrides_both_empty() {
@@ -192,10 +186,7 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
     assert!(l.is_empty());
     assert_eq!(c.get("foo").map(String::as_str), Some("1.0.0"));
 }
-
-// ---------------------------------------------------------------------------
 // `patchedDependencies` drift — the lockfile-side patchedDependencies check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_patched_dependencies_match() {
@@ -390,11 +381,8 @@ fn check_settings_reports_overrides_before_ignored_optional() {
         "expected OverridesChanged first, got {err:?}",
     );
 }
-
-// ---------------------------------------------------------------------------
 // `injectWorkspacePackages` drift — the lockfile-side Boolean-normalized
 // comparison.
-// ---------------------------------------------------------------------------
 
 /// Both sides false → no drift. Pacquet's wire format omits the
 /// `settings.injectWorkspacePackages` key when `false`, so a lockfile
@@ -532,10 +520,7 @@ fn check_settings_reports_the_field_pnpm_reports_first() {
     .expect_err("both fields drifted");
     assert_eq!(err.setting_name(), Some("overrides"));
 }
-
-// ---------------------------------------------------------------------------
 // `peersSuffixMaxLength` drift — the lockfile-side peersSuffixMaxLength check
-// ---------------------------------------------------------------------------
 
 #[test]
 fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_default() {
@@ -629,10 +614,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     .expect_err("changed peersSuffixMaxLength must surface drift");
     assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }
-
-// ---------------------------------------------------------------------------
 // `pnpmfileChecksum` drift — an added, edited, or removed pnpmfile
-// ---------------------------------------------------------------------------
 
 /// A lockfile written without a pnpmfile, checked by an install that
 /// still has none.
@@ -767,10 +749,7 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
         .is_ok(),
     );
 }
-
-// ---------------------------------------------------------------------------
 // `(patch_hash=...)` segments against the lockfile's own `patchedDependencies`
-// ---------------------------------------------------------------------------
 
 /// The config agrees with the map, so only the segments can disagree — which
 /// the gates above this one never compare.

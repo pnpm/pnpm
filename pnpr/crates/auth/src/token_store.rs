@@ -1,8 +1,8 @@
 pub(super) mod sqlite;
 
 use super::{
-    AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
-    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
+    AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, Result, Sha256,
+    SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
 };
 use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
 use std::fmt::Write as _;
@@ -297,10 +297,7 @@ impl Default for TokenStore {
         Self::in_memory()
     }
 }
-
-// ---------------------------------------------------------------
 // crypto helpers
-// ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for [`TokenStore::issue`].
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
