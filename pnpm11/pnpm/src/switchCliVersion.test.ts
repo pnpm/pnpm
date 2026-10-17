@@ -187,6 +187,37 @@ test('switchCliVersion records the version minimumReleaseAge allows for a range 
   expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
+test('switchCliVersion resolves the pinned pnpm under the trust policy (pnpm/pnpm#16319)', async () => {
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
+    throw new Error(`exit ${code ?? 0}`)
+  }) as typeof process.exit)
+  readEnvLockfile.mockResolvedValue(null)
+
+  await expect(switchCliVersion({
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.3.0'],
+    trustPolicyIgnoreAfter: 1440,
+    virtualStoreDirMaxLength: 120,
+  } as unknown as Config, {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: {
+      fromDevEngines: true,
+      name: 'pnpm',
+      onFail: 'download',
+      version: '9.3.0',
+    },
+  } as unknown as ConfigContext)).rejects.toThrow('exit 0')
+
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.3.0'],
+    trustPolicyIgnoreAfter: 1440,
+  }))
+
+  exit.mockRestore()
+})
+
 test('switchCliVersion records nothing and keeps running when the release-age lookup fails (#16431)', async () => {
   mockPackageManager.version = '11.1.0'
   readEnvLockfile.mockResolvedValue(null)

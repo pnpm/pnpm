@@ -167,6 +167,23 @@ test('forwards frozen-lockfile to the resolver, which refuses to update the lock
   }))
 })
 
+test('resolves the pin under the trust policy (pnpm/pnpm#16319)', async () => {
+  const dir = tempDir()
+  await syncEnvLockfile({
+    ...baseConfig,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.0.0'],
+    trustPolicyIgnoreAfter: 1440,
+  }, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.0.0'],
+    trustPolicyIgnoreAfter: 1440,
+  }))
+})
+
 test('records the version minimumReleaseAge allows for a range pin (#16431)', async () => {
   const dir = tempDir()
   maturePnpmVersionForRange.mockResolvedValue('1.2.3')

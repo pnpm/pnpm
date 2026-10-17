@@ -13,7 +13,7 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
-import { pnpmVersionToRecord } from './syncEnvLockfile.js'
+import { packageManagerTrustPolicy, pnpmVersionToRecord } from './syncEnvLockfile.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
@@ -148,6 +148,7 @@ async function resolveIntegrities (
     rootDir: versionSwitch.context.rootProjectManifestDir,
     storeController: versionSwitch.store.ctrl,
     storeDir: versionSwitch.store.dir,
+    ...packageManagerTrustPolicy(versionSwitch.config),
     ...extraOptions,
   })
   return versionSwitch.envLockfile
