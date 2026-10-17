@@ -1,7 +1,6 @@
 pub(super) use maintenance::{
     bin, bugs, cache, cat_file, cat_index, clean, config, config_get, config_set, docs, doctor,
-    find_hash, ignored_builds, not_implemented, prefix, repo, root, self_update, setup, shim,
-    store, tasks, with,
+    find_hash, ignored_builds, prefix, repo, root, self_update, setup, shim, store, tasks, with,
 };
 pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, profile, search, star, stars, team,
@@ -31,7 +30,6 @@ use super::{
     list::ListArgs,
     login::LoginArgs,
     logout::LogoutArgs,
-    not_implemented::NotImplementedError,
     outdated::{OutdatedArgs, OutdatedOutcome},
     owner::OwnerArgs,
     pack::{PackArgs, PackJsonReporter},
