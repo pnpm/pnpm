@@ -75,17 +75,18 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
       ...revalidationOfHeldFullDocument(meta.fullEtag, meta, meta.uncacheable),
     })
   } catch (err: unknown) {
-    // The registry declined to hand over a body. Since the request carries no
-    // validators, it says so by repeating an unsolicited 304 until the fetcher
+    // The registry declined to hand over a body. To a request without
+    // validators it says so by repeating an unsolicited 304 until the fetcher
     // gives up, which throws instead of reporting `notModified`.
     if (!isNotModifiedWithoutCacheError(err)) throw err
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   if (fullFetchResult.notModified) {
-    // The registry has no fuller form of this document. An upgrade that cannot
-    // happen must not fail an install that would otherwise succeed: the
-    // maturity check falls back to the warn-or-error gate
+    // The 304 confirms that the full document `meta` holds is current, so the
+    // registry has no more complete form of it. An upgrade that cannot happen
+    // must not fail an install that would otherwise succeed: the maturity
+    // check falls back to the warn-or-error gate
     // `minimumReleaseAgeIgnoreMissingTime` already governs.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
