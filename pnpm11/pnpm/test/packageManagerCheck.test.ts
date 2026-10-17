@@ -77,6 +77,21 @@ test('install should not fail for packageManager field with hash', async () => {
   expect(status).toBe(0)
 })
 
+test('the version prints past an unreadable setting under a pin the running pnpm satisfies', async () => {
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  prepare({
+    packageManager: `pnpm@${pnpmVersion}`,
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stdout } = execPnpmSync(['--version'], { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
 test('a global command does not warn about a pnpm pin that the running pnpm satisfies', async () => {
   const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
   prepare({
