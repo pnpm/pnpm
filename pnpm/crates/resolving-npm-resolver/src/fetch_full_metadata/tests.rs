@@ -522,7 +522,7 @@ fn to_http_date_converts_iso_8601() {
 
 #[test]
 fn to_http_date_reads_a_date_without_a_time_as_midnight_utc() {
-    assert_eq!(super::to_http_date("2022-01-01").as_deref(), Some("Sat, 01 Jan 2022 00:00:00 GMT"),);
+    assert_eq!(super::to_http_date("2022-01-01").as_deref(), Some("Sat, 01 Jan 2022 00:00:00 GMT"));
 }
 
 #[test]

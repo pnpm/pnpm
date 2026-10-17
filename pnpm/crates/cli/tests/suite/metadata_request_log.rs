@@ -26,11 +26,11 @@ fn every_case_of_the_shared_table() {
     let table: Value = serde_json::from_str(CASE_TABLE).expect("parse the case table");
     for case in table["cases"].as_array().expect("cases") {
         let name = case["name"].as_str().expect("case name");
-        let settings: String = case["settings"]
+        let settings: Vec<String> = case["settings"]
             .as_object()
             .expect("case settings")
             .iter()
-            .map(|(key, value)| format!("{key}: {value}\n"))
+            .map(|(key, value)| format!("{key}: {value}"))
             .collect();
         let args: Vec<&str> = case["args"]
             .as_array()
@@ -53,7 +53,7 @@ type InstallLogs = Vec<Vec<String>>;
 /// tarball paths, both sorted: concurrent fetches finish in any order.
 fn three_installs(
     dependencies: &Value,
-    settings: &str,
+    settings: &[String],
     args: &[&str],
 ) -> (InstallLogs, InstallLogs) {
     let CommandTempCwd {
@@ -68,7 +68,8 @@ fn three_installs(
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml, format!("{yaml}{settings}")).expect("write pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}{}\n", settings.join("\n")))
+        .expect("write pnpm-workspace.yaml");
     pacquet.arg("install").args(args);
 
     let installs: Vec<Vec<RecordedRequest>> = (0..3)
