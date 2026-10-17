@@ -53,7 +53,7 @@ use tar_responses::{
 };
 
 mod version_tarballs;
-use version_tarballs::serve_package_tarball;
+use version_tarballs::{VersionTgzCache, serve_package_tarball};
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
