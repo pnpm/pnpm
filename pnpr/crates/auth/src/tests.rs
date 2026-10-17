@@ -1131,12 +1131,23 @@ async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
 
     assert!(store.holds("alice").unwrap());
 
+    let orig_mtime = std::fs::metadata(&htpasswd_path)
+        .unwrap()
+        .modified()
+        .unwrap();
+
     let hash_bob = bcrypt::hash("pass_bob00", TEST_COST).unwrap();
     let replacement = format!("bob00:{hash_bob}\n");
     assert_eq!(initial_content.len(), replacement.len());
 
     let tmp_path = dir.path().join("htpasswd.tmp");
     std::fs::write(&tmp_path, &replacement).unwrap();
+    let tmp_file = std::fs::File::options()
+        .write(true)
+        .open(&tmp_path)
+        .unwrap();
+    tmp_file.set_modified(orig_mtime).unwrap();
+    drop(tmp_file);
     std::fs::rename(&tmp_path, &htpasswd_path).unwrap();
 
     assert!(store.holds("bob00").unwrap());

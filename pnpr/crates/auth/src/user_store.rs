@@ -16,36 +16,15 @@ use std::{
 /// cost (`$2y$10$...`) so we never need to remember per-record metadata.
 type Users = HashMap<String, String>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FileStamp {
-    mtime: std::time::SystemTime,
-    len: u64,
-    #[cfg(unix)]
-    inode: u64,
-    #[cfg(unix)]
-    ctime: (i64, i64),
-}
+mod file_stamp;
 
-impl FileStamp {
-    fn from_metadata(meta: &std::fs::Metadata) -> Self {
-        #[cfg(unix)]
-        use std::os::unix::fs::MetadataExt;
-
-        Self {
-            mtime: meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-            len: meta.len(),
-            #[cfg(unix)]
-            inode: meta.ino(),
-            #[cfg(unix)]
-            ctime: (meta.ctime(), meta.ctime_nsec()),
-        }
-    }
-}
+use file_stamp::FileStamp;
 
 #[derive(Debug, Default)]
 struct UserStoreState {
     users: Users,
     last_synced: Option<FileStamp>,
+    synced_at: Option<std::time::SystemTime>,
 }
 
 /// File-backed (or in-memory) htpasswd store.
@@ -99,6 +78,9 @@ impl UserStore {
     /// Like [`Self::open`] but with a configurable bcrypt cost — used
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
+        let now = std::time::SystemTime::now();
+        let stamp =
+            std::fs::metadata(&path).ok().map(|metadata| FileStamp::from_metadata(&metadata));
         let (users, last_synced) = match std::fs::read_to_string(&path) {
             Ok(raw) => {
                 let parsed = parse_htpasswd(&raw)
@@ -106,16 +88,14 @@ impl UserStore {
                         path: path.display().to_string(),
                         reason,
                     })?;
-                let meta = std::fs::metadata(&path)
-                    .ok()
-                    .map(|metadata| FileStamp::from_metadata(&metadata));
-                (parsed, meta)
+                (parsed, stamp)
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => (HashMap::new(), None),
             Err(err) => return Err(err.into()),
         };
+        let synced_at = last_synced.as_ref().map(|_| now);
         Ok(Self {
-            state: Arc::new(Mutex::new(UserStoreState { users, last_synced })),
+            state: Arc::new(Mutex::new(UserStoreState { users, last_synced, synced_at })),
             path: Some(path),
             max_users,
             bcrypt_cost,
@@ -130,7 +110,11 @@ impl UserStore {
         bcrypt_cost: u32,
     ) -> Self {
         Self {
-            state: Arc::new(Mutex::new(UserStoreState { users, last_synced: None })),
+            state: Arc::new(Mutex::new(UserStoreState {
+                users,
+                last_synced: None,
+                synced_at: None,
+            })),
             path,
             max_users,
             bcrypt_cost,
@@ -164,6 +148,7 @@ impl UserStore {
                     state.users.clear();
                 }
                 state.last_synced = None;
+                state.synced_at = None;
                 return Ok(());
             }
             Err(err) => return Err(err.into()),
@@ -174,6 +159,7 @@ impl UserStore {
         let stamp = FileStamp::from_metadata(&meta);
         if let Some(prev) = state.last_synced
             && prev == stamp
+            && !stamp.is_racy(state.synced_at)
         {
             return Ok(());
         }
@@ -185,6 +171,7 @@ impl UserStore {
             })?;
         state.users = fresh;
         state.last_synced = Some(stamp);
+        state.synced_at = Some(std::time::SystemTime::now());
         Ok(())
     }
 
@@ -289,6 +276,7 @@ impl UserStore {
             guard.users = next;
             if new_sync.is_some() {
                 guard.last_synced = new_sync;
+                guard.synced_at = Some(std::time::SystemTime::now());
             }
             Ok(out)
         })
