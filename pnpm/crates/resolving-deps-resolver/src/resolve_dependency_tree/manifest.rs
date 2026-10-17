@@ -119,15 +119,25 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
         .replace('\\', "/")
 }
 
-/// Extract `dependencies` + `optionalDependencies` from a resolved
-/// package's manifest. Peer dependencies are **not** walked as regular
-/// edges here — they're hoisted to the importer level by the
+/// [`manifest_child_specs`] of a resolved package's manifest.
+pub(super) fn extract_children(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
+    manifest_child_specs(manifest, &render_parent(result))
+}
+
+/// The child dependency specs the resolver walks for a package whose
+/// manifest is `manifest`: its `dependencies` + `optionalDependencies`.
+///
+/// Peer dependencies are **not** walked as regular edges here — they're
+/// hoisted to the importer level by the
 /// [`fn@crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
 /// with the hoist-picker's output) so a peer ends up shared across
 /// every consumer, not nested under each one.
 ///
 /// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
-/// (via [`extract_peer_dependencies`]) so the peer-resolution stage
+/// so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
 /// Each entry carries `optional` and `injected` flags from the manifest.
@@ -143,19 +153,20 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 /// tarball, so resolving them again would install a second copy the
 /// package never loads.
 ///
-/// [`extend_tree`]: super::extend_tree
+/// [`extend_tree`]: crate::extend_tree
 /// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
-pub(super) fn extract_children(
-    result: &pnpm_resolving_resolver_base::ResolveResult,
+///
+/// `parent` names the package in an invalid-alias error.
+pub fn manifest_child_specs(
+    manifest: &Value,
+    parent: &str,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
-    let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, "dependencies", false, parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
-    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
+    collect_deps(manifest, "optionalDependencies", true, parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
         let dependency_positions: HashMap<String, usize> = out
             .iter()
