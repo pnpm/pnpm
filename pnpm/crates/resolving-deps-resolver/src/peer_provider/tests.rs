@@ -10,9 +10,9 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 use super::{
-    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, optional_peer_specifier,
-    optional_peer_version_tiers,
+    HoistPeersOptions, MissingPeerInfo, ProviderTiers, WorkspaceRootDep,
+    get_hoistable_optional_peers, get_hoistable_optional_peers_with_preferred_versions,
+    hoist_peers, optional_peer_specifier,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
@@ -338,8 +338,10 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
             ("2.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
         ]),
     )]);
-    let locked =
-        HashMap::from_iter([("peer".to_string(), vec![HashSet::from_iter(["1.0.0".to_string()])])]);
+    let locked = HashMap::from_iter([(
+        "peer".to_string(),
+        ProviderTiers::optional(Some(&versions(&["1.0.0"])), HashSet::default()),
+    )]);
 
     assert_eq!(
         get_hoistable_optional_peers_with_preferred_versions(
@@ -364,8 +366,10 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
             VersionSelectorEntry::Plain(VersionSelectorType::Version),
         )]),
     )]);
-    let locked =
-        HashMap::from_iter([("peer".to_string(), vec![HashSet::from_iter(["2.0.0".to_string()])])]);
+    let locked = HashMap::from_iter([(
+        "peer".to_string(),
+        ProviderTiers::optional(Some(&versions(&["2.0.0"])), HashSet::default()),
+    )]);
 
     assert_eq!(
         get_hoistable_optional_peers_with_preferred_versions(
@@ -402,7 +406,7 @@ fn pick_optional_peer(
     let locked = versions(locked);
     let tiers = HashMap::from_iter([(
         "peer".to_string(),
-        optional_peer_version_tiers(Some(&locked), versions(resolved)),
+        ProviderTiers::optional(Some(&locked), versions(resolved)),
     )]);
     get_hoistable_optional_peers_with_preferred_versions(
         &missing,

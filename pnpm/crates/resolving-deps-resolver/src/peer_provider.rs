@@ -1,6 +1,14 @@
-//! Pure functions that turn a "missing peers" picture into a
-//! "what to add to the importer's direct deps" map. Used by the
-//! orchestrator (`resolve_importer`) inside its hoist loop.
+//! Picks the version that provides a missing peer when it is hoisted to
+//! the importer. The orchestrator (`resolve_importer`) calls it inside
+//! its hoist loop for a "what to add to the importer's direct deps" map.
+//!
+//! Both pickers go through [`highest_provider_version`]. They differ only
+//! in their tiers and range check:
+//!
+//! | Peer     | Tiers                          | Range check                    |
+//! | -------- | ------------------------------ | ------------------------------ |
+//! | required | the versions this run resolved | `includePrerelease`, one range |
+//! | optional | [`ProviderTiers::optional`]    | strict, every recorded range   |
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
@@ -125,64 +133,133 @@ fn preferred_version_specifier(
     resolved_versions: Option<&HashSet<String>>,
     range: &str,
 ) -> Option<String> {
-    let (versions, non_versions) = split_version_selectors(selectors);
+    let non_versions = non_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
-    // A version that only the wanted lockfile holds is a weight whose
-    // provider has moved on, so it must not outrank one this run resolved.
-    let satisfying_version = is_semver_range
-        .then(|| {
-            resolved_versions
-                .and_then(|resolved| {
-                    let in_run: Vec<&str> = versions
-                        .iter()
-                        .copied()
-                        .filter(|version| resolved.contains(*version))
-                        .collect();
-                    max_satisfying(&in_run, &range_for_match)
-                })
-                .or_else(|| max_satisfying(&versions, &range_for_match))
-        })
-        .flatten();
-    if let Some(satisfying) = satisfying_version {
-        let mut parts: Vec<&str> = vec![satisfying];
-        parts.extend(non_versions.iter().copied());
-        return Some(parts.join(" || "));
+    if is_semver_range {
+        let parsed_range = IncludePrereleaseRange::parse(&range_for_match);
+        // A version only the wanted lockfile holds is a weight whose
+        // provider has moved on, so it must not outrank one this run resolved.
+        let satisfying = highest_provider_version(selectors, resolved_versions, |_, version| {
+            parsed_range.satisfies(version)
+        });
+        if let Some((satisfying, _)) = satisfying {
+            let mut parts: Vec<&str> = vec![satisfying];
+            parts.extend(non_versions.iter().copied());
+            return Some(parts.join(" || "));
+        }
+        if has_version_selector(selectors) {
+            // Preferred versions exist but none satisfies the wanted
+            // range. Use the range directly so it resolves from the
+            // registry rather than installing a version the peer
+            // explicitly rejects. Without auto-install-peers, hoist
+            // nothing and leave the peer missing.
+            return opts.auto_install_peers.then(|| range.to_string());
+        }
     }
-    if is_semver_range && !versions.is_empty() {
-        // Preferred versions exist but none satisfies the wanted
-        // range. Use the range directly so it resolves from the
-        // registry rather than installing a version the peer
-        // explicitly rejects. Without auto-install-peers, hoist
-        // nothing and leave the peer missing.
-        return opts.auto_install_peers.then(|| range.to_string());
+    let mut parts: Vec<&str> = Vec::new();
+    if let Some((highest, _)) = highest_provider_version(selectors, None, |_, _| true) {
+        parts.push(highest);
     }
-    let mut parts: Vec<String> = Vec::new();
-    if let Some(highest) = max_satisfying_any(&versions) {
-        parts.push(highest.to_string());
-    }
-    for spec in &non_versions {
-        parts.push((*spec).to_string());
-    }
+    parts.extend(non_versions.iter().copied());
     (!parts.is_empty()).then(|| parts.join(" || "))
 }
 
-/// Split a package's version selectors into the plain versions and the
-/// specifiers that are not one.
-fn split_version_selectors(selectors: &VersionSelectors) -> (Vec<&str>, Vec<&str>) {
-    let mut versions: Vec<&str> = Vec::new();
-    let mut non_versions: Vec<&str> = Vec::new();
-    for (spec, entry) in selectors {
-        let spec_type = match entry {
-            VersionSelectorEntry::Plain(selector_type) => *selector_type,
-            VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
-        };
-        match spec_type {
-            VersionSelectorType::Version => versions.push(spec.as_str()),
-            _ => non_versions.push(spec.as_str()),
-        }
+fn selector_type(entry: &VersionSelectorEntry) -> VersionSelectorType {
+    match entry {
+        VersionSelectorEntry::Plain(selector_type) => *selector_type,
+        VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
     }
-    (versions, non_versions)
+}
+
+fn non_version_selectors(selectors: &VersionSelectors) -> Vec<&str> {
+    selectors
+        .iter()
+        .filter(|(_, entry)| selector_type(entry) != VersionSelectorType::Version)
+        .map(|(spec, _)| spec.as_str())
+        .collect()
+}
+
+fn has_version_selector(selectors: &VersionSelectors) -> bool {
+    selectors
+        .values()
+        .any(|entry| selector_type(entry) == VersionSelectorType::Version)
+}
+
+/// The version tiers an optional peer's provider is picked from, in the
+/// order [`highest_provider_version`] tries them.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct ProviderTiers(Vec<HashSet<String>>);
+
+impl ProviderTiers {
+    /// The `locked` versions this run `resolved`, then every version it
+    /// resolved, then the `locked` ones. A locked version the run no
+    /// longer resolves survives only as a lockfile weight, since whatever
+    /// provided it has moved on, so it must not outrank what the graph
+    /// now holds.
+    pub(crate) fn optional(locked: Option<&HashSet<String>>, resolved: HashSet<String>) -> Self {
+        let locked = locked.cloned().unwrap_or_default();
+        let reached: HashSet<String> = locked
+            .intersection(&resolved)
+            .cloned()
+            .collect();
+        Self(
+            [reached, resolved, locked]
+                .into_iter()
+                .filter(|tier| !tier.is_empty())
+                .collect(),
+        )
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// The highest plain version among `selectors` that `qualifies`, from the
+/// first of `tiers` that holds one. When none does, every version
+/// competes. On equal versions the first selector wins.
+///
+/// A tier without a qualifying version is stale and does not veto the
+/// pick. Its provider left the graph, or it fell outside the ranges.
+/// Leaving an optional peer bare drops it from the direct dependency key,
+/// and the run after that re-attaches it from these very candidates.
+fn highest_provider_version<'a, 'tier>(
+    selectors: &'a VersionSelectors,
+    tiers: impl IntoIterator<Item = &'tier HashSet<String>>,
+    qualifies: impl Fn(&str, &Version) -> bool,
+) -> Option<(&'a str, Version)> {
+    let highest_in = |tier: Option<&HashSet<String>>| {
+        let mut best: Option<(&'a str, Version)> = None;
+        for (spec, version) in plain_versions_in(selectors, tier) {
+            if qualifies(spec, &version)
+                && best
+                    .as_ref()
+                    .is_none_or(|(_, cur)| version > *cur)
+            {
+                best = Some((spec, version));
+            }
+        }
+        best
+    };
+    tiers
+        .into_iter()
+        .find_map(|tier| highest_in(Some(tier)))
+        .or_else(|| highest_in(None))
+}
+
+/// The plain versions among `selectors`, limited to `tier` when one is given.
+fn plain_versions_in<'a>(
+    selectors: &'a VersionSelectors,
+    tier: Option<&HashSet<String>>,
+) -> impl Iterator<Item = (&'a str, Version)> {
+    selectors
+        .iter()
+        .filter(move |(spec, entry)| {
+            selector_type(entry) == VersionSelectorType::Version
+                && tier.is_none_or(|tier| tier.contains(*spec))
+        })
+        .filter_map(|(spec, _)| Some((spec.as_str(), spec.parse::<Version>().ok()?)))
 }
 
 /// Pick an installable version for each missing optional peer, but only
@@ -208,11 +285,13 @@ pub fn get_hoistable_optional_peers(
     )
 }
 
+static NO_TIERS: ProviderTiers = ProviderTiers(Vec::new());
+
 pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
     workspace_root_deps: &[WorkspaceRootDep],
-    preferred_peer_versions: &HashMap<String, Vec<HashSet<String>>>,
+    preferred_peer_versions: &HashMap<String, ProviderTiers>,
     accepts_candidate: &dyn Fn(&str, &str) -> bool,
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
@@ -222,9 +301,7 @@ pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
             selectors,
             ranges,
             find_workspace_root_dep(workspace_root_deps, peer_name),
-            preferred_peer_versions
-                .get(peer_name)
-                .map_or(&[], Vec::as_slice),
+            preferred_peer_versions.get(peer_name).unwrap_or(&NO_TIERS),
             &|version| accepts_candidate(peer_name, version),
         );
         if let Some(version) = version {
@@ -235,14 +312,12 @@ pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
 }
 
 /// The highest preferred version satisfying every range recorded for one
-/// missing optional peer, or `None` when no candidate qualifies. The
-/// `preferred_tiers` are tried in order, and the first tier holding a
-/// qualifying version wins over the rest of the candidates.
+/// missing optional peer, or `None` when no candidate qualifies.
 fn max_hoistable_optional_version(
     selectors: &VersionSelectors,
     ranges: &[String],
     root_dep: Option<&WorkspaceRootDep>,
-    preferred_tiers: &[HashSet<String>],
+    tiers: &ProviderTiers,
     accepts_candidate: &dyn Fn(&str) -> bool,
 ) -> Option<Version> {
     // An unparsable range is satisfied by nothing, so bailing on the
@@ -270,85 +345,22 @@ fn max_hoistable_optional_version(
                 .iter()
                 .all(|parsed| root.allows_any(parsed))
         });
-
-    let max_hoistable = |allowed_versions: Option<&HashSet<String>>| {
-        selectors
-            .iter()
-            .filter_map(|(version_str, entry)| {
-                hoistable_optional_candidate(
-                    version_str,
-                    entry,
-                    allowed_versions,
-                    root_range.as_ref(),
-                    &parsed_ranges,
-                )
-                .filter(|_| accepts_candidate(version_str))
-            })
-            .max()
-    };
-    // A preference no remaining candidate satisfies — its provider left the
-    // graph, or it fell outside the ranges — is stale, and must not veto
-    // the hoist: leaving the peer bare drops it from the direct
-    // dependency key, and the run after that re-attaches it from these
-    // very candidates. Picking from them here keeps one run enough.
-    preferred_tiers
-        .iter()
-        .find_map(|tier| max_hoistable(Some(tier)))
-        .or_else(|| max_hoistable(None))
-}
-
-/// The version tiers the optional-peer picker tries in order: the
-/// `locked` versions this run `resolved`, then every version it
-/// resolved, then the `locked` ones. A locked version the run no longer
-/// resolves survives only as a lockfile weight, since whatever provided
-/// it has moved on, so it must not outrank what the graph now holds.
-pub(crate) fn optional_peer_version_tiers(
-    locked: Option<&HashSet<String>>,
-    resolved: HashSet<String>,
-) -> Vec<HashSet<String>> {
-    let locked = locked.cloned().unwrap_or_default();
-    let reached: HashSet<String> = locked
-        .intersection(&resolved)
-        .cloned()
-        .collect();
-    [reached, resolved, locked]
-        .into_iter()
-        .filter(|tier| !tier.is_empty())
-        .collect()
-}
-
-/// One preferred-version selector as an installable candidate, or `None` when
-/// it is not a plain version, is not among the allowed ones, or falls outside
-/// the ranges that bound the peer.
-fn hoistable_optional_candidate(
-    version_str: &str,
-    entry: &VersionSelectorEntry,
-    allowed_versions: Option<&HashSet<String>>,
-    root_range: Option<&Range>,
-    parsed_ranges: &[Range],
-) -> Option<Version> {
-    if allowed_versions.is_some_and(|versions| !versions.contains(version_str)) {
-        return None;
-    }
-    let selector_type = match entry {
-        VersionSelectorEntry::Plain(selector_type) => *selector_type,
-        VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
-    };
-    if selector_type != VersionSelectorType::Version {
-        return None;
-    }
-    let version = version_str.parse::<Version>().ok()?;
-    if root_range.is_some_and(|range| !range.satisfies(&version)) {
-        return None;
-    }
     // Strict, unlike the required-peer picker above: an optional
     // peer nobody declared is installed only to deduplicate, so a
     // prerelease its range rejects is not worth splitting a
     // package family over.
-    parsed_ranges
-        .iter()
-        .all(|parsed| parsed.satisfies(&version))
-        .then_some(version)
+    let satisfies_ranges = |version: &Version| {
+        root_range
+            .as_ref()
+            .is_none_or(|range| range.satisfies(version))
+            && parsed_ranges
+                .iter()
+                .all(|parsed| parsed.satisfies(version))
+    };
+    highest_provider_version(selectors, &tiers.0, |spec, version| {
+        satisfies_ranges(version) && accepts_candidate(spec)
+    })
+    .map(|(_, version)| version)
 }
 
 /// The root dependency that provides `peer_name`: an alias match wins
@@ -387,43 +399,6 @@ pub(crate) fn optional_peer_specifier(
         .filter(|specifier| specifier.starts_with("workspace:"))
         .cloned()
         .unwrap_or(version)
-}
-
-/// Highest version from `versions` that satisfies `range` under npm's
-/// `includePrerelease` semantics. Returns `None` if no candidate
-/// satisfies.
-fn max_satisfying<'a>(versions: &[&'a str], range: &str) -> Option<&'a str> {
-    let parsed_range = IncludePrereleaseRange::parse(range);
-    let mut best: Option<(&str, Version)> = None;
-    for spec in versions {
-        let Ok(parsed_version) = spec.parse::<Version>() else { continue };
-        if !parsed_range.satisfies(&parsed_version) {
-            continue;
-        }
-        if best
-            .as_ref()
-            .is_none_or(|(_, cur)| parsed_version > *cur)
-        {
-            best = Some((*spec, parsed_version));
-        }
-    }
-    best.map(|(spec, _)| spec)
-}
-
-/// Highest version overall from `versions` (the `*` range). Returns
-/// `None` when no candidate parses as a valid semver.
-fn max_satisfying_any<'a>(versions: &'a [&'a str]) -> Option<&'a str> {
-    let mut best: Option<(&str, Version)> = None;
-    for spec in versions {
-        let Ok(v) = spec.parse::<Version>() else { continue };
-        if best
-            .as_ref()
-            .is_none_or(|(_, cur)| v > *cur)
-        {
-            best = Some((*spec, v));
-        }
-    }
-    best.map(|(spec, _)| spec)
 }
 
 #[cfg(test)]

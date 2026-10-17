@@ -6,7 +6,7 @@ use super::{
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
-use crate::hoist_peers::optional_peer_specifier;
+use crate::peer_provider::optional_peer_specifier;
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,

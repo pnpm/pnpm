@@ -17,7 +17,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::resolved_tree::{DirectDep, ResolvedTree};
+use crate::{
+    peer_provider::ProviderTiers,
+    resolved_tree::{DirectDep, ResolvedTree},
+};
 
 use super::{
     ManifestHook, UpdateReuseScope, update_scope::UpdateScope, workspace_ctx::WorkspaceTreeCtx,
@@ -529,20 +532,20 @@ impl TreeCtx {
         out
     }
 
-    /// [`crate::hoist_peers::optional_peer_version_tiers`] for each of
+    /// [`ProviderTiers::optional`] for each of
     /// `names`, from the `locked` versions and the versions this run has
     /// resolved into the settled reachable tree.
     pub(crate) fn optional_peer_version_tiers<'name>(
         &self,
         locked: &HashMap<String, HashSet<String>>,
         names: impl Iterator<Item = &'name str>,
-    ) -> HashMap<String, Vec<HashSet<String>>> {
+    ) -> HashMap<String, ProviderTiers> {
         let names: Vec<&str> = names.collect();
         let mut resolved = self.run_resolved_versions(names.iter().copied());
         let mut out = HashMap::default();
         for name in names {
             let resolved = resolved.remove(name).unwrap_or_default();
-            let tiers = crate::hoist_peers::optional_peer_version_tiers(locked.get(name), resolved);
+            let tiers = ProviderTiers::optional(locked.get(name), resolved);
             if !tiers.is_empty() {
                 out.insert(name.to_string(), tiers);
             }

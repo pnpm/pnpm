@@ -980,7 +980,7 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 
 ### `hoistPeers.test.ts` — fully ported
 
-- [x] All 11 cases (`hoistPeers` × 8 + `getHoistableOptionalPeers` × 3) are ported in `hoist_peers/tests.rs`, plus two prerelease siblings pacquet adds.
+- [x] All 11 cases (`hoistPeers` × 8 + `getHoistableOptionalPeers` × 3) are ported in `peer_provider/tests.rs`, plus two prerelease siblings pacquet adds.
 
 ### `resolvePeers.ts` — ported / covered
 
