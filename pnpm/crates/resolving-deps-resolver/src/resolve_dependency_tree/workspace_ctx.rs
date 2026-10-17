@@ -68,7 +68,7 @@ pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 /// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
 /// a resolved package's manifest's `dependencies` plus
 /// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool, bool);
+pub type ChildSpec = (String, String, bool, bool);
 
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the

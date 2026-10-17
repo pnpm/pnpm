@@ -1,11 +1,10 @@
 use super::{
     ChildSeedScope, ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, PkgNameVerPeer,
-    ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey, async_recursion,
-    catalog_anchor, catalogs_for_children, child_wanted, children_warmup_claimed,
-    claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
-    landed_on_prior_entry, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
-    peer_shadowed_dependencies, project_relative_cache_scope, resolve_catalog_child_specs,
-    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
+    ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey, async_recursion, child_wanted,
+    children_warmup_claimed, claim_children_warmup, declaring_manifest_dir, extract_children,
+    future, is_update_target, landed_on_prior_entry, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
+    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node, walk_child_specs,
     wanted_package_root_link,
 };
 
@@ -174,18 +173,7 @@ pub(super) fn warm_child_specs(
     through_catalogs: bool,
 ) -> Option<Vec<ChildSpec>> {
     let specs = extract_children(result).ok()?;
-    let specs = if peer_shadowed.is_empty() {
-        specs
-    } else {
-        specs
-            .into_iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
-            .collect()
-    };
-    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };
-    let declaring_dir = declaring_manifest_dir(ctx, result);
-    let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
-    resolve_catalog_child_specs(specs, catalogs, anchor).ok()
+    walk_child_specs(ctx, result, &specs, (peer_shadowed, through_catalogs)).ok()
 }
 
 /// Warm one child edge through the same per-wanted dedup cache, under the

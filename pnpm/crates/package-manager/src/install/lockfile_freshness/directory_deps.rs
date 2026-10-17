@@ -11,6 +11,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{
+    ChildCatalogs, ChildSpec, ResolveDependencyTreeError, local_directory_child_specs,
+};
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
 use std::{
     collections::{HashMap, HashSet},
@@ -276,51 +279,72 @@ fn check_single_directory_dep_freshness(
         return Err(dep.outdated());
     };
     let peers = PeerShadowing::of(&local_manifest, pkg_meta, check.config.auto_install_peers);
-    check_local_dep_group_freshness(
-        dep,
-        &local_manifest,
-        DependencyGroup::Prod,
-        snapshot.dependencies.as_ref(),
-        (false, &peers.shadowed),
-    )?;
-    if check.config.optional {
-        check_local_dep_group_freshness(
-            dep,
-            &local_manifest,
-            DependencyGroup::Optional,
-            snapshot.optional_dependencies.as_ref(),
-            (check.optional_exclusions.allow_unresolved, &HashSet::new()),
-        )?;
-    }
+    check_local_dep_children_freshness(check, dep, &local_manifest, snapshot, &peers.shadowed)?;
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }
 
-fn check_local_dep_group_freshness(
+/// Compares the children the resolver walks for the package (see
+/// [`local_directory_child_specs`]) with the ones its snapshot records.
+fn check_local_dep_children_freshness(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
-    group: DependencyGroup,
-    snapshot_deps: Option<
-        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
-    >,
-    (allow_unresolved, shadowed): (bool, &HashSet<&str>),
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    shadowed: &HashSet<&str>,
 ) -> Result<(), FreshnessCheckError> {
-    let mut manifest_deps: std::collections::HashMap<&str, &str> = local_manifest
-        .dependencies([group])
-        .collect();
-    if let Some(snapshot_deps) = snapshot_deps {
-        let mut valid_keys = manifest_deps.clone();
-        if group == DependencyGroup::Prod {
-            valid_keys.extend(local_manifest.dependencies([DependencyGroup::Peer]));
+    // A `file:` dependency resolves through the local resolver, which leaves
+    // its children's `catalog:` specs alone.
+    let catalogs = (!dep.declared_as_file).then_some(ChildCatalogs {
+        catalogs: dep.catalogs,
+        workspace_dir: check.config.workspace_dir.as_deref(),
+        package_dir: dep.dir,
+    });
+    let is_peer_shadowed = |name: &str| shadowed.contains(name);
+    let children =
+        local_directory_child_specs(local_manifest.value(), dep.name, is_peer_shadowed, catalogs)
+            .map_err(|error| match error {
+                ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
+                    FreshnessCheckError::InvalidCatalog(error)
+                }
+                _ => dep.outdated(),
+            })?;
+    check_snapshot_keys_are_children(check, dep, local_manifest, (&children, snapshot))?;
+    for child in &children {
+        if !child_is_fresh(check, dep, snapshot, child) {
+            return Err(dep.outdated());
         }
-        if group == DependencyGroup::Optional {
-            valid_keys.extend(optional_peer_names(local_manifest).map(|name| (name, "*")));
-        }
-        check_snapshot_keys_in_manifest(dep, &valid_keys, snapshot_deps)?;
     }
-    // The snapshot records the peer's resolution for these, whose range the
-    // peer check compares.
-    manifest_deps.retain(|name, _| !shadowed.contains(name));
-    check_manifest_specs_satisfy_snapshot(dep, &manifest_deps, snapshot_deps, allow_unresolved)
+    Ok(())
+}
+
+/// Whether the snapshot records a resolution of `child` that its spec
+/// accepts. An optional child the install leaves out is only checked not to
+/// be recorded as a required one.
+fn child_is_fresh(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    (name, spec, optional, _): &ChildSpec,
+) -> bool {
+    if *optional && !check.config.optional {
+        return recorded_child(snapshot, name, false).is_none();
+    }
+    match recorded_child(snapshot, name, *optional) {
+        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded),
+        None => *optional && check.optional_exclusions.allow_unresolved,
+    }
+}
+
+/// The resolution the snapshot records for a child, in the map its
+/// optionality puts it in.
+fn recorded_child<'s>(
+    snapshot: &'s pnpm_lockfile::SnapshotEntry,
+    name: &str,
+    optional: bool,
+) -> Option<&'s pnpm_lockfile::SnapshotDepRef> {
+    let name = pnpm_lockfile::PkgName::parse(name).ok()?;
+    let recorded = if optional { &snapshot.optional_dependencies } else { &snapshot.dependencies };
+    recorded.as_ref()?.get(&name)
 }
 
 fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
@@ -337,44 +361,33 @@ fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str>
         })
 }
 
-fn check_snapshot_keys_in_manifest(
+/// Every child the snapshot records is one the resolver walks, or a peer
+/// the package declares, which the snapshot records as resolved.
+fn check_snapshot_keys_are_children(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
-    manifest_deps: &std::collections::HashMap<&str, &str>,
-    snapshot_deps: &std::collections::HashMap<
-        pnpm_lockfile::PkgName,
-        pnpm_lockfile::SnapshotDepRef,
-    >,
+    local_manifest: &PackageManifest,
+    (children, snapshot): (&[ChildSpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
-    for lockfile_dep_name in snapshot_deps.keys() {
-        let lockfile_name_str = lockfile_dep_name.to_string();
-        if !manifest_deps.contains_key(lockfile_name_str.as_str()) {
-            return Err(dep.outdated());
-        }
-    }
-    Ok(())
-}
-
-fn check_manifest_specs_satisfy_snapshot(
-    dep: &LocalDepContext<'_>,
-    manifest_deps: &std::collections::HashMap<&str, &str>,
-    snapshot_deps: Option<
-        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
-    >,
-    allow_unresolved: bool,
-) -> Result<(), FreshnessCheckError> {
-    for (name, spec) in manifest_deps {
-        let lockfile_dep = snapshot_deps.and_then(|deps| {
-            pnpm_lockfile::PkgName::parse(*name)
-                .ok()
-                .and_then(|n| deps.get(&n))
-        });
-        let Some(lockfile_dep) = lockfile_dep else {
-            if allow_unresolved {
-                continue;
-            }
-            return Err(dep.outdated());
-        };
-        if !spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, lockfile_dep) {
+    let expected: HashSet<&str> = children
+        .iter()
+        .map(|(name, ..)| name.as_str())
+        .chain(
+            local_manifest
+                .dependencies([DependencyGroup::Peer])
+                .map(|(name, _)| name),
+        )
+        .chain(optional_peer_names(local_manifest))
+        .collect();
+    // An install without optional dependencies leaves the optional map alone.
+    let optional =
+        check.config.optional.then_some(snapshot.optional_dependencies.as_ref()).flatten();
+    let recorded = [snapshot.dependencies.as_ref(), optional]
+        .into_iter()
+        .flatten()
+        .flat_map(|deps| deps.keys());
+    for name in recorded {
+        if !expected.contains(name.to_string().as_str()) {
             return Err(dep.outdated());
         }
     }
