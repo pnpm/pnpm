@@ -47,7 +47,7 @@ use tar_registry::{
 };
 
 mod tar_responses;
-use tar_responses::{TarSource, tar_integrity_of, tar_response};
+use tar_responses::{CachedTgz, TarSource, tar_integrity_of, tar_response};
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};

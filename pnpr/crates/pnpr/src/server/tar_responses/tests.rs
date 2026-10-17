@@ -28,25 +28,43 @@ fn accept_encoding_honors_refusals_and_the_wildcard() {
     assert_eq!(accepted("br"), (false, false));
 }
 
-async fn decode_and_derive(tgz: Vec<u8>, expected: &str) -> (Vec<u8>, Option<ssri::Integrity>) {
+async fn decode_and_derive(
+    tgz: Vec<u8>,
+    expected: &str,
+) -> (Option<Vec<u8>>, Option<ssri::Integrity>) {
     let (sender, receiver) = std::sync::mpsc::channel();
-    let derived = super::DerivedFrom { expected: expected.parse().ok(), copy: None };
+    let storage_dir = tempfile::TempDir::new().unwrap();
+    let storage = pnpr_storage::Storage::new(
+        &pnpr_config::HostedStoreConfig::Fs,
+        storage_dir.path().join("storage"),
+        storage_dir.path().join("cache"),
+    )
+    .unwrap();
+    let stale = super::StaleTgz {
+        storage,
+        name: super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
+            .unwrap(),
+        cached: None,
+        runtime: tokio::runtime::Handle::current(),
+    };
+    let derived = super::DerivedFrom { expected: expected.parse().ok(), copy: None, stale };
     let body = super::gunzip_body(axum::body::Body::from(tgz), derived, move |integrity| {
         let _ = sender.send(integrity);
     });
-    let tar = axum::body::to_bytes(body, usize::MAX).await.unwrap().to_vec();
+    let tar = axum::body::to_bytes(body, usize::MAX).await.ok().map(|bytes| bytes.to_vec());
     (
         tar,
         receiver
-            .recv_timeout(std::time::Duration::from_secs(5))
+            .recv_timeout(std::time::Duration::from_millis(500))
             .ok(),
     )
 }
 
 /// A cached `.tgz` is served without a re-check against the packument, so
-/// stale bytes must not have their tar recorded under the current digest.
+/// stale bytes must neither complete a response nor have their tar recorded
+/// under the current digest.
 #[tokio::test]
-async fn the_tar_integrity_is_derived_only_from_bytes_that_match_the_digest() {
+async fn only_bytes_that_match_the_digest_complete_a_tar_response() {
     let tar = vec![7u8; 1024];
     let tgz = gzip(&tar);
     let mut digest = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
@@ -57,10 +75,10 @@ async fn the_tar_integrity_is_derived_only_from_bytes_that_match_the_digest() {
     let stale = other.result().to_string();
 
     let (served, derived) = decode_and_derive(tgz.clone(), &matching).await;
-    assert_eq!(served, tar);
+    assert_eq!(served, Some(tar));
     assert!(derived.is_some(), "matching bytes derive the tar integrity");
 
     let (served, derived) = decode_and_derive(tgz, &stale).await;
-    assert_eq!(served, tar, "the response is served either way");
+    assert_eq!(served, None, "stale bytes end the response with an error");
     assert!(derived.is_none(), "stale bytes derive nothing");
 }

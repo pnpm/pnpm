@@ -7,10 +7,11 @@
 //! decode, and kept in the storage's tar-integrity table.
 
 use super::{
-    AppState, CanonicalPackageName, Ecosystem, HeaderMap, Identity, PackumentDists, RegistryError,
-    RegistrySource, Response, StatusCode, TarSource, Value, addressed_registry, caller_scoped,
-    not_found, read_source_packument, resolve_registry_source, revision_source_registry,
-    serve_registry_tarball, tar_response, tarball_basename,
+    AppState, CachedTgz, CanonicalPackageName, Ecosystem, HeaderMap, Identity, PackumentDists,
+    RegistryError, RegistrySource, Response, StatusCode, TarSource, Value, addressed_registry,
+    caller_scoped, not_found, read_source_packument, resolve_registry_source,
+    revision_source_registry, serve_registry_tarball, tar_response, tarball_basename,
+    upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 use ssri::{Algorithm, Integrity};
@@ -168,7 +169,14 @@ async fn serve_version_tarball(
         RegistrySource::Hosted(_) => true,
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     };
-    let source = TarSource { name, tgz_integrity: tgz.integrity_key, keeps_content };
+    let cached_tgz = match &source {
+        RegistrySource::Upstream(upstream) => Some(CachedTgz {
+            namespace: upstream_cache_namespace(state, upstream),
+            filename: tgz.filename,
+        }),
+        RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
+    };
+    let source = TarSource { name, tgz_integrity: tgz.integrity_key, keeps_content, cached_tgz };
     tar_response(state, headers, response, source).await
 }
 

@@ -318,8 +318,9 @@ async fn an_uncached_upstream_gets_no_tar_variants() {
     let app = router(config);
 
     for _ in 0..2 {
-        let served = get(&app, "/~zstd/left-pad@1.0.0", Some("zstd")).await;
+        let served = get(&app, "/~zstd/left-pad@1.0.0", Some("zstd, gzip")).await;
         assert_eq!(served.status(), StatusCode::OK);
+        assert_eq!(served.headers()[header::CONTENT_ENCODING], "zstd", "zstd stays available");
         assert_eq!(zstd::decode_all(body_bytes(served.into_body()).await.as_slice()).unwrap(), tar);
     }
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -336,4 +337,86 @@ async fn an_uncached_upstream_gets_no_tar_variants() {
         .map(|entry| entry.path().to_path_buf())
         .collect();
     assert!(persisted.is_empty(), "a cache: false upstream persists no tar: {persisted:?}");
+}
+
+/// A cached `.tgz` is served without a re-check against the packument. When
+/// the packument has since moved to other bytes, the tar response must not
+/// complete with the stale ones, or a client with no tar hash to check would
+/// install them.
+#[tokio::test]
+async fn a_stale_cached_tgz_fails_the_tar_response_and_is_refetched() {
+    for accept in [None, Some("gzip"), Some("zstd")] {
+        stale_cached_tgz_scenario(accept).await;
+    }
+}
+
+async fn stale_cached_tgz_scenario(accept: Option<&str>) {
+    let old_tar = tar_of(&[("package/package.json", br#"{"name":"left-pad","version":"1.0.0"}"#)]);
+    let new_tar = tar_of(&[("package/index.js", b"module.exports = 2\n")]);
+    let (old_tgz, new_tgz) = (gzip(&old_tar), gzip(&new_tar));
+    let mut upstream = mockito::Server::new_async().await;
+    let tarball_url = format!("{}/left-pad/-/left-pad-1.0.0.tgz", upstream.url());
+    let packument = |tgz: &[u8]| {
+        serde_json::json!({
+            "name": "left-pad",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": { "name": "left-pad", "version": "1.0.0", "dist": {
+                "tarball": tarball_url,
+                "integrity": sha512_integrity(tgz),
+            } } },
+        })
+        .to_string()
+    };
+    let old_packument = upstream
+        .mock("GET", "/left-pad")
+        .with_body(packument(&old_tgz))
+        .create_async()
+        .await;
+    let old_tarball = upstream
+        .mock("GET", "/left-pad/-/left-pad-1.0.0.tgz")
+        .with_body(&old_tgz)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.http.packument_ttl = std::time::Duration::ZERO;
+    let graph = vec![
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        ("zstd".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] }),
+    ];
+    config.routing.registries = Registries::new(graph.into_iter().collect(), None);
+    config.routing.tar_registries.insert("zstd".to_string());
+    let app = router(config);
+
+    let cached = get(&app, "/~zstd/left-pad@1.0.0", None).await;
+    assert_eq!(body_bytes(cached.into_body()).await, old_tar, "the first fetch caches the old tgz");
+
+    old_packument.remove_async().await;
+    old_tarball.remove_async().await;
+    let _new_packument = upstream
+        .mock("GET", "/left-pad")
+        .with_body(packument(&new_tgz))
+        .create_async()
+        .await;
+    let _new_tarball = upstream
+        .mock("GET", "/left-pad/-/left-pad-1.0.0.tgz")
+        .with_body(&new_tgz)
+        .create_async()
+        .await;
+
+    let stale = get(&app, "/~zstd/left-pad@1.0.0", accept).await;
+    let body = axum::body::to_bytes(stale.into_body(), usize::MAX).await;
+    assert!(body.is_err(), "stale bytes must not complete a tar response ({accept:?})");
+
+    let mut refetched = Vec::new();
+    for _ in 0..50 {
+        let response = get(&app, "/~zstd/left-pad@1.0.0", None).await;
+        if let Ok(body) = axum::body::to_bytes(response.into_body(), usize::MAX).await {
+            refetched = body.to_vec();
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(refetched, new_tar, "the evicted tgz is refetched from the upstream ({accept:?})");
 }
