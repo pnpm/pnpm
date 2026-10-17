@@ -145,6 +145,18 @@ impl<'a> FileDigests<'a> {
         }
     }
 
+    /// Whether the recorded signature of `path` stood for its content, so
+    /// [`Self::of`] did not read the file.
+    pub(crate) fn trusts(&self, path: &Path) -> bool {
+        let Some(recorded) = self.recorded_signature(path) else {
+            return false;
+        };
+        fs::metadata(path)
+            .ok()
+            .and_then(|metadata| FileStat::of(&metadata))
+            .is_some_and(|stat| stat.matches(recorded))
+    }
+
     /// The digest of the lockfile the project records name.
     pub(crate) fn lockfile(&self, workspace_root: &Path, config: &Config) -> (PathBuf, FileDigest) {
         let [wanted, current] = lockfile_paths(workspace_root, config);

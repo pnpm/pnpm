@@ -959,3 +959,38 @@ fn workspace_without_projects_refuses_a_changed_unparsable_lockfile() {
         Decision::Skipped { reason: "the wanted lockfile cannot be read or parsed" },
     );
 }
+
+/// A lockfile stat'd in the clock tick its validation was recorded in could
+/// have changed again unseen, so the next check reads it. That check records
+/// the stat again, after which it stands for the content.
+#[test]
+fn a_lockfile_recorded_in_the_same_tick_is_read_once_more() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    let validation = state.validation.as_mut().expect("a recorded validation");
+    let lockfile_key = dir
+        .path()
+        .join(Lockfile::FILE_NAME)
+        .to_string_lossy()
+        .into_owned();
+    let signature = &validation.files[&lockfile_key];
+    validation.recorded_at_ns =
+        signature.ctime_ns.unwrap_or(signature.mtime_ns).max(signature.mtime_ns);
+    update_workspace_state(dir.path(), &state).unwrap();
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let recorded = super::recorded_state_text(dir.path());
+    assert_ne!(
+        recorded,
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+        "the check records the lockfile's stat again",
+    );
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing"
+    );
+}

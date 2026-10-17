@@ -62,8 +62,8 @@ impl<'a> InputDrift<'a> {
         let recorded_lockfile = recorded_signature(recorded, &lockfile_path);
         let lockfile_rehashed = matches!(
             (&lockfile, recorded_lockfile),
-            (FileDigest::Present(now), Some(then)) if now.digest == then.digest && now != then,
-        );
+            (FileDigest::Present(now), Some(then)) if now.digest == then.digest,
+        ) && !digests.trusts(&lockfile_path);
         let lockfile_changed = recorded.is_some()
             && lockfile.digest()
                 != recorded_lockfile.map(|signature| signature.digest.as_str());
@@ -167,7 +167,7 @@ fn patch_drift(
         match (digests.of(&patch), recorded_signature(state.validation.as_ref(), &patch)) {
             (FileDigest::Present(now), Some(then)) => {
                 drift.modified |= now.digest != then.digest;
-                drift.rehashed |= now != *then;
+                drift.rehashed |= !digests.trusts(&patch);
             }
             // A state pnpm v11 wrote records no digests, and its timestamp is
             // the only evidence there is. A patch added since changed
