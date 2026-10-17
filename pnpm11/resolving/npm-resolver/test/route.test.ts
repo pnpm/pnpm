@@ -16,7 +16,7 @@ import {
 const PKG_NAME = 'acme'
 const CUTOFF = new Date('2026-10-01T00:00:00Z')
 
-const RANGE_SHORTCUTS: MirrorShortcuts = {
+const RANGE_SHORTCUTS: Omit<MirrorShortcuts, 'releaseAgeApplies'> = {
   exactVersion: false,
   dominantLockfileVersion: true,
   unvalidatedMirror: true,
@@ -35,21 +35,37 @@ describe('readsMirrorFirst', () => {
 
 describe('decideMirrorShortcuts', () => {
   test('a stable range pick may use the lockfile version and an unvalidated mirror', () => {
-    expect(decideMirrorShortcuts(rangePick())).toStrictEqual(RANGE_SHORTCUTS)
+    expect(shortcutsOf(rangePick())).toStrictEqual(RANGE_SHORTCUTS)
+  })
+
+  test('a package excluded from the release age keeps the range shortcuts', () => {
+    expect(shortcutsOf(rangePick({ publishedBy: CUTOFF, publishedByExclude: (name) => name === PKG_NAME }))).toStrictEqual(RANGE_SHORTCUTS)
   })
 
   test.each<[string, RouteInputs]>([
     ['latest tag', rangePick({ includeLatestTag: true })],
     ['update checksums', rangePick({ updateChecksums: true })],
     ['release age', rangePick({ publishedBy: CUTOFF })],
-    ['release age with the package excluded', rangePick({ publishedBy: CUTOFF, publishedByExclude: () => true })],
+    ['another package excluded from the release age', rangePick({ publishedBy: CUTOFF, publishedByExclude: (name) => name === 'other' })],
     ['no-downgrade', rangePick({ trustPolicy: 'no-downgrade' })],
+    ['prefer-offline', rangePick({}, { preferOffline: true })],
+    ['offline', rangePick({}, { offline: true })],
   ])('%s rules out the range shortcuts', (_name, inputs) => {
-    expect(decideMirrorShortcuts(inputs)).toStrictEqual({ ...RANGE_SHORTCUTS, dominantLockfileVersion: false, unvalidatedMirror: false })
+    expect(shortcutsOf(inputs)).toStrictEqual({ ...RANGE_SHORTCUTS, dominantLockfileVersion: false, unvalidatedMirror: false })
   })
 
   test('pnpm update does not reuse an unvalidated mirror', () => {
-    expect(decideMirrorShortcuts(rangePick({ refreshMetadata: true }))).toStrictEqual({ ...RANGE_SHORTCUTS, unvalidatedMirror: false })
+    expect(shortcutsOf(rangePick({ refreshMetadata: true }))).toStrictEqual({ ...RANGE_SHORTCUTS, unvalidatedMirror: false })
+  })
+
+  test.each<[string, RouteInputs, boolean | undefined]>([
+    ['release age', rangePick({ publishedBy: CUTOFF }), true],
+    ['package excluded', rangePick({ publishedBy: CUTOFF, publishedByExclude: () => true }), false],
+    ['no cutoff', rangePick(), false],
+    ['not asked for a pinned version', versionPick({ publishedBy: CUTOFF }), undefined],
+    ['not asked when another option rules the range out', rangePick({ publishedBy: CUTOFF, includeLatestTag: true }), undefined],
+  ])('reports whether the release age applies: %s', (_name, inputs, releaseAgeApplies) => {
+    expect(decideMirrorShortcuts(inputs).releaseAgeApplies).toBe(releaseAgeApplies)
   })
 
   test.each<[string, RouteInputs, boolean]>([
@@ -74,6 +90,17 @@ describe('mirrorWrittenAfter', () => {
     ['no cutoff', rangePick(), undefined],
   ])('%s', (_name, inputs, expected) => {
     expect(mirrorWrittenAfter(inputs)).toStrictEqual(expected)
+  })
+
+  test('takes the answer the shortcuts already have', () => {
+    const inputs = rangePick({
+      publishedBy: CUTOFF,
+      publishedByExclude: () => {
+        throw new Error('asked again')
+      },
+    })
+    expect(mirrorWrittenAfter(inputs, true)).toBe(CUTOFF)
+    expect(mirrorWrittenAfter(inputs, false)).toBeUndefined()
   })
 
   test('asks the exclusion only when a cutoff is set', () => {
@@ -132,6 +159,7 @@ describe('decideCacheHitCheck', () => {
     ['latest tag', rangePick({ includeLatestTag: true }), 'revalidate'],
     ['update checksums', rangePick({ updateChecksums: true }), 'revalidate'],
     ['release age', rangePick({ publishedBy: CUTOFF }), 'revalidate'],
+    ['release age, package excluded', rangePick({ publishedBy: CUTOFF, publishedByExclude: () => true }), 'stableRangePick'],
     ['no-downgrade', rangePick({ trustPolicy: 'no-downgrade' }), 'revalidate'],
     ['tag', { ...rangePick(), spec: { type: 'tag', name: PKG_NAME } }, 'revalidate'],
   ])('an unverified hit with a pick: %s', (_name, inputs, expected) => {
@@ -145,4 +173,9 @@ function rangePick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInpu
 
 function versionPick (overrides: Partial<RouteInputs['opts']> = {}, ctx: RouteInputs['ctx'] = {}): RouteInputs {
   return { ctx, spec: { type: 'version', name: PKG_NAME }, opts: overrides }
+}
+
+function shortcutsOf (inputs: RouteInputs): Omit<MirrorShortcuts, 'releaseAgeApplies'> {
+  const { releaseAgeApplies: _releaseAgeApplies, ...shortcuts } = decideMirrorShortcuts(inputs)
+  return shortcuts
 }

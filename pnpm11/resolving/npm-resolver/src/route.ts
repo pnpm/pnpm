@@ -48,15 +48,23 @@ export interface MirrorShortcuts {
    * {@link isFreshUnvalidatedMirror} holds.
    */
   unvalidatedMirror: boolean
+  /**
+   * Whether `minimumReleaseAge` applies to the package, when deciding the
+   * shortcuts asked. Hand it to {@link mirrorWrittenAfter}, so the policy is
+   * asked once per pick.
+   */
+  releaseAgeApplies?: boolean
 }
 
 export function decideMirrorShortcuts (inputs: RouteInputs): MirrorShortcuts {
   const { spec, opts } = inputs
-  const stableRange = isStableRangePick(inputs)
+  const releaseAgeApplies = isRangePickWithoutFreshMetadataOptions(inputs) ? releaseAgeAppliesTo(inputs) : undefined
+  const stableRange = releaseAgeApplies === false
   return {
     exactVersion: spec.type === 'version' && !opts.includeLatestTag && !opts.updateChecksums,
     dominantLockfileVersion: stableRange,
     unvalidatedMirror: stableRange && opts.refreshMetadata !== true,
+    releaseAgeApplies,
   }
 }
 
@@ -64,14 +72,24 @@ export function decideMirrorShortcuts (inputs: RouteInputs): MirrorShortcuts {
  * Whether a range pick could be settled from the mirror at all: every option
  * that makes the answer depend on fresh metadata rules it out.
  */
-function isStableRangePick ({ spec, opts }: RouteInputs): boolean {
+function isStableRangePick (inputs: RouteInputs): boolean {
+  // Last: the release-age exclusion is a policy lookup.
+  return isRangePickWithoutFreshMetadataOptions(inputs) && !releaseAgeAppliesTo(inputs)
+}
+
+function isRangePickWithoutFreshMetadataOptions ({ ctx, spec, opts }: RouteInputs): boolean {
   return (
     spec.type === 'range' &&
+    ctx.offline !== true &&
+    ctx.preferOffline !== true &&
     !opts.includeLatestTag &&
     !opts.updateChecksums &&
-    opts.publishedBy == null &&
     opts.trustPolicy !== 'no-downgrade'
   )
+}
+
+function releaseAgeAppliesTo ({ spec, opts }: RouteInputs): boolean {
+  return opts.publishedBy != null && opts.publishedByExclude?.(spec.name) !== true
 }
 
 /**
@@ -79,9 +97,11 @@ function isStableRangePick ({ spec, opts }: RouteInputs): boolean {
  * answer the pick: such a mirror cannot be missing a mature version. The last
  * mirror read, asked only after the {@link MirrorShortcuts} missed.
  */
-export function mirrorWrittenAfter ({ spec, opts }: RouteInputs): Date | undefined {
-  if (!opts.publishedBy || opts.publishedByExclude?.(spec.name) === true) return undefined
-  return opts.publishedBy
+export function mirrorWrittenAfter (
+  inputs: RouteInputs,
+  releaseAgeApplies: boolean = releaseAgeAppliesTo(inputs)
+): Date | undefined {
+  return releaseAgeApplies ? inputs.opts.publishedBy : undefined
 }
 
 /**
