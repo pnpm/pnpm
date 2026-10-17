@@ -151,11 +151,13 @@ fn contains_license(path: &Path) -> bool {
     false
 }
 
-/// Whether a root filename matches the `LICEN{S,C}E{,.*}` glob pnpm
-/// uses to find a workspace-root license to inject.
+/// Whether a root filename matches a license pattern (`LICENSE`, `LICENCE`,
+/// or `COPYING` with optional extensions) pnpm uses to find a workspace-root
+/// license to inject.
 fn is_license_filename(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    matches!(lower.as_str(), "license" | "licence")
+    matches!(lower.as_str(), "license" | "licence" | "copying")
         || lower.starts_with("license.")
         || lower.starts_with("licence.")
+        || lower.starts_with("copying.")
 }
