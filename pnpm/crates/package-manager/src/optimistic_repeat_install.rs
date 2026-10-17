@@ -51,9 +51,9 @@ use freshness::{
     Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
 };
 use modules_dirs::{
-    direct_dependency_link_dangling, first_project_missing_modules_dir,
-    first_selected_project_missing_from_current_lockfile,
-    first_selected_project_missing_modules_dir, modules_dirs_present,
+    SelectedProjectNotInstalled, direct_dependency_link_dangling,
+    first_project_missing_modules_dir, first_selected_project_missing_modules_dir,
+    first_selected_project_not_installed, modules_dirs_present,
 };
 use settle::{
     current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,

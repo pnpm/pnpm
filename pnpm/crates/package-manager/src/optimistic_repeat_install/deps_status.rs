@@ -2,10 +2,11 @@
 
 use super::{
     Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path,
-    WorkspaceState, catalogs_cache_matches, current_lockfile_file_has_content,
-    first_lockfile_requiring_conflict_safe_install, first_project_missing_modules_dir,
-    first_selected_project_missing_from_current_lockfile,
-    first_selected_project_missing_modules_dir, first_setting_drift,
+    SelectedProjectNotInstalled, WorkspaceState, catalogs_cache_matches,
+    current_lockfile::OUTDATED_DEPS,
+    current_lockfile_file_has_content, first_lockfile_requiring_conflict_safe_install,
+    first_project_missing_modules_dir, first_selected_project_missing_modules_dir,
+    first_selected_project_not_installed, first_setting_drift,
     freshness::{
         Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
     },
@@ -221,8 +222,13 @@ fn first_uninstalled_project(
     first_selected_project_missing_modules_dir(check, state, selected_project_dirs)
         .map(missing_modules_dir)
         .or_else(|| {
-            first_selected_project_missing_from_current_lockfile(check, selected_project_dirs)
-                .map(|id| format!("Workspace package {id} has dependencies but was not installed"))
+            first_selected_project_not_installed(check, state, selected_project_dirs)
+                .map(|not_installed| match not_installed {
+                    SelectedProjectNotInstalled::MissingFromCurrentLockfile(id) => {
+                        format!("Workspace package {id} has dependencies but was not installed")
+                    }
+                    SelectedProjectNotInstalled::Outdated => OUTDATED_DEPS.to_string(),
+                })
         })
 }
 

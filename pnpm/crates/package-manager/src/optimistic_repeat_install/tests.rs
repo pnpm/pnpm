@@ -867,6 +867,195 @@ fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_pr
     );
 }
 
+const STALE_IMPORTER_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^1.0.0
+        version: 1.0.0
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      qar:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+  qar@1.0.0:
+    resolution: {integrity: sha512-qqq}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+
+  qar@1.0.0: {}
+";
+
+/// A workspace in which `pnpm install --filter a` ran after `b` gained `foo`:
+/// `b` keeps the modules directory and the current-lockfile importer of an
+/// earlier install, and no file is newer than the validation the filtered
+/// install recorded. `b_current_importer` is that earlier importer.
+fn setup_stale_unselected_importer_workspace(
+    b_current_importer: &str,
+    included: IncludedDependencies,
+) -> (tempfile::TempDir, &'static Config, [PackageManifest; 3]) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    for (name, dependencies) in [
+        ("a", r#""dependencies":{"foo":"^1.0.0"}"#),
+        (
+            "b",
+            r#""dependencies":{"bar":"^1.0.0","foo":"^1.0.0"},"devDependencies":{"qar":"^1.0.0"}"#,
+        ),
+    ] {
+        let project_dir = workspace_root.join("packages").join(name);
+        fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+        fs::write(
+            project_dir.join("package.json"),
+            format!(r#"{{"name":"{name}","version":"1.0.0",{dependencies}}}"#),
+        )
+        .unwrap();
+    }
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), STALE_IMPORTER_WANTED_LOCKFILE).unwrap();
+    let current_lockfile = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n\n  packages/b:\n{b_current_importer}\npackages:\n\n  bar@1.0.0:\n    resolution: {{integrity: sha512-bbb}}\n\n  foo@1.0.0:\n    resolution: {{integrity: sha512-aaa}}\n\nsnapshots:\n\n  bar@1.0.0: {{}}\n\n  foo@1.0.0: {{}}\n",
+    );
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current_lockfile)
+        .unwrap();
+    let config = config.leak();
+
+    let project_dirs = [
+        workspace_root.to_path_buf(),
+        workspace_root.join("packages/a"),
+        workspace_root.join("packages/b"),
+    ];
+    let projects = project_dirs
+        .iter()
+        .zip(["root", "a", "b"])
+        .map(|(project_dir, name)| {
+            let entry = ProjectEntry {
+                name: Some(name.into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect();
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    set_filtered_install(workspace_root, true);
+
+    let manifests = project_dirs.map(|project_dir| {
+        PackageManifest::from_path(project_dir.join("package.json")).unwrap()
+    });
+    (dir, config, manifests)
+}
+
+/// After a filtered install, nothing newer than the recorded validation proves
+/// a selected project current: that install refreshed the timestamp without
+/// materializing the projects it did not select. A selected project whose
+/// current-lockfile importer predates the wanted lockfile is outdated
+/// (<https://github.com/pnpm/pnpm/issues/17011>).
+#[test]
+fn a_filtered_state_requires_the_selected_projects_to_match_the_wanted_lockfile() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+        },
+    );
+    let project_dirs = ["packages/a", "packages/b"].map(|project| dir.path().join(project));
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (project_dirs[0].clone(), &manifests[1]),
+        (project_dirs[1].clone(), &manifests[2]),
+    ];
+
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(
+                &dir,
+                config,
+                &project_manifests,
+                &[project_dirs[1].as_path()],
+            ),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "the installed dependencies are not up to date with the lockfile"
+        ),
+        "a selected project the filtered install left behind the wanted lockfile is outdated",
+    );
+    assert_eq!(
+        workspace_deps_status_for_selected(
+            &dir,
+            config,
+            &project_manifests,
+            &[project_dirs[0].as_path()],
+        ),
+        RunDepsStatus::UpToDate,
+        "an unselected project left behind the wanted lockfile does not make the selection outdated",
+    );
+}
+
+/// The groups the filtered install left out are not held against the selected
+/// projects, or a gate after `pnpm install --prod --filter` would install
+/// before every script.
+#[test]
+fn a_filtered_state_compares_the_selected_projects_in_the_recorded_groups() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+        },
+    );
+    let project_b = dir.path().join("packages/b");
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (dir.path().join("packages/a"), &manifests[1]),
+        (project_b.clone(), &manifests[2]),
+    ];
+
+    assert_eq!(
+        workspace_deps_status_for_selected(
+            &dir,
+            config,
+            &project_manifests,
+            &[project_b.as_path()]
+        ),
+        RunDepsStatus::UpToDate,
+    );
+}
+
 fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
     let (dir, config) = setup_content_check_project();
     collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);

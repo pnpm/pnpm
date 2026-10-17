@@ -1,5 +1,13 @@
-use super::{Config, DependencyGroup, Lockfile, Path};
+use super::{
+    Config, DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, Path, WorkspaceState,
+};
 use pnpm_modules_yaml::IncludedDependencies;
+use std::collections::HashSet;
+
+/// pnpm's issue wording for a current lockfile that does not record what the
+/// wanted lockfile materializes (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
+pub(super) const OUTDATED_DEPS: &str =
+    "the installed dependencies are not up to date with the lockfile";
 
 /// Assert the wanted lockfile equals the current one: with no current
 /// lockfile every importer of the wanted one must be dependency-free
@@ -91,7 +99,7 @@ pub(crate) fn assert_loaded_current_lockfile_records(
             if records(current) {
                 Ok(())
             } else {
-                Err("the installed dependencies are not up to date with the lockfile")
+                Err(OUTDATED_DEPS)
             }
         }
     }
@@ -127,4 +135,39 @@ pub(crate) fn materialized_shape_matches(
             &crate::GroupSelection::classify(wanted, included, peer_edges),
             &crate::SkippedSnapshots::new(),
         )
+}
+
+/// Whether `current` records what the wanted lockfile materializes for
+/// `importer_ids` in the dependency groups `state` recorded. A missing wanted
+/// lockfile leaves nothing to compare: the current one stands in for it.
+pub(super) fn selection_matches_wanted_lockfile(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    current: &Lockfile,
+    importer_ids: &HashSet<String>,
+) -> bool {
+    let wanted = match check.lockfile.get() {
+        Ok(Some(wanted)) => wanted,
+        Ok(None) => return true,
+        Err(_) => return false,
+    };
+    let included = IncludedDependencies {
+        dependencies: state.settings.production.unwrap_or(true),
+        dev_dependencies: state.settings.dev.unwrap_or(true),
+        optional_dependencies: state.settings.optional.unwrap_or(true),
+    };
+    let closure = |lockfile: &Lockfile| {
+        crate::materialization_closure(
+            lockfile,
+            check.workspace_root,
+            importer_ids,
+            &crate::GroupSelection::classify(lockfile, included, check.config.peer_edge_options()),
+            &crate::SkippedSnapshots::new(),
+        )
+        .lockfile
+    };
+    let (wanted, current) = (closure(wanted), closure(current));
+    wanted.importers == current.importers
+        && wanted.snapshots == current.snapshots
+        && wanted.packages == current.packages
 }

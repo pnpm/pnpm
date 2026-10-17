@@ -1326,6 +1326,94 @@ fn exec_installs_the_selected_project_after_a_filtered_install() {
     drop((root, mock_instance));
 }
 
+/// A filtered install refreshes the recorded validation for the whole
+/// workspace, so a project installed before it whose dependencies changed
+/// since is still outdated when a later filtered command selects it
+/// ([pnpm/pnpm#17011](https://github.com/pnpm/pnpm/issues/17011)).
+#[test]
+fn exec_installs_the_changed_dependencies_of_a_project_a_filtered_install_left_behind() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let write_projects = |dependencies: serde_json::Value| {
+        for name in ["foo", "bar"] {
+            let project = workspace.join("packages").join(name);
+            fs::create_dir_all(&project).expect("create workspace project");
+            write_named_manifest_with_dependency_groups(
+                &project,
+                name,
+                &project.join("marker.txt"),
+                json!({ "dependencies": dependencies }),
+            );
+        }
+    };
+    write_projects(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // what a `git pull` brings in: both manifests and the lockfile change
+    write_projects(json!({ "@pnpm.e2e/foo": "100.0.0", "@pnpm.e2e/bar": "100.0.0" }));
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", ""])
+        .assert()
+        .success();
+    assert!(workspace.join("packages/foo/node_modules/@pnpm.e2e/bar").exists());
+    assert!(!workspace.join("packages/bar/node_modules/@pnpm.e2e/bar").exists());
+
+    let exec_bar = |action: &str| {
+        pacquet_in(&workspace)
+            .with_args([
+                &format!("--config.verify-deps-before-run={action}"),
+                "--filter",
+                "bar",
+                "exec",
+                "node",
+                "-e",
+                "",
+            ])
+            .output()
+            .expect("spawn pacquet exec")
+    };
+    let output = exec_bar("error");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN")
+            && stderr.contains("the installed dependencies are not up to date with the lockfile"),
+        "the project the filtered install left behind must be reported outdated:\n{stderr}",
+    );
+
+    let output = exec_bar("install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/bar").exists(),
+        "the filtered exec must install the changed dependencies of the project it selected:\n{stderr}",
+    );
+
+    let output = exec_bar("error");
+    assert!(
+        output.status.success(),
+        "the install the gate spawned must leave the selected project current:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A selected project needs the workspace projects it depends on installed
 /// too, so the install the gate spawns selects the dependencies of the
 /// selected projects.
