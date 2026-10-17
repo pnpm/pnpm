@@ -28,8 +28,12 @@ export pnpm_config__auth='{"https://registry.npmjs.org":{"@":{"authToken":"${NPM
 
 ## Auth file locations
 
-pnpm reads credentials in npm's `.npmrc` format from these files. If a key is
-set in more than one file, the first file in this list wins:
+pnpm reads auth settings from two kinds of files.
+
+INI files in npm's `.npmrc` format hold the
+[`.npmrc` and `auth.ini` settings](#settings-in-npmrc-and-authini) and the
+[certificate settings](#certificate-settings). If a key is set in more than one
+file, the first file in this list wins:
 
 1. `<workspace root>/.npmrc`, the project file. Add it to `.gitignore`.
 2. `<pnpm config>/auth.ini`. `pnpm login` and `pnpm config set` write auth
@@ -38,8 +42,8 @@ set in more than one file, the first file in this list wins:
    different file, use the [`npmrcAuthFile`](./settings/other.md#npmrcauthfile)
    setting.
 
-The global `config.yaml` can also hold credentials in the
-[`_auth`](#_auth) setting.
+The global `<pnpm config>/config.yaml` can hold the [`_auth`](#_auth)
+setting.
 
 The `<pnpm config>` directory is:
 
@@ -48,7 +52,10 @@ The `<pnpm config>` directory is:
 * `~/Library/Preferences/pnpm/` on macOS
 * `~/.config/pnpm/` on Linux
 
-## Authentication Settings
+## Settings in `.npmrc` and `auth.ini`
+
+Set these in one of the INI files listed in
+[Auth file locations](#auth-file-locations).
 
 ### &lt;URL&gt;&#58;_authToken
 
@@ -112,6 +119,8 @@ For a specific registry:
 ```ini
 //registry.corp.com:tokenHelper=/home/ivan/token-generator
 ```
+
+## Settings in `config.yaml`
 
 ### _auth
 
@@ -248,7 +257,9 @@ not secret can be written out in the project `.npmrc`. For registries in
 `pnpm-workspace.yaml`, see
 [`registries`](./settings/dependency-resolution.md#registries).
 
-## Certificate Settings
+## Certificate settings
+
+Like the token settings, these go in `.npmrc` or `auth.ini`.
 
 ### ca
 
