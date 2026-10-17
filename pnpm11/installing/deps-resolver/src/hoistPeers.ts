@@ -141,17 +141,24 @@ function pickProviderVersion (
   { tiers = [], qualifies }: { tiers?: Array<Set<string>>, qualifies: (version: string) => boolean }
 ): string | undefined {
   for (const tier of tiers) {
-    const picked = pickHighestVersion(selectors, (version) => tier.has(version) && qualifies(version))
+    const picked = pickHighestVersion(selectors, { tier, qualifies })
     if (picked != null) return picked
   }
-  return pickHighestVersion(selectors, qualifies)
+  return pickHighestVersion(selectors, { qualifies })
 }
 
-function pickHighestVersion (selectors: VersionSelectors, qualifies: (version: string) => boolean): string | undefined {
+/**
+ * `qualifies` runs only for a version that would become the new highest, so
+ * an expensive check such as `acceptsCandidate` runs as few times as possible.
+ */
+function pickHighestVersion (
+  selectors: VersionSelectors,
+  { tier, qualifies }: { tier?: Set<string>, qualifies: (version: string) => boolean }
+): string | undefined {
   let highest: string | undefined
   for (const [version, selector] of Object.entries(selectors)) {
-    if (getSelectorType(selector) !== 'version' || semver.valid(version) == null || !qualifies(version)) continue
-    if (highest == null || semver.gt(version, highest)) {
+    if (getSelectorType(selector) !== 'version' || (tier != null && !tier.has(version)) || semver.valid(version) == null) continue
+    if ((highest == null || semver.gt(version, highest)) && qualifies(version)) {
       highest = version
     }
   }

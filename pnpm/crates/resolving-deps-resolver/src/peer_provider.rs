@@ -5,10 +5,10 @@
 //! Both pickers go through [`highest_provider_version`]. They differ only
 //! in their tiers and range check:
 //!
-//! | Peer     | Tiers                       | Range check                    |
-//! | -------- | --------------------------- | ------------------------------ |
-//! | required | [`ProviderTiers::required`] | `includePrerelease`, one range |
-//! | optional | [`ProviderTiers::optional`] | strict, every recorded range   |
+//! | Peer     | Tiers                          | Range check                    |
+//! | -------- | ------------------------------ | ------------------------------ |
+//! | required | the versions this run resolved | `includePrerelease`, one range |
+//! | optional | [`ProviderTiers::optional`]    | strict, every recorded range   |
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
@@ -138,11 +138,11 @@ fn preferred_version_specifier(
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
     if is_semver_range {
         let parsed_range = IncludePrereleaseRange::parse(&range_for_match);
-        let satisfying = highest_provider_version(
-            selectors,
-            &ProviderTiers::required(resolved_versions),
-            |_, version| parsed_range.satisfies(version),
-        );
+        // A version only the wanted lockfile holds is a weight whose
+        // provider has moved on, so it must not outrank one this run resolved.
+        let satisfying = highest_provider_version(selectors, resolved_versions, |_, version| {
+            parsed_range.satisfies(version)
+        });
         if let Some((satisfying, _)) = satisfying {
             let mut parts: Vec<&str> = vec![satisfying];
             parts.extend(non_versions.iter().copied());
@@ -158,9 +158,7 @@ fn preferred_version_specifier(
         }
     }
     let mut parts: Vec<&str> = Vec::new();
-    if let Some((highest, _)) =
-        highest_provider_version(selectors, &ProviderTiers::default(), |_, _| true)
-    {
+    if let Some((highest, _)) = highest_provider_version(selectors, None, |_, _| true) {
         parts.push(highest);
     }
     parts.extend(non_versions.iter().copied());
@@ -188,20 +186,12 @@ fn has_version_selector(selectors: &VersionSelectors) -> bool {
         .any(|entry| selector_type(entry) == VersionSelectorType::Version)
 }
 
-/// The order in which a peer's versions are tried as its provider. The
-/// first tier holding a qualifying version wins. When none does, every
-/// version competes.
+/// The version tiers an optional peer's provider is picked from, in the
+/// order [`highest_provider_version`] tries them.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct ProviderTiers(Vec<HashSet<String>>);
 
 impl ProviderTiers {
-    /// The versions this run `resolved`. A version only the wanted
-    /// lockfile holds is a weight whose provider has moved on, so it must
-    /// not outrank one this run resolved.
-    fn required(resolved: Option<&HashSet<String>>) -> Self {
-        Self(resolved.cloned().into_iter().collect())
-    }
-
     /// The `locked` versions this run `resolved`, then every version it
     /// resolved, then the `locked` ones. A locked version the run no
     /// longer resolves survives only as a lockfile weight, since whatever
@@ -227,16 +217,16 @@ impl ProviderTiers {
 }
 
 /// The highest plain version among `selectors` that `qualifies`, from the
-/// first of `tiers` that holds one. On equal versions the first selector
-/// wins.
+/// first of `tiers` that holds one. When none does, every version
+/// competes. On equal versions the first selector wins.
 ///
 /// A tier without a qualifying version is stale and does not veto the
 /// pick. Its provider left the graph, or it fell outside the ranges.
 /// Leaving an optional peer bare drops it from the direct dependency key,
 /// and the run after that re-attaches it from these very candidates.
-fn highest_provider_version<'a>(
+fn highest_provider_version<'a, 'tier>(
     selectors: &'a VersionSelectors,
-    tiers: &ProviderTiers,
+    tiers: impl IntoIterator<Item = &'tier HashSet<String>>,
     qualifies: impl Fn(&str, &Version) -> bool,
 ) -> Option<(&'a str, Version)> {
     let highest_in = |tier: Option<&HashSet<String>>| {
@@ -252,8 +242,8 @@ fn highest_provider_version<'a>(
         }
         best
     };
-    tiers.0
-        .iter()
+    tiers
+        .into_iter()
         .find_map(|tier| highest_in(Some(tier)))
         .or_else(|| highest_in(None))
 }
@@ -367,7 +357,7 @@ fn max_hoistable_optional_version(
                 .iter()
                 .all(|parsed| parsed.satisfies(version))
     };
-    highest_provider_version(selectors, tiers, |spec, version| {
+    highest_provider_version(selectors, &tiers.0, |spec, version| {
         satisfies_ranges(version) && accepts_candidate(spec)
     })
     .map(|(_, version)| version)
