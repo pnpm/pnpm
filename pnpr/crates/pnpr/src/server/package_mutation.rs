@@ -115,11 +115,6 @@ async fn rewrite_packument(
     preserve_existing_maintainers(&hosted, packument);
 
     let removed = detect_removed_versions(&hosted, packument);
-    if let Err(err) =
-        record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed).await
-    {
-        return err.into_response();
-    }
 
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
@@ -130,6 +125,12 @@ async fn rewrite_packument(
             .await;
     match written {
         Ok(DocumentWrite::Written) => {
+            if let Err(err) =
+                record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed)
+                    .await
+            {
+                return err.into_response();
+            }
             log_packument_update(identity, name, source);
             ok_created()
         }

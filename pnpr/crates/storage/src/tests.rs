@@ -442,3 +442,37 @@ async fn concurrent_write_tombstone_merges_version_bans() {
         assert!(tombstone.unpublished_versions.contains(&version));
     }
 }
+
+#[tokio::test]
+async fn subsequent_write_tombstone_replaces_maintainers_and_merges_version_bans() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("ownership-reset-pkg");
+
+    let first = PackageTombstone {
+        package: name.as_str().to_string(),
+        unpublished_by: Some("alice".to_string()),
+        unpublished_at: "2026-01-01T00:00:00Z".to_string(),
+        maintainers: vec!["alice".to_string()],
+        unpublished_versions: vec!["1.0.0".to_string()],
+    };
+    storage.write_tombstone(&first).await.unwrap();
+
+    let second = PackageTombstone {
+        package: name.as_str().to_string(),
+        unpublished_by: Some("bob".to_string()),
+        unpublished_at: "2026-02-01T00:00:00Z".to_string(),
+        maintainers: vec!["bob".to_string()],
+        unpublished_versions: vec!["2.0.0".to_string()],
+    };
+    storage.write_tombstone(&second).await.unwrap();
+
+    let stored = storage
+        .read_tombstone(&name)
+        .await
+        .unwrap()
+        .expect("tombstone exists");
+    assert_eq!(stored.maintainers, vec!["bob".to_string()]);
+    assert_eq!(stored.unpublished_versions, vec!["1.0.0".to_string(), "2.0.0".to_string()]);
+    assert_eq!(stored.unpublished_by.as_deref(), Some("bob"));
+}

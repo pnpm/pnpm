@@ -30,13 +30,8 @@ fn merge_tombstones(
     mut current: PackageTombstone,
     incoming: &PackageTombstone,
 ) -> PackageTombstone {
-    for maintainer in &incoming.maintainers {
-        if !current.maintainers
-            .iter()
-            .any(|user| user == maintainer)
-        {
-            current.maintainers.push(maintainer.clone());
-        }
+    if !incoming.maintainers.is_empty() {
+        current.maintainers.clone_from(&incoming.maintainers);
     }
     for version in &incoming.unpublished_versions {
         if !current.unpublished_versions
