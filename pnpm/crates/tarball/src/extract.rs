@@ -7,6 +7,7 @@ pub(crate) use streaming::{
     BodyChunkSender, STREAM_ENTRY_BUFFER_MAX, body_chunk_channel, stream_extract_gzipped_channel,
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
+pub(crate) use unpacked_size::UnpackedSizeBudget;
 
 use super::{
     Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
@@ -639,4 +640,3 @@ pub fn read_buffered_tar_entry(
 }
 
 mod unpacked_size;
-pub(crate) use unpacked_size::UnpackedSizeBudget;

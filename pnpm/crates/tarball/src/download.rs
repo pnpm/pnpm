@@ -7,6 +7,7 @@ pub(crate) use body::{BodyProgress, slow_download_warning};
 pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
+pub(crate) use retry::{is_transient_error, tarball_error_to_request_retry};
 
 use super::{
     Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, Path, PathBuf,
@@ -461,4 +462,3 @@ use fetch::fetch_error;
 mod progress;
 
 mod retry;
-pub(crate) use retry::{is_transient_error, tarball_error_to_request_retry};
