@@ -96,6 +96,8 @@ function releaseAgeAppliesTo ({ spec, opts }: RouteInputs): boolean {
  * The `minimumReleaseAge` cutoff when a mirror written at or after it may
  * answer the pick: such a mirror cannot be missing a mature version. The last
  * mirror read, asked only after the {@link MirrorShortcuts} missed.
+ * `releaseAgeApplies` is {@link MirrorShortcuts.releaseAgeApplies}; the
+ * exclusion policy is asked only when it is `undefined`.
  */
 export function mirrorWrittenAfter (
   inputs: RouteInputs,
