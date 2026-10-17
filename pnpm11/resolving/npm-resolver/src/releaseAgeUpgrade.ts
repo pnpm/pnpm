@@ -37,17 +37,22 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     offline?: boolean
     releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
-  spec: RegistryPackageSpec,
-  opts: {
-    publishedBy?: Date
-    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
-    authHeaderValue?: string
-    registry: string
+  { spec, opts, fullMetadata }: {
+    spec: RegistryPackageSpec
+    opts: {
+      publishedBy?: Date
+      publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+      authHeaderValue?: string
+      registry: string
+    }
+    /** A full document has no more complete form to upgrade to. */
+    fullMetadata: boolean
   },
   meta: PackageMeta
 ): Promise<ReleaseAgeUpgrade> {
   if (
     ctx.offline === true ||
+    fullMetadata ||
     !opts.publishedBy ||
     meta.time != null ||
     ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||

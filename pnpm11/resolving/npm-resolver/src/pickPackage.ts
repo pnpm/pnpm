@@ -215,10 +215,11 @@ function cacheHitMayServe (
 }
 
 async function upgradeCachedMetaForReleaseAge (
-  { ctx, spec, opts, pkgMirror, cacheKey }: PickRequest,
+  request: PickRequest,
   cachedMeta: PackageMeta
 ): Promise<{ meta: PackageMeta, upgraded: boolean }> {
-  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+  const { ctx, opts, pkgMirror, cacheKey } = request
+  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, request, cachedMeta)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
   const upgraded = upgrade.upgradedFrom != null
   if (upgraded) {
