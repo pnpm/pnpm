@@ -218,7 +218,10 @@ fn parse_or_answer(
 }
 
 /// Parse argv, recording whether `--dir` or `-r` came from the command line.
-fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
+pub(crate) fn parse_cli_args(
+    command: clap::Command,
+    argv: Vec<OsString>,
+) -> Result<CliArgs, clap::Error> {
     command
         .try_get_matches_from(argv)
         .and_then(|matches| {

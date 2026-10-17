@@ -7,7 +7,8 @@ use super::{
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{PinFlags, SwitchPaths, UnparsedArgv, frozen_lockfile_flag},
+        cli_command::CliPathArgs,
+        pre_command::input::{PinFlags, UnparsedArgv, VersionArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -107,7 +108,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        let input = SwitchInput::from_version_argv(&argv);
+        let input = version_switch_input(&argv);
 
         if let Some(dir) = case.dir {
             assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
@@ -121,7 +122,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
     }
 
-    let input = SwitchInput::from_version_argv(&[
+    let input = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--state-dir"),
         OsString::from("/tmp/state"),
@@ -130,7 +131,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 
     for spelling in ["--store-dir", "--store"] {
-        let input = SwitchInput::from_version_argv(&[
+        let input = version_switch_input(&[
             OsString::from("pnpm"),
             OsString::from(spelling),
             OsString::from("/tmp/store"),
@@ -180,7 +181,7 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
     assert_eq!(input.network.no_proxy.as_deref(), Some("internal.example.com"));
     assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
 
-    let version_input = SwitchInput::from_version_argv(&argv);
+    let version_input = version_switch_input(&argv);
     assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
 
     let argv = ["pnpm", "exec", "--", "tool", "-g"].map(OsString::from);
@@ -236,6 +237,13 @@ fn unparsed_argv_steps_over_short_option_values() {
         assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
         assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
     }
+}
+
+#[test]
+fn the_version_scan_names_a_command_by_its_own_name() {
+    let input = version_switch_input(&["pnpm", "ic", "--version"].map(OsString::from));
+    assert_eq!(input.command.as_deref(), Some("ci"));
+    assert_eq!(input.frozen_lockfile, Some(true));
 }
 
 #[test]
@@ -333,7 +341,7 @@ fn the_reported_causes_redact_registry_credentials() {
 fn the_pre_command_config_resolves_the_store_dir_flag() {
     let root = TempDir::new().expect("tmp dir");
     let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
-    let mut switch = SwitchInput::from_version_argv(&[
+    let mut switch = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--store-dir"),
         OsString::from("relative-store"),
@@ -356,7 +364,7 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
 fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
     let root = TempDir::new().expect("tmp dir");
     let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
-    let mut switch = SwitchInput::from_version_argv(&[
+    let mut switch = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--registry=https://mirror.example.com/npm"),
         OsString::from("--https-proxy"),
@@ -390,13 +398,14 @@ fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
 #[test]
 fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
     let flag_of = |argv: &[&str]| {
-        SwitchInput::from_version_argv(
+        version_switch_input(
             &argv
                 .iter()
                 .copied()
                 .map(OsString::from)
                 .collect::<Vec<_>>(),
         )
+        .paths
         .ignore_workspace
     };
     assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
@@ -1038,17 +1047,19 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
-            paths: SwitchPaths {
+            paths: CliPathArgs {
                 dir: dir.to_path_buf(),
-                state_dir: None,
+                dir_from_command_line: true,
                 store_dir: None,
+                state_dir: None,
                 npmrc_auth_file: None,
+                ignore_workspace: false,
+                workspace_packages: Vec::new(),
             },
             command: Some("run".to_string()),
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
-            ignore_workspace: false,
             network: CliNetworkArgs::default(),
         },
         global: false,
@@ -1430,8 +1441,13 @@ snapshots:
 ---
 ";
 
+mod argv_readers;
 mod switch_target;
 
 fn unparsed_switch_input(argv: &[OsString]) -> Option<SwitchInput> {
     UnparsedArgv::scan(argv).map(|scan| scan.switch)
+}
+
+fn version_switch_input(argv: &[OsString]) -> SwitchInput {
+    VersionArgv::scan(argv).switch
 }
