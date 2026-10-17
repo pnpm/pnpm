@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
 import { maturePnpmVersionForRange } from '@pnpm/engine.pm.commands'
-import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { isPackageManagerResolved, type PackageTrustPolicy, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
@@ -56,9 +56,23 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
       storeDir: store.dir,
       save: true,
       frozenLockfile: config.frozenLockfile,
+      ...packageManagerTrustPolicy(config),
     })
   } finally {
     await store.ctrl.close()
+  }
+}
+
+/**
+ * The `trustPolicy` settings the pinned pnpm is resolved under. The pin is a
+ * dependency the project chose, so it gets the same trust checks as the
+ * project's other dependencies.
+ */
+export function packageManagerTrustPolicy (config: Config): PackageTrustPolicy {
+  return {
+    trustPolicy: config.trustPolicy,
+    trustPolicyExclude: config.trustPolicyExclude,
+    trustPolicyIgnoreAfter: config.trustPolicyIgnoreAfter,
   }
 }
 

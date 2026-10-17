@@ -391,6 +391,8 @@ Added in: v10.21.0
 
 When set to `no-downgrade`, pnpm will fail if a package's trust level has decreased compared to previous releases. For example, if a package was previously published by a trusted publisher but now only has provenance or no trust evidence, installation will fail. This helps prevent installing potentially compromised versions. Trust checks are based solely on publish date, not semver. A package cannot be installed if any earlier-published version had stronger trust evidence. Starting in v10.24.0, prerelease versions are ignored when evaluating trust evidence for a non-prerelease install, so a trusted prerelease cannot block a stable release that lacks trust evidence.
 
+The check also covers the pnpm version a project pins in `packageManager` or `devEngines.packageManager`. pnpm fails before it switches to that version or records it in the lockfile.
+
 ### trustPolicyExclude
 
 Added in: v10.22.0

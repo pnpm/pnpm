@@ -8,14 +8,14 @@ import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
-import { resolveManifestDependencies } from './resolveManifestDependencies.js'
+import { type PackageTrustPolicy, resolveManifestDependencies } from './resolveManifestDependencies.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE = ['pnpm', '@pnpm/exe'] as const
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY = ['pnpm'] as const
 const PNPM_EXE_INTRODUCED = '6.17.1'
 
-export interface ResolvePackageManagerIntegritiesOpts {
+export interface ResolvePackageManagerIntegritiesOpts extends PackageTrustPolicy {
   envLockfile?: EnvLockfile
   registriesByScope: RegistriesByScope
   rootDir: string
@@ -227,6 +227,9 @@ async function resolveWantedPnpmPackages (
     registriesByScope: opts.registriesByScope,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
   }
   if (semver.valid(spec) != null) {
     return resolveManifestDependencies({ dependencies: wantedDependencies(spec, opts.specifier ?? spec) }, resolveOpts)
