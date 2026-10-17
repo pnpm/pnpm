@@ -67,6 +67,7 @@ pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
     PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
 };
+pub use lockfile_reuse::locked_child_admits;
 pub use node_id::NodeId;
 pub use parent_pkg_aliases::{
     ParentPkgAliases, own_dependency_names, peer_shadowed_dependency_names,
