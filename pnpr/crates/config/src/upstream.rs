@@ -77,8 +77,8 @@ impl UpstreamConfig {
     pub const DEFAULT_FAIL_TIMEOUT: Duration = Duration::from_mins(5);
 
     /// Build a bare upstream with just a URL and headers, all tuning knobs
-    /// at their verdaccio defaults. Used by the programmatic
-    /// [`super::Config::proxy`] constructor and tests.
+    /// at their verdaccio defaults. Used by programmatic upstream construction
+    /// and tests.
     #[must_use]
     pub fn with_defaults(url: String, headers: HeaderMap) -> Self {
         Self {

@@ -25,6 +25,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
+use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, PackageRule, PackageRules, TeamDirectory};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},

@@ -1,3 +1,9 @@
+pub mod presets;
+pub use presets::{
+    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, proxy_config, registry_mock_graph,
+    registry_mock_rules, static_serve_config,
+};
+
 mod tarball;
 use tarball::{build_tarball, fixture_files};
 
@@ -17,6 +23,14 @@ use std::{
     },
 };
 use walkdir::WalkDir;
+
+pub const MOCK_CONFIG_PATH: &str = "pnpr/.fixtures/config.yaml";
+pub const MOCK_CONFIG_YAML: &str = include_str!("../../../.fixtures/config.yaml");
+
+#[must_use]
+pub fn mock_config_path() -> PathBuf {
+    workspace_root().join(MOCK_CONFIG_PATH)
+}
 
 const PACKAGES_DIR: &str = "pnpr/.fixtures/packages";
 const GENERATED_DIR: &str = "pnpr-fixtures";

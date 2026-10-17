@@ -113,6 +113,7 @@ walkdir = { workspace = true }
 tar = { workspace = true }
 pipe-trait = { workspace = true }
 pnpm-testing-utils = { workspace = true }
+pnpr-fixtures = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

@@ -1,4 +1,5 @@
 use pnpr::Config;
+use pnpr_fixtures::MockConfigPresets;
 use std::{
     net::{Ipv4Addr, TcpListener},
     path::{Path, PathBuf},

@@ -4,9 +4,9 @@ title: Configuration
 ---
 
 pnpr uses a YAML config. When you don't pass `-c`, pnpr looks for a global
-`config.yaml` in its config directory and otherwise falls back to a bundled
-default (which is shaped for pnpm's own test registry — write your own config
-for real use).
+`config.yaml` in its config directory and otherwise falls back to a minimal
+production default (which proxies public npmjs packages and serves locally
+hosted packages).
 
 A minimal config that hosts a private scope locally and routes everything else
 to the public npm registry:

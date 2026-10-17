@@ -50,12 +50,10 @@ mod loading;
 mod logging;
 use logging::build_log_config;
 
-mod presets;
-
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, org_collision_error, registry_err, registry_mock_graph,
-    resolve_file_registries, validate_org_namespace, validate_registry_key, validate_registry_name,
+    ResolvedFileRegistries, org_collision_error, registry_err, resolve_file_registries,
+    validate_org_namespace, validate_registry_key, validate_registry_name,
 };
 
 mod s3;
@@ -82,7 +80,6 @@ use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
-use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
     collections::BTreeSet,
@@ -374,72 +371,6 @@ pub struct OsvConfig {
     pub path: Option<PathBuf>,
 }
 
-/// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
-/// those names resolve locally rather than to the npm upstream: the
-/// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
-/// with the fixtures under `pnpr/.fixtures/packages` and with the
-/// fixture-scope subset of the bundled `config.yaml` `local` registry — the
-/// YAML additionally claims the exact names the TS test suite publishes,
-/// which pacquet's in-process registry never sees. The fixture packages
-/// living in real, active npm scopes (`@pnpm`, `@types`, `@zkochan`) are claimed by
-/// exact name so the rest of those scopes keeps proxying npm (dependency
-/// trees of proxied packages pull real `@pnpm/*` packages).
-const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
-    "@foo/*",
-    "@having/*",
-    "@jsr/*",
-    "@pnpm.e2e/*",
-    "@private/*",
-    "@scoped/*",
-    "@pnpm/plugin-pnpmfile",
-    "@pnpm/postinstall-modifies-source",
-    "@pnpm/x",
-    "@pnpm/xyz",
-    "@pnpm/xyz-parent",
-    "@pnpm/xyz-parent-parent",
-    "@pnpm/xyz-parent-parent-parent",
-    "@pnpm/xyz-parent-parent-parent-parent",
-    "@pnpm/xyz-parent-parent-with-xyz",
-    "@pnpm/y",
-    "@pnpm/z",
-    "@types/pnpm.e2e__peer-a",
-    "@zkochan/test-pnpm-issue219",
-    "ajv",
-    "ajv-keywords",
-    "create-touch-file-one-bin",
-];
-
-/// The `local` hosted registry's `packages:` rules in the registry-mock
-/// shape: the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with
-/// default rules, `@private/*` and `@pnpm.e2e/needs-auth` restricted to
-/// authenticated callers (the rules `@pnpm/registry-mock` applied under
-/// verdaccio), and unpublish open to any authenticated user so the
-/// fixture-rewriting test flows keep working. The exact
-/// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
-/// specificity.
-fn registry_mock_rules() -> PackageRules {
-    let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
-    let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
-        .iter()
-        .map(|pattern| PackageRule {
-            pattern: PackagePattern::parse(pattern, Ecosystem::Npm)
-                .expect("valid built-in fixture registry pattern"),
-            access: (*pattern == "@private/*").then(authenticated).flatten(),
-            publish: (*pattern == "@private/*").then(authenticated).flatten(),
-            unpublish: (*pattern == "@private/*").then(authenticated).flatten(),
-        })
-        .collect();
-    rules.push(PackageRule {
-        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth", Ecosystem::Npm)
-            .expect("valid built-in fixture registry pattern"),
-        access: authenticated(),
-        publish: authenticated(),
-        unpublish: authenticated(),
-    });
-    PackageRules::new(rules, None)
-        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
-}
-
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
@@ -547,7 +478,8 @@ fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
 
 /// 32 bytes from the OS CSPRNG, for a deployment that configures no
 /// `secret:`. Private cache entries then live only for this process.
-fn random_secret() -> Arc<[u8]> {
+#[must_use]
+pub fn random_secret() -> Arc<[u8]> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
     Arc::from(bytes.to_vec())

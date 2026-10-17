@@ -63,6 +63,7 @@ use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, IpNetwork, MaxUsers, PackagePattern,
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{

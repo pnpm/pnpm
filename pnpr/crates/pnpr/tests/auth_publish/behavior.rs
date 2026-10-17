@@ -2,6 +2,7 @@ use super::{
     Body, Config, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
     body_bytes, body_json, common, json, publish_doc, router, sri_sha512, static_config,
 };
+use pnpr_fixtures::MockConfigPresets;
 
 #[tokio::test]
 async fn anonymous_request_to_protected_package_returns_401() {

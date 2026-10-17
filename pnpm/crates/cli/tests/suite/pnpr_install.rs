@@ -23,6 +23,7 @@ use pnpm_testing_utils::{
     fs::{get_all_files, is_symlink_or_junction},
 };
 use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig, UserBackend};
+use pnpr_fixtures::MockConfigPresets;
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
 use std::{

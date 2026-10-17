@@ -4,6 +4,8 @@ use std::{
     sync::Arc,
 };
 
+use pnpr_fixtures::MockConfigPresets;
+
 use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
 
 use super::OsvIndex;

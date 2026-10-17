@@ -2,6 +2,7 @@ use super::{
     Body, Config, HeaderValue, Ipv4Addr, MaxUsers, Request, ServiceExt, SocketAddr, SocketAddrV4,
     StatusCode, TempDir, Value, body_bytes, body_json, config_for, header, json, router,
 };
+use pnpr_fixtures::MockConfigPresets;
 
 #[tokio::test]
 async fn ping_endpoint_returns_json_empty_object() {

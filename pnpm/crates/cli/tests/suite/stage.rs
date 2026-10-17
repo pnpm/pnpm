@@ -12,6 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     fs,

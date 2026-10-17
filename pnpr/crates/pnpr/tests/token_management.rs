@@ -8,6 +8,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use pnpr::{Config, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;

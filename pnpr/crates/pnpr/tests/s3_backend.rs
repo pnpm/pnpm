@@ -13,6 +13,7 @@ use futures_util::StreamExt;
 use npm::{publish_doc, sri_sha512};
 use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
