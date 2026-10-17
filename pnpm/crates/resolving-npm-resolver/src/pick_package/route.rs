@@ -118,7 +118,7 @@ impl MirrorShortcuts {
 pub(super) enum CacheHitCheck {
     Serve,
     /// Serve only the version the entry is stable on, see
-    /// [`crate::pick_stable_cached_range_version`].
+    /// [`crate::pick_package_from_meta::pick_stable_cached_range_version`].
     StableRangePick,
     /// Fall through to the reads and the fetch that replace the entry.
     Revalidate,

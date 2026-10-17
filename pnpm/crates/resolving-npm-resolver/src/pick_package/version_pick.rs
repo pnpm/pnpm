@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{OfflineStoreView, PickPackageFromMetaError};
 
-/// Same fields as [`PickPackageOptions`] minus the dispatcher-only
+/// Same fields as [`super::PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
 /// pull-up from the context.
 pub(super) struct PickerOpts<'a> {
