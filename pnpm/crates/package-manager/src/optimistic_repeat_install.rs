@@ -191,12 +191,12 @@ pub(crate) fn check_optimistic_repeat_install_in(
     };
     match check_freshness(check, &state, moved, &policy, scope) {
         Ok(()) => Decision::UpToDate,
-        Err(stale) => Decision::Skipped { reason: skip_reason(stale) },
+        Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }
 }
 
 /// The diagnostic reason the fast path is skipped for.
-fn skip_reason(stale: Stale) -> &'static str {
+fn skip_reason(stale: &Stale) -> &'static str {
     match stale {
         Stale::Unprovable => "the lockfile cannot be read",
         Stale::NothingInstalled => "current lockfile missing",

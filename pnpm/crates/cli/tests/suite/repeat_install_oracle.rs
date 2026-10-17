@@ -75,7 +75,7 @@ impl Scenario {
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         fixture.write_root_manifest("root", ManifestDeps::default());
         let scenario = Self { fixture, layout, oracle_runs: 0 };
-        scenario.set_dependencies("a", json!({ "@pnpm.e2e/foo": "100.0.0" }));
+        scenario.set_dependencies("a", &json!({ "@pnpm.e2e/foo": "100.0.0" }));
         scenario.write_manifest(
             "b",
             json!({
@@ -83,7 +83,7 @@ impl Scenario {
                 "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
             }),
         );
-        scenario.set_dependencies("c", json!({ "a": "workspace:*", "@pnpm.e2e/bar": "100.0.0" }));
+        scenario.set_dependencies("c", &json!({ "a": "workspace:*", "@pnpm.e2e/bar": "100.0.0" }));
         scenario
     }
 
@@ -110,7 +110,7 @@ impl Scenario {
         }
     }
 
-    fn set_dependencies(&self, project: &str, dependencies: Value) {
+    fn set_dependencies(&self, project: &str, dependencies: &Value) {
         self.write_manifest(project, json!({ "dependencies": dependencies }));
     }
 
@@ -364,7 +364,7 @@ impl Scenario {
     /// `exec` under the `install` action, then the properties that action
     /// promises: the command ran, and the gate passes next time.
     #[track_caller]
-    fn exec_installing(&mut self, selection: &[&str]) {
+    fn exec_installing(&self, selection: &[&str]) {
         assert!(self.exec(selection, "install"), "the gated command must run");
         assert!(
             self.exec(selection, "error"),
@@ -530,7 +530,7 @@ fn a_pull_then_a_filtered_command_for_one_project(layout: Layout) {
     for project in ["a", "b"] {
         scenario.set_dependencies(
             project,
-            json!({ "@pnpm.e2e/foo": "100.0.0", "@pnpm.e2e/bar": "100.0.0" }),
+            &json!({ "@pnpm.e2e/foo": "100.0.0", "@pnpm.e2e/bar": "100.0.0" }),
         );
     }
     scenario.install(&["--lockfile-only"]);
@@ -559,7 +559,7 @@ fn a_filtered_install_reaching_a_workspace_dependency(layout: Layout) {
 fn an_edit_outside_the_next_filtered_install(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
     scenario.install(&["--filter", "a"]);
     scenario.check_gates();
 }
@@ -567,8 +567,8 @@ fn an_edit_outside_the_next_filtered_install(layout: Layout) {
 fn filtered_commands_for_every_project_after_a_pull(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
-    scenario.set_dependencies("a", json!({ "@pnpm.e2e/bar": "100.0.0" }));
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    scenario.set_dependencies("a", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/foo": "100.0.0" }));
     scenario.install(&["--lockfile-only"]);
     for project in PROJECTS {
         scenario.exec_installing(&[project]);
@@ -611,7 +611,7 @@ fn a_lockfile_swap_that_keeps_an_older_mtime(layout: Layout) {
     let lockfile = scenario.lockfile_of("b");
     let manifest = scenario.manifest_path("b");
     let original = fs::read_to_string(&manifest).expect("read the manifest");
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/foo": "100.0.0" }));
     let edited = fs::read_to_string(&manifest).expect("read the manifest");
     scenario.install(&["--lockfile-only"]);
     let swapped = fs::read_to_string(&lockfile).expect("read the lockfile");
@@ -619,7 +619,7 @@ fn a_lockfile_swap_that_keeps_an_older_mtime(layout: Layout) {
     scenario.install(&[]);
     fs::write(&lockfile, &swapped).expect("swap the lockfile");
     fs::write(&manifest, &edited).expect("swap the manifest");
-    let an_hour_ago = SystemTime::now() - Duration::from_secs(3600);
+    let an_hour_ago = SystemTime::now() - Duration::from_hours(1);
     set_mtime(&lockfile, an_hour_ago);
     set_mtime(&manifest, an_hour_ago);
     scenario.check_gates();
@@ -650,7 +650,7 @@ fn an_unfiltered_command_after_a_filtered_install_of_another_project(layout: Lay
 fn a_root_command_after_an_edit_in_a_project(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
     if layout.shared_lockfile {
         assert!(!scenario.exec_from(".", "error"), "{layout:?}: the edited project is stale");
         assert!(scenario.exec_from(".", "install"), "the gated command must run");
@@ -669,7 +669,7 @@ fn a_state_without_validation_records(layout: Layout) {
     scenario.strip_validation();
     scenario.check_gates();
 
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
     scenario.install(&["--filter", "a"]);
     scenario.strip_validation();
     scenario.check_gates_allowing(true);
@@ -689,7 +689,7 @@ fn a_workspace_without_a_root_manifest(layout: Layout) {
     fs::remove_file(scenario.workspace().join("package.json")).expect("remove the root manifest");
     scenario.install(&["--filter", "a"]);
     scenario.check_gates();
-    scenario.set_dependencies("b", json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    scenario.set_dependencies("b", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
     scenario.check_gates();
 }
 

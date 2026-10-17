@@ -288,9 +288,9 @@ fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
 
     // The same lockfile in another layout has to be content-checked, and the
     // run gate checks it without `dedupePeers`, as pnpm's does.
-    let relaid_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml"))
-        .expect("read regenerated lockfile")
-        + "\n";
+    let mut relaid_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
+    relaid_lockfile.push('\n');
     fs::write(workspace.join("pnpm-lock.yaml"), &relaid_lockfile).expect("rewrite the lockfile");
 
     let output = pacquet_in(&workspace)

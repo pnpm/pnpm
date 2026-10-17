@@ -77,7 +77,7 @@ fn a_stat_recorded_in_the_same_tick_is_not_trusted() {
     let path = dir.path().join("pnpm-lock.yaml");
     fs::write(&path, "lockfileVersion: '9.0'\n").unwrap();
     let actual = signature_of(&path);
-    let stale = FileSignature { digest: "recorded".into(), ..actual.clone() };
+    let stale = FileSignature { digest: "recorded".into(), ..actual };
     let same_tick = stale.mtime_ns.max(stale.ctime_ns.unwrap_or(0));
     let validation = validation_recording(&path, stale, same_tick);
     assert_eq!(FileDigests::new(Some(&validation)).of(&path), FileDigest::Present(actual));
@@ -90,7 +90,7 @@ fn a_project_proven_against_another_lockfile_keeps_that_lockfile() {
     validation.insert_project("b".into(), "manifest-b".into(), Some("earlier"));
     assert_eq!(validation.project("a").unwrap().lockfile, Some("current"));
     assert_eq!(validation.project("b").unwrap().lockfile, Some("earlier"));
-    assert!(validation.lockfiles.get("a").is_none(), "a record that matches is not repeated");
+    assert!(!validation.lockfiles.contains_key("a"), "a record that matches is not repeated");
     assert!(validation.project("c").is_none());
 }
 

@@ -45,9 +45,9 @@ pub enum RunDepsStatus {
 /// "Cannot check whether dependencies are outdated").
 ///
 /// `selected_project_dirs` are the project directories the gated command
-/// selected, and the gate holds the projects [`Scope`] picks from them: the
-/// install a filtered command spawns is filtered too, and can only bring the
-/// projects in its own scope up to date.
+/// selected. A filtered command is held only to the selected projects and the
+/// workspace projects they depend on: the install it spawns is filtered too,
+/// and can only bring those up to date.
 #[must_use]
 pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
