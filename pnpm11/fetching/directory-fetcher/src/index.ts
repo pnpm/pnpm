@@ -98,7 +98,20 @@ export async function listFilesFromDir (
     const files = await packlist(dir)
     return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(dir, file)])) }
   }
+  if (opts.packageRoot != null) {
+    // Walk the resolved directory, so a link retargeted after this check is not followed.
+    const start = await fs.realpath(dir)
+    if (isOutside(await fs.realpath(opts.packageRoot), start)) {
+      throw new PnpmError('INVALID_PATH', `Path "${dir}" is outside the package directory "${opts.packageRoot}"`)
+    }
+    return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start)
+  }
   return _fetchAllFilesFromDir(await createReadFileStat(dir, opts), dir)
+}
+
+function isOutside (root: string, realPath: string): boolean {
+  const relative = path.relative(root, realPath)
+  return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
 }
 
 export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Promise<FetchResult> {
@@ -128,9 +141,7 @@ async function createReadFileStat (dir: string, opts: Pick<FetchFromDirOptions, 
     const result = await readStat(filePath)
     if (result == null) return null
     if (!(await fs.lstat(filePath)).isSymbolicLink()) return result
-    const realPath = await fs.realpath(filePath)
-    const relative = path.relative(root, realPath)
-    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    if (isOutside(root, await fs.realpath(filePath))) {
       throw new PnpmError('INVALID_PATH', `Path "${filePath}" is outside the package directory "${rootDir}"`)
     }
     return result
