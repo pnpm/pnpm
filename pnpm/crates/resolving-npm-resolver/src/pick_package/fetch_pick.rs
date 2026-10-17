@@ -10,6 +10,7 @@ use crate::{
     fetch_full_metadata_cached::{
         fetch_full_metadata_bypassing_cache, fetch_full_metadata_cached_lazily,
     },
+    metadata_cache_policy::DocumentKind,
     mirror::load_meta_async,
     pick_package_from_meta::RegistryPackageSpec,
 };
@@ -31,7 +32,8 @@ impl PickState<'_> {
         let fetch_opts = self.cached_fetch_options(ctx, opts.registry);
         let mut bypass_cache = false;
         loop {
-            let meta = match self.fetch_packument(&spec.name, &fetch_opts, bypass_cache).await {
+            let meta = match self.fetch_packument(ctx, &spec.name, &fetch_opts, bypass_cache).await
+            {
                 Ok(meta) => meta,
                 Err(error) => {
                     let disk = self.disk_fallback(&error, disk_meta.take()).await;
@@ -67,18 +69,26 @@ impl PickState<'_> {
         })
     }
 
-    async fn fetch_packument(
+    /// A fetch of the full document an earlier release-age upgrade stored in
+    /// the abbreviated mirror already sent the request that upgrade would
+    /// send, so the packument it returns is marked as checked.
+    async fn fetch_packument<Cache: PackageMetaCache>(
         &self,
+        ctx: &PickPackageContext<'_, Cache>,
         spec_name: &str,
         fetch_opts: &FetchFullMetadataCachedOptions<'_>,
         bypass_cache: bool,
     ) -> Result<Arc<Package>, FetchMetadataError> {
-        let result = if bypass_cache {
+        let document = if bypass_cache {
             fetch_full_metadata_bypassing_cache(spec_name, fetch_opts).await
         } else {
             fetch_full_metadata_cached_lazily(spec_name, fetch_opts).await
-        };
-        result.map(Arc::new)
+        }?;
+        let meta = Arc::new(document.meta);
+        if document.requested == Some(DocumentKind::FullInAbbreviatedMirror) {
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
+        }
+        Ok(meta)
     }
 
     async fn upgrade_and_pick<Cache: PackageMetaCache>(

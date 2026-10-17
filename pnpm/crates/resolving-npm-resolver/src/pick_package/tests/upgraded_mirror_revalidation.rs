@@ -65,9 +65,9 @@ async fn published_by_upgraded_mirror_records_a_changed_full_document_as_full() 
 }
 
 /// A registry whose full document lacks a complete `time` map leaves the
-/// upgraded mirror without one, so every later install upgrades it again.
-/// That upgrade revalidates the mirror's full document with its tag, like
-/// the regular revalidation before it, so installs two and three download
+/// upgraded mirror without one. Each later install revalidates the mirror's
+/// full document with its tag, which is the request an upgrade would send,
+/// so installs two and three send one conditional request each and download
 /// no body.
 #[tokio::test]
 async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_etag() {
@@ -94,17 +94,92 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
         .expect(1)
         .create_async()
         .await;
-    // Each later install's revalidation, then its upgrade.
+    // Each later install's revalidation.
     let revalidation_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", r#""full-etag""#)
         .with_status(304)
-        .expect(4)
+        .expect(2)
         .create_async()
         .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
+    install_ignoring_missing_time(
+        &server,
+        &cache_dir,
+        &["upgrading install", "second install", "third install"],
+    )
+    .await;
+
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+    revalidation_mock.assert_async().await;
+}
+
+/// A changed full document answering that revalidation is the document an
+/// upgrade would fetch, so the install sends no upgrade request after it,
+/// even though the document still lacks a complete `time` map.
+#[tokio::test]
+async fn published_by_changed_full_document_without_complete_time_is_not_upgraded_again() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", r#""full-etag""#)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let revalidation_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""full-etag""#)
+        .with_status(200)
+        .with_header("etag", r#""changed-full-etag""#)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let upgrade_mock = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#""changed-full-etag""#)
+        .with_status(304)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    install_ignoring_missing_time(&server, &cache_dir, &["upgrading install", "second install"])
+        .await;
+
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+    revalidation_mock.assert_async().await;
+    upgrade_mock.assert_async().await;
+}
+
+/// Run `installs` in order against `server`, each with a fresh in-memory
+/// cache and the shared mirror in `cache_dir`, backdating the abbreviated
+/// mirror after each so the next install revalidates it.
+async fn install_ignoring_missing_time(
+    server: &mockito::Server,
+    cache_dir: &TempDir,
+    installs: &[&str],
+) {
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -114,7 +189,7 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");
 
-    for install in ["upgrading install", "second install", "third install"] {
+    for &install in installs {
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
@@ -144,10 +219,6 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
             .and_then(|file| file.set_modified(std::time::UNIX_EPOCH))
             .expect("backdate the mirror");
     }
-
-    abbrev_mock.assert_async().await;
-    full_mock.assert_async().await;
-    revalidation_mock.assert_async().await;
 }
 
 /// One abbreviated `200` and one unconditional full `200`: the requests of the
