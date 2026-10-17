@@ -17,13 +17,13 @@ fn canonicalizes_each_ecosystem() {
 fn reports_ecosystem_specific_name_errors() {
     let cargo_error = CanonicalPackageName::parse("9lives", Ecosystem::Cargo).unwrap_err();
     assert_eq!(
-        cargo_error.public_message(),
+        cargo_error.to_string(),
         r#"Package name "9lives" is not valid for cargo: crate name "9lives" must start with a letter or `_`"#,
     );
 
     let python_error = CanonicalPackageName::parse("demo package", Ecosystem::Pypi).unwrap_err();
     assert_eq!(
-        python_error.public_message(),
+        python_error.to_string(),
         r#"Package name "demo package" is not valid for pypi: "demo package" is not a valid Python project name"#,
     );
 }
@@ -147,7 +147,7 @@ fn image_names_may_outrun_the_npm_length_limit() {
 fn reports_image_name_errors() {
     let error = CanonicalPackageName::parse("acme//app", Ecosystem::Oci).unwrap_err();
     assert_eq!(
-        error.public_message(),
+        error.to_string(),
         r#"Package name "acme//app" is not valid for oci: image name "acme//app" has an empty path component"#,
     );
 }
