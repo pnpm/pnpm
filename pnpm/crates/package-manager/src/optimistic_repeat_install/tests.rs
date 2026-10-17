@@ -1025,6 +1025,33 @@ fn a_filtered_state_requires_the_selected_projects_to_match_the_wanted_lockfile(
     );
 }
 
+/// Without `pnpm-lock.yaml` the current lockfile stands in for it, so there is
+/// no wanted lockfile for a selected project to fall behind.
+#[test]
+fn a_filtered_state_without_a_wanted_lockfile_accepts_the_selected_projects() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        isolated_included(),
+    );
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let project_b = dir.path().join("packages/b");
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (dir.path().join("packages/a"), &manifests[1]),
+        (project_b.clone(), &manifests[2]),
+    ];
+
+    assert_eq!(
+        workspace_deps_status_for_selected(
+            &dir,
+            config,
+            &project_manifests,
+            &[project_b.as_path()]
+        ),
+        RunDepsStatus::UpToDate,
+    );
+}
+
 /// The groups the filtered install left out are not held against the selected
 /// projects, or a gate after `pnpm install --prod --filter` would install
 /// before every script.
