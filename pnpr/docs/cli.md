@@ -202,4 +202,21 @@ pnpr --disable-registry
 
 ## Signals and graceful shutdown
 
-pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`. When either signal is received, the server initiates a graceful shutdown, stopping new connections and completing in-flight requests. This ensures clean termination in containerized environments such as Docker and Kubernetes.
+pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`:
+
+1. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
+2. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
+
+Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica's readiness probe (`GET /-/ready`) passes before the old replica receives `SIGTERM` and drains.
+
+## Exit codes
+
+pnpr uses standard exit codes:
+
+| Code | Meaning | Description |
+| --- | --- | --- |
+| `0` | Success | The command completed successfully. For the server, indicates clean termination after `SIGINT` or `SIGTERM`. For maintenance commands (`config check`, `verify`, `export`, `migrate-storage`, `import-htpasswd`), indicates all checks and transfers succeeded. |
+| `1` | Error | The command failed. Causes include invalid CLI flags, YAML configuration errors, address binding conflicts (port already in use), missing storage/auth files, or integrity audit failures (such as `pnpr verify` finding missing or corrupted blobs). |
+
+In Unix shells, if an external supervisor kills the process before the graceful shutdown handler finishes, the exit status will reflect the signal number (for example, `130` for `SIGINT` or `143` for `SIGTERM`).
+

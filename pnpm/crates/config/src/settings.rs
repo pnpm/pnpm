@@ -1025,13 +1025,14 @@ pub struct Config {
     pub user_agent: String,
 
     /// URL of a `pnpr` server. When set, `pacquet install` offloads
-    /// dependency resolution and file fetching to the server: it sends
-    /// its own registry configuration, the server resolves against those
-    /// registries and streams back the files the local store is missing,
-    /// and `node_modules` is then linked locally from the
-    /// server-produced lockfile (like server-side rendering — the
-    /// compute runs remotely, the result is materialized locally).
-    /// `None` runs the normal local resolution flow.
+    /// dependency resolution to the server: it sends its own registry
+    /// configuration, the server resolves against those registries and
+    /// streams back resolved package metadata frames as it walks the graph
+    /// so the client can prefetch tarballs in parallel, and `node_modules`
+    /// is then linked locally from the server-produced lockfile (the
+    /// resolution compute runs remotely, tarball downloads and layout
+    /// materialization run locally). `None` runs the normal local resolution
+    /// flow.
     pub pnpr_server: Option<String>,
 
     /// Cargo dependency management declared by the workspace.
