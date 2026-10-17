@@ -237,42 +237,6 @@ function getLegacyPkgMirrorPaths (cacheDir: string, metaDir: string, registry: s
   return paths
 }
 
-/**
- * Where a response's ETag goes in a mirror's headers. A full document stored
- * in the abbreviated mirror keeps its ETag as `fullEtag`, because that tag
- * validates only the full representation.
- */
-export function mirrorEtags (
-  response: { etag?: string, fullMetadata?: boolean },
-  mirrorFullMetadata: boolean
-): Pick<MetaHeaders, 'etag' | 'fullEtag'> {
-  return holdsFullMetaInAbbreviatedMirror(response, mirrorFullMetadata)
-    ? { fullEtag: response.etag }
-    : { etag: response.etag }
-}
-
-/**
- * Whether a response is a full document headed for the abbreviated mirror.
- * Only `time` is needed from it there, so it is mirrored condensed.
- */
-export function holdsFullMetaInAbbreviatedMirror (
-  response: { fullMetadata?: boolean },
-  mirrorFullMetadata: boolean
-): boolean {
-  return response.fullMetadata === true && !mirrorFullMetadata
-}
-
-/**
- * The full document's ETag when the abbreviated mirror holds a document the
- * release-age upgrade stored there. That mirror is revalidated as the full
- * document with this tag, so a registry with per-representation ETags, such
- * as npmjs.org, can answer 304.
- */
-export function fullEtagOfAbbreviatedMirror (headers: MetaHeaders | null, fullMetadata: boolean): string | undefined {
-  if (fullMetadata || headers?.fullEtag == null || headers.fullEtag === '') return undefined
-  return headers.fullEtag
-}
-
 export async function getFileMtime (filePath: string): Promise<Date | null> {
   try {
     const stat = await fs.stat(filePath)

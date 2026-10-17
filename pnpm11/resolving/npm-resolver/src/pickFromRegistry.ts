@@ -5,15 +5,18 @@ import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.ty
 
 import { type FetchMetadataResult, notModifiedWithoutCacheError } from './fetch.js'
 import {
+  conditionalRequest,
+  mirrorWrite,
+  releaseAgeUpgradeRequest,
+  unconditionalRefetch,
+} from './metadataCachePolicy.js'
+import {
   condenseMetaForCache,
   encodeMirror,
-  fullEtagOfAbbreviatedMirror,
-  holdsFullMetaInAbbreviatedMirror,
   isMalformedMirrorFragmentError,
   loadMetaHeaders,
   type MetaHeaders,
   metaHeadersOf,
-  mirrorEtags,
   saveMetaBestEffort,
 } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
@@ -28,7 +31,6 @@ import {
 import {
   maybeUpgradeAbbreviatedMetaForReleaseAge,
   parseModifiedDate,
-  revalidationOfHeldFullDocument,
   upgradeMetaForCache,
 } from './releaseAgeUpgrade.js'
 
@@ -68,14 +70,10 @@ async function fetchConditionally (
   { ctx, spec, opts, fullMetadata }: PickRequest,
   cacheHeaders: MetaHeaders | null
 ): ReturnType<PickRequest['ctx']['fetch']> {
-  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, fullMetadata)
   return ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: cacheHeaders?.uncacheable === true,
-    fullMetadata: fullMetadata || fullEtag != null,
-    etag: fullEtag ?? cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
     registry: opts.registry,
+    ...conditionalRequest(fullMetadata, cacheHeaders),
   })
 }
 
@@ -88,9 +86,8 @@ async function refetchWithoutValidators (request: PickRequest): Promise<PickResu
   const { ctx, spec, opts } = request
   const refetched = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: true,
-    fullMetadata: request.fullMetadata,
     registry: opts.registry,
+    ...unconditionalRefetch(request.fullMetadata),
   })
   if (refetched.notModified) throw notModifiedWithoutCacheError(spec.name)
   return persistFreshMeta(request, refetched)
@@ -191,19 +188,16 @@ async function upgradeFreshMetaForReleaseAge (request: PickRequest, fetched: Fet
     return { meta: fetched.meta, resultToSave: fetched, attemptedReleaseAgeUpgrade: false }
   }
   // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
+  const write = mirrorWrite(fetched, request.fullMetadata)
   if (!opts.dryRun) {
-    const { etag, fullEtag } = mirrorEtags(fetched, request.fullMetadata)
-    const content = encodeMirror(ctx, fetched, { meta: fetched.meta, etag, body: { uncacheable: fetched.uncacheable, fullEtag } })
-    saveMetaBestEffort(request.pkgMirror, content, fetched.uncacheable === true)
+    const content = encodeMirror(ctx, fetched, { meta: fetched.meta, etag: write.etag, body: write.body })
+    saveMetaBestEffort(request.pkgMirror, content, write.body.uncacheable === true)
   }
-  // A response to a full request already is the full document, tagged as such
-  // in the abbreviated mirror, so the upgrade revalidates it.
-  const heldFullEtag = fetched.fullMetadata === true ? fetched.etag : undefined
+  // The upgrade revalidates the mirror just written.
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
-    fullMetadata: true,
     registry: opts.registry,
-    ...revalidationOfHeldFullDocument(heldFullEtag, fetched.meta, fetched.uncacheable),
+    ...releaseAgeUpgradeRequest({ ...metaHeadersOf(fetched.meta), etag: write.etag, ...write.body }),
   })
   if (fullFetchResult.notModified) {
     return { meta: fetched.meta, resultToSave: fetched, attemptedReleaseAgeUpgrade: true }
@@ -237,13 +231,13 @@ function mirrorFreshMeta (
   // narrower: `filterMetadata` always mirrors the stripped document, and a
   // full document in the abbreviated slot mirrors the condensed form — `time`
   // is all the next install needs from this slot.
+  const write = mirrorWrite(resultToSave, request.fullMetadata)
   const writeCondensed = request.ctx.filterMetadata === true ||
-    (holdsFullMetaInAbbreviatedMirror(resultToSave, request.fullMetadata) && meta !== resultToSave.meta)
-  const { etag, fullEtag } = mirrorEtags(resultToSave, request.fullMetadata)
+    (write.kind === 'fullInAbbreviatedMirror' && meta !== resultToSave.meta)
   const content = encodeMirror(request.ctx, resultToSave, {
     meta: writeCondensed ? meta : resultToSave.meta,
-    etag,
-    body: { uncacheable: resultToSave.uncacheable, fullEtag },
+    etag: write.etag,
+    body: write.body,
   })
-  saveMetaBestEffort(request.pkgMirror, content, resultToSave.uncacheable === true)
+  saveMetaBestEffort(request.pkgMirror, content, write.body.uncacheable === true)
 }

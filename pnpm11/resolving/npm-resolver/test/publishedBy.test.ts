@@ -1137,8 +1137,8 @@ test('the release-age upgrade of an upgraded mirror revalidates with the full et
     headers: { accept: /^application\/json/, 'if-none-match': '"full-etag"' },
   }
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  // The regular revalidation, then the upgrade.
-  agent.intercept(revalidation).reply(304, '')
+  // The regular revalidation. The upgrade sends the same request, so it reuses
+  // that 304.
   agent.intercept(revalidation).reply(304, '')
 
   const { resolveFromNpm } = createResolveFromNpm({
@@ -1159,10 +1159,11 @@ test('three installs over a registry without complete publish times download the
   const cacheDir = temporaryDirectory()
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  // Installs two and three: the regular revalidation, then the upgrade.
+  // Installs two and three: the regular revalidation, whose 304 the upgrade
+  // reuses.
   agent.intercept({ path: '/is-positive', method: 'GET', headers: { 'if-none-match': '"full-etag"' } })
     .reply(304, '')
-    .times(4)
+    .times(2)
   // Install one: the upgrade, then the abbreviated fetch before it.
   agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/json/ } })
     .reply(200, partialTimeMeta(), { headers: { etag: '"full-etag"' } })

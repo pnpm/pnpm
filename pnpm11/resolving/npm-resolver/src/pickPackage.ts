@@ -2,6 +2,7 @@ import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pn
 import { PnpmError } from '@pnpm/error'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
+import { mirrorMayAnswer } from './metadataCachePolicy.js'
 import {
   getFileMtime,
   getPkgMetaCacheKey,
@@ -426,17 +427,11 @@ function isWrittenAtOrAfter (mtime: Date | null, cutoff: Date): boolean {
   return mtime != null && mtime >= cutoff
 }
 
-/**
- * Offline and prefer-offline may serve a mirror the registry marked
- * uncacheable. Every other online path has to refetch it. The flag is only
- * set on packuments read from the mirror: a document fetched during this
- * install stays reusable for the rest of it.
- */
 function canServeCachedMeta (
   ctx: { offline?: boolean, preferOffline?: boolean },
   meta: PackageMeta
 ): boolean {
-  return ctx.offline === true || ctx.preferOffline === true || meta.uncacheable !== true
+  return mirrorMayAnswer(ctx, meta.uncacheable)
 }
 
 function validatePackageName (pkgName: string) {
