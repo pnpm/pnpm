@@ -25,7 +25,7 @@ pub(super) fn load_pre_command_config(
     let switch = &input.switch;
     let mut config = seed_config(
         switch.paths.npmrc_auth_file.as_deref(),
-        switch.ignore_workspace,
+        switch.paths.ignore_workspace,
         config_overrides,
     );
     config.skip_store_dir_resolution = !load.resolve_store;

@@ -152,7 +152,7 @@ pub struct CliWorkspaceArgs {
     pub execution: WorkspaceExecutionArgs,
 }
 
-#[derive(Debug, Clone, clap::Args)]
+#[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 pub struct CliPathArgs {
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
@@ -195,7 +195,7 @@ pub struct CliPathArgs {
     pub workspace_packages: Vec<String>,
 }
 
-#[derive(Debug, Default, Clone, clap::Args)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, clap::Args)]
 pub struct CliNetworkArgs {
     /// Base URL of the npm registry to resolve and fetch packages from.
     /// Universal rc-option: accepted on every command and layered onto
