@@ -48,9 +48,6 @@ pnpm dist-tag ls foo
 
 pnpm exchanges the CI identity token for a temporary token scoped to the package and its configured registry. The token stays in memory and is not saved to `.npmrc`. Dist-tag commands do not generate provenance.
 
-The token exchange preserves the configured registry path, such as `/npm/` in
-`https://registry.example/npm/`.
-
 When OIDC is unavailable or the registry rejects the exchange, pnpm falls back to configured credentials. Missing GitHub request variables and rejected identity requests also use this fallback. Network errors and invalid identity-request URLs are reported.
 
 OIDC requests use the configured fetch timeout and retry settings.

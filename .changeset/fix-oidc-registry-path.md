@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-OIDC token exchanges now preserve registry URL path prefixes, fixing authentication against registries hosted under paths such as `/npm/`.
+Trusted publishing with OIDC now works with registries whose URL has a path, such as `https://registry.example/npm/private/`. pnpm previously sent the token exchange request to the root of the registry host.
