@@ -34,7 +34,7 @@ pub(super) fn resolve_link_version(
     package_manifest_version(&manifest)
 }
 
-fn resolve_file_version(
+fn resolve_locked_version(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     alias: &PkgName,
@@ -223,7 +223,10 @@ fn resolved_peer_version(
     spec: &ResolvedDependencySpec,
 ) -> Option<String> {
     if let Some(ver_peer) = spec.version.ver_peer() {
-        return Some(extract_peer_version(ver_peer));
+        return Some(
+            resolve_locked_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+                .unwrap_or_else(|| extract_peer_version(ver_peer)),
+        );
     }
     if let Some(link_target) = spec.version.as_link_target() {
         return Some(
@@ -234,7 +237,7 @@ fn resolved_peer_version(
     spec.version
         .as_file_target()
         .map(|file_target| {
-            resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+            resolve_locked_version(lockfile, lockfile_dir, peer_pkg_name, spec)
                 .unwrap_or_else(|| format!("file:{file_target}"))
         })
 }
