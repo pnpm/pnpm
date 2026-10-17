@@ -228,6 +228,17 @@ describe('checkDepsStatus with recorded validations', () => {
     expect(await check(workspace, undefined, { mergeGitBranchLockfiles: true })).toMatchObject({ upToDate: false })
   })
 
+  it('keeps the recorded proofs while no branch lockfile waits to be merged', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    expect(await check(workspace, undefined, { mergeGitBranchLockfiles: true })).toMatchObject({ upToDate: true })
+    const manifestPath = path.join(workspace.projectDir('b'), 'package.json')
+    const { mtime } = await fs.stat(manifestPath)
+    workspace.manifestOf('b').dependencies = { bar: '1.0.0', foo: '1.0.0' }
+    await fs.writeFile(manifestPath, JSON.stringify(workspace.manifestOf('b')))
+    await fs.utimes(manifestPath, mtime, mtime)
+    expect(await check(workspace, undefined, { mergeGitBranchLockfiles: true })).toMatchObject({ upToDate: false })
+  })
+
 })
 
 /**

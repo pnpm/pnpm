@@ -143,6 +143,15 @@ export function statLockfileSync (lockfilePath: string): fs.Stats | undefined {
   }
 }
 
+/**
+ * Whether a branch lockfile waits to be merged into the wanted lockfile. An
+ * install with `mergeGitBranchLockfiles` merges and deletes them, so one left
+ * means the merged lockfile may differ from the one that install recorded.
+ */
+export function hasUnmergedBranchLockfiles (lockfileDir: string, wantedLockfileName: string): boolean {
+  return gitBranchLockfileNames(lockfileDir, wantedLockfileName).some((name) => name !== wantedLockfileName)
+}
+
 function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string): string[] {
   let branchLockfileNames: string[]
   try {

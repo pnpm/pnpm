@@ -18,7 +18,7 @@ import { safeStat } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import { type ValidationProof, validationProof } from './validationProof.js'
-import { allowUnawaitedFailure, readWantedLockfileIn, throwLockfileNotFound } from './wantedLockfiles.js'
+import { allowUnawaitedFailure, hasUnmergedBranchLockfiles, readWantedLockfileIn, throwLockfileNotFound } from './wantedLockfiles.js'
 
 export interface RootProjectDepsStatusContext {
   opts: CheckDepsStatusOptions
@@ -85,12 +85,11 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
   return upToDateRootProjectResult(lockfiles, ctx)
 }
 
-/**
- * What the recorded validation proves. The recorded digest covers the main
- * lockfile only, not the branch lockfiles merged into the wanted one.
- */
 function recordedProof ({ opts, rootProjectManifestDir, wantedLockfileName, workspaceState }: RootProjectDepsStatusContext): ValidationProof | undefined {
-  return opts.mergeGitBranchLockfiles ? undefined : validationProof(workspaceState, rootProjectManifestDir, wantedLockfileName)
+  return validationProof(workspaceState, rootProjectManifestDir, {
+    wantedLockfileName,
+    unmergedBranchLockfiles: opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(rootProjectManifestDir, wantedLockfileName),
+  })
 }
 
 /**

@@ -46,13 +46,15 @@ export interface ValidationProof {
 export function validationProof (
   workspaceState: WorkspaceState,
   lockfileDir: string,
-  wantedLockfileName: string
+  { wantedLockfileName, unmergedBranchLockfiles }: { wantedLockfileName: string, unmergedBranchLockfiles: boolean }
 ): ValidationProof | undefined {
   const validation = workspaceState.validation
   if (validation == null) return undefined
   const lockfile = lockfileDigest(validation, lockfileDir, wantedLockfileName)
   if (lockfile.path !== path.join(lockfileDir, wantedLockfileName)) return undefined
-  const digest = lockfile.digest.kind === 'present' ? lockfile.digest.signature.digest : undefined
+  // The recorded digest covers the main lockfile only, so a branch lockfile
+  // still to be merged changes the wanted lockfile without changing it.
+  const digest = lockfile.digest.kind === 'present' && !unmergedBranchLockfiles ? lockfile.digest.signature.digest : undefined
   const lockfileChanged = digest !== validation.files?.[lockfile.path]?.digest
   return {
     lockfileChanged,

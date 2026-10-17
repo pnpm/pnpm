@@ -28,6 +28,7 @@ import {
   allowUnawaitedFailure,
   assertCurrentLockfileMatches,
   getWantedLockfileDirs,
+  hasUnmergedBranchLockfiles,
   missingWantedLockfileStandIn,
   readWantedLockfileIn,
   statLockfileSync,
@@ -68,11 +69,12 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
     return { upToDate: false, issue, workspaceState }
   }
 
-  // The recorded digest covers the main lockfile only, not the branch
-  // lockfiles merged into the wanted one.
-  const proof = opts.sharedWorkspaceLockfile === false || opts.mergeGitBranchLockfiles
+  const proof = opts.sharedWorkspaceLockfile === false
     ? undefined
-    : validationProof(workspaceState, workspaceLockfileDir(ctx), ctx.wantedLockfileName)
+    : validationProof(workspaceState, workspaceLockfileDir(ctx), {
+      wantedLockfileName: ctx.wantedLockfileName,
+      unmergedBranchLockfiles: opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
+    })
   return proof == null
     ? checkModifiedSinceLastValidation(ctx, allManifestStats, patchesRevalidated)
     : checkRecordedWorkspace(ctx, { proof, allManifestStats, patchesRevalidated })
