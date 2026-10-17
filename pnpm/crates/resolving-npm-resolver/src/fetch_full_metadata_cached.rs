@@ -15,13 +15,9 @@
 use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, Instant},
 };
 
-use pipe_trait::Pipe;
-use pnpm_network::{
-    ThrottledClientGuard, read_self_delimiting_text, redact_url_credentials, retry_async,
-};
+use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode};
 
@@ -29,8 +25,7 @@ use crate::{
     FetchMetadataError,
     errors::legacy_mirror_hint,
     fetch_full_metadata::{
-        MetadataRequestOptions, normalize_abbreviated_meta, send_metadata_request,
-        warn_if_request_is_slow,
+        MetadataRequestOptions, MetadataResponse, decode_metadata_response, send_metadata_request,
     },
     metadata_cache_policy::{DocumentKind, MirrorWrite},
     mirror::{
@@ -207,51 +202,26 @@ impl FetchAttempt<'_> {
             (client, response)
         };
 
-        let response = response
-            .error_for_status()
-            .map_err(|error| FetchMetadataError::Network {
-                url: redact_url_credentials(self.url),
-                error: error.without_url(),
-            })?;
-
-        let decode = self.decoder(&response, client.acquired_at());
-        let raw_body = read_self_delimiting_text(response).await
-            .inspect_err(|error| opts.http.http_client.downscale_on_timeout(self.url, error))
-            .map_err(|error| FetchMetadataError::BodyRead {
-                url: redact_url_credentials(self.url),
-                error: error.without_url(),
-            })?;
-
-        // Body fully buffered — release the connection and its
-        // network-concurrency permit before the CPU-bound parse so the
-        // semaphore keeps bounding *sockets*, not parses. Same
-        // buffer-then-release shape as the tarball pipeline in
-        // `pnpm-tarball`.
-        drop(client);
-
-        // Deserialize and persist the mirror off the reactor. Packuments
-        // run to several megabytes for high-release-cadence packages
-        // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
-        // tokio worker for hundreds of milliseconds and stalls every
-        // socket that worker pumps.
-        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
-            .await
-            .map_err(|error| FetchMetadataError::ParseTask {
-                url: redact_url_credentials(self.url),
-                error,
-            })??;
-
-        warn_if_request_is_slow(opts.http.http_client, elapsed, self.url);
-        meta.pipe(Ok)
+        let store = self.mirror_store(&response);
+        decode_metadata_response(
+            MetadataResponse {
+                client,
+                response,
+                url: self.url,
+                http_client: opts.http.http_client,
+            },
+            store.mirror_write.normalizes_to_abbreviated(),
+            move |meta| store.store(meta),
+        )
+        .await
     }
 
-    fn decoder(&self, response: &Response, started_at: Instant) -> DecodeMeta {
-        DecodeMeta {
+    fn mirror_store(&self, response: &Response) -> MirrorStore {
+        MirrorStore {
             url: self.url.to_string(),
             mirror_path: self.mirror_path.map(Path::to_path_buf),
             mirror_write: MirrorWrite::on_response(self.kind, response.headers()),
             should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
-            started_at,
         }
     }
 
@@ -327,28 +297,17 @@ async fn legacy_mirror_for(
     find_legacy_pkg_mirror(opts.cache_dir?, base_meta_dir, opts.registry, pkg_name).await
 }
 
-/// The off-reactor half of one fetch: parse the body, normalize it, and
-/// persist the mirror.
-struct DecodeMeta {
+/// The off-reactor end of one fetch: filter the parsed document and persist
+/// the mirror.
+struct MirrorStore {
     url: String,
     mirror_path: Option<PathBuf>,
     mirror_write: MirrorWrite,
     should_filter_metadata: bool,
-    started_at: Instant,
 }
 
-impl DecodeMeta {
-    fn run(self, raw_body: &str) -> Result<(Package, Duration), FetchMetadataError> {
-        let mut meta: Package = serde_json::from_str(raw_body)
-            .map_err(|error| FetchMetadataError::Decode {
-                url: redact_url_credentials(&self.url),
-                error,
-            })?;
-        meta.drop_incomplete_publish_times();
-        let elapsed = self.started_at.elapsed();
-        if self.mirror_write.normalizes_to_abbreviated() {
-            meta = normalize_abbreviated_meta(meta);
-        }
+impl MirrorStore {
+    fn store(self, mut meta: Package) -> Result<Package, FetchMetadataError> {
         if self.should_filter_metadata {
             meta = clear_meta(&meta)
                 .map_err(|error| FetchMetadataError::FilterMetadata {
@@ -361,8 +320,8 @@ impl DecodeMeta {
             // its version fragments read from the file on demand, so the
             // multi-megabyte body drops here instead of living in the
             // packument cache for the rest of the install.
-            Some(saved) => Ok((saved, elapsed)),
-            None => Ok((meta, elapsed)),
+            Some(saved) => Ok(saved),
+            None => Ok(meta),
         }
     }
 
