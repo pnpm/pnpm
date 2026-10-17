@@ -6,7 +6,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{AuthState, Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -51,6 +51,12 @@ fn load_config(dir: &Path) -> Config {
     std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+async fn app_router(config: Config) -> axum::Router {
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    auth.users.create_user("root", "secret").await.unwrap();
+    router_with_auth(config, auth)
 }
 
 async fn send(
@@ -98,7 +104,7 @@ async fn read_secret(app: &axum::Router, token: &str) -> StatusCode {
 #[tokio::test]
 async fn a_change_applies_at_once_and_a_reset_undoes_it() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
     assert_eq!(read_secret(&app, &bob).await, StatusCode::NOT_FOUND);
@@ -121,7 +127,7 @@ async fn a_change_applies_at_once_and_a_reset_undoes_it() {
 #[tokio::test]
 async fn changes_must_fit_the_declared_rules() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let refused = [
         json!({ "packages": { "@other/*": { "access": ["$all"] } } }),
@@ -138,7 +144,7 @@ async fn changes_must_fit_the_declared_rules() {
 #[tokio::test]
 async fn only_admins_change_rules_and_only_where_the_api_manages_them() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
     let change = json!({ "access": ["$authenticated"] });
@@ -165,12 +171,12 @@ async fn only_admins_change_rules_and_only_where_the_api_manages_them() {
 #[tokio::test]
 async fn a_new_process_applies_the_stored_changes() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let change = json!({ "packages": { "@secret/*": { "access": ["root"] } } });
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
 
-    let restarted = router(load_config(dir.path()));
+    let restarted = app_router(load_config(dir.path())).await;
     let bob = add_user(&restarted, "bob").await;
     assert_eq!(read_secret(&restarted, &bob).await, StatusCode::FORBIDDEN);
 }
@@ -181,7 +187,7 @@ async fn unreadable_stored_changes_close_the_registry() {
     let record = dir.path().join("storage/.rule-overrides/v0/local.json");
     std::fs::create_dir_all(record.parent().unwrap()).unwrap();
     std::fs::write(&record, "not rules").unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let bob = add_user(&app, "bob").await;
 
     let (_, directory) = send(&app, "GET", "/-/pnpr/v0/registries", Some(&bob), None).await;
@@ -232,7 +238,7 @@ async fn send_if_match(
 #[tokio::test]
 async fn a_change_based_on_a_stale_version_is_refused() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let (_, rules) = send(&app, "GET", RULES, Some(&root), None).await;
     let loaded = rules["version"]
@@ -266,7 +272,7 @@ async fn a_change_based_on_a_stale_version_is_refused() {
 #[tokio::test]
 async fn a_change_without_if_match_replaces_whatever_is_stored() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let first = json!({ "access": ["$authenticated"] });
     assert_eq!(send(&app, "PUT", RULES, Some(&root), Some(first)).await.0, StatusCode::OK);
@@ -296,7 +302,7 @@ async fn send_raw_if_match(app: &axum::Router, token: &str, value: &[u8]) -> Sta
 #[tokio::test]
 async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let cases: [(&[u8], StatusCode); 6] = [
         (b"\xff", StatusCode::BAD_REQUEST),
@@ -315,8 +321,8 @@ async fn if_match_compares_strongly_and_refuses_what_it_cannot_read() {
 #[tokio::test]
 async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version() {
     let dir = TempDir::new().unwrap();
-    let writer = router(load_config(dir.path()));
-    let reader = router(load_config(dir.path()));
+    let writer = app_router(load_config(dir.path())).await;
+    let reader = app_router(load_config(dir.path())).await;
     let root = add_user(&writer, "root").await;
     let reader_root = add_user(&reader, "root").await;
     let (_, before) = send(&reader, "GET", RULES, Some(&reader_root), None).await;

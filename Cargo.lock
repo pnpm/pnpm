@@ -6675,6 +6675,7 @@ dependencies = [
  "clap",
  "dashmap",
  "derive_more",
+ "dialoguer",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
