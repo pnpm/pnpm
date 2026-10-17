@@ -5,7 +5,8 @@
 use super::{
     CachedPackument, Package, PackageMetaCache, PackageVersion, PickPackageContext,
     PickPackageError, PickPackageOptions, PickPackageResult, PickState, PickerOpts,
-    RegistryPackageSpec, pick_from_meta, pick_from_meta_offline, unverified_pick_is_safe,
+    RegistryPackageSpec, pick_from_meta, pick_from_meta_offline, pick_stable_cached_range_version,
+    route::CacheHitCheck,
 };
 use std::sync::Arc;
 
@@ -36,35 +37,22 @@ pub(super) async fn handle_cache_hit<Cache: PackageMetaCache>(
     if upgraded && !opts.request.dry_run {
         ctx.metadata.meta_cache.set(state.cache_key.clone(), Arc::clone(&meta));
     }
-    let picker_opts = &state.picker_opts;
-    let cache_key = state.cache_key.as_str();
     let unfiltered_meta = Arc::clone(&meta);
-    let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
-    finish_cache_hit_pick(
-        ctx,
-        cache_key,
-        picker_opts,
-        spec,
-        &unfiltered_meta,
-        meta,
-        picked,
-        registry_verified,
-        opts,
-    )
-    .await
+    let (meta, picked) = pick_from_meta(&state.picker_opts, spec, meta, opts.blocked_versions)?;
+    finish_cache_hit_pick(ctx, state, spec, &unfiltered_meta, meta, picked, registry_verified, opts)
+        .await
 }
 
 /// The picks after the release-age upgrade: the plain preference pick, the
 /// offline store adjustment over the unfiltered packument, and the
-/// registry-unverified guard for non-offline picks.
+/// [`CacheHitCheck`].
 #[expect(
     clippy::too_many_arguments,
     reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
 )]
 async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
-    cache_key: &str,
-    picker_opts: &PickerOpts<'_>,
+    state: &PickState<'_>,
     spec: &RegistryPackageSpec,
     unfiltered_meta: &Arc<Package>,
     meta: Arc<Package>,
@@ -75,8 +63,8 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     let (meta, picked) = if ctx.cache_policy.network.forbids_registry() {
         pick_from_meta_offline(
             ctx.store_view,
-            cache_key,
-            picker_opts,
+            &state.cache_key,
+            &state.picker_opts,
             spec,
             unfiltered_meta,
             meta,
@@ -90,11 +78,28 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     if meta.versions.corrupt_mirror_fragment_found() {
         return Ok(None);
     }
-    if !ctx.cache_policy.network.forbids_registry()
-        && !registry_verified
-        && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())
-    {
-        return Ok(None);
-    }
-    Ok(Some(PickPackageResult { meta, picked_package: picked }))
+    let inputs = state.route_inputs(ctx, spec, opts, None);
+    let serve = match CacheHitCheck::decide(&inputs, registry_verified, picked.is_some()) {
+        CacheHitCheck::Serve => true,
+        CacheHitCheck::StableRangePick => {
+            is_stable_range_pick(&state.picker_opts, spec, &meta, picked.as_ref())
+        }
+        CacheHitCheck::Revalidate => false,
+    };
+    Ok(serve.then_some(PickPackageResult { meta, picked_package: picked }))
+}
+
+fn is_stable_range_pick(
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: &Package,
+    picked: Option<&Arc<PackageVersion>>,
+) -> bool {
+    let Some(picked) = picked else { return false };
+    pick_stable_cached_range_version(
+        meta,
+        &spec.fetch_spec,
+        picker_opts.preferred_version_selectors,
+    )
+    .is_some_and(|stable| picked.version.to_string() == stable)
 }

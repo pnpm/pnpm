@@ -45,7 +45,7 @@ impl PickState<'_> {
         self.published_by_pick(ctx, spec, opts, cutoff, disk_meta).await
     }
 
-    fn route_inputs<'inputs, Cache: PackageMetaCache>(
+    pub(super) fn route_inputs<'inputs, Cache: PackageMetaCache>(
         &self,
         ctx: &PickPackageContext<'_, Cache>,
         spec: &'inputs RegistryPackageSpec,

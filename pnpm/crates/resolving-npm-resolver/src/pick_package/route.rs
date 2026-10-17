@@ -113,6 +113,46 @@ impl MirrorShortcuts {
     }
 }
 
+/// What a pick from an in-memory entry must pass before it is served.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CacheHitCheck {
+    Serve,
+    /// Serve only the version the entry is stable on, see
+    /// [`crate::pick_package_from_meta::pick_stable_cached_range_version`].
+    StableRangePick,
+    /// Fall through to the reads and the fetch that replace the entry.
+    Revalidate,
+}
+
+impl CacheHitCheck {
+    /// `registry_verified` is false for an entry parsed from the mirror
+    /// without a registry round-trip (see
+    /// [`super::PackageMetaCache::set_unverified`]). `picked` is whether the
+    /// entry produced a pick. Offline, every pick is served: there is nothing
+    /// to revalidate against.
+    pub(super) fn decide(inputs: &RouteInputs<'_>, registry_verified: bool, picked: bool) -> Self {
+        let RouteInputs { network, request, .. } = *inputs;
+        if network.forbids_registry() || registry_verified {
+            return CacheHitCheck::Serve;
+        }
+        if !picked {
+            return CacheHitCheck::Revalidate;
+        }
+        // These picks answer the same from a stale mirror.
+        if network.prefers_reachable_cache()
+            || request.pick_lowest_version
+            || request.spec_type == RegistryPackageSpecType::Version
+        {
+            return CacheHitCheck::Serve;
+        }
+        if inputs.range_pick_is_stable() {
+            CacheHitCheck::StableRangePick
+        } else {
+            CacheHitCheck::Revalidate
+        }
+    }
+}
+
 /// Whether a mirror written at `mtime` is young enough for
 /// [`MirrorShortcuts::unvalidated_mirror`].
 ///

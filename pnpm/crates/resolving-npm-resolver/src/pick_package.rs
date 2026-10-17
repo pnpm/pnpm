@@ -75,10 +75,7 @@ use route::DiskFirst;
 mod version_pick;
 use cache_hit::handle_cache_hit;
 use state::PickState;
-use version_pick::{
-    PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
-    unverified_pick_is_safe,
-};
+use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline};
 
 mod metadata_cache;
 

@@ -1,6 +1,6 @@
 use super::{
-    DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest, UNVALIDATED_MIRROR_MAX_AGE,
-    fetch_failure_falls_back, unvalidated_mirror_is_fresh,
+    CacheHitCheck, DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest,
+    UNVALIDATED_MIRROR_MAX_AGE, fetch_failure_falls_back, unvalidated_mirror_is_fresh,
 };
 use crate::{
     PackagePickPolicy, mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType,
@@ -250,4 +250,80 @@ fn only_a_private_route_denied_access_skips_the_mirror_fallback() {
     assert!(fetch_failure_falls_back(true, false));
     assert!(fetch_failure_falls_back(false, false));
     assert!(!fetch_failure_falls_back(false, true));
+}
+
+#[test]
+fn a_verified_or_offline_cache_hit_is_served_as_picked() {
+    let online = range_pick(&NO_POLICY, None);
+    let offline = RouteInputs { network: NetworkPolicy::Offline, ..online };
+    for picked in [true, false] {
+        assert_eq!(CacheHitCheck::decide(&online, true, picked), CacheHitCheck::Serve);
+        assert_eq!(CacheHitCheck::decide(&offline, false, picked), CacheHitCheck::Serve);
+    }
+}
+
+#[test]
+fn an_unverified_cache_hit_without_a_pick_revalidates() {
+    let cases = [
+        ("range", range_pick(&NO_POLICY, None)),
+        ("version", version_pick(&NO_POLICY, None)),
+        (
+            "prefer-offline",
+            RouteInputs { network: NetworkPolicy::PreferCache, ..range_pick(&NO_POLICY, None) },
+        ),
+    ];
+    for (name, inputs) in cases {
+        assert_eq!(
+            CacheHitCheck::decide(&inputs, false, false),
+            CacheHitCheck::Revalidate,
+            "{name}",
+        );
+    }
+}
+
+#[test]
+fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
+    let release_age = release_age_policy();
+    let no_downgrade =
+        PackagePickPolicy { trust_policy: Some(TrustPolicy::NoDowngrade), ..NO_POLICY };
+    let base = range_pick(&NO_POLICY, None);
+    let cases = [
+        (
+            "prefer-offline",
+            RouteInputs { network: NetworkPolicy::PreferCache, ..base },
+            CacheHitCheck::Serve,
+        ),
+        (
+            "pick lowest",
+            with_request(base, |request| request.pick_lowest_version = true),
+            CacheHitCheck::Serve,
+        ),
+        ("version", version_pick(&release_age, None), CacheHitCheck::Serve),
+        ("stable range", base, CacheHitCheck::StableRangePick),
+        (
+            "latest tag",
+            with_request(base, |request| request.include_latest_tag = true),
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "update checksums",
+            with_request(base, |request| request.update_checksums = true),
+            CacheHitCheck::Revalidate,
+        ),
+        ("release age", RouteInputs { policy: &release_age, ..base }, CacheHitCheck::Revalidate),
+        ("no-downgrade", RouteInputs { policy: &no_downgrade, ..base }, CacheHitCheck::Revalidate),
+        (
+            "blocked versions",
+            with_request(base, |request| request.has_blocked_versions = true),
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "tag",
+            with_request(base, |request| request.spec_type = RegistryPackageSpecType::Tag),
+            CacheHitCheck::Revalidate,
+        ),
+    ];
+    for (name, inputs, check) in cases {
+        assert_eq!(CacheHitCheck::decide(&inputs, false, true), check, "{name}");
+    }
 }
