@@ -342,6 +342,37 @@ fn auth_admins_are_usernames() {
 }
 
 #[test]
+fn is_reserved_name_identifies_admins_oidc_and_workload_users() {
+    let yaml = "\
+storage: ./s
+auth:
+  admins: [admin_alice]
+  oidc:
+    - name: provider1
+      issuer: https://issuer.example.com
+      audience: pnpr
+      login:
+        users:
+          - subject: sub-123
+            username: oidc_bob
+      workloads:
+        - identity:
+            subject: repo:pnpm/pnpm
+            username: workload_carol
+          registry: local
+          packages: ['@pnpm/*']
+registries:
+  local:
+    type: hosted
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.identity.is_reserved_name("admin_alice"));
+    assert!(config.identity.is_reserved_name("oidc_bob"));
+    assert!(config.identity.is_reserved_name("workload_carol"));
+    assert!(!config.identity.is_reserved_name("dan"));
+}
+
+#[test]
 fn teams_managed_by_is_hosted_only() {
     let hosted = "storage: ./s\nregistries:\n  local:\n    type: hosted\n    teamsManagedBy: api\n";
     let config = Config::from_yaml_str(hosted, Path::new("/x"), listen(), None).unwrap();

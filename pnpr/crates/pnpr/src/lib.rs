@@ -15,6 +15,7 @@
 #![recursion_limit = "256"]
 
 pub mod cache_maintenance;
+pub mod cli_commands;
 pub mod config_check;
 pub mod export;
 pub mod htpasswd_import;
