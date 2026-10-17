@@ -84,8 +84,9 @@ pub struct WorkspaceState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
     pub settings: WorkspaceStateSettings,
-    /// What the last validation proved about each project. pnpm v11 neither
-    /// reads nor writes it, so a state it wrote has none.
+    /// What the last validation proved about each project. `None` when it
+    /// recorded nothing, which leaves every project to be proven from the
+    /// lockfiles.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validation: Option<Validation>,
 }

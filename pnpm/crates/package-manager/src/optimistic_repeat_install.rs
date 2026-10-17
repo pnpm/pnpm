@@ -230,9 +230,9 @@ fn state_blocks_fast_path(
     state: &WorkspaceState,
     scope: Scope<'_>,
 ) -> Option<&'static str> {
-    // pnpm v11 records which projects it installed nowhere, and its current
-    // lockfile lists the projects a filtered install did not select as if it
-    // had installed them.
+    // A filtered state without validation records names no installed
+    // project, and the current lockfile lists the projects that install did
+    // not select as if it had installed them.
     if state.filtered_install && state.validation.is_none() && matches!(scope, Scope::Workspace) {
         return Some("the previous install was filtered");
     }
@@ -386,8 +386,8 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 }
 
 /// Whether the file at `path` may have changed at or after `cutoff_ms`. Only
-/// a state pnpm v11 wrote, which records no content digests, is judged this
-/// way. A file that can't be stat'd is treated as not modified, leaving a
+/// a state without validation records, which has no content digests, is
+/// judged this way. A file that can't be stat'd is treated as not modified, leaving a
 /// genuinely missing one to surface on the full install path.
 fn patch_modified_since(path: &Path, cutoff_ms: i64) -> bool {
     file_mtime(path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
@@ -444,7 +444,7 @@ fn pnpmfiles_drift(
             let modified = || format!(r#"pnpmfile at "{path}" was modified"#);
             let then = recorded.and_then(|recorded| recorded.files.get(path));
             let Some(then) = then else {
-                // A state pnpm v11 wrote records no digests.
+                // A state without validation records has no digests.
                 let mtime = file_mtime(Path::new(path)).map_or_else(|| Err(removed()), Ok);
                 return match mtime {
                     Err(removed) => Some(removed),

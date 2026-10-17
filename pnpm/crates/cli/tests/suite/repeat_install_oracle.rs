@@ -189,7 +189,7 @@ impl Scenario {
             .success()
     }
 
-    /// Drop the validation records from every state, as pnpm v11 writes it.
+    /// Drop the validation records from every state.
     fn strip_validation(&self) {
         for state_path in walk_files(self.workspace())
             .into_iter()
@@ -679,10 +679,10 @@ fn a_root_command_after_an_edit_in_a_project(layout: Layout) {
     scenario.check_gates();
 }
 
-/// A state without validation records, as pnpm v11 writes it, is proven again
-/// from the lockfiles once and then recorded. After a filtered install the
-/// install gate refuses it outright: pnpm v11's current lockfile cannot show
-/// which projects that install left out.
+/// A state without validation records is proven again from the lockfiles once
+/// and then recorded. After a filtered install the install gate refuses it
+/// outright: the current lockfile cannot show which projects that install
+/// left out.
 fn a_state_without_validation_records(layout: Layout) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
