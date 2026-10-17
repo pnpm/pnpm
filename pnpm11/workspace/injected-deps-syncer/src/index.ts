@@ -40,6 +40,8 @@ export interface SyncInjectedDepsOptions {
    * an in-place rewrite has already reached them.
    */
   manifestBeforeScripts?: DependencyManifest
+  /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
+  includeOnlyPackageFiles?: boolean
 }
 
 export interface InjectedEditWatch {
@@ -76,7 +78,7 @@ export async function injectedEditDirs (
  * resolution. Stop waits for an in-flight publish so the end-of-script hardlink
  * sync does not run beside it.
  */
-export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): InjectedEditWatch {
+export function watchInjectedEdits (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): InjectedEditWatch {
   const editedSinceMs = Date.now() - 2000
   let stopped = false
   let timer: ReturnType<typeof setInterval> | undefined
@@ -84,7 +86,7 @@ export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): In
 
   const publish = (): void => {
     if (stopped || inFlight != null) return
-    inFlight = publishToTargets(sourceDir, targetDirs, editedSinceMs).then(() => {
+    inFlight = publishToTargets({ sourceDir, targetDirs, includeOnlyPackageFiles }, editedSinceMs).then(() => {
       inFlight = undefined
     })
   }
@@ -100,10 +102,13 @@ export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): In
   }
 }
 
-async function publishToTargets (sourceDir: string, targetDirs: string[], editedSinceMs: number): Promise<void> {
+async function publishToTargets (
+  { sourceDir, targetDirs, includeOnlyPackageFiles }: { sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean },
+  editedSinceMs: number
+): Promise<void> {
   let source: PublishSource
   try {
-    source = await readPublishSource(sourceDir)
+    source = await readPublishSource(sourceDir, includeOnlyPackageFiles)
   } catch (err: unknown) {
     watchLogger.debug({
       err,
@@ -128,7 +133,7 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   if (located == null) return
 
   const { modules, pkgRootDir, resolvedTargetDirs } = located
-  const patchers = await DirPatcher.fromMultipleTargets(pkgRootDir, resolvedTargetDirs)
+  const patchers = await DirPatcher.fromMultipleTargets(pkgRootDir, resolvedTargetDirs, opts.includeOnlyPackageFiles)
   await Promise.all(patchers.map(patcher => patcher.apply()))
 
   await syncInjectedBinLinks(opts, modules, pkgRootDir, resolvedTargetDirs)

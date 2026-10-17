@@ -15,7 +15,10 @@ use crate::{
 use pnpm_package_manifest::{
     find_parent_publish_manifest, pkg_requires_build, safe_read_package_json_from_dir,
 };
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 /// One directory-fetch request. The `directory` is the absolute
 /// resolved path the caller wants packaged — the
@@ -116,6 +119,17 @@ impl DirectoryFetcher {
     /// `package.json` another process is still writing.
     pub fn list_files(&self) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {
         self.walk_files()
+    }
+
+    /// Every file under [`Self::directory`], which may be reached through a
+    /// symlink, with links confined to `root` instead of to the directory
+    /// itself. [`Self::include_only_package_files`] and
+    /// [`Self::allow_path_escape`] are not read.
+    pub fn list_all_files_within(
+        &self,
+        root: &Path,
+    ) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {
+        walker::walk_all_files_within(&self.directory, root, self.symlinks())
     }
 
     fn walk_files(&self) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {

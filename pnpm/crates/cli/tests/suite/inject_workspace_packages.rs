@@ -693,6 +693,38 @@ fn injected_copy_gets_the_output_of_the_prepare_script_run_by_install() {
     drop((root, mock_instance));
 }
 
+/// The sync after `prepare` reads the same files as the install, so the copy
+/// gains none that `files` leaves out.
+#[test]
+fn injected_copy_built_by_prepare_holds_only_the_files_the_manifest_lists() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "");
+    let manifest_path = workspace.join("project-1/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read project-1 manifest"))
+            .expect("parse project-1 manifest");
+    manifest["files"] = serde_json::json!(["dist"]);
+    fs::write(&manifest_path, manifest.to_string()).expect("write project-1 manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_injected_copy_is_built(&workspace, &copy);
+    assert!(!copy.join("build.cjs").exists(), "the copy holds a file `files` leaves out");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn injected_copy_gets_the_output_of_the_prepare_script_with_the_hoisted_linker() {
     let CommandTempCwd {

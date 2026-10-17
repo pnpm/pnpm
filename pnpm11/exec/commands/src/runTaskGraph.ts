@@ -233,6 +233,7 @@ async function runProjectScript (
   const { opts } = ctx
   const lifecycleOpts = await createTaskLifecycleOpts(ctx, node, manifest)
   const runScriptOptions: RunScriptOptions = {
+    deployAllFiles: opts.deployAllFiles,
     enablePrePostScripts: opts.enablePrePostScripts ?? false,
     syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
     workspaceDir: opts.workspaceDir,

@@ -199,7 +199,8 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   }
 
   await Promise.all(Array.from(filesMap.entries()).map(async ([relativePath, realPath]) => {
-    const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
+    const stats = filesStats?.[relativePath] ?? await statSkippingMissing(realPath)
+    if (stats == null) return
     if (stats.isFile()) {
       addInodeAndAncestors(relativePath, fileId(stats))
     } else if (stats.isDirectory()) {
@@ -212,11 +213,21 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   return result
 }
 
+/** A listed path can be gone by the time it is stat'd: a build script that deletes as it goes, or a symlink that broke. */
+async function statSkippingMissing (filePath: string): Promise<fs.Stats | undefined> {
+  try {
+    return await fs.promises.stat(filePath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
 const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
 
 const WATCH_MTIME_TOLERANCE_MS = 1
 
-const WATCH_FETCH_OPTIONS: FetchFromDirOptions = { resolveSymlinks: false }
+const LIST_FILES_OPTIONS: FetchFromDirOptions = { resolveSymlinks: false }
 
 /** A source directory's files, read once per poll and published to each of its injected copies. */
 export interface PublishSource {
@@ -224,8 +235,32 @@ export interface PublishSource {
   map: InodeMap
 }
 
-export async function readPublishSource (dir: string): Promise<PublishSource> {
-  return { dir, map: await extendFilesMap(await listFilesFromDir(dir, WATCH_FETCH_OPTIONS)) }
+export async function readPublishSource (dir: string, includeOnlyPackageFiles?: boolean): Promise<PublishSource> {
+  return { dir, map: await readInodeMap(dir, includeOnlyPackageFiles) }
+}
+
+async function readInodeMap (dir: string, includeOnlyPackageFiles?: boolean): Promise<InodeMap> {
+  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles })
+  const inodeMap = await extendFilesMap(listed)
+  if (!includeOnlyPackageFiles) return inodeMap
+  return addFilesUnderListedDirectories(dir, listed.filesMap, inodeMap)
+}
+
+/**
+ * The packlist names a symlinked directory as one entry, where the walk of
+ * every file lists the files under it. Replace the entry with those files, so
+ * the copy gets the same tree whichever walk read the source.
+ */
+async function addFilesUnderListedDirectories (dir: string, filesMap: Map<string, string>, inodeMap: InodeMap): Promise<InodeMap> {
+  const directories = Array.from(filesMap.keys()).filter((relativePath) => inodeMap[relativePath] === DIR)
+  const nestedMaps = await Promise.all(directories.map(async (directory) => {
+    delete inodeMap[directory]
+    const listed = await listFilesFromDir(path.join(dir, directory), { ...LIST_FILES_OPTIONS, packageRoot: dir })
+    return extendFilesMap({
+      filesMap: new Map(Array.from(listed.filesMap, ([relativePath, realPath]) => [`${directory}/${relativePath}`, realPath])),
+    })
+  }))
+  return nestedMaps.reduce((merged, nestedMap) => ({ ...merged, ...nestedMap }), inodeMap)
 }
 
 /**
@@ -240,7 +275,7 @@ export async function publishEditsForWatchers (
   editedSinceMs: number
 ): Promise<void> {
   const { dir: sourceDir, map: sourceMap } = source
-  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, WATCH_FETCH_OPTIONS))
+  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, LIST_FILES_OPTIONS))
 
   await syncRemovedWatchPaths(targetMap, sourceMap, targetDir)
   const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
@@ -377,18 +412,13 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
-    const fetchOptions: FetchFromDirOptions = {
-      resolveSymlinks: false,
-    }
-
-    async function loadMap (dir: string, dirFetchOptions: FetchFromDirOptions): Promise<[InodeMap, string]> {
-      const fetchResult = await listFilesFromDir(dir, dirFetchOptions)
-      return [await extendFilesMap(fetchResult), dir]
+    async function loadMap (dir: string, dirIncludeOnlyPackageFiles?: boolean): Promise<[InodeMap, string]> {
+      return [await readInodeMap(dir, dirIncludeOnlyPackageFiles), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
-      loadMap(sourceDir, { ...fetchOptions, includeOnlyPackageFiles }),
-      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir, fetchOptions))),
+      loadMap(sourceDir, includeOnlyPackageFiles),
+      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir))),
     ])
 
     return targetPairs.map(([targetMap, targetDir]) => {

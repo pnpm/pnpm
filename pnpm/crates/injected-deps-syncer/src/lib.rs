@@ -82,21 +82,32 @@ pub struct SyncInjectedDeps<'a> {
     pub pkg_name: Option<&'a str>,
     pub pkg_root_dir: &'a Path,
     pub workspace_dir: Option<&'a Path>,
-    /// The name of the workspace's modules directories, `node_modules`
-    /// unless `modulesDir` says otherwise.
-    pub modules_dir_name: &'a std::ffi::OsStr,
     /// The workspace root's resolved modules directory, which holds the
     /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
-    /// a path separator puts it deeper than `modules_dir_name` reaches.
+    /// a path separator puts it deeper than
+    /// [`BinLinkSettings::modules_dir_name`] reaches.
     pub workspace_modules_dir: &'a Path,
-    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
-    /// directory on `NODE_PATH`, as the install's shims do.
-    pub extend_node_path: bool,
+    pub bin_links: BinLinkSettings<'a>,
+    /// Selects the source files the install put in the copies, as
+    /// [`sync_injected_deps_of_modules_dir`] does, so the sync adds no file
+    /// the install left out.
+    pub include_only_package_files: bool,
     /// The package's manifest as it was before the scripts ran. A script
     /// that drops a bin leaves its shim behind, and the copies cannot say
     /// which bins they used to have: their `package.json` is hardlinked to
     /// the source, so an in-place rewrite has already reached them.
     pub manifest_before_scripts: Option<&'a serde_json::Value>,
+}
+
+/// How the workspace links bins, so the shims the sync relinks match the
+/// ones the install made.
+pub struct BinLinkSettings<'a> {
+    /// The name of the workspace's modules directories, `node_modules`
+    /// unless `modulesDir` says otherwise.
+    pub modules_dir_name: &'a std::ffi::OsStr,
+    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
+    /// directory on `NODE_PATH`, as the install's shims do.
+    pub extend_node_path: bool,
     /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
     /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
@@ -176,7 +187,7 @@ fn sync_injected_deps_from_source(
     if source_not_yet_built(source_dir)? {
         return Ok(());
     }
-    patch_targets(source_dir, &resolved_targets, false)?;
+    patch_targets(source_dir, &resolved_targets, opts.include_only_package_files)?;
 
     // Read from the project root, not `source_dir`: when `source_dir` is a
     // `publishConfig.directory`, `prepare` has already run by the time this
@@ -192,9 +203,7 @@ fn sync_injected_deps_from_source(
         workspace_dir,
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir,
-        ignored_directories: &opts.ignored_directories,
-        modules_dir_name: opts.modules_dir_name,
-        extend_node_path: opts.extend_node_path,
+        settings: &opts.bin_links,
     })
 }
 
@@ -294,6 +303,8 @@ fn resolved_injected_targets(
 pub struct InjectedEditSource {
     pub source: PathBuf,
     pub targets: Vec<PathBuf>,
+    /// See [`SyncInjectedDeps::include_only_package_files`].
+    pub include_only_package_files: bool,
 }
 
 /// The same sources [`sync_injected_deps`] patches from: the
@@ -328,7 +339,11 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
         .filter_map(|source| {
             let targets =
                 resolved_injected_targets(opts, workspace_dir, &source, modules.as_ref())?;
-            Some(InjectedEditSource { source, targets })
+            Some(InjectedEditSource {
+                source,
+                targets,
+                include_only_package_files: opts.include_only_package_files,
+            })
         })
         .collect()
 }
@@ -386,7 +401,11 @@ pub fn watch_injected_edits(sources: Vec<InjectedEditSource>) -> InjectedEditWat
 }
 
 fn publish_to_targets(
-    InjectedEditSource { source, targets }: &InjectedEditSource,
+    InjectedEditSource {
+        source,
+        targets,
+        include_only_package_files,
+    }: &InjectedEditSource,
     edited_since: SystemTime,
 ) {
     // A publish directory the script has not built yet reads back empty,
@@ -394,7 +413,7 @@ fn publish_to_targets(
     if !source.is_dir() {
         return;
     }
-    let source_files = match dir_patcher::PublishSource::load(source) {
+    let source_files = match dir_patcher::PublishSource::load(source, *include_only_package_files) {
         Ok(source_files) => source_files,
         Err(error) => {
             tracing::debug!(

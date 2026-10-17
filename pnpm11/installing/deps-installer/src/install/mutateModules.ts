@@ -213,6 +213,7 @@ function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): Ru
     extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
+    includeOnlyPackageFiles: !opts.deployAllFiles,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     userAgent: opts.userAgent,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,

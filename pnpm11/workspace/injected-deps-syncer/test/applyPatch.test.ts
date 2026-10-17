@@ -315,6 +315,67 @@ test('publishEditsForWatchers replaces an edited hardlink with a file a watcher 
   }
 })
 
+test('publishEditsForWatchers leaves out the files the manifest does not list when reading package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['index.js'] }))
+  createFile(path.join(source, 'index.js'), 'built')
+  createFile(path.join(source, 'src/index.ts'), 'source')
+  fs.mkdirSync(target)
+  try {
+    await publishEditsForWatchers(await readPublishSource(source, true), target, 0)
+    expect(fs.readFileSync(path.join(target, 'index.js'), 'utf8')).toBe('built')
+    expect(fs.existsSync(path.join(target, 'src'))).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('readPublishSource skips a dangling symlink among the package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source' }))
+  createFile(path.join(source, 'index.js'), 'built')
+  fs.symlinkSync('missing.js', path.join(source, 'dangling.js'))
+  try {
+    const { map } = await readPublishSource(source, true)
+    expect(Object.keys(map).sort()).toStrictEqual(['.', 'index.js', 'package.json'])
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+function prepareSourceWithLinkedDirectory (root: string, innerLinkTarget: string): string {
+  const source = path.join(root, 'source')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['link-to-a-dir'] }))
+  createFile(path.join(source, 'files/foo/bar.txt'), 'bar')
+  createFile(path.join(source, 'other/sibling.txt'), 'sibling')
+  createFile(path.join(root, 'outside/secret.txt'), 'secret')
+  fs.symlinkSync(innerLinkTarget, path.join(source, 'files/foo/inner'))
+  fs.symlinkSync('files/foo', path.join(source, 'link-to-a-dir'))
+  return source
+}
+
+testOnPosix('readPublishSource lists the files under a symlinked directory the packlist names', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, '../../other'), true)
+    expect(Object.keys(map)).toEqual(expect.arrayContaining(['link-to-a-dir/bar.txt', 'link-to-a-dir/inner/sibling.txt']))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('readPublishSource rejects a link under a symlinked directory that leaves the package', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    await expect(readPublishSource(prepareSourceWithLinkedDirectory(root, '../../../outside'), true)).rejects.toThrow('outside the package directory')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('publishEditsForWatchers leaves a hardlink that predates the watch', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
   const source = path.join(root, 'source')

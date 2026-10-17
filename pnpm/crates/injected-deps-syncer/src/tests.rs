@@ -1,6 +1,6 @@
 use crate::{
-    SyncInjectedDeps, injected_edit_sources, injected_source_dirs, sync_injected_deps,
-    sync_injected_deps_of_modules_dir, watch_injected_edits,
+    BinLinkSettings, SyncInjectedDeps, injected_edit_sources, injected_source_dirs,
+    sync_injected_deps, sync_injected_deps_of_modules_dir, watch_injected_edits,
 };
 use pretty_assertions::assert_eq;
 use std::{
@@ -61,11 +61,14 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         pkg_name: Some("project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
-        modules_dir_name: OsStr::new("node_modules"),
         workspace_modules_dir: &workspace.join("node_modules"),
-        extend_node_path: false,
+        include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
-        ignored_directories: Vec::new(),
+        bin_links: BinLinkSettings {
+            modules_dir_name: OsStr::new("node_modules"),
+            extend_node_path: false,
+            ignored_directories: Vec::new(),
+        },
     })
     .expect("sync should not fail when the publish directory is missing");
 
@@ -185,11 +188,14 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         pkg_name: Some("project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
-        modules_dir_name: OsStr::new("node_modules"),
         workspace_modules_dir: &workspace.join("node_modules"),
-        extend_node_path: false,
+        include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
-        ignored_directories: Vec::new(),
+        bin_links: BinLinkSettings {
+            modules_dir_name: OsStr::new("node_modules"),
+            extend_node_path: false,
+            ignored_directories: Vec::new(),
+        },
     })
     .expect("sync should not fail");
 
@@ -249,11 +255,14 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         pkg_name: Some("project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
-        modules_dir_name: OsStr::new("node_modules"),
         workspace_modules_dir: &workspace.join("node_modules"),
-        extend_node_path: false,
+        include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
-        ignored_directories: Vec::new(),
+        bin_links: BinLinkSettings {
+            modules_dir_name: OsStr::new("node_modules"),
+            extend_node_path: false,
+            ignored_directories: Vec::new(),
+        },
     });
     assert_eq!(
         sources

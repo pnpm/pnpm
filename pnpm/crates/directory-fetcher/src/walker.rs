@@ -64,6 +64,27 @@ pub(crate) fn walk_all_files(
     Ok(out)
 }
 
+/// [`walk_all_files`] of `dir`, a directory inside `root`, confining links to
+/// `root`.
+pub(crate) fn walk_all_files_within(
+    dir: &Path,
+    root: &Path,
+    symlinks: Symlinks,
+) -> Result<FilesMap, DirectoryFetcherError> {
+    let confined_root = canonicalize_path(root)?;
+    let start = canonicalize_path(dir)?;
+    if !start.starts_with(&confined_root) {
+        return Err(DirectoryFetcherError::PathOutsideDirectory {
+            path: dir.to_path_buf(),
+            directory: confined_root,
+        });
+    }
+    let mut out = FilesMap::new();
+    let mut visited = HashSet::new();
+    walk_all_inner(&start, "", symlinks, Some(&confined_root), &mut visited, &mut out)?;
+    Ok(out)
+}
+
 fn is_linked_entry(metadata: &Metadata) -> bool {
     #[cfg(windows)]
     {

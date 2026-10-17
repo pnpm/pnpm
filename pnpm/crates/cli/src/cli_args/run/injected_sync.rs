@@ -3,8 +3,8 @@
 
 use super::{RunContext, Value};
 use pnpm_injected_deps_syncer::{
-    InjectedEditWatch, SyncInjectedDeps, injected_edit_sources, sync_injected_deps,
-    watch_injected_edits,
+    BinLinkSettings, InjectedEditWatch, SyncInjectedDeps, injected_edit_sources,
+    sync_injected_deps, watch_injected_edits,
 };
 
 pub(super) fn start_injected_edit_watch(
@@ -39,11 +39,14 @@ fn injected_sync_opts<'a>(ctx: &'a RunContext<'_>) -> SyncInjectedDeps<'a> {
             .and_then(Value::as_str),
         pkg_root_dir: ctx.dir,
         workspace_dir: ctx.config.workspace_dir.as_deref(),
-        modules_dir_name: ctx.config.modules_dir_name(),
         workspace_modules_dir: &ctx.config.modules_dir,
-        extend_node_path: ctx.config.extend_node_path,
+        include_only_package_files: !ctx.config.deploy_all_files,
         // Read before the script ran, so a bin it drops can still be named.
         manifest_before_scripts: Some(ctx.manifest.value()),
-        ignored_directories: ctx.config.managed_directories(),
+        bin_links: BinLinkSettings {
+            modules_dir_name: ctx.config.modules_dir_name(),
+            extend_node_path: ctx.config.extend_node_path,
+            ignored_directories: ctx.config.managed_directories(),
+        },
     }
 }
