@@ -333,7 +333,6 @@ fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
 }
 /// Rewrite the wanted lockfile so a content check would report the project
 /// outdated, keeping its size and its mtime.
-#[cfg(unix)]
 fn poison_lockfile_content(workspace_root: &std::path::Path) {
     let path = workspace_root.join(Lockfile::FILE_NAME);
     let modified = fs::metadata(&path)
@@ -345,8 +344,8 @@ fn poison_lockfile_content(workspace_root: &std::path::Path) {
 }
 
 /// A lockfile edit that restores both its size and its mtime still moves the
-/// inode change time, which the recorded signature compares.
-#[cfg(unix)]
+/// change time (the inode's on Unix, NTFS's on Windows), which the recorded
+/// signature compares.
 #[test]
 fn a_lockfile_edit_that_restores_its_size_and_mtime_is_detected() {
     let (dir, config) = setup_content_check_project();
