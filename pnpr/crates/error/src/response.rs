@@ -61,6 +61,7 @@ impl RegistryError {
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
+            RegistryError::ReservedUsername { .. } => "reserved_username",
             RegistryError::TooManyRequests { .. } => "too_many_requests",
             RegistryError::RequestTimeout { .. } => "request_timeout",
             RegistryError::Shared(inner) => inner.log_kind(),
@@ -187,7 +188,8 @@ impl RegistryError {
             | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
-            | RegistryError::TooManyUsers { .. } => StatusCode::FORBIDDEN,
+            | RegistryError::TooManyUsers { .. }
+            | RegistryError::ReservedUsername { .. } => StatusCode::FORBIDDEN,
             RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Shared(inner) => inner.status_code(),

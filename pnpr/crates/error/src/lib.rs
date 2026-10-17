@@ -287,6 +287,15 @@ pub enum RegistryError {
     #[from(skip)]
     TooManyUsers { max: u64 },
 
+    /// A registration attempt targeted a reserved username (`auth.admins`
+    /// or an OIDC login binding).
+    #[display("Username {name:?} is reserved")]
+    #[from(skip)]
+    ReservedUsername {
+        #[error(not(source))]
+        name: String,
+    },
+
     /// The client sent too many requests. Maps to 429 Too Many Requests.
     #[display("Too many requests: {reason}")]
     #[from(skip)]

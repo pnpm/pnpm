@@ -76,6 +76,7 @@ chrono = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
+dialoguer = { workspace = true, features = ["password"] }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }

@@ -1,6 +1,6 @@
+use crate::{Config, RegistryError};
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
-use pnpr::{Config, RegistryError};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Debug, Subcommand)]
@@ -100,6 +100,14 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
+    /// Add or update a user account in the configured auth backend.
+    AddUser {
+        /// Username of the account to create or update.
+        username: String,
+        /// Password for the account. Prompted from stdin if omitted.
+        #[arg(long)]
+        password: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -117,6 +125,9 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
         Command::ImportHtpasswd { .. } => run_import_command(config, command),
+        Command::AddUser { username, password } => {
+            run_add_user_command(config, username, password).await
+        }
     }
 }
 
@@ -172,7 +183,7 @@ async fn run_migrate_command(config: &Config, command: Command) -> miette::Resul
     else {
         return Ok(());
     };
-    let options = pnpr::migrate_storage::MigrateStorageOptions {
+    let options = crate::migrate_storage::MigrateStorageOptions {
         from,
         to_bucket,
         to_region,
@@ -192,17 +203,17 @@ fn run_import_command(config: &Config, command: Command) -> miette::Result<()> {
 }
 
 fn run_config_check() -> miette::Result<()> {
-    let report = pnpr::config_check::check_config(None)?;
-    println!("{}", pnpr::config_check::format_report(&report));
+    let report = crate::config_check::check_config(None)?;
+    println!("{}", crate::config_check::format_report(&report));
     Ok(())
 }
 
 async fn run_migrate_storage(
     config: &Config,
-    options: pnpr::migrate_storage::MigrateStorageOptions,
+    options: crate::migrate_storage::MigrateStorageOptions,
 ) -> miette::Result<()> {
-    let report = pnpr::migrate_storage::migrate_local_to_s3(config, &options).await?;
-    print!("{}", pnpr::migrate_storage::format_migrate_report(&report));
+    let report = crate::migrate_storage::migrate_local_to_s3(config, &options).await?;
+    print!("{}", crate::migrate_storage::format_migrate_report(&report));
     Ok(())
 }
 
@@ -212,9 +223,9 @@ async fn run_verify(
     prune_orphans: bool,
     min_age_secs: u64,
 ) -> miette::Result<()> {
-    let options = pnpr::verify::VerifyOptions { check_hashes, prune_orphans, min_age_secs };
-    let report = pnpr::verify::verify_storage(config, &options).await?;
-    print!("{}", pnpr::verify::format_verify_report(&report));
+    let options = crate::verify::VerifyOptions { check_hashes, prune_orphans, min_age_secs };
+    let report = crate::verify::verify_storage(config, &options).await?;
+    print!("{}", crate::verify::format_verify_report(&report));
     if !report.missing_blobs.is_empty() || !report.corrupted_blobs.is_empty() {
         let missing_count = report.missing_blobs.len();
         let corrupted_count = report.corrupted_blobs.len();
@@ -226,8 +237,8 @@ async fn run_verify(
 }
 
 async fn run_export(config: &Config, out: PathBuf, include_auth: bool) -> miette::Result<()> {
-    let report = pnpr::export::export_storage(config, &out, include_auth).await?;
-    print!("{}", pnpr::export::format_export_report(&report));
+    let report = crate::export::export_storage(config, &out, include_auth).await?;
+    print!("{}", crate::export::format_export_report(&report));
     Ok(())
 }
 
@@ -244,14 +255,14 @@ fn run_import_htpasswd(
             "no target htpasswd file specified and none configured in identity.auth.htpasswd.file; pass --target <path>"
         ));
     };
-    let options = pnpr::htpasswd_import::HtpasswdImportOptions {
+    let options = crate::htpasswd_import::HtpasswdImportOptions {
         source,
         target: Some(target),
         dry_run,
         overwrite,
     };
-    let report = pnpr::htpasswd_import::import_htpasswd(&options)?;
-    print!("{}", pnpr::htpasswd_import::format_import_report(&report));
+    let report = crate::htpasswd_import::import_htpasswd(&options)?;
+    print!("{}", crate::htpasswd_import::format_import_report(&report));
     Ok(())
 }
 
@@ -261,8 +272,8 @@ async fn run_oci_gc(
     dry_run: bool,
     min_age_secs: u64,
 ) -> miette::Result<()> {
-    pnpr::recover_publish_journal(config).await.map_err(|err| redacted_report(&err))?;
-    let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
+    crate::recover_publish_journal(config).await.map_err(|err| redacted_report(&err))?;
+    let (blobs, bytes) = crate::oci_maintenance::collect_oci_blobs(
         config,
         &registry,
         Duration::from_secs(min_age_secs),
@@ -290,13 +301,13 @@ async fn run_cache_gc(
     } else {
         None
     };
-    let options = pnpr::cache_maintenance::CacheGcOptions {
+    let options = crate::cache_maintenance::CacheGcOptions {
         dry_run,
         max_size,
         max_age: max_age_secs.map(Duration::from_secs),
         orphans_only,
     };
-    let report = pnpr::cache_maintenance::collect_cache(config, &options).await
+    let report = crate::cache_maintenance::collect_cache(config, &options).await
         .map_err(|err| redacted_report(&err))?;
     tracing::info!(
         namespaces = report.namespaces_removed,
@@ -311,4 +322,73 @@ async fn run_cache_gc(
 fn redacted_report(err: &RegistryError) -> miette::Report {
     let message = err.log_message();
     miette::miette!("{message}")
+}
+
+fn read_password() -> miette::Result<String> {
+    use std::io::IsTerminal;
+    let trimmed = if std::io::stdin().is_terminal() {
+        dialoguer::Password::new()
+            .with_prompt("Enter password")
+            .allow_empty_password(true)
+            .interact()
+            .map_err(|err| miette::miette!("could not read password from terminal: {err}"))?
+    } else {
+        let mut line = String::new();
+        std::io::stdin()
+            .read_line(&mut line)
+            .map_err(|err| miette::miette!("could not read password from stdin: {err}"))?;
+        line.trim_end_matches(['\r', '\n'])
+            .to_string()
+    };
+    if trimmed.is_empty() {
+        return Err(miette::miette!("password cannot be empty"));
+    }
+    Ok(trimmed)
+}
+
+async fn run_add_user_command(
+    config: &Config,
+    username: String,
+    password: Option<String>,
+) -> miette::Result<()> {
+    if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
+        && config.identity.auth.htpasswd.file.is_none()
+    {
+        return Err(miette::miette!(
+            "standalone add-user requires a persistent auth backend (configure auth.htpasswd.file or a database backend)"
+        ));
+    }
+    let password = match password {
+        Some(password) => password,
+        None => read_password()?,
+    };
+    if password.is_empty() {
+        return Err(miette::miette!("password cannot be empty"));
+    }
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
+        return Err(miette::miette!(
+            "password cannot exceed {} bytes",
+            pnpr_auth::MAX_PASSWORD_BYTES,
+        ));
+    }
+    let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
+    let users = &auth.users;
+    if users
+        .create_user(&username, &password)
+        .await
+        .map_err(|err| miette::miette!("{err}"))?
+    {
+        println!("User '{username}' created successfully.");
+    } else if users
+        .set_password(&username, &password)
+        .await
+        .map_err(|err| miette::miette!("{err}"))?
+    {
+        println!("Password for user '{username}' updated successfully.");
+    } else {
+        return Err(miette::miette!("failed to create or update user '{username}'"));
+    }
+    Ok(())
 }

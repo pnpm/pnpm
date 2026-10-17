@@ -226,6 +226,34 @@ impl IdentityConfig {
             Identity::Anonymous | _ => false,
         }
     }
+
+    /// Whether `username` is a configured admin, an OIDC login user,
+    /// or an OIDC workload binding. Such names cannot be self-registered.
+    #[must_use]
+    pub fn is_reserved_name(&self, username: &str) -> bool {
+        if self.admins.contains(username) {
+            return true;
+        }
+        for provider in &self.auth.oidc {
+            if provider.login
+                .as_ref()
+                .is_some_and(|login| {
+                    login.users
+                        .iter()
+                        .any(|binding| binding.username == username)
+                })
+            {
+                return true;
+            }
+            if provider.workloads
+                .iter()
+                .any(|workload| workload.identity.username == username)
+            {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 pub(super) fn build_identity_config(

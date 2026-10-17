@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{AuthState, Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -56,6 +56,12 @@ fn load_config(dir: &Path) -> Config {
     std::fs::write(&path, format!("storage: {}\n{CONFIG}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+async fn app_router(config: Config) -> axum::Router {
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    auth.users.create_user("root", "secret").await.unwrap();
+    router_with_auth(config, auth)
 }
 
 async fn send(
@@ -109,7 +115,7 @@ async fn app_rule(app: &axum::Router, root: &str) -> Value {
 #[tokio::test]
 async fn a_grant_edits_the_package_rule_and_a_revoke_undoes_it() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let carol = add_user(&app, "carol").await;
     assert_eq!(read_app(&app, &carol).await, StatusCode::FORBIDDEN);
@@ -143,7 +149,7 @@ async fn a_grant_edits_the_package_rule_and_a_revoke_undoes_it() {
 #[tokio::test]
 async fn a_grant_stores_only_the_lists_it_changes() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let grant = json!({ "package": "@acme/app", "permissions": "read-only" });
     assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
@@ -156,7 +162,7 @@ async fn a_grant_stores_only_the_lists_it_changes() {
 #[tokio::test]
 async fn grants_need_an_admin_a_declared_package_and_a_known_team() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let carol = add_user(&app, "carol").await;
     let grant = |package: &str| json!({ "package": package, "permissions": "read-write" });

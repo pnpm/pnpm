@@ -5,7 +5,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{AuthState, Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -153,6 +153,12 @@ fn load_config(dir: &Path) -> Config {
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
 }
 
+async fn app_router(config: Config) -> axum::Router {
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    auth.users.create_user("root", "secret").await.unwrap();
+    router_with_auth(config, auth)
+}
+
 async fn send(
     app: &axum::Router,
     method: &str,
@@ -244,7 +250,7 @@ async fn send_bytes(
 async fn audit_log_user_admin_and_registration() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = login(&app, "root", "secret").await;
 
     // 1. user.create
@@ -316,7 +322,7 @@ async fn audit_log_user_admin_and_registration() {
 async fn audit_log_rule_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = login(&app, "root", "secret").await;
 
     // 1. rules.replace
@@ -350,7 +356,7 @@ async fn audit_log_rule_admin() {
 async fn audit_log_team_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = login(&app, "root", "secret").await;
 
     // 1. team.create
@@ -433,7 +439,7 @@ async fn audit_log_team_admin() {
 async fn audit_log_scim_operations() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
 
     // 1. scim.user_create
     let (status, _) = send(
@@ -512,7 +518,7 @@ async fn audit_log_scim_operations() {
 async fn audit_log_unpublish_and_dist_tags() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let publisher = login(&app, "aud_publisher", "pass").await;
 
     // Publish package
