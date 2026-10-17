@@ -5,6 +5,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import {
+  getDeclaredPeerDependencies,
   getNonDevWantedDependencies,
   lockedVersionSatisfies,
   type ManifestWantedDependency,
@@ -121,15 +122,22 @@ async function readHookedManifest (ctx: LocalDirectoryDepContext, declared: Depe
   return hook == null ? declared : await hook(clone(declared)) as DependencyManifest
 }
 
-/** The lockfile records the peers the resolver reads from the manifest (see `peerDependenciesWithoutOwn`). */
+/**
+ * The lockfile records the peers the package declares (see
+ * `getDeclaredPeerDependencies`). A lockfile written before those included
+ * the peers that are also `dependencies` records only the rest (see
+ * `peerDependenciesWithoutOwn`).
+ */
 function recordedPeersMatch (ctx: LocalDirectoryDepContext, manifest: DependencyManifest, pkgSnapshot: PackageSnapshot): boolean {
-  const peers = Object.entries(peerDependenciesWithoutOwn(manifest))
+  const declared = getDeclaredPeerDependencies(manifest)
   const recorded = pkgSnapshot.peerDependencies ?? {}
-  if (peers.length !== Object.keys(recorded).length) return false
-  return peers.every(([name, peer]) =>
-    peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name]) &&
-    Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
-  )
+  return Object.keys(peerDependenciesWithoutOwn(manifest)).every((name) => Object.hasOwn(recorded, name)) &&
+    Object.keys(recorded).every((name) => {
+      const peer = declared[name]
+      return peer != null &&
+        peerRangeMatches(ctx, { alias: name, bareSpecifier: peer.version }, recorded[name]) &&
+        Boolean(peer.optional) === Boolean(pkgSnapshot.peerDependenciesMeta?.[name]?.optional)
+    })
 }
 
 function peerRangeMatches (

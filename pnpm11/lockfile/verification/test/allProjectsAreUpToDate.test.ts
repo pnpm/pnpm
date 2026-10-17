@@ -1299,6 +1299,25 @@ describe('local file dependency', () => {
     expect(await check(false)).toBe(false)
   })
 
+  test('allProjectsAreUpToDate(): accepts a peer of local file that is also its dependency whether or not the lockfile records it', async () => {
+    await writeLocalDirManifest({
+      dependencies: { 'is-positive': '2.0.0' },
+      peerDependencies: { 'is-positive': '^2.0.0' },
+    })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (snapshot: PackageSnapshot) => allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: { ...options.wantedLockfile.packages, 'local@file:./local-dir': snapshot } as LockfileObject['packages'],
+      },
+    })
+    expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^2.0.0' } })).toBeTruthy()
+    expect(await check(localDirSnapshot)).toBeTruthy()
+    expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^3.0.0' } })).toBeFalsy()
+  })
+
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }
