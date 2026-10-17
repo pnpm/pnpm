@@ -68,7 +68,9 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
     return { upToDate: false, issue, workspaceState }
   }
 
-  const proof = opts.sharedWorkspaceLockfile === false
+  // The recorded digest covers the main lockfile only, not the branch
+  // lockfiles merged into the wanted one.
+  const proof = opts.sharedWorkspaceLockfile === false || opts.mergeGitBranchLockfiles
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), ctx.wantedLockfileName)
   return proof == null

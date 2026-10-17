@@ -1,3 +1,4 @@
+import { rmSync, statSync, writeFileSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -98,7 +99,11 @@ async function recordInstall (workspace: RecordedWorkspace, vouched?: string[]):
   })
 }
 
-function check (workspace: RecordedWorkspace, selected?: string[]): ReturnType<typeof checkDepsStatus> {
+function check (
+  workspace: RecordedWorkspace,
+  selected?: string[],
+  extraOpts?: Partial<CheckDepsStatusOptions>
+): ReturnType<typeof checkDepsStatus> {
   const selectedProjectsGraph = selected == null
     ? undefined
     : Object.fromEntries(selected.map((name) => {
@@ -115,6 +120,7 @@ function check (workspace: RecordedWorkspace, selected?: string[]): ReturnType<t
     pnpmfile: [],
     configDependencies: CONFIG_DEPENDENCIES,
     selectedProjectsGraph,
+    ...extraOpts,
   } as CheckDepsStatusOptions
   return checkDepsStatus(opts)
 }
@@ -204,9 +210,34 @@ describe('checkDepsStatus with recorded validations', () => {
     const signature = state.validation!.files![lockfilePath]
     state.validation!.recordedAtNs = Math.max(signature.mtimeNs, signature.ctimeNs ?? 0)
     await fs.writeFile(statePath, JSON.stringify(state))
+    waitForFilesystemClockPast(workspace.workspaceDir, state.validation!.recordedAtNs)
     expect(await check(workspace)).toMatchObject({ upToDate: true })
     const refreshed = loadWorkspaceState(workspace.workspaceDir)!
     expect(refreshed.validation!.recordedAtNs).toBeGreaterThan(state.validation!.recordedAtNs)
     expect(refreshed.validation!.manifests).toStrictEqual(state.validation!.manifests)
   })
+
+  // The recorded digest covers pnpm-lock.yaml alone, so a branch lockfile
+  // merged into the wanted one leaves the check to the lockfiles.
+  it('notices a branch lockfile that changes what the merged lockfile wants', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    const branchDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-branch-lockfile-'))
+    workspaces.push(branchDir)
+    await writeWantedLockfile(branchDir, lockfileWith({ bar: '1.0.0', foo: '1.0.0' }))
+    await fs.copyFile(path.join(branchDir, 'pnpm-lock.yaml'), path.join(workspace.workspaceDir, 'pnpm-lock.feature.yaml'))
+    expect(await check(workspace, undefined, { mergeGitBranchLockfiles: true })).toMatchObject({ upToDate: false })
+  })
+
 })
+
+/**
+ * Waits until the filesystem clock in `dir` passes `ns`, so a record made now
+ * can be trusted.
+ */
+function waitForFilesystemClockPast (dir: string, ns: number): void {
+  const probe = path.join(dir, '.clock-probe')
+  do {
+    writeFileSync(probe, '')
+  } while (Number(statSync(probe, { bigint: true }).mtimeNs) <= ns)
+  rmSync(probe)
+}

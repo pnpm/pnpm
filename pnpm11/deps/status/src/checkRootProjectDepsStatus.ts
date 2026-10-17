@@ -59,7 +59,7 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
     return { upToDate: false, issue, workspaceState }
   }
 
-  const proof = validationProof(workspaceState, rootProjectManifestDir, ctx.wantedLockfileName)
+  const proof = recordedProof(ctx)
   if (proof != null) return checkRecordedRootProject(ctx, lockfiles, proof)
 
   await assertLockfilesEqualWhenWantedIsNewer(lockfiles, rootProjectManifestDir)
@@ -83,6 +83,14 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
   }
 
   return upToDateRootProjectResult(lockfiles, ctx)
+}
+
+/**
+ * What the recorded validation proves. The recorded digest covers the main
+ * lockfile only, not the branch lockfiles merged into the wanted one.
+ */
+function recordedProof ({ opts, rootProjectManifestDir, wantedLockfileName, workspaceState }: RootProjectDepsStatusContext): ValidationProof | undefined {
+  return opts.mergeGitBranchLockfiles ? undefined : validationProof(workspaceState, rootProjectManifestDir, wantedLockfileName)
 }
 
 /**
