@@ -24,7 +24,7 @@ The behavior of `pnpm self-update` depends on the project context:
 
 ### In a project that pins pnpm
 
-When the project's manifest has a `packageManager` field set to pnpm (or a `devEngines.packageManager` entry for pnpm), `self-update` only updates the pinned version in that manifest to the resolved one. In a workspace, the pin is read from and written to the workspace root's manifest, even when the command runs in a workspace package. It does not install pnpm globally. The next time you run a pnpm command, pnpm will automatically download and switch to the specified version.
+When the project's manifest has a `packageManager` field set to pnpm (or a `devEngines.packageManager` entry for pnpm), `self-update` updates the pinned version in that manifest to the resolved one. In a workspace, this is the workspace root's manifest, even when the command runs in a workspace package. It also installs the resolved version globally, as it does outside a project. The pin is written after the global install, so a failed install leaves the project unchanged.
 
 ### Outside a project (or when the pnpm pin is ignored)
 
