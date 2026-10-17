@@ -159,7 +159,6 @@ fn build_state_unchanged(
             current,
             config,
             context.tree.workspace_root,
-            context.repeat.effective_node_version,
         )
 }
 pub(super) fn modules_cache_prune_due(
