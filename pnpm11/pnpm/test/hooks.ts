@@ -197,14 +197,39 @@ test('a project with its own lockfile runs the preResolution hooks of the global
     packages: ['project'],
     sharedWorkspaceLockfile: false,
   })
-  const marker = path.resolve('marker.txt')
-  const appendHook = (name: string) => `module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(${JSON.stringify(marker)}, '${name};') } } }\n`
-  fs.writeFileSync('.pnpmfile.cjs', appendHook('workspace'))
-  fs.writeFileSync('../global-pnpmfile.cjs', appendHook('global'))
+  // Each pnpmfile counts its runs in a file next to itself.
+  const countingPnpmfile = "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n"
+  fs.writeFileSync('.pnpmfile.cjs', countingPnpmfile)
+  fs.mkdirSync('../global')
+  fs.writeFileSync('../global/pnpmfile.cjs', countingPnpmfile)
 
-  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global-pnpmfile.cjs')])
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global', 'pnpmfile.cjs')])
 
-  expect(fs.readFileSync(marker, 'utf8').split(';').filter(Boolean).sort()).toStrictEqual(['global', 'workspace'])
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;')
+  expect(fs.readFileSync('../global/runs.txt', 'utf8')).toBe('run;')
+})
+
+test('the workspace root project with its own lockfile runs the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '1.0.0' },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'project'],
+    sharedWorkspaceLockfile: false,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n")
+
+  await execPnpm(['install'])
+
+  // Once for each of the two projects.
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;run;')
 })
 
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
