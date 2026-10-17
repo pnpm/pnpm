@@ -488,6 +488,21 @@ fn collide_mtimes_with_recorded_state(
     );
 }
 
+/// Date the wanted lockfile [`lockfile_mtime_after`] `recorded`, the
+/// state's `lastValidatedTimestamp`, so the next check compares its content.
+fn date_lockfile_after(workspace_root: &std::path::Path, recorded: i64) {
+    set_mtime_ms(&workspace_root.join(Lockfile::FILE_NAME), lockfile_mtime_after(recorded));
+}
+
+/// [`MTIME_STEP_MS`] past `recorded`, never on an exact second. The check
+/// reads such an mtime as whole-second precision, which covers the whole
+/// second, so the check that compared the lockfile could not record a
+/// timestamp past it and the next run would compare it again.
+fn lockfile_mtime_after(recorded: i64) -> i64 {
+    let ms = recorded + MTIME_STEP_MS;
+    if ms % 1_000 == 0 { ms - 1 } else { ms }
+}
+
 /// Rewrite the wanted lockfile so a content check would report the
 /// project outdated while leaving its mtime untouched, so an up-to-date
 /// verdict after this can only have come from the pure-mtime fast path.

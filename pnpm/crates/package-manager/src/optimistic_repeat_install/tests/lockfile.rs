@@ -8,9 +8,10 @@ use super::{
     },
     FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
     backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
-    isolated_included, poison_lockfile_content, recorded_timestamp, setup_content_check_project,
-    setup_fresh_install, setup_fresh_install_with_config, single_project_deps_status,
-    validate_existing_files, write_bare_tarball_lockfile, write_state,
+    date_lockfile_after, isolated_included, lockfile_mtime_after, poison_lockfile_content,
+    recorded_timestamp, setup_content_check_project, setup_fresh_install,
+    setup_fresh_install_with_config, single_project_deps_status, validate_existing_files,
+    write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
@@ -631,8 +632,7 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
 fn single_project_run_check_converges_after_lockfile_content_matches() {
     let (dir, config) = setup_content_check_project();
     let before = recorded_timestamp(dir.path());
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
-    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    date_lockfile_after(dir.path(), before);
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
     assert_eq!(
@@ -651,11 +651,18 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
 }
 
 #[test]
+fn lockfile_mtime_after_keeps_off_an_exact_second() {
+    let cases = [(1_700_000_000_123, 1_700_000_001_123), (1_699_999_999_000, 1_699_999_999_999)];
+    for (recorded, mtime) in cases {
+        assert_eq!(lockfile_mtime_after(recorded), mtime, "recorded={recorded}");
+    }
+}
+
+#[test]
 fn single_project_repeat_install_converges_after_lockfile_content_matches() {
     let (dir, config) = setup_content_check_project();
     let before = recorded_timestamp(dir.path());
-    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
-    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    date_lockfile_after(dir.path(), before);
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
