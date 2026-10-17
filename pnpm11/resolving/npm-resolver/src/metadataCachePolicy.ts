@@ -10,12 +10,6 @@ import type { MetaHeaders, MirrorHeadersBody } from './mirrorLayout.js'
  */
 export type DocumentKind = 'abbreviated' | 'full' | 'fullInAbbreviatedMirror'
 
-/** The kind a mirror's next revalidation asks for. */
-export function documentKindOf (mirrorFullMetadata: boolean, headers: MetaHeaders | null): DocumentKind {
-  if (mirrorFullMetadata) return 'full'
-  return headers?.fullEtag != null && headers.fullEtag !== '' ? 'fullInAbbreviatedMirror' : 'abbreviated'
-}
-
 /** The request shape and validators of one metadata request. */
 export interface MetadataRequest {
   fullMetadata: boolean
@@ -34,6 +28,12 @@ export function conditionalRequest (mirrorFullMetadata: boolean, headers: MetaHe
     modified: headers?.modified,
     cacheBypass: headers?.uncacheable === true,
   }
+}
+
+/** The kind a mirror's next revalidation asks for. */
+export function documentKindOf (mirrorFullMetadata: boolean, headers: MetaHeaders | null): DocumentKind {
+  if (mirrorFullMetadata) return 'full'
+  return headers?.fullEtag != null && headers.fullEtag !== '' ? 'fullInAbbreviatedMirror' : 'abbreviated'
 }
 
 /**
