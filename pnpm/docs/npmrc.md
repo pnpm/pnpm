@@ -66,8 +66,6 @@ See [Environment variables in auth settings](#environment-variables-in-auth-sett
 
 #### Scope-specific auth tokens
 
-Added in: v11.7.0
-
 Some registries, such as GitHub Packages, issue a separate token for each
 scope. Put the scope after the registry URL in the key:
 
@@ -115,8 +113,6 @@ For a specific registry:
 
 ### _auth
 
-Added in: v11.10.0
-
 All registry tokens in one value, keyed by registry URL. Use it in CI, where
 the `//host/:_authToken` key cannot be an environment variable name on some
 runners.
@@ -156,8 +152,7 @@ The value follows these rules:
 * Under a URL, `"@"` holds the token for the whole registry. `"@org"` holds the
   token for packages in the `@org` scope.
 * `authToken` is the only credential field. It is a bearer token.
-* Since v12.7.0, `authToken` can reference an environment variable as
-  `${NAME}`.
+* `authToken` can reference an environment variable as `${NAME}`.
 
 Each entry also routes packages to its URL. `"@"` makes the URL the default
 registry, and `"@org"` sends `@org/*` packages there. The priority of this
@@ -170,7 +165,7 @@ routing depends on where the entry comes from:
    `registries` setting chooses a registry. The token is still sent to its own
    URL.
 
-Since v12.1.0, `pnpm login` writes here:
+`pnpm login` writes here:
 
 * An unscoped login adds an `"@"` entry. It does not change the `registry`
   setting.
@@ -189,8 +184,7 @@ environment variables as `${NAME}`:
 //registry.npmjs.org/:_authToken=${NPM_TOKEN}
 ```
 
-Since v11.5.3, pnpm does not expand environment variables in the project
-`.npmrc` for:
+pnpm does not expand environment variables in the project `.npmrc` for:
 
 * registry and proxy URLs: `registry`, `@scope:registry`, `proxy`,
   `https-proxy`, `http-proxy`
@@ -208,7 +202,7 @@ tokens to a registry it controls
 If your repository commits a line such as
 `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, use one of these instead.
 
-Pass the token in an environment variable named after the key (since v11.6):
+Pass the token in an environment variable named after the key:
 
 ```sh
 env "pnpm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN" pnpm install
@@ -295,8 +289,6 @@ keep the certificates in a file.
 
 ### &lt;URL&gt;&#58;ca
 
-Added in: v10.25.0
-
 A CA certificate in PEM format, trusted only for the given registry:
 
 ```ini
@@ -325,8 +317,6 @@ cert="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 
 ### &lt;URL&gt;&#58;cert
 
-Added in: v10.25.0
-
 The client certificate to send to the given registry:
 
 ```ini
@@ -354,8 +344,6 @@ key="-----BEGIN PRIVATE KEY-----\nXXXX\nXXXX\n-----END PRIVATE KEY-----"
 ```
 
 ### &lt;URL&gt;&#58;key
-
-Added in: v10.25.0
 
 The client key for the given registry:
 
