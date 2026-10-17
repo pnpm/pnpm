@@ -2,7 +2,7 @@
 "pacquet": patch
 ---
 
-`pnpm run` and `pnpm exec` no longer install before every command in a workspace without a root `package.json`.
+In a workspace that has no `package.json` at its root, `pnpm run` and `pnpm exec` no longer reinstall before every command when the dependencies are up to date.
 
 With `sharedWorkspaceLockfile: false`, a filtered `pnpm run` or `pnpm exec` now also checks the workspace projects that the selected projects depend on.
 
