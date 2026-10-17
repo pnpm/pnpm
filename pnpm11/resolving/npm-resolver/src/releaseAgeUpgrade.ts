@@ -1,7 +1,8 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
-import { condenseMetaForCache, encodeMirror, saveMetaBestEffort } from './metaMirror.js'
+import { mirrorWrite, releaseAgeUpgradeRequest } from './metadataCachePolicy.js'
+import { condenseMetaForCache, encodeMirror, metaHeadersOf, saveMetaBestEffort } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import type { PickPackageFromMetaOptions } from './pickPackageFromMeta.js'
 
@@ -70,9 +71,8 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   try {
     fullFetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
-      fullMetadata: true,
       registry: opts.registry,
-      ...revalidationOfHeldFullDocument(meta.fullEtag, meta, meta.uncacheable),
+      ...releaseAgeUpgradeRequest(metaHeadersOf(meta)),
     })
   } catch (err: unknown) {
     // The registry declined to hand over a body. To a request without
@@ -92,26 +92,6 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
-}
-
-/**
- * The validators a release-age upgrade sends for `meta` when it is the full
- * document, tagged `fullEtag`, that an earlier upgrade stored in the
- * abbreviated mirror. A registry with per-representation ETags then answers
- * 304 instead of sending the same document again.
- *
- * An abbreviated document sends none. An ETag and a `Last-Modified` date
- * describe one representation, and a registry that reuses them across both
- * forms would answer 304, leaving the maturity check without per-version
- * publish dates.
- */
-export function revalidationOfHeldFullDocument (
-  fullEtag: string | undefined,
-  meta: PackageMeta,
-  uncacheable: boolean | undefined
-): { etag?: string, modified?: string, cacheBypass?: boolean } {
-  if (fullEtag == null || fullEtag === '') return {}
-  return { etag: fullEtag, modified: meta.modified ?? meta.time?.modified, cacheBypass: uncacheable === true }
 }
 
 /**
@@ -158,20 +138,16 @@ export function upgradeMetaForCache (
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
 // only has to carry `time` into the next install; otherwise the unstripped
-// meta is written and kept. Either way the abbreviated
-// mirror now holds the full document, so its ETag is recorded as `fullEtag`.
+// meta is written and kept. The upgrade's response is the full document,
+// mirrored in the abbreviated mirror.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
-  const fullEtag = upgradedFrom.etag
-  const content = encodeMirror(ctx, upgradedFrom, {
-    meta: metaForCache,
-    etag: undefined,
-    body: { uncacheable: upgradedFrom.uncacheable, fullEtag },
-  })
-  saveMetaBestEffort(pkgMirror, content, upgradedFrom.uncacheable === true)
+  const write = mirrorWrite(upgradedFrom, false)
+  const content = encodeMirror(ctx, upgradedFrom, { meta: metaForCache, etag: write.etag, body: write.body })
+  saveMetaBestEffort(pkgMirror, content, write.body.uncacheable === true)
   return metaForCache
 }

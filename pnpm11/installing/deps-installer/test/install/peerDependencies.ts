@@ -2690,6 +2690,30 @@ test.each([true, false])('an optional peer that is also a regular dependency is 
   expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/17056
+test.each([true, false])('a provider added later binds an optional peer that is also a regular dependency, with autoInstallPeers=%s', async (autoInstallPeers) => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'],
+    testDefaults({ autoInstallPeers })
+  )
+
+  const pkg = project.readLockfile().packages['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0']
+  expect(pkg.peerDependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '^1.0.0' })
+  expect(pkg.peerDependenciesMeta).toStrictEqual({ '@pnpm.e2e/bravo-dep': { optional: true } })
+
+  await install({
+    ...manifest,
+    dependencies: { ...manifest.dependencies, '@pnpm.e2e/bravo-dep': '1.0.0' },
+  }, testDefaults({ autoInstallPeers }))
+
+  expect(project.readLockfile().importers['.']?.dependencies?.['@pnpm.e2e/has-optional-peer-also-in-deps'].version)
+    .toBe('1.0.0(@pnpm.e2e/bravo-dep@1.0.0)')
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/16901
 test('an optional peer that is also a regular dependency is not dropped when a hoisted parent takes over its children', async () => {
   await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })

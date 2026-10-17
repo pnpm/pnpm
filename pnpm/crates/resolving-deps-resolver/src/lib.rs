@@ -70,7 +70,8 @@ pub use dependencies_graph::{
 pub use lockfile_reuse::locked_child_admits;
 pub use node_id::NodeId;
 pub use parent_pkg_aliases::{
-    ParentPkgAliases, own_dependency_names, peer_shadowed_dependency_names,
+    ParentPkgAliases, declared_peer_dependencies, own_dependency_names,
+    peer_shadowed_dependency_names,
 };
 pub use peer_provider::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,

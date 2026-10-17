@@ -32,7 +32,7 @@ use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
-    parent_pkg_aliases::ParentPkgAliases,
+    parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies},
     resolved_tree::{
         AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
     },
@@ -150,6 +150,42 @@ pub(super) fn try_reuse_node(
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
     Some(ReusedNode { key: key.clone(), result })
+}
+
+/// Whether `reused` takes as peers the names a fresh walk would in `scope`.
+/// A reused node takes every peer its `packages:` entry records, which are
+/// all the [`declared_peer_dependencies`]. One that its snapshot also lists
+/// as a child and that `scope` does not shadow (see
+/// [`peer_shadowed_dependency_names`]) may be the package's own
+/// dependency, which only the real manifest tells, so such a node resolves
+/// fresh instead.
+///
+/// [`declared_peer_dependencies`]: crate::parent_pkg_aliases::declared_peer_dependencies
+/// [`peer_shadowed_dependency_names`]: crate::parent_pkg_aliases::peer_shadowed_dependency_names
+pub(super) fn reuse_matches_peer_scope(
+    ctx: &TreeCtx,
+    reused: &ReusedNode,
+    scope: &ParentPkgAliases,
+) -> bool {
+    let Some(manifest) = reused.result.package.manifest.as_deref() else { return true };
+    let snapshot = ctx.workspace.reuse.lockfile
+        .as_ref()
+        .and_then(|lockfile| lockfile.snapshots.as_ref())
+        .and_then(|snapshots| snapshots.get(&reused.key));
+    let Some(snapshot) = snapshot else { return true };
+    let is_child = |name: &str| {
+        let Ok(name) = name.parse::<PkgName>() else { return false };
+        [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|children| children.contains_key(&name))
+    };
+    let auto_install_peers = ctx.workspace.policy.auto_install_peers;
+    declared_peer_dependencies(manifest)
+        .into_iter()
+        .all(|(name, peer)| {
+            (auto_install_peers && !peer.optional) || scope.contains(&name) || !is_child(&name)
+        })
 }
 
 /// Whether the wanted lockfile already holds a package entry that

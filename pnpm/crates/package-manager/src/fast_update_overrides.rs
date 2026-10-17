@@ -1,4 +1,4 @@
-pub(crate) use planning::{FastOverride, build_replacement_plan};
+pub(crate) use planning::{FastOverride, build_replacement_plan, get_peer_names};
 
 mod planning;
 

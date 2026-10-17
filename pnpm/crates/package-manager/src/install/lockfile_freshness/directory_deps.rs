@@ -184,7 +184,7 @@ fn check_single_dep_spec_directory_freshness(
             },
             catalogs: check.workspace.catalogs,
         };
-        check_single_directory_dep_freshness(check, &dep, snapshot, pkg_meta)?;
+        check_single_directory_dep_freshness(check, importer, &dep, (snapshot, pkg_meta))?;
     }
     Ok(())
 }
@@ -270,17 +270,31 @@ fn manifest_of_project_publishing_from(
 
 fn check_single_directory_dep_freshness(
     check: &ImporterSatisfactionCheck<'_>,
+    importer: &pnpm_lockfile::ProjectSnapshot,
     dep: &LocalDepContext<'_>,
-    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
-    pkg_meta: &pnpm_lockfile::PackageMetadata,
+    (snapshot, pkg_meta): (Option<&pnpm_lockfile::SnapshotEntry>, &pnpm_lockfile::PackageMetadata),
 ) -> Result<(), FreshnessCheckError> {
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
     };
-    let peers = PeerShadowing::of(&local_manifest, pkg_meta, check.config.auto_install_peers);
+    // The importer's own dependencies are the scope the resolver shadows
+    // the directory dependency's peers in.
+    let peers = PeerShadowing::of(
+        &local_manifest,
+        |name| importer_declares(importer, name),
+        check.config.auto_install_peers,
+    );
     check_local_dep_children_freshness(check, dep, &local_manifest, snapshot, &peers.shadowed)?;
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
+}
+
+fn importer_declares(importer: &pnpm_lockfile::ProjectSnapshot, name: &str) -> bool {
+    let Ok(name) = pnpm_lockfile::PkgName::parse(name) else { return false };
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+        .into_iter()
+        .filter_map(|group| importer.get_map_by_group(group))
+        .any(|dependencies| dependencies.contains_key(&name))
 }
 
 /// Compares the children the resolver walks for the package (see

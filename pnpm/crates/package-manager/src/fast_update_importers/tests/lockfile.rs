@@ -60,3 +60,40 @@ fn rejects_a_range_change_on_a_bare_edge_the_lockfile_holds_only_as_a_peer_varia
         "the bare record names no snapshot, so leaving it in place would keep the link dangling",
     );
 }
+#[test]
+fn rejects_adding_a_dependency_the_lockfile_records_as_a_peer() {
+    let subject = parsed_lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      bar:
+        specifier: ^2.0.0
+        version: 2.0.0
+packages:
+  bar@2.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+    peerDependencies:
+      child: ^3.0.0
+    peerDependenciesMeta:
+      child:
+        optional: true
+  child@3.0.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  bar@2.0.0:
+    dependencies:
+      child: 3.0.0
+  child@3.0.0: {}
+",
+    );
+    let manifest = manifest_from(json!({ "dependencies": { "bar": "^2.0.0", "child": "^3.0.0" } }));
+
+    assert!(
+        try_fast_update_importers(&subject, &[(".".to_string(), &manifest)]).is_none(),
+        "a direct child is a provider for bar's peer, so only the resolver can rebind it",
+    );
+}

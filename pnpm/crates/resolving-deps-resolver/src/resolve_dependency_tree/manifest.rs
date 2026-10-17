@@ -9,7 +9,10 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::{parent_pkg_aliases::own_dependency_names, resolved_tree::PeerDep};
+use crate::{
+    parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names},
+    resolved_tree::PeerDep,
+};
 
 use super::{
     CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
@@ -266,18 +269,11 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
     }
 }
 
-/// Extract `peerDependencies` from a resolved package's manifest, with
-/// `peerDependenciesMeta[name].optional` folded onto each entry. The
-/// package's own name plus names also present in `dependencies` or
-/// `optionalDependencies` are skipped because those edges already
-/// supply the same package directly — except for the `peer_shadowed`
-/// names, whose own-dependency edge the walk drops in favor of the peer
-/// (see [`peer_shadowed_dependencies`]). A `peerDependenciesMeta` entry
-/// without a matching `peerDependencies` entry only counts when
-/// `optional: true` — it is treated as an optional `"*"` peer exactly
-/// like an explicitly declared one, and non-optional meta-only entries
-/// are ignored. When [`Catalogs`] are supplied, `catalog:` ranges are
-/// dereferenced before they enter peer resolution.
+/// The [`declared_peer_dependencies`] of a resolved package that it takes
+/// as peers: a `dependencies` entry of the same name supplies the package
+/// directly unless it is `peer_shadowed` (see
+/// [`peer_shadowed_dependencies`]). When [`Catalogs`] are supplied,
+/// `catalog:` ranges are dereferenced before they enter peer resolution.
 ///
 /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
@@ -286,70 +282,23 @@ pub(super) fn extract_peer_dependencies(
     catalogs: Option<&Catalogs>,
 ) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
-    let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
-
     let own_deps: HashSet<&str> =
         own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
-
-    if let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) {
-        insert_declared_peers(&mut peers, map, &own_deps, catalogs)?;
+    let mut peers = declared_peer_dependencies(manifest);
+    peers.retain(|name, _| !own_deps.contains(name.as_str()));
+    let Some(catalogs) = catalogs else { return Ok(peers) };
+    for (name, peer) in &mut peers {
+        // A peer range names a version range, never a path, so a
+        // `file:` / `link:` entry has nothing to re-anchor.
+        peer.version = resolve_catalog_specifier(
+            name.clone(),
+            std::mem::take(&mut peer.version),
+            catalogs,
+            CatalogAnchor::AsWritten,
+        )?
+        .1;
     }
-
-    if let Some(meta) = manifest.get("peerDependenciesMeta").and_then(Value::as_object) {
-        insert_optional_meta_peers(&mut peers, meta, &own_deps);
-    }
-
     Ok(peers)
-}
-
-fn insert_declared_peers(
-    peers: &mut BTreeMap<String, PeerDep>,
-    map: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<&str>,
-    catalogs: Option<&Catalogs>,
-) -> Result<(), ResolveDependencyTreeError> {
-    for (name, range) in map {
-        if own_deps.contains(name.as_str()) {
-            continue;
-        }
-        let Some(range_str) = range.as_str() else { continue };
-        let version = match catalogs {
-            Some(catalogs) => {
-                // A peer range names a version range, never a path, so a
-                // `file:` / `link:` entry has nothing to re-anchor.
-                resolve_catalog_specifier(
-                    name.clone(),
-                    range_str.to_string(),
-                    catalogs,
-                    CatalogAnchor::AsWritten,
-                )?
-                .1
-            }
-            None => range_str.to_string(),
-        };
-        peers.insert(name.clone(), PeerDep { version, optional: false });
-    }
-    Ok(())
-}
-
-/// A meta-only entry counts as an optional `"*"` peer; a non-optional one is
-/// ignored.
-fn insert_optional_meta_peers(
-    peers: &mut BTreeMap<String, PeerDep>,
-    meta: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<&str>,
-) {
-    for (name, info) in meta {
-        if own_deps.contains(name.as_str())
-            || info.get("optional").and_then(Value::as_bool) != Some(true)
-        {
-            continue;
-        }
-        peers
-            .entry(name.clone())
-            .and_modify(|entry| entry.optional = true)
-            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
-    }
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

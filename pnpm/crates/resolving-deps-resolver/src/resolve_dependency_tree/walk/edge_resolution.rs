@@ -10,7 +10,8 @@ use super::{
     package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
     pin_locked_version, pin_patched_revision, project_relative_cache_scope,
     register_peer_dep_names, register_shadowable_dep_names, resolve_reused_node,
-    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
+    resolve_wanted_cached, resolves_children_through_catalogs, reuse_matches_peer_scope,
+    try_reuse_node,
 };
 
 #[async_recursion]
@@ -49,6 +50,7 @@ where
         && edge.reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
+        && reuse_matches_peer_scope(ctx, &reused, edge.parent_pkg_aliases)
     {
         return resolve_reused_node(ctx, resolver, wanted, &edge, current_is_optional, reused)
             .await
