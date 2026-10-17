@@ -1,9 +1,24 @@
 use super::{
-    CommandFuture, Config, Context, InstallArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, Path,
-    RunCtx, anchor_active_project, installed_project_config, keeps_project_lockfiles,
+    CommandFuture, Config, Context, EditArgs, InstallArgs, PatchArgs, PatchCommitArgs,
+    PatchRemoveArgs, Path, RunCtx, anchor_active_project, installed_project_config,
+    keeps_project_lockfiles,
 };
 use crate::{State, cli_args::reporter::CliReporter};
 use indexmap::IndexMap;
+
+pub(in super::super) fn edit<'a>(
+    ctx: &RunCtx<'a>,
+    args: EditArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = ctx.prepared_config();
+    let manifest_path = ctx.locations.manifest_path;
+    Ok(Box::pin(async move {
+        let config = installed_project_config(config.await?, manifest_path);
+        let command_state = State::init(manifest_path.to_path_buf(), config, true)
+            .wrap_err("initialize the state")?;
+        Box::pin(args.run::<CliReporter>(command_state)).await
+    }))
+}
 
 pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,

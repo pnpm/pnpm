@@ -2,8 +2,8 @@ use super::{
     super::{clean::run as clean_builtin, dispatch_script, script_override},
     BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DocsArgs, DoctorArgs,
-    DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NotImplementedError, PrefixArgs, RepoArgs,
-    RootArgs, RunCtx, SelfUpdateArgs, SetupArgs, ShimArgs, StoreCommand, TasksArgs, WithArgs,
+    DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, PrefixArgs, RepoArgs, RootArgs, RunCtx,
+    SelfUpdateArgs, SetupArgs, ShimArgs, StoreCommand, TasksArgs, WithArgs,
 };
 use crate::cli_args::reporter::CliReporter;
 
@@ -122,12 +122,6 @@ pub(in super::super) fn config_set<'a>(
     args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
-}
-
-pub(in super::super) fn not_implemented<'a>(
-    command: &'static str,
-) -> miette::Result<CommandFuture<'a>> {
-    Err(NotImplementedError { command }.into())
 }
 
 pub(in super::super) fn repo<'a>(
