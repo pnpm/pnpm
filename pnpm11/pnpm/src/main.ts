@@ -189,12 +189,11 @@ async function loadConfigOrSwitchToPinnedPnpm (
   try {
     return await getConfig(cliOptions, getConfigOpts) as LoadedConfig
   } catch (err: unknown) {
-    if (handlesPackageManager(parsedCliArgs)) {
-      await switchPastUnreadableConfig(
-        () => getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }),
-        cliOptions
-      )
-    }
+    if (!handlesPackageManager(parsedCliArgs)) throw err
+    const loadReadableConfig = async () => await getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }) as LoadedConfig
+    // `pnpm --version` needs no setting outside the pin check.
+    if (cmd == null && cliOptions.version === true) return loadReadableConfig()
+    await switchPastUnreadableConfig(loadReadableConfig, cliOptions)
     throw err
   }
 }
