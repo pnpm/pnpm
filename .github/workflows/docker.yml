@@ -53,41 +53,8 @@ jobs:
             [0-9]*.[0-9]*.[0-9]*) ;;
             *) echo "invalid version: $version" >&2; exit 1 ;;
           esac
-          major="${version%%.*}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "major=$major" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-
-      - name: Compute image tags
-        id: tags
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-          MAJOR: ${{ steps.meta.outputs.major }}
-          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -eu
-          tags="${IMAGE}:${VERSION}"
-          alpine_tags="${IMAGE}:${VERSION}-alpine"
-          if [ "$PRERELEASE" != "true" ]; then
-            # Maintenance releases of an older line are published after newer
-            # ones, so the mutable tags move only for the newest stable version.
-            stable="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-                        --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
-                      | sed -n 's/^v\([0-9]*\.[0-9]*\.[0-9]*\)$/\1/p')"
-            newest="$(printf '%s\n' "$stable" "$VERSION" | sort -V | tail -n 1)"
-            newest_in_major="$(printf '%s\n' "$stable" "$VERSION" | grep "^${MAJOR}\." | sort -V | tail -n 1)"
-            if [ "$VERSION" = "$newest_in_major" ]; then
-              tags="${tags},${IMAGE}:${MAJOR}"
-              alpine_tags="${alpine_tags},${IMAGE}:${MAJOR}-alpine"
-            fi
-            if [ "$VERSION" = "$newest" ]; then
-              tags="${tags},${IMAGE}:latest"
-              alpine_tags="${alpine_tags},${IMAGE}:alpine"
-            fi
-          fi
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
-          echo "alpine_tags=$alpine_tags" >> "$GITHUB_OUTPUT"
 
       - name: Compute pnpm tarball checksums
         id: checksums
@@ -95,7 +62,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu
+          set -euo pipefail
           base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
           for pair in amd64:x64 arm64:arm64; do
             key="${pair%:*}"
@@ -141,7 +108,7 @@ jobs:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
           build-args: |
             PNPM_VERSION=${{ steps.meta.outputs.version }}
             PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_amd64 }}
@@ -157,10 +124,28 @@ jobs:
           file: ./docker/Dockerfile.alpine
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.alpine_tags }}
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}-alpine
           build-args: |
             PNPM_VERSION=${{ steps.meta.outputs.version }}
             PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_musl_amd64 }}
             PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_musl_arm64 }}
           provenance: mode=max
           sbom: true
+
+      # Runs after the builds so that every release published in the same
+      # burst is listed by the time this run decides which tags it may move.
+      - name: Move mutable tags
+        if: steps.meta.outputs.prerelease != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          ALPINE: ${{ steps.checksums.outputs.alpine }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          releases="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                        --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')"
+          moves="$(.github/scripts/docker-image-tags.sh "$IMAGE" "$VERSION" "$ALPINE" <<< "$releases")"
+          while read -r target source; do
+            [ -n "$target" ] || continue
+            docker buildx imagetools create --tag "$target" "$source"
+          done <<< "$moves"

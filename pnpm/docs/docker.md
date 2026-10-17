@@ -42,7 +42,7 @@ COPY --from=ghcr.io/pnpm/pnpm:12-alpine /opt/pnpm /opt/pnpm
 RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
 ```
 
-For a Debian or Ubuntu based image, such as `node:24-slim`, copy from `ghcr.io/pnpm/pnpm:12` instead.
+For a Debian- or Ubuntu-based image, such as `node:24-slim`, copy from `ghcr.io/pnpm/pnpm:12` instead.
 
 ### Installing Node.js
 

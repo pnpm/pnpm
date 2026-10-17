@@ -107,6 +107,7 @@ jobs:
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
         .github/scripts/issue-fix-intent.test.sh
+        .github/scripts/docker-image-tags.test.sh
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
         node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/wait-for-pnpr.test.mjs
     - name: Compile and lint TypeScript
