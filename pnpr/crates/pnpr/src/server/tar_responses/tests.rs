@@ -50,7 +50,7 @@ async fn decode_and_derive(
         runtime: tokio::runtime::Handle::current(),
     };
     let derived =
-        super::DerivedFrom { check: expected.parse().ok(), derive: true, copy: None, stale };
+        super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale };
     let body = super::gunzip_body(axum::body::Body::from(tgz), derived, move |integrity| {
         let _ = sender.send(integrity);
     });

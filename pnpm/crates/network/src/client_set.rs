@@ -56,19 +56,17 @@ impl ClientSet {
         pair.select(follow_redirects)
     }
 
-    /// The archive clients, or the decoding ones if they cannot be built: their
-    /// responses then arrive decoded, which the fetcher reads as identity.
+    /// The archive clients. They differ from the decoding clients, which were
+    /// built from the same inputs, only in content decoding, so a failure is a
+    /// broken invariant. Falling back to the decoding clients would let
+    /// reqwest decode zstd without the window bound.
     fn build_archive(&self) -> ClientPair {
-        let Some(build) = &self.client_build else { return self.decoding.clone() };
+        let Some(build) = &self.client_build else {
+            unreachable!("a set without a client build is created with its archive clients")
+        };
         build
             .build()
-            .unwrap_or_else(|error| {
-                tracing::warn!(
-                    ?error,
-                    "building the archive clients failed; using the decoding ones",
-                );
-                self.decoding.clone()
-            })
+            .expect("the archive clients build from the inputs the decoding clients built from")
     }
 }
 

@@ -521,3 +521,49 @@ async fn a_shasum_only_upstream_version_is_served_as_a_tar() {
     assert_eq!(served.status(), StatusCode::OK);
     assert_eq!(body_bytes(served.into_body()).await, tar);
 }
+
+#[tokio::test]
+async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
+    let tar = widget_tar();
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &gzip(&tar),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let version = body_json(get(&app, "/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
+    dbg!(&version["dist"]);
+    assert_eq!(version["dist"]["integrity"], sha512_integrity(&tar));
+    assert!(version["dist"].get("tarball").is_none());
+
+    let abbreviated = app
+        .clone()
+        .oneshot(
+            Request::get("/~zstd/@acme%2Fwidget")
+                .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let abbreviated = body_json(abbreviated.into_body()).await;
+    let dist = &abbreviated["versions"]["1.0.0"]["dist"];
+    dbg!(dist);
+    assert_eq!(dist["integrity"], sha512_integrity(&tar));
+    assert!(dist.get("tarball").is_none());
+
+    let encoded = get(&app, "/~zstd/@acme%2Fwidget@1.0.0", None).await;
+    assert_eq!(encoded.status(), StatusCode::OK);
+    assert_eq!(body_bytes(encoded.into_body()).await.as_slice(), tar.as_slice());
+}

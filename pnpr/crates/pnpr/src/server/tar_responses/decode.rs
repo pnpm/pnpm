@@ -40,17 +40,17 @@ pub(super) struct DerivedFrom {
     /// The `.tgz` integrity the compressed bytes still have to match. A
     /// mismatch fails the response and evicts the stale copy.
     pub(super) check: Option<Integrity>,
-    /// Whether the bytes are known to be the version's, so the tar's
-    /// integrity and variant may be derived from them.
-    pub(super) derive: bool,
+    /// Whether to hash the tar for `on_complete`: the version has an
+    /// integrity to key it by, and its tar's is not recorded yet.
+    pub(super) hash: bool,
     pub(super) copy: Option<TarCopy>,
     pub(super) stale: StaleTgz,
 }
 
 /// Decode a gzip body as it streams, copying the decoded bytes into
 /// `derived.copy`. Once every member decoded and the compressed bytes matched
-/// `derived.expected`, submit the copy and call `on_complete` with the
-/// integrity of the decoded bytes. A body that fails to decode ends the
+/// `derived.check`, submit the copy and, if `derived.hash`, call
+/// `on_complete` with the integrity of the decoded bytes. A body that fails to decode ends the
 /// response with an error.
 pub(super) fn gunzip_body(
     body: Body,
@@ -82,25 +82,27 @@ fn derive_from_decode(
     derived: DerivedFrom,
     on_complete: impl FnOnce(Integrity),
 ) {
-    let DerivedFrom { check, derive, mut copy, stale } = derived;
+    let DerivedFrom { check, hash, mut copy, stale } = derived;
     let mut compressed = CheckedReader {
         inner: ChannelReader::new(compressed_rx),
         checker: check.map(IntegrityChecker::new),
     };
     let decoder = flate2::read::MultiGzDecoder::new(&mut compressed)
         .take(MAX_DECODED_TAR_BYTES.saturating_add(1));
-    let Some(integrity) = decode_into(decoder, tar_tx, &mut copy) else { return };
-    if compressed.checker.is_some_and(|checker| checker.result().is_err()) {
-        let _ = tar_tx.blocking_send(Err(stale.evict()));
+    let mut hasher = hash.then(|| IntegrityOpts::new().algorithm(Algorithm::Sha512));
+    if !decode_into(decoder, tar_tx, &mut copy, hasher.as_mut()) {
         return;
     }
-    if !derive {
+    if compressed.checker.is_some_and(|checker| checker.result().is_err()) {
+        let _ = tar_tx.blocking_send(Err(stale.evict()));
         return;
     }
     if let Some(copy) = copy {
         copy.submit();
     }
-    on_complete(integrity);
+    if let Some(hasher) = hasher {
+        on_complete(hasher.result());
+    }
 }
 
 async fn forward_body(body: Body, chunks: mpsc::Sender<io::Result<Bytes>>) {
@@ -114,15 +116,14 @@ async fn forward_body(body: Body, chunks: mpsc::Sender<io::Result<Bytes>>) {
     }
 }
 
-/// Send what `decoder` reads to `out` and into `copy`, returning the integrity
-/// of all of it once it ends. `None` when the decode failed or the response
-/// was dropped.
+/// Send what `decoder` reads to `out`, into `copy`, and into `hasher`.
+/// `false` when the decode failed or the response was dropped.
 fn decode_into(
     mut decoder: impl Read,
     out: &mpsc::Sender<io::Result<Bytes>>,
     copy: &mut Option<TarCopy>,
-) -> Option<Integrity> {
-    let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    mut hasher: Option<&mut IntegrityOpts>,
+) -> bool {
     let mut decoded = 0u64;
     loop {
         let mut buf = vec![0u8; 64 * 1024];
@@ -131,24 +132,30 @@ fn decode_into(
                 let _ = out.blocking_send(Err(io::Error::other(format!(
                     "the tar exceeds the {MAX_DECODED_TAR_BYTES}-byte decode limit",
                 ))));
-                return None;
+                return false;
             }
-            Ok(0) => return Some(hasher.result()),
+            Ok(0) => return true,
             Ok(len) => len,
             Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
             Err(err) => {
                 let _ = out.blocking_send(Err(err));
-                return None;
+                return false;
             }
         };
         decoded += len as u64;
         buf.truncate(len);
-        hasher.input(&buf);
+        if let Some(hasher) = hasher.as_deref_mut() {
+            hasher.input(&buf);
+        }
         *copy = copy
             .take()
             .and_then(|copy| copy.write(&buf));
-        out.blocking_send(Ok(Bytes::from(buf)))
-            .ok()?;
+        if out
+            .blocking_send(Ok(Bytes::from(buf)))
+            .is_err()
+        {
+            return false;
+        }
     }
 }
 

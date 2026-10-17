@@ -90,6 +90,14 @@ impl Storage {
         tgz_integrity: &str,
         tar_integrity: &str,
     ) -> Result<()> {
+        let recorded = |table: &BTreeMap<String, String>| {
+            table
+                .get(tgz_integrity)
+                .is_some_and(|known| known == tar_integrity)
+        };
+        if self.tar_integrity_cache.get(name).is_some_and(|table| recorded(&table)) {
+            return Ok(());
+        }
         for _ in 0..RECORD_ATTEMPTS {
             let current = self.tar_integrities.read_document_for_update(name).await?;
             let (mut table, version) = match current {
@@ -100,10 +108,7 @@ impl Storage {
                 ),
                 None => (BTreeMap::new(), None),
             };
-            if table
-                .get(tgz_integrity)
-                .is_some_and(|known| known == tar_integrity)
-            {
+            if recorded(&table) {
                 return Ok(());
             }
             table.insert(tgz_integrity.to_string(), tar_integrity.to_string());

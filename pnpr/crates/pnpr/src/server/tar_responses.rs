@@ -36,6 +36,8 @@ pub(super) struct TarSource {
     /// upstream may not, so it gets no variants.
     pub(super) keeps_content: bool,
     pub(super) trust: TgzTrust,
+    /// Whether the tar-integrity table already records this `.tgz`'s tar.
+    pub(super) tar_integrity_known: bool,
 }
 
 /// What is known about the `.tgz` bytes a tar response serves.
@@ -144,7 +146,7 @@ fn decoded_response(
     let name = source.name.clone();
     let derived = DerivedFrom {
         check: source.check(),
-        derive: tgz_integrity.is_some(),
+        hash: tgz_integrity.is_some() && !source.tar_integrity_known,
         copy,
         stale: source.stale(storage.clone()),
     };

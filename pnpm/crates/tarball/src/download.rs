@@ -280,6 +280,7 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         TarballError::OffAllowlist { .. }
         | TarballError::UnsupportedContentEncoding { .. }
         | TarballError::ContentDecode { .. }
+        | TarballError::UnrecognizedArchive
         | TarballError::ArchiveLimit(_) => false,
         _ => true,
     }

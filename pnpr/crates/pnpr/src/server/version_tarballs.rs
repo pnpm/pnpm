@@ -71,9 +71,26 @@ impl VersionRequest<'_> {
         if !is_tar_registry(self.state, self.target) || response.status() != StatusCode::OK {
             return response;
         }
-        let keeps_content = keeps_content(self.state, &source);
-        let source = TarSource { name, tgz_integrity: tgz.integrity_key, keeps_content, trust };
+        let source = self.tar_source(name, tgz.integrity_key, &source, trust).await;
         tar_response(self.state, headers, response, source).await
+    }
+
+    async fn tar_source(
+        &self,
+        name: CanonicalPackageName,
+        tgz_integrity: Option<String>,
+        source: &RegistrySource,
+        trust: TgzTrust,
+    ) -> TarSource {
+        let tar_integrity_known = match &tgz_integrity {
+            Some(key) => self.state.inner.storage
+                .read_tar_integrities(&name)
+                .await
+                .is_ok_and(|table| table.contains_key(key)),
+            None => false,
+        };
+        let keeps_content = keeps_content(self.state, source);
+        TarSource { name, tgz_integrity, keeps_content, trust, tar_integrity_known }
     }
 
     /// Serve an upstream version from the dist already read, so the packument

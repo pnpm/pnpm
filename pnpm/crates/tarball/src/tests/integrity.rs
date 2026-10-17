@@ -371,7 +371,9 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
         .mock("GET", "/pkg.tgz")
         .with_status(200)
         .with_body(body)
-        .expect(6)
+        // Three attempts for the retried checksum failure, one for the
+        // unrecognized body, which a retry would not change.
+        .expect(4)
         .create_async()
         .await;
     let url = format!("{}/pkg.tgz", server.url());
