@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -1316,6 +1316,14 @@ describe('local file dependency', () => {
     expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^2.0.0' } })).toBeTruthy()
     expect(await check(localDirSnapshot)).toBeTruthy()
     expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^3.0.0' } })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): reads the dependencies of local file from a package.yaml', async () => {
+    await rm('./local-dir/package.json')
+    await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n')
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeTruthy()
+    await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n  is-negative: 1.0.0\n')
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeFalsy()
   })
 
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {

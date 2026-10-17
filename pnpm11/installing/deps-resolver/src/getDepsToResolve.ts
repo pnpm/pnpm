@@ -236,7 +236,9 @@ function getRangeOfNamedRegistrySpec (
   // A spec that names no package names the alias.
   const body = bareSpecifier.slice(registryName.length + 1)
   const versionDelimiter = body.lastIndexOf('@')
-  if (versionDelimiter > 0) return body.slice(versionDelimiter + 1)
+  if (versionDelimiter > 0) {
+    return body.slice(0, versionDelimiter) === name ? body.slice(versionDelimiter + 1) : undefined
+  }
   return name === wantedDep.alias ? body : undefined
 }
 

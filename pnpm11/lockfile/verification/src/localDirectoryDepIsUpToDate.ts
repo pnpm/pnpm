@@ -17,7 +17,7 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
-import { safeReadParentPublishManifest } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pEvery from 'p-every'
 import { pathExists } from 'path-exists'
 import { clone } from 'ramda'
@@ -106,11 +106,11 @@ export async function localDirectoryDepIsUpToDate (
 
 /**
  * The manifest the resolver describes a directory with. A directory without a
- * `package.json` is described by the project that publishes from it, else by
- * its name alone. `undefined` when the directory is missing.
+ * manifest is described by the project that publishes from it, else by its
+ * name alone. `undefined` when the directory is missing.
  */
 async function readDirectoryManifest (dir: string): Promise<DependencyManifest | undefined> {
-  const manifest = await safeReadPackageJsonFromDir(dir)
+  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest | null
   if (manifest != null) return manifest
   if (!await pathExists(dir)) return undefined
   return (await safeReadParentPublishManifest(dir) as DependencyManifest | null) ?? { name: path.basename(dir) } as DependencyManifest
