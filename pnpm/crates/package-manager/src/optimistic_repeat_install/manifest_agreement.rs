@@ -55,7 +55,7 @@ pub(crate) fn held_projects_match_lockfile(
         .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
     let wanted = match lockfile {
         Some(wanted) => {
-            require_installed(check, state, wanted, held)?;
+            require_installed(check, state, wanted, held, current)?;
             wanted
         }
         // A `pnpm-lock.yaml` without a main document, such as one holding only
@@ -94,6 +94,7 @@ fn require_installed(
     state: &WorkspaceState,
     wanted: &Lockfile,
     held: &[&ManifestStat<'_>],
+    current: &CurrentLockfile<'_>,
 ) -> Result<(), Stale> {
     let unproven = held
         .iter()
@@ -105,9 +106,10 @@ fn require_installed(
     if unproven.is_empty() {
         return Ok(());
     }
-    let current = Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-        .map_err(|_| Stale::Content("the current lockfile cannot be loaded"))?;
-    if let Some(current) = &current
+    let current = current
+        .get()
+        .ok_or(Stale::Content("the current lockfile cannot be loaded"))?;
+    if let Some(current) = current
         && let Some((_, stat)) = unproven
             .iter()
             .find(|(importer_id, stat)| {
@@ -123,7 +125,7 @@ fn require_installed(
         .collect();
     match current {
         Some(current)
-            if selection_matches_wanted_lockfile(check, state, wanted, &current, &importer_ids) =>
+            if selection_matches_wanted_lockfile(check, state, wanted, current, &importer_ids) =>
         {
             Ok(())
         }
