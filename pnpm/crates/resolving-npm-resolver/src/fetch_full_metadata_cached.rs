@@ -79,7 +79,7 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
-    let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
+    let meta = fetch_metadata_cached(pkg_name, opts, CachedFetch::MIRROR_DOCUMENT).await?;
     meta.versions.read_every_mirror_fragment();
     if !meta.versions.corrupt_mirror_fragment_found() {
         return Ok(meta);
@@ -98,7 +98,7 @@ pub(crate) async fn fetch_full_metadata_projected<Projection>(
     opts: &FetchFullMetadataCachedOptions<'_>,
     project: impl Fn(&Package) -> Projection,
 ) -> Result<Projection, FetchMetadataError> {
-    let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
+    let meta = fetch_metadata_cached(pkg_name, opts, CachedFetch::MIRROR_DOCUMENT).await?;
     let projection = project(&meta);
     if !meta.versions.corrupt_mirror_fragment_found() {
         return Ok(projection);
@@ -119,7 +119,7 @@ async fn refetch_damaged_mirror(
             hint: None,
         });
     }
-    fetch_metadata_cached(pkg_name, opts, true).await
+    fetch_metadata_cached(pkg_name, opts, CachedFetch::BYPASSING_MIRROR).await
 }
 
 /// [`fetch_full_metadata_cached`] without the up-front fragment check, for the
@@ -128,20 +128,71 @@ pub(crate) async fn fetch_full_metadata_cached_lazily(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
-    fetch_metadata_cached(pkg_name, opts, false).await
+    fetch_metadata_cached(pkg_name, opts, CachedFetch::MIRROR_DOCUMENT).await
 }
 
 pub(crate) async fn fetch_full_metadata_bypassing_cache(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
-    fetch_metadata_cached(pkg_name, opts, true).await
+    fetch_metadata_cached(pkg_name, opts, CachedFetch::BYPASSING_MIRROR).await
+}
+
+/// Fetch the full document a `minimumReleaseAge` upgrade stores in the
+/// abbreviated mirror `opts` names, as
+/// [`DocumentKind::FullInAbbreviatedMirror`]. With `write_mirror` off (a
+/// dry run) the mirror is read but never written or touched.
+pub(crate) async fn fetch_release_age_upgrade(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    write_mirror: bool,
+) -> Result<Package, FetchMetadataError> {
+    debug_assert!(!opts.full_metadata, "an upgrade fills the abbreviated mirror");
+    let fetch = CachedFetch {
+        document: CachedDocument::ReleaseAgeUpgrade,
+        bypass_mirror: false,
+        write_mirror,
+    };
+    fetch_metadata_cached(pkg_name, opts, fetch).await
+}
+
+/// What one [`fetch_metadata_cached`] call asks for and may do to the mirror.
+#[derive(Debug, Clone, Copy)]
+struct CachedFetch {
+    document: CachedDocument,
+    /// Ignore the mirror's validators, so only a body can answer.
+    bypass_mirror: bool,
+    write_mirror: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CachedDocument {
+    /// The document the mirror slot holds ([`DocumentKind::for_mirror`]).
+    MirrorSlot,
+    /// [`DocumentKind::FullInAbbreviatedMirror`].
+    ReleaseAgeUpgrade,
+}
+
+impl CachedFetch {
+    const MIRROR_DOCUMENT: Self = CachedFetch {
+        document: CachedDocument::MirrorSlot,
+        bypass_mirror: false,
+        write_mirror: true,
+    };
+    const BYPASSING_MIRROR: Self = CachedFetch { bypass_mirror: true, ..Self::MIRROR_DOCUMENT };
+
+    fn kind(self, full_metadata: bool, stored: Option<&MetaHeaders>) -> DocumentKind {
+        match self.document {
+            CachedDocument::MirrorSlot => DocumentKind::for_mirror(full_metadata, stored),
+            CachedDocument::ReleaseAgeUpgrade => DocumentKind::FullInAbbreviatedMirror,
+        }
+    }
 }
 
 async fn fetch_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
-    bypass_cache: bool,
+    fetch: CachedFetch,
 ) -> Result<Package, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let mirror_path = mirror_path_for(pkg_name, opts, &url);
@@ -158,16 +209,20 @@ async fn fetch_metadata_cached(
         });
     }
 
-    let cache_headers =
-        if bypass_cache { None } else { load_meta_headers_async(mirror_path.as_deref()).await };
+    let cache_headers = if fetch.bypass_mirror {
+        None
+    } else {
+        load_meta_headers_async(mirror_path.as_deref()).await
+    };
     let attempt = FetchAttempt {
         pkg_name,
         url: &url,
         opts,
         mirror_path: mirror_path.as_deref(),
-        kind: DocumentKind::for_mirror(opts.full_metadata, cache_headers.as_ref()),
+        kind: fetch.kind(opts.full_metadata, cache_headers.as_ref()),
+        write_mirror: fetch.write_mirror,
         cache_headers,
-        cache_bypass: AtomicBool::new(bypass_cache),
+        cache_bypass: AtomicBool::new(fetch.bypass_mirror),
     };
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
         .await
@@ -181,6 +236,7 @@ struct FetchAttempt<'a> {
     opts: &'a FetchFullMetadataCachedOptions<'a>,
     mirror_path: Option<&'a Path>,
     kind: DocumentKind,
+    write_mirror: bool,
     cache_headers: Option<MetaHeaders>,
     cache_bypass: AtomicBool,
 }
@@ -192,9 +248,12 @@ impl FetchAttempt<'_> {
         let (client, response) = send_metadata_request(&request).await?;
 
         let (client, response) = if response.status() == StatusCode::NOT_MODIFIED {
-            match recover_from_not_modified(client, &request, self.mirror_path, &self.cache_bypass)
-                .await?
-            {
+            let recovery = NotModifiedContext {
+                mirror_path: self.mirror_path,
+                cache_bypass: &self.cache_bypass,
+                renew_mirror: self.write_mirror,
+            };
+            match recover_from_not_modified(client, &request, recovery).await? {
                 NotModifiedRecovery::Serve(meta) => return Ok(meta),
                 NotModifiedRecovery::Refetched(client, response) => (client, response),
             }
@@ -219,7 +278,7 @@ impl FetchAttempt<'_> {
     fn mirror_store(&self, response: &Response) -> MirrorStore {
         MirrorStore {
             url: self.url.to_string(),
-            mirror_path: self.mirror_path.map(Path::to_path_buf),
+            mirror_path: self.mirror_path.filter(|_| self.write_mirror).map(Path::to_path_buf),
             mirror_write: MirrorWrite::on_response(self.kind, response.headers()),
             should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
         }
@@ -359,6 +418,15 @@ fn warn_mirror_write_failed(error: &impl std::fmt::Debug, path: &Path) {
     );
 }
 
+/// The mirror a `304 Not Modified` is honoured against.
+#[derive(Clone, Copy)]
+struct NotModifiedContext<'a> {
+    mirror_path: Option<&'a Path>,
+    cache_bypass: &'a AtomicBool,
+    /// Whether the fetch may touch the mirror ([`renew_mirror_freshness`]).
+    renew_mirror: bool,
+}
+
 /// Outcome of a `304 Not Modified` once it is honoured against the mirror.
 enum NotModifiedRecovery<'a> {
     /// The mirror body was still on disk; serve it.
@@ -378,9 +446,13 @@ enum NotModifiedRecovery<'a> {
 async fn recover_from_not_modified<'a>(
     client: ThrottledClientGuard<'a>,
     request: &MetadataRequestOptions<'a>,
-    mirror_path: Option<&Path>,
-    cache_bypass: &AtomicBool,
+    recovery: NotModifiedContext<'_>,
 ) -> Result<NotModifiedRecovery<'a>, FetchMetadataError> {
+    let NotModifiedContext {
+        mirror_path,
+        cache_bypass,
+        renew_mirror,
+    } = recovery;
     // No body to stream — release the connection and its network-concurrency
     // permit before the mirror disk read.
     drop(client);
@@ -390,7 +462,9 @@ async fn recover_from_not_modified<'a>(
         });
     };
     if let Some(meta) = load_meta_async(Some(path)).await {
-        renew_mirror_freshness(path);
+        if renew_mirror {
+            renew_mirror_freshness(path);
+        }
         return Ok(NotModifiedRecovery::Serve(meta));
     }
     cache_bypass.store(true, Ordering::Relaxed);

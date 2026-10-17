@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use crate::{
     FetchMetadataError,
-    metadata_cache_policy::{DocumentKind, MirrorWrite},
+    metadata_cache_policy::{DocumentKind, normalizes_to_abbreviated},
     mirror::clear_meta,
     registry_url::to_registry_url,
 };
@@ -286,13 +286,6 @@ fn to_http_date(value: &str) -> Option<String> {
     httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
 }
 
-/// The outcome of a metadata request, with how a `2xx` body is recorded in
-/// a mirror.
-pub(crate) enum MetadataDocument {
-    Modified { meta: Box<Package>, mirror_write: MirrorWrite },
-    NotModified,
-}
-
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
@@ -300,21 +293,8 @@ pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    let kind = DocumentKind::requested(opts.full_metadata);
-    Ok(match fetch_metadata_document(pkg_name, opts, kind).await? {
-        MetadataDocument::Modified { meta, .. } => FetchFullMetadataOutcome::Modified(meta),
-        MetadataDocument::NotModified => FetchFullMetadataOutcome::NotModified,
-    })
-}
-
-/// Fetch the `kind` document for `pkg_name`. `kind` replaces
-/// [`FetchFullMetadataOptions::full_metadata`].
-pub(crate) async fn fetch_metadata_document(
-    pkg_name: &str,
-    opts: &FetchFullMetadataOptions<'_>,
-    kind: DocumentKind,
-) -> Result<MetadataDocument, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
+    let kind = DocumentKind::requested(opts.full_metadata);
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || {
         one_metadata_attempt(pkg_name, opts, &url, kind)
     })
@@ -326,7 +306,7 @@ async fn one_metadata_attempt(
     opts: &FetchFullMetadataOptions<'_>,
     url: &str,
     kind: DocumentKind,
-) -> Result<MetadataDocument, FetchMetadataError> {
+) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
@@ -339,16 +319,16 @@ async fn one_metadata_attempt(
     })
     .await?;
     if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(MetadataDocument::NotModified);
+        return Ok(FetchFullMetadataOutcome::NotModified);
     }
-    let mirror_write = MirrorWrite::on_response(kind, response.headers());
+    let normalize = normalizes_to_abbreviated(kind, response.headers());
     let meta = decode_metadata_response(
         MetadataResponse { client, response, url, http_client: opts.http.http_client },
-        mirror_write.normalizes_to_abbreviated(),
+        normalize,
         Ok,
     )
     .await?;
-    Ok(MetadataDocument::Modified { meta: Box::new(meta), mirror_write })
+    Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }
 
 /// A metadata response together with the network permit it holds.

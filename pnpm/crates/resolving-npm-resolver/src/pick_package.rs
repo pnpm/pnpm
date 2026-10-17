@@ -69,9 +69,7 @@ use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_na
 
 mod release_age_upgrade;
 mod route;
-use release_age_upgrade::{
-    UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age, persist_upgraded_to_mirror,
-};
+use release_age_upgrade::{UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age};
 use route::DiskFirst;
 
 mod version_pick;
@@ -101,8 +99,8 @@ use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
-    FetchFullMetadataOptions, FetchMetadataError,
-    mirror::{clear_meta, get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed},
+    FetchMetadataError,
+    mirror::{get_pkg_mirror_path, load_meta_async, save_meta_indexed},
     pick_package_from_meta::{
         PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
         cached_meta_misses_preferred_version, dominant_lockfile_version,
