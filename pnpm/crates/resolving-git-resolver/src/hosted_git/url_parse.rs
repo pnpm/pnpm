@@ -66,8 +66,8 @@ pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
 /// for inputs that already use a known scheme, return as-is; for
 /// `user@host:path` SCP-style strings, prepend `git+ssh://`; otherwise,
 /// insert the missing `//` after the first colon. Pacquet mirrors the
-/// `knownProtocols` set (`github:`, `gitlab:`, `bitbucket:`, `http:`,
-/// `https:`, `git:`, `git+ssh:`, `git+https:`, `ssh:`).
+/// `knownProtocols` set (`github:`, `gitlab:`, `bitbucket:`, `gist:`,
+/// `http:`, `https:`, `git:`, `git+ssh:`, `git+https:`, `ssh:`).
 pub(super) fn correct_protocol(input: &str) -> String {
     let Some(first_colon) = input.find(':') else {
         return input.to_string();
@@ -77,6 +77,7 @@ pub(super) fn correct_protocol(input: &str) -> String {
         "github:",
         "gitlab:",
         "bitbucket:",
+        "gist:",
         "http:",
         "https:",
         "git:",
@@ -237,7 +238,32 @@ pub(super) fn extract_for_host(host: HostedGitType, parsed: &ParsedUrl) -> Optio
         HostedGitType::Github => extract_github(parsed),
         HostedGitType::Bitbucket => extract_bitbucket(parsed),
         HostedGitType::Gitlab => extract_gitlab(parsed),
+        HostedGitType::Gist => extract_gist(parsed),
     }
+}
+
+/// Port of `gitHosts.gist.extract`: `/<user>/<id>` or `/<id>`, but not a
+/// `/<user>/<id>/raw/…` or `/<id>/raw/…` file URL.
+pub(super) fn extract_gist(parsed: &ParsedUrl) -> Option<Segments> {
+    let mut parts = parsed.pathname.split('/').skip(1);
+    let first = parts.next().unwrap_or_default();
+    let second = parts.next().unwrap_or_default();
+    if second == "raw" || parts.next() == Some("raw") {
+        return None;
+    }
+    let (user, project) = match (first, second) {
+        ("", "") => return None,
+        (id, "") => ("", id),
+        (user, id) => (user, id),
+    };
+    let committish = parsed.hash
+        .as_deref()
+        .map(|hash| {
+            hash.strip_prefix('#')
+                .unwrap_or(hash)
+                .to_string()
+        });
+    Some(Segments { user: user.to_string(), project: strip_dot_git(project), committish })
 }
 
 /// Port of `gitHosts.github.extract`.

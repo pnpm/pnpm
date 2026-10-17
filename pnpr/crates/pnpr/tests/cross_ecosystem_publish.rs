@@ -14,6 +14,7 @@ use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
     Registries, Registry, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{

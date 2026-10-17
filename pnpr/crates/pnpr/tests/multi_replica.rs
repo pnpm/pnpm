@@ -16,6 +16,7 @@ use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
 use pausing_store::PausingStore;
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

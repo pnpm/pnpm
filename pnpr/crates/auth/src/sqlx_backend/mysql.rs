@@ -184,6 +184,22 @@ impl AuthSqlBackend for MysqlDatabase {
         }
     }
 
+    async fn update_user_hash_if_current(
+        &self,
+        username: &str,
+        old_hash: &str,
+        new_hash: &str,
+    ) -> Result<bool> {
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE username = ? AND bcrypt_hash = ?")
+                .bind(new_hash)
+                .bind(username)
+                .bind(old_hash)
+                .execute(&self.pool)
+                .await?;
+        Ok(updated.rows_affected() > 0)
+    }
+
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM users WHERE username = ?")
@@ -209,12 +225,7 @@ impl AuthSqlBackend for MysqlDatabase {
 
 impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
-        sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
-        create_token_index(&self.pool).await?;
-        add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
-        add_column_if_missing(&self.pool, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+        crate::schema::migrate_mysql(&self.pool).await?;
         self.ensure_user_counter().await
     }
 
@@ -302,43 +313,12 @@ impl MysqlDatabase {
     }
 }
 
-async fn create_token_index(pool: &MySqlPool) -> Result<()> {
-    let result =
-        sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool).await;
-    match result {
-        Ok(_) => Ok(()),
-        Err(err) if is_duplicate_index(&err) => Ok(()),
-        Err(err) => Err(err.into()),
-    }
-}
-
-async fn add_column_if_missing(pool: &MySqlPool, sql: &str) -> Result<()> {
-    let result = sqlx::query(sql).execute(pool).await;
-    match result {
-        Ok(_) => Ok(()),
-        Err(err) if is_duplicate_column(&err) => Ok(()),
-        Err(err) => Err(err.into()),
-    }
-}
-
-fn is_duplicate_column(err: &sqlx::Error) -> bool {
-    err.as_database_error()
-        .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
-        .is_some_and(|err| err.number() == 1060)
-}
-
 fn is_unique_violation(err: &sqlx::Error) -> bool {
     err.as_database_error()
         .is_some_and(|err| {
             err.code()
                 .is_some_and(|code| code.as_ref() == "23000" || code.as_ref() == "1062")
         })
-}
-
-fn is_duplicate_index(err: &sqlx::Error) -> bool {
-    err.as_database_error()
-        .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
-        .is_some_and(|err| err.number() == 1061)
 }
 
 async fn claim_user_slot(connection: &mut MySqlConnection, max_users: MaxUsers) -> Result<bool> {

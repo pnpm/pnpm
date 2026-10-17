@@ -5,7 +5,7 @@ pub(crate) use includes::read_workspace_document;
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
 };
-pub(crate) use readable::read_readable_settings;
+pub(crate) use readable::{read_readable_settings, select_settings};
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,

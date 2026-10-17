@@ -12,6 +12,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{Config, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::Value;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},

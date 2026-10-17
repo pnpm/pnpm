@@ -116,7 +116,7 @@ export default async () => {
 }
 
 function writeTestConfig (storage) {
-  const source = path.join(REPO_ROOT, 'pnpr', 'crates', 'config', 'config.yaml')
+  const source = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'config.yaml')
   const bundled = readFileSync(source, 'utf8')
   const configured = bundled.replace('max_users: -1', 'max_users: 100')
   if (configured === bundled) {

@@ -36,7 +36,10 @@ const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnkno
 /// a synthetic parent inside each `NODE_PATH` entry, so the caller's
 /// export conditions (import vs require) are preserved; every entry pnpm
 /// puts on `NODE_PATH` ends in `node_modules`, which is why the parent
-/// walk finds the entry's packages.
+/// walk finds the entry's packages. Node.js merges the context passed to
+/// `nextResolve` into the object every hook in the chain shares, so the
+/// hook puts the importer's `parentURL` back after the retry for the hooks
+/// that run before it.
 const ASYNC_LOADER_TEMPLATE: &str = r"import { delimiter, extname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 @HELPERS@
@@ -46,12 +49,17 @@ export async function resolve (specifier, context, nextResolve) {
     return markUnknownEntryPointAsCommonJs(await nextResolve(specifier, context), context)
   } catch (originalError) {
     if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
-    for (const nodePath of nodePaths) {
-      try {
-        return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-      } catch (fallbackError) {
-        if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+    const { parentURL } = context
+    try {
+      for (const nodePath of nodePaths) {
+        try {
+          return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+        } catch (fallbackError) {
+          if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+        }
       }
+    } finally {
+      context.parentURL = parentURL
     }
     throw originalError
   }
@@ -69,12 +77,17 @@ if (registerHooks) {
         return markUnknownEntryPointAsCommonJs(nextResolve(specifier, context), context)
       } catch (originalError) {
         if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
-        for (const nodePath of nodePaths) {
-          try {
-            return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-          } catch (fallbackError) {
-            if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+        const { parentURL } = context
+        try {
+          for (const nodePath of nodePaths) {
+            try {
+              return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+            } catch (fallbackError) {
+              if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+            }
           }
+        } finally {
+          context.parentURL = parentURL
         }
         throw originalError
       }

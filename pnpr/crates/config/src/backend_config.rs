@@ -223,7 +223,7 @@ impl IdentityConfig {
     pub fn is_admin(&self, identity: &Identity) -> bool {
         match identity {
             Identity::User { username, .. } => self.admins.contains(username),
-            Identity::Anonymous => false,
+            Identity::Anonymous | _ => false,
         }
     }
 }

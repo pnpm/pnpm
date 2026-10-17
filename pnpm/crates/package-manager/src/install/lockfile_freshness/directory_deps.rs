@@ -11,6 +11,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{
+    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
+};
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
 use std::{
     collections::{HashMap, HashSet},
@@ -63,6 +66,10 @@ pub(crate) fn dependency_manifests_by_dir(
 
 struct LocalDepContext<'a> {
     name: &'a str,
+    /// The importer declared the dependency with a `file:` spec, which the
+    /// resolver reads from the directory itself rather than from a workspace
+    /// project.
+    declared_as_file: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -129,7 +136,7 @@ fn dependency_is_injected(
         .unwrap_or(false)
 }
 
-fn is_declared_local_directory(spec: &str) -> bool {
+pub(super) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
@@ -167,6 +174,7 @@ fn check_single_dep_spec_directory_freshness(
             .and_then(|s| s.get(&pkg_key));
         let dep = LocalDepContext {
             name: &dep_str,
+            declared_as_file: is_declared_local_directory(&dep_spec.specifier),
             rel_path: &dir_res.directory,
             dir: &local_dep_dir,
             dirs: SpecDirs {
@@ -185,12 +193,13 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = check.workspace.manifests_by_dir
-        .get(&pnpm_fs::lexical_normalize(dep.dir))
-        .map(|manifest| (*manifest).clone())
-        .or_else(|| pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten())
-        .or_else(|| workspace_manifest_for_unbuilt_publish_dir(dep))
-        .ok_or_else(|| dep.outdated())?;
+    let mut local_manifest = unhooked_manifest(&InjectedDirectory {
+        dir: dep.dir,
+        declared_as_file: dep.declared_as_file,
+        workspace_root: dep.dirs.workspace_root,
+        manifests_by_dir: check.workspace.manifests_by_dir,
+    })
+    .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(dep.dir));
@@ -198,28 +207,61 @@ fn read_and_override_manifest(
     Ok(local_manifest)
 }
 
-/// A workspace project that publishes from `publishConfig.directory` is
-/// injected as that directory rather than its root, so a fresh checkout (or
-/// a clean before `--frozen-lockfile`) has nothing at `dep.dir` until the
-/// project's own build script runs. Walk up from `dep.dir` toward the
-/// workspace root looking for the project whose manifest resolves its
-/// publish directory back to `dep.dir`, and read its manifest from there
-/// instead of reporting the lockfile outdated over a directory the coming
-/// install step is about to create.
-fn workspace_manifest_for_unbuilt_publish_dir(
-    dep: &LocalDepContext<'_>,
+/// A local directory dependency's directory and where its manifest may come
+/// from.
+pub(super) struct InjectedDirectory<'a> {
+    pub(super) dir: &'a Path,
+    /// See [`LocalDepContext::declared_as_file`].
+    pub(super) declared_as_file: bool,
+    pub(super) workspace_root: &'a Path,
+    pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
+}
+
+/// The manifest the resolver described the dependency with, before any hook.
+/// A workspace project injected as its `publishConfig.directory` is
+/// described by the project's own manifest, not by a `package.json` a build
+/// wrote into that directory. A `file:` dependency is described by the
+/// directory's `package.json`, and by the publishing project's only while
+/// that is missing.
+pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<PackageManifest> {
+    let project_manifest = || {
+        injected.manifests_by_dir
+            .get(&pnpm_fs::lexical_normalize(injected.dir))
+            .map(|manifest| (*manifest).clone())
+    };
+    let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
+    let publishing_project = || manifest_of_project_publishing_from(injected);
+    if injected.declared_as_file {
+        project_manifest().or_else(on_disk).or_else(publishing_project)
+    } else {
+        project_manifest().or_else(publishing_project).or_else(on_disk)
+    }
+}
+
+/// The manifest of the workspace project whose `publishConfig.directory` is
+/// `injected.dir`: the project's entry in `manifests_by_dir` when it has one,
+/// else its `package.json`. Only projects between `injected.dir` and the
+/// workspace root are considered.
+fn manifest_of_project_publishing_from(
+    injected: &InjectedDirectory<'_>,
 ) -> Option<PackageManifest> {
-    let target = pnpm_fs::lexical_normalize(dep.dir);
-    let mut candidate = dep.dir.parent()?;
+    let target = pnpm_fs::lexical_normalize(injected.dir);
+    if !target.starts_with(pnpm_fs::lexical_normalize(injected.workspace_root)) {
+        return None;
+    }
+    let mut candidate = injected.dir.parent()?;
     loop {
-        if let Some(manifest) =
-            pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
+        let manifest = injected.manifests_by_dir
+            .get(&pnpm_fs::lexical_normalize(candidate))
+            .map(|manifest| (*manifest).clone())
+            .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
+        if let Some(manifest) = manifest
             && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
                 == target
         {
             return Some(manifest);
         }
-        if candidate == dep.dirs.workspace_root {
+        if candidate == injected.workspace_root {
             return None;
         }
         candidate = candidate.parent()?;
@@ -237,63 +279,85 @@ fn check_single_directory_dep_freshness(
         return Err(dep.outdated());
     };
     let peers = PeerShadowing::of(&local_manifest, pkg_meta, check.config.auto_install_peers);
-    check_local_dep_group_freshness(
-        dep,
-        &local_manifest,
-        DependencyGroup::Prod,
-        snapshot.dependencies.as_ref(),
-        GroupMatching { shadowed: &peers.shadowed, allow_unresolved: false },
-    )?;
-    if check.config.optional {
-        check_local_dep_group_freshness(
-            dep,
-            &local_manifest,
-            DependencyGroup::Optional,
-            snapshot.optional_dependencies.as_ref(),
-            GroupMatching {
-                shadowed: &HashSet::new(),
-                allow_unresolved: check.optional_exclusions.allow_unresolved,
-            },
-        )?;
-    }
+    check_local_dep_children_freshness(check, dep, &local_manifest, snapshot, &peers.shadowed)?;
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }
 
-/// How one dependency group's manifest specs are matched against the
-/// snapshot's.
-#[derive(Clone, Copy)]
-pub(super) struct GroupMatching<'a> {
-    pub(super) shadowed: &'a HashSet<&'a str>,
-    pub(super) allow_unresolved: bool,
-}
-
-fn check_local_dep_group_freshness(
+/// Compares the children the resolver walks for the package (see
+/// [`local_directory_child_specs`]) with the ones its snapshot records.
+fn check_local_dep_children_freshness(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
-    group: DependencyGroup,
-    snapshot_deps: Option<
-        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
-    >,
-    matching: GroupMatching<'_>,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    shadowed: &HashSet<&str>,
 ) -> Result<(), FreshnessCheckError> {
-    let GroupMatching { shadowed, allow_unresolved } = matching;
-    let mut manifest_deps: std::collections::HashMap<&str, &str> = local_manifest
-        .dependencies([group])
-        .collect();
-    if let Some(snapshot_deps) = snapshot_deps {
-        let mut valid_keys = manifest_deps.clone();
-        if group == DependencyGroup::Prod {
-            valid_keys.extend(local_manifest.dependencies([DependencyGroup::Peer]));
+    // A `file:` dependency resolves through the local resolver, which leaves
+    // its children's `catalog:` specs alone.
+    let catalogs = (!dep.declared_as_file).then_some(ChildCatalogs {
+        catalogs: dep.catalogs,
+        workspace_dir: check.config.workspace_dir.as_deref(),
+        package_dir: dep.dir,
+    });
+    let is_peer_shadowed = |name: &str| shadowed.contains(name);
+    let children =
+        local_directory_child_specs(local_manifest.value(), dep.name, is_peer_shadowed, catalogs)
+            .map_err(|error| match error {
+                ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
+                    FreshnessCheckError::InvalidCatalog(error)
+                }
+                _ => dep.outdated(),
+            })?;
+    check_snapshot_keys_are_children(check, dep, local_manifest, (&children, snapshot))?;
+    for child in &children {
+        if !child_is_fresh(check, dep, snapshot, child) {
+            return Err(dep.outdated());
         }
-        if group == DependencyGroup::Optional {
-            valid_keys.extend(optional_peer_names(local_manifest).map(|name| (name, "*")));
-        }
-        check_snapshot_keys_in_manifest(dep, &valid_keys, snapshot_deps)?;
     }
-    // The snapshot records the peer's resolution for these, whose range the
-    // peer check compares.
-    manifest_deps.retain(|name, _| !shadowed.contains(name));
-    check_manifest_specs_satisfy_snapshot(dep, &manifest_deps, snapshot_deps, allow_unresolved)
+    Ok(())
+}
+
+/// Whether the snapshot records a resolution of `child` that its spec
+/// accepts. An optional child the install leaves out is only checked not to
+/// be recorded as a required one.
+fn child_is_fresh(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep: &LocalDepContext<'_>,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    child: &DependencySpec,
+) -> bool {
+    let name = child.alias.as_str();
+    if child.optional && !check.config.optional {
+        return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
+    }
+    let recorded_in = if child.optional { RecordedDeps::Optional } else { RecordedDeps::Required };
+    match recorded_child(snapshot, name, recorded_in) {
+        Some(recorded) => {
+            spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
+        }
+        None => child.optional && check.optional_exclusions.allow_unresolved,
+    }
+}
+
+/// Which of a snapshot's two dependency maps a child is recorded in.
+#[derive(Clone, Copy)]
+enum RecordedDeps {
+    Required,
+    Optional,
+}
+
+/// The resolution the snapshot records for a child in `deps`.
+fn recorded_child<'s>(
+    snapshot: &'s pnpm_lockfile::SnapshotEntry,
+    name: &str,
+    deps: RecordedDeps,
+) -> Option<&'s pnpm_lockfile::SnapshotDepRef> {
+    let name = pnpm_lockfile::PkgName::parse(name).ok()?;
+    let recorded = match deps {
+        RecordedDeps::Required => &snapshot.dependencies,
+        RecordedDeps::Optional => &snapshot.optional_dependencies,
+    };
+    recorded.as_ref()?.get(&name)
 }
 
 fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
@@ -310,44 +374,33 @@ fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str>
         })
 }
 
-fn check_snapshot_keys_in_manifest(
+/// Every child the snapshot records is one the resolver walks, or a peer
+/// the package declares, which the snapshot records as resolved.
+fn check_snapshot_keys_are_children(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
-    manifest_deps: &std::collections::HashMap<&str, &str>,
-    snapshot_deps: &std::collections::HashMap<
-        pnpm_lockfile::PkgName,
-        pnpm_lockfile::SnapshotDepRef,
-    >,
+    local_manifest: &PackageManifest,
+    (children, snapshot): (&[DependencySpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
-    for lockfile_dep_name in snapshot_deps.keys() {
-        let lockfile_name_str = lockfile_dep_name.to_string();
-        if !manifest_deps.contains_key(lockfile_name_str.as_str()) {
-            return Err(dep.outdated());
-        }
-    }
-    Ok(())
-}
-
-fn check_manifest_specs_satisfy_snapshot(
-    dep: &LocalDepContext<'_>,
-    manifest_deps: &std::collections::HashMap<&str, &str>,
-    snapshot_deps: Option<
-        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
-    >,
-    allow_unresolved: bool,
-) -> Result<(), FreshnessCheckError> {
-    for (name, spec) in manifest_deps {
-        let lockfile_dep = snapshot_deps.and_then(|deps| {
-            pnpm_lockfile::PkgName::parse(*name)
-                .ok()
-                .and_then(|n| deps.get(&n))
-        });
-        let Some(lockfile_dep) = lockfile_dep else {
-            if allow_unresolved {
-                continue;
-            }
-            return Err(dep.outdated());
-        };
-        if !spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, lockfile_dep) {
+    let expected: HashSet<&str> = children
+        .iter()
+        .map(|spec| spec.alias.as_str())
+        .chain(
+            local_manifest
+                .dependencies([DependencyGroup::Peer])
+                .map(|(name, _)| name),
+        )
+        .chain(optional_peer_names(local_manifest))
+        .collect();
+    // An install without optional dependencies leaves the optional map alone.
+    let optional =
+        check.config.optional.then_some(snapshot.optional_dependencies.as_ref()).flatten();
+    let recorded = [snapshot.dependencies.as_ref(), optional]
+        .into_iter()
+        .flatten()
+        .flat_map(|deps| deps.keys());
+    for name in recorded {
+        if !expected.contains(name.to_string().as_str()) {
             return Err(dep.outdated());
         }
     }

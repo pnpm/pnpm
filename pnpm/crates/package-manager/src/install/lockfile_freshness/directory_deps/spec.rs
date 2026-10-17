@@ -1,4 +1,5 @@
 use super::ProjectManifestsByDir;
+use pnpm_resolving_deps_resolver::locked_child_admits;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -259,11 +260,21 @@ fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Resu
     Ok(canonical_root)
 }
 
+/// The resolver's reuse gate decides a semver range or a named-registry
+/// specifier (see [`locked_child_admits`]). It resolves any other specifier
+/// again, which a freshness check cannot do, so those are accepted when the
+/// recorded package is the one they name.
 fn npm_or_registry_spec_satisfies(
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
+    if let Ok(alias) = pnpm_lockfile::PkgName::parse(dep_name)
+        && let Some(key) = lockfile_dep.resolve(&alias)
+        && let Some(admits) = locked_child_admits(&alias, &key, spec)
+    {
+        return admits;
+    }
     let (target_pkg, clean_spec) = parse_npm_spec(spec);
     let expected_name = target_pkg.unwrap_or(dep_name);
     if !npm_alias_matches(dep_name, expected_name, lockfile_dep) {

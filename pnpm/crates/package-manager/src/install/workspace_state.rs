@@ -4,12 +4,15 @@ pub(super) use projects::{
     build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
+pub(crate) use write::{CarriedSettings, StateWrite, recorded_workspace_state};
 
 mod projects;
 
 mod discovery;
 
 mod nothing_to_install;
+
+mod write;
 
 use super::{
     BTreeMap, Catalogs, Clock, Config, DependencyGroup, Host, IncludedDependencies, LazyLockfile,
@@ -411,7 +414,9 @@ pub(super) fn build_projects_map(
 }
 
 /// Assemble the [`WorkspaceState`] payload for
-/// [`pnpm_workspace_state::update_workspace_state`].
+/// [`pnpm_workspace_state::update_workspace_state`], for
+/// [`crate::optimistic_repeat_install::validation::record_validation`] to
+/// complete once the caller has settled its settings.
 ///
 /// Records the projects pacquet just materialized plus the resolved
 /// settings the install used. `lastValidatedTimestamp` is the
@@ -434,7 +439,6 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
     catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
-    filtered_install: bool,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
     let mut state = WorkspaceState {
@@ -445,8 +449,9 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         ),
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config),
-        filtered_install,
+        filtered_install: false,
         config_dependencies: config.config_dependencies.clone(),
+        validation: None,
         // Settings construction is shared with
         // `optimistic_repeat_install::current_settings` so the
         // freshness check sees the same byte shape this writer

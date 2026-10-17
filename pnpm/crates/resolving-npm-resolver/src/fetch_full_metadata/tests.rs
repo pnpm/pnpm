@@ -521,6 +521,17 @@ fn to_http_date_converts_iso_8601() {
 }
 
 #[test]
+fn to_http_date_reads_a_date_without_a_time_as_midnight_utc() {
+    assert_eq!(super::to_http_date("2022-01-01").as_deref(), Some("Sat, 01 Jan 2022 00:00:00 GMT"));
+}
+
+#[test]
+fn to_http_date_drops_a_time_before_1970() {
+    assert_eq!(super::to_http_date("1969-12-31"), None);
+    assert_eq!(super::to_http_date("1969-12-31T23:59:59Z"), None);
+}
+
+#[test]
 fn to_http_date_keeps_http_dates() {
     assert_eq!(
         super::to_http_date("Wed, 15 Jan 2025 12:00:00 GMT").as_deref(),
@@ -719,6 +730,67 @@ async fn fetch_full_metadata_decodes_zstd_packuments() {
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     mock.assert_async().await;
+}
+
+const FULL_DOC_WITH_INSTALL_IRRELEVANT_FIELDS: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.0.0" },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "readme": "drop me",
+            "scripts": { "postinstall": "node install.js" },
+            "dependencies": { "bar": "^1.0.0" },
+            "dist": { "tarball": "https://example.test/acme-1.0.0.tgz" }
+        }
+    }
+}"#;
+
+#[tokio::test]
+async fn only_an_abbreviated_request_answered_with_the_full_document_is_normalized() {
+    for (full_metadata, keeps_readme) in [(false, false), (true, true)] {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(FULL_DOC_WITH_INSTALL_IRRELEVANT_FIELDS)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let registry = format!("{}/", server.url());
+        let http_client = ThrottledClient::default();
+        let auth_headers = AuthHeaders::default();
+        let opts = FetchFullMetadataOptions {
+            registry: &registry,
+            full_metadata,
+            etag: None,
+            modified: None,
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: no_retry_opts(),
+            },
+        };
+
+        let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("200 → ok"));
+        let manifest = pkg.versions.get("1.0.0").expect("manifest");
+        assert_eq!(
+            manifest.other.contains_key("readme"),
+            keeps_readme,
+            "full_metadata={full_metadata}",
+        );
+        assert_eq!(
+            manifest.dependencies
+                .as_ref()
+                .and_then(|deps| deps.get("bar"))
+                .map(String::as_str),
+            Some("^1.0.0"),
+        );
+        mock.assert_async().await;
+    }
 }
 
 #[tokio::test]

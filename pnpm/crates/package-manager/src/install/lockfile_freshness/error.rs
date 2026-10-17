@@ -29,6 +29,17 @@ pub(crate) enum FreshnessCheckError {
     #[diagnostic(transparent)]
     CalcPatchHashes(#[error(source)] pnpm_patching::CalcPatchHashError),
 
+    /// A `packageExtensions` selector could not be parsed while applying the
+    /// extensions to an injected dependency's manifest.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(
+        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
+    ),
+
+    /// The pnpmfile's `readPackage` failed on an injected dependency's
+    /// manifest.
+    ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
     /// current settings.
     Stale(#[error(not(source))] StalenessReason),
@@ -45,6 +56,10 @@ impl From<FreshnessCheckError> for InstallError {
             FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
                 InstallWithFreshLockfileError::CalcPatchHashes(inner),
             ),
+            FreshnessCheckError::InvalidPackageExtensionSelector(inner) => {
+                InstallError::InvalidPackageExtensionSelector(inner)
+            }
+            FreshnessCheckError::ReadPackageHook(inner) => InstallError::from(inner),
             FreshnessCheckError::Stale(StalenessReason::InconsistentPatchHashes) => {
                 InstallError::InconsistentPatchHash
             }

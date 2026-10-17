@@ -35,7 +35,7 @@ pub(super) fn collect_dependency_warnings(
 
 fn get_specifier_source(spec: &str, alias: &str) -> String {
     if let Some(hosted) = HostedGit::from_url(spec) {
-        return format!("git:{:?}:{}:{}", hosted.host_type, hosted.user, hosted.project);
+        return format!("git:{}", hosted.shortcut(HostedGit::no_committish()));
     }
     if spec.starts_with("git+") || spec.starts_with("git:") || spec.ends_with(".git") {
         let repo_part = spec.split('#').next().unwrap_or(spec);

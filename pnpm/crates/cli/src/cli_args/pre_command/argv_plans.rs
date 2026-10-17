@@ -2,9 +2,11 @@
 //! read from argv directly.
 
 use super::{
-    ConfigOverrides, KeyIssueReporting, OsString, PreCommandInput, PreCommandPlan, SwitchInput,
-    SwitchProcessState, input::UnparsedArgv, pre_command_plan_from_input,
+    ConfigOverrides, OsString, PreCommandInput, PreCommandPlan, SwitchProcessState,
+    input::{UnparsedArgv, VersionArgv},
+    pre_command_plan_from_input,
 };
+use crate::cli_args::config_warnings::ConfigWarnings;
 
 /// The `pnpm --version` path, which clap answers before a command is
 /// parsed. pnpm checks the package manager there too, but skips the runtime
@@ -14,16 +16,15 @@ pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<PreCommandPlan>> {
+    let VersionArgv { switch, reporter } = VersionArgv::scan(argv);
     pre_command_plan_from_input(
         &PreCommandInput {
-            switch: SwitchInput::from_version_argv(argv),
+            switch,
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
-            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
-            // Printing the version must work in a project whose
-            // `pnpm-workspace.yaml` is broken, like the runtime checks above.
-            key_issues: KeyIssueReporting::WarnOnly,
+            reporter,
+            warnings: ConfigWarnings::for_version_flag(),
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -39,7 +40,10 @@ pub(crate) fn switch_plan_for_unparsed_argv(
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<PreCommandPlan>> {
     let Some(UnparsedArgv {
-        switch, global, project_location, ..
+        switch,
+        reporter,
+        global,
+        project_location,
     }) = UnparsedArgv::scan(argv)
     else {
         return Ok(None);
@@ -58,8 +62,8 @@ pub(crate) fn switch_plan_for_unparsed_argv(
             global,
             skip_pm_handling: false,
             check_runtimes: false,
-            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
-            key_issues: KeyIssueReporting::Skip,
+            reporter,
+            warnings: ConfigWarnings::for_unparsed_argv(),
         },
         config_overrides,
         SwitchProcessState::current(),

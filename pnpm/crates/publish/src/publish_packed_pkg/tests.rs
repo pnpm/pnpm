@@ -722,12 +722,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
     assert_eq!(summary.stage_id, None);
 }
 
-/// A GitHub-Actions host wired for the whole `--provenance` publish flow: an
-/// `NPM_ID_TOKEN` short-circuits the OIDC id-token fetch, the `fetch` answers
-/// both the auth-token exchange and the sigstore-audience token request, the
-/// build-statement env is present, and the signer returns a canned bundle so no
-/// real sigstore call is made. The registry `PUT` itself still goes over the
-/// wire to the mocked server.
+/// Fakes GitHub Actions and sigstore; registry requests use the real HTTP client.
 struct ProvenanceSys;
 fn npm_id_token() -> String {
     let payload =
@@ -765,7 +760,7 @@ impl OidcFetch for ProvenanceSys {
         let body = if request.url.contains("audience=sigstore") {
             r#"{"value":"sigstore-token"}"#
         } else if request.url.contains("/oidc/token/exchange/") {
-            r#"{"token":"registry-token"}"#
+            return crate::capabilities::Host::fetch(request).await;
         } else {
             unreachable!("unexpected OIDC request: {}", request.url)
         };
@@ -791,6 +786,13 @@ impl SignProvenance for ProvenanceSys {
 #[tokio::test]
 async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
     let mut server = mockito::Server::new_async().await;
+    let exchange = server
+        .mock("POST", "/npm/private/-/npm/v1/oidc/token/exchange/package/pkg")
+        .match_header("authorization", format!("Bearer {}", npm_id_token()).as_str())
+        .with_status(200)
+        .with_body(r#"{"token":"registry-token"}"#)
+        .create_async()
+        .await;
     let manifest = json!({ "name": "pkg", "version": "1.0.0" });
     let tarball = b"tarball-bytes";
     let pkg = PackedPkg {
@@ -805,7 +807,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         stage: false,
         wait_timeout: Duration::ZERO,
         registry: crate::PublishRegistryOptions {
-            default: format!("{}/", server.url()),
+            default: format!("{}/npm/private", server.url()),
             scoped: std::collections::BTreeMap::new(),
             access: None,
             tag: "latest".to_owned(),
@@ -815,7 +817,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         },
     };
     let mock = server
-        .mock("PUT", "/pkg")
+        .mock("PUT", "/npm/private/pkg")
         .match_header("authorization", "Bearer registry-token")
         .match_body(mockito::Matcher::PartialJsonString(
             r#"{"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
@@ -835,6 +837,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         .expect("a provenance publish succeeds");
 
     assert_eq!(summary.name, "pkg");
+    exchange.assert_async().await;
     mock.assert_async().await;
 }
 

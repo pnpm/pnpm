@@ -93,6 +93,101 @@ module.exports = { hooks: { readPackage(pkg) {
     assert_eq!(order, "lib;app;");
 }
 
+/// An install waiting for a workspace dependency still counts toward the
+/// concurrency limit, since it retains its resolved and materialized state.
+#[test]
+fn waiting_projects_count_toward_workspace_concurrency() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    workspace_projects(
+        workspace,
+        &[
+            (
+                "lib",
+                serde_json::json!({}),
+                serde_json::json!({
+                    "postinstall": r#"node -e "const fs = require('fs'); const deadline = Date.now() + 30000; const poll = () => { if (fs.existsSync('../../app-resolving')) return setTimeout(() => fs.writeFileSync('../../lib-built', ''), 1000); if (Date.now() > deadline) process.exit(1); setTimeout(poll, 20); }; poll()""#,
+                }),
+            ),
+            ("app", serde_json::json!({ "lib": "workspace:*" }), serde_json::json!({})),
+            ("tail", serde_json::json!({ "app": "workspace:*" }), serde_json::json!({})),
+        ],
+    );
+    fs::write(
+        workspace.join("packages/app/.pnpmfile.cjs"),
+        r"const fs = require('fs');
+const path = require('path');
+module.exports = { hooks: { readPackage(pkg) {
+  fs.writeFileSync(path.join(__dirname, '../../app-resolving'), '');
+  return pkg;
+} } };
+",
+    )
+    .expect("write app pnpmfile");
+    fs::write(
+        workspace.join("packages/tail/.pnpmfile.cjs"),
+        r"const fs = require('fs');
+const path = require('path');
+module.exports = { hooks: { readPackage(pkg) {
+  if (!fs.existsSync(path.join(__dirname, '../../lib-built'))) {
+    throw new Error('third project started while two installs were unfinished');
+  }
+  return pkg;
+} } };
+",
+    )
+    .expect("write tail pnpmfile");
+
+    pacquet_at(workspace)
+        .with_args(["install", "--workspace-concurrency=2", "--no-lockfile"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("lib-built").exists());
+    assert!(workspace.join("packages/tail/node_modules/app").exists());
+}
+
+/// A project that cannot start before its workspace dependencies finish
+/// holds no slot while it waits, so a later project that is ready runs. Here
+/// `w-waits` (a `preinstall`) waits for `a-slow`, and `a-slow`'s
+/// `postinstall` waits for `y-ready`'s, with two slots.
+#[test]
+fn a_project_waiting_to_start_leaves_its_slot_to_ready_projects() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    workspace_projects(
+        workspace,
+        &[
+            (
+                "a-slow",
+                serde_json::json!({}),
+                serde_json::json!({ "postinstall": wait_for_then_record("y-ready-done", "a-slow") }),
+            ),
+            ("c-fast", serde_json::json!({}), serde_json::json!({})),
+            (
+                "w-waits",
+                serde_json::json!({ "a-slow": "workspace:*" }),
+                serde_json::json!({ "preinstall": r#"node -e """# }),
+            ),
+            (
+                "y-ready",
+                serde_json::json!({ "c-fast": "workspace:*" }),
+                serde_json::json!({
+                    "postinstall": r#"node -e "require('fs').writeFileSync('../../y-ready-done', '')""#,
+                }),
+            ),
+        ],
+    );
+
+    pacquet_at(workspace)
+        .with_args(["install", "--workspace-concurrency=2", "--no-lockfile"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+    assert_eq!(order, "a-slow;");
+}
+
 /// A project's `preinstall` and `pnpm:devPreinstall` scripts run before
 /// its install could wait for the workspace projects it depends on, so such
 /// a project waits for them before it starts at all.

@@ -2,8 +2,12 @@
 //! own lockfiles ahead of the workspace projects they depend on.
 //!
 //! Resolving, fetching and materializing a project reads nothing the installs
-//! of its workspace dependencies produce, so each project starts as soon as a
-//! concurrency slot is free, in dependency order. It waits for those installs
+//! of its workspace dependencies produce, so a project starts once each of
+//! them has started, with at most `workspaceConcurrency` installs in flight.
+//! An install counts from its start until it returns, waits included, because
+//! it retains materialized state. Every install in flight then depends only on
+//! installs that are in flight or done, so the earliest of them can finish.
+//! A project waits for its workspace dependencies' installs
 //! only where they start to matter: before it links its dependencies and runs
 //! its lifecycle scripts. The scripts of a project therefore still run after
 //! the scripts of every workspace project it depends on, as they do when each
@@ -27,19 +31,17 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
+use tokio::sync::{Semaphore, watch};
 
 /// How far a project's install got, for the projects that depend on it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Installed {
     Pending,
+    /// Holds one of the in-flight slots.
+    Started,
     Succeeded,
     Failed,
 }
-
-/// The concurrency slot a project's install holds, which it hands back while
-/// it waits for its workspace dependencies.
-type Slot = Arc<Mutex<Option<OwnedSemaphorePermit>>>;
 
 /// The projects whose install may run ahead of the workspace projects they
 /// depend on. A project whose `preinstall` or `pnpm:devPreinstall` script
@@ -97,15 +99,16 @@ impl DedicatedProjectRuns<'_> {
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let order = sequence_project_dependencies(&self.projects.dependencies);
+        let concurrency = usize::try_from(self.config.workspace_concurrency)
+            .unwrap_or(usize::MAX)
+            .clamp(1, Semaphore::MAX_PERMITS);
         let run = PipelinedRun {
             runs: self,
             states: order
                 .iter()
                 .map(|_| watch::channel(Installed::Pending).0)
                 .collect(),
-            slots: Arc::new(Semaphore::new(
-                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
-            )),
+            slots: Semaphore::new(concurrency),
             stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
             caches: DedicatedCaches::default(),
@@ -134,7 +137,7 @@ struct PipelinedRun<'r, 'c, Runner> {
     runs: &'r DedicatedProjectRuns<'c>,
     /// Indexed like the dependency order the projects start in.
     states: Vec<watch::Sender<Installed>>,
-    slots: Arc<Semaphore>,
+    slots: Semaphore,
     /// Set by the first failure when the command stops at it, so that no
     /// project that has yet to start, or to link, does.
     stopped: Arc<AtomicBool>,
@@ -151,27 +154,21 @@ where
     async fn project(&self, index: usize, project_dir: &Path, position: &HashMap<&Path, usize>) {
         let dependencies_installed = self.dependencies_installed(index, project_dir, position);
         let starts_early = self.runs.projects.early_starts.contains(project_dir);
-        if !starts_early && !dependencies_installed.clone().await {
+        if starts_early {
+            self.dependencies_started(index, project_dir, position).await;
+        } else if !dependencies_installed.clone().await {
             self.states[index].send_replace(Installed::Failed);
             return;
         }
-        let slot: Slot = Arc::new(Mutex::new(Some(
-            Arc::clone(&self.slots)
-                .acquire_owned()
-                .await
-                .expect("the concurrency slots are never closed"),
-        )));
+        let slot = self.slots.acquire().await.expect("the install slots are never closed");
         if self.stopped.load(Ordering::Acquire) {
             self.states[index].send_replace(Installed::Failed);
             return;
         }
-        let gate = starts_early.then(|| self.gate(dependencies_installed.clone(), &slot));
+        self.states[index].send_replace(Installed::Started);
+        let gate = starts_early.then(|| self.gate(dependencies_installed.clone()));
         let result = self.runs.install_project(project_dir, &self.caches, gate, self.run).await;
-        drop(
-            slot.lock()
-                .expect("slot lock is not poisoned")
-                .take(),
-        );
+        drop(slot);
         let failed = result.is_err();
         record_dedicated_result(&self.first_error, result);
         if failed && self.runs.config.bail {
@@ -198,19 +195,15 @@ where
         project_dir: &Path,
         position: &HashMap<&Path, usize>,
     ) -> WorkspaceDependenciesInstalled {
-        let dependencies: Vec<watch::Receiver<Installed>> = self.runs.projects.dependencies
-            [project_dir]
-            .iter()
-            .filter_map(|dependency| position.get(dependency.as_path()).copied())
-            .filter(|&dependency| dependency < index)
-            .map(|dependency| self.states[dependency].subscribe())
-            .collect();
+        let dependencies = self.dependency_states(index, project_dir, position);
         let bail = self.runs.config.bail;
         let settled: BoxFuture<'static, bool> = async move {
             let mut all_succeeded = true;
             for mut dependency in dependencies {
                 let installed = dependency
-                    .wait_for(|installed| *installed != Installed::Pending)
+                    .wait_for(|installed| {
+                        matches!(installed, Installed::Succeeded | Installed::Failed)
+                    })
                     .await
                     .map_or(Installed::Failed, |installed| *installed);
                 all_succeeded &= installed == Installed::Succeeded;
@@ -221,32 +214,45 @@ where
         settled.shared()
     }
 
-    /// `dependencies_installed` as the install awaits it: the install hands
-    /// its concurrency slot back while it waits, so that a project waiting
-    /// on its dependencies never keeps one of them, or any other project,
-    /// from running. `false` too when the command stopped at another
-    /// project's failure in the meantime, so the install links nothing.
+    /// Resolves once every workspace project `project_dir` depends on, as
+    /// [`Self::dependencies_installed`] counts them, has started or settled.
+    async fn dependencies_started(
+        &self,
+        index: usize,
+        project_dir: &Path,
+        position: &HashMap<&Path, usize>,
+    ) {
+        for mut dependency in self.dependency_states(index, project_dir, position) {
+            // A closed channel means the dependency's install is gone, which
+            // is as good as settled for starting.
+            let _ = dependency.wait_for(|installed| *installed != Installed::Pending).await;
+        }
+    }
+
+    fn dependency_states(
+        &self,
+        index: usize,
+        project_dir: &Path,
+        position: &HashMap<&Path, usize>,
+    ) -> Vec<watch::Receiver<Installed>> {
+        self.runs.projects.dependencies[project_dir]
+            .iter()
+            .filter_map(|dependency| position.get(dependency.as_path()).copied())
+            .filter(|&dependency| dependency < index)
+            .map(|dependency| self.states[dependency].subscribe())
+            .collect()
+    }
+
+    /// `dependencies_installed` as the install awaits it: `false` too when
+    /// the command stopped at another project's failure in the meantime, so
+    /// the install links nothing.
     fn gate(
         &self,
         dependencies_installed: WorkspaceDependenciesInstalled,
-        slot: &Slot,
     ) -> WorkspaceDependenciesInstalled {
-        let slot = Arc::clone(slot);
-        let slots = Arc::clone(&self.slots);
         let stopped = Arc::clone(&self.stopped);
-        let gate: BoxFuture<'static, bool> = async move {
-            drop(
-                slot.lock()
-                    .expect("slot lock is not poisoned")
-                    .take(),
-            );
-            let succeeded = dependencies_installed.await;
-            let permit =
-                slots.acquire_owned().await.expect("the concurrency slots are never closed");
-            *slot.lock().expect("slot lock is not poisoned") = Some(permit);
-            succeeded && !stopped.load(Ordering::Acquire)
-        }
-        .boxed();
+        let gate: BoxFuture<'static, bool> =
+            async move { dependencies_installed.await && !stopped.load(Ordering::Acquire) }.boxed();
         gate.shared()
     }
 }

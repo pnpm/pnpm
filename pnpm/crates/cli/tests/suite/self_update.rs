@@ -16,7 +16,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 use tempfile::{TempDir, tempdir};
@@ -67,13 +67,92 @@ fn self_update_loads_config_and_reaches_the_resolver() {
     drop(global_home);
 }
 
-/// The executable is copied into a fake keg rather than linked, because
-/// pnpm detects Homebrew from its canonical path and the keg's install receipt.
 #[test]
 fn self_update_refuses_a_pnpm_installed_by_homebrew() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let brewed_pnpm = install_into_homebrew_keg(&pacquet, root.path());
+
+    let output = command_with_env_of(&pacquet, &brewed_pnpm)
+        .current_dir(&workspace)
+        .arg("self-update")
+        .output()
+        .expect("run the Homebrew pnpm");
+
+    assert!(!output.status.success(), "self-update must refuse a Homebrew pnpm");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW"), "stderr={stderr}");
+    assert!(stderr.contains("brew upgrade pnpm"), "stderr={stderr}");
+}
+
+#[test]
+fn self_update_rewrites_the_project_pin_of_a_pnpm_installed_by_homebrew() {
+    let project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    let brewed_pnpm = install_into_homebrew_keg(&project.pacquet, project.root.path());
+
+    let output = command_with_env_of(&project.pacquet, &brewed_pnpm)
+        .current_dir(&project.workspace)
+        .arg("self-update")
+        .output()
+        .expect("run the Homebrew pnpm");
+
+    assert_pin_updated_and_global_switch_skipped(
+        &output,
+        "The global pnpm was left alone because it is installed by Homebrew. Update it with Homebrew instead: brew upgrade pnpm",
+    );
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_rewrites_the_project_pin_under_corepack() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    project.pacquet.env("COREPACK_ROOT", "/fake/corepack");
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_skipped(
+        &output,
+        "The global pnpm was left alone because it is executed by Corepack.",
+    );
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_refuses_a_pnpm_executed_by_corepack_outside_a_pinned_project() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_arg("self-update")
+        .output()
+        .expect("run pacquet self-update");
+
+    assert!(!output.status.success(), "self-update must refuse a Corepack pnpm");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK"), "stderr={stderr}");
+    drop(root);
+}
+
+#[test]
+fn self_update_refuses_a_pnpm_executed_by_corepack_when_package_json_is_malformed() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{").expect("write package.json");
+
+    let output = pacquet
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_arg("self-update")
+        .output()
+        .expect("run pacquet self-update");
+
+    assert!(!output.status.success(), "self-update must refuse a Corepack pnpm");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK"), "stderr={stderr}");
+    drop(root);
+}
+
+/// The executable is copied into a fake keg rather than linked, because
+/// pnpm detects Homebrew from its canonical path and the keg's install receipt.
+fn install_into_homebrew_keg(pacquet: &Command, root: &Path) -> PathBuf {
     let keg = root
-        .path()
         .join("Cellar")
         .join("pnpm")
         .join("12.0.0");
@@ -83,22 +162,17 @@ fn self_update_refuses_a_pnpm_installed_by_homebrew() {
         .join("bin")
         .join(format!("pnpm{}", std::env::consts::EXE_SUFFIX));
     fs::copy(pacquet.get_program(), &brewed_pnpm).expect("copy the pnpm binary");
+    brewed_pnpm
+}
 
-    let output = Command::new(&brewed_pnpm)
-        .current_dir(&workspace)
-        .envs(
-            pacquet
-                .get_envs()
-                .filter_map(|(key, value)| Some((key, value?))),
-        )
-        .arg("self-update")
-        .output()
-        .expect("run the Homebrew pnpm");
-
-    assert!(!output.status.success(), "self-update must refuse a Homebrew pnpm");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW"), "stderr={stderr}");
-    assert!(stderr.contains("brew upgrade pnpm"), "stderr={stderr}");
+fn command_with_env_of(template: &Command, program: &Path) -> Command {
+    let mut command = Command::new(program);
+    command.envs(
+        template
+            .get_envs()
+            .filter_map(|(key, value)| Some((key, value?))),
+    );
+    command
 }
 
 #[test]
@@ -148,13 +222,59 @@ fn self_update_rewrites_a_dev_engines_pin_and_reports_the_declined_global_switch
     );
 }
 
+#[test]
+fn self_update_rewrites_the_workspace_root_pin_from_a_workspace_package() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    let package_dir = project.run_from_workspace_package();
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+    assert_eq!(
+        fs::read_to_string(package_dir.join("package.json")).expect("read package.json"),
+        r#"{"name":"app"}"#,
+    );
+}
+
+#[test]
+fn self_update_rewrites_the_workspace_root_pin_under_corepack_from_a_workspace_package() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    project.run_from_workspace_package();
+    project.pacquet.env("COREPACK_ROOT", "/fake/corepack");
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_skipped(
+        &output,
+        "The global pnpm was left alone because it is executed by Corepack.",
+    );
+    assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}"}}"#));
+}
+
+#[test]
+fn self_update_rewrites_a_package_yaml_pin() {
+    let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
+    fs::remove_file(project.workspace.join("package.json")).expect("remove package.json");
+    let manifest_path = project.workspace.join("package.yaml");
+    fs::write(&manifest_path, "packageManager: pnpm@0.1.0\n").expect("write package.yaml");
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        fs::read_to_string(&manifest_path).expect("read package.yaml"),
+        format!("packageManager: pnpm@{OLDER_PNPM}\n"),
+    );
+}
+
 /// A project that pins pnpm, wired to a mocked registry serving
 /// `registry_latest` as pnpm's `latest` and to a throwaway `PNPM_HOME`.
 struct PinnedProject {
     pacquet: Command,
     workspace: PathBuf,
     // Held so the temp trees outlive the command that writes into them.
-    _root: TempDir,
+    root: TempDir,
     _global_home: TempDir,
     _npmrc_info: AddMockedRegistry,
 }
@@ -190,10 +310,23 @@ impl PinnedProject {
         PinnedProject {
             pacquet,
             workspace,
-            _root: root,
+            root,
             _global_home: global_home,
             _npmrc_info: npmrc_info,
         }
+    }
+
+    /// Make the project a workspace root and run the command from a
+    /// workspace package that pins nothing itself. Returns that package.
+    fn run_from_workspace_package(&mut self) -> PathBuf {
+        fs::write(self.workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+            .expect("write pnpm-workspace.yaml");
+        let package_dir = self.workspace.join("packages/app");
+        fs::create_dir_all(&package_dir).expect("create the workspace package");
+        fs::write(package_dir.join("package.json"), r#"{"name":"app"}"#)
+            .expect("write the workspace package manifest");
+        self.pacquet.current_dir(&package_dir);
+        package_dir
     }
 
     fn self_update(&mut self) -> Output {
@@ -227,5 +360,16 @@ fn assert_pin_updated_and_global_switch_declined(output: &Output) {
                 r#"is newer than the "latest" version on the registry (v{OLDER_PNPM})"#,
             )),
         "both the pin update and the declined global switch must be reported; stdout={stdout}, stderr={stderr}",
+    );
+}
+
+fn assert_pin_updated_and_global_switch_skipped(output: &Output, skipped_message: &str) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout={stdout}, stderr={stderr}");
+    assert!(
+        stdout.contains(&format!("The current project has been updated to use pnpm v{OLDER_PNPM}"))
+            && stdout.contains(skipped_message),
+        "both the pin update and the skipped global switch must be reported; stdout={stdout}, stderr={stderr}",
     );
 }

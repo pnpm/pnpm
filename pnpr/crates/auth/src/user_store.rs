@@ -1,6 +1,6 @@
 use super::{
     DEFAULT_BCRYPT_COST, PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, dummy_verify, hash_bcrypt, parse_htpasswd, serialize_htpasswd,
+    UserRemoval, dummy_verify, hash_bcrypt, is_sha_hash, parse_htpasswd, serialize_htpasswd,
     verify_returning_user, write_atomic,
 };
 use crate::validation::validate_username;
@@ -151,6 +151,30 @@ impl UserStore {
         })
         .await?
     }
+
+    async fn login_existing(
+        &self,
+        username: &str,
+        password: &str,
+        stored: String,
+    ) -> Result<(UpsertOutcome, String)> {
+        let (outcome, user) =
+            verify_returning_user(username, password, stored.clone(), self.bcrypt_cost).await?;
+        if is_sha_hash(&stored) {
+            let new_hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
+            let name = username.to_string();
+            self.update(move |users| {
+                if users.get(&name) == Some(&stored) {
+                    users.insert(name, new_hash);
+                    Ok(Change::Write(()))
+                } else {
+                    Ok(Change::Keep(()))
+                }
+            })
+            .await?;
+        }
+        Ok((outcome, user))
+    }
 }
 
 /// The outcome of a registration's locked step.
@@ -177,7 +201,7 @@ impl UserBackend for UserStore {
 
         let existing_hash = self.snapshot().get(username).cloned();
         if let Some(stored) = existing_hash {
-            return verify_returning_user(username, password, stored).await;
+            return self.login_existing(username, password, stored).await;
         }
 
         if matches!(self.max_users, MaxUsers::Disabled) {
@@ -206,9 +230,7 @@ impl UserBackend for UserStore {
         });
         match registration.await? {
             Registration::Created => Ok((UpsertOutcome::Created, username.to_string())),
-            Registration::Existing(stored) => {
-                verify_returning_user(username, password, stored).await
-            }
+            Registration::Existing(stored) => self.login_existing(username, password, stored).await,
         }
     }
 

@@ -1,7 +1,7 @@
 use super::{
     ABBREVIATED_BODY, ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY,
-    PickPackageContext, RetryOpts, TempDir, ThrottledClient, assert_eq, default_opts,
-    get_pkg_mirror_path, load_meta, parse_cutoff, pick_package, range_spec,
+    PARTIAL_TIME_PACKAGE_BODY, PickPackageContext, RetryOpts, TempDir, ThrottledClient, assert_eq,
+    default_opts, get_pkg_mirror_path, load_meta, parse_cutoff, pick_package, range_spec,
     shared_packument_fetch_locker,
 };
 use crate::mirror::load_meta_headers;
@@ -62,6 +62,92 @@ async fn published_by_upgraded_mirror_records_a_changed_full_document_as_full() 
     let headers = load_meta_headers(&abbrev_path).expect("headers readable");
     assert_eq!(headers.etag, None);
     assert_eq!(headers.full_etag.as_deref(), Some(r#""changed-full-etag""#));
+}
+
+/// A registry whose full document lacks a complete `time` map leaves the
+/// upgraded mirror without one, so every later install upgrades it again.
+/// That upgrade revalidates the mirror's full document with its tag, like
+/// the regular revalidation before it, so installs two and three download
+/// no body.
+#[tokio::test]
+async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_etag() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_header("etag", r#""abbreviated-etag""#)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", r#""full-etag""#)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    // Each later install's revalidation, then its upgrade.
+    let revalidation_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .match_header("if-none-match", r#""full-etag""#)
+        .with_status(304)
+        .expect(4)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let mut opts = default_opts(&registry);
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    let abbrev_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+
+    for install in ["upgrading install", "second install", "third install"] {
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            cache_policy: crate::MetadataCachePolicy {
+                network: pnpm_config::NetworkPolicy::Online,
+                ignore_missing_time_field: true,
+            },
+            store_view: None,
+            metadata: crate::MetadataRequestContext {
+                meta_cache: &meta_cache,
+                fetch_locker: &fetch_locker,
+                cache_dir: Some(cache_dir.path()),
+                http: crate::MetadataHttpClient {
+                    http_client: &http_client,
+                    auth_headers: &auth_headers,
+                    retry_opts: RetryOpts::default(),
+                },
+            },
+        };
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect(install);
+        std::fs::File::options()
+            .write(true)
+            .open(&abbrev_path)
+            .and_then(|file| file.set_modified(std::time::UNIX_EPOCH))
+            .expect("backdate the mirror");
+    }
+
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+    revalidation_mock.assert_async().await;
 }
 
 /// One abbreviated `200` and one unconditional full `200`: the requests of the

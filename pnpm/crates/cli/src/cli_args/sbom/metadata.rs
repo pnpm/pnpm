@@ -22,10 +22,7 @@ fn repository_url(raw: &str) -> Option<String> {
         return Some(url);
     }
     let hosted = HostedGit::from_url(raw)?;
-    // An ownerless shorthand derives a URL with an empty owner segment.
-    // `gist:<id>` is ownerless too and [`HostedGit`] has no gist support, so
-    // dropping it here is what keeps pnpm v11 and v12 in step.
-    if hosted.user.is_empty() {
+    if !hosted.names_repository() {
         return None;
     }
     let expanded = hosted.https(HostedOpts::default())?;

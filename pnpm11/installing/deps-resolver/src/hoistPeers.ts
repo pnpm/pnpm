@@ -86,7 +86,7 @@ function pickPreferredPeerSpec (
   preferredSelectors: VersionSelectors,
   { autoInstallPeers, lockfileOnlyVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, range: string }
 ): string | undefined {
-  const { versions, nonVersions } = splitVersionSelectors(preferredSelectors)
+  const nonVersions = getNonVersionSelectors(preferredSelectors)
   // Dedupe onto a preferred version only when it actually satisfies the
   // wanted peer range. Picking the highest preferred version regardless of
   // the range lets a version resolved for one importer be auto-installed as
@@ -100,34 +100,69 @@ function pickPreferredPeerSpec (
   // selects the package to install.
   const rangeForMatch = getPeerVersionRange(range)
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
-  const satisfyingVersion = isSemverRange
-    ? maxSatisfyingDemotingLockfileOnly(versions, lockfileOnlyVersions, rangeForMatch)
-    : null
-  if (satisfyingVersion) {
-    return [satisfyingVersion, ...nonVersions].join(' || ')
+  if (isSemverRange) {
+    const satisfyingVersion = pickProviderVersion(preferredSelectors, {
+      tiers: getRequiredPeerTiers(preferredSelectors, lockfileOnlyVersions),
+      qualifies: (version) => semver.satisfies(version, rangeForMatch, { includePrerelease: true }),
+    })
+    if (satisfyingVersion) {
+      return [satisfyingVersion, ...nonVersions].join(' || ')
+    }
+    if (hasVersionSelector(preferredSelectors)) {
+      // Preferred versions exist but none satisfies the wanted range.
+      // Use the range directly so pnpm resolves it from the registry rather
+      // than installing a version the peer explicitly rejects. Without
+      // autoInstallPeers, hoist nothing and leave the peer missing.
+      return autoInstallPeers ? range : undefined
+    }
   }
-  if (isSemverRange && versions.length > 0) {
-    // Preferred versions exist but none satisfies the wanted range.
-    // Use the range directly so pnpm resolves it from the registry rather
-    // than installing a version the peer explicitly rejects. Without
-    // autoInstallPeers, hoist nothing and leave the peer missing.
-    return autoInstallPeers ? range : undefined
-  }
-  return [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
+  return [pickProviderVersion(preferredSelectors, { qualifies: () => true }), ...nonVersions]
     .filter(spec => spec != null)
     .join(' || ')
 }
 
 /**
- * The highest of `versions` satisfying `range`, or `null` when none does. A
- * version in `lockfileOnly` is picked only when no other version satisfies
- * `range`: its provider has moved on, so it must not outrank a version the
- * install resolved.
+ * The versions this install resolved, so a version in `lockfileOnly` is
+ * picked only when no other version qualifies. Its provider has moved on, so
+ * it must not outrank a version the install resolved.
  */
-function maxSatisfyingDemotingLockfileOnly (versions: string[], lockfileOnly: Set<string> | undefined, range: string): string | null {
-  const resolved = lockfileOnly == null ? versions : versions.filter((version) => !lockfileOnly.has(version))
-  return semver.maxSatisfying(resolved, range, { includePrerelease: true }) ??
-    semver.maxSatisfying(versions, range, { includePrerelease: true })
+function getRequiredPeerTiers (selectors: VersionSelectors, lockfileOnly: Set<string> | undefined): Array<Set<string>> {
+  if (lockfileOnly == null) return []
+  return [new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))]
+}
+
+/**
+ * The highest version among `selectors` that `qualifies`, from the first of
+ * `tiers` that holds one. When no tier does, every version competes. On equal
+ * versions the first selector wins.
+ */
+function pickProviderVersion (
+  selectors: VersionSelectors,
+  { tiers = [], qualifies }: { tiers?: Array<Set<string>>, qualifies: (version: string) => boolean }
+): string | undefined {
+  for (const tier of tiers) {
+    const picked = pickHighestVersion(selectors, { tier, qualifies })
+    if (picked != null) return picked
+  }
+  return pickHighestVersion(selectors, { qualifies })
+}
+
+/**
+ * `qualifies` runs only for a version that would become the new highest, so
+ * an expensive check such as `acceptsCandidate` runs as few times as possible.
+ */
+function pickHighestVersion (
+  selectors: VersionSelectors,
+  { tier, qualifies }: { tier?: Set<string>, qualifies: (version: string) => boolean }
+): string | undefined {
+  let highest: string | undefined
+  for (const [version, selector] of Object.entries(selectors)) {
+    if (getSelectorType(selector) !== 'version' || (tier != null && !tier.has(version)) || semver.valid(version) == null) continue
+    if ((highest == null || semver.gt(version, highest)) && qualifies(version)) {
+      highest = version
+    }
+  }
+  return highest
 }
 
 /**
@@ -146,17 +181,12 @@ export function getLockfileOnlyVersions (preferredVersions: PreferredVersions): 
   return lockfileOnlyVersions
 }
 
-function splitVersionSelectors (selectors: VersionSelectors): { versions: string[], nonVersions: string[] } {
-  const versions: string[] = []
-  const nonVersions: string[] = []
-  for (const [spec, selector] of Object.entries(selectors)) {
-    if (getSelectorType(selector) === 'version') {
-      versions.push(spec)
-    } else {
-      nonVersions.push(spec)
-    }
-  }
-  return { versions, nonVersions }
+function getNonVersionSelectors (selectors: VersionSelectors): string[] {
+  return Object.keys(selectors).filter((spec) => getSelectorType(selectors[spec]) !== 'version')
+}
+
+function hasVersionSelector (selectors: VersionSelectors): boolean {
+  return Object.values(selectors).some((selector) => getSelectorType(selector) === 'version')
 }
 
 function getSelectorType (selector: VersionSelectors[string]): string {
@@ -189,11 +219,14 @@ export function getHoistableOptionalPeers (
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
     if (!allPreferredVersions[missingOptionalPeerName]) continue
-    const maxSatisfyingVersion = findMaxSatisfyingVersion(allPreferredVersions[missingOptionalPeerName], {
-      acceptsCandidate,
-      peerName: missingOptionalPeerName,
-      ranges,
-      rootRange: getRootRange(workspaceRootDeps, { peerName: missingOptionalPeerName, ranges }),
+    const rootRange = getRootRange(workspaceRootDeps, { peerName: missingOptionalPeerName, ranges })
+    // Strict, unlike the required-peer pick: an optional peer nobody declared
+    // is installed only to deduplicate, so a prerelease its range rejects is
+    // not worth splitting a package family over.
+    const maxSatisfyingVersion = pickProviderVersion(allPreferredVersions[missingOptionalPeerName], {
+      qualifies: (version) => (rootRange == null || semver.satisfies(version, rootRange)) &&
+        ranges.every(range => semver.satisfies(version, range)) &&
+        acceptsCandidate(missingOptionalPeerName, version),
     })
     if (maxSatisfyingVersion) {
       optionalDependencies[missingOptionalPeerName] = maxSatisfyingVersion
@@ -221,31 +254,6 @@ function getRootRange (
   return rootSpecifierRange != null && ranges.every(range => semver.validRange(range) != null && semver.intersects(rootSpecifierRange, range))
     ? rootSpecifierRange
     : null
-}
-
-function findMaxSatisfyingVersion (
-  preferredSelectors: VersionSelectors,
-  opts: {
-    acceptsCandidate: (name: string, version: string) => boolean
-    peerName: string
-    ranges: string[]
-    rootRange: string | null
-  }
-): string | undefined {
-  let maxSatisfyingVersion: string | undefined
-  for (const [version, selector] of Object.entries(preferredSelectors)) {
-    if (getSelectorType(selector) !== 'version') continue
-    const satisfiesAllRanges = (opts.rootRange == null || semver.satisfies(version, opts.rootRange)) &&
-      opts.ranges.every(range => semver.satisfies(version, range))
-    if (
-      satisfiesAllRanges &&
-      (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion)) &&
-      opts.acceptsCandidate(opts.peerName, version)
-    ) {
-      maxSatisfyingVersion = version
-    }
-  }
-  return maxSatisfyingVersion
 }
 
 /**

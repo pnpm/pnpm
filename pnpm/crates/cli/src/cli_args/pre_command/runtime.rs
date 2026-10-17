@@ -30,6 +30,15 @@ pub(super) fn check_runtimes(
     Ok(())
 }
 
+/// Whether the manifest declares a runtime [`check_runtimes`] checks.
+pub(super) fn declares_runtime(manifest: &Value) -> bool {
+    ["devEngines", "engines"]
+        .into_iter()
+        .flat_map(|engines_field| declared_runtimes(manifest, engines_field))
+        .filter_map(|runtime| runtime.get("name").and_then(Value::as_str))
+        .any(is_runtime_alias)
+}
+
 /// The runtimes one engines field declares. Both the single-object and
 /// the array spellings are accepted, as pnpm does.
 fn declared_runtimes<'a>(manifest: &'a Value, engines_field: &str) -> &'a [Value] {

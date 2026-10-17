@@ -167,6 +167,29 @@ async fn github_shortcut_full_commit_returns_tarball() {
 }
 
 #[tokio::test]
+async fn gist_shortcut_resolves_to_the_gist_archive() {
+    const COMMIT: &str = "bb6bdf26c8de7c5035612bc053d6af384939a1e9";
+    let (result, runner, _probe) =
+        resolve_with(true, &format!("{COMMIT}\tHEAD\n"), "gist:abc123").await;
+
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gist:abc123"));
+    match &result.resolution {
+        LockfileResolution::Tarball(t) => {
+            assert_eq!(
+                t.tarball,
+                format!("https://codeload.github.com/gist/abc123/tar.gz/{COMMIT}"),
+            );
+            assert_eq!(t.git_hosted, Some(true));
+        }
+        other => panic!("expected Tarball, got {other:?}"),
+    }
+    assert_eq!(
+        runner.calls.lock().unwrap().as_slice(),
+        [("https://gist.github.com/abc123.git".to_string(), Some("HEAD".to_string()))],
+    );
+}
+
+#[tokio::test]
 async fn archive_probe_failure_records_git_over_https() {
     const COMMIT: &str = "0000000000000000000000000000000000000000";
     let (result, runner, probe) =

@@ -1,8 +1,8 @@
 use super::super::{
     Host, InstallError, LogEvent, LogLevel, OptimisticRepeatInstallCheck,
     OptimisticRepeatInstallDecision, PnpmLog, Reporter, SummaryLog, UpdateSeedPolicy,
-    check_optimistic_repeat_install, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, unapproved_recorded_ignored_builds,
+    gvs_build_marker_present, gvs_build_markers_may_require_recovery,
+    unapproved_recorded_ignored_builds,
 };
 use pnpm_config::Config;
 use pnpm_store_dir::StoreOperationLock;
@@ -24,6 +24,8 @@ pub(super) fn lock_store(config: &Config) -> Result<StoreOperationLock, InstallE
 /// Everything the optimistic repeat-install short-circuit consults.
 pub(super) struct UpToDateCheck<'a> {
     pub(super) workspace: OptimisticRepeatInstallCheck<'a>,
+    /// The projects the install covers.
+    pub(super) scope: crate::optimistic_repeat_install::Scope<'a>,
     pub(super) mutation: crate::ProjectMutation,
     pub(super) update_seed_policy: &'a UpdateSeedPolicy,
     pub(super) frozen_lockfile: bool,
@@ -52,11 +54,9 @@ pub(super) struct UpToDateCheck<'a> {
 /// when the lockfile is missing or stale. It only skips the projects' own
 /// lifecycle scripts when nothing changed.
 ///
-/// A `--filter` narrowing does not disqualify the run: the check validates the
-/// whole workspace (`project_manifests` covers every project even when only a
-/// subset is selected), and it refuses a workspace state a filtered install
-/// wrote, so "nothing changed" still means every selected project is
-/// materialized.
+/// A `--filter` narrowing does not disqualify the run: the check holds the
+/// selected projects and the workspace projects they depend on, which is all a
+/// filtered install would materialize.
 pub(super) fn repeat_install_verdict(
     check: &UpToDateCheck<'_>,
 ) -> Result<RepeatInstallVerdict, InstallError> {
@@ -71,7 +71,10 @@ pub(super) fn repeat_install_verdict(
         return Ok(RepeatInstallVerdict::Changed);
     }
     if let OptimisticRepeatInstallDecision::Skipped { reason } =
-        check_optimistic_repeat_install(&check.workspace)
+        crate::optimistic_repeat_install::check_optimistic_repeat_install_in(
+            &check.workspace,
+            check.scope,
+        )
     {
         tracing::debug!(
             target: "pacquet::install",

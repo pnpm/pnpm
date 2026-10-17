@@ -22,5 +22,8 @@ tracing = { workspace = true }
 url = { workspace = true }
 wax = { workspace = true }
 
+[dev-dependencies]
+pnpr-fixtures = { workspace = true }
+
 [lints]
 workspace = true

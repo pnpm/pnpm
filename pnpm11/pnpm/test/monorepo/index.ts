@@ -2518,6 +2518,43 @@ test('an injected dependency keeps only the files listed in its manifest when sh
   expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
 })
 
+test('an injected dependency built by prepare keeps only the files listed in its manifest', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+      scripts: {
+        prepare: 'node -e "require(\'fs\').writeFileSync(\'index.js\', \'built\')"',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupeInjectedDeps: false,
+    strictDepBuilds: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
 test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
   preparePackages([
     {

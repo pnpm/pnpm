@@ -3,10 +3,12 @@
 //! tree still works where it is now.
 
 use super::{
-    Decision, Host, Lockfile, ManifestDrift, OptimisticRepeatInstallCheck, PackageManifest, Path,
-    PathBuf, WorkspaceState, current_lockfile::assert_loaded_current_lockfile_records,
-    current_pnpmfiles, filesystem_now_ms_in_modules, manifest_agreement::check_projects_content,
-    project_structure_matches, settle_repeat_install,
+    Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf, WorkspaceState,
+    current_lockfile::assert_loaded_current_lockfile_records,
+    current_pnpmfiles,
+    freshness::{InputDrift, validation_now},
+    manifest_agreement::check_projects_content,
+    project_structure_matches,
 };
 use std::{collections::BTreeSet, path::Component};
 
@@ -35,7 +37,8 @@ pub(super) fn relocated_state(
         .iter()
         .map(|path| rebase_onto_root(path).unwrap_or_else(|| path.clone()))
         .collect();
-    let relocated = WorkspaceState { projects, pnpmfiles, ..state.clone() };
+    // The validation records name the files where they were.
+    let relocated = WorkspaceState { projects, pnpmfiles, validation: None, ..state.clone() };
     project_structure_matches(&relocated, project_manifests).then_some(relocated)
 }
 
@@ -112,37 +115,14 @@ fn rebase(path: &Path, from: &Path, to: &Path) -> Option<PathBuf> {
     Some(if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) })
 }
 
-/// The fast path's verdict on a tree whose `state` was re-keyed by
-/// [`relocated_state`]: up to date once [`prove_move`] holds and the state is
-/// recorded where the tree is now.
-pub(super) fn moved_tree_decision(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    drift: &ManifestDrift<'_>,
-) -> Decision {
-    let filesystem_now = rekeyed_validation_now(check, state, drift);
-    match prove_move(check, drift)
-        .and_then(|()| settle_repeat_install(check, state, None, filesystem_now, true))
-    {
-        Ok(()) => Decision::UpToDate,
-        Err(reason) => Decision::Skipped { reason },
-    }
-}
-
 /// The filesystem time a re-keyed state is validated at. A tree with nothing
 /// newer than its last validation keeps that timestamp, so nothing is probed.
 pub(super) fn rekeyed_validation_now(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    drift: &ManifestDrift<'_>,
+    drift: &InputDrift<'_>,
 ) -> Option<i64> {
-    if drift.modified().is_empty() && !drift.lockfile_modified {
-        Some(state.last_validated_timestamp)
-    } else {
-        filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
-            check.workspace_root,
-        ))
-    }
+    if drift.all_proven() { Some(state.last_validated_timestamp) } else { validation_now(check) }
 }
 
 /// Read-only proof that a tree which moved with its project is the one this
@@ -151,7 +131,7 @@ pub(super) fn rekeyed_validation_now(
 /// carries the reason it cannot be reused.
 pub(super) fn prove_move(
     check: &OptimisticRepeatInstallCheck<'_>,
-    drift: &ManifestDrift<'_>,
+    drift: &InputDrift<'_>,
 ) -> Result<(), &'static str> {
     let &OptimisticRepeatInstallCheck {
         config,

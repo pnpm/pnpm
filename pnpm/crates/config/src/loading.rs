@@ -62,7 +62,7 @@ impl Config {
     }
 
     /// [`Config::apply_workspace_yaml`], leaving out all of the workspace
-    /// file's settings when [`Config::skip_unreadable_settings`] is set and
+    /// file's settings when [`Config::settings_read`] skips unreadable ones and
     /// they fail to apply. The workspace root still applies.
     fn apply_workspace_yaml_unless_unreadable<Sys>(
         &mut self,
@@ -74,7 +74,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        if !self.skip_unreadable_settings {
+        if !self.settings_read.skips_unreadable() {
             return self.apply_workspace_yaml::<Sys>(
                 workspace_yaml,
                 explicit,
@@ -105,14 +105,14 @@ impl Config {
     }
 
     /// `result`, or `fallback`'s value in its place when
-    /// [`Config::skip_unreadable_settings`] leaves out the source that failed.
+    /// [`Config::settings_read`] leaves out the source that failed.
     pub(super) fn skip_if_unreadable<Value>(
         &self,
         result: Result<Value, LoadWorkspaceYamlError>,
         fallback: impl FnOnce() -> Value,
     ) -> Result<Value, LoadWorkspaceYamlError> {
         match result {
-            Err(_) if self.skip_unreadable_settings => Ok(fallback()),
+            Err(_) if self.settings_read.skips_unreadable() => Ok(fallback()),
             result => result,
         }
     }
@@ -177,7 +177,7 @@ impl Config {
         self.workspace_search_skipped = self.ignore_workspace;
         let workspace_yaml = self.resolve_workspace_yaml::<Sys>(start_dir)?;
 
-        let AuthSources { mut npmrc_auth, trusted_auth } = self.collect_auth_sources::<Sys>(
+        let AuthSources { mut npmrc_auth, trusted_auth } = self.read_auth_sources::<Sys>(
             start_dir,
             workspace_yaml.as_ref(),
             global_settings.as_ref(),
@@ -267,7 +267,7 @@ impl Config {
     }
 
     /// The global `config.yaml`, or none in its place when it cannot be
-    /// read at all and [`Config::skip_unreadable_settings`] is set.
+    /// read at all and [`Config::settings_read`] skips unreadable ones.
     pub(super) fn load_global_settings<Sys: EnvVar>(
         &self,
     ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
@@ -279,12 +279,7 @@ impl Config {
     ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
         let mut global_settings = self.config_dir
             .as_deref()
-            .map(|dir| {
-                WorkspaceSettings::load_global_skipping_unreadable(
-                    dir,
-                    self.skip_unreadable_settings,
-                )
-            })
+            .map(|dir| WorkspaceSettings::load_global_reading(dir, self.settings_read))
             .transpose()?
             .flatten();
         if let Some(global_settings) = global_settings.as_mut() {

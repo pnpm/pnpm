@@ -23,9 +23,14 @@ use pnpm_network::{
 };
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
+use crate::{
+    FetchMetadataError,
+    metadata_cache_policy::{DocumentKind, normalizes_to_abbreviated},
+    mirror::clear_meta,
+    registry_url::to_registry_url,
+};
 
 /// Accept header for the full packument.
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
@@ -271,22 +276,23 @@ async fn send_once<'a>(
 /// Convert a stored `modified` value — the packument's ISO-8601
 /// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
 /// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
-/// `toUTCString()`. A value already in HTTP-date form is kept. `None` when
-/// the value parses as neither, so it is dropped instead of sent — a
-/// recipient must ignore a malformed `If-Modified-Since` anyway.
+/// `toUTCString()`. A date without a time is midnight UTC, as JavaScript's
+/// `Date` reads it. A value already in HTTP-date form is kept. `None` when
+/// the value parses as none of these, or names a time outside the years
+/// 1970 to 9999 that an HTTP date can carry, so it is dropped instead of
+/// sent — a recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
-    if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
-        return Some(httpdate::fmt_http_date(datetime.into()));
-    }
-    httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
-}
-
-/// A metadata document plus the response's entity tag and whether it
-/// forbade caching.
-pub(crate) struct MetadataDocument {
-    pub outcome: FetchFullMetadataOutcome,
-    pub etag: Option<String>,
-    pub uncacheable: bool,
+    let time: chrono::DateTime<chrono::Utc> =
+        if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
+            datetime.into()
+        } else if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+            date.and_time(chrono::NaiveTime::MIN).and_utc()
+        } else {
+            return httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date);
+        };
+    // `fmt_http_date` panics outside that range.
+    let in_range = time.timestamp() >= 0 && chrono::Datelike::year(&time) <= 9999;
+    in_range.then(|| httpdate::fmt_http_date(time.into()))
 }
 
 /// Fetch the registry metadata document for `pkg_name`. The
@@ -296,17 +302,10 @@ pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    Ok(fetch_metadata_document(pkg_name, opts).await?.outcome)
-}
-
-pub(crate) async fn fetch_metadata_document(
-    pkg_name: &str,
-    opts: &FetchFullMetadataOptions<'_>,
-) -> Result<MetadataDocument, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
-    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
+    let kind = DocumentKind::requested(opts.full_metadata);
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || {
-        one_metadata_attempt(pkg_name, opts, &url, accept)
+        one_metadata_attempt(pkg_name, opts, &url, kind)
     })
     .await
 }
@@ -315,12 +314,12 @@ async fn one_metadata_attempt(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
     url: &str,
-    accept: &str,
-) -> Result<MetadataDocument, FetchMetadataError> {
+    kind: DocumentKind,
+) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
-        accept,
+        accept: kind.accept(),
         priority: pnpm_network::UNPRIORITIZED,
         etag: opts.etag,
         modified: opts.modified,
@@ -329,58 +328,78 @@ async fn one_metadata_attempt(
     })
     .await?;
     if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(MetadataDocument {
-            outcome: FetchFullMetadataOutcome::NotModified,
-            etag: None,
-            uncacheable: false,
-        });
+        return Ok(FetchFullMetadataOutcome::NotModified);
     }
-    let started_at = client.acquired_at();
-    document_from_response(client, response, opts, url, started_at).await
+    let normalize = normalizes_to_abbreviated(kind, response.headers());
+    let meta = decode_metadata_response(
+        MetadataResponse { client, response, url, http_client: opts.http.http_client },
+        normalize,
+        Ok,
+    )
+    .await?;
+    Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }
 
-async fn document_from_response(
-    client: pnpm_network::ThrottledClientGuard<'_>,
-    response: reqwest::Response,
-    opts: &FetchFullMetadataOptions<'_>,
-    url: &str,
-    started_at: Instant,
-) -> Result<MetadataDocument, FetchMetadataError> {
-    let uncacheable = metadata_response_is_uncacheable(response.headers());
-    let etag = response_etag(&response);
+/// A metadata response together with the network permit it holds.
+pub(crate) struct MetadataResponse<'a> {
+    pub client: ThrottledClientGuard<'a>,
+    pub response: Response,
+    pub url: &'a str,
+    pub http_client: &'a ThrottledClient,
+}
+
+/// Read a metadata response's body, then parse it and hand it to `finish`
+/// off the reactor.
+///
+/// - A non-`2xx` status fails with [`FetchMetadataError::Network`].
+/// - The connection and its network-concurrency permit are released once
+///   the body is buffered, before the parse, so the permit bounds sockets,
+///   not parses.
+/// - `finish` runs on the blocking pool too, so it may write the mirror.
+/// - The slow-request warning counts from the permit's acquisition to the
+///   end of the parse.
+pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
+    response: MetadataResponse<'_>,
+    normalize_to_abbreviated: bool,
+    finish: impl FnOnce(Package) -> Result<Output, FetchMetadataError> + Send + 'static,
+) -> Result<Output, FetchMetadataError> {
+    let MetadataResponse { client, response, url, http_client } = response;
+    let started_at = client.acquired_at();
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    let normalize_to_abbreviated =
-        !opts.full_metadata && !is_abbreviated_content_type(response.headers());
     let raw_body = read_self_delimiting_text(response).await
-        .inspect_err(|error| opts.http.http_client.downscale_on_timeout(url, error))
+        .inspect_err(|error| http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit, then parse off the reactor.
     drop(client);
-    let (meta, elapsed) =
-        decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at).await?;
-    warn_if_request_is_slow(opts.http.http_client, elapsed, url);
-    Ok(MetadataDocument {
-        outcome: FetchFullMetadataOutcome::Modified(Box::new(meta)),
-        etag,
-        uncacheable,
+    // Packuments run to several megabytes for high-release-cadence packages
+    // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a tokio
+    // worker for hundreds of milliseconds and stalls every socket that
+    // worker pumps.
+    let task_url = url.to_string();
+    let (output, elapsed) = tokio::task::spawn_blocking(move || {
+        let mut meta = serde_json::from_str::<Package>(&raw_body)
+            .map_err(|error| FetchMetadataError::Decode {
+                url: redact_url_credentials(&task_url),
+                error,
+            })?;
+        meta.drop_incomplete_publish_times();
+        let elapsed = started_at.elapsed();
+        if normalize_to_abbreviated {
+            meta = normalize_abbreviated_meta(meta);
+        }
+        Ok::<_, FetchMetadataError>((finish(meta)?, elapsed))
     })
-}
-
-pub(crate) fn response_etag(response: &reqwest::Response) -> Option<String> {
-    response
-        .headers()
-        .get(header::ETAG)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string)
+    .await
+    .map_err(|error| FetchMetadataError::ParseTask { url: redact_url_credentials(url), error })??;
+    warn_if_request_is_slow(http_client, elapsed, url);
+    Ok(output)
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
@@ -418,32 +437,3 @@ pub(crate) fn normalize_abbreviated_meta(meta: Package) -> Package {
 
 #[cfg(test)]
 mod tests;
-
-/// Parse a buffered packument off the reactor after releasing the network permit.
-async fn decode_full_metadata(
-    url: &str,
-    raw_body: String,
-    normalize_to_abbreviated: bool,
-    started_at: Instant,
-) -> Result<(Package, Duration), FetchMetadataError> {
-    let task_url = url.to_string();
-    let (meta, elapsed) =
-        tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
-            let mut meta = serde_json::from_str::<Package>(&raw_body)
-                .map_err(|error| FetchMetadataError::Decode {
-                    url: redact_url_credentials(&task_url),
-                    error,
-                })?;
-            meta.drop_incomplete_publish_times();
-            let elapsed = started_at.elapsed();
-            let meta =
-                if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
-            Ok((meta, elapsed))
-        })
-        .await
-        .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(url),
-            error,
-        })??;
-    Ok((meta, elapsed))
-}

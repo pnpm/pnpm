@@ -607,6 +607,7 @@ fn relative_paths_are_measured_from_the_including_fragment() {
                 "pnpmfile: ['./hooks.mjs']\nscriptShell: ./bin/sh\n",
                 "catalog:\n  linked: link:../libs/linked\n  tarball: ./vendor/x.tgz\n  range: ^1.0.0\n",
                 "overrides:\n  local: file:../vendor/local\n  ref: $ref\n",
+                "  sibling: workspace:../packages/sibling\n",
             ),
         ),
     ]);
@@ -618,6 +619,7 @@ fn relative_paths_are_measured_from_the_including_fragment() {
         "pnpmfile: ['./config/hooks.mjs']\nscriptShell: ./config/bin/sh\n",
         "catalog:\n  linked: link:libs/linked\n  tarball: ./config/vendor/x.tgz\n  range: ^1.0.0\n",
         "overrides:\n  local: file:vendor/local\n  ref: $ref\n",
+        "  sibling: workspace:./packages/sibling\n",
     ))
     .expect("expected settings parse");
     assert_eq!(merged(dir.path()), expected);

@@ -155,6 +155,7 @@ export interface StrictInstallOptions extends RegistryContext {
 
   allProjects: ProjectOptions[]
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  deployAllFiles?: boolean
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean

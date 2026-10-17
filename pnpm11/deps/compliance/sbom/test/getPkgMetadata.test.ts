@@ -229,9 +229,8 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
   })
 
-  // Expanding the shorthand in one pnpm version alone would split the two.
-  it('keeps a gist URL and drops the gist shorthand', () => {
-    expect(repositoryFromField('gist:11081aaa281')).toBeUndefined()
+  it('expands the gist shorthand and keeps a gist URL', () => {
+    expect(repositoryFromField('gist:11081aaa281')).toBe('git+https://gist.github.com/11081aaa281.git')
     expect(repositoryFromField('https://gist.github.com/11081aaa281')).toBe('https://gist.github.com/11081aaa281')
   })
 

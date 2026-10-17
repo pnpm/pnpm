@@ -1118,6 +1118,119 @@ test('a changed full document revalidating an abbreviated mirror is recorded con
   expect(persistedMeta.versions['1.0.0'].scripts).toBeUndefined()
 })
 
+// A registry whose full document lacks a complete `time` map leaves the
+// upgraded mirror without one, so every later install upgrades it again. The
+// upgrade revalidates the full document the mirror holds instead of
+// downloading it again.
+test('the release-age upgrade of an upgraded mirror revalidates with the full etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"full-etag"', modified: isPositiveMeta.time.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(partialTimeMeta())}`, 'utf8')
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  const revalidation = {
+    path: '/is-positive',
+    method: 'GET',
+    headers: { accept: /^application\/json/, 'if-none-match': '"full-etag"' },
+  }
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // The regular revalidation, then the upgrade.
+  agent.intercept(revalidation).reply(304, '')
+  agent.intercept(revalidation).reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('three installs over a registry without complete publish times download the full document once', async () => {
+  const cacheDir = temporaryDirectory()
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // Installs two and three: the regular revalidation, then the upgrade.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { 'if-none-match': '"full-etag"' } })
+    .reply(304, '')
+    .times(4)
+  // Install one: the upgrade, then the abbreviated fetch before it.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/json/ } })
+    .reply(200, partialTimeMeta(), { headers: { etag: '"full-etag"' } })
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/vnd\.npm\.install-v1/ } })
+    .reply(200, partialTimeMeta(), { headers: { 'content-type': 'application/vnd.npm.install-v1+json' } })
+
+  for (const install of [1, 2, 3]) {
+    if (install > 1) {
+      // The mirror write and the mtime renewal after a 304 run in the
+      // background. Wait for the upgraded mirror, which also outlasts the
+      // renewal, then date it before the cutoff so the install revalidates it.
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.fullEtag === '"full-etag"')
+      fs.utimesSync(cachePath, new Date(0), new Date(0))
+    }
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+      ignoreMissingTimeField: true,
+    })
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+      publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+    })
+    expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  }
+
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('the release-age upgrade of a changed full document revalidates with its new etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"old-full-etag"', modified: isPositiveMeta.time.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(partialTimeMeta())}`, 'utf8')
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { accept: /^application\/json/, 'if-none-match': '"old-full-etag"' },
+  })
+    .reply(200, partialTimeMeta(), { headers: { etag: '"new-full-etag"' } })
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { accept: /^application\/json/, 'if-none-match': '"new-full-etag"' },
+  })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+    ignoreMissingTimeField: true,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 /**
  * The abbreviated packument as a registry that reports publish times for only
  * some of the versions it serves would answer, with `modified` recent enough

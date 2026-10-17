@@ -34,7 +34,7 @@ pub(super) fn resolve_link_version(
     package_manifest_version(&manifest)
 }
 
-fn resolve_file_version(
+fn resolve_locked_version(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     alias: &PkgName,
@@ -214,7 +214,7 @@ fn peer_is_optional(manifest: &PackageManifest, peer_name: &str) -> bool {
 }
 
 /// The version a project dependency spec resolves to, whether it names a
-/// registry version, a linked directory or a file dependency.
+/// registry version, a tarball, a linked directory or a file dependency.
 fn resolved_peer_version(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
@@ -222,20 +222,18 @@ fn resolved_peer_version(
     peer_pkg_name: &PkgName,
     spec: &ResolvedDependencySpec,
 ) -> Option<String> {
-    if let Some(ver_peer) = spec.version.ver_peer() {
-        return Some(extract_peer_version(ver_peer));
-    }
     if let Some(link_target) = spec.version.as_link_target() {
         return Some(
             resolve_link_version(dependency_dir, lockfile_dir, link_target)
                 .unwrap_or_else(|| format!("link:{link_target}")),
         );
     }
-    spec.version
-        .as_file_target()
-        .map(|file_target| {
-            resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
-                .unwrap_or_else(|| format!("file:{file_target}"))
+    resolve_locked_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+        .or_else(|| spec.version.ver_peer().map(extract_peer_version))
+        .or_else(|| {
+            spec.version
+                .as_file_target()
+                .map(|file_target| format!("file:{file_target}"))
         })
 }
 

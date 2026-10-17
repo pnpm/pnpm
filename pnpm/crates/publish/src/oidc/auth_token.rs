@@ -3,7 +3,7 @@
 
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{escaped_package_name, redact_url_credentials};
+use pnpm_network::{escaped_package_name, normalize_registry_url, redact_url_credentials};
 use serde_json::Value;
 use url::Url;
 
@@ -25,8 +25,8 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
     options: &OidcHttpOptions,
 ) -> Result<String, AuthTokenError> {
     let path =
-        format!("/-/npm/v1/oidc/token/exchange/package/{}", escaped_package_name(package_name));
-    let url = Url::parse(registry)
+        format!("-/npm/v1/oidc/token/exchange/package/{}", escaped_package_name(package_name));
+    let url = Url::parse(&normalize_registry_url(registry))
         .and_then(|base| base.join(&path))
         .map_err(|error| AuthTokenError::Fetch {
             error_source: error.to_string(),

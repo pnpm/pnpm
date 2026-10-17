@@ -284,3 +284,90 @@ fn removing_a_tree_takes_out_its_whole_subtree() {
 
     assert!(!tree.exists());
 }
+
+#[test]
+fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
+    use super::MockConfigPresets;
+    use pnpr_config::Config;
+    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
+    use std::net::SocketAddr;
+    use std::path::PathBuf;
+
+    let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
+    let config = Config::proxy(listen, PathBuf::from("/tmp"));
+    assert!(config.routing.upstreams.contains_key("npmjs"));
+    assert_eq!(config.routing.registries.default_registry(), Some("main"));
+    assert_eq!(config.routing.hosted["local"].org, "");
+    assert_eq!(
+        config.routing.registries.resolve_default(
+            Ecosystem::Npm,
+            "@pnpm.e2e/dep-of-pkg-with-1-dep"
+        ),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    assert_eq!(
+        config.routing.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    assert_eq!(
+        config.routing.registries.resolve_default(Ecosystem::Npm, "is-positive"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
+    );
+}
+
+#[test]
+fn static_constructor_serves_everything_from_one_hosted() {
+    use super::MockConfigPresets;
+    use pnpr_config::Config;
+    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
+    use std::net::SocketAddr;
+    use std::path::PathBuf;
+
+    let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
+    let config = Config::static_serve(listen, PathBuf::from("/tmp"));
+    assert!(config.routing.upstreams.is_empty());
+    assert_eq!(config.routing.hosted["local"].org, "");
+    assert_eq!(
+        config.routing.registries.resolve_default(Ecosystem::Npm, "anything"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+}
+
+#[test]
+fn mock_config_yaml_enforces_registry_mock_protections() {
+    use super::{MOCK_CONFIG_YAML, mock_config_path};
+    use pnpr_config::Config;
+    use pnpr_policy::Identity;
+    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
+    use std::net::SocketAddr;
+
+    let path = mock_config_path();
+    assert!(path.is_file(), "mock config file exists at {}", path.display());
+    assert!(!MOCK_CONFIG_YAML.is_empty());
+
+    let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
+    let config = Config::from_yaml(&path, listen, None).unwrap();
+    let rules = &config.routing.hosted["local"].rules;
+    let table = rules.snapshot();
+    let needs_auth = table.for_package("@pnpm.e2e/needs-auth");
+    assert!(!needs_auth.access.allows(&Identity::Anonymous));
+    assert!(needs_auth.access.allows(&Identity::user("alice")));
+    assert!(
+        !rules
+            .snapshot()
+            .for_package("@private/foo")
+            .access
+            .allows(&Identity::Anonymous),
+    );
+    let table = rules.snapshot();
+    let public = table.for_package("@pnpm.e2e/no-deps");
+    assert!(public.access.allows(&Identity::Anonymous));
+    assert!(!public.publish.allows(&Identity::Anonymous));
+    assert!(public.unpublish.allows(&Identity::user("alice")));
+    assert!(!public.unpublish.allows(&Identity::Anonymous));
+
+    assert_eq!(
+        config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
+    );
+}

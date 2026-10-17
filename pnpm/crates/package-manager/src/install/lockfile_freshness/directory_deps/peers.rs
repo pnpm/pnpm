@@ -6,22 +6,18 @@ use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_resolving_deps_resolver::{own_dependency_names, peer_shadowed_dependency_names};
 use std::collections::{HashMap, HashSet};
 
 /// How the resolver treats the names a package declares both as one of its
-/// own dependencies and as a peer (see the resolver's
-/// `peer_shadowed_dependencies` and `extract_peer_dependencies`).
+/// own dependencies and as a peer. The resolver's own rule decides it, with
+/// the peers the lockfile recorded standing in for the parent scope.
 pub(super) struct PeerShadowing<'m> {
     /// The `dependencies` entries the peer edge supplies instead, so the
-    /// snapshot records the peer's resolution for them. Under
-    /// `autoInstallPeers` every non-optional peer shadows its dependency;
-    /// otherwise only one the parent scope provides does, which the lockfile
-    /// records by keeping the name among the package's peers.
+    /// snapshot records the peer's resolution for them. See
+    /// [`peer_shadowed_dependency_names`].
     pub(super) shadowed: HashSet<&'m str>,
-    /// The names the resolver resolves as the package's own dependencies,
-    /// which it therefore records as no peer: the unshadowed
-    /// `dependencies`, every `optionalDependencies` entry and the package's
-    /// own name.
+    /// See [`own_dependency_names`].
     own: HashSet<&'m str>,
 }
 
@@ -31,31 +27,14 @@ impl<'m> PeerShadowing<'m> {
         pkg_meta: &pnpm_lockfile::PackageMetadata,
         auto_install_peers: bool,
     ) -> Self {
-        let peers: HashSet<&str> = manifest
-            .dependencies([DependencyGroup::Peer])
-            .map(|(name, _)| name)
-            .collect();
-        let optional_peers: HashSet<&str> = optional_peer_names(manifest).collect();
         let recorded = pkg_meta.peer_dependencies.as_ref();
-        let (shadowed, mut own): (HashSet<&str>, HashSet<&str>) = manifest
-            .dependencies([DependencyGroup::Prod])
-            .map(|(name, _)| name)
-            .partition(|name| {
-                peers.contains(name)
-                    && ((auto_install_peers && !optional_peers.contains(name))
-                        || recorded.is_some_and(|recorded| recorded.contains_key(*name)))
-            });
-        own.extend(
-            manifest
-                .dependencies([DependencyGroup::Optional])
-                .map(|(name, _)| name),
-        );
-        own.extend(
-            manifest
-                .value()
-                .get("name")
-                .and_then(serde_json::Value::as_str),
-        );
+        let shadowed: HashSet<&str> = peer_shadowed_dependency_names(
+            Some(manifest.value()),
+            |name| recorded.is_some_and(|recorded| recorded.contains_key(name)),
+            auto_install_peers,
+        )
+        .collect();
+        let own = own_dependency_names(manifest.value(), |name| shadowed.contains(name)).collect();
         PeerShadowing { shadowed, own }
     }
 

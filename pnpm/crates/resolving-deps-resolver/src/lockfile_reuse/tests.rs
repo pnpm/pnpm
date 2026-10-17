@@ -539,3 +539,15 @@ fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
         }),
     );
 }
+
+/// A named-registry spec that names no package names the alias, so the gate
+/// does not reuse another package recorded under the alias.
+#[test]
+fn locked_child_admits_a_bare_named_registry_spec_only_for_the_alias_package() {
+    let alias: PkgName = "foo".parse().expect("parse alias");
+    let other: PkgNameVerPeer = "bar@work:1.2.0".parse().expect("parse key");
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:^1.0.0"), Some(false));
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:bar@^1.0.0"), Some(true));
+    let own: PkgNameVerPeer = "foo@work:1.2.0".parse().expect("parse key");
+    assert_eq!(super::locked_child_admits(&alias, &own, "work:^1.0.0"), Some(true));
+}

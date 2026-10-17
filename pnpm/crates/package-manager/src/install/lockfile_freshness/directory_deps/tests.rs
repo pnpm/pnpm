@@ -1,14 +1,12 @@
 use super::{
-    GroupMatching, LocalDepContext, SpecDirs, check_local_dep_group_freshness,
-    dependency_manifests_by_dir,
-    peers::{PeerShadowing, check_recorded_peer_specs_match},
+    LocalDepContext, SpecDirs, dependency_manifests_by_dir, peers::check_recorded_peer_specs_match,
     project_manifests_by_dir,
 };
 use crate::install::FreshnessCheckError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{PackageMetadata, StalenessReason};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::PackageManifest;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -78,6 +76,7 @@ fn check_peer_spec(
 ) -> Result<(), FreshnessCheckError> {
     let dep = LocalDepContext {
         name: "lib",
+        declared_as_file: false,
         rel_path: "lib",
         dir: Path::new("lib"),
         dirs: SpecDirs {
@@ -171,44 +170,105 @@ fn check_dependency_that_is_also_a_peer(
     recorded_peers: &serde_json::Value,
     locked: &str,
 ) -> Result<(), FreshnessCheckError> {
-    let manifest = PackageManifest::from_value(
-        PathBuf::from("/ws/lib/package.json"),
-        serde_json::json!({
-            "name": "lib",
-            "dependencies": { "react": "19.2.7" },
-            "peerDependencies": { "react": "^18.0.0" },
-        }),
-    );
-    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
-        "resolution": { "type": "directory", "directory": "lib" },
-        "peerDependencies": recorded_peers,
-    }))
-    .expect("parse local package metadata");
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "react": "19.2.7" },
+        "peerDependencies": { "react": "^18.0.0" },
+    });
     let snapshot_deps = HashMap::from([(
         pnpm_lockfile::PkgName::parse("react").unwrap(),
         locked.parse::<pnpm_lockfile::SnapshotDepRef>().unwrap(),
     )]);
-    let catalogs = Catalogs::new();
+    check_local_dep_peers(auto_install_peers, manifest, recorded_peers, &snapshot_deps)
+}
+
+/// Check the production dependencies and peers of a directory dependency
+/// with `manifest` against a lockfile that recorded `snapshot_deps` and
+/// `recorded_peers` for it.
+fn check_local_dep_peers(
+    auto_install_peers: bool,
+    manifest: serde_json::Value,
+    recorded_peers: &serde_json::Value,
+    snapshot_deps: &HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
+) -> Result<(), FreshnessCheckError> {
+    check_directory_dep(&DirectoryDepCase {
+        manifest,
+        metadata: serde_json::json!({
+            "resolution": { "type": "directory", "directory": "lib" },
+            "peerDependencies": recorded_peers,
+        }),
+        snapshot: serde_json::json!({
+            "dependencies": snapshot_deps
+                .iter()
+                .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
+                .collect::<serde_json::Map<String, serde_json::Value>>(),
+        }),
+        allow_unresolved: false,
+        auto_install_peers,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    })
+}
+
+/// A directory dependency `lib` at `/ws/lib` in a workspace at `/ws`.
+struct DirectoryDepCase {
+    manifest: serde_json::Value,
+    metadata: serde_json::Value,
+    snapshot: serde_json::Value,
+    /// The allowance only `--frozen-lockfile` makes.
+    allow_unresolved: bool,
+    auto_install_peers: bool,
+    /// `false` for an install without optional dependencies.
+    include_optional: bool,
+    catalogs: Catalogs,
+}
+
+fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckError> {
+    let dep_dir = PathBuf::from("/ws/lib");
+    let local_manifest =
+        PackageManifest::from_value(dep_dir.join("package.json"), case.manifest.clone());
+    let metadata: PackageMetadata =
+        serde_json::from_value(case.metadata.clone()).expect("parse local package metadata");
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(case.snapshot.clone()).expect("parse the snapshot");
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.auto_install_peers = case.auto_install_peers;
+    config.optional = case.include_optional;
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
+    let catalogs = &case.catalogs;
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: Path::new("/ws"),
+        manifest: &local_manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            allow_unresolved: case.allow_unresolved,
+        },
+        parsed_overrides: None,
+    };
     let dep = LocalDepContext {
         name: "lib",
+        declared_as_file: false,
         rel_path: "lib",
-        dir: Path::new("/ws/lib"),
+        dir: &dep_dir,
         dirs: SpecDirs {
             workspace_root: Path::new("/ws"),
             lockfile_dir: Path::new("/ws"),
             manifests_by_dir: &HashMap::new(),
         },
-        catalogs: &catalogs,
+        catalogs,
     };
-    let peers = PeerShadowing::of(&manifest, &metadata, auto_install_peers);
-    check_local_dep_group_freshness(
-        &dep,
-        &manifest,
-        DependencyGroup::Prod,
-        Some(&snapshot_deps),
-        GroupMatching { shadowed: &peers.shadowed, allow_unresolved: false },
-    )?;
-    peers.check_local_peer_deps_freshness(&dep, &manifest, &metadata)
+    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
 }
 
 #[test]
@@ -218,6 +278,20 @@ fn an_auto_installed_peer_supplies_the_dependency_it_shadows() {
     assert!(result.is_ok(), "the snapshot records the peer's resolution: {result:?}");
     // The peer range still counts: the lockfile must have recorded it.
     assert!(check_dependency_that_is_also_a_peer(true, &serde_json::json!({}), "18.3.1").is_err());
+}
+
+/// The resolver reads a dependency whose value is not a string as no child,
+/// but still as the package's own name, so it records neither a dependency
+/// nor a peer for it.
+#[test]
+fn a_non_string_dependency_still_keeps_its_name_out_of_the_peers() {
+    let manifest = serde_json::json!({
+        "name": "lib",
+        "dependencies": { "react": true },
+        "peerDependencies": { "react": "^18.0.0" },
+    });
+    let result = check_local_dep_peers(false, manifest, &serde_json::json!({}), &HashMap::new());
+    assert!(result.is_ok(), "the lockfile the resolver writes is fresh: {result:?}");
 }
 
 #[test]
@@ -240,57 +314,22 @@ fn an_unshadowed_dependency_is_compared_and_recorded_as_no_peer() {
 
 /// Check a directory dependency whose own manifest declares `is-positive`
 /// under `manifest_key`, against a lockfile whose snapshot of it resolved
-/// nothing. `allow_unresolved` is the allowance only `--frozen-lockfile`
-/// makes, so this goes through the caller that chooses it per group.
+/// nothing.
 fn check_dep_with_an_unresolved_entry(
     manifest_key: &str,
     allow_unresolved: bool,
 ) -> Result<(), FreshnessCheckError> {
-    let dep_dir = PathBuf::from("/ws/lib");
-    let mut manifest_value = serde_json::json!({ "name": "lib" });
-    manifest_value[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
-    let local_manifest = PackageManifest::from_value(dep_dir.join("package.json"), manifest_value);
-    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
-        "resolution": { "type": "directory", "directory": "lib" },
-    }))
-    .expect("parse local package metadata");
-    let snapshot: pnpm_lockfile::SnapshotEntry =
-        serde_json::from_value(serde_json::json!({})).expect("parse an empty snapshot");
-    let lockfile: pnpm_lockfile::Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
-    let config = pnpm_config::Config::new();
-    let ignored = pnpm_matcher::create_matcher(&[]);
-    let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
-    let catalogs = Catalogs::new();
-    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
-        lockfile: &lockfile,
-        lockfile_dir: Path::new("/ws"),
-        manifest: &local_manifest,
-        importer_id: ".",
-        config: &config,
-        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
-            packages: None,
-            manifests_by_dir: &manifests_by_dir,
-            catalogs: &catalogs,
-        },
-        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
-            ignored: &ignored,
-            allow_unresolved,
-        },
-        parsed_overrides: None,
-    };
-    let dep = LocalDepContext {
-        name: "lib",
-        rel_path: "lib",
-        dir: &dep_dir,
-        dirs: SpecDirs {
-            workspace_root: Path::new("/ws"),
-            lockfile_dir: Path::new("/ws"),
-            manifests_by_dir: &HashMap::new(),
-        },
-        catalogs: &catalogs,
-    };
-    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
+    let mut manifest = serde_json::json!({ "name": "lib" });
+    manifest[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
+    check_directory_dep(&DirectoryDepCase {
+        manifest,
+        metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
+        snapshot: serde_json::json!({}),
+        allow_unresolved,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    })
 }
 
 #[test]
@@ -316,4 +355,111 @@ fn an_unresolved_optional_of_a_directory_dependency_is_satisfied_only_when_froze
         frozen.is_ok(),
         "a frozen install keeps what the lockfile could not resolve: {frozen:?}",
     );
+}
+
+fn directory_metadata() -> serde_json::Value {
+    serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } })
+}
+
+/// The snapshot records a child in the map its optionality puts it in, so a
+/// child that became optional with the same version is a change.
+#[test]
+fn a_dependency_that_became_optional_is_outdated() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the child moved to optionalDependencies: {result:?}");
+}
+
+#[test]
+fn an_install_without_optional_dependencies_ignores_the_recorded_optional_children() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({ "name": "lib" }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "optionalDependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: false,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_ok(), "the optional map is not compared: {result:?}");
+}
+
+#[test]
+fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
+    let error = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "dependencies": { "is-positive": "catalog:missing" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::from([(
+            "default".to_string(),
+            std::collections::BTreeMap::from([("is-positive".to_string(), "1.0.0".to_string())]),
+        )]),
+    })
+    .expect_err("the named catalog does not exist");
+    assert!(
+        matches!(&error, FreshnessCheckError::InvalidCatalog(_)),
+        "expected the catalog error, got {error:?}",
+    );
+}
+
+/// The resolver drops a dependency that the package's own peer supplies
+/// before it resolves `catalog:` specs, so a missing catalog entry on it is
+/// no error.
+#[test]
+fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "dependencies": { "react": "catalog:missing" },
+            "peerDependencies": { "react": "^18.0.0" },
+        }),
+        metadata: serde_json::json!({
+            "resolution": { "type": "directory", "directory": "lib" },
+            "peerDependencies": { "react": "^18.0.0" },
+        }),
+        snapshot: serde_json::json!({ "dependencies": { "react": "18.3.1" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::from([(
+            "default".to_string(),
+            std::collections::BTreeMap::from([("is-positive".to_string(), "1.0.0".to_string())]),
+        )]),
+    });
+    assert!(result.is_ok(), "the shadowed dependency is the peer check's: {result:?}");
+}
+
+/// A child that became optional is a change even when the install leaves
+/// optional dependencies out: the lockfile still records it as required.
+#[test]
+fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: false,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
 }

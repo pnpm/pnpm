@@ -8,6 +8,7 @@ import {
 } from '@pnpm/workspace.injected-deps-syncer'
 
 export interface RunScriptOptions {
+  deployAllFiles?: boolean
   enablePrePostScripts: boolean
   syncInjectedDepsAfterScripts: string[] | undefined
   workspaceDir: string | undefined
@@ -35,6 +36,7 @@ export async function runScript (opts: RunScriptContext, scriptName: string): Pr
       workspaceDir: opts.runScriptOptions.workspaceDir,
       // Read before the script ran, so a bin it drops can still be named.
       manifestBeforeScripts: opts.manifest as DependencyManifest,
+      includeOnlyPackageFiles: !opts.runScriptOptions.deployAllFiles,
     })
   }
 }
@@ -63,7 +65,7 @@ async function startInjectedEditWatch (opts: {
     workspaceDir: opts.runScriptOptions.workspaceDir,
   })
   if (located == null) return undefined
-  return watchInjectedEdits(located.sourceDir, located.targetDirs)
+  return watchInjectedEdits(located.sourceDir, located.targetDirs, !opts.runScriptOptions.deployAllFiles)
 }
 
 export function getRunScriptCommands (

@@ -265,15 +265,11 @@ pub struct Config {
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
 
-    /// Leave out what this pnpm cannot read, which a newer pnpm may give a
-    /// shape or a value this one rejects: each top-level setting of the
-    /// global `config.yaml` and `pnpm-workspace.yaml` that does not parse or
-    /// validate on its own, and any source that still fails, such as `_auth`
-    /// or a project `.npmrc` `tokenHelper`. Every other source still applies,
-    /// so a repository that breaks its own files cannot drop the machine's
-    /// settings. Only for loading configuration that decides whether to
-    /// switch to the pnpm the project pins.
-    pub skip_unreadable_settings: bool,
+    /// Which settings the load reads. Anything but
+    /// [`SettingsRead::All`](crate::SettingsRead::All) is only for the configuration that decides
+    /// whether to switch to the pnpm the project pins, and that carries the
+    /// switch out.
+    pub settings_read: crate::SettingsRead,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.
@@ -1025,13 +1021,14 @@ pub struct Config {
     pub user_agent: String,
 
     /// URL of a `pnpr` server. When set, `pacquet install` offloads
-    /// dependency resolution and file fetching to the server: it sends
-    /// its own registry configuration, the server resolves against those
-    /// registries and streams back the files the local store is missing,
-    /// and `node_modules` is then linked locally from the
-    /// server-produced lockfile (like server-side rendering — the
-    /// compute runs remotely, the result is materialized locally).
-    /// `None` runs the normal local resolution flow.
+    /// dependency resolution to the server: it sends its own registry
+    /// configuration, the server resolves against those registries and
+    /// streams back resolved package metadata frames as it walks the graph
+    /// so the client can prefetch tarballs in parallel, and `node_modules`
+    /// is then linked locally from the server-produced lockfile (the
+    /// resolution compute runs remotely, tarball downloads and layout
+    /// materialization run locally). `None` runs the normal local resolution
+    /// flow.
     pub pnpr_server: Option<String>,
 
     /// Cargo dependency management declared by the workspace.

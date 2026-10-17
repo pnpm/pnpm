@@ -5,6 +5,11 @@ title: CLI reference
 
 ```sh
 pnpr [OPTIONS]
+pnpr config check
+pnpr verify [OPTIONS]
+pnpr export --out <dir> [OPTIONS]
+pnpr migrate-storage [OPTIONS]
+pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr [OPTIONS] oci-gc --registry <name>
 pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 ```
@@ -41,6 +46,96 @@ PNPR_LISTEN=0.0.0.0:7677 PNPR_PUBLIC_URL=https://registry.example.com pnpr
 ```
 
 ## Subcommands
+
+### config check
+
+Validates the YAML configuration file and prints diagnostic details, including configured registries, upstreams, hosted storage, cache directory, auth backends, and enabled surface toggles (`registry`, `resolver`, `artifacts`).
+
+```sh
+pnpr config check
+# or using the hyphenated alias
+pnpr config-check
+```
+
+### verify
+
+Audits hosted package documents (`package.json`) against stored blobs. Inspects declared versions, resolves referenced tarballs and attestation blobs, checks for missing or corrupted files, and discovers orphaned blobs not referenced by any version.
+
+```sh
+# Full checksum verification (SHA-1 and Subresource Integrity)
+pnpr verify
+
+# Fast presence check without recomputing hashes
+pnpr verify --skip-hashes
+
+# Prune unreferenced blobs left behind by interrupted operations (older than 24h)
+pnpr verify --prune-orphans
+
+# Prune immediately without age guard
+pnpr verify --prune-orphans --min-age-secs 0
+```
+
+| Flag | Description |
+| --- | --- |
+| `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
+| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
+| `--min-age-secs <secs>` | Minimum age in seconds before an unreferenced blob is considered for pruning (defaults to 86400, or 24 hours). |
+
+### export
+
+Exports hosted packages, packuments, and tarball blobs to a local directory.
+
+```sh
+pnpr export --out /mnt/backups/pnpr-export --include-auth
+```
+
+| Flag | Description |
+| --- | --- |
+| `--out <dir>` | Destination directory for exported packages and files. Required. |
+| `--include-auth` | Include configured auth files (`htpasswd`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
+
+### migrate-storage
+
+Migrates hosted packages and blobs from local filesystem storage to an S3-compatible object store.
+
+```sh
+# Preview packages and blobs that would be transferred
+pnpr migrate-storage --to-bucket my-bucket --dry-run
+
+# Transfer and verify blob content on the destination
+pnpr migrate-storage --to-bucket my-bucket --verify
+```
+
+| Flag | Description |
+| --- | --- |
+| `--from <dir>` | Source hosted storage directory. Defaults to configured `storage.hosted_dir`. |
+| `--to-bucket <name>` | Destination S3 bucket name. |
+| `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
+| `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |
+| `--to-prefix <prefix>` | Destination key prefix within the bucket. |
+| `--dry-run` | Report packages and blobs to migrate without uploading. |
+| `--verify` | Read back and verify content of uploaded blobs after transfer. |
+
+### import-htpasswd
+
+Imports users from an Apache or Verdaccio `htpasswd` file into pnpr's user store. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login).
+
+Run this command as an offline maintenance step while pnpr is stopped, or specify an unshared `--target` path.
+
+```sh
+# Preview users that would be imported
+pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
+
+# Import and merge with pnpr's configured htpasswd file
+pnpr import-htpasswd --source /path/to/old/htpasswd
+```
+
+| Flag | Description |
+| --- | --- |
+| `--source <path>` | Path to the source htpasswd file to import. Required. |
+| `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
+| `--dry-run` | Preview imported user counts without writing to target file. |
+| `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
 
 ### oci-gc
 
@@ -107,4 +202,21 @@ pnpr --disable-registry
 
 ## Signals and graceful shutdown
 
-pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`. When either signal is received, the server initiates a graceful shutdown, stopping new connections and completing in-flight requests. This ensures clean termination in containerized environments such as Docker and Kubernetes.
+pnpr handles `SIGINT` (Ctrl-C) and Unix `SIGTERM`:
+
+1. **Ceases new connections**: The server stops accepting new incoming TCP connections on its listen address.
+2. **Drains in-flight requests**: Active requests and ongoing package transfers are allowed to complete cleanly before the process exits.
+
+Configuration changes are applied via process restart rather than in-process reloading (such as SIGHUP). In container orchestrators (such as Kubernetes or Docker Swarm), use rolling deployments so the new replica's readiness probe (`GET /-/ready`) passes before the old replica receives `SIGTERM` and drains.
+
+## Exit codes
+
+pnpr uses standard exit codes:
+
+| Code | Meaning | Description |
+| --- | --- | --- |
+| `0` | Success | The command completed successfully. For the server, indicates clean termination after `SIGINT` or `SIGTERM`. For maintenance commands (`config check`, `verify`, `export`, `migrate-storage`, `import-htpasswd`), indicates all checks and transfers succeeded. |
+| `1` | Error | The command failed. Causes include invalid CLI flags, YAML configuration errors, address binding conflicts (port already in use), missing storage/auth files, or integrity audit failures (such as `pnpr verify` finding missing or corrupted blobs). |
+
+In Unix shells, if an external supervisor kills the process before the graceful shutdown handler finishes, the exit status will reflect the signal number (for example, `130` for `SIGINT` or `143` for `SIGTERM`).
+

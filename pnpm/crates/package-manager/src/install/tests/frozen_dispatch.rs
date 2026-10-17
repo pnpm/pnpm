@@ -1,5 +1,5 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation, build_workspace_state},
+    super::{Install, InstallError, ProjectMutation, workspace_state::build_workspace_state},
     InstallDirs, PARTIAL_INSTALL_LOCKFILE, seed_placeholder_virtual_store_slot,
 };
 use crate::PolicyExcludes;
@@ -76,7 +76,6 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -191,7 +190,6 @@ trust: false,
 update_checksums: false,
 excludes: PolicyExcludes::Persist,
 disable_optimistic_repeat: false,
-manifest_freshness: crate::ManifestFreshness::Mtime,
 },
 execution: crate::InstallExecution {
 skip_runtimes: true,
@@ -330,7 +328,6 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -426,7 +423,6 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -489,7 +485,6 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -593,7 +588,6 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -702,7 +696,6 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -842,7 +835,6 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         None,
         &Default::default(),
         &[(dirs.project_root.clone(), &manifest)],
-        false,
         None,
     );
     update_workspace_state(&dirs.project_root, &seed_state).expect("seed workspace state");
@@ -873,7 +865,6 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

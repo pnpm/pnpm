@@ -148,3 +148,28 @@ s3:
   accessKeyId: minioadmin
   secretAccessKey: minioadmin
 ```
+
+## S3 publish journal and lifecycle caveats
+
+When publishing packages to an S3 backend, pnpr coordinates uploads through a local write-ahead commit journal:
+
+1. **Local staging**: Incoming blobs are staged under `<cache>/pnpr-hosted-staging/`.
+2. **Journal seal**: pnpr writes the transaction under `<cache>/.pnpr-journal/<txn>/` and seals it before applying object-store writes.
+3. **Apply**: pnpr uploads the blobs and conditionally updates the packument.
+4. **Journal cleanup**: The local journal entry is removed once the object store confirms the write.
+
+### Multi-replica considerations
+
+The write-ahead journal is kept on the local disk of the replica handling the publish request. Keep these operational details in mind:
+
+- **Startup recovery**: If a replica terminates unexpectedly mid-publish, it automatically recovers pending journal entries in its `<cache>/.pnpr-journal/` on next startup, applying sealed transactions and rolling back unsealed ones.
+- **Ephemeral disks**: In containerized multi-replica environments where instances use ephemeral local storage, destroying a failed instance before it restarts means its local journal cannot be replayed. Any partially uploaded blobs in S3 remain as unreferenced objects.
+- **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
+
+### Operational recommendations
+
+- **Abort incomplete multipart uploads**: Configure a lifecycle rule on your S3 bucket to abort incomplete multipart uploads after 1 to 7 days.
+- **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
+- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr verify --prune-orphans` to detect and remove orphaned blobs associated with verified npm packages.
+- **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
+

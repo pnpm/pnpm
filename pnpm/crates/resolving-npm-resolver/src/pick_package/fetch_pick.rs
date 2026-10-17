@@ -16,8 +16,7 @@ use crate::{
 
 use super::{
     PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    PickState, UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age,
-    persist_upgraded_to_mirror, pick_from_meta,
+    PickState, pick_from_meta, route::fetch_failure_falls_back,
 };
 
 impl PickState<'_> {
@@ -89,16 +88,7 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         meta: Arc<Package>,
     ) -> Result<(Arc<Package>, Arc<Package>, Option<Arc<PackageVersion>>), PickPackageError> {
-        let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
-            ctx,
-            spec,
-            opts,
-            self.full_metadata,
-            &self.cache_key,
-            meta,
-        )
-        .await?;
-        let meta = self.persist_release_age_upgrade(ctx, opts, &upgrade);
+        let meta = self.upgrade_for_release_age(ctx, spec, opts, meta).await?.meta;
         let (picked_meta, picked) =
             pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
         Ok((meta, picked_meta, picked))
@@ -138,29 +128,6 @@ impl PickState<'_> {
         Err(error.into())
     }
 
-    fn persist_release_age_upgrade<Cache: PackageMetaCache>(
-        &self,
-        ctx: &PickPackageContext<'_, Cache>,
-        opts: &PickPackageOptions<'_>,
-        upgrade: &UpgradeOutcome,
-    ) -> Arc<Package> {
-        let mut meta = Arc::clone(&upgrade.meta);
-        if upgrade.upgraded {
-            if !opts.request.dry_run
-                && let Some(reloaded) = self.pkg_mirror
-                    .as_deref()
-                    .and_then(|path| {
-                        persist_upgraded_to_mirror(path, upgrade, self.use_filtered_full_metadata)
-                    })
-            {
-                meta = Arc::new(reloaded);
-            }
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
-        }
-
-        meta
-    }
-
     fn cached_fetch_options<'ctx, Cache: PackageMetaCache>(
         &self,
         ctx: &PickPackageContext<'ctx, Cache>,
@@ -177,27 +144,20 @@ impl PickState<'_> {
         }
     }
 
-    /// The mirror a failed fetch may fall back to.
+    /// The mirror a failed fetch may fall back to, when
+    /// [`fetch_failure_falls_back`] allows it. The fallback reads only the
+    /// scoped mirror `pkg_mirror` already points at.
     ///
     /// The fetcher already saved a 200 to disk before it returned (when it
     /// returned Ok). If it returned Err, an existing mirror is good enough
     /// to pick from, even if the latest sync failed.
-    ///
-    /// A private route must fail closed on a `401`/`403`/private-`404`: a
-    /// revoked credential or a hidden private package must not keep serving
-    /// the last cached packument, even from its own (same-namespace) mirror.
-    /// Only a transport failure (`5xx`/timeout/network) falls back, and only
-    /// within the scoped mirror `pkg_mirror` already points at. A public
-    /// route (the CLI / public registries) keeps the original
-    /// fall-back-on-any-error behavior.
     async fn disk_fallback(
         &self,
         error: &FetchMetadataError,
         disk_meta: Option<Arc<Package>>,
     ) -> Option<Arc<Package>> {
-        let allow_fallback =
-            matches!(self.scope, MetadataCacheScope::Public) || !error.is_access_denied();
-        if !allow_fallback {
+        let public_scope = matches!(self.scope, MetadataCacheScope::Public);
+        if !fetch_failure_falls_back(public_scope, error.is_access_denied()) {
             return None;
         }
         match disk_meta {

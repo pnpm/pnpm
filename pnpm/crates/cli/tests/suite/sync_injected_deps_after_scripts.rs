@@ -122,6 +122,51 @@ fn a_listed_script_refreshes_every_injected_copy() {
     drop((mock_instance, root));
 }
 
+/// The install copies only the files the manifest lists, so the sync after
+/// the script adds none of the others.
+#[test]
+fn a_listed_script_refreshes_only_the_files_the_manifest_lists() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "files": ["distribution"],
+            "scripts": { "build": "node build.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1 package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
+
+    let copies = injected_copies(&workspace);
+    assert!(!copies.is_empty(), "the install should have injected project-1 somewhere");
+    for copy in &copies {
+        assert!(copy.join("distribution/generated.js").exists(), "{copy:?}");
+        assert!(!copy.join("build.cjs").exists(), "{copy:?} holds a file `files` leaves out");
+    }
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn an_unlisted_script_leaves_the_injected_copies_alone() {
     let CommandTempCwd {

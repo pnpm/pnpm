@@ -119,20 +119,28 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         included,
         None,
     );
-    workspace_state::update_workspace_state(
-        &dirs.project_root,
-        &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &dirs.project_root,
-            ),
-            projects,
-            pnpmfiles: Vec::new(),
-            filtered_install: false,
-            config_dependencies: None,
-            settings,
+    let mut seed_state = pnpm_workspace_state::WorkspaceState {
+        last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
+            &dirs.project_root,
+        ),
+        projects,
+        pnpmfiles: Vec::new(),
+        filtered_install: false,
+        config_dependencies: None,
+        validation: None,
+        settings,
+    };
+    crate::optimistic_repeat_install::validation::record_validation(
+        &mut seed_state,
+        &crate::optimistic_repeat_install::validation::RecordValidation {
+            workspace_root: &dirs.project_root,
+            config,
+            project_manifests: &[(dirs.project_root.clone(), &manifest)],
+            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
         },
-    )
-    .expect("seed workspace state");
+    );
+    workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
+        .expect("seed workspace state");
 
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
@@ -145,7 +153,6 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -265,18 +272,26 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     let last_validated_timestamp = 1_700_000_000_000;
     set_mtime_ms(&manifest_path, last_validated_timestamp - 2 * MTIME_STEP_MS);
     set_mtime_ms(&project_root.join("pnpm-lock.yaml"), last_validated_timestamp - MTIME_STEP_MS);
-    workspace_state::update_workspace_state(
-        &project_root,
-        &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp,
-            projects,
-            pnpmfiles: Vec::new(),
-            filtered_install: false,
-            config_dependencies: None,
-            settings,
+    let mut seed_state = pnpm_workspace_state::WorkspaceState {
+        last_validated_timestamp,
+        projects,
+        pnpmfiles: Vec::new(),
+        filtered_install: false,
+        config_dependencies: None,
+        validation: None,
+        settings,
+    };
+    crate::optimistic_repeat_install::validation::record_validation(
+        &mut seed_state,
+        &crate::optimistic_repeat_install::validation::RecordValidation {
+            workspace_root: &project_root,
+            config,
+            project_manifests: &[(project_root.clone(), &manifest)],
+            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
         },
-    )
-    .expect("seed workspace state");
+    );
+    workspace_state::update_workspace_state(&project_root, &seed_state)
+        .expect("seed workspace state");
 
     let check = UpToDateFastPathCheck {
         config,
@@ -292,13 +307,19 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         "fresh state must short-circuit",
     );
 
-    // Outdate the manifest relative to the recorded timestamp: the
-    // fast path must decline and leave the decision to the full
-    // install.
-    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
-    // The manifest content still matches no lockfile (config.lockfile
-    // is off and no current lockfile exists), so the content re-check
-    // cannot vouch for it either.
+    // Edit the manifest: the fast path must decline and leave the decision
+    // to the full install. The new content matches no lockfile
+    // (config.lockfile is off and no current lockfile exists), so the
+    // content re-check cannot vouch for it either.
+    manifest.add_dependency("other", "link:../other", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    let check = UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pnpm_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    };
     assert!(install_already_up_to_date(&check).is_err(), "modified manifest must fall through");
 }
 /// `add` / `remove` mutate the manifest in memory and persist it only
@@ -394,20 +415,28 @@ async fn partial_install_disables_optimistic_short_circuit() {
         included,
         None,
     );
-    workspace_state::update_workspace_state(
-        &dirs.project_root,
-        &pnpm_workspace_state::WorkspaceState {
-            last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-                &dirs.project_root,
-            ),
-            projects,
-            pnpmfiles: Vec::new(),
-            filtered_install: false,
-            config_dependencies: None,
-            settings,
+    let mut seed_state = pnpm_workspace_state::WorkspaceState {
+        last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
+            &dirs.project_root,
+        ),
+        projects,
+        pnpmfiles: Vec::new(),
+        filtered_install: false,
+        config_dependencies: None,
+        validation: None,
+        settings,
+    };
+    crate::optimistic_repeat_install::validation::record_validation(
+        &mut seed_state,
+        &crate::optimistic_repeat_install::validation::RecordValidation {
+            workspace_root: &dirs.project_root,
+            config,
+            project_manifests: &[(dirs.project_root.clone(), &manifest)],
+            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
         },
-    )
-    .expect("seed workspace state");
+    );
+    workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
+        .expect("seed workspace state");
 
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
@@ -418,7 +447,6 @@ async fn partial_install_disables_optimistic_short_circuit() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -516,7 +544,6 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -672,7 +699,6 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

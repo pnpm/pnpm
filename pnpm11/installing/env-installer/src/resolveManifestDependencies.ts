@@ -17,7 +17,16 @@ import type {
   RegistriesByScope,
 } from '@pnpm/types'
 
-export interface ResolveManifestDependenciesOpts {
+/**
+ * The `trustPolicy` settings a resolution is held to, as an install holds the
+ * project's dependencies to them.
+ */
+export type PackageTrustPolicy = Pick<
+  Parameters<typeof resolveDependencies>[1],
+'trustPolicy' | 'trustPolicyExclude' | 'trustPolicyIgnoreAfter'
+>
+
+export interface ResolveManifestDependenciesOpts extends PackageTrustPolicy {
   dir: string
   registriesByScope: RegistriesByScope
   storeController: StoreController
@@ -83,6 +92,9 @@ function createResolveDependenciesOptions (
     saveWorkspaceProtocol: false,
     storeController: opts.storeController,
     tag: 'latest',
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
     globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
     virtualStoreDirMaxLength: 120,

@@ -1,0 +1,103 @@
+# Test registry-mock configuration for pnpm and pnpr test suites.
+storage: ./storage
+secret: pnpm-registry-mock-secret-key-32
+
+auth:
+  htpasswd:
+    file: ./htpasswd
+    # Maximum amount of users allowed to register. Set to -1 by default;
+    # test harnesses patch this to allow test user registration.
+    max_users: -1
+
+registries:
+  # The locally-hosted fixtures (and anything published during tests).
+  local:
+    type: hosted
+    access: $all
+    packages:
+      # Scopes seeded from the in-repo fixture sources (`pnpr/.fixtures/packages/`).
+      '@foo/*': &default-rules { unpublish: $authenticated }
+      '@having/*': *default-rules
+      '@jsr/*': *default-rules
+      '@pnpm.e2e/*': *default-rules
+      '@private/*': &authenticated
+        access: $authenticated
+        publish: $authenticated
+        unpublish: $authenticated
+      '@scoped/*': *default-rules
+      'create-touch-file-one-bin': *default-rules
+      'preact-particles': *default-rules
+      # Fixture packages in real scopes claimed by exact name.
+      '@pnpm/plugin-pnpmfile': *default-rules
+      '@pnpm/postinstall-modifies-source': *default-rules
+      '@pnpm/x': *default-rules
+      '@pnpm/xyz': *default-rules
+      '@pnpm/xyz-parent': *default-rules
+      '@pnpm/xyz-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-with-xyz': *default-rules
+      '@pnpm/y': *default-rules
+      '@pnpm/z': *default-rules
+      '@types/pnpm.e2e__peer-a': *default-rules
+      '@zkochan/test-pnpm-issue219': *default-rules
+      # Names tests publish to the mock and then read back.
+      '@pnpmtest/*': *default-rules
+      'batch-dry-1': *default-rules
+      'batch-dry-2': *default-rules
+      'batch-no-recursive': *default-rules
+      'batch-pkg-2': *default-rules
+      'batch-unsupported-1': *default-rules
+      'project-100': *default-rules
+      'project-200': *default-rules
+      'publish_config_directory_dist_package': *default-rules
+      'test-deprecate-package': *default-rules
+      'test-deprecate-specific': *default-rules
+      'test-dist-tag-add': *default-rules
+      'test-dist-tag-add-default': *default-rules
+      'test-dist-tag-ls': *default-rules
+      'test-dist-tag-ls-default': *default-rules
+      'test-dist-tag-rm': *default-rules
+      'test-dist-tag-rm-latest': *default-rules
+      'test-dist-tag-rm-missing': *default-rules
+      'test-publish-config': *default-rules
+      'test-publish-config-directory': *default-rules
+      'test-publish-config-installation': *default-rules
+      'test-publish-helper-token-basic.json': *default-rules
+      'test-publish-helper-token-bearer.json': *default-rules
+      'test-publish-package-oidc.json': *default-rules
+      'test-publish-package.json': *default-rules
+      'test-publish-package.json5': *default-rules
+      'test-publish-package.yaml': *default-rules
+      'test-publish-scripts': *default-rules
+      'test-publish-skip-manifest-obfuscation': *default-rules
+      'test-publish-skip-manifest-obfuscation-installation': *default-rules
+      'test-publish-tarball': *default-rules
+      'test-publish-with-ignore-scripts': *default-rules
+      'test-publish-with-scripts': *default-rules
+      'test-undeprecate-pkg': *default-rules
+      'test-unpublish-force': *default-rules
+      'test-unpublish-no-force': *default-rules
+      'test-unpublish-no-ver': *default-rules
+      'test-unpublish-version': *default-rules
+      'workspace-package-with-default-catalog': *default-rules
+      'workspace-package-with-named-catalog': *default-rules
+      '@pnpm.e2e/needs-auth': *authenticated
+
+  # The public npm registry upstream catch-all.
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+
+  # Router combining local fixtures and upstream npm.
+  main:
+    type: router
+    sources: [local, npmjs]
+
+defaultRegistry: main
+
+log:
+  type: stdout
+  format: pretty
+  level: error

@@ -37,12 +37,14 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "hosted-git-info": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/pkg-manifest.commands": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/hosted-git-info": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

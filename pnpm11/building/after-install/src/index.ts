@@ -138,6 +138,7 @@ async function runProjectLifecycleHooks (ctx: PnpmContext, opts: StrictBuildOpti
     extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
+    includeOnlyPackageFiles: !opts.deployAllFiles,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,

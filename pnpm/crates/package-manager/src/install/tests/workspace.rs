@@ -151,7 +151,6 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -252,7 +251,6 @@ async fn install_writes_workspace_state() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -580,7 +578,6 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -659,7 +656,6 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -863,6 +859,37 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     );
 }
 
+/// A dedicated install reuses the command's workspace-package index only
+/// for the very project list it was built from, never for a selection's or
+/// an embedder's projects that merely look the same.
+#[test]
+fn discovered_workspace_index_serves_only_its_own_projects() {
+    let project = |name: &str| pnpm_workspace::Project {
+        root_dir: std::path::PathBuf::from("ws").join(name),
+        manifest: PackageManifest::from_value(
+            std::path::PathBuf::from("ws").join(name).join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0" }),
+        ),
+        dependency_manifest: None,
+    };
+    let workspace = crate::DiscoveredWorkspace::new(vec![project("lib")]);
+
+    let index = workspace
+        .packages_of(Some(&workspace.projects))
+        .expect("index of its own projects");
+    assert!(
+        index
+            .get("lib")
+            .is_some_and(|by_version| by_version.contains_key("1.0.0")),
+    );
+    assert!(
+        workspace
+            .packages_of(Some(&[project("lib")]))
+            .is_none(),
+    );
+    assert!(workspace.packages_of(None).is_none());
+}
+
 #[cfg(unix)]
 fn setup_symlinked_workspace(dir: &std::path::Path, outside: &std::path::Path) {
     let target_dir = outside.join("target-pkg");
@@ -954,7 +981,6 @@ async fn install_succeeds_even_when_workspace_state_write_fails() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

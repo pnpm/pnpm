@@ -130,7 +130,7 @@ pub(super) fn freshness_inputs<'r>(
     LockfileFreshnessInputs {
         lockfile_dir: &workspace.dirs.workspace_root,
         manifests,
-        workspace_packages: workspace.workspace_packages.as_ref(),
+        workspace_packages: workspace.workspace_packages.as_deref(),
         dependency_manifests: scope.dependency_manifests.as_ref(),
         config: install.context.config,
         catalogs: &workspace.catalogs,

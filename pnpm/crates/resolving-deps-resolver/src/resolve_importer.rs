@@ -48,11 +48,11 @@ use options::HoistSettings;
 use crate::{
     DirectDep,
     dependencies_graph::MissingPeer,
-    hoist_peers::{
+    parent_pkg_aliases::ParentPkgAliases,
+    peer_provider::{
         DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
         get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
     },
-    parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
         DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
         unwrap_package_name,

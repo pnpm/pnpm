@@ -67,20 +67,24 @@ pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
     PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
 };
-pub use hoist_peers::{
+pub use lockfile_reuse::locked_child_admits;
+pub use node_id::NodeId;
+pub use parent_pkg_aliases::{
+    ParentPkgAliases, own_dependency_names, peer_shadowed_dependency_names,
+};
+pub use peer_provider::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
     get_hoistable_optional_peers, hoist_peers,
 };
-pub use node_id::NodeId;
-pub use parent_pkg_aliases::ParentPkgAliases;
 pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
-    DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn, FinalizedChild,
-    FinalizedPackage, FinalizedPackageFn, ManifestHook, ResolveDependencyTreeError,
+    ChildCatalogs, DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn,
+    FinalizedChild, FinalizedPackage, FinalizedPackageFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
     SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
-    WorkspaceTreeCtx, extend_tree, real_package_name_of, resolve_dependency_tree,
+    WorkspaceTreeCtx, extend_tree, local_directory_child_specs, manifest_child_specs,
+    real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
@@ -107,11 +111,11 @@ mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
 mod dep_path_compatibility;
 mod dependencies_graph;
-mod hoist_peers;
 mod link_target;
 mod lockfile_reuse;
 mod node_id;
 mod parent_pkg_aliases;
+mod peer_provider;
 mod resolve_dependency_tree;
 mod resolve_importer;
 mod resolve_peers;

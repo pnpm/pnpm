@@ -1,6 +1,6 @@
 use super::{
-    Config, Ecosystem, FeatureOverrides, Identity, Path, PathBuf, RegistryError,
-    hosted_rules_config, listen, user,
+    Config, Ecosystem, FeatureOverrides, Identity, Path, RegistryError, hosted_rules_config,
+    listen, user,
 };
 
 #[test]
@@ -18,20 +18,6 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.features.registry.enabled);
     assert!(config.features.resolver.enabled);
-}
-
-#[test]
-fn static_constructor_serves_everything_from_one_hosted() {
-    use pnpr_registry::{ConcreteKind, Resolved};
-    let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
-    assert!(config.routing.upstreams.is_empty());
-    // Everything routes to the single local hosted registry, which serves the
-    // flat storage root (its `org` namespace is empty).
-    assert_eq!(config.routing.hosted["local"].org, "");
-    assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "anything"),
-        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-    );
 }
 
 /// A router registry routes each package to exactly one concrete source — the

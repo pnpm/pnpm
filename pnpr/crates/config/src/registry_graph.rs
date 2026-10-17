@@ -9,8 +9,7 @@ use super::{
     AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
     IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
     RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, TeamDirectory,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, registry_mock_rules,
-    resolve_upstream_config,
+    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -362,23 +361,6 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         access,
     };
     resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
-}
-
-pub(super) fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
-    let rules = registry_mock_rules();
-    let local_patterns = rules.patterns();
-    let mut hosted = IndexMap::new();
-    hosted.insert("local".to_string(), HostedConfig::new(String::new(), rules));
-    let graph = [
-        ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
-        ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
-        (
-            "main".to_string(),
-            Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
-        ),
-    ];
-    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    (hosted, registries)
 }
 
 /// Public origins must reject credentials and access gates rather than silently

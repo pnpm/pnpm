@@ -175,7 +175,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             catalogs: &workspace.catalogs,
             manifests: project_manifests,
             prefix: &workspace.prefix,
-            workspace_packages: workspace.workspace_packages.as_ref(),
+            workspace_packages: workspace.workspace_packages.as_deref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: decided.take_frozen_path,
@@ -422,7 +422,9 @@ pub(super) async fn auto_frozen_path(
         Err(
             error @ (FreshnessCheckError::InvalidCatalog(_)
             | FreshnessCheckError::InvalidOverrides(_)
-            | FreshnessCheckError::CalcPatchHashes(_)),
+            | FreshnessCheckError::CalcPatchHashes(_)
+            | FreshnessCheckError::InvalidPackageExtensionSelector(_)
+            | FreshnessCheckError::ReadPackageHook(_)),
         ) => Err(error.into()),
     }
 }

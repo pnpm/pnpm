@@ -16,7 +16,7 @@ impl WorkspaceSettings {
     /// Validate the sections the checks below cover. With `skip_invalid`, a
     /// section that fails is left out instead, so one this pnpm rejects does
     /// not take the file's other settings with it (see
-    /// [`crate::Config::skip_unreadable_settings`]).
+    /// [`crate::Config::settings_read`]).
     pub(super) fn validate_sections(
         &mut self,
         skip_invalid: bool,

@@ -171,7 +171,7 @@ function missingModulesDirIssue (project: Project): string {
   return `Workspace package ${id} has dependencies but does not have a modules directory`
 }
 
-function declaresDependencies (project: Project): boolean {
+export function declaresDependencies (project: Project): boolean {
   return DEPENDENCIES_FIELDS.some((field) => !isEmpty(project.manifest[field] ?? {}))
 }
 

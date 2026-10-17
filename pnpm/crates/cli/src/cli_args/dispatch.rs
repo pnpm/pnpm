@@ -6,7 +6,7 @@ pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
-    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
+    config_warnings::{ConfigWarnings, warn_shared_workspace_lockfile_outside_workspace},
     dispatch_install, dispatch_query, dispatch_script,
     install::{InstallArgs, resolve_bool_override},
     reporter::{
@@ -104,6 +104,30 @@ impl CliArgs {
         }
     }
 
+    /// Report the warnings of the fast path's configuration. `None` when one
+    /// fails the command, which the full path then reports.
+    fn report_fast_path_warnings(&self, config: &Config, dir: &Path) -> Option<()> {
+        let warnings = ConfigWarnings::of(&self.command);
+        if warnings.fail(config, dir) {
+            return None;
+        }
+        warnings.report(config, dir).ok()
+    }
+
+    /// `--store-dir` and `--state-dir`. `None` when the store directory
+    /// cannot be applied.
+    fn apply_fast_path_dir_flags(&self, config: &mut Config, dir: &Path) -> Option<()> {
+        if let Some(store_dir) = self.paths.store_dir.as_deref() {
+            apply_store_dir_override::<Host>(config, store_dir, dir).ok()?;
+            config.cli_settings.insert("storeDir".to_string());
+        }
+        if let Some(state_dir) = self.paths.state_dir.as_deref() {
+            apply_state_dir_override::<Host>(config, state_dir, dir);
+            config.cli_settings.insert("stateDir".to_string());
+        }
+        Some(())
+    }
+
     fn prepare_fast_path_config(
         &self,
         config_overrides: &ConfigOverrides,
@@ -122,18 +146,10 @@ impl CliArgs {
         )
         .current::<Host>(&dir)
         .ok()?;
+        self.report_fast_path_warnings(&config, &dir)?;
         config_overrides.apply(&mut config, &dir);
         self.network.apply(&mut config);
-        if let Some(store_dir) = self.paths.store_dir.as_deref() {
-            if apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err() {
-                return None;
-            }
-            config.cli_settings.insert("storeDir".to_string());
-        }
-        if let Some(state_dir) = self.paths.state_dir.as_deref() {
-            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
-            config.cli_settings.insert("stateDir".to_string());
-        }
+        self.apply_fast_path_dir_flags(&mut config, &dir)?;
         install_args.lockfile.directory.apply_to(&mut config, &dir);
         config.frozen_store = resolve_bool_override(
             install_args.materialization.frozen_store,
@@ -235,8 +251,9 @@ impl CliArgs {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
         let (npm_command, store_use) = (command.npm_command_name(), StoreUse::of(&command));
+        let warnings = ConfigWarnings::of(&command);
         let load_config = |anchor: &Path, is_global: bool| {
-            let target = ConfigTarget { anchor, is_global, store_use };
+            let target = ConfigTarget { anchor, is_global, store_use, warnings };
             self.load_and_finalize_config(&target, config_overrides, setup, anchors, npm_command)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
@@ -281,10 +298,16 @@ impl CliArgs {
         anchors: &RunAnchors,
         npm_command: &'static str,
     ) -> miette::Result<&'static mut Config> {
-        let ConfigTarget { anchor, is_global, store_use } = *target;
+        let ConfigTarget {
+            anchor,
+            is_global,
+            store_use,
+            warnings,
+        } = *target;
         let cfg = store_use.load(|place_store| {
-            self.load_config_at(anchor, place_store, config_overrides)
+            self.load_config_at(anchor, place_store, config_overrides, warnings)
         })?;
+        warnings.report(&cfg, anchor)?;
         let config =
             self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)?;
         // npm names the running command for scripts in `npm_command`, and pnpm 11
@@ -300,6 +323,7 @@ impl CliArgs {
         anchor: &Path,
         place_store: bool,
         config_overrides: &ConfigOverrides,
+        warnings: ConfigWarnings,
     ) -> miette::Result<Config> {
         let mut seed = seed_config(
             self.paths.npmrc_auth_file.as_deref(),
@@ -307,8 +331,11 @@ impl CliArgs {
             config_overrides,
         );
         seed.skip_store_dir_resolution = !place_store;
-        seed.current::<Host>(anchor)
-            .map_err(miette::Report::new)
+        seed.current_keeping_warnings::<Host>(anchor)
+            .map_err(|failure| {
+                warnings.report_failed_load(&failure.warnings);
+                miette::Report::new(failure.error)
+            })
             .wrap_err("load configuration")
     }
 

@@ -1,6 +1,7 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{PNPM_VERSION, PmOnFail};
+use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
 use pnpm_package_manifest::{
+    PackageManifest,
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
     },
@@ -8,7 +9,11 @@ use pnpm_package_manifest::{
 };
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
-use std::{fs, io::ErrorKind, path::Path};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
 pub(crate) const PACKAGE_MANAGER_SWITCH_ENV_VARS: [&str; 4] = [
     "npm_config_manage_package_manager_versions",
@@ -23,6 +28,34 @@ pub(crate) struct WantedPackageManager {
     pub(crate) version: Option<String>,
     pub(crate) from_dev_engines: bool,
     pub(crate) on_fail: Option<String>,
+}
+
+/// The two directories the package-manager pin is read from and written to.
+///
+/// They differ when `lockfileDir` moves `pnpm-lock.yaml` off the workspace
+/// root: the manifest declaring the pin stays at the workspace root, while
+/// the env lockfile is the first document of the lockfile and follows it.
+#[derive(Debug, Clone)]
+pub(crate) struct PinRoots {
+    pub(crate) manifest: PathBuf,
+    pub(crate) env: PathBuf,
+}
+
+impl PinRoots {
+    /// The pin of the project `dir` belongs to.
+    pub(crate) fn of(config: &Config, dir: &Path) -> Self {
+        Self {
+            manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
+            env: config.root_project_manifest_dir(dir).to_path_buf(),
+        }
+    }
+
+    /// The manifest declaring the pin, whichever supported basename it uses.
+    pub(crate) fn read_manifest(&self) -> miette::Result<Option<PackageManifest>> {
+        pnpm_workspace::try_read_project_manifest(&self.manifest)
+            .map(|found| found.map(|(_, manifest)| manifest))
+            .map_err(miette::Report::new)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -223,6 +256,14 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
 pub(crate) fn exact_version(version: &str) -> Option<String> {
     let parsed = node_semver::Version::parse(version).ok()?;
     (parsed.to_string() == version).then(|| version_without_build(version).to_string())
+}
+
+/// Whether the pin `wanted` names the pnpm that is running.
+pub(crate) fn pins_running_pnpm(wanted: Option<&WantedPackageManager>) -> bool {
+    wanted.is_some_and(|pm| {
+        pm.name == "pnpm"
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+    })
 }
 
 /// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:

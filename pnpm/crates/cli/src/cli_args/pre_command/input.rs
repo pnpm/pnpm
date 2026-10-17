@@ -1,13 +1,19 @@
-pub(super) use argv_scan::UnparsedArgv;
+pub(super) mod bootstrap_argv;
+
+pub(super) use argv_scan::{UnparsedArgv, VersionArgv};
 
 mod argv_scan;
-mod reporter_flags;
 
 use super::{
-    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation,
-    ConfigSubcommand, InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString,
-    PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf, ReporterFlags, pre_command_emit,
-    resolve_bool_override,
+    ArgTable, CliArgs, CliCommand, CliNetworkArgs, ColorMode, Config, ConfigLocation, InstallArgs,
+    LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path, PathBuf,
+    ReporterFlags, pre_command_emit, resolve_bool_override,
+};
+use crate::cli_args::{
+    cli_command::{CliPathArgs, PresentationArgs},
+    config_warnings::ConfigWarnings,
+    install::InstallLockfileArgs,
+    install_options::OfflineArgs,
 };
 
 pub(super) struct PreCommandInput {
@@ -16,40 +22,14 @@ pub(super) struct PreCommandInput {
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
     pub(super) reporter: ReporterFlags,
-    pub(super) key_issues: KeyIssueReporting,
+    /// How the command reports the warnings of its configuration, which
+    /// decides whether a configuration it fails on may record the pin.
+    pub(super) warnings: ConfigWarnings,
 }
 
 impl PreCommandInput {
     pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
         pre_command_emit(self.reporter.configure_with(config))
-    }
-}
-
-/// What to do about the problem keys of the project's `pnpm-workspace.yaml`
-/// (see [`report_workspace_key_issues`](crate::cli_args::config_warnings::report_workspace_key_issues)), decided per invocation.
-#[derive(Clone, Copy, PartialEq)]
-pub(super) enum KeyIssueReporting {
-    /// `pnpm config get <key>` prints one value for a script to capture, so
-    /// config-load warnings stay off it entirely, as pnpm keeps them off.
-    Skip,
-    /// The other `pnpm config` subcommands are how a user inspects and
-    /// repairs the config, so they must keep working on a broken file:
-    /// unrecognized keys warn even under a satisfied pin.
-    WarnOnly,
-    /// Unrecognized keys warn, or fail the command when the running pnpm is
-    /// the version the project pins (no version-skew excuse remains).
-    Enforce,
-}
-
-pub(super) fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
-    match command {
-        CliCommand::Get(get) if get.args.key.is_some() => KeyIssueReporting::Skip,
-        CliCommand::Config(args) => match &args.command {
-            ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
-            _ => KeyIssueReporting::WarnOnly,
-        },
-        CliCommand::Get(_) | CliCommand::Set(_) => KeyIssueReporting::WarnOnly,
-        _ => KeyIssueReporting::Enforce,
     }
 }
 
@@ -88,14 +68,7 @@ impl PinFlags {
         match command {
             CliCommand::Add(args) => Self::of_lockfile_dir(&args.install.lockfile_dir),
             CliCommand::Ci(args) => Self::of_install(&args.install_args),
-            CliCommand::Dedupe(args) => Self {
-                lockfile_dir: None,
-                offline: typed_flag(args.network_cache.offline, args.network_cache.no_offline),
-                prefer_offline: typed_flag(
-                    args.network_cache.prefer_offline,
-                    args.network_cache.no_prefer_offline,
-                ),
-            },
+            CliCommand::Dedupe(args) => Self::of_offline_flags(&args.network_cache),
             CliCommand::Deploy(args) => Self::of_install(&args.install_args),
             CliCommand::Install(args) => Self::of_install(args),
             CliCommand::InstallTest(args) => Self::of_install(&args.install_args),
@@ -107,12 +80,26 @@ impl PinFlags {
     }
 
     fn of_install(args: &InstallArgs) -> Self {
+        Self::of_install_flags(&args.lockfile, &args.network_cache)
+    }
+
+    pub(super) fn of_install_flags(
+        lockfile: &InstallLockfileArgs,
+        network_cache: &OfflineArgs,
+    ) -> Self {
         Self {
-            lockfile_dir: args.lockfile.directory.lockfile_dir.clone(),
-            offline: typed_flag(args.network_cache.offline, args.network_cache.no_offline),
+            lockfile_dir: lockfile.directory.lockfile_dir.clone(),
+            ..Self::of_offline_flags(network_cache)
+        }
+    }
+
+    fn of_offline_flags(network_cache: &OfflineArgs) -> Self {
+        Self {
+            lockfile_dir: None,
+            offline: typed_flag(network_cache.offline, network_cache.no_offline),
             prefer_offline: typed_flag(
-                args.network_cache.prefer_offline,
-                args.network_cache.no_prefer_offline,
+                network_cache.prefer_offline,
+                network_cache.no_prefer_offline,
             ),
         }
     }
@@ -156,7 +143,7 @@ fn typed_flag(on: bool, off: bool) -> Option<bool> {
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
 /// and runtime pins — a global install does not belong to the project.
-pub(super) fn is_global(command: &CliCommand) -> bool {
+pub(crate) fn is_global(command: &CliCommand) -> bool {
     match command {
         CliCommand::Add(args) => args.target.global,
         CliCommand::ApproveBuilds(args) => args.global,
@@ -183,7 +170,7 @@ pub(super) fn is_global(command: &CliCommand) -> bool {
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).
-pub(super) fn should_skip_command(command: &CliCommand) -> bool {
+pub(crate) fn should_skip_command(command: &CliCommand) -> bool {
     // Declaring which package manager a project uses is not that package
     // manager's work, so a project pinned to another one can still be
     // told to use a different one — or to use this one. Adding anything
@@ -265,18 +252,13 @@ fn env_var_is_false(name: &str) -> bool {
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }
 
-/// Mirrors [`CliPathArgs`](super::super::cli_command::CliPathArgs) for the
-/// `--version` path, which scans argv itself: clap answers that flag before
-/// there is a parsed command line to read the group from.
-pub(super) struct SwitchPaths {
-    pub(super) dir: PathBuf,
-    pub(super) state_dir: Option<PathBuf>,
-    pub(super) store_dir: Option<PathBuf>,
-    pub(super) npmrc_auth_file: Option<PathBuf>,
-}
-
+#[derive(Debug, PartialEq, Eq)]
 pub(super) struct SwitchInput {
-    pub(super) paths: SwitchPaths,
+    /// `--ignore-workspace` suppresses the workspace search for this pass
+    /// as it does for the install, so no `pnpm-workspace.yaml` is read at
+    /// all and the `packageManager` pin comes from the project's own
+    /// manifest.
+    pub(super) paths: CliPathArgs,
     pub(super) command: Option<String>,
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
@@ -284,11 +266,6 @@ pub(super) struct SwitchInput {
     /// The install-family options the pin record reads.
     pub(super) pin_flags: PinFlags,
     pub(super) color: Option<ColorMode>,
-    /// `--ignore-workspace` as typed on the command line. It suppresses
-    /// the workspace search for this pass as it does for the install, so
-    /// no `pnpm-workspace.yaml` is read at all and the `packageManager`
-    /// pin comes from the project's own `package.json`.
-    pub(super) ignore_workspace: bool,
     /// The registry and proxy flags. The pinned pnpm is resolved and
     /// downloaded through them, as every other package is.
     pub(super) network: CliNetworkArgs,
@@ -296,135 +273,50 @@ pub(super) struct SwitchInput {
 
 impl SwitchInput {
     pub(super) fn from_cli_args(args: &CliArgs) -> Self {
-        Self {
-            paths: SwitchPaths {
-                dir: args.paths.dir.clone(),
-                state_dir: args.paths.state_dir.clone(),
-                store_dir: args.paths.store_dir.clone(),
-                npmrc_auth_file: args.paths.npmrc_auth_file.clone(),
-            },
+        Self::from_flags(SwitchFlags {
             command: Some(command_name(&args.command).to_string()),
+            paths: args.paths.clone(),
+            network: args.network.clone(),
+            presentation: &args.output.presentation,
             frozen_lockfile: frozen_lockfile_flag(&args.command),
             pin_flags: PinFlags::of(&args.command),
-            color: args.output.presentation.color.or_else(|| {
-                args.output.presentation.no_color.then_some(ColorMode::Never)
-            }),
-            ignore_workspace: args.paths.ignore_workspace,
-            network: args.network.clone(),
-        }
+        })
     }
 
-    /// The `--dir` a command line without one resolves to.
-    ///
-    /// Degrades to `.`, which the caller canonicalizes: a cwd that cannot
-    /// be resolved fails there, with the path it was given.
-    fn local_prefix_or_cwd() -> PathBuf {
-        std::env::current_dir()
-            .ok()
-            .and_then(|cwd| super::super::prefix::find_local_prefix(&cwd).ok())
-            .unwrap_or_else(|| PathBuf::from("."))
-    }
-
-    /// Read one global flag this pass cares about, returning how many
-    /// argv tokens it consumed.
-    fn absorb_global_flag(
-        &mut self,
-        token: &str,
-        next: Option<&std::ffi::OsStr>,
-        global_options: &ArgTable,
-    ) -> usize {
-        if let Some(width) = self.paths.absorb_flag(token, next) {
-            return width;
+    /// The one constructor every way of reading the command line ends in,
+    /// so each reads the same clap groups the same way.
+    fn from_flags(flags: SwitchFlags<'_>) -> Self {
+        let SwitchFlags {
+            command,
+            paths,
+            network,
+            presentation,
+            frozen_lockfile,
+            pin_flags,
+        } = flags;
+        Self {
+            paths,
+            command,
+            frozen_lockfile,
+            pin_flags,
+            color: presentation.color.or_else(|| presentation.no_color.then_some(ColorMode::Never)),
+            network,
         }
-        if let Some(set) = boolean_flag(token, "ignore-workspace") {
-            self.ignore_workspace = set;
-            return 1;
-        }
-        if let Some(width) = self.absorb_network_flag(token, next) {
-            return width;
-        }
-        if consumes_next_token(token, global_options) { 2 } else { 1 }
     }
 }
 
-impl SwitchInput {
-    /// Read one of [`CliNetworkArgs`], returning how many argv tokens it
-    /// consumed, or `None` when the token names none of them.
-    fn absorb_network_flag(&mut self, token: &str, next: Option<&OsStr>) -> Option<usize> {
-        let network = &mut self.network;
-        for (option, slot) in [
-            ("registry", &mut network.registry),
-            ("https-proxy", &mut network.https_proxy),
-            ("http-proxy", &mut network.http_proxy),
-            ("no-proxy", &mut network.no_proxy),
-        ] {
-            if let Some((value, width)) = long_value(token, option, next) {
-                *slot = Some(value.to_string_lossy().into_owned());
-                return Some(width);
-            }
-        }
-        None
-    }
-}
-
-impl SwitchPaths {
-    /// Read one directory flag, returning how many argv tokens it
-    /// consumed, or `None` when the token names none of them.
-    fn absorb_flag(&mut self, token: &str, next: Option<&OsStr>) -> Option<usize> {
-        if let Some(value) = short_value(token, "-C", next) {
-            self.dir = PathBuf::from(value);
-            return Some(if token == "-C" { 2 } else { 1 });
-        }
-        if let Some((value, width)) =
-            long_value(token, "dir", next).or_else(|| long_value(token, "prefix", next))
-        {
-            self.dir = PathBuf::from(value);
-            return Some(width);
-        }
-        if let Some((value, width)) = long_value(token, "state-dir", next) {
-            self.state_dir = Some(PathBuf::from(value));
-            return Some(width);
-        }
-        if let Some((value, width)) =
-            long_value(token, "store-dir", next).or_else(|| long_value(token, "store", next))
-        {
-            self.store_dir = Some(PathBuf::from(value));
-            return Some(width);
-        }
-        if let Some((value, width)) = long_value(token, "npmrc-auth-file", next)
-            .or_else(|| long_value(token, "userconfig", next))
-        {
-            self.npmrc_auth_file = Some(PathBuf::from(value));
-            return Some(width);
-        }
-        None
-    }
+/// What [`SwitchInput::from_flags`] reads.
+struct SwitchFlags<'a> {
+    command: Option<String>,
+    paths: CliPathArgs,
+    network: CliNetworkArgs,
+    presentation: &'a PresentationArgs,
+    frozen_lockfile: Option<bool>,
+    pin_flags: PinFlags,
 }
 
 fn command_name(command: &CliCommand) -> &'static str {
     command.into()
-}
-
-fn short_value<'a>(token: &'a str, option: &str, next: Option<&'a OsStr>) -> Option<&'a OsStr> {
-    if token == option {
-        return next;
-    }
-    token
-        .strip_prefix(option)
-        .filter(|value| !value.is_empty())
-        .map(OsStr::new)
-}
-
-/// Read a bare boolean global flag, in the two spellings that reach this
-/// scan: `--<option>` and `--<option>=<bool>`, which
-/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
-/// has already folded into `--<option>` or `--no-<option>`.
-fn boolean_flag(token: &str, option: &str) -> Option<bool> {
-    let name = token.strip_prefix("--")?;
-    if name == option {
-        return Some(true);
-    }
-    (name.strip_prefix("no-") == Some(option)).then_some(false)
 }
 
 fn long_value<'a>(

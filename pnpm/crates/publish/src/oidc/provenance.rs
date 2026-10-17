@@ -4,7 +4,7 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{escaped_package_name, redact_url_credentials};
+use pnpm_network::{escaped_package_name, normalize_registry_url, redact_url_credentials};
 use serde_json::Value;
 use url::Url;
 
@@ -98,8 +98,8 @@ fn is_public_ci_project<Sys: EnvVar>(payload: &Value) -> bool {
 }
 
 fn visibility_url(registry: &str, package_name: &str) -> Result<String, DetermineProvenanceError> {
-    let path = format!("/-/package/{}/visibility", escaped_package_name(package_name));
-    Url::parse(registry)
+    let path = format!("-/package/{}/visibility", escaped_package_name(package_name));
+    Url::parse(&normalize_registry_url(registry))
         .and_then(|base| base.join(&path))
         .map_err(DetermineProvenanceError::InvalidUrl)
         .map(|url| url.to_string())

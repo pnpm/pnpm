@@ -53,7 +53,7 @@ impl From<pnpm_config::ReporterType> for ReporterType {
 
 /// The `--reporter` and `--loglevel` flags as given on the command line,
 /// before the configuration they take precedence over is loaded.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ReporterFlags {
     pub(crate) reporter: Option<ReporterType>,
     pub(crate) loglevel: Option<LogLevelSetting>,

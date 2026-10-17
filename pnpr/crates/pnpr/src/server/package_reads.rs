@@ -368,6 +368,7 @@ pub(super) fn hosted_gate(
                 action: "access",
                 resource: format!("package {package:?}"),
             },
+            _ => RegistryError::Unauthenticated { resource: format!("package {package:?}") },
         });
     }
     HostedGate::MaskNotFound

@@ -58,8 +58,8 @@ pnpr -c ./pnpr.yaml
 ```
 
 It listens on `127.0.0.1:7677`. (Running plain `pnpr` with no config works
-too, but the bundled default config is shaped for pnpm's own test registry —
-for anything real, pass your own config.)
+too, using the minimal production default that proxies npmjs and provides
+a local hosted registry at `/~local/`.)
 
 ## Point a client at it
 
@@ -94,5 +94,9 @@ claims, is rejected.
 - [CLI reference](cli.md) — every flag `pnpr` accepts.
 - [Configuration](configuration.md) — write your own config: registries,
   access rules, and auth.
+- [Reverse proxy and TLS](tls-and-reverse-proxy.md) — set up Nginx, Caddy, Traefik, or a cloud load balancer for production.
+- [Webhooks and event notifications](webhooks.md) — stream audit events and storage notifications to external webhooks.
+- [Backup and restore](backup-and-restore.md) — snapshot and restore package storage and user records.
 - [Install acceleration](install-acceleration.md) — let pnpr resolve your
   dependency graph to speed up installs.
+

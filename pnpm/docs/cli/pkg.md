@@ -58,7 +58,7 @@ pnpm pkg delete keywords
 
 ### fix
 
-Auto-corrects common errors in `package.json` (e.g. removes a non-string `name` or `version`, drops dependency / `scripts` blocks whose values aren't objects, drops a `bin` field that's neither a string nor an object).
+Auto-corrects common errors in `package.json` (e.g. removes a non-string `name` or `version`, drops dependency / `scripts` blocks whose values aren't objects, drops a `bin` field that's neither a string nor an object). It also converts a `repository` string to the object form and normalizes a GitHub, GitLab, or Bitbucket URL the way `npm pkg fix` does.
 
 ```sh
 pnpm pkg fix

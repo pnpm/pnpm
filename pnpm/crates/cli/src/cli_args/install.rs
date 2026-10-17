@@ -202,13 +202,7 @@ impl InstallArgs {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line, before the `frozenLockfile` setting is layered under it.
     pub(crate) fn frozen_lockfile_flag(&self) -> Option<bool> {
-        if self.lockfile.frozen {
-            Some(true)
-        } else if self.lockfile.no_frozen {
-            Some(false)
-        } else {
-            None
-        }
+        self.lockfile.frozen_flag()
     }
 
     /// Package names allowed to run lifecycle (build) scripts during this install.

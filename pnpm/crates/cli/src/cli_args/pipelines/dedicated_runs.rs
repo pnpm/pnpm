@@ -95,7 +95,11 @@ impl DedicatedProjectRuns<'_> {
             self.require_lockfile,
             self.http_client.as_ref().map(Arc::clone),
         )?
-        .into_dedicated_project(caches, dependencies_installed);
+        .into_dedicated_project(
+            caches,
+            dependencies_installed,
+            self.pipelined.then(|| self.projects.workspace.clone()),
+        );
         // A project's install blocks its thread in places, such as while its
         // lifecycle scripts run. On its own task, the other projects'
         // installs move to another worker then.

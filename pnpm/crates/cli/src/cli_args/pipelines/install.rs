@@ -281,6 +281,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             covers_workspace: true,
             injected_source_dirs,
             early_starts: early_starts(cfg, &projects),
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(projects),
         },
         require_lockfile,
         http_client: Some(http_client),

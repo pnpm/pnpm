@@ -17,8 +17,8 @@ use crate::{
 
 use super::{
     PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    PickerOpts, handle_cache_hit, maybe_upgrade_abbreviated_meta_for_release_age,
-    metadata_cache_key, persist_upgraded_to_mirror,
+    PickerOpts, UpgradeOutcome, handle_cache_hit, maybe_upgrade_abbreviated_meta_for_release_age,
+    metadata_cache_key,
 };
 
 /// The route classification and cache keys every layer of one pick shares.
@@ -138,18 +138,7 @@ impl<'a> PickState<'a> {
         let Some(cached) = ctx.metadata.meta_cache.get(&self.cache_key) else {
             return Ok(None);
         };
-        handle_cache_hit(
-            ctx,
-            spec,
-            opts,
-            &self.picker_opts,
-            self.full_metadata,
-            self.use_filtered_full_metadata,
-            &self.cache_key,
-            self.pkg_mirror.as_deref(),
-            cached,
-        )
-        .await
+        handle_cache_hit(ctx, self, spec, opts, cached).await
     }
 
     /// Run the release-age upgrade check over a packument, persisting and
@@ -161,7 +150,29 @@ impl<'a> PickState<'a> {
         opts: &PickPackageOptions<'_>,
         meta: Arc<Package>,
     ) -> Result<Arc<Package>, PickPackageError> {
-        let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+        let upgrade = self.upgrade_for_release_age(ctx, spec, opts, meta).await?;
+        if !upgrade.upgraded() {
+            // A cache hit re-runs the release-age upgrade check, so serving
+            // this meta from memory can't bypass the upgrade.
+            self.promote_unverified(ctx, opts, &upgrade.meta);
+        } else if !opts.request.dry_run {
+            // The upgrade fetched a registry-validated document; don't
+            // downgrade it to an unverified marking.
+            ctx.metadata.meta_cache.set(self.cache_key.clone(), Arc::clone(&upgrade.meta));
+        }
+        Ok(upgrade.meta)
+    }
+
+    /// [`maybe_upgrade_abbreviated_meta_for_release_age`] over `meta`, for
+    /// this pick's metadata shape and cache key.
+    pub(super) async fn upgrade_for_release_age<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+        spec: &RegistryPackageSpec,
+        opts: &PickPackageOptions<'_>,
+        meta: Arc<Package>,
+    ) -> Result<UpgradeOutcome, PickPackageError> {
+        maybe_upgrade_abbreviated_meta_for_release_age(
             ctx,
             spec,
             opts,
@@ -169,27 +180,6 @@ impl<'a> PickState<'a> {
             &self.cache_key,
             meta,
         )
-        .await?;
-        if !upgrade.upgraded {
-            // A cache hit re-runs the release-age upgrade check, so serving
-            // this meta from memory can't bypass the upgrade.
-            self.promote_unverified(ctx, opts, &upgrade.meta);
-            return Ok(upgrade.meta);
-        }
-        let mut meta = Arc::clone(&upgrade.meta);
-        if !opts.request.dry_run {
-            if let Some(reloaded) = self.pkg_mirror
-                .as_deref()
-                .and_then(|path| {
-                    persist_upgraded_to_mirror(path, &upgrade, self.use_filtered_full_metadata)
-                })
-            {
-                meta = Arc::new(reloaded);
-            }
-            // The upgrade fetched a registry-validated document; don't
-            // downgrade it to an unverified marking.
-            ctx.metadata.meta_cache.set(self.cache_key.clone(), Arc::clone(&meta));
-        }
-        Ok(meta)
+        .await
     }
 }

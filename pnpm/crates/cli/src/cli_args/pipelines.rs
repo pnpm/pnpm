@@ -144,6 +144,8 @@ pub(crate) struct DedicatedProjects {
     /// The projects a pipelined run may start ahead of the workspace
     /// projects they depend on. See [`pipelined_runs::early_starts`].
     early_starts: HashSet<PathBuf>,
+    /// Every workspace project, as the command discovered them.
+    workspace: pnpm_package_manager::DiscoveredWorkspace,
 }
 
 impl DedicatedProjects {
@@ -172,6 +174,7 @@ impl DedicatedProjects {
             covers_workspace,
             injected_source_dirs,
             early_starts,
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(selection.projects),
         }
     }
 
@@ -227,7 +230,9 @@ struct DedicatedProjectRuns<'a> {
     /// Whether the projects run pipelined: each resolves and materializes
     /// without waiting for the workspace projects it depends on, and waits
     /// for them only before it links its dependencies and runs its scripts.
-    /// Only an install, which changes no manifest, runs pipelined.
+    /// Only an install, which changes no manifest, runs pipelined, so its
+    /// projects also read [`DedicatedProjects::workspace`] instead
+    /// of walking the workspace each.
     pipelined: bool,
 }
 

@@ -43,12 +43,15 @@ pub fn rebase_setting(name: &str, value: &mut Value, from_dir: &Path, to_dir: &P
     let path = |value: &str| rebase_path(value, from_dir, to_dir);
     let specifier =
         |entry: &mut Value| rewrite(entry, &|value| rebase_specifier(value, from_dir, to_dir));
+    let override_specifier =
+        |entry: &mut Value| rewrite(entry, &|value| rebase_override(value, from_dir, to_dir));
     match name {
         "packages" => each_string(value, &|glob| rebase_glob(glob, from_dir, to_dir)),
         "pnpmfile" => each_string(value, &path),
         "scriptShell" => rewrite(value, &|shell| rebase_script_shell(shell, from_dir, to_dir)),
         "patchedDependencies" => each_value(value, &|entry| rewrite(entry, &path)),
-        "catalog" | "overrides" => each_value(value, &specifier),
+        "catalog" => each_value(value, &specifier),
+        "overrides" => each_value(value, &override_specifier),
         "catalogs" => each_value(value, &|catalog| each_value(catalog, &specifier)),
         name if PATH_SETTINGS.contains(&name) => rewrite(value, &path),
         _ => {}
@@ -113,6 +116,17 @@ fn rebase_glob(glob: &str, from_dir: &Path, to_dir: &Path) -> Option<String> {
 pub fn rebase_specifier(value: &str, from_dir: &Path, to_dir: &Path) -> Option<String> {
     LocalSpec::parse_filesystem(value, &lexical_normalize(from_dir))
         .map(|spec| spec.render(Some(&lexical_normalize(to_dir))))
+}
+
+/// [`rebase_specifier`] for an `overrides` value, which also moves a
+/// `workspace:` path: pnpm measures one in an override from the workspace
+/// root.
+fn rebase_override(value: &str, from_dir: &Path, to_dir: &Path) -> Option<String> {
+    rebase_specifier(value, from_dir, to_dir)
+        .or_else(|| {
+            LocalSpec::parse_workspace_path(value, &lexical_normalize(from_dir))
+                .map(|spec| spec.render(Some(&lexical_normalize(to_dir))))
+        })
 }
 
 fn rewrite(value: &mut Value, rebase: &dyn Fn(&str) -> Option<String>) {

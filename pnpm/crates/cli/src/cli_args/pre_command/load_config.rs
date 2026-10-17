@@ -1,21 +1,34 @@
 use super::{
-    Config, ConfigOverrides, Context, Host, KeyIssueReporting, Path, PreCommandInput,
-    apply_state_dir_override, apply_store_dir_override, configure_color, emit_npmrc_warnings,
-    seed_config,
+    Config, ConfigOverrides, Context, Host, Path, PreCommandInput, apply_state_dir_override,
+    apply_store_dir_override, configure_color, seed_config,
 };
+use pnpm_config::SettingsRead;
 
 /// What [`load_pre_command_config`] reads.
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(super) struct ConfigLoad {
+    settings_read: SettingsRead,
     /// Place the store, which a switch or a sync uses.
-    pub(super) resolve_store: bool,
-    /// See [`Config::skip_unreadable_settings`].
-    pub(super) skip_unreadable_settings: bool,
+    resolve_store: bool,
+}
+
+impl ConfigLoad {
+    /// What deciding whether to switch reads.
+    pub(super) const PIN_DECISION: Self =
+        Self { settings_read: SettingsRead::PinDecision, resolve_store: false };
+
+    /// What a switch reads: everything this pnpm can read, since the pnpm
+    /// the project pins may read what this one cannot.
+    pub(super) const SWITCH: Self =
+        Self { settings_read: SettingsRead::Readable, resolve_store: true };
+
+    /// What recording the pin reads: the configuration the command runs
+    /// with.
+    pub(super) const RECORD: Self = Self { settings_read: SettingsRead::All, resolve_store: true };
 }
 
 /// Load the configuration the pre-command pass reads, with the global
-/// CLI flags that reach it applied. A failed load still prints the
-/// `.npmrc` warnings it collected, since they often explain the failure.
+/// CLI flags that reach it applied.
 pub(super) fn load_pre_command_config(
     input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
@@ -25,21 +38,14 @@ pub(super) fn load_pre_command_config(
     let switch = &input.switch;
     let mut config = seed_config(
         switch.paths.npmrc_auth_file.as_deref(),
-        switch.ignore_workspace,
+        switch.paths.ignore_workspace,
         config_overrides,
     );
     config.skip_store_dir_resolution = !load.resolve_store;
-    config.skip_unreadable_settings = load.skip_unreadable_settings;
+    config.settings_read = load.settings_read;
     let mut config = config
         .current_keeping_warnings::<Host>(dir)
-        .map_err(|failure| {
-            // A load that skips unreadable settings retries one that failed
-            // and printed these already.
-            if input.key_issues != KeyIssueReporting::Skip && !load.skip_unreadable_settings {
-                emit_npmrc_warnings(&failure.warnings);
-            }
-            miette::Report::new(failure.error)
-        })
+        .map_err(|failure| miette::Report::new(failure.error))
         .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     switch.network.apply(&mut config);

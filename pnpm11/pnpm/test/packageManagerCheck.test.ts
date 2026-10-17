@@ -77,6 +77,38 @@ test('install should not fail for packageManager field with hash', async () => {
   expect(status).toBe(0)
 })
 
+test('the version prints past an unreadable setting under a pin the running pnpm satisfies', async () => {
+  prepare()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    packageManager: `pnpm@${pnpmVersion}`,
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stdout } = execPnpmSync(['--version'], { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
+test('the version fails on a mismatched pin past an unreadable setting', async () => {
+  prepare({
+    packageManager: 'pnpm@0.0.0',
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stderr } = execPnpmSync(['--version'], {
+    env: { XDG_CONFIG_HOME: configHome, pnpm_config_pm_on_fail: 'error' },
+  })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.0 of pnpm')
+})
+
 test('a global command does not warn about a pnpm pin that the running pnpm satisfies', async () => {
   const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
   prepare({
@@ -982,3 +1014,24 @@ function canWriteTo (dir: string): boolean {
   fs.rmSync(probe)
   return true
 }
+
+test.each([
+  { args: ['--version'], status: 0 },
+  { args: ['help'], status: 1 },
+])('$args records no pin past an unreadable setting when the running pnpm satisfies it', async ({ args, status }) => {
+  prepare()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: { name: 'pnpm', version: pnpmVersion, onFail: 'download' },
+    },
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const result = execPnpmSync(args, { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(result.status).toBe(status)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})

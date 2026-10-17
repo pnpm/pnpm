@@ -22,6 +22,8 @@ use std::{
     time::Duration,
 };
 
+use pnpr_fixtures::MockConfigPresets;
+
 use super::{
     cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution},
     protocol::{ResolveRequest, ResolveRequestProject},

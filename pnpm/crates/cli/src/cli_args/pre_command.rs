@@ -9,16 +9,17 @@
 
 pub(crate) use argv_plans::{pre_command_plan_for_version_flag, switch_plan_for_unparsed_argv};
 pub(crate) use execute::execute_plan;
+pub(crate) use input::{is_global, should_skip_command};
 
 mod system_runtime_version;
 
 use super::{
     cli_command::{CliArgs, CliCommand, CliNetworkArgs},
-    config::{ConfigLocation, ConfigSubcommand},
+    config::ConfigLocation,
     install::{InstallArgs, resolve_bool_override},
     lockfile_dir::LockfileDirArg,
     package_manager::{
-        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
+        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, PinRoots, WantedPackageManager,
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
@@ -29,7 +30,7 @@ use super::{
 };
 use crate::{
     cli_args::{
-        config_warnings::{emit_config_warning, report_workspace_key_issues},
+        config_warnings::{ConfigWarnings, emit_config_warning},
         dispatch::seed_config,
     },
     config_deps,
@@ -43,8 +44,7 @@ use crate::{
 use derive_more::{Display, Error};
 
 use input::{
-    KeyIssueReporting, PreCommandInput, SwitchInput, is_global, key_issue_reporting,
-    package_manager_switch_disabled, should_skip_command, should_skip_command_name,
+    PreCommandInput, SwitchInput, package_manager_switch_disabled, should_skip_command_name,
     should_skip_pm_handling,
 };
 use load_config::{ConfigLoad, load_pre_command_config};
@@ -61,7 +61,7 @@ use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
-use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes};
+use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes, declares_runtime};
 use serde_json::Value;
 use std::{
     collections::HashSet,
@@ -70,7 +70,6 @@ use std::{
     slice,
 };
 use system_runtime_version::system_runtime_version;
-use unreadable_settings::switch_past_unreadable_settings;
 
 /// Run the pre-command checks and return the work they ask for, if any. The
 /// checks themselves report through `args.reporter` and fail the command by
@@ -89,13 +88,19 @@ pub(crate) fn pre_command_plan(
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
             reporter: args.reporter_flags(),
-            key_issues: key_issue_reporting(&args.command),
+            warnings: ConfigWarnings::of(&args.command),
         },
         config_overrides,
         SwitchProcessState::current(),
     )
 }
 
+/// The settings are read in tiers, each only when the one before it calls
+/// for it: none when the manifest pins nothing these checks act on, the
+/// [`PIN_DECISION_SETTINGS`](pnpm_config::PIN_DECISION_SETTINGS) to decide,
+/// and every readable setting to switch or to record the pin. Validating the
+/// configuration and reporting its warnings is left to the command, which
+/// loads all of it anyway.
 fn pre_command_plan_from_input(
     input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
@@ -105,29 +110,50 @@ fn pre_command_plan_from_input(
         return Ok(None);
     }
     let dir = canonicalize_dir(&input.switch.paths.dir)?;
-    let config = match load_pre_command_config(input, config_overrides, &dir, ConfigLoad::default())
-    {
-        Ok(config) => config,
-        Err(error) => {
-            return switch_past_unreadable_settings(input, config_overrides, &dir, process_state)
-                .map(Some)
-                .ok_or(error);
-        }
-    };
-    let pin =
-        resolve_pin(input, config_overrides, &dir, process_state, config, ConfigLoad::default())?;
+    if pins_nothing_to_check(input, &dir) {
+        return Ok(None);
+    }
+    let config = load_pre_command_config(input, config_overrides, &dir, ConfigLoad::PIN_DECISION)?;
+    let pin = resolve_pin(input, config_overrides, &dir, process_state, config)?;
     let (config, package_manager_to_sync) = match pin.action {
         PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
         PreCommandAction::Continue { config, package_manager_to_sync } => {
             (config, package_manager_to_sync)
         }
     };
-
-    report_config_warnings(input, &config, pin.running_matches_pin)?;
     check_manifest_runtimes(input, &config, pin.manifest)?;
     Ok(package_manager_to_sync.map(|package_manager| {
         env_lockfile_sync_plan(input, config, pin.env_root, package_manager)
     }))
+}
+
+/// Whether no manifest the pin could be read from pins pnpm or a runtime
+/// these checks act on, so no setting can change what they do.
+///
+/// [`PinRoots`] reads the pin from the workspace root, or from `dir` outside
+/// a workspace. Telling which without loading the configuration would take
+/// the workspace's `packages`, so every candidate is checked instead: `dir`,
+/// the workspace directory an environment variable names, and the directory
+/// of the nearest `pnpm-workspace.yaml`.
+fn pins_nothing_to_check(input: &PreCommandInput, dir: &Path) -> bool {
+    if input.skip_pm_handling {
+        return true;
+    }
+    let mut candidates = vec![dir.to_path_buf()];
+    if !input.switch.paths.ignore_workspace {
+        candidates.extend(pnpm_workspace::find_workspace_dir_from_env());
+        candidates.push(pnpm_config::workspace_root_or(dir));
+    }
+    candidates.sort();
+    candidates.dedup();
+    let checks_runtimes = input.check_runtimes && !input.global;
+    candidates
+        .iter()
+        .filter_map(|candidate| read_root_manifest(candidate))
+        .all(|manifest| {
+            wanted_package_manager(&manifest).is_none()
+                && !(checks_runtimes && declares_runtime(&manifest))
+        })
 }
 
 /// What the project's pin asks of this invocation, and what was read to
@@ -136,7 +162,6 @@ struct PinReading {
     action: PreCommandAction,
     manifest: Option<Value>,
     env_root: PathBuf,
-    running_matches_pin: bool,
 }
 
 fn resolve_pin(
@@ -145,20 +170,15 @@ fn resolve_pin(
     dir: &Path,
     process_state: SwitchProcessState,
     config: Config,
-    load: ConfigLoad,
 ) -> miette::Result<PinReading> {
-    let roots = PinRoots {
-        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
-        env: config.root_project_manifest_dir(dir).to_path_buf(),
-    };
+    let roots = PinRoots::of(&config, dir);
     let manifest = read_root_manifest(&roots.manifest);
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
-    let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
     let outcome =
         resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
-    let action = plan_pin_action(outcome, input, config_overrides, dir, config, load)?;
-    Ok(PinReading { action, manifest, env_root: roots.env, running_matches_pin })
+    let action = plan_pin_action(outcome, input, config_overrides, dir, config)?;
+    Ok(PinReading { action, manifest, env_root: roots.env })
 }
 
 fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
@@ -172,18 +192,21 @@ enum PreCommandAction {
     Continue { config: Config, package_manager_to_sync: Option<PackageManagerToSync> },
 }
 
+/// A switch reads every setting this pnpm can read, since the pinned pnpm
+/// may read what this one cannot. Recording the pin writes the lockfile, so
+/// it waits for a configuration the command can run with: one it cannot is
+/// left to the command to report, with nothing recorded.
 fn plan_pin_action(
     outcome: PinOutcome,
     input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
     config: Config,
-    load: ConfigLoad,
 ) -> miette::Result<PreCommandAction> {
-    let load = ConfigLoad { resolve_store: true, ..load };
     match outcome {
         PinOutcome::Switch(target) => {
-            let mut config = load_pre_command_config(input, config_overrides, dir, load)?;
+            let mut config =
+                load_pre_command_config(input, config_overrides, dir, ConfigLoad::SWITCH)?;
             // A global command does not act on the project. Without a
             // workspace, the approvals go to the project, as a regular
             // install's do.
@@ -194,8 +217,15 @@ fn plan_pin_action(
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config = load_pre_command_config(input, config_overrides, dir, load)?;
-            Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
+            let record = load_pre_command_config(input, config_overrides, dir, ConfigLoad::RECORD)
+                .ok()
+                .filter(|config| !input.warnings.fail(config, dir));
+            Ok(match record {
+                Some(config) => {
+                    PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) }
+                }
+                None => PreCommandAction::Continue { config, package_manager_to_sync: None },
+            })
         }
         PinOutcome::Sync(None) => {
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: None })
@@ -216,37 +246,6 @@ fn check_manifest_runtimes(
         check_runtimes(manifest, config, input.emit(config))?;
     }
     Ok(())
-}
-
-/// Whether the manifest's pin names the pnpm that is running.
-fn pin_matches_running(wanted_pm: Option<&WantedPackageManager>) -> bool {
-    wanted_pm.is_some_and(|pm| {
-        pm.name == "pnpm"
-            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
-    })
-}
-
-/// A `--global` invocation does not act on the project, so a satisfied
-/// pin does not harden its unrecognized-key report into an error.
-fn report_config_warnings(
-    input: &PreCommandInput,
-    config: &Config,
-    running_matches_pin: bool,
-) -> miette::Result<()> {
-    if input.key_issues == KeyIssueReporting::Skip {
-        return Ok(());
-    }
-    emit_npmrc_warnings(&config.npmrc_warnings);
-    let strict =
-        input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
-    report_workspace_key_issues(&config.workspace_key_issues, strict)?;
-    Ok(())
-}
-
-fn emit_npmrc_warnings(warnings: &[String]) {
-    for warning in warnings {
-        emit_config_warning(&redact_and_sanitize(warning));
-    }
 }
 
 /// Switch to the pinned pnpm, unless the running one already is it — in
@@ -426,17 +425,6 @@ impl SwitchTarget {
     }
 }
 
-/// The two directories the package-manager pin is read from and written to.
-///
-/// They differ when `lockfileDir` moves `pnpm-lock.yaml` off the workspace
-/// root: the manifest declaring the pin stays at the workspace root, while
-/// the env lockfile is the first document of the lockfile and follows it.
-#[derive(Debug, Clone)]
-struct PinRoots {
-    manifest: PathBuf,
-    env: PathBuf,
-}
-
 #[derive(Debug)]
 pub(crate) struct SwitchPlan {
     config: Config,
@@ -502,5 +490,3 @@ mod execute;
 mod argv_plans;
 
 mod load_config;
-
-mod unreadable_settings;

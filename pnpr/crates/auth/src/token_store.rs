@@ -1,7 +1,5 @@
 pub(super) mod sqlite;
 
-pub(super) use sqlite::{TOKENS_INDEX_SQL, TOKENS_TABLE_SQL};
-
 use super::{
     AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
     Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
@@ -76,15 +74,69 @@ impl TokenInner {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct NewToken {
     pub readonly: bool,
     pub cidr_whitelist: Vec<String>,
     pub name: Option<String>,
     pub expires_at: Option<u64>,
+    pub scopes: Option<Vec<String>>,
+    pub kind: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+impl NewToken {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn with_readonly(mut self, readonly: bool) -> Self {
+        self.readonly = readonly;
+        self
+    }
+
+    #[must_use]
+    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
+        self.cidr_whitelist = cidr_whitelist;
+        self
+    }
+
+    #[must_use]
+    pub fn with_name(mut self, name: Option<String>) -> Self {
+        self.name = name;
+        self
+    }
+
+    #[must_use]
+    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
+        self.expires_at = expires_at;
+        self
+    }
+
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
+        self.scopes = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_kind(mut self, kind: Option<String>) -> Self {
+        self.kind = kind;
+        self
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the auth tokens table columns."
+    )
+)]
 pub struct TokenRecord {
     pub username: String,
     pub created_at: u64,
@@ -93,6 +145,61 @@ pub struct TokenRecord {
     pub cidr_whitelist: Vec<String>,
     pub name: Option<String>,
     pub expires_at: Option<u64>,
+    pub scopes: Option<Vec<String>>,
+    pub kind: Option<String>,
+}
+
+impl TokenRecord {
+    #[must_use]
+    pub fn new(username: impl Into<String>, created_at: u64, last_used_at: u64) -> Self {
+        Self {
+            username: username.into(),
+            created_at,
+            last_used_at,
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+            name: None,
+            expires_at: None,
+            scopes: None,
+            kind: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_readonly(mut self, readonly: bool) -> Self {
+        self.readonly = readonly;
+        self
+    }
+
+    #[must_use]
+    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
+        self.cidr_whitelist = cidr_whitelist;
+        self
+    }
+
+    #[must_use]
+    pub fn with_name(mut self, name: Option<String>) -> Self {
+        self.name = name;
+        self
+    }
+
+    #[must_use]
+    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
+        self.expires_at = expires_at;
+        self
+    }
+
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
+        self.scopes = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_kind(mut self, kind: Option<String>) -> Self {
+        self.kind = kind;
+        self
+    }
 }
 
 impl TokenStore {
@@ -186,6 +293,8 @@ impl TokenBackend for TokenStore {
             cidr_whitelist: new_token.cidr_whitelist,
             name: new_token.name,
             expires_at: new_token.expires_at,
+            scopes: new_token.scopes,
+            kind: new_token.kind,
         };
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");

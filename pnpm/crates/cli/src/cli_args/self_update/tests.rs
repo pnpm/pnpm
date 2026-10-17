@@ -658,7 +658,8 @@ async fn implicit_self_update_of_pin(server: &mockito::ServerGuard, pin: &str) -
     config.package_manager_bootstrap.registry = format!("{}/", server.url());
     let config: &'static Config = Box::leak(Box::new(config));
 
-    let message = handler::<SilentReporter>(None, config, root.path()).await
+    let message = handler::<SilentReporter>(None, config, root.path(), None)
+        .await
         .expect("the refusal is not an error")
         .expect("the refusal prints a message");
     let manifest_after = fs::read_to_string(root.path().join("package.json")).expect("read");

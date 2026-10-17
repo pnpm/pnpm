@@ -13,7 +13,7 @@ const debug = jest.fn()
 jest.unstable_mockModule('@pnpm/logger', () => {
   return ({ globalWarn: jest.fn(), debug, logger: () => ({ debug }) })
 })
-const { createDirectoryFetcher } = await import('@pnpm/fetching.directory-fetcher')
+const { createDirectoryFetcher, listFilesFromDir } = await import('@pnpm/fetching.directory-fetcher')
 
 const testFixtures = fixtures(import.meta.dirname)
 const unusedCafs = {} as Cafs
@@ -290,5 +290,22 @@ test('all-files deployment follows internal symlinks under a symlinked package r
     expect(result.filesMap.get('linked')).toBe(path.join(linkedRoot, 'linked'))
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('listFilesFromDir rejects a directory that resolves outside the package root', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  try {
+    fs.mkdirSync(path.join(root, 'pkg'))
+    fs.mkdirSync(path.join(root, 'outside'))
+    fs.writeFileSync(path.join(root, 'outside/secret.txt'), 'secret')
+    fs.symlinkSync(path.join(root, 'outside'), path.join(root, 'pkg/linked'), 'dir')
+    for (const includeOnlyPackageFiles of [false, true]) {
+      // eslint-disable-next-line no-await-in-loop -- one case at a time keeps the failure readable
+      await expect(listFilesFromDir(path.join(root, 'pkg/linked'), { includeOnlyPackageFiles, packageRoot: path.join(root, 'pkg') }))
+        .rejects.toThrow('outside the package directory')
+    }
+  } finally {
+    rimrafSync(root)
   }
 })

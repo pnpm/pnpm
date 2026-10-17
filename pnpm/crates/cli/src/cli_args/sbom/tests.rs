@@ -324,11 +324,13 @@ fn extract_repository_drops_values_that_name_no_repository() {
     }
 }
 
-/// Expanding the shorthand in one pnpm version alone would split the two.
 #[test]
-fn extract_repository_keeps_a_gist_url_and_drops_the_gist_shorthand() {
+fn extract_repository_expands_the_gist_shorthand_and_keeps_a_gist_url() {
     let shorthand = serde_json::json!({ "repository": "gist:11081aaa281" });
-    assert_eq!(extract_repository(&shorthand), None);
+    assert_eq!(
+        extract_repository(&shorthand),
+        Some("git+https://gist.github.com/11081aaa281.git".to_string()),
+    );
     let url = serde_json::json!({ "repository": "https://gist.github.com/11081aaa281" });
     assert_eq!(extract_repository(&url), Some("https://gist.github.com/11081aaa281".to_string()));
 }

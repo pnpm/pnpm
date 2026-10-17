@@ -233,6 +233,14 @@ pub(super) fn read_gate_manifest(
         {
             GateManifest::NoManifest
         }
+        // A workspace root without a manifest is no importer, as the install
+        // treats it, and the workspace projects are checked without it.
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. }) => {
+            GateManifest::Found(Box::new(PackageManifest::from_value(
+                manifest_dir.join("package.json"),
+                serde_json::Value::Object(serde_json::Map::new()),
+            )))
+        }
         Err(_) => GateManifest::Unreadable,
     }
 }

@@ -139,7 +139,7 @@ pub(super) async fn add_user(
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
-        UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
+        UpsertOutcome::LoggedIn | _ => format!("you are authenticated as '{username}'"),
     };
     let body =
         json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });
@@ -229,7 +229,15 @@ async fn still_the_same_account(
 ) -> Result<bool, RegistryError> {
     let current = state.inner.identity.auth.users.password_hash(username).await?;
     match (verified, current) {
-        (Some(verified), Some(current)) => Ok(verified == current),
+        (Some(verified), Some(current)) => {
+            if verified == current {
+                Ok(true)
+            } else if pnpr_auth::is_sha_hash(verified) {
+                pnpr_auth::verify_bcrypt(password.to_string(), current).await
+            } else {
+                Ok(false)
+            }
+        }
         (None, Some(current)) => pnpr_auth::verify_bcrypt(password.to_string(), current).await,
         (_, None) => Ok(false),
     }

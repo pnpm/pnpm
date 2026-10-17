@@ -128,6 +128,15 @@ impl CommandTempCwd<()> {
         self.write_registry_config(mock_instance)
     }
 
+    /// Like [`Self::add_mocked_registry_with_own_storage`], over a registry
+    /// that records the requests it answers, see
+    /// [`TestRegistry::take_requests`].
+    #[must_use]
+    pub fn add_recording_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance = TestRegistry::start_recording_with_own_storage(self.root.path());
+        self.write_registry_config(mock_instance)
+    }
+
     fn add_mocked_registry_with_substitutions_and_mode(
         self,
         substitutions: &[(&str, &str)],

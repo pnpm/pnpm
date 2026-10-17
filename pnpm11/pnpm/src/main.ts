@@ -63,6 +63,10 @@ interface LoadedConfig {
   context: ConfigContext
 }
 
+interface CommandConfigLoad extends LoadedConfig {
+  allSettingsRead: boolean
+}
+
 interface CommandResult {
   output?: string | null
   exitCode: number
@@ -141,9 +145,16 @@ async function readCommandConfig (
   const { cmd, options: cliOptions, unknownOptions } = parsedCliArgs
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
   applyGlobalScope(parsedCliArgs, isConfigCommand)
-  let { config, context } = await loadConfigOrSwitchToPinnedPnpm(parsedCliArgs, isConfigCommand)
+  let { config, context, allSettingsRead } = await loadConfigOrSwitchToPinnedPnpm(parsedCliArgs, isConfigCommand)
   if (handlesPackageManager(parsedCliArgs)) {
-    await handlePackageManagerAndRuntimes({ cmd, cliOptions, config, context, rejectUnknownOptions })
+    await handlePackageManagerAndRuntimes({
+      cmd,
+      cliOptions,
+      config,
+      context,
+      rejectUnknownOptions,
+      recordPinWithoutSwitch: allSettingsRead,
+    })
   }
   if (rejectUnknownOptions) {
     printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
@@ -171,7 +182,7 @@ async function readCommandConfig (
 async function loadConfigOrSwitchToPinnedPnpm (
   parsedCliArgs: ParsedCliArgsWithBuiltIn,
   isConfigCommand: boolean
-): Promise<LoadedConfig> {
+): Promise<CommandConfigLoad> {
   const { cmd, params: cliParams, options: cliOptions, workspaceDir, rawCliConfig } = parsedCliArgs
   const getConfigOpts = {
     excludeReporter: false,
@@ -187,14 +198,13 @@ async function loadConfigOrSwitchToPinnedPnpm (
     printWarnings: !isSingleSettingRead(cmd, cliParams),
   }
   try {
-    return await getConfig(cliOptions, getConfigOpts) as LoadedConfig
+    return { ...await getConfig(cliOptions, getConfigOpts) as LoadedConfig, allSettingsRead: true }
   } catch (err: unknown) {
-    if (handlesPackageManager(parsedCliArgs)) {
-      await switchPastUnreadableConfig(
-        () => getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }),
-        cliOptions
-      )
-    }
+    if (!handlesPackageManager(parsedCliArgs)) throw err
+    const loadReadableConfig = async () => await getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }) as LoadedConfig
+    // `pnpm --version` needs no setting outside the pin check.
+    if (cmd == null && cliOptions.version === true) return { ...await loadReadableConfig(), allSettingsRead: false }
+    await switchPastUnreadableConfig(loadReadableConfig, cliOptions)
     throw err
   }
 }

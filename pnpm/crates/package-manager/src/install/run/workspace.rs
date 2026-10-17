@@ -4,14 +4,15 @@ use super::{
         ProjectManifestsByDir, Reporter, ScopeLog, build_project_manifests_list,
         build_root_importer_project_manifests_list, build_selected_project_manifests_list,
         build_workspace_packages_map, configured_or_discovered_workspace_dir,
-        dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, load_workspace_projects,
-        lockfile_root_dir,
+        dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, lockfile_root_dir,
     },
     InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
     importer_selection::ImporterSelection,
     repeat_install_verdict,
 };
 use pnpm_config::Config;
+
+mod loaded_workspace;
 
 /// The directories the run anchors on.
 pub(super) struct WorkspaceDirs<'a> {
@@ -69,8 +70,9 @@ pub(super) struct InstallWorkspace<'a> {
     pub(super) catalogs: super::super::Catalogs,
     pub(super) prefix: String,
     pub(super) workspace_projects_are_overridden: bool,
-    pub(super) loaded_workspace_projects: Option<Vec<pnpm_workspace::Project>>,
-    pub(super) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(super) loaded_workspace: loaded_workspace::LoadedWorkspace,
+    pub(super) workspace_packages:
+        Option<std::sync::Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     pub(super) dirs: WorkspaceDirs<'a>,
 }
 /// The projects the run installs, and how a selection narrows them.
@@ -107,21 +109,20 @@ impl<'a> InstallWorkspace<'a> {
         let workspace_projects_are_overridden = owned.projects
             .workspace_projects_override
             .is_some();
-        let loaded_workspace_projects = discovered_workspace_projects(
-            options.selection.is_some(),
-            owned.projects.workspace_projects_override.take(),
-            dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
-            workspace_manifest.as_ref(),
-            &install.context.config.managed_directories(),
+        let loaded_workspace = loaded_workspace::LoadedWorkspace::load(
+            install,
+            owned,
+            options,
+            (&dirs, workspace_manifest.as_ref()),
         )?;
         report_discovered_scope::<Reporter>(
             install,
             options,
             &dirs,
-            loaded_workspace_projects.as_deref(),
+            loaded_workspace.projects.as_deref(),
         );
         let workspace_packages =
-            workspace_packages_for_install(install, loaded_workspace_projects.as_deref(), options);
+            workspace_packages_for_install(install, &loaded_workspace, options);
         Ok(Self {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
@@ -134,24 +135,25 @@ impl<'a> InstallWorkspace<'a> {
             catalog_context_present,
             catalogs,
             workspace_projects_are_overridden,
-            loaded_workspace_projects,
+            loaded_workspace,
             workspace_packages,
             dirs,
         })
     }
 }
-fn workspace_packages_for_install<'s>(
+fn workspace_packages_for_install(
     install: InstallView<'_>,
-    loaded_workspace_projects: Option<&'s [pnpm_workspace::Project]>,
-    options: &InstallRunOptions<'s, '_>,
-) -> Option<pnpm_resolving_resolver_base::WorkspacePackages> {
+    loaded_workspace: &loaded_workspace::LoadedWorkspace,
+    options: &InstallRunOptions<'_, '_>,
+) -> Option<std::sync::Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
     (install.context.config.exclude_links_from_lockfile
         && install.context.config.link_workspace_packages.enabled_at_depth(0))
     .then(|| {
-        build_workspace_packages_map(workspace_projects(
-            loaded_workspace_projects,
-            options.selection.as_ref(),
-        ))
+        let projects =
+            workspace_projects(loaded_workspace.projects.as_deref(), options.selection.as_ref());
+        loaded_workspace
+            .packages_of(projects)
+            .or_else(|| build_workspace_packages_map(projects).map(std::sync::Arc::new))
     })
     .flatten()
 }
@@ -234,6 +236,22 @@ impl<'w> InstallScope<'w> {
         }
     }
 
+    /// The directories of the projects a filtered install requested.
+    fn requested_project_dirs(&self, workspace_root: &Path) -> Option<Vec<&Path>> {
+        let requested = self.importers.requested_importer_ids.as_ref()?;
+        let dirs = self.project_manifests
+            .iter()
+            .map(|(project_dir, _)| project_dir.as_path())
+            .filter(|project_dir| {
+                requested.contains(&pnpm_workspace::importer_id_from_root_dir(
+                    workspace_root,
+                    project_dir,
+                ))
+            })
+            .collect();
+        Some(dirs)
+    }
+
     pub(super) fn repeat_install_verdict(
         &self,
         install: InstallView<'_>,
@@ -241,7 +259,13 @@ impl<'w> InstallScope<'w> {
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
     ) -> Result<RepeatInstallVerdict, InstallError> {
+        let selected_dirs = self.requested_project_dirs(&workspace.dirs.workspace_root);
         repeat_install_verdict(&UpToDateCheck {
+            scope: selected_dirs
+                .as_deref()
+                .map_or(crate::optimistic_repeat_install::Scope::Workspace, |selected| {
+                    crate::optimistic_repeat_install::Scope::Selected(selected)
+                }),
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,
                 workspace_root: &workspace.dirs.workspace_root,
@@ -257,7 +281,6 @@ impl<'w> InstallScope<'w> {
                         .as_ref(),
                 },
                 manifests: crate::RepeatInstallManifests {
-                    freshness: install.lockfile_policy.manifest_freshness,
                     dependency_manifests: self.dependency_manifests.as_ref(),
                 },
             },
@@ -280,25 +303,6 @@ pub(super) fn catalog_context_present(
     catalogs_override.is_some()
         || config.catalogs.is_some()
         || (!config.ignore_workspace && workspace_dir.is_some())
-}
-/// Walk every workspace project's `package.json` once, unless the caller
-/// supplied the list. A selection carries its own projects, so it walks
-/// nothing.
-pub(super) fn discovered_workspace_projects(
-    has_selection: bool,
-    workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
-    workspace_dir: &Path,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: &[PathBuf],
-) -> Result<Option<Vec<pnpm_workspace::Project>>, InstallError> {
-    if has_selection {
-        return Ok(None);
-    }
-    if let Some(projects) = workspace_projects_override {
-        return Ok(Some(projects));
-    }
-    load_workspace_projects(workspace_dir, workspace_manifest, ignored_directories)
-        .map_err(InstallError::FindWorkspaceProjects)
 }
 /// A full install (pnpm's `mutation: "install"`) is the workspace-wide one and
 /// counts every project; a partial one (`add`, `update`, `remove`, ...)

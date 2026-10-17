@@ -495,7 +495,7 @@ async fn load_pnpmfile(
     let hook = match hook_override {
         Some(hook) => Some(hook),
         None if config.ignore_pnpmfile => None,
-        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, crate::pnpmfile_selection(config))
+        None => crate::load_install_pnpmfiles(config, lockfile_dir)
             .map_err(InstallWithFreshLockfileError::MissingPnpmfile)?,
     };
     let Some(hook) = hook else {
