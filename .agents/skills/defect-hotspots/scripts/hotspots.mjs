@@ -54,12 +54,14 @@ const issueDays = Number(options['issue-days'])
 const maxIntroAgeDays = Number(options['max-intro-age-days'])
 const topCount = Number(options.top)
 const now = Date.now()
+const headSha = execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${options.ref}^{commit}`], { encoding: 'utf8' }).trim()
 
-const commits = readCommits(options.ref, historyDays)
-const bySha = new Map(commits.map(commit => [commit.sha, commit]))
-const mechanicalShas = commits.filter(commit => commit.sourceFiles.length > MECHANICAL_FILE_COUNT).map(commit => commit.sha)
+const loadedCommits = readCommits(headSha, Math.max(historyDays, recentDays + maxIntroAgeDays))
+const commits = loadedCommits.filter(commit => now - commit.time <= historyDays * DAY_MS)
+const bySha = new Map(loadedCommits.map(commit => [commit.sha, commit]))
+const mechanicalShas = loadedCommits.filter(commit => commit.sourceFiles.length > MECHANICAL_FILE_COUNT).map(commit => commit.sha)
 const mechanicalShaSet = new Set(mechanicalShas)
-const lineCounts = countLines(options.ref)
+const lineCounts = countLines(headSha)
 const recentFixes = commits.filter(commit => commit.kind === 'fix' && now - commit.time <= recentDays * DAY_MS)
 const edges = await blameFixes(recentFixes)
 const issues = options['no-issues'] ? [] : fetchIssues(issueDays)
@@ -94,9 +96,9 @@ printSummary(report, jsonPath)
 
 function readCommits (ref, days) {
   const raw = execFileSync('git', [
-    'log', ref, '--no-merges', `--since=${days} days ago`,
+    'log', '--no-merges', `--since=${days} days ago`,
     `--format=${COMMIT_SEPARATOR}%H${FIELD_SEPARATOR}%ct${FIELD_SEPARATOR}%s${FIELD_SEPARATOR}%b${FILES_SEPARATOR}`,
-    '--name-only',
+    '--name-only', ref,
   ], { encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 })
   return raw.split(COMMIT_SEPARATOR).filter(Boolean).map(parseCommit)
 }
@@ -112,10 +114,18 @@ function parseCommit (record) {
     subject,
     kind: classifyCommit(subject),
     pr: subject.match(/\(#(\d+)\)$/)?.[1],
-    issueRefs: [...new Set([...message.matchAll(/(?:pnpm\/pnpm#|github\.com\/pnpm\/pnpm\/issues\/)(\d+)/g)].map(match => match[1]))],
+    issueRefs: closedIssues(message),
     sourceFiles: paths.filter(file => classifyPath(file) === 'source'),
     testFiles: paths.filter(file => classifyPath(file) === 'test'),
   }
+}
+
+function closedIssues (message) {
+  const refs = new Set()
+  for (const clause of message.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+((?:(?:pnpm\/pnpm#|#|https:\/\/github\.com\/pnpm\/pnpm\/issues\/)\d+(?:,\s*|\s+and\s+)?)+)/gi)) {
+    for (const ref of clause[1].matchAll(/(?:#|issues\/)(\d+)/g)) refs.add(ref[1])
+  }
+  return [...refs]
 }
 
 function classifyCommit (subject) {
@@ -141,7 +151,7 @@ function classifyPath (file) {
 }
 
 function countLines (ref) {
-  const raw = execFileSync('git', ['grep', '-c', '', ref, '--', '*.rs', '*.ts', '*.mts', '*.js', '*.mjs', '*.cjs'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
+  const raw = execFileSync('git', ['grep', '-c', '', ref, '--', '*.rs', '*.ts', '*.mts', '*.js', '*.mjs', '*.cjs', '*.sh', '*.ps1'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
   const counts = new Map()
   for (const line of raw.split('\n')) {
     const separator = line.lastIndexOf(':')
@@ -157,8 +167,8 @@ function moduleOf (file) {
   if ((segments[0] === 'pnpm' || segments[0] === 'pnpr') && segments[1] === 'crates') {
     return segments.slice(0, 3).join('/')
   }
-  if (segments[0] === 'pnpm11') {
-    return segments.slice(0, segments[1] === 'pnpm' ? 2 : 3).join('/')
+  if (segments[1] === 'npm' || segments[0] === 'pnpm11') {
+    return segments.slice(0, segments[0] === 'pnpm11' && segments[1] === 'pnpm' ? 2 : 3).join('/')
   }
   return segments.slice(0, 2).join('/')
 }
@@ -300,12 +310,17 @@ function summarizeModules (commitList, edgeList, issueList) {
     }
   }
   const fixEdgePairs = new Set()
+  const fixOnFixPairs = new Set()
   for (const edge of edgeList) {
     const key = `${edge.module}:${edge.fix.sha}`
-    if (fixEdgePairs.has(key)) continue
-    fixEdgePairs.add(key)
-    entryFor(edge.module).fixOnRecentChange++
-    if (edge.introducer.kind === 'fix') entryFor(edge.module).fixOnFix++
+    if (!fixEdgePairs.has(key)) {
+      fixEdgePairs.add(key)
+      entryFor(edge.module).fixOnRecentChange++
+    }
+    if (edge.introducer.kind === 'fix' && !fixOnFixPairs.has(key)) {
+      fixOnFixPairs.add(key)
+      entryFor(edge.module).fixOnFix++
+    }
   }
   for (const [file, lines] of lineCounts) {
     const entry = stats.get(moduleOf(file))
@@ -326,8 +341,8 @@ function summarizeModules (commitList, edgeList, issueList) {
   const baseline = median(rows.filter(row => row.fixes > 0).map(row => row.fixes)) || 1
   for (const row of rows) {
     row.heat = Math.round((row.fixes / baseline) * 10) / 10
-    row.kloc = Math.round((row.kloc ?? 0) * 10) / 10
     row.fixesPerKloc = row.kloc ? Math.round((row.fixes / row.kloc) * 10) / 10 : null
+    row.kloc = Math.round((row.kloc ?? 0) * 10) / 10
     row.score = row.recentFixes + 2 * row.fixOnRecentChange + 3 * row.fixOnFix + 2 * row.regressionIssues.length + row.issues.length + 3 * row.reverts
   }
   return rows.sort((left, right) => right.score - left.score)

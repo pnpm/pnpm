@@ -10,6 +10,7 @@ A fix that restores one case and leaves the cause in place produces the next fix
 ## 1. Collect the evidence
 
 ```sh
+mkdir -p <scratch dir>
 node .agents/skills/defect-hotspots/scripts/hotspots.mjs --out <scratch dir> > <scratch dir>/hotspots.md
 ```
 
