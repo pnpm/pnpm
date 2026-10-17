@@ -186,6 +186,27 @@ test('a project with its own lockfile records the checksum of the workspace pnpm
   expect(lockfile.pnpmfileChecksum).toBe(createHash(workspacePnpmfile))
 })
 
+test('a project with its own lockfile runs the preResolution hooks of the global and the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    sharedWorkspaceLockfile: false,
+  })
+  const marker = path.resolve('marker.txt')
+  const appendHook = (name: string) => `module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(${JSON.stringify(marker)}, '${name};') } } }\n`
+  fs.writeFileSync('.pnpmfile.cjs', appendHook('workspace'))
+  fs.writeFileSync('../global-pnpmfile.cjs', appendHook('global'))
+
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global-pnpmfile.cjs')])
+
+  expect(fs.readFileSync(marker, 'utf8').split(';').filter(Boolean).sort()).toStrictEqual(['global', 'workspace'])
+})
+
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
   const project = prepare({
     dependencies: {

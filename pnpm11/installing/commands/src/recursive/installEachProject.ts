@@ -193,10 +193,14 @@ async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir
   if (opts.ignorePnpmfile) return {}
   // The global pnpmfile is among the workspace hooks in `opts.hooks` already.
   const { hooks: pnpmfileHooks } = await requireHooks(rootDir, { ...opts, globalPnpmfile: undefined })
+  // Each hook list the install runs holds the project's hooks, then the workspace's.
   return {
     ...opts.hooks,
     ...pnpmfileHooks,
     afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+    customFetchers: [...(pnpmfileHooks.customFetchers ?? []), ...(opts.hooks?.customFetchers ?? [])],
+    customResolvers: [...(pnpmfileHooks.customResolvers ?? []), ...(opts.hooks?.customResolvers ?? [])],
+    preResolution: [...(pnpmfileHooks.preResolution ?? []), ...(opts.hooks?.preResolution ?? [])],
     readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
   }
 }
