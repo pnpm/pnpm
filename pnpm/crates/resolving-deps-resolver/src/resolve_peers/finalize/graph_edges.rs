@@ -59,7 +59,7 @@ pub(super) fn transitive_peer_names(
     all_resolved_peers
         .keys()
         .chain(all_missing_peers.keys())
-        .filter(|peer_alias| !pkg.peer_dependencies.contains_key(peer_alias.as_str()))
+        .filter(|peer_alias| !pkg.peer_set.taken().contains_key(peer_alias.as_str()))
         .cloned()
         .collect()
 }

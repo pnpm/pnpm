@@ -132,7 +132,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
@@ -306,7 +306,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },

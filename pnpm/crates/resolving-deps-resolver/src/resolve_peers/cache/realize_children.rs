@@ -11,7 +11,7 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
         if let Some(dep_path) = self.caches.pure_pkgs.get(&**pkg_id)
-            && self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
+            && self.tree.packages[&**pkg_id].peer_set.taken().is_empty()
         {
             return DeferredChildResolution::Pure(dep_path.clone());
         }

@@ -3,7 +3,7 @@
 //! Walks the per-occurrence [`crate::ResolvedTree::dependencies_tree`]
 //! depth-first, propagating a [`ParentRefs`] map of available parents
 //! down the chain, and matches each visited package's
-//! [`crate::ResolvedPackage::peer_dependencies`] against that map.
+//! [`crate::ResolvedPackage::peer_set`] against that map.
 //! Produces a [`DependenciesGraph`] keyed by depPath plus the
 //! `direct → DepPath` map the install layer consumes.
 //!

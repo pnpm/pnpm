@@ -7,7 +7,7 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
-    declared_peer_dependencies, own_dependency_names, peer_shadowed_dependency_names,
+    PeerSet, declared_peer_dependencies, own_dependency_names, peer_shadowed_dependency_names,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -50,11 +50,14 @@ impl<'m> PeerShadowing<'m> {
         local_manifest: &PackageManifest,
         pkg_meta: &pnpm_lockfile::PackageMetadata,
     ) -> Result<(), FreshnessCheckError> {
-        let declared = declared_peer_dependencies(local_manifest.value());
-        let taken: HashSet<&str> = declared
+        let peer_set = PeerSet::new(declared_peer_dependencies(local_manifest.value()), |name| {
+            self.own.contains(name)
+        });
+        let declared = peer_set.declared();
+        let taken: HashSet<&str> = peer_set
+            .taken()
             .keys()
             .map(String::as_str)
-            .filter(|name| !self.own.contains(name))
             .collect();
         let declared_specs: HashMap<&str, &str> = declared
             .iter()

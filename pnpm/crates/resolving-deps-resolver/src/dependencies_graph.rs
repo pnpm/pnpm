@@ -4,7 +4,7 @@ use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use crate::{resolve_peers::SharedChain, resolved_tree::PeerDep};
+use crate::{resolve_peers::SharedChain, resolved_tree::PeerSet};
 
 /// Post-peer-resolution graph keyed by depPath.
 ///
@@ -54,7 +54,7 @@ pub struct ResolvedDependencyEdges {
     /// snapshot whose synthetic manifest no longer carries an
     /// `optionalDependencies` block.
     pub optional_children: HashSet<String>,
-    pub peer_dependencies: BTreeMap<String, PeerDep>,
+    pub peer_set: PeerSet,
     /// Names of peers resolved from outside this node's own peer-deps —
     /// i.e. peers it inherited from its parents' context.
     pub transitive_peer_dependencies: HashSet<String>,
