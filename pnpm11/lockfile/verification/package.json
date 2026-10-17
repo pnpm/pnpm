@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:*",
+    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",

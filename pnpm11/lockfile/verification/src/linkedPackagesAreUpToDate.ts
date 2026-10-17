@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   PackageSnapshot,
@@ -13,6 +14,7 @@ import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
+  type ReadPackageHook,
 } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -33,6 +35,7 @@ export interface CheckLinkedPackagesResult {
 }
 
 export interface LinkedPackagesContext {
+  catalogs?: Catalogs
   linkWorkspacePackages: boolean
   manifestsByDir: Record<string, DependencyManifest>
   workspacePackages?: WorkspacePackages
@@ -40,11 +43,14 @@ export interface LinkedPackagesContext {
   lockfileDir: string
   workspaceDir?: string
   injectWorkspacePackages?: boolean
+  readPackageHook?: ReadPackageHook
   /**
-   * Skips comparing the dependencies of local directory dependencies with
+   * Skips comparing the dependencies of `file:` directory dependencies with
    * their lockfile snapshots. That comparison errs toward reporting a stale
    * lockfile, which only costs a re-resolve, so a caller that fails on a
-   * stale verdict skips it.
+   * stale verdict skips it. The dependencies of injected workspace packages
+   * are always compared, because with separate lockfiles no other check
+   * covers them.
    */
   skipLocalDirectoryDependencies?: boolean
 }
@@ -115,7 +121,7 @@ async function checkLocalDirectoryDependency (
   if (pkgSnapshot == null) {
     return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
   }
-  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot)) {
+  if ((isWorkspaceRange || !ctx.skipLocalDirectoryDependencies) && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot)) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
   return isWorkspaceRange
