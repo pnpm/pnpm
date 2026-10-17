@@ -25,6 +25,8 @@ struct CreateTokenPayload {
     name: Option<String>,
     expires: Option<Value>,
     expires_in: Option<u64>,
+    scopes: Option<Vec<String>>,
+    kind: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -104,12 +106,13 @@ pub(super) async fn create_token(
     {
         return err.into_response();
     }
-    let new_token = pnpr_auth::NewToken {
-        readonly: payload.readonly,
-        cidr_whitelist: payload.cidr_whitelist,
-        name: payload.name,
-        expires_at,
-    };
+    let new_token = pnpr_auth::NewToken::new()
+        .with_readonly(payload.readonly)
+        .with_cidr_whitelist(payload.cidr_whitelist)
+        .with_name(payload.name)
+        .with_expires_at(expires_at)
+        .with_scopes(payload.scopes)
+        .with_kind(payload.kind);
     match state.inner.identity.auth.tokens.issue_token(&username, new_token).await {
         Ok((raw, record)) => json_response(StatusCode::OK, &create_token_response(&raw, &record)),
         Err(err) => err.into_response(),
@@ -243,6 +246,12 @@ fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
     }
+    if let Some(ref scopes) = record.scopes {
+        obj["scopes"] = json!(scopes);
+    }
+    if let Some(ref kind) = record.kind {
+        obj["kind"] = json!(kind);
+    }
     obj
 }
 
@@ -357,6 +366,12 @@ pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) 
     }
     if let Some(ref name) = record.name {
         obj["name"] = json!(name);
+    }
+    if let Some(ref scopes) = record.scopes {
+        obj["scopes"] = json!(scopes);
+    }
+    if let Some(ref kind) = record.kind {
+        obj["kind"] = json!(kind);
     }
     obj
 }

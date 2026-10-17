@@ -366,6 +366,7 @@ pub(super) fn authorize(
             action: action.label(),
             resource: format!("package {package:?}"),
         }),
+        _ => Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") }),
     }
 }
 

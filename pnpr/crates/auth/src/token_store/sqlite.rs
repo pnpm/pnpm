@@ -1,5 +1,7 @@
 use super::{Connection, HashMap, RegistryError, Result, TokenRecord};
-use crate::validation::{token_timestamp_from_sql, token_timestamp_to_sql};
+use crate::validation::{
+    token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
+};
 
 /// `tokens` table DDL — shared by every SQL-backed auth store so the
 /// backends store the same shape and records can be moved between them.
@@ -18,51 +20,38 @@ pub(crate) const TOKENS_INDEX_SQL: &str =
     "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    conn.execute(TOKENS_TABLE_SQL, [])?;
-    conn.execute(TOKENS_INDEX_SQL, [])?;
-    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)")?;
-    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT")?;
-    Ok(())
-}
-
-fn add_column_if_missing(conn: &Connection, sql: &str) -> Result<()> {
-    match conn.execute(sql, []) {
-        Ok(_) => Ok(()),
-        Err(err) if err.to_string().contains("duplicate column name") => Ok(()),
-        Err(err) => Err(err.into()),
-    }
+    crate::schema::migrate_sqlite(conn)
 }
 
 fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
     let hash: String = row.get(0)?;
-    let username: String = row.get(1)?;
-    let created_at: i64 = row.get(2)?;
-    let last_used_at: i64 = row.get(3)?;
-    let readonly: i64 = row.get(4)?;
     let cidr_json: String = row.get(5)?;
-    let name: Option<String> = row.get(6)?;
-    let expires_at: Option<i64> = row.get(7)?;
     let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
         .map_err(|err| RegistryError::Internal {
             reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
         })?;
+    let scopes_json: Option<String> = row.get(8)?;
+    let scopes = token_scopes_from_sql(scopes_json.as_deref(), &hash)?;
+    let expires_at: Option<i64> = row.get(7)?;
     Ok((
         hash,
         TokenRecord {
-            username,
-            created_at: token_timestamp_from_sql(created_at),
-            last_used_at: token_timestamp_from_sql(last_used_at),
-            readonly: readonly != 0,
+            username: row.get(1)?,
+            created_at: token_timestamp_from_sql(row.get(2)?),
+            last_used_at: token_timestamp_from_sql(row.get(3)?),
+            readonly: row.get::<_, i64>(4)? != 0,
             cidr_whitelist,
-            name,
+            name: row.get(6)?,
             expires_at: expires_at.map(token_timestamp_from_sql),
+            scopes,
+            kind: row.get(9)?,
         },
     ))
 }
 
 pub(crate) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at
+        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
          FROM tokens",
     )?;
     let mut rows = stmt.query([])?;
@@ -86,9 +75,10 @@ pub(crate) fn insert_token(
 ) -> Result<()> {
     let cidr_json = serde_json::to_string(&record.cidr_whitelist)
         .expect("Vec<String> always serializes to JSON");
+    let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
     conn.execute(
-        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             token_hash,
             record.username,
@@ -98,6 +88,8 @@ pub(crate) fn insert_token(
             cidr_json,
             record.name.as_deref(),
             record.expires_at.map(token_timestamp_to_sql),
+            scopes_json.as_deref(),
+            record.kind.as_deref(),
         ],
     )?;
     Ok(())

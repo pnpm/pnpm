@@ -209,16 +209,7 @@ impl AuthSqlBackend for PostgresDatabase {
 
 impl PostgresDatabase {
     async fn init_schema(&self) -> Result<()> {
-        sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::sqlite::TOKENS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::sqlite::TOKENS_INDEX_SQL).execute(&self.pool).await?;
-        sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS expires_at BIGINT")
-            .execute(&self.pool)
-            .await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+        crate::schema::migrate_postgres(&self.pool).await?;
         self.ensure_user_counter().await
     }
 

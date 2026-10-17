@@ -19,21 +19,8 @@ pub(super) async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) 
 }
 
 pub(super) async fn init_schema(conn: &Connection) -> Result<()> {
-    conn.execute(super::super::USERS_TABLE_SQL, ()).await?;
-    conn.execute(super::super::token_store::sqlite::TOKENS_TABLE_SQL, ()).await?;
-    conn.execute(super::super::token_store::sqlite::TOKENS_INDEX_SQL, ()).await?;
-    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
-    add_column_if_missing(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;
-    conn.execute(super::super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
+    crate::schema::migrate_libsql(conn).await?;
     ensure_user_counter(conn).await
-}
-
-async fn add_column_if_missing(conn: &Connection, sql: &str) -> Result<()> {
-    match conn.execute(sql, ()).await {
-        Ok(_) => Ok(()),
-        Err(err) if err.to_string().contains("duplicate column name") => Ok(()),
-        Err(err) => Err(err.into()),
-    }
 }
 
 pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {

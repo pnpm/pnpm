@@ -254,18 +254,14 @@ const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)),
 const PROXY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000);
 
 pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
-    TokenRecord {
-        username: "alice".to_string(),
-        created_at: 1,
-        last_used_at: 1,
-        readonly,
-        cidr_whitelist: cidr_whitelist
-            .iter()
-            .map(|entry| (*entry).to_string())
-            .collect(),
-        name: None,
-        expires_at: None,
-    }
+    TokenRecord::new("alice", 1, 1)
+        .with_readonly(readonly)
+        .with_cidr_whitelist(
+            cidr_whitelist
+                .iter()
+                .map(|entry| (*entry).to_string())
+                .collect(),
+        )
 }
 
 /// Token backend that resolves exactly one raw token to a fixed record.

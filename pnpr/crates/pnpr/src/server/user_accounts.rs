@@ -139,7 +139,7 @@ pub(super) async fn add_user(
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
-        UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
+        UpsertOutcome::LoggedIn | _ => format!("you are authenticated as '{username}'"),
     };
     let body =
         json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });

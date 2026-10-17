@@ -1,5 +1,7 @@
 use super::{super::super::TokenRecord, MysqlDatabase};
-use crate::validation::{token_timestamp_from_sql, token_timestamp_to_sql};
+use crate::validation::{
+    token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
+};
 use pnpr_error::{RegistryError, Result};
 use sqlx::Row;
 
@@ -11,10 +13,11 @@ impl MysqlDatabase {
     ) -> Result<()> {
         let cidr_json = serde_json::to_string(&record.cidr_whitelist)
             .expect("Vec<String> always serializes to JSON");
+        let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
         sqlx::query(
             "INSERT INTO tokens
-                (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(token_hash)
         .bind(&record.username)
@@ -24,6 +27,8 @@ impl MysqlDatabase {
         .bind(cidr_json)
         .bind(record.name.as_deref())
         .bind(record.expires_at.map(token_timestamp_to_sql))
+        .bind(scopes_json)
+        .bind(record.kind.as_deref())
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -40,7 +45,7 @@ impl MysqlDatabase {
 
     pub(super) async fn find_token_impl(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
         let row = sqlx::query(
-            "SELECT username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at
+            "SELECT username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
              FROM tokens WHERE token_hash = ?",
         )
         .bind(token_hash)
@@ -54,7 +59,7 @@ impl MysqlDatabase {
         token_hash: &str,
     ) -> Result<Option<TokenRecord>> {
         let row = sqlx::query(
-            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at
+            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at, t.scopes, t.kind
              FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = ?",
         )
         .bind(token_hash)
@@ -68,7 +73,7 @@ impl MysqlDatabase {
         username: &str,
     ) -> Result<Vec<(String, TokenRecord)>> {
         let rows = sqlx::query(
-            "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at
+            "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
              FROM tokens WHERE username = ?",
         )
         .bind(username)
@@ -111,6 +116,9 @@ fn token_record_from_offset(
     let readonly: i16 = row.try_get(offset + 3)?;
     let name: Option<String> = row.try_get(offset + 5)?;
     let expires_at: Option<i64> = row.try_get(offset + 6)?;
+    let scopes_json: Option<String> = row.try_get(offset + 7)?;
+    let kind: Option<String> = row.try_get(offset + 8)?;
+    let scopes = token_scopes_from_sql(scopes_json.as_deref(), token_hash)?;
     Ok(TokenRecord {
         username: row.try_get(offset)?,
         created_at: token_timestamp_from_sql(row.try_get(offset + 1)?),
@@ -119,5 +127,7 @@ fn token_record_from_offset(
         cidr_whitelist,
         name,
         expires_at: expires_at.map(token_timestamp_from_sql),
+        scopes,
+        kind,
     })
 }
