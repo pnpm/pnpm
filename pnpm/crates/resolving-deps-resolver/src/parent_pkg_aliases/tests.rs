@@ -1,4 +1,4 @@
-use super::{ParentPkgAliases, peer_shadowed_dependencies};
+use super::{ParentPkgAliases, own_dependency_names, peer_shadowed_dependencies};
 use rustc_hash::FxHashSet as HashSet;
 
 fn names<const COUNT: usize>(names: [&str; COUNT]) -> HashSet<String> {
@@ -70,4 +70,19 @@ fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
     let scope = ParentPkgAliases::root(names(["in-scope"]));
 
     assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, true), names(["in-scope"]));
+}
+
+#[test]
+fn own_dependencies_are_the_unshadowed_ones_plus_optional_deps_and_the_name() {
+    let manifest = serde_json::json!({
+        "name": "pkg",
+        "dependencies": { "shadowed": "^1.0.0", "kept": "^1.0.0", "also-optional": "^1.0.0" },
+        "optionalDependencies": { "also-optional": "^1.0.0" },
+    });
+    let shadowed = names(["shadowed", "also-optional"]);
+
+    let own: HashSet<&str> =
+        own_dependency_names(&manifest, |name| shadowed.contains(name)).collect();
+
+    assert_eq!(own, HashSet::from_iter(["kept", "also-optional", "pkg"]));
 }

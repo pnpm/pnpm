@@ -54,25 +54,60 @@ impl ParentPkgAliases {
     }
 }
 
-/// The `dependencies` entries of `manifest` that its own
-/// `peerDependencies` shadow, and that the peer edge therefore supplies
-/// instead. Under `auto_install_peers` every non-optional shadowed name
-/// is dropped (the peer is auto-installed at the importer, so it always
-/// resolves). Otherwise, and for optional peers, which are never
-/// auto-installed, only the names already resolvable from
-/// `parent_pkg_aliases` are dropped, since dropping a peer nothing in
-/// scope provides would leave it unsatisfied.
+/// [`peer_shadowed_dependency_names`] in the scope `parent_pkg_aliases`.
 pub(crate) fn peer_shadowed_dependencies(
     manifest: Option<&Value>,
     parent_pkg_aliases: &ParentPkgAliases,
     auto_install_peers: bool,
 ) -> HashSet<String> {
+    peer_shadowed_dependency_names(
+        manifest,
+        |name| parent_pkg_aliases.contains(name),
+        auto_install_peers,
+    )
+    .map(str::to_string)
+    .collect()
+}
+
+/// The `dependencies` entries of `manifest` that its own
+/// `peerDependencies` shadow, and that the peer edge therefore supplies
+/// instead. Under `auto_install_peers` every non-optional shadowed name
+/// is dropped (the peer is auto-installed at the importer, so it always
+/// resolves). Otherwise, and for optional peers, which are never
+/// auto-installed, only the names `in_scope` are dropped, since dropping
+/// a peer nothing in scope provides would leave it unsatisfied.
+pub fn peer_shadowed_dependency_names(
+    manifest: Option<&Value>,
+    in_scope: impl Fn(&str) -> bool,
+    auto_install_peers: bool,
+) -> impl Iterator<Item = &str> {
     dependencies_named_as_peers(manifest)
-        .filter(|(name, is_optional_peer)| {
-            (auto_install_peers && !is_optional_peer) || parent_pkg_aliases.contains(name)
+        .filter(move |(name, is_optional_peer)| {
+            (auto_install_peers && !is_optional_peer) || in_scope(name)
         })
-        .map(|(name, _)| name.clone())
-        .collect()
+        .map(|(name, _)| name.as_str())
+}
+
+/// The names `manifest` resolves as its own dependencies, which it
+/// therefore records as no peer: the `dependencies` entries that are not
+/// `peer_shadowed`, every `optionalDependencies` entry, and the package's
+/// own name. Only `dependencies` are shadowed, so an entry that is also an
+/// optional dependency still supplies the name itself.
+pub fn own_dependency_names(
+    manifest: &Value,
+    peer_shadowed: impl Fn(&str) -> bool,
+) -> impl Iterator<Item = &str> {
+    let names = |key| {
+        manifest
+            .get(key)
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|map| map.keys().map(String::as_str))
+    };
+    names("dependencies")
+        .filter(move |name| !peer_shadowed(name))
+        .chain(names("optionalDependencies"))
+        .chain(manifest.get("name").and_then(Value::as_str))
 }
 
 /// The `dependencies` entries of `manifest` that its own
