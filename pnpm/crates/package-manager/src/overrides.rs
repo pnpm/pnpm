@@ -71,6 +71,20 @@ struct ResolvedOverride {
     local_target: Option<LocalSpec>,
 }
 
+impl ResolvedOverride {
+    /// The specifier this override writes into a manifest in
+    /// `manifest_dir`. A local target that cannot be rendered without
+    /// that directory is written as declared.
+    fn render(&self, manifest_dir: Option<&Path>) -> String {
+        match &self.local_target {
+            Some(target) if manifest_dir.is_some() || !target.needs_consumer_dir() => {
+                target.render(manifest_dir)
+            }
+            _ => self.inner.new_bare_specifier.clone(),
+        }
+    }
+}
+
 /// Answers whether an override governs a dependency declared as a given
 /// specifier — whether or not it rewrites the text. An override that repeats
 /// the declaration verbatim still governs it, and a range-scoped override
@@ -115,7 +129,10 @@ impl VersionsOverrider {
                 local_target: LocalSpec::parse_filesystem(
                     &override_entry.new_bare_specifier,
                     root_dir,
-                ),
+                )
+                .or_else(|| {
+                    LocalSpec::parse_workspace_path(&override_entry.new_bare_specifier, root_dir)
+                }),
             };
             if override_entry.parent_pkg.is_some() {
                 parent_scoped.push(resolved);
@@ -312,12 +329,7 @@ impl VersionsOverrider {
                 continue;
             }
 
-            let new_spec = match &chosen.local_target {
-                Some(target) => target.render(manifest_dir),
-                None => chosen.inner.new_bare_specifier.clone(),
-            };
-
-            map.insert(name, Value::String(new_spec));
+            map.insert(name, Value::String(chosen.render(manifest_dir)));
         }
     }
 
@@ -366,10 +378,7 @@ impl VersionsOverrider {
             remove_peer_dependency(value, &name);
             return;
         }
-        let new_spec = match &chosen.local_target {
-            Some(target) => target.render(manifest_dir),
-            None => chosen.inner.new_bare_specifier.clone(),
-        };
+        let new_spec = chosen.render(manifest_dir);
         if is_valid_peer_range(&new_spec) {
             insert_peer_dependency(value, name, new_spec);
             return;
@@ -399,10 +408,7 @@ impl VersionsOverrider {
             if chosen.inner.new_bare_specifier == "-" {
                 return Some("-".to_string());
             }
-            return Some(match &chosen.local_target {
-                Some(target) => target.render(Some(pkg_dir)),
-                None => chosen.inner.new_bare_specifier.clone(),
-            });
+            return Some(chosen.render(Some(pkg_dir)));
         }
         self.converge_applies(dep_name, dep_spec)
             .then(|| self.converge[dep_name].new_bare_specifier.clone())

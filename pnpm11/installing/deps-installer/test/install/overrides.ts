@@ -583,7 +583,7 @@ test('explicitly specifying a version at install will ignore an override that re
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe('100.0.0')
 })
 
-test('overrides with local file, link and bare path specs', async () => {
+test('overrides with local file, link, bare path and workspace path specs', async () => {
   interface LocationAndManifest {
     location: string
     package: ProjectManifest
@@ -604,6 +604,7 @@ test('overrides with local file, link and bare path specs', async () => {
         'relative-link-pkg': '*',
         'absolute-link-pkg': '*',
         'bare-path-pkg': '*',
+        'workspace-path-pkg': '*',
       },
     },
   }
@@ -647,6 +648,7 @@ test('overrides with local file, link and bare path specs', async () => {
       'relative-link-pkg': 'link:./overrides/pkg',
       'absolute-link-pkg': `link:${path.resolve('overrides/pkg')}`,
       'bare-path-pkg': './overrides/pkg',
+      'workspace-path-pkg': 'workspace:./overrides/pkg',
       '@pnpm.e2e/pkg-a': 'file:./overrides/pkg',
       '@pnpm.e2e/pkg-b': `file:${path.resolve('overrides/pkg')}`,
       '@pnpm.e2e/pkg-c': 'link:./overrides/pkg',
@@ -680,6 +682,10 @@ test('overrides with local file, link and bare path specs', async () => {
         specifier: `link:${path.resolve('overrides/pkg')}`,
         version: 'link:../../overrides/pkg',
       },
+      'workspace-path-pkg': {
+        specifier: 'workspace:../../overrides/pkg',
+        version: 'link:../../overrides/pkg',
+      },
     },
   })
 
@@ -698,12 +704,58 @@ test('overrides with local file, link and bare path specs', async () => {
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-link-pkg'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'relative-link-pkg'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'bare-path-pkg'))).toBe(path.resolve('overrides/pkg'))
+  expect(fs.realpathSync(path.join(directPrefix, 'workspace-path-pkg'))).toBe(path.resolve('overrides/pkg'))
 
   const indirectPrefix = 'node_modules/.pnpm/@pnpm.e2e+depends-on-pkg-abcd@1.0.0/node_modules'
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-a'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-b'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-c'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-d'))).toBe(path.resolve('overrides/pkg'))
+})
+
+test('a workspace path override names the workspace directory when workspace packages are injected', async () => {
+  const projects = [
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'packages/deep/consumer',
+      package: {
+        name: 'consumer',
+        dependencies: { target: '1.0.0' },
+      },
+    },
+    {
+      location: 'packages/target',
+      package: { name: 'target', version: '1.0.0' },
+    },
+  ]
+  preparePackages(projects)
+
+  await mutateModules(projects.map(({ location }): MutatedProject => ({
+    mutation: 'install',
+    rootDir: path.resolve(location) as ProjectRootDir,
+  })), {
+    ...testDefaults({
+      allProjects: projects.map((project): ProjectOptions => ({
+        buildIndex: 0,
+        manifest: project.package,
+        rootDir: path.resolve(project.location) as ProjectRootDir,
+      })),
+    }),
+    injectWorkspacePackages: true,
+    overrides: {
+      target: 'workspace:./packages/target',
+    },
+  })
+
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['packages/deep/consumer']?.dependencies?.target).toStrictEqual({
+    specifier: 'workspace:../../target',
+    version: 'link:../../target',
+  })
+  expect(fs.realpathSync('packages/deep/consumer/node_modules/target')).toBe(path.resolve('packages/target'))
 })
 
 test('an override to a local directory is not written to the metadata cache', async () => {

@@ -207,6 +207,7 @@ mod windows_dir_env;
 mod with;
 mod workspace_cycles;
 mod workspace_install;
+mod workspace_path_overrides;
 mod workspace_peer_pins;
 mod workspace_settings_check;
 mod yarn_workspaces_field;
