@@ -65,9 +65,10 @@ async fn published_by_upgraded_mirror_records_a_changed_full_document_as_full() 
 }
 
 /// A registry whose full document lacks a complete `time` map leaves the
-/// upgraded mirror without one, so a later install upgrades it again. That
-/// upgrade revalidates the mirror's full document with its tag, like the
-/// regular revalidation before it, instead of downloading the body again.
+/// upgraded mirror without one, so every later install upgrades it again.
+/// That upgrade revalidates the mirror's full document with its tag, like
+/// the regular revalidation before it, so installs two and three download
+/// no body.
 #[tokio::test]
 async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_etag() {
     let mut server = mockito::Server::new_async().await;
@@ -93,13 +94,13 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
         .expect(1)
         .create_async()
         .await;
-    // The second install's revalidation, then its upgrade.
+    // Each later install's revalidation, then its upgrade.
     let revalidation_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
         .match_header("if-none-match", r#""full-etag""#)
         .with_status(304)
-        .expect(2)
+        .expect(4)
         .create_async()
         .await;
 
@@ -113,7 +114,7 @@ async fn published_by_upgrade_of_an_upgraded_mirror_revalidates_with_the_full_et
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");
 
-    for install in ["upgrading install", "revalidating install"] {
+    for install in ["upgrading install", "second install", "third install"] {
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
         let ctx = PickPackageContext {
