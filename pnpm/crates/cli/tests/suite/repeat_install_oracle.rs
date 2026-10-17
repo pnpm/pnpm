@@ -606,7 +606,7 @@ fn rewritten_but_unchanged_inputs_keep_the_fast_path(layout: Layout) {
     rewrite_unchanged(&scenario.manifest_path("a"));
     assert!(
         scenario.install_takes_fast_path(&[]),
-        "{layout:?}: unchanged inputs keep the fast path"
+        "{layout:?}: unchanged inputs keep the fast path",
     );
     scenario.check_gates();
 }

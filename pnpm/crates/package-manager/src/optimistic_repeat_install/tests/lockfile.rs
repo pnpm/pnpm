@@ -9,9 +9,8 @@ use super::{
     FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
     backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
     date_lockfile_after, isolated_included, lockfile_mtime_after, recorded_timestamp,
-    setup_content_check_project, setup_fresh_install,
-    setup_fresh_install_with_config, single_project_deps_status, validate_existing_files,
-    write_bare_tarball_lockfile, write_state,
+    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
+    single_project_deps_status, validate_existing_files, write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
