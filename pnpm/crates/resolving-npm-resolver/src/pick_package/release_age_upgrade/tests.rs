@@ -1,5 +1,9 @@
 use super::{Arc, Package, UpgradeOutcome, persist_upgraded_to_mirror};
-use crate::mirror::{load_meta_headers, save_fail::fail_next_mirror_save};
+use crate::{
+    metadata_cache_policy::{DocumentKind, MirrorWrite},
+    mirror::{load_meta_headers, save_fail::fail_next_mirror_save},
+};
+use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue};
 use tempfile::tempdir;
 
 const FULL_ETAG: &str = r#""full-etag""#;
@@ -13,11 +17,17 @@ fn upgrade_outcome(uncacheable: bool) -> UpgradeOutcome {
         "versions": {},
     }))
     .expect("deserialize Package");
+    let mut headers = HeaderMap::new();
+    headers.insert(ETAG, HeaderValue::from_static(FULL_ETAG));
+    if uncacheable {
+        headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
     UpgradeOutcome {
         meta: Arc::new(meta),
-        upgraded: true,
-        full_etag: Some(FULL_ETAG.to_string()),
-        uncacheable,
+        mirror_write: Some(MirrorWrite::on_response(
+            DocumentKind::FullInAbbreviatedMirror,
+            &headers,
+        )),
     }
 }
 

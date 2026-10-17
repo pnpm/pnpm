@@ -25,7 +25,12 @@ use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
 use std::time::{Duration, Instant};
 
-use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
+use crate::{
+    FetchMetadataError,
+    metadata_cache_policy::{DocumentKind, MirrorWrite},
+    mirror::clear_meta,
+    registry_url::to_registry_url,
+};
 
 /// Accept header for the full packument.
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
@@ -281,12 +286,11 @@ fn to_http_date(value: &str) -> Option<String> {
     httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
 }
 
-/// A metadata document plus the response's entity tag and whether it
-/// forbade caching.
-pub(crate) struct MetadataDocument {
-    pub outcome: FetchFullMetadataOutcome,
-    pub etag: Option<String>,
-    pub uncacheable: bool,
+/// The outcome of a metadata request, with how a `2xx` body is recorded in
+/// a mirror.
+pub(crate) enum MetadataDocument {
+    Modified { meta: Box<Package>, mirror_write: MirrorWrite },
+    NotModified,
 }
 
 /// Fetch the registry metadata document for `pkg_name`. The
@@ -296,17 +300,23 @@ pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    Ok(fetch_metadata_document(pkg_name, opts).await?.outcome)
+    let kind = DocumentKind::requested(opts.full_metadata);
+    Ok(match fetch_metadata_document(pkg_name, opts, kind).await? {
+        MetadataDocument::Modified { meta, .. } => FetchFullMetadataOutcome::Modified(meta),
+        MetadataDocument::NotModified => FetchFullMetadataOutcome::NotModified,
+    })
 }
 
+/// Fetch the `kind` document for `pkg_name`. `kind` replaces
+/// [`FetchFullMetadataOptions::full_metadata`].
 pub(crate) async fn fetch_metadata_document(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
+    kind: DocumentKind,
 ) -> Result<MetadataDocument, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
-    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || {
-        one_metadata_attempt(pkg_name, opts, &url, accept)
+        one_metadata_attempt(pkg_name, opts, &url, kind)
     })
     .await
 }
@@ -315,12 +325,12 @@ async fn one_metadata_attempt(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
     url: &str,
-    accept: &str,
+    kind: DocumentKind,
 ) -> Result<MetadataDocument, FetchMetadataError> {
     let (client, response) = send_metadata_request(&MetadataRequestOptions {
         pkg_name,
         url,
-        accept,
+        accept: kind.accept(),
         priority: pnpm_network::UNPRIORITIZED,
         etag: opts.etag,
         modified: opts.modified,
@@ -329,14 +339,11 @@ async fn one_metadata_attempt(
     })
     .await?;
     if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(MetadataDocument {
-            outcome: FetchFullMetadataOutcome::NotModified,
-            etag: None,
-            uncacheable: false,
-        });
+        return Ok(MetadataDocument::NotModified);
     }
     let started_at = client.acquired_at();
-    document_from_response(client, response, opts, url, started_at).await
+    let mirror_write = MirrorWrite::on_response(kind, response.headers());
+    document_from_response(client, response, opts, url, started_at, mirror_write).await
 }
 
 async fn document_from_response(
@@ -345,17 +352,15 @@ async fn document_from_response(
     opts: &FetchFullMetadataOptions<'_>,
     url: &str,
     started_at: Instant,
+    mirror_write: MirrorWrite,
 ) -> Result<MetadataDocument, FetchMetadataError> {
-    let uncacheable = metadata_response_is_uncacheable(response.headers());
-    let etag = response_etag(&response);
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    let normalize_to_abbreviated =
-        !opts.full_metadata && !is_abbreviated_content_type(response.headers());
+    let normalize_to_abbreviated = mirror_write.normalizes_to_abbreviated();
     let raw_body = read_self_delimiting_text(response).await
         .inspect_err(|error| opts.http.http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
@@ -368,19 +373,7 @@ async fn document_from_response(
     let (meta, elapsed) =
         decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at).await?;
     warn_if_request_is_slow(opts.http.http_client, elapsed, url);
-    Ok(MetadataDocument {
-        outcome: FetchFullMetadataOutcome::Modified(Box::new(meta)),
-        etag,
-        uncacheable,
-    })
-}
-
-pub(crate) fn response_etag(response: &reqwest::Response) -> Option<String> {
-    response
-        .headers()
-        .get(header::ETAG)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string)
+    Ok(MetadataDocument::Modified { meta: Box::new(meta), mirror_write })
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {

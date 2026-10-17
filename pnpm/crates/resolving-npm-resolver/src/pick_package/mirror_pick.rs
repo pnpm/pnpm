@@ -7,6 +7,7 @@ use super::{
 };
 use crate::{
     errors::legacy_mirror_hint,
+    metadata_cache_policy::mirror_may_answer,
     mirror::{MetaHeaders, find_legacy_pkg_mirror, load_meta_headers_async},
 };
 
@@ -28,11 +29,7 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
-        // A registry that forbade caching must not be answered from the
-        // mirror on an online pick. Offline and prefer-offline still may.
-        if !ctx.cache_policy.network.reads_cache_first()
-            && headers.as_ref().is_some_and(|headers| headers.uncacheable)
-        {
+        if !mirror_may_answer(ctx.cache_policy.network, headers.as_ref()) {
             return None;
         }
         if let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta).await {
@@ -86,10 +83,13 @@ impl PickState<'_> {
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
 
-    /// `true` when the mirror's header line says the last response forbade caching.
-    pub(super) async fn mirror_is_uncacheable(&self) -> bool {
-        load_meta_headers_async(self.pkg_mirror.as_deref()).await
-            .is_some_and(|headers| headers.uncacheable)
+    /// [`mirror_may_answer`] over this pick's mirror.
+    pub(super) async fn mirror_may_answer<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+    ) -> bool {
+        let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
+        mirror_may_answer(ctx.cache_policy.network, headers.as_ref())
     }
 
     /// The mirror, loaded once and reused by every fast path.
