@@ -590,9 +590,9 @@ may:
 - change the rules of every registry with
   [`rulesManagedBy: api`](#changing-rules-through-the-api).
 
-The first admin account still has to exist. Let it self-register before you
-set `max_users` to `-1`, or create it in the htpasswd file or the shared
-database.
+Nobody can self-register an admin's username, or a username an
+[OIDC binding](oidc.md) maps to. Create the first admin account with
+[`pnpr add-user`](cli.md#add-user).
 
 ```yaml title="pnpr.yaml"
 auth:

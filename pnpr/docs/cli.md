@@ -10,6 +10,7 @@ pnpr verify [OPTIONS]
 pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr import-htpasswd --source <path> [OPTIONS]
+pnpr add-user <username> [--password <password>]
 pnpr [OPTIONS] oci-gc --registry <name>
 pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 ```
@@ -136,6 +137,25 @@ pnpr import-htpasswd --source /path/to/old/htpasswd
 | `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
 | `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
+
+### add-user
+
+Creates a user account, or changes the password of an existing one. Use it to
+create admin accounts, which cannot self-register. Creating an account revokes
+any tokens left under that username.
+
+The command needs `auth.htpasswd.file` or a database backend. With the
+htpasswd file, run it while pnpr is stopped. A running pnpr does not see the
+new account, and its next account change overwrites the file.
+
+```sh
+# Prompts for the password, or reads it from stdin
+pnpr add-user alice
+```
+
+| Flag | Description |
+| --- | --- |
+| `--password <password>` | The account's password. Read from the terminal or stdin when omitted. |
 
 ### oci-gc
 

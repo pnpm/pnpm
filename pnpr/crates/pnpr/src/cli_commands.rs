@@ -100,7 +100,8 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Add or update a user account in the configured auth backend.
+    /// Add or update a user account in the configured auth backend. With an
+    /// htpasswd file, run it while the server is stopped.
     AddUser {
         /// Username of the account to create or update.
         username: String,
@@ -374,21 +375,16 @@ async fn run_add_user_command(
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
-    let users = &auth.users;
-    if users
-        .create_user(&username, &password)
+    match auth
+        .put_user(&username, &password)
         .await
         .map_err(|err| miette::miette!("{err}"))?
     {
-        println!("User '{username}' created successfully.");
-    } else if users
-        .set_password(&username, &password)
-        .await
-        .map_err(|err| miette::miette!("{err}"))?
-    {
-        println!("Password for user '{username}' updated successfully.");
-    } else {
-        return Err(miette::miette!("failed to create or update user '{username}'"));
+        Some(pnpr_auth::UserPut::Created) => println!("User '{username}' created successfully."),
+        Some(pnpr_auth::UserPut::PasswordChanged) => {
+            println!("Password for user '{username}' updated successfully.");
+        }
+        None => return Err(miette::miette!("failed to create or update user '{username}'")),
     }
     Ok(())
 }

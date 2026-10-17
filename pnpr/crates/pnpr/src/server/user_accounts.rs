@@ -176,11 +176,18 @@ async fn log_in(
         }
         // Tokens a removed account left behind must not reach the account
         // this login may create, not even while it is being created.
-        super::user_admin::revoke_all_tokens(state, name).await?;
+        state.inner.identity.auth.revoke_all_tokens(name).await?;
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
     let refused = match super::scim::is_deprovisioned(state, &username) {
+        // An admin may remove a reserved account after the check above saw it.
+        Ok(false)
+            if matches!(outcome, UpsertOutcome::Created)
+                && is_reserved_username(state, &username) =>
+        {
+            Some(RegistryError::ReservedUsername { name: username.clone() })
+        }
         Ok(false) => None,
         Ok(true) => Some(deprovisioned(&username)),
         Err(err) => Some(err),
@@ -205,8 +212,8 @@ fn deprovisioned(name: &str) -> RegistryError {
 }
 
 /// Take back the token a login issued, and the account it created, when a
-/// SCIM deprovisioning of the user landed while the login ran, or the SCIM
-/// directory could no longer be read.
+/// SCIM deprovisioning of the user landed while the login ran, the SCIM
+/// directory could no longer be read, or the login created a reserved name.
 async fn undo_login(
     state: &AppState,
     username: &str,
