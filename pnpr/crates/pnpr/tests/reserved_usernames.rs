@@ -3,7 +3,6 @@
 //! - configured admins (`auth.admins`)
 //! - OIDC login bindings (`auth.oidc[].login.users[].username`)
 //! - OIDC workload bindings (`auth.oidc[].workloads[].identity.username`)
-//! - SCIM-provisioned usernames
 //!
 //! Existing accounts logging in with their correct password continue to work.
 
@@ -20,8 +19,6 @@ use std::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const SCIM_TOKEN: &str = "scim-secret-0123456789abcdef0123456789";
-
 fn test_config(dir: &Path) -> Config {
     let storage = dir.join("storage");
     std::fs::create_dir_all(&storage).unwrap();
@@ -30,8 +27,6 @@ fn test_config(dir: &Path) -> Config {
 storage: {}
 auth:
   admins: [admin_alice]
-  scim:
-    token: {SCIM_TOKEN}
   htpasswd:
     max_users: 100
   oidc:
@@ -129,32 +124,6 @@ async fn cannot_self_register_oidc_workload_bound_user() {
     let (status, text, _) = put_login(&app, "release-ci", "malicious_password").await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(text, r#"Username "release-ci" is reserved"#);
-}
-
-#[tokio::test]
-async fn cannot_self_register_scim_provisioned_user() {
-    let dir = TempDir::new().unwrap();
-    let app = router(test_config(dir.path()));
-
-    let scim_body = json!({
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "scim_carol",
-        "active": true,
-    });
-    let (scim_status, _, _) = send_request(
-        &app,
-        "POST",
-        "/-/pnpr/v0/scim/v2/Users",
-        Some(SCIM_TOKEN),
-        "application/scim+json",
-        Some(scim_body),
-    )
-    .await;
-    assert_eq!(scim_status, StatusCode::CREATED);
-
-    let (status, text, _) = put_login(&app, "scim_carol", "malicious_password").await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(text, r#"Username "scim_carol" is reserved"#);
 }
 
 #[tokio::test]

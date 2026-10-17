@@ -138,11 +138,8 @@ pub(super) async fn add_user(
     user_upsert_response(outcome, &username, &token)
 }
 
-fn is_reserved_username(state: &AppState, name: &str) -> Result<bool, RegistryError> {
-    if state.inner.config.identity.is_reserved_name(name) {
-        return Ok(true);
-    }
-    super::scim::is_scim_provisioned(state, name)
+fn is_reserved_username(state: &AppState, name: &str) -> bool {
+    state.inner.config.identity.is_reserved_name(name)
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
@@ -174,7 +171,7 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
-        if is_reserved_username(state, name)? {
+        if is_reserved_username(state, name) {
             return Err(RegistryError::ReservedUsername { name: name.to_string() });
         }
         // Tokens a removed account left behind must not reach the account
