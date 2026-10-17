@@ -46,8 +46,15 @@ export interface LocalDirectoryResolution {
   autoInstallPeers?: boolean
   catalogs?: Catalogs
   readPackageHook?: ReadPackageHook
-  /** A frozen install keeps the optional dependencies the lockfile could not resolve. */
-  allowUnresolvedOptionalDependencies?: boolean
+  /**
+   * The explicit `--frozen-lockfile` install, which never resolves. It keeps
+   * what the lockfile records and the check cannot verify: an optional
+   * dependency the lockfile could not resolve, and a dependency whose spec is
+   * not a range, such as a tag or a git or tarball spec, since the lockfile
+   * does not record the spec it resolved. Any other install resolves those
+   * again.
+   */
+  frozenLockfile?: boolean
 }
 
 interface LocalDirectoryDep {
@@ -159,7 +166,7 @@ async function childIsUpToDate (
   const lockfileDep = recorded?.[child.alias]
   if (!lockfileDep) {
     // A child recorded as required has changed, not gone unresolved.
-    return child.optional && ctx.resolution?.allowUnresolvedOptionalDependencies === true &&
+    return child.optional && ctx.resolution?.frozenLockfile === true &&
       !pkgSnapshot.dependencies?.[child.alias]
   }
   const currentSpec = resolveCatalogSpec(ctx, child)
@@ -170,7 +177,8 @@ async function childIsUpToDate (
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
-    getDepActualName(removeSuffix(lockfileDep), child.alias) === getTargetPkgName(currentSpec, child.alias)
+    (ctx.resolution?.frozenLockfile === true &&
+      getDepActualName(removeSuffix(lockfileDep), child.alias) === getTargetPkgName(currentSpec, child.alias))
 }
 
 function isLocalSpec (spec: string): boolean {

@@ -157,7 +157,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
       autoInstallPeers: opts.autoInstallPeers,
       catalogs: opts.catalogs,
       readPackageHook: opts.readPackageHook,
-      allowUnresolvedOptionalDependencies: frozenLockfile,
+      frozenLockfile,
     },
   })
   const checkManifest = satisfiesPackageManifest.bind(null, {

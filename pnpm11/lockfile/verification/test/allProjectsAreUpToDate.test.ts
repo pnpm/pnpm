@@ -1250,14 +1250,14 @@ describe('local file dependency', () => {
     })).toBeFalsy()
   })
 
-  test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional when unresolved optional dependencies are allowed', async () => {
+  test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional on a frozen install', async () => {
     await writeLocalDirManifest({ optionalDependencies: { 'is-positive': '2.0.0' } })
     expect((await checkLinkedPackagesAreUpToDate({
       linkWorkspacePackages: true,
       manifestsByDir: {},
       lockfilePackages: options.wantedLockfile.packages,
       lockfileDir: process.cwd(),
-      resolution: { allowUnresolvedOptionalDependencies: true },
+      resolution: { frozenLockfile: true },
     }, {
       dir: path.resolve('bar'),
       manifest: projects[0].manifest,
@@ -1265,14 +1265,31 @@ describe('local file dependency', () => {
     })).upToDate).toBe(false)
   })
 
-  test('checkLinkedPackagesAreUpToDate(): accepts an unresolved optional dependency of local file when unresolved optional dependencies are allowed', async () => {
+  test('checkLinkedPackagesAreUpToDate(): accepts an unresolved optional dependency of local file only on a frozen install', async () => {
     await writeLocalDirManifest({ dependencies: { 'is-positive': '2.0.0' }, optionalDependencies: { 'is-odd': '1.0.0' } })
-    const check = async (allowUnresolvedOptionalDependencies: boolean) => (await checkLinkedPackagesAreUpToDate({
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
       linkWorkspacePackages: true,
       manifestsByDir: {},
       lockfilePackages: options.wantedLockfile.packages,
       lockfileDir: process.cwd(),
-      resolution: { allowUnresolvedOptionalDependencies },
+      resolution: { frozenLockfile },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(true)).toBe(true)
+    expect(await check(false)).toBe(false)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts a tarball dependency of local file only on a frozen install', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': 'https://example.com/is-positive-3.1.0.tgz' } })
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile },
     }, {
       dir: path.resolve('bar'),
       manifest: projects[0].manifest,

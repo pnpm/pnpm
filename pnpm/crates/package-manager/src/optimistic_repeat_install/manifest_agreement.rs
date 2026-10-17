@@ -210,7 +210,7 @@ fn project_content_check(
             workspace: context.workspace,
             optional_exclusions: crate::install::OptionalDependencyExclusions {
                 ignored: context.ignored_optional_matcher,
-                allow_unresolved: false,
+                frozen_lockfile: false,
             },
             parsed_overrides: context.parsed_overrides,
         })

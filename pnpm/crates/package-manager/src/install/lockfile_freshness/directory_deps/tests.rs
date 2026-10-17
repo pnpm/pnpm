@@ -210,7 +210,7 @@ fn check_local_dep_peers(
                     .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
                     .collect::<serde_json::Map<String, serde_json::Value>>(),
             }),
-            allow_unresolved: false,
+            frozen_lockfile: false,
             auto_install_peers,
             include_optional: true,
             catalogs: Catalogs::new(),
@@ -225,7 +225,7 @@ struct DirectoryDepCase {
     metadata: serde_json::Value,
     snapshot: serde_json::Value,
     /// The allowance only `--frozen-lockfile` makes.
-    allow_unresolved: bool,
+    frozen_lockfile: bool,
     auto_install_peers: bool,
     /// `false` for an install without optional dependencies.
     include_optional: bool,
@@ -276,7 +276,7 @@ fn check_directory_dep_in_scope(
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
-            allow_unresolved: case.allow_unresolved,
+            frozen_lockfile: case.frozen_lockfile,
         },
         parsed_overrides: None,
     };
@@ -365,7 +365,7 @@ fn a_recorded_peer_the_manifest_does_not_declare_is_stale() {
 /// nothing.
 fn check_dep_with_an_unresolved_entry(
     manifest_key: &str,
-    allow_unresolved: bool,
+    frozen_lockfile: bool,
 ) -> Result<(), FreshnessCheckError> {
     let mut manifest = serde_json::json!({ "name": "lib" });
     manifest[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
@@ -373,7 +373,7 @@ fn check_dep_with_an_unresolved_entry(
         manifest,
         metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
         snapshot: serde_json::json!({}),
-        allow_unresolved,
+        frozen_lockfile,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::new(),
@@ -420,7 +420,7 @@ fn a_dependency_that_became_optional_is_outdated() {
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::new(),
@@ -434,7 +434,7 @@ fn an_install_without_optional_dependencies_ignores_the_recorded_optional_childr
         manifest: serde_json::json!({ "name": "lib" }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "optionalDependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: false,
         catalogs: Catalogs::new(),
@@ -451,7 +451,7 @@ fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::from([(
@@ -482,7 +482,7 @@ fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
             "peerDependencies": { "react": "^18.0.0" },
         }),
         snapshot: serde_json::json!({ "dependencies": { "react": "18.3.1" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::from([(
@@ -504,7 +504,7 @@ fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies()
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: false,
         catalogs: Catalogs::new(),
@@ -523,10 +523,32 @@ fn a_dependency_that_became_optional_is_outdated_on_a_frozen_install() {
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: true,
+        frozen_lockfile: true,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::new(),
     });
     assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
+}
+
+/// The lockfile does not record the spec a tarball child was resolved from,
+/// so only a frozen install keeps the recorded resolution.
+#[test]
+fn a_tarball_child_is_resolved_again_unless_the_install_is_frozen() {
+    let check = |frozen_lockfile| {
+        check_directory_dep(&DirectoryDepCase {
+            manifest: serde_json::json!({
+                "name": "lib",
+                "dependencies": { "is-positive": "https://example.com/is-positive-3.1.0.tgz" },
+            }),
+            metadata: directory_metadata(),
+            snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+            frozen_lockfile,
+            auto_install_peers: true,
+            include_optional: true,
+            catalogs: Catalogs::new(),
+        })
+    };
+    assert!(check(false).is_err(), "a resolving install resolves the tarball again");
+    assert!(check(true).is_ok(), "a frozen install keeps the recorded resolution");
 }

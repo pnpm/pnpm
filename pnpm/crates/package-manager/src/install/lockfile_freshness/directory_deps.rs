@@ -358,11 +358,12 @@ fn child_is_fresh(
         return recorded_child(snapshot, name, false).is_none();
     }
     match recorded_child(snapshot, name, *optional) {
-        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded),
+        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded)
+            .unwrap_or(check.optional_exclusions.frozen_lockfile),
         // A child recorded as required has changed, not gone unresolved.
         None => {
             *optional
-                && check.optional_exclusions.allow_unresolved
+                && check.optional_exclusions.frozen_lockfile
                 && recorded_child(snapshot, name, false).is_none()
         }
     }
