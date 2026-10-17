@@ -90,6 +90,9 @@ fn from_default_yaml_parses_bundled_file() {
         config.routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
+    let rules = &config.routing.hosted["local"].rules;
+    assert!(!rules.access_admits("my-pkg", &super::Identity::Anonymous));
+    assert!(rules.access_admits("my-pkg", &super::Identity::user("alice")));
 }
 
 #[test]

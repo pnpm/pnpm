@@ -69,7 +69,7 @@ registries:
   # Hosted registry for private packages, addressable at `/~local/`.
   local:
     type: hosted
-    access: $all
+    access: $authenticated
 
 # The path-less base URL (`https://<pnpr>/`) proxies the public npm registry.
 defaultRegistry: npmjs
