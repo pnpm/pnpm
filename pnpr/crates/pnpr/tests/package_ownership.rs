@@ -627,3 +627,73 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     let packument: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
     assert!(packument["versions"]["1.1.0"].is_object());
 }
+
+#[tokio::test]
+async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packument() {
+    let (dir, config) = config_with_packages(
+        "packages:\n  'fail-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    // Alice publishes 1.0.0 and 1.1.0
+    let doc1 = publish_doc("fail-pkg", "1.0.0", b"v1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/fail-pkg", &alice_token, doc1))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let doc2 = publish_doc("fail-pkg", "1.1.0", b"v2");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/fail-pkg", &alice_token, doc2))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let res = app
+        .clone()
+        .oneshot(authed_get("/fail-pkg", &alice_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let mut packument: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
+    assert!(packument["versions"]["1.0.0"].is_object());
+    assert!(packument["versions"]["1.1.0"].is_object());
+
+    // Prepare rewrite removing 1.1.0
+    packument["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.1.0");
+    if let Some(dist_tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
+        dist_tags.insert("latest".to_string(), json!("1.0.0"));
+    }
+
+    // Block tombstone recording by creating a file where .tombstones/v0 directory belongs
+    let tombstone_marker = dir.path().join("storage/.tombstones/v0");
+    std::fs::create_dir_all(tombstone_marker.parent().unwrap()).unwrap();
+    std::fs::write(&tombstone_marker, b"blocking").unwrap();
+
+    // Alice attempts to rewrite the packument to remove 1.1.0
+    let res = app
+        .clone()
+        .oneshot(authed_put("/fail-pkg/-rev/1", &alice_token, packument))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
+
+    // Verify rollback restored the original packument so 1.1.0 is still present
+    let res = app
+        .clone()
+        .oneshot(authed_get("/fail-pkg", &alice_token))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let restored: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
+    assert!(restored["versions"]["1.1.0"].is_object());
+    assert!(restored["versions"]["1.0.0"].is_object());
+}

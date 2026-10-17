@@ -6,6 +6,9 @@ mod immutability;
 mod maintainers;
 mod unpublish;
 
+#[cfg(test)]
+mod tests;
+
 use axum::{
     body::Body,
     http::{StatusCode, header},
