@@ -131,8 +131,7 @@ pnpm reads `_auth` from two places only:
 * the global `config.yaml`
 * the `pnpm_config__auth` environment variable, as JSON
 
-pnpm ignores `_auth` in `pnpm-workspace.yaml` and `.npmrc`, so a repository
-cannot supply credentials.
+pnpm ignores `_auth` in `pnpm-workspace.yaml` and `.npmrc`.
 
 In the global `config.yaml`:
 
