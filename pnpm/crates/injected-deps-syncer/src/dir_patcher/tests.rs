@@ -1,11 +1,13 @@
-use super::{DirPatcher, InodeMap, PublishSource, Value, extend_files_map, file_id, publish_edits};
+use super::{
+    DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id, publish_edits,
+};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
 use std::{
     collections::HashMap,
     fs, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 use tempfile::TempDir;
@@ -352,26 +354,66 @@ fn sync_replaces_a_target_manifest_left_half_written() {
     );
 }
 
-/// The packlist lists a symlinked directory as one entry. The copy gets the
-/// files under it, as it does when every file is read.
+/// The tree [`DirPatcher`] gives a fresh `target` from `source`.
 #[cfg(unix)]
-#[test]
-fn sync_of_package_files_copies_the_files_under_a_symlinked_directory() {
-    let dir = TempDir::new().expect("temp dir");
-    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
-    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
-    create_file(&source.join("files/foo/bar.txt"), "bar");
-    std::os::unix::fs::symlink("files/foo", source.join("link-to-a-dir")).expect("symlink");
-    fs::create_dir_all(&target).expect("create target");
-
-    let patchers = DirPatcher::from_multiple_targets(&source, std::slice::from_ref(&target), true)
-        .expect("diff");
+fn synced_tree(source: &Path, target: &Path, include_only_package_files: bool) -> Vec<String> {
+    fs::create_dir_all(target).expect("create target");
+    let patchers = DirPatcher::from_multiple_targets(
+        source,
+        &[target.to_path_buf()],
+        include_only_package_files,
+    )
+    .expect("diff");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
     }
+    let mut tree: Vec<String> = walkdir_relative(target);
+    tree.sort();
+    tree
+}
+
+#[cfg(unix)]
+fn walkdir_relative(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        for entry in fs::read_dir(&dir).expect("read dir") {
+            let path = entry.expect("dir entry").path();
+            let relative = path
+                .strip_prefix(root)
+                .expect("under root")
+                .to_string_lossy()
+                .into_owned();
+            if fs::symlink_metadata(&path).expect("lstat").is_dir() {
+                pending.push(path);
+            }
+            out.push(relative);
+        }
+    }
+    out
+}
+
+/// The packlist lists a symlinked directory as one entry. Under it, the copy
+/// gets what the walk of every file finds, and a link inside it to elsewhere
+/// in the package does not fail the sync.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_matches_the_walk_of_every_file_under_a_symlinked_directory() {
+    let dir = TempDir::new().expect("temp dir");
+    let source = dir.path().join("source");
+    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
+    create_file(&source.join("files/foo/bar.txt"), "bar");
+    create_file(&source.join("other/sibling.txt"), "sibling");
+    std::os::unix::fs::symlink("../../other", source.join("files/foo/other")).expect("symlink");
+    std::os::unix::fs::symlink("files/foo", source.join("link-to-a-dir")).expect("symlink");
+    let under_link = |tree: Vec<String>| -> Vec<String> {
+        tree.into_iter()
+            .filter(|path| path.starts_with("link-to-a-dir"))
+            .collect()
+    };
 
     assert_eq!(
-        fs::read_to_string(target.join("link-to-a-dir/bar.txt")).expect("read synced file"),
-        "bar",
+        under_link(synced_tree(&source, &dir.path().join("package-files"), true)),
+        under_link(synced_tree(&source, &dir.path().join("every-file"), false)),
     );
 }

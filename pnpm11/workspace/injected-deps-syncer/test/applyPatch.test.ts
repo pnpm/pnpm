@@ -332,6 +332,20 @@ test('publishEditsForWatchers leaves out the files the manifest does not list wh
   }
 })
 
+testOnPosix('readPublishSource skips a dangling symlink among the package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source' }))
+  createFile(path.join(source, 'index.js'), 'built')
+  fs.symlinkSync('missing.js', path.join(source, 'dangling.js'))
+  try {
+    const { map } = await readPublishSource(source, true)
+    expect(Object.keys(map).sort()).toStrictEqual(['.', 'index.js', 'package.json'])
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('publishEditsForWatchers leaves a hardlink that predates the watch', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
   const source = path.join(root, 'source')

@@ -3,12 +3,15 @@
 //! without re-running the installer. A target on another filesystem
 //! than its source gets copies instead.
 
+pub use inode_map::extend_files_map;
+
 use derive_more::{Display, Error};
+use inode_map::load_inode_map;
 use miette::Diagnostic;
-use pnpm_directory_fetcher::{DirectoryFetcher, DirectoryFetcherError};
+use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_fs::{FsHardLink, Host, is_cross_device};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -123,7 +126,7 @@ pub struct DirPatcher {
 impl DirPatcher {
     /// Diff `source_dir` against each of `target_dirs`, reading each
     /// tree once. `include_only_package_files` reads the source the way
-    /// [`DirectoryFetcher::include_only_package_files`] does.
+    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
     pub fn from_multiple_targets(
         source_dir: &Path,
         target_dirs: &[PathBuf],
@@ -238,7 +241,7 @@ pub struct PublishSource<'a> {
 
 impl<'a> PublishSource<'a> {
     /// `include_only_package_files` reads `dir` the way
-    /// [`DirectoryFetcher::include_only_package_files`] does.
+    /// [`pnpm_directory_fetcher::DirectoryFetcher::include_only_package_files`] does.
     pub fn load(dir: &'a Path, include_only_package_files: bool) -> Result<Self, PatchError> {
         Ok(PublishSource { dir, map: load_inode_map(dir, include_only_package_files)? })
     }
@@ -378,141 +381,6 @@ fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
     }
 }
 
-fn load_inode_map(dir: &Path, include_only_package_files: bool) -> Result<InodeMap, PatchError> {
-    let mut files_map = list_files(dir, include_only_package_files)?;
-    if include_only_package_files {
-        expand_listed_directories(&mut files_map)?;
-    }
-    extend_files_map(&files_map)
-}
-
-fn list_files(
-    dir: &Path,
-    include_only_package_files: bool,
-) -> Result<HashMap<String, PathBuf>, PatchError> {
-    DirectoryFetcher {
-        directory: dir.to_path_buf(),
-        include_only_package_files,
-        resolve_symlinks: false,
-        preserve_symlinks: false,
-        allow_path_escape: false,
-    }
-    .list_files()
-    .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })
-}
-
-/// The packlist names a symlinked directory as one entry, where the walk of
-/// every file lists the files under it. List them, so the copy gets the same
-/// tree whichever walk read the source.
-fn expand_listed_directories(files_map: &mut HashMap<String, PathBuf>) -> Result<(), PatchError> {
-    let directories: Vec<(String, PathBuf)> = files_map
-        .iter()
-        .filter(|(_, real_path)| real_path.is_dir())
-        .map(|(relative_path, real_path)| (relative_path.clone(), real_path.clone()))
-        .collect();
-    for (relative_path, real_path) in directories {
-        files_map.remove(&relative_path);
-        for (nested_path, nested_real_path) in list_files(&real_path, false)? {
-            files_map.insert(format!("{relative_path}/{nested_path}"), nested_real_path);
-        }
-    }
-    Ok(())
-}
-
-/// Expand a relative-path → real-path map into an [`InodeMap`] that
-/// also names every ancestor directory.
-///
-/// An inode that is neither a file nor a directory — a FIFO, a socket,
-/// a device — cannot be hardlinked into the injected copy, so it is
-/// left out of the map.
-pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap, PatchError> {
-    let mut result = InodeMap::from([(".".to_string(), Value::Dir)]);
-    for (relative_path, real_path) in files_map {
-        let Some(metadata) = stat_skipping_missing(real_path)? else {
-            continue;
-        };
-        let value = if metadata.is_file() {
-            Value::File(file_id(real_path, &metadata)?)
-        } else if metadata.is_dir() {
-            Value::Dir
-        } else {
-            continue;
-        };
-        add_inode_and_ancestors(&mut result, relative_path, value);
-    }
-    Ok(result)
-}
-
-/// A path the walker listed can be gone by the time it is stat'd — a
-/// build script that deletes as it goes, or a symlink that broke.
-fn stat_skipping_missing(path: &Path) -> Result<Option<fs::Metadata>, PatchError> {
-    match fs::metadata(path) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        result => result
-            .map(Some)
-            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error }),
-    }
-}
-
-fn add_inode_and_ancestors(result: &mut InodeMap, relative_path: &str, value: Value) {
-    let mut path = relative_path;
-    let mut value = value;
-    while !path.is_empty() && path != "." && !result.contains_key(path) {
-        result.insert(path.to_string(), value);
-        path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
-        value = Value::Dir;
-    }
-}
-
-/// Read a file's [`FileId`].
-///
-/// Windows has no stable way to read the file index from
-/// [`fs::Metadata`] — `MetadataExt::file_index` is still unstable — so
-/// it comes from a handle instead, the same call libuv makes to fill
-/// Node's `Stats.ino`.
-fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, PatchError> {
-    let len = metadata.len();
-    let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt as _;
-        let _ = path;
-        Ok(FileId { device: metadata.dev(), inode: metadata.ino(), len, modified })
-    }
-    #[cfg(windows)]
-    {
-        let (device, inode) = windows_file_index(path)
-            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })?;
-        Ok(FileId { device, inode, len, modified })
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = path;
-        Ok(FileId { device: 0, inode: 0, len, modified })
-    }
-}
-
-#[cfg(windows)]
-fn windows_file_index(path: &Path) -> io::Result<(u64, u64)> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
-    use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
-    };
-
-    let file = fs::File::open(path)?;
-    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
-    // SAFETY: `file` owns a valid handle for this call and `info` points to
-    // writable storage of the exact structure the API initializes.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle().cast(), info.as_mut_ptr()) } == 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
-    let info = unsafe { info.assume_init() };
-    Ok((
-        u64::from(info.dwVolumeSerialNumber),
-        (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
-    ))
-}
-
+mod inode_map;
 #[cfg(test)]
 mod tests;

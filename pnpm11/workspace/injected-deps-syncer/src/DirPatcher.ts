@@ -199,7 +199,8 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   }
 
   await Promise.all(Array.from(filesMap.entries()).map(async ([relativePath, realPath]) => {
-    const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
+    const stats = filesStats?.[relativePath] ?? await statSkippingMissing(realPath)
+    if (stats == null) return
     if (stats.isFile()) {
       addInodeAndAncestors(relativePath, fileId(stats))
     } else if (stats.isDirectory()) {
@@ -210,6 +211,16 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   }))
 
   return result
+}
+
+/** A listed path can be gone by the time it is stat'd: a build script that deletes as it goes, or a symlink that broke. */
+async function statSkippingMissing (filePath: string): Promise<fs.Stats | undefined> {
+  try {
+    return await fs.promises.stat(filePath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
 }
 
 const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
@@ -225,29 +236,33 @@ export interface PublishSource {
 }
 
 export async function readPublishSource (dir: string, includeOnlyPackageFiles?: boolean): Promise<PublishSource> {
-  return { dir, map: await extendFilesMap(await listSourceFiles(dir, includeOnlyPackageFiles)) }
+  return { dir, map: await readInodeMap(dir, includeOnlyPackageFiles) }
+}
+
+async function readInodeMap (dir: string, includeOnlyPackageFiles?: boolean): Promise<InodeMap> {
+  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles })
+  const inodeMap = await extendFilesMap(listed)
+  if (!includeOnlyPackageFiles) return inodeMap
+  return addFilesUnderListedDirectories(dir, listed.filesMap, inodeMap)
 }
 
 /**
  * The packlist names a symlinked directory as one entry, where the walk of
- * every file lists the files under it. List them, so the copy gets the same
- * tree whichever walk read the source.
+ * every file lists what it finds under it. Replace the entry with what that
+ * walk of `dir` lists there, so the copy gets the same tree whichever walk
+ * read the source.
  */
-async function listSourceFiles (dir: string, includeOnlyPackageFiles?: boolean): Promise<ExtendFilesMapOptions> {
-  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles })
-  if (!includeOnlyPackageFiles) return listed
-  const filesMap = new Map<string, string>()
-  await Promise.all(Array.from(listed.filesMap, async ([relativePath, realPath]) => {
-    if (!(await fs.promises.stat(realPath)).isDirectory()) {
-      filesMap.set(relativePath, realPath)
-      return
-    }
-    const nested = await listFilesFromDir(realPath, LIST_FILES_OPTIONS)
-    for (const [nestedPath, nestedRealPath] of nested.filesMap) {
-      filesMap.set(`${relativePath}/${nestedPath}`, nestedRealPath)
-    }
-  }))
-  return { filesMap }
+async function addFilesUnderListedDirectories (dir: string, filesMap: Map<string, string>, inodeMap: InodeMap): Promise<InodeMap> {
+  const directories = Array.from(filesMap.keys()).filter((relativePath) => inodeMap[relativePath] === DIR)
+  if (directories.length === 0) return inodeMap
+  for (const directory of directories) {
+    delete inodeMap[directory]
+  }
+  const everyFile = await listFilesFromDir(dir, LIST_FILES_OPTIONS)
+  const nested = new Map(Array.from(everyFile.filesMap).filter(([relativePath]) =>
+    directories.some((directory) => relativePath.startsWith(`${directory}/`))
+  ))
+  return { ...inodeMap, ...await extendFilesMap({ filesMap: nested, filesStats: everyFile.filesStats }) }
 }
 
 /**
@@ -400,7 +415,7 @@ export class DirPatcher {
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
     async function loadMap (dir: string, dirIncludeOnlyPackageFiles?: boolean): Promise<[InodeMap, string]> {
-      return [await extendFilesMap(await listSourceFiles(dir, dirIncludeOnlyPackageFiles)), dir]
+      return [await readInodeMap(dir, dirIncludeOnlyPackageFiles), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
