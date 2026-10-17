@@ -31,7 +31,7 @@ An included file cannot define `include`.
 
 ### Relative paths
 
-A relative path in an included file is relative to that file, the way a relative path in `pnpm-workspace.yaml` is relative to the workspace root. This covers settings that hold paths, such as `patchedDependencies`, `patchesDir`, `pnpmfile`, `packages`, `storeDir`, and a `scriptShell` that contains a slash. It also covers `file:`, `link:`, and `./` paths in catalogs and `overrides`. Absolute paths, and paths that start with `~` or an environment variable, are kept as written.
+A relative path in an included file is relative to that file, the way a relative path in `pnpm-workspace.yaml` is relative to the workspace root. This covers settings that hold paths, such as `patchedDependencies`, `patchesDir`, `pnpmfile`, `packages`, `storeDir`, and a `scriptShell` that contains a slash. It also covers `file:`, `link:`, and `./` paths in catalogs and `overrides`, and `workspace:` paths in `overrides`. Absolute paths, and paths that start with `~` or an environment variable, are kept as written.
 
 A patch list can therefore sit next to its patches:
 

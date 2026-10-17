@@ -115,6 +115,48 @@ fn renders_a_path_naming_the_consumer_as_here() {
     assert_eq!(render("file:./packages/foo", Some("packages/foo")), "file:.");
 }
 
+fn render_workspace_path(specifier: &str, consumer: &str) -> Option<String> {
+    LocalSpec::parse_workspace_path(specifier, root())
+        .map(|spec| spec.render(Some(&root().join(consumer))))
+}
+
+#[test]
+fn reanchors_a_workspace_path_against_the_consumer() {
+    assert_eq!(
+        render_workspace_path("workspace:./packages/target", "packages/deep/consumer").as_deref(),
+        Some("workspace:../../target"),
+    );
+}
+
+#[test]
+fn reanchors_a_backslash_separated_workspace_path() {
+    assert_eq!(
+        render_workspace_path(r"workspace:.\packages\target", "packages/deep/consumer").as_deref(),
+        Some("workspace:../../target"),
+    );
+}
+
+/// The resolver reads a `workspace:` value as a path only when it opens
+/// with `.`, so a re-anchored path keeps its `./` prefix.
+#[test]
+fn keeps_a_reanchored_workspace_path_relative() {
+    assert_eq!(
+        render_workspace_path("workspace:./packages/target", ".").as_deref(),
+        Some("workspace:./packages/target"),
+    );
+    assert_eq!(
+        render_workspace_path("workspace:./packages/target", "packages/target").as_deref(),
+        Some("workspace:."),
+    );
+}
+
+#[test]
+fn declines_a_workspace_specifier_that_is_not_a_path() {
+    for specifier in ["workspace:*", "workspace:^1.0.0", "workspace:foo@*", "./packages/target"] {
+        assert_eq!(LocalSpec::parse_workspace_path(specifier, root()), None, "{specifier}");
+    }
+}
+
 #[test]
 fn declines_a_shape_that_need_not_be_a_local_path() {
     for specifier in ["user/repo", "^1.2.3", "npm:other@^1", "catalog:", "workspace:*"] {

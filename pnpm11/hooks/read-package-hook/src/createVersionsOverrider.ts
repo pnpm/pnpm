@@ -168,7 +168,7 @@ interface LocalTarget {
   specifiedViaRelativePath: boolean
 }
 
-type LocalProtocol = 'link:' | 'file:'
+type LocalProtocol = 'link:' | 'file:' | 'workspace:'
 
 const isHomeRelative = /^~[/\\]/
 
@@ -178,6 +178,8 @@ function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir
     protocol = 'file:'
   } else if (override.newBareSpecifier.startsWith('link:')) {
     protocol = 'link:'
+  } else if (override.newBareSpecifier.startsWith('workspace:.')) {
+    protocol = 'workspace:'
   } else if (barePathIsUnambiguous(override.newBareSpecifier)) {
     protocol = ''
   } else {
@@ -362,9 +364,12 @@ function pickVersionOverride (
 }
 
 function resolveOverriddenBareSpecifier (versionOverride: VersionOverride, dir: string | undefined): string {
-  return versionOverride.localTarget
-    ? `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
-    : versionOverride.newBareSpecifier
+  const { localTarget } = versionOverride
+  // Rendered absolute, a `workspace:` path would read as a version range.
+  if (localTarget == null || (localTarget.protocol === 'workspace:' && dir == null)) {
+    return versionOverride.newBareSpecifier
+  }
+  return `${localTarget.protocol}${resolveLocalOverride(localTarget, dir)}`
 }
 
 function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath, protocol }: LocalTarget, pkgDir?: string): string {
@@ -374,7 +379,10 @@ function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath, protoco
   // A target naming the consuming package's own directory diffs to the empty
   // string, which reads as a missing path rather than as "here".
   const resolved = relative === '' ? '.' : relative
-  return protocol === '' ? renderBarePath(resolved) : resolved
+  if (protocol === '') return renderBarePath(resolved)
+  // The resolver reads a `workspace:` value as a path only when it opens with `.`.
+  if (protocol === 'workspace:' && !resolved.startsWith('.')) return `./${resolved}`
+  return resolved
 }
 
 /**
