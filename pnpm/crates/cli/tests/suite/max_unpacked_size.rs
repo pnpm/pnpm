@@ -1,11 +1,11 @@
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::fs;
+use std::{fmt::Write as _, fs};
 
 fn set_max_unpacked_size(workspace: &std::path::Path, bytes: u64) {
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    yaml.push_str(&format!("maxUnpackedSize: {bytes}\n"));
+    writeln!(yaml, "maxUnpackedSize: {bytes}").expect("append to the yaml string");
     fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
 }
 
