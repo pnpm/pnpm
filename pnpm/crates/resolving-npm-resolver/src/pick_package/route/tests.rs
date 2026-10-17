@@ -1,11 +1,22 @@
 use super::{
-    DiskFirst, MirrorShortcuts, RouteInputs, RoutePolicy, RouteRequest, UNVALIDATED_MIRROR_MAX_AGE,
+    DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest, UNVALIDATED_MIRROR_MAX_AGE,
     fetch_failure_falls_back, unvalidated_mirror_is_fresh,
 };
-use crate::{mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType};
+use crate::{
+    PackagePickPolicy, mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType,
+};
 use chrono::{DateTime, TimeDelta, Utc};
-use pnpm_config::NetworkPolicy;
+use pnpm_config::{NetworkPolicy, TrustPolicy, version_policy::create_package_version_policy};
 use pretty_assertions::assert_eq;
+
+const PKG_NAME: &str = "acme";
+
+const NO_POLICY: PackagePickPolicy<'static> = PackagePickPolicy {
+    published_by: None,
+    fallback_published_by: None,
+    published_by_exclude: None,
+    trust_policy: None,
+};
 
 fn headers(etag: Option<&str>, uncacheable: bool) -> MetaHeaders {
     MetaHeaders { etag: etag.map(str::to_string), uncacheable, ..MetaHeaders::default() }
@@ -15,9 +26,16 @@ fn cutoff() -> DateTime<Utc> {
     DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z").unwrap().into()
 }
 
+fn release_age_policy() -> PackagePickPolicy<'static> {
+    PackagePickPolicy { published_by: Some(cutoff()), ..NO_POLICY }
+}
+
 /// An online range pick with no option that needs fresh metadata, against a
-/// public mirror stored with an `ETag`.
-fn range_pick(mirror: Option<&MetaHeaders>) -> RouteInputs<'_> {
+/// public route.
+fn range_pick<'a>(
+    policy: &'a PackagePickPolicy<'a>,
+    mirror: Option<&'a MetaHeaders>,
+) -> RouteInputs<'a> {
     RouteInputs {
         network: NetworkPolicy::Online,
         request: RouteRequest {
@@ -28,11 +46,8 @@ fn range_pick(mirror: Option<&MetaHeaders>) -> RouteInputs<'_> {
             pick_lowest_version: false,
             has_blocked_versions: false,
         },
-        policy: RoutePolicy {
-            release_age_applies: false,
-            published_by: None,
-            trust_no_downgrade: false,
-        },
+        policy,
+        pkg_name: PKG_NAME,
         public_scope: true,
         mirror,
     }
@@ -47,44 +62,61 @@ fn with_request(
     inputs
 }
 
-fn with_policy(inputs: RouteInputs<'_>, policy: impl FnOnce(&mut RoutePolicy)) -> RouteInputs<'_> {
-    let mut inputs = inputs;
-    policy(&mut inputs.policy);
-    inputs
+fn version_pick<'a>(
+    policy: &'a PackagePickPolicy<'a>,
+    mirror: Option<&'a MetaHeaders>,
+) -> RouteInputs<'a> {
+    with_request(range_pick(policy, mirror), |request| {
+        request.spec_type = RegistryPackageSpecType::Version;
+    })
 }
 
 const RANGE_SHORTCUTS: MirrorShortcuts = MirrorShortcuts {
     exact_version: false,
     dominant_lockfile_version: true,
     unvalidated_mirror: false,
-    written_after: None,
 };
 
 #[test]
 fn a_stable_range_pick_may_use_the_lockfile_version() {
     let tagged = headers(Some(r#""etag""#), false);
-    assert_eq!(MirrorShortcuts::decide(&range_pick(Some(&tagged))), RANGE_SHORTCUTS);
-    assert_eq!(MirrorShortcuts::decide(&range_pick(None)), RANGE_SHORTCUTS);
+    assert_eq!(
+        MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&tagged))),
+        Some(RANGE_SHORTCUTS),
+    );
+    assert_eq!(MirrorShortcuts::decide(&range_pick(&NO_POLICY, None)), Some(RANGE_SHORTCUTS));
 }
 
 #[test]
 fn every_option_that_needs_fresh_metadata_rules_out_the_range_shortcuts() {
-    let tagged = headers(Some(r#""etag""#), false);
-    let base = range_pick(Some(&tagged));
+    let untagged = headers(None, false);
+    let release_age = release_age_policy();
+    let no_downgrade =
+        PackagePickPolicy { trust_policy: Some(TrustPolicy::NoDowngrade), ..NO_POLICY };
+    let base = range_pick(&NO_POLICY, Some(&untagged));
     let cases: [(&str, RouteInputs<'_>); 7] = [
         ("prefer-offline", RouteInputs { network: NetworkPolicy::PreferCache, ..base }),
         ("pick lowest", with_request(base, |request| request.pick_lowest_version = true)),
         ("latest tag", with_request(base, |request| request.include_latest_tag = true)),
         ("update checksums", with_request(base, |request| request.update_checksums = true)),
-        ("release age", with_policy(base, |policy| policy.release_age_applies = true)),
-        ("no-downgrade", with_policy(base, |policy| policy.trust_no_downgrade = true)),
+        ("release age", RouteInputs { policy: &release_age, ..base }),
+        ("no-downgrade", RouteInputs { policy: &no_downgrade, ..base }),
         ("blocked versions", with_request(base, |request| request.has_blocked_versions = true)),
     ];
     for (name, inputs) in cases {
-        let shortcuts = MirrorShortcuts::decide(&inputs);
+        let shortcuts = MirrorShortcuts::decide(&inputs).expect("the mirror may answer");
         assert!(!shortcuts.dominant_lockfile_version, "{name}");
         assert!(!shortcuts.unvalidated_mirror, "{name}");
     }
+}
+
+#[test]
+fn a_package_excluded_from_the_release_age_keeps_the_range_shortcuts() {
+    let exclude = create_package_version_policy([PKG_NAME]).unwrap();
+    let excluded =
+        PackagePickPolicy { published_by_exclude: Some(&exclude), ..release_age_policy() };
+    let decided = MirrorShortcuts::decide(&range_pick(&excluded, None));
+    assert_eq!(decided, Some(RANGE_SHORTCUTS));
 }
 
 #[test]
@@ -93,35 +125,32 @@ fn only_a_public_mirror_without_an_etag_skips_revalidation() {
     let empty_etag = headers(Some(""), false);
     let tagged = headers(Some(r#""etag""#), false);
     let cases = [
-        ("no etag", range_pick(Some(&untagged)), true),
-        ("empty etag", range_pick(Some(&empty_etag)), true),
-        ("etag", range_pick(Some(&tagged)), false),
-        ("no mirror", range_pick(None), false),
+        ("no etag", range_pick(&NO_POLICY, Some(&untagged)), true),
+        ("empty etag", range_pick(&NO_POLICY, Some(&empty_etag)), true),
+        ("etag", range_pick(&NO_POLICY, Some(&tagged)), false),
+        ("no mirror", range_pick(&NO_POLICY, None), false),
         (
             "private route",
-            RouteInputs { public_scope: false, ..range_pick(Some(&untagged)) },
+            RouteInputs { public_scope: false, ..range_pick(&NO_POLICY, Some(&untagged)) },
             false,
         ),
         (
             "pnpm update",
-            with_request(range_pick(Some(&untagged)), |request| request.refresh_metadata = true),
+            with_request(range_pick(&NO_POLICY, Some(&untagged)), |request| {
+                request.refresh_metadata = true;
+            }),
             false,
         ),
     ];
     for (name, inputs, unvalidated_mirror) in cases {
-        assert_eq!(
-            MirrorShortcuts::decide(&inputs).unvalidated_mirror,
-            unvalidated_mirror,
-            "{name}",
-        );
+        let shortcuts = MirrorShortcuts::decide(&inputs).expect("the mirror may answer");
+        assert_eq!(shortcuts.unvalidated_mirror, unvalidated_mirror, "{name}");
     }
 }
 
 #[test]
 fn a_pinned_version_may_be_read_from_the_mirror_unless_fresh_metadata_is_needed() {
-    let base = with_request(range_pick(None), |request| {
-        request.spec_type = RegistryPackageSpecType::Version;
-    });
+    let base = version_pick(&NO_POLICY, None);
     let cases = [
         ("online", base, true),
         ("offline", RouteInputs { network: NetworkPolicy::Offline, ..base }, true),
@@ -135,7 +164,7 @@ fn a_pinned_version_may_be_read_from_the_mirror_unless_fresh_metadata_is_needed(
         ),
     ];
     for (name, inputs, exact_version) in cases {
-        let shortcuts = MirrorShortcuts::decide(&inputs);
+        let shortcuts = MirrorShortcuts::decide(&inputs).expect("the mirror may answer");
         assert_eq!(shortcuts.exact_version, exact_version, "{name}");
         assert!(!shortcuts.dominant_lockfile_version, "{name}");
     }
@@ -143,48 +172,42 @@ fn a_pinned_version_may_be_read_from_the_mirror_unless_fresh_metadata_is_needed(
 
 #[test]
 fn the_release_age_cutoff_is_offered_where_the_policy_applies() {
-    let aged = with_policy(range_pick(None), |policy| {
-        policy.release_age_applies = true;
-        policy.published_by = Some(cutoff());
-    });
+    let release_age = release_age_policy();
+    let exclude = create_package_version_policy([PKG_NAME]).unwrap();
+    let excluded = PackagePickPolicy { published_by_exclude: Some(&exclude), ..release_age };
+    let other_excluded = create_package_version_policy(["other"]).unwrap();
+    let other = PackagePickPolicy { published_by_exclude: Some(&other_excluded), ..release_age };
+    let aged = range_pick(&release_age, None);
     let cases = [
         ("online range", aged, Some(cutoff())),
         (
             "offline version",
-            with_request(RouteInputs { network: NetworkPolicy::Offline, ..aged }, |request| {
-                request.spec_type = RegistryPackageSpecType::Version;
-            }),
+            RouteInputs { network: NetworkPolicy::Offline, ..version_pick(&release_age, None) },
             Some(cutoff()),
         ),
         ("offline range", RouteInputs { network: NetworkPolicy::Offline, ..aged }, None),
-        ("excluded package", with_policy(aged, |policy| policy.release_age_applies = false), None),
-        ("no cutoff", with_policy(aged, |policy| policy.published_by = None), None),
+        ("excluded package", range_pick(&excluded, None), None),
+        ("another package excluded", range_pick(&other, None), Some(cutoff())),
+        ("no cutoff", range_pick(&NO_POLICY, None), None),
     ];
     for (name, inputs, written_after) in cases {
-        assert_eq!(MirrorShortcuts::decide(&inputs).written_after, written_after, "{name}");
+        assert!(MirrorShortcuts::decide(&inputs).is_some(), "{name}");
+        assert_eq!(inputs.written_after(), written_after, "{name}");
     }
 }
 
 #[test]
 fn an_uncacheable_mirror_offers_no_shortcut_online() {
     let uncacheable = headers(None, true);
-    let version = with_request(range_pick(Some(&uncacheable)), |request| {
-        request.spec_type = RegistryPackageSpecType::Version;
-    });
-    let version = with_policy(version, |policy| {
-        policy.release_age_applies = true;
-        policy.published_by = Some(cutoff());
-    });
-    assert_eq!(
-        MirrorShortcuts::decide(&range_pick(Some(&uncacheable))),
-        MirrorShortcuts::default(),
-    );
-    assert_eq!(MirrorShortcuts::decide(&version), MirrorShortcuts::default());
+    let release_age = release_age_policy();
+    let version = version_pick(&release_age, Some(&uncacheable));
+    assert_eq!(MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&uncacheable))), None);
+    assert_eq!(MirrorShortcuts::decide(&version), None);
 
-    let offline =
-        MirrorShortcuts::decide(&RouteInputs { network: NetworkPolicy::Offline, ..version });
-    assert!(offline.exact_version);
-    assert_eq!(offline.written_after, Some(cutoff()));
+    let offline = RouteInputs { network: NetworkPolicy::Offline, ..version };
+    let shortcuts = MirrorShortcuts::decide(&offline).expect("offline reads the mirror");
+    assert!(shortcuts.exact_version);
+    assert_eq!(offline.written_after(), Some(cutoff()));
 }
 
 #[test]

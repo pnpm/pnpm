@@ -1,10 +1,10 @@
 use super::{
     Arc, DateTime, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext,
-    PickPackageError, PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec,
-    TrustPolicy, Utc, cached_meta_misses_preferred_version, dominant_lockfile_version,
-    get_file_mtime, load_meta_async, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
+    PickPackageError, PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec, Utc,
+    cached_meta_misses_preferred_version, dominant_lockfile_version, get_file_mtime,
+    load_meta_async, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
     pick_stable_cached_range_version,
-    route::{MirrorShortcuts, RouteInputs, RoutePolicy, RouteRequest, unvalidated_mirror_is_fresh},
+    route::{MirrorShortcuts, RouteInputs, RouteRequest, unvalidated_mirror_is_fresh},
 };
 use crate::{
     errors::legacy_mirror_hint,
@@ -23,8 +23,8 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
-        let shortcuts =
-            MirrorShortcuts::decide(&self.route_inputs(ctx, spec, opts, headers.as_ref()));
+        let inputs = self.route_inputs(ctx, spec, opts, headers.as_ref());
+        let shortcuts = MirrorShortcuts::decide(&inputs)?;
         if shortcuts.exact_version
             && let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta).await
         {
@@ -41,17 +41,17 @@ impl PickState<'_> {
         {
             return Some(result);
         }
-        let cutoff = shortcuts.written_after?;
+        let cutoff = inputs.written_after()?;
         self.published_by_pick(ctx, spec, opts, cutoff, disk_meta).await
     }
 
-    fn route_inputs<'headers, Cache: PackageMetaCache>(
+    fn route_inputs<'inputs, Cache: PackageMetaCache>(
         &self,
         ctx: &PickPackageContext<'_, Cache>,
-        spec: &RegistryPackageSpec,
-        opts: &PickPackageOptions<'_>,
-        mirror: Option<&'headers MetaHeaders>,
-    ) -> RouteInputs<'headers> {
+        spec: &'inputs RegistryPackageSpec,
+        opts: &'inputs PickPackageOptions<'inputs>,
+        mirror: Option<&'inputs MetaHeaders>,
+    ) -> RouteInputs<'inputs> {
         RouteInputs {
             network: ctx.cache_policy.network,
             request: RouteRequest {
@@ -62,11 +62,8 @@ impl PickState<'_> {
                 pick_lowest_version: opts.pick_lowest_version,
                 has_blocked_versions: opts.blocked_versions.is_some(),
             },
-            policy: RoutePolicy {
-                release_age_applies: opts.policy.release_age_applies_to(&spec.name),
-                published_by: opts.policy.published_by,
-                trust_no_downgrade: opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade),
-            },
+            policy: &opts.policy,
+            pkg_name: &spec.name,
             public_scope: matches!(self.scope, MetadataCacheScope::Public),
             mirror,
         }
@@ -187,7 +184,7 @@ impl PickState<'_> {
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
 
-    /// [`MirrorShortcuts::written_after`]: a mirror written at or after
+    /// [`RouteInputs::written_after`]: a mirror written at or after
     /// `cutoff` cannot be missing a mature version.
     ///
     /// Fully excluded packages (`minimumReleaseAgeExclude: ['pkg']`) treat

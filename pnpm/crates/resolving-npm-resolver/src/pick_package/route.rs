@@ -4,10 +4,10 @@
 //! pick agrees.
 
 use chrono::{DateTime, TimeDelta, Utc};
-use pnpm_config::NetworkPolicy;
+use pnpm_config::{NetworkPolicy, TrustPolicy};
 
 use crate::{
-    metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,
+    PackagePickPolicy, metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,
     pick_package_from_meta::RegistryPackageSpecType,
 };
 
@@ -19,11 +19,14 @@ use crate::{
 pub(crate) const UNVALIDATED_MIRROR_MAX_AGE: TimeDelta = TimeDelta::minutes(5);
 
 /// What [`MirrorShortcuts::decide`] reads.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(super) struct RouteInputs<'a> {
     pub network: NetworkPolicy,
     pub request: RouteRequest,
-    pub policy: RoutePolicy,
+    /// Read last, and only by a shortcut that is otherwise open: the
+    /// release-age exclusion is a policy lookup per call.
+    pub policy: &'a PackagePickPolicy<'a>,
+    pub pkg_name: &'a str,
     pub public_scope: bool,
     /// The mirror's header line, `None` when there is no mirror.
     pub mirror: Option<&'a MetaHeaders>,
@@ -40,15 +43,6 @@ pub(super) struct RouteRequest {
     pub has_blocked_versions: bool,
 }
 
-/// The parts of the pick policy a route reads.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct RoutePolicy {
-    /// `minimumReleaseAge` narrows this package's versions.
-    pub release_age_applies: bool,
-    pub published_by: Option<DateTime<Utc>>,
-    pub trust_no_downgrade: bool,
-}
-
 impl RouteInputs<'_> {
     /// Whether a range pick could be settled from the mirror at all: every
     /// option that makes the answer depend on fresh metadata rules it out.
@@ -59,14 +53,26 @@ impl RouteInputs<'_> {
             && !request.pick_lowest_version
             && !request.include_latest_tag
             && !request.update_checksums
-            && !self.policy.release_age_applies
-            && !self.policy.trust_no_downgrade
+            && self.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
             && !request.has_blocked_versions
+            && !self.policy.release_age_applies_to(self.pkg_name)
+    }
+
+    /// The `minimumReleaseAge` cutoff when a mirror written at or after it
+    /// may answer the pick: such a mirror cannot be missing a mature version.
+    /// The last mirror read, asked only after [`MirrorShortcuts::decide`]
+    /// let the mirror answer and the reads it returned missed.
+    pub(super) fn written_after(&self) -> Option<DateTime<Utc>> {
+        let cutoff = self.policy.published_by?;
+        let range_offline = self.network.forbids_registry()
+            && self.request.spec_type == RegistryPackageSpecType::Range;
+        (!range_offline && self.policy.release_age_applies_to(self.pkg_name)).then_some(cutoff)
     }
 }
 
 /// The mirror reads a pick tries before taking the fetch permit, in order.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+/// [`RouteInputs::written_after`] is the last of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct MirrorShortcuts {
     /// A pinned version the mirror holds.
     pub exact_version: bool,
@@ -76,29 +82,25 @@ pub(super) struct MirrorShortcuts {
     /// [`unvalidated_mirror_is_fresh`] holds. A private route still
     /// contacts the registry so a `401` is not hidden behind the mirror.
     pub unvalidated_mirror: bool,
-    /// The `minimumReleaseAge` cutoff: a mirror written at or after it
-    /// cannot be missing a mature version.
-    pub written_after: Option<DateTime<Utc>>,
 }
 
 impl MirrorShortcuts {
-    pub(super) fn decide(inputs: &RouteInputs<'_>) -> Self {
+    /// `None` when the mirror may not answer the pick at all.
+    pub(super) fn decide(inputs: &RouteInputs<'_>) -> Option<Self> {
         let RouteInputs {
             network,
             request,
-            policy,
             public_scope,
             mirror,
+            ..
         } = *inputs;
         if !mirror_may_answer(network, mirror) {
-            return MirrorShortcuts::default();
+            return None;
         }
         let stable_range = inputs.range_pick_is_stable();
         let mirror_has_no_etag =
             mirror.is_some_and(|headers| headers.etag.as_deref().is_none_or(str::is_empty));
-        let range_offline =
-            network.forbids_registry() && request.spec_type == RegistryPackageSpecType::Range;
-        MirrorShortcuts {
+        Some(MirrorShortcuts {
             exact_version: request.spec_type == RegistryPackageSpecType::Version
                 && !request.include_latest_tag
                 && !request.update_checksums,
@@ -107,10 +109,7 @@ impl MirrorShortcuts {
                 && !request.refresh_metadata
                 && public_scope
                 && mirror_has_no_etag,
-            written_after: policy.published_by.filter(|_| {
-                policy.release_age_applies && !range_offline
-            }),
-        }
+        })
     }
 }
 
