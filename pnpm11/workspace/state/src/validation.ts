@@ -196,15 +196,18 @@ export function lockfileDigest (
   return { path: current, digest: fileDigestOf(recorded, current) }
 }
 
-/** The patch files and the pnpmfiles every project shares, as recorded. */
+/**
+ * The patch files and the pnpmfiles every project shares, as recorded.
+ * `pnpmfiles` is unset when `--ignore-pnpmfile` skipped loading them.
+ */
 export function sharedInputPaths (
   lockfileDir: string,
   patchedDependencies: Record<string, string> | undefined,
-  pnpmfiles: string[]
+  pnpmfiles: string[] | undefined
 ): string[] {
   return [
     ...Object.values(patchedDependencies ?? {}).map((patchFile) => path.resolve(lockfileDir, patchFile)),
-    ...pnpmfiles,
+    ...pnpmfiles ?? [],
   ]
 }
 

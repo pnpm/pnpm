@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
-import { fileDigestOf, loadWorkspaceState, manifestDigest, projectValidation, updateWorkspaceState, type Validation } from '../src/index.js'
+import { fileDigestOf, loadWorkspaceState, manifestDigest, projectValidation, sharedInputPaths, updateWorkspaceState, type Validation } from '../src/index.js'
 
 test('manifestDigest() ignores key order', () => {
   expect(manifestDigest({ name: 'a', dependencies: { x: '1', y: '2' } }))
@@ -83,4 +83,8 @@ test('updateWorkspaceState() carries the records of the projects a filtered inst
   const drifted = await write(true, [allProjects[0].rootDir])
   expect(Object.keys(drifted.validation!.manifests)).toStrictEqual(['a'])
   expect(drifted.filteredInstall).toBe(true)
+})
+
+test('sharedInputPaths() lists no pnpmfile when --ignore-pnpmfile left them unloaded', () => {
+  expect(sharedInputPaths('/repo', { foo: 'patches/foo.patch' }, undefined)).toStrictEqual([path.resolve('/repo', 'patches/foo.patch')])
 })
