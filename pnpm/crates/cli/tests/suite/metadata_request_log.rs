@@ -15,8 +15,9 @@ use std::{collections::HashMap, fs, io};
 const CASE_TABLE: &str =
     include_str!("../../../../../pnpr/.fixtures/request-logs/metadata-three-installs.json");
 
-const PKG_TARBALL: &str = "/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.1.0.tgz";
-const DEP_TARBALL: &str = "/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.1.0.tgz";
+const PKG_TARBALL: &str = "GET /@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.1.0.tgz 200";
+const DEP_TARBALL: &str =
+    "GET /@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.1.0.tgz 200";
 
 /// Install 1 also downloads both tarballs, which the store keeps for installs
 /// 2 and 3. The table leaves tarballs out: in pnpm v11's test they bypass the
@@ -95,7 +96,13 @@ fn three_installs(
         let mut log: Vec<String> = requests
             .iter()
             .filter(|request| is_tarball(request) == tarballs)
-            .map(|request| if tarballs { request.path.clone() } else { describe(request, &etags) })
+            .map(|request| {
+                if tarballs {
+                    format!("{} {} {}", request.method, request.path, request.status)
+                } else {
+                    describe(request, &etags)
+                }
+            })
             .collect();
         log.sort();
         log

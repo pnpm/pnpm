@@ -278,20 +278,21 @@ async fn send_once<'a>(
 /// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
 /// `toUTCString()`. A date without a time is midnight UTC, as JavaScript's
 /// `Date` reads it. A value already in HTTP-date form is kept. `None` when
-/// the value parses as neither, so it is dropped instead of sent — a
-/// recipient must ignore a malformed `If-Modified-Since` anyway.
+/// the value parses as none of these, or names a time outside the years
+/// 1970 to 9999 that an HTTP date can carry, so it is dropped instead of
+/// sent — a recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
-    if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
-        return Some(httpdate::fmt_http_date(datetime.into()));
-    }
-    if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
-        return Some(httpdate::fmt_http_date(
-            date.and_time(chrono::NaiveTime::MIN)
-                .and_utc()
-                .into(),
-        ));
-    }
-    httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
+    let time: chrono::DateTime<chrono::Utc> =
+        if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {
+            datetime.into()
+        } else if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+            date.and_time(chrono::NaiveTime::MIN).and_utc()
+        } else {
+            return httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date);
+        };
+    // `fmt_http_date` panics outside that range.
+    let in_range = time.timestamp() >= 0 && chrono::Datelike::year(&time) <= 9999;
+    in_range.then(|| httpdate::fmt_http_date(time.into()))
 }
 
 /// Fetch the registry metadata document for `pkg_name`. The

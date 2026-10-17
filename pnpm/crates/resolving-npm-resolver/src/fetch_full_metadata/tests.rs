@@ -526,6 +526,12 @@ fn to_http_date_reads_a_date_without_a_time_as_midnight_utc() {
 }
 
 #[test]
+fn to_http_date_drops_a_time_before_1970() {
+    assert_eq!(super::to_http_date("1969-12-31"), None);
+    assert_eq!(super::to_http_date("1969-12-31T23:59:59Z"), None);
+}
+
+#[test]
 fn to_http_date_keeps_http_dates() {
     assert_eq!(
         super::to_http_date("Wed, 15 Jan 2025 12:00:00 GMT").as_deref(),
