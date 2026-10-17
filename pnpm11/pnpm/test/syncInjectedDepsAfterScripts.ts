@@ -115,6 +115,41 @@ test('with sync-injected-deps-after-scripts', async () => {
   }
 })
 
+test('a listed script syncs only the files the manifest lists', async () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '0.0.0',
+      files: ['index.js'],
+      scripts: {
+        build: 'node -e "require(\'fs\').writeFileSync(\'index.js\', \'built\')"',
+      },
+    },
+    {
+      name: 'bar',
+      version: '0.0.0',
+      dependencies: {
+        foo: 'workspace:*',
+      },
+    },
+  ])
+  fs.writeFileSync('foo/index.js', 'original')
+  fs.writeFileSync('foo/notes.txt', 'not a package file')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*'],
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['build'],
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=foo', 'run', 'build'])
+
+  const copy = 'node_modules/.pnpm/foo@file+foo/node_modules/foo'
+  expect(fs.readFileSync(path.join(copy, 'index.js'), 'utf8')).toBe('built')
+  expect(fs.readdirSync(copy).sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
 test('a listed script publishes injected edits before it exits', async () => {
   preparePackages([
     {

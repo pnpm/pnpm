@@ -1,9 +1,10 @@
 use super::{
-    CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant, IntoDiagnostic,
-    LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph, RunContext,
-    RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value, cache_tiers::CacheTiers,
-    capture, cargo_cache, env, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_stages, sync_injected_deps,
+    BinLinkSettings, CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant,
+    IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph,
+    RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value,
+    cache_tiers::CacheTiers, capture, cargo_cache, env, make_node_package_map_option,
+    make_node_require_option, package_map_path_for_execution, pnp_path_for_execution, run_stages,
+    sync_injected_deps,
 };
 use crate::cli_args::reporter::script_output_colors;
 
@@ -370,11 +371,14 @@ fn sync_injected_deps_if_configured(
         pkg_name: manifest.get("name").and_then(Value::as_str),
         pkg_root_dir: &node.project,
         workspace_dir: config.workspace_dir.as_deref(),
-        modules_dir_name: config.modules_dir_name(),
         workspace_modules_dir: &config.modules_dir,
-        extend_node_path: config.extend_node_path,
+        include_only_package_files: !config.deploy_all_files,
         manifest_before_scripts: Some(manifest),
-        ignored_directories: config.managed_directories(),
+        bin_links: BinLinkSettings {
+            modules_dir_name: config.modules_dir_name(),
+            extend_node_path: config.extend_node_path,
+            ignored_directories: config.managed_directories(),
+        },
     })?;
     Ok(())
 }

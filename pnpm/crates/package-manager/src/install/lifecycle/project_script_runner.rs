@@ -9,7 +9,7 @@ use super::{
 
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{BinLinkSettings, SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manifest::project_manifest_path;
 use std::sync::Mutex;
 
@@ -110,11 +110,14 @@ impl ProjectScriptRunner<'_> {
                 .and_then(serde_json::Value::as_str),
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
-            modules_dir_name: self.config.modules_dir_name(),
             workspace_modules_dir: &self.config.modules_dir,
-            extend_node_path: self.config.extend_node_path,
+            include_only_package_files: !self.config.deploy_all_files,
             manifest_before_scripts: Some(manifest.value()),
-            ignored_directories: self.config.managed_directories(),
+            bin_links: BinLinkSettings {
+                modules_dir_name: self.config.modules_dir_name(),
+                extend_node_path: self.config.extend_node_path,
+                ignored_directories: self.config.managed_directories(),
+            },
         })
         .map_err(InstallError::SyncInjectedDeps)
     }

@@ -237,8 +237,10 @@ pub struct PublishSource<'a> {
 }
 
 impl<'a> PublishSource<'a> {
-    pub fn load(dir: &'a Path) -> Result<Self, PatchError> {
-        Ok(PublishSource { dir, map: load_inode_map(dir, false)? })
+    /// `include_only_package_files` reads `dir` the way
+    /// [`DirectoryFetcher::include_only_package_files`] does.
+    pub fn load(dir: &'a Path, include_only_package_files: bool) -> Result<Self, PatchError> {
+        Ok(PublishSource { dir, map: load_inode_map(dir, include_only_package_files)? })
     }
 }
 
@@ -377,7 +379,18 @@ fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
 }
 
 fn load_inode_map(dir: &Path, include_only_package_files: bool) -> Result<InodeMap, PatchError> {
-    let files_map = DirectoryFetcher {
+    let mut files_map = list_files(dir, include_only_package_files)?;
+    if include_only_package_files {
+        expand_listed_directories(&mut files_map)?;
+    }
+    extend_files_map(&files_map)
+}
+
+fn list_files(
+    dir: &Path,
+    include_only_package_files: bool,
+) -> Result<HashMap<String, PathBuf>, PatchError> {
+    DirectoryFetcher {
         directory: dir.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
@@ -385,8 +398,25 @@ fn load_inode_map(dir: &Path, include_only_package_files: bool) -> Result<InodeM
         allow_path_escape: false,
     }
     .list_files()
-    .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
-    extend_files_map(&files_map)
+    .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })
+}
+
+/// The packlist names a symlinked directory as one entry, where the walk of
+/// every file lists the files under it. List them, so the copy gets the same
+/// tree whichever walk read the source.
+fn expand_listed_directories(files_map: &mut HashMap<String, PathBuf>) -> Result<(), PatchError> {
+    let directories: Vec<(String, PathBuf)> = files_map
+        .iter()
+        .filter(|(_, real_path)| real_path.is_dir())
+        .map(|(relative_path, real_path)| (relative_path.clone(), real_path.clone()))
+        .collect();
+    for (relative_path, real_path) in directories {
+        files_map.remove(&relative_path);
+        for (nested_path, nested_real_path) in list_files(&real_path, false)? {
+            files_map.insert(format!("{relative_path}/{nested_path}"), nested_real_path);
+        }
+    }
+    Ok(())
 }
 
 /// Expand a relative-path → real-path map into an [`InodeMap`] that

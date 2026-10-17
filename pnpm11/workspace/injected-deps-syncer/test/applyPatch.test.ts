@@ -315,6 +315,23 @@ test('publishEditsForWatchers replaces an edited hardlink with a file a watcher 
   }
 })
 
+test('publishEditsForWatchers leaves out the files the manifest does not list when reading package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['index.js'] }))
+  createFile(path.join(source, 'index.js'), 'built')
+  createFile(path.join(source, 'src/index.ts'), 'source')
+  fs.mkdirSync(target)
+  try {
+    await publishEditsForWatchers(await readPublishSource(source, true), target, 0)
+    expect(fs.readFileSync(path.join(target, 'index.js'), 'utf8')).toBe('built')
+    expect(fs.existsSync(path.join(target, 'src'))).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('publishEditsForWatchers leaves a hardlink that predates the watch', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
   const source = path.join(root, 'source')

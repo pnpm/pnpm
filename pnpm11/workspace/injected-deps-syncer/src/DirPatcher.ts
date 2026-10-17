@@ -216,7 +216,7 @@ const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${sta
 
 const WATCH_MTIME_TOLERANCE_MS = 1
 
-const WATCH_FETCH_OPTIONS: FetchFromDirOptions = { resolveSymlinks: false }
+const LIST_FILES_OPTIONS: FetchFromDirOptions = { resolveSymlinks: false }
 
 /** A source directory's files, read once per poll and published to each of its injected copies. */
 export interface PublishSource {
@@ -224,8 +224,30 @@ export interface PublishSource {
   map: InodeMap
 }
 
-export async function readPublishSource (dir: string): Promise<PublishSource> {
-  return { dir, map: await extendFilesMap(await listFilesFromDir(dir, WATCH_FETCH_OPTIONS)) }
+export async function readPublishSource (dir: string, includeOnlyPackageFiles?: boolean): Promise<PublishSource> {
+  return { dir, map: await extendFilesMap(await listSourceFiles(dir, includeOnlyPackageFiles)) }
+}
+
+/**
+ * The packlist names a symlinked directory as one entry, where the walk of
+ * every file lists the files under it. List them, so the copy gets the same
+ * tree whichever walk read the source.
+ */
+async function listSourceFiles (dir: string, includeOnlyPackageFiles?: boolean): Promise<ExtendFilesMapOptions> {
+  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles })
+  if (!includeOnlyPackageFiles) return listed
+  const filesMap = new Map<string, string>()
+  await Promise.all(Array.from(listed.filesMap, async ([relativePath, realPath]) => {
+    if (!(await fs.promises.stat(realPath)).isDirectory()) {
+      filesMap.set(relativePath, realPath)
+      return
+    }
+    const nested = await listFilesFromDir(realPath, LIST_FILES_OPTIONS)
+    for (const [nestedPath, nestedRealPath] of nested.filesMap) {
+      filesMap.set(`${relativePath}/${nestedPath}`, nestedRealPath)
+    }
+  }))
+  return { filesMap }
 }
 
 /**
@@ -240,7 +262,7 @@ export async function publishEditsForWatchers (
   editedSinceMs: number
 ): Promise<void> {
   const { dir: sourceDir, map: sourceMap } = source
-  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, WATCH_FETCH_OPTIONS))
+  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, LIST_FILES_OPTIONS))
 
   await syncRemovedWatchPaths(targetMap, sourceMap, targetDir)
   const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
@@ -377,18 +399,13 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
-    const fetchOptions: FetchFromDirOptions = {
-      resolveSymlinks: false,
-    }
-
-    async function loadMap (dir: string, dirFetchOptions: FetchFromDirOptions): Promise<[InodeMap, string]> {
-      const fetchResult = await listFilesFromDir(dir, dirFetchOptions)
-      return [await extendFilesMap(fetchResult), dir]
+    async function loadMap (dir: string, dirIncludeOnlyPackageFiles?: boolean): Promise<[InodeMap, string]> {
+      return [await extendFilesMap(await listSourceFiles(dir, dirIncludeOnlyPackageFiles)), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
-      loadMap(sourceDir, { ...fetchOptions, includeOnlyPackageFiles }),
-      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir, fetchOptions))),
+      loadMap(sourceDir, includeOnlyPackageFiles),
+      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir))),
     ])
 
     return targetPairs.map(([targetMap, targetDir]) => {

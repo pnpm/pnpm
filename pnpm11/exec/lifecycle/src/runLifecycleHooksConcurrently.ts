@@ -15,6 +15,8 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'pkgRoot'
 | 'rootModulesDir'
 > & {
+  /** Selects the files the install put in a project's injected copies, so the re-import after its scripts adds no file the install left out. */
+  includeOnlyPackageFiles?: boolean
   resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
   extendNodePath?: boolean
@@ -201,7 +203,10 @@ interface TargetGroup {
 async function reimportTargetGroups (targetGroups: TargetGroup[], opts: RunLifecycleHooksConcurrentlyOptions): Promise<void> {
   await Promise.all(
     targetGroups.map(async ({ sourceDir, targetDirs }) => {
-      const filesResponse = await fetchFromDir(sourceDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
+      const filesResponse = await fetchFromDir(sourceDir, {
+        includeOnlyPackageFiles: opts.includeOnlyPackageFiles,
+        resolveSymlinks: opts.resolveSymlinksInInjectedDirs,
+      })
       await Promise.all(
         targetDirs.map(async (targetDir) =>
           opts.storeController.importPackage(targetDir, {

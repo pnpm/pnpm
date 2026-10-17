@@ -250,7 +250,7 @@ fn publish_replaces_an_edited_hardlink_with_its_own_file() {
     fs::write(source.join("index.js"), "new").expect("rewrite the hardlink in place");
 
     publish_edits(
-        &PublishSource::load(&source).expect("load source"),
+        &PublishSource::load(&source, false).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
@@ -265,6 +265,26 @@ fn publish_replaces_an_edited_hardlink_with_its_own_file() {
 }
 
 #[test]
+fn publish_of_package_files_leaves_out_the_files_the_manifest_does_not_list() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"source","files":["index.js"]}"#);
+    create_file(&source.join("index.js"), "built");
+    create_file(&source.join("src/index.ts"), "source");
+    fs::create_dir_all(&target).expect("create target");
+
+    publish_edits(
+        &PublishSource::load(&source, true).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("publish");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read published file"), "built");
+    assert!(!target.join("src").exists());
+}
+
+#[test]
 fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
     let dir = TempDir::new().expect("temp dir");
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
@@ -275,8 +295,12 @@ fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
         .checked_add(Duration::from_hours(24))
         .expect("a deadline past every current mtime");
 
-    publish_edits(&PublishSource::load(&source).expect("load source"), &target, edited_since)
-        .expect("publish");
+    publish_edits(
+        &PublishSource::load(&source, false).expect("load source"),
+        &target,
+        edited_since,
+    )
+    .expect("publish");
 
     assert_eq!(
         device_and_inode(&source.join("index.js")),
@@ -293,14 +317,14 @@ fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
     fs::create_dir_all(&target).expect("create target");
 
     publish_edits(
-        &PublishSource::load(&source).expect("load source"),
+        &PublishSource::load(&source, false).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
     .expect("first publish");
     let published = device_and_inode(&target.join("index.js"));
     publish_edits(
-        &PublishSource::load(&source).expect("load source"),
+        &PublishSource::load(&source, false).expect("load source"),
         &target,
         SystemTime::UNIX_EPOCH,
     )
@@ -325,5 +349,29 @@ fn sync_replaces_a_target_manifest_left_half_written() {
     assert_eq!(
         fs::read_to_string(target.join("package.json")).expect("read target manifest"),
         r#"{"name":"pkg","version":"1.0.0"}"#,
+    );
+}
+
+/// The packlist lists a symlinked directory as one entry. The copy gets the
+/// files under it, as it does when every file is read.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_copies_the_files_under_a_symlinked_directory() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
+    create_file(&source.join("files/foo/bar.txt"), "bar");
+    std::os::unix::fs::symlink("files/foo", source.join("link-to-a-dir")).expect("symlink");
+    fs::create_dir_all(&target).expect("create target");
+
+    let patchers = DirPatcher::from_multiple_targets(&source, std::slice::from_ref(&target), true)
+        .expect("diff");
+    for patcher in patchers {
+        patcher.apply().expect("apply patch");
+    }
+
+    assert_eq!(
+        fs::read_to_string(target.join("link-to-a-dir/bar.txt")).expect("read synced file"),
+        "bar",
     );
 }
