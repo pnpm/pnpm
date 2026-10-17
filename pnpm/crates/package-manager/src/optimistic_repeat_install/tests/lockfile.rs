@@ -8,14 +8,15 @@ use super::{
     },
     FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
     backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
-    date_lockfile_after, isolated_included, poison_lockfile_content, recorded_timestamp,
-    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
-    single_project_deps_status, validate_existing_files, write_bare_tarball_lockfile, write_state,
+    date_lockfile_after, isolated_included, lockfile_mtime_after, poison_lockfile_content,
+    recorded_timestamp, setup_content_check_project, setup_fresh_install,
+    setup_fresh_install_with_config, single_project_deps_status, validate_existing_files,
+    write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{mtime_ms, set_mtime_ms};
+use pnpm_testing_utils::fs::set_mtime_ms;
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
@@ -650,13 +651,11 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
 }
 
 #[test]
-fn date_lockfile_after_keeps_the_lockfile_mtime_off_an_exact_second() {
-    let (dir, _) = setup_content_check_project();
-    let recorded = 1_700_000_000_000 - MTIME_STEP_MS;
-    date_lockfile_after(dir.path(), recorded);
-    let mtime = mtime_ms(&dir.path().join(Lockfile::FILE_NAME));
-    assert!(mtime > recorded, "{mtime} must be past {recorded}");
-    assert_ne!(mtime % 1_000, 0);
+fn lockfile_mtime_after_keeps_off_an_exact_second() {
+    let cases = [(1_700_000_000_123, 1_700_000_001_123), (1_699_999_999_000, 1_699_999_999_999)];
+    for (recorded, mtime) in cases {
+        assert_eq!(lockfile_mtime_after(recorded), mtime, "recorded={recorded}");
+    }
 }
 
 #[test]
