@@ -10,16 +10,17 @@ import type { PickPackageOptions } from './pickRequest.js'
 export interface RouteInputs {
   ctx: { offline?: boolean, preferOffline?: boolean }
   spec: Pick<RegistryPackageSpec, 'type' | 'name'>
-  opts: Pick<PickPackageOptions,
-  'includeLatestTag' |
-  'updateChecksums' |
-  'refreshMetadata' |
-  'pickLowestVersion' |
-  'publishedBy' |
-  'publishedByExclude' |
-  'trustPolicy'
-  >
+  opts: Pick<PickPackageOptions, RouteOption>
 }
+
+type RouteOption =
+  | 'includeLatestTag'
+  | 'updateChecksums'
+  | 'refreshMetadata'
+  | 'pickLowestVersion'
+  | 'publishedBy'
+  | 'publishedByExclude'
+  | 'trustPolicy'
 
 /**
  * Registries that omit `ETag` cannot answer `If-None-Match` with 304, so a
