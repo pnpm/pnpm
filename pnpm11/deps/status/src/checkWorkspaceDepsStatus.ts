@@ -102,7 +102,7 @@ async function checkModifiedSinceLastValidation (
 
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
-  return validateModifiedWorkspace(ctx, lockfilesScan.anyModified ? allManifestStats : modifiedProjects)
+  return validateModifiedWorkspace(ctx, lockfilesScan.anyModified || lockfilesScan.anyMissing ? allManifestStats : modifiedProjects)
 }
 
 /** What the content check of a recorded workspace covers. */
