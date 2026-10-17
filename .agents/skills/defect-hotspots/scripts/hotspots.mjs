@@ -54,6 +54,10 @@ const issueDays = Number(options['issue-days'])
 const maxIntroAgeDays = Number(options['max-intro-age-days'])
 const topCount = Number(options.top)
 const now = Date.now()
+if (execFileSync('git', ['rev-parse', '--is-shallow-repository'], { encoding: 'utf8' }).trim() === 'true') {
+  process.stderr.write('The checkout is shallow, so history stops at its boundary. Run `git fetch --unshallow origin` first.\n')
+  process.exit(1)
+}
 const headSha = execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${options.ref}^{commit}`], { encoding: 'utf8' }).trim()
 
 const loadedCommits = readCommits(headSha, Math.max(historyDays, recentDays + maxIntroAgeDays))
@@ -151,7 +155,7 @@ function classifyPath (file) {
 }
 
 function countLines (ref) {
-  const raw = execFileSync('git', ['grep', '-c', '', ref, '--', '*.rs', '*.ts', '*.mts', '*.js', '*.mjs', '*.cjs', '*.sh', '*.ps1'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
+  const raw = execFileSync('git', ['grep', '-I', '-c', '', ref], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
   const counts = new Map()
   for (const line of raw.split('\n')) {
     const separator = line.lastIndexOf(':')
