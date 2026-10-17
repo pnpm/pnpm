@@ -66,7 +66,7 @@ enum LicensesError {
 
 #[derive(Debug, Args)]
 pub struct LicensesDependencyOptions {
-    /// Only dependencies in "dependencies"
+    /// Check only "dependencies" and "optionalDependencies"
     #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Only dependencies in "devDependencies"
@@ -88,7 +88,7 @@ impl LicensesDependencyOptions {
         let mut dependencies = !self.dev;
         let mut dev_dependencies = !self.prod;
         let mut optional_dependencies =
-            !self.prod && resolve_bool_override(self.optional, self.no_optional, include_optional);
+            resolve_bool_override(self.optional, self.no_optional, include_optional);
 
         if self.optional {
             dependencies = false;
