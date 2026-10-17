@@ -8,7 +8,8 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { encodeMirror, fullEtagOfAbbreviatedMirror, holdsFullMetaInAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
+import { conditionalRequest, mirrorWrite, unconditionalRefetch } from './metadataCachePolicy.js'
+import { encodeMirror } from './metaMirror.js'
 import {
   discardMirrorAfterFailedUncacheableWrite,
   getPkgMirrorPath,
@@ -80,14 +81,10 @@ async function fetchMetadataCached (
   if (opts.offline === true) return loadOfflineMeta(pkgMirror, pkgName, opts)
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, opts.fullMetadata)
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: cacheHeaders?.uncacheable === true,
-    fullMetadata: opts.fullMetadata || fullEtag != null,
-    etag: fullEtag ?? cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
+    ...conditionalRequest(opts.fullMetadata, cacheHeaders),
   })
   if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 
@@ -128,8 +125,7 @@ async function refetchBypassingCache (
   const refetched = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: true,
-    fullMetadata: opts.fullMetadata,
+    ...unconditionalRefetch(opts.fullMetadata),
   })
   // Unreachable narrowing guard: the cache-bypassing request sends no validator,
   // so fetchMetadataFromFromRegistry rejects a repeated 304 before returning.
@@ -143,14 +139,14 @@ async function refetchBypassingCache (
 // the speedup.
 function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
   if (pkgMirror != null) {
-    const { etag, fullEtag } = mirrorEtags(fetched, mirrorFullMetadata)
+    const write = mirrorWrite(fetched, mirrorFullMetadata)
     const content = encodeMirror({}, fetched, {
-      meta: holdsFullMetaInAbbreviatedMirror(fetched, mirrorFullMetadata) ? clearMeta(fetched.meta) : fetched.meta,
-      etag,
-      body: { uncacheable: fetched.uncacheable, fullEtag },
+      meta: write.kind === 'fullInAbbreviatedMirror' ? clearMeta(fetched.meta) : fetched.meta,
+      etag: write.etag,
+      body: write.body,
     })
     saveMeta(pkgMirror, content).catch(() => {
-      return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
+      return discardMirrorAfterFailedUncacheableWrite(pkgMirror, write.body.uncacheable === true)
     })
   }
   return fetched.meta
