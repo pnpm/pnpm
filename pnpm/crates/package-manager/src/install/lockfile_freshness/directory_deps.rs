@@ -11,7 +11,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{ChildCatalogs, ChildSpec, local_directory_child_specs};
+use pnpm_resolving_deps_resolver::{
+    ChildCatalogs, ChildSpec, ResolveDependencyTreeError, local_directory_child_specs,
+};
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
 use std::{
     collections::{HashMap, HashSet},
@@ -298,8 +300,13 @@ fn check_local_dep_children_freshness(
         package_dir: dep.dir,
     });
     let children = local_directory_child_specs(local_manifest.value(), dep.name, catalogs)
-        .map_err(|_| dep.outdated())?;
-    check_snapshot_keys_are_children(dep, local_manifest, &children, snapshot)?;
+        .map_err(|error| match error {
+            ResolveDependencyTreeError::CatalogMisconfiguration(error) => {
+                FreshnessCheckError::InvalidCatalog(error)
+            }
+            _ => dep.outdated(),
+        })?;
+    check_snapshot_keys_are_children(check, dep, local_manifest, (&children, snapshot))?;
     for child in &children {
         if !child_is_fresh(check, dep, snapshot, shadowed, child) {
             return Err(dep.outdated());
@@ -321,21 +328,22 @@ fn child_is_fresh(
     if (*optional && !check.config.optional) || (!*optional && shadowed.contains(name.as_str())) {
         return true;
     }
-    match recorded_child(snapshot, name) {
+    match recorded_child(snapshot, name, *optional) {
         Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded),
         None => *optional && check.optional_exclusions.allow_unresolved,
     }
 }
 
+/// The resolution the snapshot records for a child, in the map its
+/// optionality puts it in.
 fn recorded_child<'s>(
     snapshot: &'s pnpm_lockfile::SnapshotEntry,
     name: &str,
+    optional: bool,
 ) -> Option<&'s pnpm_lockfile::SnapshotDepRef> {
     let name = pnpm_lockfile::PkgName::parse(name).ok()?;
-    [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-        .into_iter()
-        .flatten()
-        .find_map(|deps| deps.get(&name))
+    let recorded = if optional { &snapshot.optional_dependencies } else { &snapshot.dependencies };
+    recorded.as_ref()?.get(&name)
 }
 
 fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
@@ -355,10 +363,10 @@ fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str>
 /// Every child the snapshot records is one the resolver walks, or a peer
 /// the package declares, which the snapshot records as resolved.
 fn check_snapshot_keys_are_children(
+    check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
-    children: &[ChildSpec],
-    snapshot: &pnpm_lockfile::SnapshotEntry,
+    (children, snapshot): (&[ChildSpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
     let expected: HashSet<&str> = children
         .iter()
@@ -370,7 +378,10 @@ fn check_snapshot_keys_are_children(
         )
         .chain(optional_peer_names(local_manifest))
         .collect();
-    let recorded = [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+    // An install without optional dependencies leaves the optional map alone.
+    let optional =
+        check.config.optional.then_some(snapshot.optional_dependencies.as_ref()).flatten();
+    let recorded = [snapshot.dependencies.as_ref(), optional]
         .into_iter()
         .flatten()
         .flat_map(|deps| deps.keys());

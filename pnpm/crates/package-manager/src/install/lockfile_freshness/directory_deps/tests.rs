@@ -205,6 +205,8 @@ fn check_local_dep_peers(
         }),
         allow_unresolved: false,
         auto_install_peers,
+        include_optional: true,
+        catalogs: Catalogs::new(),
     })
 }
 
@@ -216,6 +218,9 @@ struct DirectoryDepCase {
     /// The allowance only `--frozen-lockfile` makes.
     allow_unresolved: bool,
     auto_install_peers: bool,
+    /// `false` for an install without optional dependencies.
+    include_optional: bool,
+    catalogs: Catalogs,
 }
 
 fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckError> {
@@ -230,9 +235,10 @@ fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckErro
         serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
     let mut config = pnpm_config::Config::new();
     config.auto_install_peers = case.auto_install_peers;
+    config.optional = case.include_optional;
     let ignored = pnpm_matcher::create_matcher(&[]);
     let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
-    let catalogs = Catalogs::new();
+    let catalogs = &case.catalogs;
     let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
         lockfile: &lockfile,
         lockfile_dir: Path::new("/ws"),
@@ -242,7 +248,7 @@ fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckErro
         workspace: crate::install::lockfile_freshness::WorkspaceProjects {
             packages: None,
             manifests_by_dir: &manifests_by_dir,
-            catalogs: &catalogs,
+            catalogs,
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
@@ -260,7 +266,7 @@ fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckErro
             lockfile_dir: Path::new("/ws"),
             manifests_by_dir: &HashMap::new(),
         },
-        catalogs: &catalogs,
+        catalogs,
     };
     super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
 }
@@ -321,6 +327,8 @@ fn check_dep_with_an_unresolved_entry(
         snapshot: serde_json::json!({}),
         allow_unresolved,
         auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
     })
 }
 
@@ -346,5 +354,66 @@ fn an_unresolved_optional_of_a_directory_dependency_is_satisfied_only_when_froze
     assert!(
         frozen.is_ok(),
         "a frozen install keeps what the lockfile could not resolve: {frozen:?}",
+    );
+}
+
+fn directory_metadata() -> serde_json::Value {
+    serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } })
+}
+
+/// The snapshot records a child in the map its optionality puts it in, so a
+/// child that became optional with the same version is a change.
+#[test]
+fn a_dependency_that_became_optional_is_outdated() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the child moved to optionalDependencies: {result:?}");
+}
+
+#[test]
+fn an_install_without_optional_dependencies_ignores_the_recorded_optional_children() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({ "name": "lib" }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "optionalDependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: false,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_ok(), "the optional map is not compared: {result:?}");
+}
+
+#[test]
+fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
+    let error = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "dependencies": { "is-positive": "catalog:missing" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        allow_unresolved: false,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::from([(
+            "default".to_string(),
+            std::collections::BTreeMap::from([("is-positive".to_string(), "1.0.0".to_string())]),
+        )]),
+    })
+    .expect_err("the named catalog does not exist");
+    assert!(
+        matches!(&error, FreshnessCheckError::InvalidCatalog(_)),
+        "expected the catalog error, got {error:?}",
     );
 }
