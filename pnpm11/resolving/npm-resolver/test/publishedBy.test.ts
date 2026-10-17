@@ -1155,6 +1155,45 @@ test('the release-age upgrade of an upgraded mirror revalidates with the full et
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('three installs over a registry without complete publish times download the full document once', async () => {
+  const cacheDir = temporaryDirectory()
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
+  const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  // Installs two and three: the regular revalidation, then the upgrade.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { 'if-none-match': '"full-etag"' } })
+    .reply(304, '')
+    .times(4)
+  // Install one: the upgrade, then the abbreviated fetch before it.
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/json/ } })
+    .reply(200, partialTimeMeta(), { headers: { etag: '"full-etag"' } })
+  agent.intercept({ path: '/is-positive', method: 'GET', headers: { accept: /^application\/vnd\.npm\.install-v1/ } })
+    .reply(200, partialTimeMeta(), { headers: { 'content-type': 'application/vnd.npm.install-v1+json' } })
+
+  for (const install of [1, 2, 3]) {
+    if (install > 1) {
+      // The mirror write and the mtime renewal after a 304 run in the
+      // background. Wait for the upgraded mirror, which also outlasts the
+      // renewal, then date it before the cutoff so the install revalidates it.
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.fullEtag === '"full-etag"')
+      fs.utimesSync(cachePath, new Date(0), new Date(0))
+    }
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+      ignoreMissingTimeField: true,
+    })
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+      publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+    })
+    expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  }
+
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 test('the release-age upgrade of a changed full document revalidates with its new etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
