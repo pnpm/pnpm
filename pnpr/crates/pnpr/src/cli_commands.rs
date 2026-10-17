@@ -103,7 +103,6 @@ pub enum Command {
     /// Add or update a user account in the configured auth backend.
     AddUser {
         /// Username of the account to create or update.
-        #[arg(long)]
         username: String,
         /// Password for the account. Prompted from stdin if omitted.
         #[arg(long)]
@@ -327,17 +326,20 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 
 fn read_password() -> miette::Result<String> {
     use std::io::IsTerminal;
-    if std::io::stdin().is_terminal() {
-        print!("Enter password: ");
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-    }
-    let mut line = String::new();
-    std::io::stdin()
-        .read_line(&mut line)
-        .map_err(|err| miette::miette!("could not read password from stdin: {err}"))?;
-    let trimmed = line
-        .trim_end_matches(['\r', '\n'])
-        .to_string();
+    let trimmed = if std::io::stdin().is_terminal() {
+        dialoguer::Password::new()
+            .with_prompt("Enter password")
+            .allow_empty_password(true)
+            .interact()
+            .map_err(|err| miette::miette!("could not read password from terminal: {err}"))?
+    } else {
+        let mut line = String::new();
+        std::io::stdin()
+            .read_line(&mut line)
+            .map_err(|err| miette::miette!("could not read password from stdin: {err}"))?;
+        line.trim_end_matches(['\r', '\n'])
+            .to_string()
+    };
     if trimmed.is_empty() {
         return Err(miette::miette!("password cannot be empty"));
     }
@@ -349,6 +351,13 @@ async fn run_add_user_command(
     username: String,
     password: Option<String>,
 ) -> miette::Result<()> {
+    if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
+        && config.identity.auth.htpasswd.file.is_none()
+    {
+        return Err(miette::miette!(
+            "standalone add-user requires a persistent auth backend (configure auth.htpasswd.file or a database backend)"
+        ));
+    }
     let password = match password {
         Some(password) => password,
         None => read_password()?,

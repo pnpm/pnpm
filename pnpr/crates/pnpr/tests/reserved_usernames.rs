@@ -205,3 +205,18 @@ registries:
     assert_eq!(status, StatusCode::CREATED);
     assert!(payload["token"].is_string());
 }
+
+#[tokio::test]
+async fn cli_add_user_rejects_in_memory_auth_backend() {
+    let dir = TempDir::new().unwrap();
+    let config = test_config(dir.path());
+    let cmd = Command::AddUser {
+        username: "admin_alice".to_string(),
+        password: Some("secret".to_string()),
+    };
+    let err = pnpr::cli_commands::run_command(&config, cmd).await.unwrap_err();
+    assert!(
+        err.to_string().contains("standalone add-user requires a persistent auth backend"),
+        "unexpected error: {err}",
+    );
+}
