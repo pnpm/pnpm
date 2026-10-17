@@ -16,11 +16,17 @@ below use it. If your Dockerfile builds on another image, such as `node:24`,
 [copy pnpm from the official image](./docker.md#adding-pnpm-to-your-own-image).
 
 Elsewhere, outside of GitHub Actions, which has [its own action](#github-actions),
-install pnpm with the standalone script:
+install pnpm with the standalone script. If `get.pnpm.io` fails, the second
+command downloads the same script from jsDelivr:
 
 ```sh
-curl -fsSL https://get.pnpm.io/install.sh | sh -
+curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+  || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+sh /tmp/pnpm-install.sh
 ```
+
+The script is saved to a file before it runs, so a download that fails partway
+through never runs a partial script.
 
 Two things make this convenient in CI:
 
@@ -108,7 +114,9 @@ steps:
     displayName: Cache pnpm
 
   - bash: |
-      curl -fsSL https://get.pnpm.io/install.sh | sh -
+      curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+        || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+      sh /tmp/pnpm-install.sh
       echo "##vso[task.prependpath]$PNPM_HOME/bin"
       "$PNPM_HOME/bin/pnpm" config set store-dir "$pnpm_config_cache"
     displayName: "Setup pnpm"
@@ -181,7 +189,9 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+              || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+            sh /tmp/pnpm-install.sh
             echo 'export PATH="$PNPM_HOME/bin:$PATH"' >> "$BASH_ENV"
             "$PNPM_HOME/bin/pnpm" config set store-dir .pnpm-store
       - run:
@@ -278,7 +288,11 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh 'curl -fsSL https://get.pnpm.io/install.sh | sh -'
+                sh '''
+                    curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \\
+                      || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+                    sh /tmp/pnpm-install.sh
+                '''
                 sh 'pnpm install'
             }
         }
@@ -311,7 +325,8 @@ blocks:
         - name: pnpm install
           commands:
             - export PATH="$PNPM_HOME/bin:$PATH"
-            - curl -fsSL https://get.pnpm.io/install.sh | sh -
+            - curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+            - sh /tmp/pnpm-install.sh
             - checkout
             - cache restore node-$(checksum pnpm-lock.yaml)
             - pnpm install
@@ -335,7 +350,8 @@ env:
     - PNPM_HOME="$HOME/.local/share/pnpm"
     - PATH="$PNPM_HOME/bin:$PATH"
 before_install:
-  - curl -fsSL https://get.pnpm.io/install.sh | sh -
+  - curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh || curl -fsSL https://cdn.jsdelivr.net/gh/pnpm/get.pnpm.io@main/install.sh -o /tmp/pnpm-install.sh
+  - sh /tmp/pnpm-install.sh
   - pnpm config set store-dir ~/.pnpm-store
 install:
   - pnpm install
