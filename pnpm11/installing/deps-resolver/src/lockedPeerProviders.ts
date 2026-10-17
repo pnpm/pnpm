@@ -47,7 +47,7 @@ export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
     const pinnable = getPinnableLockedPeer(ctx, {
       peerName,
       previousPeerDepPath,
-      peerDependency: opts.resolvedPackage.peerDependencies[peerName],
+      peerDependency: opts.resolvedPackage.peers.taken[peerName],
       parentPkgs,
       parentNodeIds: opts.parentNodeIds,
     })

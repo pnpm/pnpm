@@ -8,6 +8,7 @@ import type {
   ParentRefs,
   PartialResolvedPackage,
 } from './peersResolutionTypes.js'
+import type { PeerDependencies } from './resolutionTypes.js'
 import type { ChildrenMap, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
 
 interface PeerDiamondContext<Pkg extends PartialResolvedPackage> {
@@ -55,7 +56,7 @@ function getConflictingPeers<Pkg extends PartialResolvedPackage> (
   }
 ): Set<string> {
   const conflictingPeers = new Set<string>()
-  for (const peerName of Object.keys(opts.parentPkg.peerDependencies ?? {})) {
+  for (const peerName of Object.keys(opts.parentPkg.peers?.taken ?? {})) {
     if (!ctx.allPeerDepNames.has(peerName)) continue
     const inheritedPeer = opts.inheritedContext[peerName]
     const currentPeer = opts.parentPkgs[peerName]
@@ -90,7 +91,7 @@ function descendantClosesPeerDiamond<Pkg extends PartialResolvedPackage> (
     if (childNode == null) continue
     const childPkg = childNode.resolvedPackage as Pkg
     if (visited.has(childPkg.pkgIdWithPatchHash)) continue
-    if (peerDependsOnPkgAndAnyPeer(childPkg.peerDependencies, parentPkg.name, opts.conflictingPeers)) return true
+    if (peerDependsOnPkgAndAnyPeer(childPkg.peers?.taken, parentPkg.name, opts.conflictingPeers)) return true
     const grandchildren = expandChildren(childNode)
     // A descendant that has its own copy of the package provides it to its
     // subtree, so the inherited one doesn't reach any deeper.
@@ -109,7 +110,7 @@ function expandChildren<Pkg> (node: DependenciesTreeNode<Pkg>): ChildrenMap {
 }
 
 function peerDependsOnPkgAndAnyPeer (
-  peerDependencies: PartialResolvedPackage['peerDependencies'] | undefined,
+  peerDependencies: PeerDependencies | undefined,
   pkgName: string,
   peerNames: Set<string>
 ): boolean {

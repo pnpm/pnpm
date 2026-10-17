@@ -3,6 +3,7 @@ import type { DepPath, PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } fro
 
 import { isCompatibleAndHasMoreDeps } from '../lib/depPathCompatibility.js'
 import type { NodeId } from '../lib/nextNodeId.js'
+import type { PeerDependencies, PeerSet } from '../lib/resolutionTypes.js'
 import type { DependenciesTreeNode } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
 
@@ -12,10 +13,10 @@ test('packages are not deduplicated when versions do not match', async () => {
     version: '1.0.0',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {
+    peers: peerSetOf({
       bar: { version: '1.0.0 || 2.0.0' },
       baz: { version: '1.0.0 || 2.0.0', optional: true },
-    },
+    }),
   }
 
   const peers: Record<string, PartialResolvedPackage> = Object.fromEntries(
@@ -30,7 +31,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         name,
         version,
         pkgIdWithPatchHash: `${name}/${version}` as PkgIdWithPatchHash,
-        peerDependencies: {},
+        peers: peerSetOf({}),
         id: '' as PkgResolutionId,
       } satisfies PartialResolvedPackage,
     ])
@@ -124,17 +125,17 @@ test('peer-dependent deduplication does not depend on importer order', async () 
     version: '1.0.0',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {
+    peers: peerSetOf({
       bar: { version: '1.0.0', optional: true },
       baz: { version: '1.0.0', optional: true },
       qux: { version: '1.0.0', optional: true },
-    },
+    }),
   }
   const purePeer = (name: string): PartialResolvedPackage => ({
     name,
     version: '1.0.0',
     pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
-    peerDependencies: {},
+    peers: peerSetOf({}),
     id: '' as PkgResolutionId,
   })
 
@@ -203,10 +204,10 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
     version: '1.0.0',
     pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {
+    peers: peerSetOf({
       optPeer: { version: '1.0.0', optional: true },
       other: { version: '1.0.0', optional: true },
-    },
+    }),
   }
 
   const parentPkg: PartialResolvedPackage = {
@@ -214,7 +215,7 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
     version: '1.0.0',
     pkgIdWithPatchHash: 'parent/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {},
+    peers: peerSetOf({}),
   }
 
   const peerPkg = (name: string): PartialResolvedPackage => ({
@@ -222,7 +223,7 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
     version: '1.0.0',
     pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {},
+    peers: peerSetOf({}),
   })
 
   const treeNode = (resolvedPackage: PartialResolvedPackage, children: Record<string, NodeId> = {}) => ({
@@ -325,9 +326,9 @@ test('dependencies with peer dependencies do not resolve to peer versions from a
     version: '1.0.0',
     pkgIdWithPatchHash: 'host/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {
+    peers: peerSetOf({
       peer: { version: '>=1.0.0' },
-    },
+    }),
   }
 
   const dependentPkg: PartialResolvedPackage = {
@@ -335,16 +336,16 @@ test('dependencies with peer dependencies do not resolve to peer versions from a
     version: '1.0.0',
     pkgIdWithPatchHash: 'dependent/1.0.0' as PkgIdWithPatchHash,
     id: '' as PkgResolutionId,
-    peerDependencies: {
+    peers: peerSetOf({
       host: { version: '1.0.0' },
-    },
+    }),
   }
 
   const peerPkg = (version: string): PartialResolvedPackage => ({
     name: 'peer',
     version,
     pkgIdWithPatchHash: `peer/${version}` as PkgIdWithPatchHash,
-    peerDependencies: {},
+    peers: peerSetOf({}),
     id: '' as PkgResolutionId,
   })
 
@@ -405,3 +406,6 @@ test('dependencies with peer dependencies do not resolve to peer versions from a
   expect(dependenciesByProjectId.project2.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/2.0.0))')
 })
 
+function peerSetOf (peers: PeerDependencies): PeerSet {
+  return { declared: peers, taken: peers }
+}

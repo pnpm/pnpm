@@ -15,8 +15,8 @@ import type { PkgAddress } from './resolutionTypes.js'
 import {
   detectNamedRegistryCollision,
   detectRegistryRevisionConflict,
+  getPeerSet,
   getResolvedPackage,
-  peerDependenciesWithoutOwn,
   pkgIsLeaf,
 } from './resolvedPackage.js'
 
@@ -115,7 +115,7 @@ function addNewResolvedPackage (
  * also an optional peer can end up as neither.
  */
 function installOwnerPeerDependencies ({ ctx }: DependencyRequest, { pkg, pkgResponse }: ResolvedPackageSource): void {
-  ctx.resolvedPkgsById[pkgResponse.body.id].peerDependencies = peerDependenciesWithoutOwn(pkg)
+  ctx.resolvedPkgsById[pkgResponse.body.id].peers = getPeerSet(pkg)
 }
 
 // Report deprecated packages only on first occurrence.
@@ -191,7 +191,7 @@ function toPkgAddress (
     childrenResolutionId: childrenResolution.id,
     pkgId: pkgResponse.body.id,
     rootDir,
-    missingPeers: getMissingPeers(resolvedPkg.peerDependencies),
+    missingPeers: getMissingPeers(resolvedPkg.peers.taken),
     optional: resolvedPkg.optional,
     version: resolvedPkg.version,
     saveCatalogName: wantedDependency.saveCatalogName,

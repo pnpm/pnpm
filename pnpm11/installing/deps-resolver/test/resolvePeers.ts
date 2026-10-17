@@ -9,6 +9,7 @@ import type {
 } from '@pnpm/types'
 
 import type { NodeId } from '../lib/nextNodeId.js'
+import type { PeerSet } from '../lib/resolutionTypes.js'
 import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
 
@@ -17,20 +18,20 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     name: 'foo',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       qar: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       foo: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
@@ -72,10 +73,10 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
           name: 'qar',
           pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
-          peerDependencies: {
+          peers: peerSetOf({
             foo: { version: '1.0.0' },
             bar: { version: '1.0.0' },
-          },
+          }),
           id: '' as PkgResolutionId,
         },
         depth: 2,
@@ -90,9 +91,9 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
           name: 'zoo',
           pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
-          peerDependencies: {
+          peers: peerSetOf({
             qar: { version: '1.0.0' },
-          },
+          }),
           id: '' as PkgResolutionId,
         },
         depth: 3,
@@ -131,34 +132,34 @@ test('transitive pending peer uses provider final suffix', async () => {
     name: 'a',
     pkgIdWithPatchHash: 'a@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       c: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const bPkg = {
     name: 'b',
     pkgIdWithPatchHash: 'b@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       a: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const cPkg = {
     name: 'c',
     pkgIdWithPatchHash: 'c@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const xPkg = {
     name: 'x',
     pkgIdWithPatchHash: 'x@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       b: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
 
@@ -221,23 +222,23 @@ test('when a package is referenced twice in the dependencies graph and one of th
     name: 'foo',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       qar: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const zooPkg = {
     name: 'zoo',
     pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
@@ -299,7 +300,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
           name: 'qar',
           pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
-          peerDependencies: {},
+          peers: peerSetOf({}),
           id: '' as PkgResolutionId,
         },
         depth: 1,
@@ -328,45 +329,45 @@ describe('peer dependency issues', () => {
       name: 'foo',
       pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '1' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const fooWithOptionalPeer = {
       name: 'foo',
       pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '1', optional: true },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const barPkg = {
       name: 'bar',
       pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '2' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const barWithOptionalPeer = {
       name: 'bar',
       pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '2', optional: true },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const qarPkg = {
       name: 'qar',
       pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '^2.2.0' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     peerDependencyIssuesByProjects = (await resolvePeers({
@@ -542,10 +543,10 @@ describe('unmet peer dependency issues', () => {
             name: 'foo',
             version: '1.0.0',
             pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
-            peerDependencies: {
+            peers: peerSetOf({
               peer1: { version: '*' },
               peer2: { version: '>=1' },
-            },
+            }),
             id: '' as PkgResolutionId,
           },
           depth: 0,
@@ -557,7 +558,7 @@ describe('unmet peer dependency issues', () => {
             name: 'peer1',
             version: '1.0.0-rc.0',
             pkgIdWithPatchHash: 'peer/1.0.0-rc.0' as PkgIdWithPatchHash,
-            peerDependencies: {},
+            peers: peerSetOf({}),
             id: '' as PkgResolutionId,
           },
           depth: 0,
@@ -569,7 +570,7 @@ describe('unmet peer dependency issues', () => {
             name: 'peer2',
             version: '1.1.0-rc.0',
             pkgIdWithPatchHash: 'peer/1.1.0-rc.0' as PkgIdWithPatchHash,
-            peerDependencies: {},
+            peers: peerSetOf({}),
             id: '' as PkgResolutionId,
           },
           depth: 0,
@@ -617,7 +618,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             name: 'foo',
             pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
-            peerDependencies: {},
+            peers: peerSetOf({}),
             id: '' as PkgResolutionId,
           },
           depth: 0,
@@ -629,7 +630,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             name: 'dep',
             pkgIdWithPatchHash: 'dep/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
-            peerDependencies: {},
+            peers: peerSetOf({}),
             id: '' as PkgResolutionId,
           },
           depth: 1,
@@ -641,9 +642,9 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             name: 'bar',
             pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
-            peerDependencies: {
+            peers: peerSetOf({
               dep: { version: '10' },
-            },
+            }),
             id: '' as PkgResolutionId,
           },
           depth: 1,
@@ -666,32 +667,32 @@ test('resolve peer dependencies with npm aliases', async () => {
     name: 'foo',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       bar: { version: '1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const fooAliasPkg = {
     name: 'foo',
     pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       bar: { version: '2.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {},
+    peers: peerSetOf({}),
     id: '' as PkgResolutionId,
   }
   const barAliasPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
-    peerDependencies: {},
+    peers: peerSetOf({}),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
@@ -777,37 +778,37 @@ describe('locked peer provider preferences', () => {
     name: 'peer',
     pkgIdWithPatchHash: 'peer/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const peer2Pkg = {
     name: 'peer',
     pkgIdWithPatchHash: 'peer/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const wrapperPkg = {
     name: 'wrapper',
     pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const retainerPkg = {
     name: 'retainer',
     pkgIdWithPatchHash: 'retainer/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const consumerPkg = {
     name: 'consumer',
     pkgIdWithPatchHash: 'consumer/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       peer: { version: '>=1' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
 
@@ -852,9 +853,9 @@ describe('locked peer provider preferences', () => {
         lockedPeerContext: { peer: 'peer/2.0.0' as DepPath },
         resolvedPackage: {
           ...consumerPkg,
-          peerDependencies: {
+          peers: peerSetOf({
             peer: { version: peerRange },
-          },
+          }),
         },
         depth: 1,
       }],
@@ -1031,9 +1032,9 @@ describe('locked peer provider preferences', () => {
       name: 'victim',
       pkgIdWithPatchHash: 'victim/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         peer: { version: '>=1', optional: true },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     // The two orders simulate the dependency tree arriving in different
@@ -1123,26 +1124,26 @@ describe('dedupePeers', () => {
       name: 'react',
       pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,
       version: '18.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const emotionReactPkg = {
       name: '@emotion/react',
       pkgIdWithPatchHash: '@emotion/react/11.0.0' as PkgIdWithPatchHash,
       version: '11.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         react: { version: '>=16' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const emotionStyledPkg = {
       name: '@emotion/styled',
       pkgIdWithPatchHash: '@emotion/styled/11.0.0' as PkgIdWithPatchHash,
       version: '11.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         react: { version: '>=16' },
         '@emotion/react': { version: '>=11' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1202,23 +1203,23 @@ describe('dedupePeers', () => {
       name: 'a',
       pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const bPkg = {
       name: 'b',
       pkgIdWithPatchHash: 'b/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         c: { version: '1.0.0' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const cPkg = {
       name: 'c',
       pkgIdWithPatchHash: 'c/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1278,23 +1279,23 @@ describe('dedupePeers', () => {
       name: 'react',
       pkgIdWithPatchHash: 'react/17.0.0' as PkgIdWithPatchHash,
       version: '17.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const react18Pkg = {
       name: 'react',
       pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,
       version: '18.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         react: { version: '>=16' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
@@ -1375,42 +1376,42 @@ describe('dedupePeers', () => {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const ts2Pkg = {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const parserPkg = {
       name: 'parser',
       pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' }, typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const umbrellaPkg = {
       name: 'umbrella',
       pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const appPkg = {
       name: 'app',
       pkgIdWithPatchHash: 'app/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1500,42 +1501,42 @@ describe('dedupePeers', () => {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const ts2Pkg = {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const parserPkg = {
       name: 'parser',
       pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' }, typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const wrapperPkg = {
       name: 'wrapper',
       pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const shadowPkg = {
       name: 'shadow',
       pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1622,49 +1623,49 @@ describe('dedupePeers', () => {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const ts2Pkg = {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const parserPkg = {
       name: 'parser',
       pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' }, typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const wrapperPkg = {
       name: 'wrapper',
       pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const consumerPkg = {
       name: 'consumer',
       pkgIdWithPatchHash: 'consumer/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const shadowPkg = {
       name: 'shadow',
       pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1766,49 +1767,49 @@ describe('dedupePeers', () => {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const ts2Pkg = {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const parserPkg = {
       name: 'parser',
       pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' }, typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const wrapperPkg = {
       name: 'wrapper',
       pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const zetaPkg = {
       name: 'zeta',
       pkgIdWithPatchHash: 'zeta/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const shadowPkg = {
       name: 'shadow',
       pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -1920,28 +1921,28 @@ describe('dedupePeers', () => {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const parserPkg = {
       name: 'parser',
       pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { typescript: { version: '*' } },
+      peers: peerSetOf({ typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const pluginPkg = {
       name: 'plugin',
       pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      peers: peerSetOf({ parser: { version: '*' }, typescript: { version: '*' } }),
       id: '' as PkgResolutionId,
     }
     const umbrellaPkg = {
       name: 'umbrella',
       pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -2018,44 +2019,44 @@ describe('dedupePeers', () => {
       name: 'a',
       pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const bPkg = {
       name: 'b',
       pkgIdWithPatchHash: 'b/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const cPkg = {
       name: 'c',
       pkgIdWithPatchHash: 'c/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const dPkg = {
       name: 'd',
       pkgIdWithPatchHash: 'd/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         e: { version: '1.0.0', optional: true },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const gPkg = {
       name: 'g',
       pkgIdWithPatchHash: 'g/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const hPkg = {
       name: 'h',
       pkgIdWithPatchHash: 'h/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const { dependenciesGraph } = await resolvePeers({
@@ -2154,30 +2155,30 @@ describe('dedupePeers', () => {
       name: 'root',
       pkgIdWithPatchHash: 'root/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const realPkg = {
       name: 'real-pkg',
       pkgIdWithPatchHash: 'real-pkg/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const childPkg = {
       name: 'child',
       pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {} as PeerDependencies,
+      peers: peerSetOf({} as PeerDependencies),
       id: '' as PkgResolutionId,
     }
     const leafPkg = {
       name: 'leaf',
       pkgIdWithPatchHash: 'leaf/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
-      peerDependencies: {
+      peers: peerSetOf({
         'real-pkg': { version: '1.0.0' },
-      },
+      }),
       id: '' as PkgResolutionId,
     }
     const { peerDependencyIssuesByProjects } = await resolvePeers({
@@ -2245,28 +2246,28 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
     name: 'lib-a',
     pkgIdWithPatchHash: 'lib-a@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       'lib-b': { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const libBPkg = {
     name: 'lib-b',
     pkgIdWithPatchHash: 'lib-b@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       'lib-a': { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const consumerPkg = {
     name: 'consumer',
     pkgIdWithPatchHash: 'consumer@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       'lib-a': { version: '^1.0.0' },
       'lib-b': { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
@@ -2328,16 +2329,16 @@ test('a pruned hoisted peer provider is resolved by the root-context fallback', 
     name: 'prov',
     pkgIdWithPatchHash: 'prov@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const consumerPkg = {
     name: 'consumer',
     pkgIdWithPatchHash: 'consumer@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       prov: { version: '*' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
@@ -2388,18 +2389,18 @@ test('an own direct dependency and a pruned hoisted peer provider that peer-depe
     name: 'main',
     pkgIdWithPatchHash: 'main@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       plugin: { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const pluginPkg = {
     name: 'plugin',
     pkgIdWithPatchHash: 'plugin@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       main: { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
@@ -2453,25 +2454,25 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
     name: 'host',
     pkgIdWithPatchHash: 'host@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {} as PeerDependencies,
+    peers: peerSetOf({} as PeerDependencies),
     id: '' as PkgResolutionId,
   }
   const mainPkg = {
     name: 'main',
     pkgIdWithPatchHash: 'main@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       plugin: { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const pluginPkg = {
     name: 'plugin',
     pkgIdWithPatchHash: 'plugin@1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
-    peerDependencies: {
+    peers: peerSetOf({
       main: { version: '^1.0.0' },
-    },
+    }),
     id: '' as PkgResolutionId,
   }
   const { dependenciesGraph, dependenciesByProjectId } = await resolvePeers({
@@ -2525,3 +2526,7 @@ test('a peer cycle between an own direct dependency and a hoisted peer provider 
   expect(dependenciesByProjectId['.'].get('main')).toBe('main@1.0.0(plugin@1.0.0)')
   expect(dependenciesByProjectId['.'].get('plugin')).toBe('plugin@1.0.0(main@1.0.0)')
 })
+
+function peerSetOf (peers: PeerDependencies): PeerSet {
+  return { declared: peers, taken: peers }
+}

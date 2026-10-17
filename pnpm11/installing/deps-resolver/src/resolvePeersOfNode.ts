@@ -47,7 +47,7 @@ export async function resolvePeersOfNode<Pkg extends PartialResolvedPackage> (
   if (
     ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
     ctx.depGraph[resolvedPackage.pkgIdWithPatchHash as unknown as DepPath].depth <= node.depth &&
-    Object.keys(resolvedPackage.peerDependencies).length === 0
+    Object.keys(resolvedPackage.peers.taken).length === 0
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
@@ -187,7 +187,7 @@ async function resolveUncachedPeersOfNode<Pkg extends PartialResolvedPackage> (
     parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.pkgIdWithPatchHash],
   })
 
-  const ownPeers = Object.keys(resolvedPackage.peerDependencies).length === 0
+  const ownPeers = Object.keys(resolvedPackage.peers.taken).length === 0
     ? createEmptyPeersResolution()
     : resolvePeersFromParents({
       currentDepth: node.depth,

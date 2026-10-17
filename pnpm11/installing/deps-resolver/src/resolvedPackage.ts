@@ -5,7 +5,7 @@ import type { PackageResponse } from '@pnpm/store.controller-types'
 import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash } from '@pnpm/types'
 
 import type { WantedDependency } from './getWantedDependencies.js'
-import type { InfoFromLockfile, PeerDependencies, ResolvedPackage } from './resolutionTypes.js'
+import type { InfoFromLockfile, PeerDependencies, PeerSet, ResolvedPackage } from './resolutionTypes.js'
 
 export function getManifestFromResponse (
   pkgResponse: PackageResponse,
@@ -79,9 +79,6 @@ export function getResolvedPackage (
     wantedDependency: WantedDependency
   }
 ): ResolvedPackage {
-  const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
-  const declaredPeerDependencies = getDeclaredPeerDependencies(options.pkg)
-
   return {
     additionalInfo: {
       bundledDependencies: options.pkg.bundledDependencies,
@@ -105,8 +102,7 @@ export function getResolvedPackage (
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patch: options.patch,
-    peerDependencies,
-    declaredPeerDependencies,
+    peers: getPeerSet(options.pkg),
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
@@ -174,18 +170,15 @@ export function detectRegistryRevisionConflict (
   )
 }
 
-export function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
-  return peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {}))
-}
-
 /**
- * Every peer the package declares, which the lockfile records whether or not
- * this install supplies it as a peer. A peer that is also one of the package's
- * `dependencies` is supplied as a peer only in the scopes that shadow that
- * dependency, so the record must not depend on which scope wrote it.
+ * The {@link PeerSet} of `pkg`, whose `dependencies` no longer hold the names
+ * its peers shadow in the scope it resolved in.
  */
-function getDeclaredPeerDependencies (pkg: PackageManifest): PeerDependencies {
-  return peerDependenciesExcept(pkg, [])
+export function getPeerSet (pkg: PackageManifest): PeerSet {
+  return {
+    declared: peerDependenciesExcept(pkg, []),
+    taken: peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {})),
+  }
 }
 
 function peerDependenciesExcept (pkg: PackageManifest, dependencies: string[]): PeerDependencies {
