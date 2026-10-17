@@ -552,3 +552,25 @@ fn a_tarball_child_is_resolved_again_unless_the_install_is_frozen() {
     assert!(check(false).is_err(), "a resolving install resolves the tarball again");
     assert!(check(true).is_ok(), "a frozen install keeps the recorded resolution");
 }
+
+/// A directory without a manifest is described by its name, as the resolver
+/// describes it, but one whose manifest fails to read is not described at all.
+#[test]
+fn only_a_directory_without_a_manifest_is_described_by_its_name() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let dir = tmp.path().join("pkg");
+    std::fs::create_dir(&dir).expect("create the dependency directory");
+    let manifests_by_dir = HashMap::new();
+    let describe = || {
+        super::unhooked_manifest(&super::InjectedDirectory {
+            dir: &dir,
+            declared_as_file: true,
+            workspace_root: tmp.path(),
+            manifests_by_dir: &manifests_by_dir,
+        })
+    };
+    let named = describe().expect("a directory without a manifest is described");
+    assert_eq!(named.value()["name"], "pkg");
+    std::fs::write(dir.join("package.json"), "{").expect("write a malformed package.json");
+    assert!(describe().is_none(), "a malformed manifest is not a missing one");
+}

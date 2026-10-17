@@ -11,7 +11,7 @@ import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/l
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import tar from 'tar-stream'
 
 const fooManifest = {
@@ -1324,6 +1324,36 @@ describe('local file dependency', () => {
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeTruthy()
     await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n  is-negative: 1.0.0\n')
     expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): keeps the manifest of local file when the readPackage hook returns nothing', async () => {
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      readPackageHook: (() => undefined) as unknown as ReadPackageHook,
+    })).toBeTruthy()
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts an unchanged SSH git dependency of local file on a frozen install', async () => {
+    const gitRef = 'git+ssh://git@github.com/org/repo.git#0000000000000000000000000000000000000000'
+    await writeLocalDirManifest({ dependencies: { repo: 'git+ssh://git@github.com/org/repo.git' } })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    expect((await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: {
+        'local@file:./local-dir': { ...localDirSnapshot, dependencies: { repo: gitRef } },
+        [`repo@${gitRef}`]: {
+          resolution: { type: 'git', repo: 'ssh://git@github.com/org/repo.git', commit: '0000000000000000000000000000000000000000' },
+        },
+      } as LockfileObject['packages'],
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile: true },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate).toBe(true)
   })
 
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {

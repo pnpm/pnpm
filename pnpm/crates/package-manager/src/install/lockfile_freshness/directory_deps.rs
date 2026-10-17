@@ -240,9 +240,10 @@ pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<Pack
 }
 
 /// The manifest the resolver gives an existing directory that nothing else
-/// describes: its name alone.
+/// describes: its name alone. A manifest that fails to read describes it
+/// too, so it gets none.
 fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
-    if !dir.is_dir() {
+    if !dir.is_dir() || !matches!(pnpm_workspace::safe_read_project_manifest_only(dir), Ok(None)) {
         return None;
     }
     let name = dir

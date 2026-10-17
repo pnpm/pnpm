@@ -86,9 +86,8 @@ export async function localDirectoryDepIsUpToDate (
 ): Promise<boolean> {
   if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
-  const declared = ctx.manifestsByDir[localDepDir] ?? await readDirectoryManifest(localDepDir)
-  if (!declared) return false
-  const manifest = await readHookedManifest(ctx, declared)
+  const manifest = await readHookedManifestOnce(ctx, localDepDir)
+  if (!manifest) return false
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
@@ -116,10 +115,37 @@ async function readDirectoryManifest (dir: string): Promise<DependencyManifest |
   return (await safeReadParentPublishManifest(dir) as DependencyManifest | null) ?? { name: path.basename(dir) } as DependencyManifest
 }
 
-/** The read-package hook is called the way the resolver calls it, without a directory. */
-async function readHookedManifest (ctx: LocalDirectoryDepContext, declared: DependencyManifest): Promise<DependencyManifest> {
+/** Every project that injects a directory shares one read of its manifest in a check. */
+const hookedManifestsByCheck = new WeakMap<LocalDirectoryDepContext, Map<string, Promise<DependencyManifest | undefined>>>()
+
+async function readHookedManifestOnce (ctx: LocalDirectoryDepContext, dir: string): Promise<DependencyManifest | undefined> {
+  let hookedManifests = hookedManifestsByCheck.get(ctx)
+  if (hookedManifests == null) {
+    hookedManifests = new Map()
+    hookedManifestsByCheck.set(ctx, hookedManifests)
+  }
+  let manifest = hookedManifests.get(dir)
+  if (manifest == null) {
+    manifest = readHookedManifest(ctx, dir)
+    hookedManifests.set(dir, manifest)
+  }
+  return manifest
+}
+
+async function readHookedManifest (ctx: LocalDirectoryDepContext, dir: string): Promise<DependencyManifest | undefined> {
+  const declared = ctx.manifestsByDir[dir] ?? await readDirectoryManifest(dir)
+  if (!declared) return undefined
+  return applyReadPackageHook(ctx, declared)
+}
+
+/**
+ * The read-package hook is called the way the resolver calls it, without a
+ * directory. A hook that returns nothing leaves the manifest unchanged.
+ */
+async function applyReadPackageHook (ctx: LocalDirectoryDepContext, declared: DependencyManifest): Promise<DependencyManifest> {
   const hook = ctx.resolution?.readPackageHook
-  return hook == null ? declared : await hook(clone(declared)) as DependencyManifest
+  if (hook == null) return declared
+  return (await hook(clone(declared)) as DependencyManifest | undefined) ?? declared
 }
 
 /**
@@ -185,8 +211,7 @@ async function childIsUpToDate (
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
-    (ctx.resolution?.frozenLockfile === true &&
-      getDepActualName(removeSuffix(lockfileDep), child.alias) === getTargetPkgName(currentSpec, child.alias))
+    (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
 }
 
 function isLocalSpec (spec: string): boolean {
