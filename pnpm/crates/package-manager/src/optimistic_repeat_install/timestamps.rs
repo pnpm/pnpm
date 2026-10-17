@@ -8,9 +8,8 @@ pub(crate) const NANOS_PER_SEC: i64 = 1_000_000_000;
 
 /// A file's mtime, kept at full nanosecond precision. The recorded
 /// `lastValidatedTimestamp` is only millisecond-precise (it is a
-/// filesystem mtime truncated to ms — see
-/// [`crate::install::workspace_state::build_workspace_state`]), but the comparison against
-/// it must not be: pacquet installs are fast enough that a lockfile
+/// filesystem mtime truncated to ms, per [`validation_baseline_ms`]), but
+/// the comparison against it must not be: pacquet installs are fast enough that a lockfile
 /// written by one install and a manifest edited moments later can share
 /// the same millisecond, so a millisecond-granular comparison would miss
 /// the edit and wrongly keep the fast path. Comparing the file's
