@@ -230,7 +230,7 @@ export async function handler (
   if (!scriptName) {
     return printProjectCommands(manifest, await readOtherWorkspaceRootManifest(opts, dir))
   }
-  const specifiedScripts = selectSpecifiedScripts(manifest, scriptName)
+  const specifiedScripts = selectSpecifiedScripts(manifest, scriptName, !opts.sequential)
   if (specifiedScripts.length < 1) {
     return handleMissingScript(opts, scriptName, manifest)
   }
@@ -276,8 +276,8 @@ async function readOtherWorkspaceRootManifest (opts: RunOpts, dir: string): Prom
   return (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest ?? undefined
 }
 
-function selectSpecifiedScripts (manifest: ProjectManifest, scriptName: string): string[] {
-  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+function selectSpecifiedScripts (manifest: ProjectManifest, scriptName: string, sort: boolean = true): string[] {
+  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName, sort)
   if (process.env.npm_lifecycle_event) return specifiedScripts
   return throwOrFilterHiddenScripts(specifiedScripts, scriptName)
 }
@@ -401,8 +401,8 @@ function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scr
   )
 }
 
-function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
-  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string, sort?: boolean): string[] {
+  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName, sort)
 
   if (specifiedSelector.length > 0) {
     return specifiedSelector
