@@ -52,6 +52,8 @@ export interface LinkedPackagesContext {
   skipLocalDirectoryDependencies?: boolean
   /** The settings and hooks the lockfile was resolved with. */
   resolution?: LocalDirectoryResolution
+  /** See `LocalDirectoryDepContext.hookedManifests`. */
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
 }
 
 interface ProjectToCheck {

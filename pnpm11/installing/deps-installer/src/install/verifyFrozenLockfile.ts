@@ -159,6 +159,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
       readPackageHook: opts.readPackageHook,
       frozenLockfile,
     },
+    hookedManifests: new Map(),
   })
   const checkManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,

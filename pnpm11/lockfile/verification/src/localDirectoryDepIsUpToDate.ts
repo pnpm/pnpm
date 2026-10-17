@@ -40,6 +40,12 @@ export interface LocalDirectoryDepContext {
   workspaceDir?: string
   /** The settings and hooks the lockfile was resolved with. */
   resolution?: LocalDirectoryResolution
+  /**
+   * Each directory's manifest after the read-package hook, shared by the
+   * projects of one check. A caller creates it per check, so a later check
+   * reads the manifests again.
+   */
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
 }
 
 export interface LocalDirectoryResolution {
@@ -114,19 +120,12 @@ async function readDirectoryManifest (dir: string): Promise<DependencyManifest |
   return (await safeReadParentPublishManifest(dir) as DependencyManifest | null) ?? { name: path.basename(dir) } as DependencyManifest
 }
 
-/** Every project that injects a directory shares one read of its manifest in a check. */
-const hookedManifestsByCheck = new WeakMap<LocalDirectoryDepContext, Map<string, Promise<DependencyManifest | undefined>>>()
-
 async function readHookedManifestOnce (ctx: LocalDirectoryDepContext, dir: string): Promise<DependencyManifest | undefined> {
-  let hookedManifests = hookedManifestsByCheck.get(ctx)
-  if (hookedManifests == null) {
-    hookedManifests = new Map()
-    hookedManifestsByCheck.set(ctx, hookedManifests)
-  }
-  let manifest = hookedManifests.get(dir)
+  if (ctx.hookedManifests == null) return readHookedManifest(ctx, dir)
+  let manifest = ctx.hookedManifests.get(dir)
   if (manifest == null) {
     manifest = readHookedManifest(ctx, dir)
-    hookedManifests.set(dir, manifest)
+    ctx.hookedManifests.set(dir, manifest)
   }
   return manifest
 }

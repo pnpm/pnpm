@@ -88,5 +88,6 @@ function createLinkedPackagesContext (
       catalogs: opts.catalogs,
       readPackageHook: opts.readPackageHook,
     },
+    hookedManifests: new Map(),
   }
 }

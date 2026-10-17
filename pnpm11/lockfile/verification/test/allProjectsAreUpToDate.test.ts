@@ -1356,6 +1356,23 @@ describe('local file dependency', () => {
     })).upToDate).toBe(true)
   })
 
+  test('checkLinkedPackagesAreUpToDate(): rereads the manifest of local file when a context is reused', async () => {
+    const ctx = {
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+    }
+    const project = {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    }
+    expect((await checkLinkedPackagesAreUpToDate(ctx, project)).upToDate).toBe(true)
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '3.0.0' } })
+    expect((await checkLinkedPackagesAreUpToDate(ctx, project)).upToDate).toBe(false)
+  })
+
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }
