@@ -59,3 +59,34 @@ pub(super) fn resolve_catalog_specifier(
         }
     }
 }
+
+/// Where the `catalog:` specs of an injected workspace project resolve.
+pub struct ChildCatalogs<'a> {
+    pub catalogs: &'a Catalogs,
+    /// Where `pnpm-workspace.yaml` sits.
+    pub workspace_dir: Option<&'a Path>,
+    /// The project's directory, which declares the specs.
+    pub package_dir: &'a Path,
+}
+
+/// The child specs the resolver walks for a package resolved from a local
+/// directory: [`manifest_child_specs`], with `catalog:` specs resolved
+/// through `catalogs` when the package is a workspace project, as the
+/// walk resolves them.
+///
+/// [`manifest_child_specs`]: crate::manifest_child_specs
+pub fn local_directory_child_specs(
+    manifest: &serde_json::Value,
+    parent: &str,
+    catalogs: Option<ChildCatalogs<'_>>,
+) -> Result<Vec<super::ChildSpec>, ResolveDependencyTreeError> {
+    let specs = super::manifest::manifest_child_specs(manifest, parent)?;
+    match catalogs {
+        Some(catalogs) if !catalogs.catalogs.is_empty() => resolve_catalog_specifiers(
+            specs,
+            catalogs.catalogs,
+            catalog_anchor(catalogs.workspace_dir, Some(catalogs.package_dir)),
+        ),
+        _ => Ok(specs),
+    }
+}

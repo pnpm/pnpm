@@ -1,4 +1,6 @@
+pub use catalogs::{ChildCatalogs, local_directory_child_specs};
 pub use failure::DependencyResolutionError;
+pub use manifest::manifest_child_specs;
 
 pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
 
@@ -6,7 +8,7 @@ pub use reuse::real_package_name_of;
 
 pub use tree_ctx::TreeCtx;
 
-pub use workspace_ctx::WorkspaceTreeCtx;
+pub use workspace_ctx::{ChildSpec, WorkspaceTreeCtx};
 
 pub(crate) use catalogs::resolve_catalog_specifiers;
 

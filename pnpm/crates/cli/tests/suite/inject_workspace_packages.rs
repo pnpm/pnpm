@@ -1308,3 +1308,86 @@ fn frozen_install_accepts_injected_dependency_whose_peer_is_a_workspace_link() {
 fn frozen_install_accepts_injected_dependency_with_an_unmet_peer() {
     assert_frozen_install_accepts_fresh_lockfile("2.0.0");
 }
+
+/// Install a workspace whose `project-2` injects `project-1` with
+/// `project_1` as its manifest, then run a frozen install from a clean tree.
+fn assert_frozen_install_accepts_an_injected_project(project_1: &serde_json::Value) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("project-1/node_modules/is-negative"))
+        .expect("mkdir project-1");
+    fs::write(workspace.join("project-1/package.json"), project_1.to_string())
+        .expect("write project-1/package.json");
+    // What a bundled dependency ships with.
+    fs::write(
+        workspace.join("project-1/node_modules/is-negative/package.json"),
+        serde_json::json!({ "name": "is-negative", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write bundled is-negative");
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for dir in ["node_modules", "project-2/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// A bundled dependency ships inside the package, so the resolver leaves it
+/// out of the snapshot.
+#[test]
+fn frozen_install_accepts_an_injected_project_with_a_bundled_dependency() {
+    assert_frozen_install_accepts_an_injected_project(&serde_json::json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "dependencies": { "is-positive": "1.0.0", "is-negative": "1.0.0" },
+        "bundledDependencies": ["is-negative"],
+    }));
+}
+
+/// A name in both `dependencies` and `optionalDependencies` is one optional
+/// child, recorded under `optionalDependencies`.
+#[test]
+fn frozen_install_accepts_an_injected_project_with_a_dependency_that_is_also_optional() {
+    assert_frozen_install_accepts_an_injected_project(&serde_json::json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "dependencies": { "is-positive": "1.0.0" },
+        "optionalDependencies": { "is-positive": "1.0.0" },
+    }));
+}

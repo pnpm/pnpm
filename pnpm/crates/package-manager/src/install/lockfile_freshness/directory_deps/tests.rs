@@ -1,13 +1,12 @@
 use super::{
-    LocalDepContext, SpecDirs, check_local_dep_group_freshness, dependency_manifests_by_dir,
-    peers::{PeerShadowing, check_recorded_peer_specs_match},
+    LocalDepContext, SpecDirs, dependency_manifests_by_dir, peers::check_recorded_peer_specs_match,
     project_manifests_by_dir,
 };
 use crate::install::FreshnessCheckError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{PackageMetadata, StalenessReason};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::PackageManifest;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -192,18 +191,70 @@ fn check_local_dep_peers(
     recorded_peers: &serde_json::Value,
     snapshot_deps: &HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
 ) -> Result<(), FreshnessCheckError> {
-    let manifest = PackageManifest::from_value(PathBuf::from("/ws/lib/package.json"), manifest);
-    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
-        "resolution": { "type": "directory", "directory": "lib" },
-        "peerDependencies": recorded_peers,
-    }))
-    .expect("parse local package metadata");
+    check_directory_dep(&DirectoryDepCase {
+        manifest,
+        metadata: serde_json::json!({
+            "resolution": { "type": "directory", "directory": "lib" },
+            "peerDependencies": recorded_peers,
+        }),
+        snapshot: serde_json::json!({
+            "dependencies": snapshot_deps
+                .iter()
+                .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
+                .collect::<serde_json::Map<String, serde_json::Value>>(),
+        }),
+        allow_unresolved: false,
+        auto_install_peers,
+    })
+}
+
+/// A directory dependency `lib` at `/ws/lib` in a workspace at `/ws`.
+struct DirectoryDepCase {
+    manifest: serde_json::Value,
+    metadata: serde_json::Value,
+    snapshot: serde_json::Value,
+    /// The allowance only `--frozen-lockfile` makes.
+    allow_unresolved: bool,
+    auto_install_peers: bool,
+}
+
+fn check_directory_dep(case: &DirectoryDepCase) -> Result<(), FreshnessCheckError> {
+    let dep_dir = PathBuf::from("/ws/lib");
+    let local_manifest =
+        PackageManifest::from_value(dep_dir.join("package.json"), case.manifest.clone());
+    let metadata: PackageMetadata =
+        serde_json::from_value(case.metadata.clone()).expect("parse local package metadata");
+    let snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(case.snapshot.clone()).expect("parse the snapshot");
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.auto_install_peers = case.auto_install_peers;
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
     let catalogs = Catalogs::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: Path::new("/ws"),
+        manifest: &local_manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs: &catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            allow_unresolved: case.allow_unresolved,
+        },
+        parsed_overrides: None,
+    };
     let dep = LocalDepContext {
         name: "lib",
         declared_as_file: false,
         rel_path: "lib",
-        dir: Path::new("/ws/lib"),
+        dir: &dep_dir,
         dirs: SpecDirs {
             workspace_root: Path::new("/ws"),
             lockfile_dir: Path::new("/ws"),
@@ -211,15 +262,7 @@ fn check_local_dep_peers(
         },
         catalogs: &catalogs,
     };
-    let peers = PeerShadowing::of(&manifest, &metadata, auto_install_peers);
-    check_local_dep_group_freshness(
-        &dep,
-        &manifest,
-        DependencyGroup::Prod,
-        Some(snapshot_deps),
-        (false, &peers.shadowed),
-    )?;
-    peers.check_local_peer_deps_freshness(&dep, &manifest, &metadata)
+    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
 }
 
 #[test]
@@ -265,58 +308,20 @@ fn an_unshadowed_dependency_is_compared_and_recorded_as_no_peer() {
 
 /// Check a directory dependency whose own manifest declares `is-positive`
 /// under `manifest_key`, against a lockfile whose snapshot of it resolved
-/// nothing. `allow_unresolved` is the allowance only `--frozen-lockfile`
-/// makes, so this goes through the caller that chooses it per group.
+/// nothing.
 fn check_dep_with_an_unresolved_entry(
     manifest_key: &str,
     allow_unresolved: bool,
 ) -> Result<(), FreshnessCheckError> {
-    let dep_dir = PathBuf::from("/ws/lib");
-    let mut manifest_value = serde_json::json!({ "name": "lib" });
-    manifest_value[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
-    let local_manifest = PackageManifest::from_value(dep_dir.join("package.json"), manifest_value);
-    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
-        "resolution": { "type": "directory", "directory": "lib" },
-    }))
-    .expect("parse local package metadata");
-    let snapshot: pnpm_lockfile::SnapshotEntry =
-        serde_json::from_value(serde_json::json!({})).expect("parse an empty snapshot");
-    let lockfile: pnpm_lockfile::Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters: {}\n").expect("parse lockfile");
-    let config = pnpm_config::Config::new();
-    let ignored = pnpm_matcher::create_matcher(&[]);
-    let manifests_by_dir = HashMap::from([(pnpm_fs::lexical_normalize(&dep_dir), &local_manifest)]);
-    let catalogs = Catalogs::new();
-    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
-        lockfile: &lockfile,
-        lockfile_dir: Path::new("/ws"),
-        manifest: &local_manifest,
-        importer_id: ".",
-        config: &config,
-        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
-            packages: None,
-            manifests_by_dir: &manifests_by_dir,
-            catalogs: &catalogs,
-        },
-        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
-            ignored: &ignored,
-            allow_unresolved,
-        },
-        parsed_overrides: None,
-    };
-    let dep = LocalDepContext {
-        name: "lib",
-        declared_as_file: false,
-        rel_path: "lib",
-        dir: &dep_dir,
-        dirs: SpecDirs {
-            workspace_root: Path::new("/ws"),
-            lockfile_dir: Path::new("/ws"),
-            manifests_by_dir: &HashMap::new(),
-        },
-        catalogs: &catalogs,
-    };
-    super::check_single_directory_dep_freshness(&check, &dep, Some(&snapshot), &metadata)
+    let mut manifest = serde_json::json!({ "name": "lib" });
+    manifest[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
+    check_directory_dep(&DirectoryDepCase {
+        manifest,
+        metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
+        snapshot: serde_json::json!({}),
+        allow_unresolved,
+        auto_install_peers: true,
+    })
 }
 
 #[test]
