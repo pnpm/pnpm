@@ -14,7 +14,7 @@ import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
 
 import { loadMetaHeaders } from '../src/pickPackage.js'
-import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 
@@ -1260,10 +1260,12 @@ test('a full metadata pick of a document without time revalidates its mirror on 
   for (const install of [1, 2, 3]) {
     if (install > 1) {
       // The mirror write and the mtime renewal after a 304 run in the
-      // background. Wait for them, then date the mirror before the cutoff so
+      // background. Wait for both, then date the mirror before the cutoff so
       // the install revalidates it.
       // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
       await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.etag === '"full-etag"')
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await waitForMtimeAfterEpoch(cachePath)
       fs.utimesSync(cachePath, new Date(0), new Date(0))
     }
     const { resolveFromNpm } = createResolveFromNpm({
@@ -1295,4 +1297,18 @@ function partialTimeMeta (): PackageMeta {
     },
     modified: isPositiveMeta.time.modified,
   }
+}
+
+/**
+ * Resolves once the file's mtime has moved off the epoch the test dated it
+ * to, polling up to four times 500ms apart.
+ */
+async function waitForMtimeAfterEpoch (filePath: string): Promise<void> {
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (fs.statSync(filePath).mtimeMs > 0) return
+    await delay(500)
+  }
+  /* eslint-enable no-await-in-loop */
+  throw new Error(`The mtime of ${filePath} was not renewed`)
 }
