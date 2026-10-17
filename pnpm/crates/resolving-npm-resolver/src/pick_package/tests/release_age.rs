@@ -689,3 +689,72 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     );
     network_mock.assert_async().await;
 }
+
+/// [`published_by_upgrade_answering_200_is_remembered_across_picks`] for an
+/// online lowest-version pick, which reads the mirror before it fetches and
+/// upgrades the mirror's document there.
+#[tokio::test]
+async fn published_by_upgrade_of_a_lowest_version_mirror_pick_is_remembered_across_picks() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PARTIAL_TIME_PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(ABBREVIATED_BODY).expect("parse abbreviated packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+    // Older than the cutoff, so the release-age mtime shortcut does not
+    // answer the pick before the lowest-version mirror read.
+    let mirror_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    let forced_mtime: std::time::SystemTime = parse_cutoff("2022-01-01T00:00:00Z").into();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror_path)
+        .expect("open mirror")
+        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
+        .expect("set mirror mtime");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_config::NetworkPolicy::Online,
+            ignore_missing_time_field: true,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.pick_lowest_version = true;
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
+
+    full_mock.assert_async().await;
+}
