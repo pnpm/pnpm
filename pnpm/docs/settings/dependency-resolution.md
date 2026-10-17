@@ -608,7 +608,7 @@ Tarball URLs that follow the standard registry layout are no longer written to t
 
 URL of a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server.
 
-When set, `pnpm install` offloads dependency resolution and package fetching to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, the server resolves the dependency graph against those registries and streams back any files missing from the local store, and `node_modules` is linked locally from the server-produced lockfile.
+When set, `pnpm install` offloads dependency resolution to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, and the server resolves the dependency graph against those registries, streaming back resolved package metadata frames as it walks the graph so pnpm can download tarballs in parallel. Once resolution finishes, the server returns the complete lockfile and pnpm links `node_modules` locally.
 
 ```yaml title="pnpm-workspace.yaml"
 pnprServer: https://pnpr.example.com/
