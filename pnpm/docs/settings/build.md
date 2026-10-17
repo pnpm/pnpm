@@ -307,6 +307,8 @@ This setting allows the checking of the state of dependencies before running scr
 - `error` - Throws an error if `node_modules` is not up to date.
 - `false` - Disables dependency checks.
 
+When the command is filtered, for example `pnpm --filter foo run build`, the check covers the selected projects and the workspace projects they depend on, and the install it runs is filtered the same way.
+
 ### strictDepBuilds
 
 Added in: v10.3.0

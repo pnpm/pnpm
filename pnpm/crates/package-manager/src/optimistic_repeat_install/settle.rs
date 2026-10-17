@@ -1,5 +1,6 @@
 use super::{
-    OptimisticRepeatInstallCheck, manifest_agreement::LinkedPackagesContext, manifest_string_field,
+    OptimisticRepeatInstallCheck, current_lockfile::CurrentLockfile,
+    manifest_agreement::LinkedPackagesContext, manifest_string_field,
 };
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
@@ -18,24 +19,21 @@ use std::{
 /// writing is disabled (`lockfile: false`), or when there is no
 /// current lockfile to restore from (a dependency-less project).
 /// A write failure falls through to the full install path rather than
-/// reporting up-to-date while leaving the lockfile missing.
+/// reporting up-to-date while leaving the lockfile missing. Returns whether it
+/// wrote the lockfile.
 pub(super) fn regenerate_wanted_lockfile_if_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
-    loaded_current: Option<Lockfile>,
-) -> Result<(), &'static str> {
+    current: &CurrentLockfile<'_>,
+) -> Result<bool, &'static str> {
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
-        return Ok(());
+        return Ok(false);
     }
-    let current = match loaded_current {
-        Some(current) => Some(current),
-        None => Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-            .map_err(|_| "the current lockfile cannot be loaded")?,
-    };
-    let Some(current) = current else {
-        return Ok(());
+    let Some(current) = current.get().ok_or("the current lockfile cannot be loaded")? else {
+        return Ok(false);
     };
     current
         .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        .map(|()| true)
         .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }
 impl<'a> LinkedPackagesContext<'a> {

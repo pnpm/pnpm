@@ -38,6 +38,7 @@ fn write_and_load_round_trip() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings {
             auto_install_peers: Some(true),
             dedupe_peer_dependents: Some(true),
@@ -80,6 +81,7 @@ fn omits_settings_that_are_none() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
@@ -106,6 +108,7 @@ fn package_extensions_round_trip() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings {
             package_extensions: Some(extensions.clone()),
             ..Default::default()
@@ -162,6 +165,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings::default(),
     };
     let err = update_workspace_state(&blocker, &state)

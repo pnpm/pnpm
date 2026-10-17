@@ -84,6 +84,86 @@ pub struct WorkspaceState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
     pub settings: WorkspaceStateSettings,
+    /// What the last validation proved about each project. `None` when it
+    /// recorded nothing, which leaves every project to be proven from the
+    /// lockfiles.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation: Option<Validation>,
+}
+
+/// The inputs each project was last proven installed against.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Validation {
+    /// Filesystem time, in nanoseconds since the Unix epoch, by which every
+    /// entry of [`Self::files`] was stat'd. A file whose mtime is this close to
+    /// it may have been rewritten without its mtime moving.
+    pub recorded_at_ns: i64,
+    /// The content digest of each input file the projects share (the
+    /// lockfile, patches, pnpmfiles), keyed by path, with the stat it was
+    /// read at.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub files: BTreeMap<String, FileSignature>,
+    /// The digest of the lockfile the projects were proven against, unless
+    /// [`Self::lockfiles`] names another one. `None` when there was none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile: Option<String>,
+    /// The digest of the manifest each project was proven installed with,
+    /// keyed by importer id. A project without an entry is not proven
+    /// installed.
+    pub manifests: BTreeMap<String, String>,
+    /// The digest of the lockfile a project was proven against, keyed by
+    /// importer id, where it is not [`Self::lockfile`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub lockfiles: BTreeMap<String, Option<String>>,
+}
+
+impl Validation {
+    /// What the project with `importer_id` was proven installed with.
+    #[must_use]
+    pub fn project(&self, importer_id: &str) -> Option<ProjectValidation<'_>> {
+        let manifest = self.manifests.get(importer_id)?;
+        let lockfile = self.lockfiles.get(importer_id).unwrap_or(&self.lockfile);
+        Some(ProjectValidation { manifest, lockfile: lockfile.as_deref() })
+    }
+
+    /// Record that the project with `importer_id` was proven installed with
+    /// `manifest` and `lockfile`.
+    pub fn insert_project(
+        &mut self,
+        importer_id: String,
+        manifest: String,
+        lockfile: Option<&str>,
+    ) {
+        if lockfile == self.lockfile.as_deref() {
+            self.lockfiles.remove(&importer_id);
+        } else {
+            self.lockfiles.insert(importer_id.clone(), lockfile.map(str::to_string));
+        }
+        self.manifests.insert(importer_id, manifest);
+    }
+}
+
+/// The content digests a project was proven installed against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProjectValidation<'a> {
+    /// The digest of the project's manifest.
+    pub manifest: &'a str,
+    /// The digest of the lockfile, or `None` when there was none.
+    pub lockfile: Option<&'a str>,
+}
+
+/// A file's content digest and the stat it was read at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSignature {
+    pub mtime_ns: i64,
+    /// The inode change time, which no tool that restores an mtime can set
+    /// back. `None` where the platform does not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctime_ns: Option<i64>,
+    pub size: u64,
+    pub digest: String,
 }
 
 /// Subset of pnpm's config keys that its deps-status check compares to

@@ -1,12 +1,8 @@
-//! The fast path for manifests an embedder hands over in memory
-//! ([`ManifestFreshness::Content`]): nothing on disk says when such a
-//! manifest changed, so each one is compared with the lockfile by content
-//! instead of by `package.json` mtime.
+//! The fast path for manifests an embedder hands over in memory: the check
+//! judges a manifest by its content, so neither a missing `package.json` nor
+//! an untouched one stands in for it.
 
-use super::{
-    super::{Decision, ManifestFreshness},
-    FOO_MANIFEST, content_check_decision_for, setup_content_check_project,
-};
+use super::{super::Decision, FOO_MANIFEST, content_check_decision, setup_content_check_project};
 use pnpm_package_manifest::PackageManifest;
 use std::fs;
 
@@ -20,8 +16,7 @@ fn in_memory_manifest(dir: &tempfile::TempDir, json: &str) -> PackageManifest {
 }
 
 /// An in-memory manifest that the lockfile satisfies is up to date even
-/// when no `package.json` exists to stat — the mtime path would have had
-/// nothing to prove freshness with.
+/// when no `package.json` exists on disk.
 #[test]
 fn content_mode_accepts_an_in_memory_manifest_without_a_file_on_disk() {
     let (dir, config) = setup_content_check_project();
@@ -29,32 +24,13 @@ fn content_mode_accepts_an_in_memory_manifest_without_a_file_on_disk() {
     let manifest = in_memory_manifest(&dir, FOO_MANIFEST);
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    let by_mtime = content_check_decision_for(
-        &dir,
-        config,
-        false,
-        &project_manifests,
-        ManifestFreshness::Mtime,
-    );
-    assert!(
-        matches!(by_mtime, Decision::Skipped { reason } if reason.contains("stat")),
-        "the mtime path cannot judge a manifest without a file, got {by_mtime:?}",
-    );
-
-    let by_content = content_check_decision_for(
-        &dir,
-        config,
-        false,
-        &project_manifests,
-        ManifestFreshness::Content,
-    );
+    let by_content = content_check_decision(&dir, config, false, &project_manifests);
     assert_eq!(by_content, Decision::UpToDate);
 }
 
 /// The in-memory manifest gains a dependency while the `package.json` on
-/// disk stays exactly as the previous install validated it. By mtime the
-/// project reads as unchanged; by content the lockfile no longer
-/// satisfies it, so the install must run.
+/// disk stays exactly as the previous install validated it. The lockfile no
+/// longer satisfies it, so the install must run.
 #[test]
 fn content_mode_detects_a_dependency_added_to_an_in_memory_manifest() {
     let (dir, config) = setup_content_check_project();
@@ -64,25 +40,7 @@ fn content_mode_detects_a_dependency_added_to_an_in_memory_manifest() {
     );
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    assert_eq!(
-        content_check_decision_for(
-            &dir,
-            config,
-            false,
-            &project_manifests,
-            ManifestFreshness::Mtime
-        ),
-        Decision::UpToDate,
-        "the untouched package.json hides the in-memory change from the mtime path",
-    );
-
-    let by_content = content_check_decision_for(
-        &dir,
-        config,
-        false,
-        &project_manifests,
-        ManifestFreshness::Content,
-    );
+    let by_content = content_check_decision(&dir, config, false, &project_manifests);
     assert!(
         matches!(by_content, Decision::Skipped { reason } if reason.contains("no longer satisfied")),
         "expected the content check to reject the manifest, got {by_content:?}",
@@ -99,15 +57,10 @@ fn content_mode_refreshes_the_workspace_state_after_a_passing_check() {
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
-    let manifest = in_memory_manifest(&dir, FOO_MANIFEST);
+    let manifest = in_memory_manifest(&dir, super::FOO_MANIFEST_EDITED);
 
-    let decision = content_check_decision_for(
-        &dir,
-        config,
-        true,
-        &[(dir.path().to_path_buf(), &manifest)],
-        ManifestFreshness::Content,
-    );
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
 
     let after = pnpm_workspace_state::load_workspace_state(dir.path())

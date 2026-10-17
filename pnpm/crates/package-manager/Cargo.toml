@@ -86,6 +86,7 @@ rayon = { workspace = true }
 reflink-copy = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 ssri = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
@@ -103,7 +104,6 @@ node-semver = { workspace = true }
 pathdiff = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr = { workspace = true }
-sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }
 text-block-macros = { workspace = true }
@@ -112,6 +112,9 @@ walkdir = { workspace = true }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 home = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 # Without it a contended shard lock panics on wasm instead of parking.

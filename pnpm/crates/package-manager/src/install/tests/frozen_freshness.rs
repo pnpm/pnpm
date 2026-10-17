@@ -60,7 +60,6 @@ async fn frozen_install_without_lockfile(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -127,7 +126,6 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
             update_checksums: true,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -220,7 +218,6 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -326,7 +323,6 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -414,7 +410,6 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -528,7 +523,6 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -662,7 +656,6 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -751,7 +744,6 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -861,7 +853,6 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

@@ -1,12 +1,10 @@
 //! The pre-run dependency-status check behind `verifyDepsBeforeRun`.
 
 use super::{
-    Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path,
-    SelectedProjectNotInstalled, WorkspaceState, catalogs_cache_matches,
-    current_lockfile::OUTDATED_DEPS,
-    current_lockfile_file_has_content, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_selected_project_missing_modules_dir,
-    first_selected_project_not_installed, first_setting_drift,
+    Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path, Scope,
+    WorkspaceState, catalogs_cache_matches, current_lockfile_file_has_content,
+    first_held_project_missing_modules_dir, first_lockfile_requiring_conflict_safe_install,
+    first_setting_drift,
     freshness::{
         Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
     },
@@ -47,10 +45,9 @@ pub enum RunDepsStatus {
 /// "Cannot check whether dependencies are outdated").
 ///
 /// `selected_project_dirs` are the project directories the gated command
-/// selected. A state that records a filtered install exempts the projects
-/// that install did not select from the modules-directory requirement, but
-/// the selected ones are still held to it; an empty selection keeps that
-/// exemption for every project.
+/// selected. A filtered command is held only to the selected projects and the
+/// workspace projects they depend on: the install it spawns is filtered too,
+/// and can only bring those up to date.
 #[must_use]
 pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
@@ -67,7 +64,13 @@ pub fn check_deps_status_before_run(
     let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);
-    if let Some(issue) = first_static_drift(check, state, selected_project_dirs) {
+    let config = check.config;
+    let scope = if config.filter.is_empty() && config.filter_prod.is_empty() {
+        Scope::Command(selected_project_dirs)
+    } else {
+        Scope::Selected(selected_project_dirs)
+    };
+    if let Some(issue) = first_static_drift(check, state, scope) {
         return outdated(issue);
     }
 
@@ -81,7 +84,7 @@ pub fn check_deps_status_before_run(
         dedupe_peers: false,
         recorded_groups: RecordedGroups::Kept,
     };
-    match check_freshness(check, state, moved, &policy) {
+    match check_freshness(check, state, moved, &policy, scope) {
         Ok(()) => RunDepsStatus::UpToDate,
         Err(stale) => outdated(stale_issue(check, stale)),
     }
@@ -91,6 +94,9 @@ pub fn check_deps_status_before_run(
 fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String {
     match stale {
         Stale::Unprovable => "Cannot check whether dependencies are outdated".to_string(),
+        Stale::ProjectNotInstalled(id) => {
+            format!("Workspace package {id} has dependencies but was not installed")
+        }
         Stale::NothingInstalled => {
             "The lockfile requires dependencies but none were installed".to_string()
         }
@@ -108,10 +114,10 @@ const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed s
 fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    selected_project_dirs: &[&Path],
+    scope: Scope<'_>,
 ) -> Option<String> {
     first_lockfile_or_setting_drift(check, state)
-        .or_else(|| first_workspace_drift(check, state, selected_project_dirs))
+        .or_else(|| first_workspace_drift(check, state, scope))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -173,7 +179,7 @@ fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
 fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    selected_project_dirs: &[&Path],
+    scope: Scope<'_>,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -185,8 +191,10 @@ fn first_workspace_drift(
     if !project_structure_matches(state, project_manifests) {
         return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
-    if let Some(issue) = first_uninstalled_project(check, state, selected_project_dirs) {
-        return Some(issue);
+    if let Some(id) = first_held_project_missing_modules_dir(check, state, scope) {
+        return Some(format!(
+            "Workspace package {id} has dependencies but does not have a modules directory",
+        ));
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
@@ -194,42 +202,7 @@ fn first_workspace_drift(
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
     }
-    pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
-}
-
-/// The issue for the first project the gated command needs installed that
-/// is not.
-///
-/// A filtered install legitimately leaves the projects it did not select
-/// uninstalled, so a state that records one exempts them. The projects the
-/// gated command selected are still held to it: without that, a filtered run
-/// or exec could select a project the filtered install never materialized and
-/// run it without its dependencies
-/// (<https://github.com/pnpm/pnpm/issues/11865>). Their modules directories
-/// alone do not prove that, so they must also be importers of the current
-/// lockfile.
-fn first_uninstalled_project(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    selected_project_dirs: &[&Path],
-) -> Option<String> {
-    let missing_modules_dir = |id: String| {
-        format!("Workspace package {id} has dependencies but does not have a modules directory")
-    };
-    if !state.filtered_install {
-        return first_project_missing_modules_dir(check, state).map(missing_modules_dir);
-    }
-    first_selected_project_missing_modules_dir(check, state, selected_project_dirs)
-        .map(missing_modules_dir)
-        .or_else(|| {
-            first_selected_project_not_installed(check, state, selected_project_dirs)
-                .map(|not_installed| match not_installed {
-                    SelectedProjectNotInstalled::MissingFromCurrentLockfile(id) => {
-                        format!("Workspace package {id} has dependencies but was not installed")
-                    }
-                    SelectedProjectNotInstalled::Outdated => OUTDATED_DEPS.to_string(),
-                })
-        })
+    pnpmfiles_drift(workspace_root, config, state)
 }
 
 /// The `pnpm install` arguments reproducing the dependency groups the

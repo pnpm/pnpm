@@ -1,12 +1,7 @@
-use super::{
-    OptimisticRepeatInstallCheck, current_lockfile::selection_matches_wanted_lockfile,
-    manifest_has_runtime_deps, manifest_string_field,
-};
+use super::{OptimisticRepeatInstallCheck, manifest_has_runtime_deps, manifest_string_field};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{
-    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
-};
+use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
@@ -18,12 +13,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(super) fn modules_dirs_present(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-) -> bool {
-    first_project_missing_modules_dir(check, state).is_none()
-}
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
 /// `None` when every project with dependencies has one.
@@ -48,79 +37,6 @@ pub(super) fn first_selected_project_missing_modules_dir(
         selected.contains(&lexical_normalize(root_dir))
     })
 }
-/// Why the current lockfile does not record a selected project as installed.
-pub(super) enum SelectedProjectNotInstalled {
-    /// The current lockfile does not list the project, named by its id, among
-    /// its importers.
-    MissingFromCurrentLockfile(String),
-    /// The current lockfile records the selected projects differently from the
-    /// wanted lockfile.
-    Outdated,
-}
-
-/// The first selected project that declares dependencies but that the current
-/// lockfile does not record as installed.
-///
-/// After a filtered install, neither a modules directory nor the recorded
-/// validation time proves that the install materialized a project: it refreshed
-/// that time for the projects it did not select too. Only a current lockfile
-/// that records what the wanted lockfile materializes for the selection does.
-/// The current lockfile is read only when a selected project needs the proof.
-pub(super) fn first_selected_project_not_installed(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    selected_project_dirs: &[&Path],
-) -> Option<SelectedProjectNotInstalled> {
-    let needing_install = selected_projects_with_dependencies(check, selected_project_dirs);
-    if needing_install.is_empty() {
-        return None;
-    }
-    let current = Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-        .ok()
-        .flatten();
-    if let Some((_, id)) = needing_install
-        .iter()
-        .find(|(importer_id, _)| {
-            !current
-                .as_ref()
-                .is_some_and(|current| current.importers.contains_key(importer_id))
-        })
-    {
-        return Some(SelectedProjectNotInstalled::MissingFromCurrentLockfile(id.clone()));
-    }
-    let importer_ids = needing_install
-        .into_iter()
-        .map(|(importer_id, _)| importer_id)
-        .collect();
-    (!selection_matches_wanted_lockfile(check, state, &current?, &importer_ids)).then_some(
-        SelectedProjectNotInstalled::Outdated,
-    )
-}
-
-/// The `(importer id, project id)` of each selected project that declares
-/// dependencies.
-fn selected_projects_with_dependencies(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    selected_project_dirs: &[&Path],
-) -> Vec<(String, String)> {
-    let selected: HashSet<PathBuf> = selected_project_dirs
-        .iter()
-        .map(|dir| lexical_normalize(dir))
-        .collect();
-    check.project_manifests
-        .iter()
-        .filter(|(root_dir, manifest)| {
-            selected.contains(&lexical_normalize(root_dir)) && manifest_has_runtime_deps(manifest)
-        })
-        .map(|(root_dir, manifest)| {
-            (
-                importer_id_from_root_dir(check.workspace_root, root_dir),
-                project_id(root_dir, manifest),
-            )
-        })
-        .collect()
-}
-
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.
 fn first_missing_modules_dir(
@@ -167,7 +83,8 @@ pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
     root_dir.join("node_modules")
 }
 
-fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
+/// A project's `name`, falling back to its root directory.
+pub(crate) fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
     manifest_string_field(manifest, "name")
         .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
 }

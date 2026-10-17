@@ -282,7 +282,6 @@ impl InstallShape {
                 // the lockfile by content instead; a repeat install with
                 // unchanged manifests still returns "Already up to date"
                 // before any install setup runs.
-                manifest_freshness: pnpm_package_manager::ManifestFreshness::Content,
                 ..install.lockfile_policy
             },
             execution: pnpm_package_manager::InstallExecution {

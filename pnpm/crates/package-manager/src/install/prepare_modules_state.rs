@@ -216,10 +216,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         modules,
         supported_architectures: inputs.repeat.supported_architectures,
 
-        carried_state: CarriedWorkspaceState {
-            filtered_install: inputs.repeat.filtered,
-            recorded_auto_dedupe,
-        },
+        carried_state: CarriedWorkspaceState { recorded_auto_dedupe },
     })
     .await
 }

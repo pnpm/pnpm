@@ -8,10 +8,9 @@ use super::{
     },
     FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
     backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
-    date_lockfile_after, isolated_included, lockfile_mtime_after, poison_lockfile_content,
-    recorded_timestamp, setup_content_check_project, setup_fresh_install,
-    setup_fresh_install_with_config, single_project_deps_status, validate_existing_files,
-    write_bare_tarball_lockfile, write_state,
+    date_lockfile_after, isolated_included, lockfile_mtime_after, recorded_timestamp,
+    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
+    single_project_deps_status, validate_existing_files, write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
@@ -332,11 +331,39 @@ fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
 }
+/// Rewrite the wanted lockfile so a content check would report the project
+/// outdated, keeping its size and its mtime.
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::write(&path, super::FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    pnpm_testing_utils::fs::set_mtime(&path, modified);
+}
+
+/// A lockfile edit that restores both its size and its mtime still moves the
+/// change time (the inode's on Unix, NTFS's on Windows), which the recorded
+/// signature compares.
+#[test]
+fn a_lockfile_edit_that_restores_its_size_and_mtime_is_detected() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+
+    poison_lockfile_content(dir.path());
+    assert!(matches!(
+        content_check_decision(&dir, config, true, &project_manifests),
+        Decision::Skipped { .. }
+    ));
+}
 /// An empty lockfile followed by 17 MiB of comment lines, then `tail`.
 fn large_lockfile(tail: Option<&str>) -> String {
     const COMMENT_LINE: &str =
         "# padding padding padding padding padding padding padding padding\n";
-    let mut lockfile = String::from("lockfileVersion: '9.0'\n");
+    let mut lockfile = String::from("lockfileVersion: '9.0'\nimporters:\n  .: {}\n");
     let target = 17 * 1024 * 1024;
     lockfile.reserve(target + COMMENT_LINE.len());
     while lockfile.len() < target {
@@ -620,12 +647,12 @@ fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
         manifests: crate::RepeatInstallManifests::ON_DISK,
     };
     let state = load_workspace_state(dir.path()).unwrap().unwrap();
-    let drift = InputDrift::stat(&check, &state).unwrap();
-    assert!(drift.lockfile_unchanged(&check));
+    let drift = InputDrift::compute(&check, &state);
+    assert!(drift.lockfile_unchanged());
 
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     set_mtime_ms(&lockfile_path, recorded_timestamp(dir.path()) + MTIME_STEP_MS);
-    assert!(!drift.lockfile_unchanged(&check));
+    assert!(!drift.lockfile_unchanged());
 }
 
 #[test]
@@ -642,12 +669,16 @@ fn single_project_run_check_converges_after_lockfile_content_matches() {
     let refreshed = recorded_timestamp(dir.path());
     assert!(refreshed > before);
 
-    poison_lockfile_content(dir.path());
+    let recorded = super::recorded_state_text(dir.path());
     assert_eq!(
         single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
         RunDepsStatus::UpToDate,
     );
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
 }
 
 #[test]
@@ -670,9 +701,13 @@ fn single_project_repeat_install_converges_after_lockfile_content_matches() {
     let refreshed = recorded_timestamp(dir.path());
     assert!(refreshed > before);
 
-    poison_lockfile_content(dir.path());
+    let recorded = super::recorded_state_text(dir.path());
     assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
 }
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.
@@ -920,5 +955,41 @@ fn workspace_without_projects_refuses_a_changed_unparsable_lockfile() {
     assert_eq!(
         decision,
         Decision::Skipped { reason: "the wanted lockfile cannot be read or parsed" },
+    );
+}
+
+/// A lockfile stat'd in the clock tick its validation was recorded in could
+/// have changed again unseen, so the next check reads it. That check records
+/// the stat again, after which it stands for the content.
+#[test]
+fn a_lockfile_recorded_in_the_same_tick_is_read_once_more() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    let validation = state.validation.as_mut().expect("a recorded validation");
+    let lockfile_key = dir
+        .path()
+        .join(Lockfile::FILE_NAME)
+        .to_string_lossy()
+        .into_owned();
+    let signature = &validation.files[&lockfile_key];
+    validation.recorded_at_ns =
+        signature.ctime_ns.unwrap_or(signature.mtime_ns).max(signature.mtime_ns);
+    update_workspace_state(dir.path(), &state).unwrap();
+    super::wait_for_the_next_filesystem_tick(dir.path());
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let recorded = super::recorded_state_text(dir.path());
+    assert_ne!(
+        recorded,
+        format!("{}\n", serde_json::to_string_pretty(&state).unwrap()),
+        "the check records the lockfile's stat again",
+    );
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
     );
 }

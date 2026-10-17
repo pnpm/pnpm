@@ -28,6 +28,8 @@ mod overrides;
 
 mod injected;
 
+mod validation;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -227,15 +229,70 @@ fn write_state_with_pnpmfiles(
     projects: BTreeMap<String, ProjectEntry>,
     pnpmfiles: Vec<String>,
 ) {
-    let state = WorkspaceState {
+    let mut state = WorkspaceState {
         last_validated_timestamp: timestamp,
         projects,
         pnpmfiles,
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings,
     };
+    record_validation_on_disk(workspace_root, &mut state);
     update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Record in the state on disk that an install materialized
+/// `project_manifests`, for manifests no `package.json` on disk carries.
+fn record_installed(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read workspace state")
+        .expect("workspace state on disk");
+    super::validation::record_validation(
+        &mut state,
+        &super::validation::RecordValidation {
+            workspace_root,
+            config,
+            project_manifests,
+            vouched: &super::validation::Vouched::All,
+        },
+    );
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+}
+
+/// Record what an install of the files on disk proves, as an install that
+/// wrote `state` would: every project whose manifest can be read, and the
+/// lockfile and pnpmfiles beside them.
+fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut WorkspaceState) {
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    let manifests = state.projects
+        .keys()
+        .filter_map(|dir| {
+            let manifest =
+                PackageManifest::from_path(std::path::Path::new(dir).join("package.json")).ok()?;
+            Some((std::path::PathBuf::from(dir), manifest))
+        })
+        .collect::<Vec<_>>();
+    let project_manifests = manifests
+        .iter()
+        .map(|(dir, manifest)| (dir.clone(), manifest))
+        .collect::<Vec<_>>();
+    super::validation::record_validation(
+        state,
+        &super::validation::RecordValidation {
+            workspace_root,
+            config: &config,
+            project_manifests: &project_manifests,
+            vouched: &super::validation::Vouched::All,
+        },
+    );
 }
 
 /// Keep manifests older than the wanted lockfile and the lockfile older
@@ -257,6 +314,7 @@ fn validate_existing_files(workspace_root: &std::path::Path) {
         .expect("read workspace state")
         .expect("workspace state on disk");
     state.last_validated_timestamp = timestamp;
+    record_validation_on_disk(workspace_root, &mut state);
     update_workspace_state(workspace_root, &state).expect("refresh workspace state");
 }
 
@@ -367,6 +425,10 @@ importers:
 
 const FOO_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#;
 
+/// [`FOO_MANIFEST`] edited in a way the lockfile still satisfies.
+const FOO_MANIFEST_EDITED: &str =
+    r#"{"name":"root","version":"1.0.0","description":"edited","dependencies":{"foo":"^1.0.0"}}"#;
+
 /// Build a single project whose manifest, wanted lockfile, and current
 /// lockfile all agree, with the workspace state stamped after every
 /// file write. Content-check tests then touch or rewrite individual
@@ -406,24 +468,6 @@ fn content_check_decision(
     is_workspace_install: bool,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> Decision {
-    content_check_decision_for(
-        dir,
-        config,
-        is_workspace_install,
-        project_manifests,
-        crate::ManifestFreshness::Mtime,
-    )
-}
-
-/// [`content_check_decision`] with the manifest freshness source chosen by
-/// the test: on-disk mtimes, or content for manifests handed over in memory.
-fn content_check_decision_for(
-    dir: &tempfile::TempDir,
-    config: &'static Config,
-    is_workspace_install: bool,
-    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
-    manifest_freshness: crate::ManifestFreshness,
-) -> Decision {
     let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -437,10 +481,7 @@ fn content_check_decision_for(
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifests: crate::RepeatInstallManifests {
-            freshness: manifest_freshness,
-            dependency_manifests: None,
-        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -491,7 +532,22 @@ fn collide_mtimes_with_recorded_state(
 /// Date the wanted lockfile [`lockfile_mtime_after`] `recorded`, the
 /// state's `lastValidatedTimestamp`, so the next check compares its content.
 fn date_lockfile_after(workspace_root: &std::path::Path, recorded: i64) {
-    set_mtime_ms(&workspace_root.join(Lockfile::FILE_NAME), lockfile_mtime_after(recorded));
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    set_mtime_ms(&path, lockfile_mtime_after(recorded));
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Wait until the filesystem clock moves past every write so far, so a check
+/// that records a file records a stat the next check trusts.
+fn wait_for_the_next_filesystem_tick(workspace_root: &std::path::Path) {
+    let now = || {
+        super::timestamps::filesystem_now_ns_in_modules(&workspace_root.join("node_modules"))
+            .unwrap()
+    };
+    let written = now();
+    while now() <= written {
+        std::thread::yield_now();
+    }
 }
 
 /// [`MTIME_STEP_MS`] past `recorded`, never on an exact second. The check
@@ -503,17 +559,10 @@ fn lockfile_mtime_after(recorded: i64) -> i64 {
     if ms % 1_000 == 0 { ms - 1 } else { ms }
 }
 
-/// Rewrite the wanted lockfile so a content check would report the
-/// project outdated while leaving its mtime untouched, so an up-to-date
-/// verdict after this can only have come from the pure-mtime fast path.
-fn poison_lockfile_content(workspace_root: &std::path::Path) {
-    let path = workspace_root.join(Lockfile::FILE_NAME);
-    let modified = fs::metadata(&path)
-        .unwrap()
-        .modified()
-        .unwrap();
-    fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
-    set_mtime(&path, modified);
+/// The workspace state file as the last write left it.
+fn recorded_state_text(workspace_root: &std::path::Path) -> String {
+    fs::read_to_string(pnpm_workspace_state::get_file_path(workspace_root))
+        .expect("read the workspace state")
 }
 
 fn recorded_timestamp(workspace_root: &std::path::Path) -> i64 {
@@ -530,15 +579,9 @@ fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
     assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
-    let refreshed = recorded_timestamp(dir.path());
-    assert!(
-        refreshed > COLLIDING_MTIME_MS,
-        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
-    );
-
-    poison_lockfile_content(dir.path());
+    let recorded = recorded_state_text(dir.path());
     assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(recorded_state_text(dir.path()), recorded, "a converged check records nothing");
 }
 
 fn workspace_deps_status(
@@ -597,12 +640,49 @@ fn deps_status(
     )
 }
 
-fn set_filtered_install(workspace_root: &std::path::Path, filtered_install: bool) {
+/// Leave the state as `pnpm install --filter` leaves it: only the
+/// `materialized` projects are proven installed.
+fn record_filtered_install(workspace_root: &std::path::Path, materialized: &[&std::path::Path]) {
     let mut state = load_workspace_state(workspace_root)
         .expect("read the workspace state")
         .expect("a workspace state to have been written");
-    state.filtered_install = filtered_install;
+    state.filtered_install = true;
+    let materialized = materialized
+        .iter()
+        .map(|dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, dir))
+        .collect::<Vec<_>>();
+    let validation = state.validation.as_mut().expect("a recorded validation");
+    validation.manifests.retain(|importer_id, _| materialized.contains(importer_id));
+    validation.lockfiles.retain(|importer_id, _| materialized.contains(importer_id));
     update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// Record that the project at `project_dir` was installed from another
+/// lockfile than the one on disk now.
+fn record_installed_from_an_earlier_lockfile(
+    workspace_root: &std::path::Path,
+    project_dir: &std::path::Path,
+) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
+    state.validation
+        .as_mut()
+        .expect("a recorded validation")
+        .insert_project(
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir),
+            super::validation::manifest_digest(&manifest),
+            Some("an earlier lockfile"),
+        );
+    update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// `config` for a command filtered to the projects it selected.
+fn filtered_command_config(config: &Config) -> &'static Config {
+    let mut config = config.clone();
+    config.filter = vec!["{selected}".into()];
+    config.leak()
 }
 
 /// A workspace whose state records a filtered install: the root project was
@@ -649,7 +729,7 @@ fn setup_filtered_install_workspace()
         },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
-    set_filtered_install(workspace_root, true);
+    record_filtered_install(workspace_root, &[workspace_root]);
 
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
     let project_manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
@@ -670,14 +750,11 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
         [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
     let selected = [project_dir.as_path()];
 
-    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
     assert_eq!(
-        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        workspace_deps_status(&dir, config, &project_manifests),
         RunDepsStatus::UpToDate,
-        "a filtered install that materialized the selected project is current",
+        "an empty selection keeps the exemption a filtered install records",
     );
-
-    fs::remove_dir_all(project_dir.join("node_modules")).unwrap();
     assert!(
         matches!(
             workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
@@ -687,20 +764,21 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
         "a selected project the filtered install did not materialize is outdated",
     );
 
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
     assert_eq!(
-        workspace_deps_status(&dir, config, &project_manifests),
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
         RunDepsStatus::UpToDate,
-        "an empty selection keeps the exemption a filtered install records",
+        "a selected project the current lockfile records as installed is current",
     );
 
-    set_filtered_install(dir.path(), false);
+    fs::remove_dir_all(project_dir.join("node_modules")).unwrap();
     assert!(
         matches!(
             workspace_deps_status(&dir, config, &project_manifests),
             RunDepsStatus::Outdated { issue, .. }
                 if issue.contains("does not have a modules directory")
         ),
-        "without a filtered install every project with dependencies needs a modules directory",
+        "once every project is proven installed, each one with dependencies needs a modules directory",
     );
 }
 
@@ -844,7 +922,7 @@ fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_pr
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
-    set_filtered_install(workspace_root, true);
+    record_filtered_install(workspace_root, &[workspace_root, &project_dirs[0]]);
 
     let manifests = [workspace_root, &project_dirs[0], &project_dirs[1]].map(|project_dir| {
         PackageManifest::from_path(project_dir.join("package.json")).unwrap()
@@ -929,8 +1007,8 @@ snapshots:
 
 /// A workspace in which `pnpm install --filter a` ran after `b` gained `foo`:
 /// `b` keeps the modules directory and the current-lockfile importer of an
-/// earlier install, and no file is newer than the validation the filtered
-/// install recorded. `b_current_importer` is that earlier importer.
+/// earlier install, which a lockfile other than the one on disk now records.
+/// `b_current_importer` is that earlier importer.
 fn setup_stale_unselected_importer_workspace(
     b_current_importer: &str,
     included: IncludedDependencies,
@@ -985,7 +1063,8 @@ fn setup_stale_unselected_importer_workspace(
         .collect();
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
-    set_filtered_install(workspace_root, true);
+    record_filtered_install(workspace_root, &[&project_dirs[0], &project_dirs[1]]);
+    record_installed_from_an_earlier_lockfile(workspace_root, &project_dirs[2]);
 
     let manifests = project_dirs.map(|project_dir| {
         PackageManifest::from_path(project_dir.join("package.json")).unwrap()
@@ -1008,6 +1087,7 @@ fn a_filtered_state_requires_the_selected_projects_to_match_the_wanted_lockfile(
             optional_dependencies: true,
         },
     );
+    let config = filtered_command_config(config);
     let project_dirs = ["packages/a", "packages/b"].map(|project| dir.path().join(project));
     let project_manifests = [
         (dir.path().to_path_buf(), &manifests[0]),
@@ -1040,14 +1120,16 @@ fn a_filtered_state_requires_the_selected_projects_to_match_the_wanted_lockfile(
     );
 }
 
-/// Without `pnpm-lock.yaml` the current lockfile stands in for it, so there is
-/// no wanted lockfile for a selected project to fall behind.
+/// Without `pnpm-lock.yaml` the current lockfile stands in for it. The
+/// selected project's manifest gained a dependency that lockfile does not
+/// record, so its install is outdated.
 #[test]
-fn a_filtered_state_without_a_wanted_lockfile_accepts_the_selected_projects() {
+fn a_filtered_state_without_a_wanted_lockfile_holds_the_selected_projects_to_the_current_one() {
     let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
         "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
         isolated_included(),
     );
+    let config = filtered_command_config(config);
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
     let project_b = dir.path().join("packages/b");
     let project_manifests = [
@@ -1056,15 +1138,11 @@ fn a_filtered_state_without_a_wanted_lockfile_accepts_the_selected_projects() {
         (project_b.clone(), &manifests[2]),
     ];
 
-    assert_eq!(
-        workspace_deps_status_for_selected(
-            &dir,
-            config,
-            &project_manifests,
-            &[project_b.as_path()]
-        ),
-        RunDepsStatus::UpToDate,
-    );
+    assert!(matches!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &[project_b.as_path()]),
+        RunDepsStatus::Outdated { issue, .. }
+            if issue == "a modified manifest is no longer satisfied by the lockfile"
+    ));
 }
 
 /// The groups the filtered install left out are not held against the selected
@@ -1105,15 +1183,9 @@ fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
     assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
-    let refreshed = recorded_timestamp(dir.path());
-    assert!(
-        refreshed > COLLIDING_MTIME_MS,
-        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
-    );
-
-    poison_lockfile_content(dir.path());
+    let recorded = recorded_state_text(dir.path());
     assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
-    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+    assert_eq!(recorded_state_text(dir.path()), recorded, "a converged check records nothing");
 }
 
 /// Workspace lockfile whose root importer links a sibling: the link
@@ -1203,12 +1275,14 @@ fn linked_sibling_decision_for_spec(
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
-    // Touch the root manifest so the content re-check runs.
+    // Edit the root manifest, leaving its dependencies as they were, so the
+    // content re-check runs.
     fs::write(
         workspace_root.join("package.json"),
         serde_json::json!({
             "name": "root",
             "version": "1.0.0",
+            "description": "edited",
             "devDependencies": { (dependency_name): specifier },
         })
         .to_string(),

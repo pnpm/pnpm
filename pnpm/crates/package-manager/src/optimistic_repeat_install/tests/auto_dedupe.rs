@@ -1,5 +1,5 @@
 use super::{
-    Decision, FOO_MANIFEST, RunDepsStatus, content_check_decision, setup_content_check_project,
+    Decision, RunDepsStatus, content_check_decision, setup_content_check_project,
     workspace_deps_status,
 };
 use pnpm_lockfile::Lockfile;
@@ -17,7 +17,7 @@ fn auto_dedupe_baseline_survives_install_and_run_content_checks() {
         let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
         state.settings.auto_dedupe = Some(true);
         update_workspace_state(dir.path(), &state).unwrap();
-        fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+        fs::write(dir.path().join("package.json"), super::FOO_MANIFEST_EDITED).unwrap();
         let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
         let projects = [(dir.path().to_path_buf(), &manifest)];
         if check_before_run {

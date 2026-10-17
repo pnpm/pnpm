@@ -349,25 +349,48 @@ fn returns_skipped_when_no_state_file() {
         matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state")),
     );
 }
-/// Manifest touched after the validation → must NOT short-circuit;
-/// the regular install path needs to run.
+/// A manifest edited after the validation → must NOT short-circuit; the
+/// regular install path needs to run.
 #[test]
-fn returns_skipped_when_manifest_is_newer_than_validation() {
+fn returns_skipped_when_the_manifest_changed_since_validation() {
     let (dir, config, _manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
-    // Touch the manifest after the workspace-state was stamped.
     let manifest_path = dir.path().join("package.json");
-    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
-    let refreshed_manifest = PackageManifest::from_path(manifest_path).unwrap();
+    fs::write(
+        &manifest_path,
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let edited_manifest = PackageManifest::from_path(manifest_path).unwrap();
 
     let decision = check(
         dir.path(),
         config,
         pnpm_config::NodeLinker::Isolated,
-        &[(dir.path().to_path_buf(), &refreshed_manifest)],
+        &[(dir.path().to_path_buf(), &edited_manifest)],
     );
-    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("newer")));
+    assert!(matches!(decision, Decision::Skipped { .. }), "{decision:?}");
+}
+/// A manifest rewritten with the content it was validated with, as `touch`
+/// or a formatter that changed nothing leaves it, keeps the fast path.
+#[test]
+fn returns_up_to_date_when_the_manifest_is_rewritten_unchanged() {
+    let (dir, config, _manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    let manifest_path = dir.path().join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
+    let rewritten_manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &rewritten_manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 /// Drift in `minimumReleaseAge` invalidates the cached state. pnpm
 /// resolves it to a concrete `1440` default and records it verbatim

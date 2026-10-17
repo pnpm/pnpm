@@ -1,83 +1,138 @@
 //! Whether the manifests on disk still agree with the lockfile.
 
 use super::{
-    Config, DependencyGroup, FileMtime, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
+    Config, DependencyGroup, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
     PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
     current_lockfile::{
-        assert_wanted_lockfile_equals_current, assert_wanted_lockfile_equals_filtered_current,
+        CurrentLockfile, OUTDATED_DEPS, selection_has_dependencies,
+        selection_matches_wanted_lockfile,
     },
-    file_mtime, modified_at_or_after, mtime_ms,
+    freshness::{ProjectStatus, Stale},
+    validation::manifest_digest,
 };
-use pnpm_modules_yaml::IncludedDependencies;
 use rayon::prelude::*;
 use settings_drift::check_settings_match_lockfile;
 
 mod settings_drift;
 
-/// One project manifest's stat outcome, paired with the inputs the
-/// content re-check needs.
+/// One project manifest and whether the last validation still proves the
+/// project installed.
 pub(crate) struct ManifestStat<'a> {
     pub(crate) root_dir: &'a Path,
     pub(crate) manifest: &'a PackageManifest,
-    /// The manifest file's mtime, or `None` for a manifest supplied in
-    /// memory ([`super::ManifestFreshness::Content`]), whose file may not
-    /// exist and whose mtime would prove nothing about the value the
-    /// install was handed.
-    pub(crate) mtime: Option<FileMtime>,
+    pub(crate) status: ProjectStatus,
 }
 
-impl ManifestStat<'_> {
-    /// Whether the manifest may have changed at or after `reference_ms`. A
-    /// manifest without an on-disk mtime always may have.
-    pub(crate) fn possibly_modified_since(&self, reference_ms: i64) -> bool {
-        self.mtime.is_none_or(|mtime| modified_at_or_after(mtime, reference_ms))
-    }
+/// Every project's [`ManifestStat`], with `status` judging each project from
+/// its root directory and its manifest's digest.
+pub(crate) fn manifest_stats<'a>(
+    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    status: impl Fn(&Path, String) -> ProjectStatus,
+) -> Vec<ManifestStat<'a>> {
+    project_manifests
+        .iter()
+        .map(|(root_dir, manifest)| ManifestStat {
+            root_dir,
+            manifest,
+            status: status(root_dir, manifest_digest(manifest)),
+        })
+        .collect()
 }
 
-/// Check modified manifests against the wanted lockfile. Returns the current
-/// lockfile when it substitutes for a missing wanted lockfile.
-pub(crate) fn modified_manifests_match_lockfile(
+/// Check the `held` projects against the wanted lockfile: each manifest must
+/// still be satisfied by it, and the current lockfile must record what it
+/// materializes for each project whose install was never proven against it.
+/// `current` stands in for a missing wanted lockfile.
+pub(crate) fn held_projects_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
-    modified: &[&ManifestStat<'_>],
+    held: &[&ManifestStat<'_>],
+    current: &CurrentLockfile<'_>,
     dedupe_peers: bool,
-) -> Result<Option<Lockfile>, &'static str> {
-    let mut loaded_current: Option<Lockfile> = None;
-    let mut wanted_is_current = false;
-    let lockfile =
-        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
-    let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
-        let Some(mtime) =
-            file_mtime(&check.workspace_root.join(check.config.wanted_lockfile_name()))
-        else {
-            return Err(
-                "a manifest is newer than the last validation and the wanted lockfile cannot be stat'd",
-            );
-        };
-        (wanted, mtime)
-    } else {
-        let current_path = check.config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
-        let Some(mtime) = file_mtime(&current_path) else {
-            return Err("a manifest is newer than the last validation and no lockfile is loaded");
-        };
-        let current =
-            Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-                .map_err(|_| "the current lockfile cannot be loaded")?
-                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
-        wanted_is_current = true;
-        (&*loaded_current.insert(current), mtime)
+) -> Result<(), Stale> {
+    let lockfile = check.lockfile
+        .get()
+        .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
+    let wanted = match lockfile {
+        Some(wanted) => {
+            require_installed(check, state, wanted, held, current)?;
+            wanted
+        }
+        // A `pnpm-lock.yaml` without a main document, such as one holding only
+        // the config dependencies, is one the install has to complete. A
+        // caller that hands over no lockfile says there is none.
+        None if !matches!(check.lockfile, pnpm_lockfile::MaybeLazyLockfile::Loaded(_))
+            && check.workspace_root.join(check.config.wanted_lockfile_name()).is_file() =>
+        {
+            return Err(Stale::Content("the wanted lockfile has no dependency graph"));
+        }
+        // The current lockfile stands in for the wanted one, so there is no
+        // second lockfile for an install to fall behind.
+        None => {
+            let current = current
+                .get()
+                .ok_or(Stale::Content("the current lockfile cannot be loaded"))?;
+            let Some(current) = current else {
+                // Without either lockfile only a project with nothing to
+                // install is current.
+                return if held.iter().any(|stat| super::manifest_has_runtime_deps(stat.manifest)) {
+                    Err(Stale::NoLockfile)
+                } else {
+                    Ok(())
+                };
+            };
+            current
+        }
     };
+    check_projects_content(check, wanted, held, dedupe_peers).map_err(Stale::Content)
+}
 
-    let to_check = projects_to_content_check(
-        check,
-        state,
-        modified,
-        &WantedLockfileStat { wanted, mtime: wanted_mtime, is_current: wanted_is_current },
-    )?;
-    if !to_check.is_empty() {
-        check_projects_content(check, wanted, to_check, dedupe_peers)?;
+/// The current lockfile records what `wanted` materializes for each `held`
+/// project whose install was never proven against `wanted`.
+fn require_installed(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    wanted: &Lockfile,
+    held: &[&ManifestStat<'_>],
+    current: &CurrentLockfile<'_>,
+) -> Result<(), Stale> {
+    let unproven = held
+        .iter()
+        .filter(|stat| stat.status.needs_install_proof())
+        .map(|stat| {
+            (pnpm_workspace::importer_id_from_root_dir(check.workspace_root, stat.root_dir), stat)
+        })
+        .collect::<Vec<_>>();
+    if unproven.is_empty() {
+        return Ok(());
     }
-    Ok(loaded_current)
+    let current = current
+        .get()
+        .ok_or(Stale::Content("the current lockfile cannot be loaded"))?;
+    if let Some(current) = current
+        && let Some((_, stat)) = unproven
+            .iter()
+            .find(|(importer_id, stat)| {
+                super::manifest_has_runtime_deps(stat.manifest)
+                    && !current.importers.contains_key(importer_id)
+            })
+    {
+        return Err(Stale::ProjectNotInstalled(super::project_id(stat.root_dir, stat.manifest)));
+    }
+    let importer_ids = unproven
+        .into_iter()
+        .map(|(importer_id, _)| importer_id)
+        .collect();
+    match current {
+        Some(current)
+            if selection_matches_wanted_lockfile(check, state, wanted, current, &importer_ids) =>
+        {
+            Ok(())
+        }
+        Some(_) => Err(Stale::Content(OUTDATED_DEPS)),
+        None if selection_has_dependencies(wanted, &importer_ids) => Err(Stale::NothingInstalled),
+        None => Ok(()),
+    }
 }
 
 /// The full content check of the modified projects against the wanted
@@ -126,86 +181,6 @@ pub(super) fn check_projects_content(
         .map(|project| project_content_check(&content_check, project))
         .collect();
     results.into_iter().collect()
-}
-
-/// The lockfile the content check compares against, and how it was found.
-struct WantedLockfileStat<'a> {
-    wanted: &'a Lockfile,
-    mtime: FileMtime,
-    /// Whether the "wanted" lockfile is really the current one standing in
-    /// for a missing `pnpm-lock.yaml`.
-    is_current: bool,
-}
-
-/// The modified projects that need the full content check. Deciding this also
-/// asserts, where it applies, that the wanted lockfile equals the current one
-/// (`<install_state_dir>/lock.yaml`).
-fn projects_to_content_check<'a>(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    modified: &'a [&'a ManifestStat<'a>],
-    wanted: &WantedLockfileStat<'_>,
-) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
-    if wanted.is_current {
-        // There is no second lockfile to assert equality against, and the
-        // mtime short-circuits below compare the two lockfile files, so they
-        // don't apply. Every modified project gets the content check.
-        return Ok(modified);
-    }
-    if check.is_workspace_install {
-        // A wanted lockfile newer than the last validation must equal what
-        // the previous install materialized.
-        if modified_at_or_after(wanted.mtime, state.last_validated_timestamp) {
-            if state.filtered_install {
-                assert_wanted_lockfile_equals_filtered_current(
-                    wanted.wanted,
-                    check.config,
-                    check.layout.included,
-                    check.workspace_root,
-                )?;
-            } else {
-                assert_wanted_lockfile_equals_current(
-                    wanted.wanted,
-                    check.config,
-                    check.layout.included,
-                )?;
-            }
-        }
-        return Ok(modified);
-    }
-    single_project_projects_to_check(check.config, check.layout.included, modified, wanted)
-}
-
-/// The single-project branch keys off the lockfile mtimes instead of
-/// `lastValidatedTimestamp`.
-fn single_project_projects_to_check<'a>(
-    config: &Config,
-    included: IncludedDependencies,
-    modified: &'a [&'a ManifestStat<'a>],
-    wanted: &WantedLockfileStat<'_>,
-) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
-    let current_mtime_ms = mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME));
-    if let Some(current_mtime_ms) = current_mtime_ms
-        && modified_at_or_after(wanted.mtime, current_mtime_ms)
-    {
-        assert_wanted_lockfile_equals_current(wanted.wanted, config, included)?;
-    }
-    let root = modified.first().expect("modified-manifests branch requires a modified project");
-    // An in-memory manifest has no mtime to compare with the lockfile's, so
-    // it takes the content check outright.
-    if root.possibly_modified_since(wanted.mtime.ms) {
-        return Ok(modified);
-    }
-    if current_mtime_ms.is_some() {
-        // "The manifest file is not newer than the lockfile. Exiting check."
-        return Ok(&[]);
-    }
-    if !wanted.wanted.is_empty() {
-        // RUN_CHECK_DEPS_NO_DEPS: the lockfile requires dependencies but
-        // nothing was ever installed.
-        return Err("the lockfile requires dependencies but none were installed");
-    }
-    Ok(&[])
 }
 
 /// What one modified project is checked against.
@@ -439,38 +414,4 @@ pub(crate) fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<node_semver::Version>() else { return false };
     let Ok(range) = range.parse::<node_semver::Range>() else { return false };
     range.satisfies(&version)
-}
-
-/// Stat every project's `package.json`. `None` on any stat failure —
-/// "can't prove freshness, fall through".
-pub(crate) fn stat_manifests<'a>(
-    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-) -> Option<Vec<ManifestStat<'a>>> {
-    project_manifests
-        .iter()
-        .map(|(root_dir, manifest)| {
-            file_mtime(manifest.path())
-                .map(|mtime| ManifestStat {
-                    root_dir: root_dir.as_path(),
-                    manifest,
-                    mtime: Some(mtime),
-                })
-        })
-        .collect()
-}
-
-/// Every project's manifest without a stat, for manifests supplied in
-/// memory: each one reads as possibly modified, so the content re-check
-/// covers them all.
-pub(crate) fn unstatted_manifests<'a>(
-    project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-) -> Vec<ManifestStat<'a>> {
-    project_manifests
-        .iter()
-        .map(|(root_dir, manifest)| ManifestStat {
-            root_dir: root_dir.as_path(),
-            manifest,
-            mtime: None,
-        })
-        .collect()
 }

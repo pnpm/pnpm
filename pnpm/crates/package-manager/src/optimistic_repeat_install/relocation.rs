@@ -37,7 +37,8 @@ pub(super) fn relocated_state(
         .iter()
         .map(|path| rebase_onto_root(path).unwrap_or_else(|| path.clone()))
         .collect();
-    let relocated = WorkspaceState { projects, pnpmfiles, ..state.clone() };
+    // The validation records name the files where they were.
+    let relocated = WorkspaceState { projects, pnpmfiles, validation: None, ..state.clone() };
     project_structure_matches(&relocated, project_manifests).then_some(relocated)
 }
 
@@ -121,11 +122,7 @@ pub(super) fn rekeyed_validation_now(
     state: &WorkspaceState,
     drift: &InputDrift<'_>,
 ) -> Option<i64> {
-    if drift.modified().is_empty() && !drift.lockfile_modified {
-        Some(state.last_validated_timestamp)
-    } else {
-        validation_now(check)
-    }
+    if drift.all_proven() { Some(state.last_validated_timestamp) } else { validation_now(check) }
 }
 
 /// Read-only proof that a tree which moved with its project is the one this

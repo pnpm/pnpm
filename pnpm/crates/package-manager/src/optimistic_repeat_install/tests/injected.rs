@@ -2,8 +2,8 @@
 //! consumer's `node_modules` through a `file:` snapshot.
 
 use super::{
-    super::{Decision, ManifestFreshness},
-    backdate_validated_files, content_check_decision_for, isolated_included, write_state,
+    super::Decision, backdate_validated_files, content_check_decision, isolated_included,
+    record_installed, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -97,6 +97,16 @@ fn injected_sibling_decision(
             "dependencies": { "pkg-a": "workspace:*" },
         }),
     );
+    let installed_sibling =
+        PackageManifest::from_value(sibling_dir.join("package.json"), unchanged_sibling());
+    record_installed(
+        workspace_root,
+        config,
+        &[
+            (workspace_root.to_path_buf(), &root_manifest),
+            (sibling_dir.clone(), &installed_sibling),
+        ],
+    );
     let sibling_manifest = sibling_manifest.map(|manifest| {
         PackageManifest::from_value(sibling_dir.join("package.json"), manifest.clone())
     });
@@ -104,7 +114,7 @@ fn injected_sibling_decision(
     if let Some(sibling_manifest) = &sibling_manifest {
         project_manifests.push((sibling_dir, sibling_manifest));
     }
-    content_check_decision_for(&dir, config, true, &project_manifests, ManifestFreshness::Content)
+    content_check_decision(&dir, config, true, &project_manifests)
 }
 
 fn unchanged_sibling() -> serde_json::Value {

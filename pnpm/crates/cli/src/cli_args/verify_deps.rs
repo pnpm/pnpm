@@ -197,15 +197,40 @@ fn locked_install(
         );
         (None, false)
     });
-    if !waited {
-        return spawn_install(dir, config, install_args, reporter);
-    }
-    match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
-        Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
-            install_args.extend(install_selection_args(config));
-            spawn_install(dir, config, &install_args, reporter)
+    let install_args = if waited {
+        match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
+            Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
+                install_args.extend(install_selection_args(config));
+                install_args
+            }
+            _ => return Ok(()),
         }
-        _ => Ok(()),
+    } else {
+        install_args.to_vec()
+    };
+    if spawn_install(dir, config, &install_args, reporter)? {
+        warn_if_still_outdated(dir, selected_project_dirs, config, reporter);
+    }
+    Ok(())
+}
+
+/// Warn when the install the gate spawned left the dependencies out of date,
+/// since every later command then installs again.
+fn warn_if_still_outdated(
+    dir: &Path,
+    selected_project_dirs: &[&Path],
+    config: &Config,
+    reporter: ReporterType,
+) {
+    if let Some(RunDepsStatus::Outdated { issue, .. }) =
+        check_deps_status_before_run_at(dir, config, selected_project_dirs)
+    {
+        warn(
+            matches!(reporter, ReporterType::Silent),
+            &format!(
+                "The install that ran before the script left node_modules out of date, so the next run installs again. {issue}",
+            ),
+        );
     }
 }
 
@@ -234,14 +259,14 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 ///
 /// An install that exits with an error only warns, so a sandbox with a
 /// read-only store or no network can still run its scripts. An interrupted
-/// install aborts the command.
+/// install aborts the command. Returns whether the install succeeded.
 #[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     config: &Config,
     install_args: &[String],
     reporter: ReporterType,
-) -> miette::Result<()> {
+) -> miette::Result<bool> {
     let exe = pnpm_executor::current_pnpm_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
@@ -266,14 +291,14 @@ fn spawn_install(
     }
     let status = command.status().into_diagnostic()?;
     if status.success() {
-        return Ok(());
+        return Ok(true);
     }
     // The child already reported its own failure.
     if is_interrupted(status) {
         exit(1);
     }
     warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
-    Ok(())
+    Ok(false)
 }
 
 const FAILED_INSTALL_WARNING: &str = r#"The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install."#;
