@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! User and token storage for the registry.
 //!
 //! Auth state is split into two record stores, each behind a narrow
@@ -27,6 +30,7 @@
 //! doesn't grant access on its own.
 
 pub mod oidc;
+pub mod schema;
 pub(crate) mod validation;
 
 pub use htpasswd::{
@@ -34,6 +38,7 @@ pub use htpasswd::{
 };
 pub use identify::identify;
 pub use owned_tokens::OwnedTokens;
+pub use schema::CURRENT_SCHEMA_VERSION;
 pub use token_store::{NewToken, TokenRecord, TokenStore};
 pub use user_store::UserStore;
 pub use validation::MAX_PASSWORD_BYTES;
@@ -361,6 +366,7 @@ pub trait TokenBackend: Send + Sync {
 /// feel sluggish.
 const DEFAULT_BCRYPT_COST: u32 = 10;
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpsertOutcome {
     /// The user didn't exist; we created the account.
@@ -373,13 +379,13 @@ pub enum UpsertOutcome {
 /// the local backend keeps users in an htpasswd file. One bcrypt hash
 /// per username, the same `$2y$...` string the htpasswd file would hold.
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
+pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
     username     VARCHAR(255) PRIMARY KEY,
     bcrypt_hash  TEXT NOT NULL
 )";
 
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
+pub(crate) const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
     name   VARCHAR(64) PRIMARY KEY,
     value  BIGINT NOT NULL
 )";

@@ -4,19 +4,21 @@ use super::{
 use crate::{
     NewToken,
     token_store::{mint_token, sha256_hex, unix_seconds},
-    validation::{token_timestamp_from_sql, token_timestamp_to_sql},
+    validation::{
+        token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
 };
 use async_trait::async_trait;
 use std::sync::atomic::Ordering;
 
 /// The `tokens` columns selected (in order) by every token read, so
 /// [`row_to_keyed_record`] can decode any of them the same way.
-const TOKEN_COLUMNS: &str =
-    "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at";
+const TOKEN_COLUMNS: &str = "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind";
 
 /// [`TOKEN_COLUMNS`] of the `tokens` table aliased `t`, for the reads that
 /// join `users` to require a stored owner.
-const OWNED_TOKEN_COLUMNS: &str = "t.token_hash, t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at";
+const OWNED_TOKEN_COLUMNS: &str = "t.token_hash, t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at, t.scopes, t.kind";
 
 #[async_trait]
 impl TokenBackend for LibsqlAuth {
@@ -37,14 +39,17 @@ impl TokenBackend for LibsqlAuth {
             cidr_whitelist: new_token.cidr_whitelist,
             name: new_token.name,
             expires_at: new_token.expires_at,
+            scopes: new_token.scopes,
+            kind: new_token.kind,
         };
         let cidr_json = serde_json::to_string(&record.cidr_whitelist)
             .expect("Vec<String> always serializes to JSON");
+        let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
         self.conn
             .execute(
                 "INSERT INTO tokens
-                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     token_hash,
                     record.username.clone(),
@@ -54,6 +59,8 @@ impl TokenBackend for LibsqlAuth {
                     cidr_json,
                     record.name.as_deref(),
                     record.expires_at.map(token_timestamp_to_sql),
+                    scopes_json.as_deref(),
+                    record.kind.as_deref(),
                 ],
             )
             .await?;
@@ -172,27 +179,26 @@ impl TokenBackend for LibsqlAuth {
 /// record)` pair.
 fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
     let token_hash: String = row.get(0)?;
-    let username: String = row.get(1)?;
-    let created_at: i64 = row.get(2)?;
-    let last_used_at: i64 = row.get(3)?;
-    let readonly: i64 = row.get(4)?;
     let cidr_json: String = row.get(5)?;
-    let name: Option<String> = row.get(6)?;
-    let expires_at: Option<i64> = row.get(7)?;
     let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
         .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
+    let scopes_json: Option<String> = row.get(8)?;
+    let scopes = token_scopes_from_sql(scopes_json.as_deref(), &token_hash)?;
+    let expires_at: Option<i64> = row.get(7)?;
     Ok((
         token_hash,
         TokenRecord {
-            username,
-            created_at: token_timestamp_from_sql(created_at),
-            last_used_at: token_timestamp_from_sql(last_used_at),
-            readonly: readonly != 0,
+            username: row.get(1)?,
+            created_at: token_timestamp_from_sql(row.get(2)?),
+            last_used_at: token_timestamp_from_sql(row.get(3)?),
+            readonly: row.get::<i64>(4)? != 0,
             cidr_whitelist,
-            name,
+            name: row.get(6)?,
             expires_at: expires_at.map(token_timestamp_from_sql),
+            scopes,
+            kind: row.get(9)?,
         },
     ))
 }

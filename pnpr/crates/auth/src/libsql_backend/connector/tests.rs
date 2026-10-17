@@ -42,6 +42,7 @@ fn settings(url: String) -> LibsqlSettings {
 
 #[tokio::test]
 async fn queries_a_remote_database_over_https() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let server = TrustedTlsServer::start(EXECUTE_RESPONSE);
     let db = Builder::new_remote(server.url.clone(), String::new())
         .connector(connector_trusting_test_ca())
@@ -59,6 +60,7 @@ async fn queries_a_remote_database_over_https() {
 
 #[tokio::test]
 async fn rejects_a_server_the_platform_does_not_trust() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     // Keeps the empty trust store of the test below out of this one.
     let _env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR"]);
     let server = TrustedTlsServer::start(EXECUTE_RESPONSE);

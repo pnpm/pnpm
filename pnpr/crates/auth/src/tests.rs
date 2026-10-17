@@ -320,15 +320,9 @@ async fn lookup_record_surfaces_token_restrictions() {
         .expect("TokenStore mutex poisoned")
         .insert(
             sha256_hex(raw.as_bytes()),
-            TokenRecord {
-                username: "alice".to_string(),
-                created_at: 1,
-                last_used_at: 1,
-                readonly: true,
-                cidr_whitelist: vec!["203.0.113.0/24".to_string()],
-                name: None,
-                expires_at: None,
-            },
+            TokenRecord::new("alice", 1, 1)
+                .with_readonly(true)
+                .with_cidr_whitelist(vec!["203.0.113.0/24".to_string()]),
         );
 
     let record = tokens
@@ -394,12 +388,11 @@ async fn tokens_issue_with_options_persists_and_expires() {
     let (raw, record) = store
         .issue_token(
             "alice",
-            NewToken {
-                readonly: true,
-                cidr_whitelist: vec!["127.0.0.1/32".to_string()],
-                name: Some("ci-token".to_string()),
-                expires_at: Some(2_000_000_000),
-            },
+            NewToken::new()
+                .with_readonly(true)
+                .with_cidr_whitelist(vec!["127.0.0.1/32".to_string()])
+                .with_name(Some("ci-token".to_string()))
+                .with_expires_at(Some(2_000_000_000)),
         )
         .await
         .unwrap();
@@ -426,15 +419,7 @@ async fn tokens_issue_with_options_persists_and_expires() {
 async fn tokens_expired_do_not_authenticate() {
     let store = TokenStore::in_memory();
     let (raw, _) = store
-        .issue_token(
-            "alice",
-            NewToken {
-                readonly: false,
-                cidr_whitelist: Vec::new(),
-                name: None,
-                expires_at: Some(1),
-            },
-        )
+        .issue_token("alice", NewToken::new().with_expires_at(Some(1)))
         .await
         .unwrap();
 
@@ -911,4 +896,125 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
     let (outcome2, user2) = store.add_or_login("verdaccio_user", "test").await.unwrap();
     assert_eq!(outcome2, super::UpsertOutcome::LoggedIn);
     assert_eq!(user2, "verdaccio_user");
+}
+
+#[tokio::test]
+async fn schema_migrations_runs_on_empty_sqlite_database() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let _store = TokenStore::open(path.clone()).unwrap();
+
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let version: i64 = conn
+        .query_row("SELECT MAX(version) FROM auth_schema_migrations", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
+
+    // Verify all columns exist in tokens table
+    let mut stmt = conn.prepare("PRAGMA table_info(tokens)").unwrap();
+    let mut rows = stmt.query([]).unwrap();
+    let mut columns = Vec::new();
+    while let Some(row) = rows.next().unwrap() {
+        let name: String = row.get(1).unwrap();
+        columns.push(name);
+    }
+    assert!(columns.contains(&"scopes".to_string()));
+    assert!(columns.contains(&"kind".to_string()));
+    assert!(columns.contains(&"name".to_string()));
+    assert!(columns.contains(&"expires_at".to_string()));
+}
+
+#[tokio::test]
+async fn schema_migrations_upgrades_legacy_sqlite_database() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+
+    // Create legacy table without auth_schema_migrations, scopes, or kind
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE tokens (
+                token_hash      CHAR(64) PRIMARY KEY,
+                username        VARCHAR(255) NOT NULL,
+                created_at      BIGINT NOT NULL,
+                last_used_at    BIGINT NOT NULL,
+                readonly        SMALLINT NOT NULL DEFAULT 0,
+                cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]',
+                name            VARCHAR(255),
+                expires_at      BIGINT
+            );
+            INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+            VALUES ('deadbeef', 'alice', 1000, 1000, 0, '[]');",
+        )
+        .unwrap();
+    }
+
+    // Opening TokenStore must migrate schema to CURRENT_SCHEMA_VERSION
+    let store = TokenStore::open(path.clone()).unwrap();
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let version: i64 = conn
+        .query_row("SELECT MAX(version) FROM auth_schema_migrations", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
+
+    // Legacy record is preserved with None scopes and kind
+    let record = store
+        .find_by_key("deadbeef")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.username, "alice");
+    assert_eq!(record.scopes, None);
+    assert_eq!(record.kind, None);
+}
+
+#[tokio::test]
+async fn schema_migrations_refuses_future_schema_version() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE auth_schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL);
+             INSERT INTO auth_schema_migrations (version, applied_at) VALUES (999, 123456789);",
+        )
+        .unwrap();
+    }
+
+    let err = TokenStore::open(path).unwrap_err();
+    let err_str = err.to_string();
+    assert!(
+        err_str.contains("newer than supported version"),
+        "expected error about newer version, got: {err_str}",
+    );
+}
+
+#[tokio::test]
+async fn tokens_scopes_and_kind_persist_across_reopen() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+
+    let store = TokenStore::open(path.clone()).unwrap();
+    let (raw, record) = store
+        .issue_token(
+            "alice",
+            NewToken::new()
+                .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
+                .with_kind(Some("granular".to_string())),
+        )
+        .await
+        .unwrap();
+    assert_eq!(record.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(record.kind.as_deref(), Some("granular"));
+    drop(store);
+
+    let reopened = TokenStore::open(path).unwrap();
+    let looked_up = reopened
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(looked_up.kind.as_deref(), Some("granular"));
 }

@@ -269,6 +269,8 @@ where
             cidr_whitelist: new_token.cidr_whitelist,
             name: new_token.name,
             expires_at: new_token.expires_at,
+            scopes: new_token.scopes,
+            kind: new_token.kind,
         };
         self.db.insert_token(&token_hash, &record).await?;
         Ok((raw, record))
@@ -288,7 +290,7 @@ where
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
         let now = unix_seconds();
         match record {
-            Some(r) if !r.expires_at.is_some_and(|exp| exp <= now) => Ok(Some(r.username)),
+            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r.username)),
             _ => Ok(None),
         }
     }
@@ -298,7 +300,7 @@ where
         let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
         let now = unix_seconds();
         match record {
-            Some(r) if !r.expires_at.is_some_and(|exp| exp <= now) => Ok(Some(r)),
+            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r)),
             _ => Ok(None),
         }
     }

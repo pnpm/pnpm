@@ -48,6 +48,6 @@ fn actor_of(identity: &Identity) -> (String, String) {
         Identity::User { username, .. } => (username.clone(), "user".to_string()),
         // Reachable only when the registry's publish rule allows anonymous
         // writes; the record still needs an actor to display.
-        Identity::Anonymous => ("anonymous".to_string(), "user".to_string()),
+        Identity::Anonymous | _ => ("anonymous".to_string(), "user".to_string()),
     }
 }

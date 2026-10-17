@@ -109,6 +109,7 @@ impl AccessList {
 /// credential itself carries. Rosters live in the [`AccessToken::Team`]
 /// tokens' directory, so a credential that carries no memberships still
 /// reaches its roster teams.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
     /// No valid credentials were presented.

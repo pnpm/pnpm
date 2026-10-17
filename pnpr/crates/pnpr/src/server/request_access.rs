@@ -141,7 +141,7 @@ pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
 pub(super) fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
     match identity {
         Identity::User { username, .. } => Ok(username.clone()),
-        Identity::Anonymous => {
+        Identity::Anonymous | _ => {
             Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
     }
@@ -163,7 +163,7 @@ pub(super) fn require_admin(
         Identity::User { username, .. } => {
             Err(RegistryError::Forbidden { user: username.clone(), action, resource })
         }
-        Identity::Anonymous => Err(RegistryError::Unauthenticated { resource }),
+        Identity::Anonymous | _ => Err(RegistryError::Unauthenticated { resource }),
     }
 }
 

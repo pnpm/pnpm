@@ -135,6 +135,62 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
 }
 
 #[tokio::test]
+async fn create_token_with_scopes_and_kind() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+
+    let payload = json!({
+        "password": "secret123",
+        "scopes": ["pkg:read", "pkg:write"],
+        "kind": "granular"
+    });
+
+    let res = app
+        .clone()
+        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = body_json(res.into_body()).await;
+    assert_eq!(body["scopes"], json!(["pkg:read", "pkg:write"]));
+    assert_eq!(body["kind"], "granular");
+
+    let list_res = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &login_token))
+        .await
+        .unwrap();
+    assert_eq!(list_res.status(), StatusCode::OK);
+    let list_body = body_json(list_res.into_body()).await;
+    let tokens = list_body["objects"].as_array().expect("array of tokens");
+    let found = tokens
+        .iter()
+        .find(|token| token["kind"] == "granular")
+        .expect("found granular token");
+    assert_eq!(found["scopes"], json!(["pkg:read", "pkg:write"]));
+}
+
+#[tokio::test]
+async fn create_token_rejects_overlong_kind() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
+
+    let payload = json!({
+        "password": "secret123",
+        "kind": "a".repeat(65),
+    });
+
+    let res = app
+        .clone()
+        .oneshot(post_json("/-/npm/v1/tokens", &login_token, payload))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn create_token_under_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

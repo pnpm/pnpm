@@ -131,7 +131,7 @@ pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
             Identity::User { username, .. } => {
                 manifest.insert("_npmUser".to_string(), json!({ "name": username }));
             }
-            Identity::Anonymous => {
+            Identity::Anonymous | _ => {
                 manifest.remove("_npmUser");
             }
         }

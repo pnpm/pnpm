@@ -525,3 +525,59 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
     assert!(updated.starts_with("$2y$") || updated.starts_with("$2b$"));
     assert_ne!(updated, sha_hash);
 }
+
+#[tokio::test]
+async fn libsql_schema_migrations_runs_and_records_version() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let mut rows = backend.conn
+        .query("SELECT MAX(version) FROM auth_schema_migrations", ())
+        .await
+        .unwrap();
+    let row = rows
+        .next()
+        .await
+        .unwrap()
+        .expect("row returned");
+    let version: i64 = row.get(0).unwrap();
+    assert_eq!(version, crate::CURRENT_SCHEMA_VERSION);
+}
+
+#[tokio::test]
+async fn libsql_tokens_persist_scopes_and_kind() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.add_or_login("alice", "secret").await.unwrap();
+
+    let new_token = crate::NewToken::new()
+        .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
+        .with_kind(Some("granular".to_string()));
+    let (raw, record) = backend.issue_token("alice", new_token).await.unwrap();
+    assert_eq!(record.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(record.kind.as_deref(), Some("granular"));
+
+    let looked_up = backend
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(looked_up.kind.as_deref(), Some("granular"));
+}
+
+#[tokio::test]
+async fn libsql_schema_migrations_refuses_future_version() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.conn
+        .execute(
+            "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (999, 123456789)",
+            (),
+        )
+        .await
+        .unwrap();
+
+    let err = super::schema::init_schema(&backend.conn).await.unwrap_err();
+    let err_str = err.to_string();
+    assert!(
+        err_str.contains("newer than supported version"),
+        "expected error about newer version, got: {err_str}",
+    );
+}
