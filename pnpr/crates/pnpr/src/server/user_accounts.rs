@@ -97,7 +97,7 @@ pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bo
     if users.password_hash(name).await?.is_some() {
         return Ok(true);
     }
-    if super::scim::is_active_scim_user(state, name).await? {
+    if super::scim::is_active_scim_user(state, name)? {
         return Ok(true);
     }
     Ok(false)
@@ -220,8 +220,7 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
-        if is_reserved_username(state, name) || super::scim::is_active_scim_user(state, name).await?
-        {
+        if is_reserved_username(state, name) {
             return Err(RegistryError::ReservedUsername { name: name.to_string() });
         }
         // Tokens a removed account left behind must not reach the account

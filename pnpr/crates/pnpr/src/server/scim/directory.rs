@@ -60,6 +60,7 @@ impl Directory {
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
     inactive: RwLock<Arc<BTreeSet<String>>>,
+    active: RwLock<Arc<BTreeSet<String>>>,
     /// The deprovision count of each user as this replica last read it.
     seen: Mutex<HashMap<String, u64>>,
     /// Set by a failed read of the directory, cleared by the next successful
@@ -74,7 +75,13 @@ impl ScimState {
             .filter(|(_, user)| !user.active)
             .map(|(name, _)| name.clone())
             .collect();
+        let active = directory.users
+            .iter()
+            .filter(|(_, user)| user.active)
+            .map(|(name, _)| name.clone())
+            .collect();
         *self.inactive.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(inactive);
+        *self.active.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(active);
         self.unreadable.store(false, Ordering::Release);
         let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
         for name in newly_deprovisioned(&mut seen, directory) {
@@ -120,18 +127,20 @@ pub(in super::super) fn is_deprovisioned(
 }
 
 /// Whether a user exists and is active in the SCIM directory.
-pub(in super::super) async fn is_active_scim_user(
+pub(in super::super) fn is_active_scim_user(
     state: &AppState,
     username: &str,
 ) -> Result<bool, RegistryError> {
-    if state.inner.identity.managed.scim.is_none() {
+    let Some(scim) = &state.inner.identity.managed.scim else {
         return Ok(false);
-    }
+    };
     if is_deprovisioned(state, username)? {
         return Ok(false);
     }
-    let (directory, _) = read_directory(state).await?;
-    Ok(directory.users.get(username).is_some_and(|user| user.active))
+    Ok(scim.active
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(username))
 }
 
 /// Read the directory and publish its inactive usernames. After a failed read

@@ -26,6 +26,8 @@ pub struct UserStore {
     /// Held for the whole of an edit: copying the users, writing the copy,
     /// and making it current. See [`UserStore::update`].
     edit_lock: Arc<Mutex<()>>,
+    /// File metadata (modified time, length) recorded at last disk sync.
+    last_synced: Arc<Mutex<Option<(std::time::SystemTime, u64)>>>,
 }
 
 /// What an edit passed to [`UserStore::update`] did to its copy of the
@@ -67,16 +69,34 @@ impl UserStore {
     /// Like [`Self::open`] but with a configurable bcrypt cost — used
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
-        let users = match std::fs::read_to_string(&path) {
-            Ok(raw) => parse_htpasswd(&raw)
-                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
-                    path: path.display().to_string(),
-                    reason,
-                })?,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
+        let (users, last_synced) = match std::fs::read_to_string(&path) {
+            Ok(raw) => {
+                let parsed = parse_htpasswd(&raw)
+                    .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                        path: path.display().to_string(),
+                        reason,
+                    })?;
+                let meta = std::fs::metadata(&path)
+                    .ok()
+                    .map(|metadata| {
+                        (
+                            metadata.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                            metadata.len(),
+                        )
+                    });
+                (parsed, meta)
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => (HashMap::new(), None),
             Err(err) => return Err(err.into()),
         };
-        Ok(Self::with_users(users, Some(path), max_users, bcrypt_cost))
+        Ok(Self {
+            users: Arc::new(Mutex::new(users)),
+            path: Some(path),
+            max_users,
+            bcrypt_cost,
+            edit_lock: Arc::default(),
+            last_synced: Arc::new(Mutex::new(last_synced)),
+        })
     }
 
     fn with_users(
@@ -91,21 +111,52 @@ impl UserStore {
             max_users,
             bcrypt_cost,
             edit_lock: Arc::default(),
+            last_synced: Arc::new(Mutex::new(None)),
         }
     }
 
-    fn sync_from_disk_if_path(&self) {
-        if let Some(path) = &self.path
-            && let Ok(raw) = std::fs::read_to_string(path)
-            && let Ok(fresh) = parse_htpasswd(&raw)
-        {
-            *self.users.lock().unwrap_or_else(PoisonError::into_inner) = fresh;
+    fn sync_from_disk_if_path(&self) -> Result<()> {
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
+        let meta = match std::fs::metadata(path) {
+            Ok(meta) => meta,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
+                if !users.is_empty() {
+                    users.clear();
+                }
+                *self.last_synced.lock().unwrap_or_else(PoisonError::into_inner) = None;
+                return Ok(());
+            }
+            Err(err) => return Err(err.into()),
+        };
+        if !meta.is_file() {
+            return Ok(());
         }
+        let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let len = meta.len();
+        let mut last = self.last_synced.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((prev_mtime, prev_len)) = *last
+            && prev_mtime == mtime
+            && prev_len == len
+        {
+            return Ok(());
+        }
+        let raw = std::fs::read_to_string(path)?;
+        let fresh = parse_htpasswd(&raw)
+            .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                path: path.display().to_string(),
+                reason,
+            })?;
+        *self.users.lock().unwrap_or_else(PoisonError::into_inner) = fresh;
+        *last = Some((mtime, len));
+        Ok(())
     }
 
     /// Whether `username` is stored.
     pub(crate) fn holds(&self, username: &str) -> bool {
-        self.sync_from_disk_if_path();
+        let _ = self.sync_from_disk_if_path();
         self.snapshot().contains_key(username)
     }
 
@@ -143,10 +194,7 @@ impl UserStore {
                     path: path.display().to_string(),
                     reason,
                 }),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(users
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .clone()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
             Err(err) => Err(err.into()),
         }
     }
@@ -165,9 +213,22 @@ impl UserStore {
     {
         let users = Arc::clone(&self.users);
         let edit_lock = Arc::clone(&self.edit_lock);
+        let last_synced = Arc::clone(&self.last_synced);
         let path = self.path.clone();
         tokio::task::spawn_blocking(move || {
             let _edit = edit_lock.lock().unwrap_or_else(PoisonError::into_inner);
+            let _file_lock = if let Some(p) = &path {
+                let lock_file = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(p.with_extension("htpasswd.lock"))?;
+                lock_file.lock()?;
+                Some(lock_file)
+            } else {
+                None
+            };
             let mut next = Self::load_users_for_update(path.as_deref(), &users)?;
             let out = match edit(&mut next)? {
                 Change::Keep(out) => return Ok(out),
@@ -175,6 +236,11 @@ impl UserStore {
             };
             if let Some(path) = &path {
                 write_atomic(path, serialize_htpasswd(&next).as_bytes())?;
+                if let Ok(meta) = std::fs::metadata(path) {
+                    let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    *last_synced.lock().unwrap_or_else(PoisonError::into_inner) =
+                        Some((mtime, meta.len()));
+                }
             }
             *users.lock().unwrap_or_else(PoisonError::into_inner) = next;
             Ok(out)
@@ -228,7 +294,7 @@ impl UserBackend for UserStore {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
-        self.sync_from_disk_if_path();
+        self.sync_from_disk_if_path()?;
 
         let existing_hash = self.snapshot().get(username).cloned();
         if let Some(stored) = existing_hash {
@@ -266,7 +332,7 @@ impl UserBackend for UserStore {
     }
 
     async fn list_users(&self) -> Result<Vec<String>> {
-        self.sync_from_disk_if_path();
+        self.sync_from_disk_if_path()?;
         let mut names: Vec<String> = self
             .snapshot()
             .keys()
@@ -277,7 +343,7 @@ impl UserBackend for UserStore {
     }
 
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
-        self.sync_from_disk_if_path();
+        self.sync_from_disk_if_path()?;
         Ok(self.snapshot().get(username).cloned())
     }
 
