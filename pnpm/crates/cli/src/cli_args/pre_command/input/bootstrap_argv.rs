@@ -131,7 +131,7 @@ impl BootstrapTokens {
                 continue;
             }
             if !rest.is_empty() {
-                self.0.push(vec![flag, OsString::from(rest)]);
+                self.0.push(vec![OsString::from(format!("-{short}{rest}"))]);
                 return None;
             }
             self.0.push(
