@@ -66,15 +66,13 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // An ETag and a `Last-Modified` date describe one representation, and `meta`
-  // holds the abbreviated one. A registry that reuses them across both forms
-  // answers 304, leaving the maturity check without per-version publish dates.
   let fullFetchResult: FetchMetadataResult | FetchMetadataNotModifiedResult
   try {
     fullFetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
       fullMetadata: true,
       registry: opts.registry,
+      ...revalidationOfHeldFullDocument(meta.fullEtag, meta, meta.uncacheable),
     })
   } catch (err: unknown) {
     // The registry declined to hand over a body. Since the request carries no
@@ -93,6 +91,26 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+}
+
+/**
+ * The validators a release-age upgrade sends for `meta` when it is the full
+ * document, tagged `fullEtag`, that an earlier upgrade stored in the
+ * abbreviated mirror. A registry with per-representation ETags then answers
+ * 304 instead of sending the same document again.
+ *
+ * An abbreviated document sends none. An ETag and a `Last-Modified` date
+ * describe one representation, and a registry that reuses them across both
+ * forms would answer 304, leaving the maturity check without per-version
+ * publish dates.
+ */
+export function revalidationOfHeldFullDocument (
+  fullEtag: string | undefined,
+  meta: PackageMeta,
+  uncacheable: boolean | undefined
+): { etag?: string, modified?: string, cacheBypass?: boolean } {
+  if (fullEtag == null || fullEtag === '') return {}
+  return { etag: fullEtag, modified: meta.modified ?? meta.time?.modified, cacheBypass: uncacheable === true }
 }
 
 /**
