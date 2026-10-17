@@ -984,13 +984,13 @@ fn a_lockfile_recorded_in_the_same_tick_is_read_once_more() {
     let recorded = super::recorded_state_text(dir.path());
     assert_ne!(
         recorded,
-        serde_json::to_string_pretty(&state).unwrap() + "\n",
+        format!("{}\n", serde_json::to_string_pretty(&state).unwrap()),
         "the check records the lockfile's stat again",
     );
     assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
     assert_eq!(
         super::recorded_state_text(dir.path()),
         recorded,
-        "a converged check records nothing"
+        "a converged check records nothing",
     );
 }
