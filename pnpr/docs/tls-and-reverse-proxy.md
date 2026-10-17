@@ -44,9 +44,13 @@ trustedProxyHeader: x-forwarded-for
 
 ### trustedProxies
 
-By default, pnpr ignores forwarding headers such as `X-Forwarded-For` and attributes requests to the direct socket peer. When running behind a reverse proxy, configure `trustedProxies` with the proxy's IP addresses or subnets.
+By default, pnpr ignores forwarding headers such as `X-Forwarded-For` and attributes requests to the direct socket peer. When running behind a reverse proxy or a chain of proxies, configure `trustedProxies` with the IP addresses or CIDR blocks of every proxy hop between the client and pnpr.
 
-When `trustedProxies` is set, pnpr parses the forwarding header from right to left, stopping at the first untrusted IP address. This authentic client IP is then used for:
+When `trustedProxies` is set, pnpr parses the forwarding header from right to left, skipping trusted proxy hops and stopping at the first untrusted IP address. If an intermediate proxy in the forwarding chain is omitted from `trustedProxies`, traversal stops early at that proxy's IP instead of reaching the true originating client IP.
+
+The local reverse-proxy recipes (such as Nginx and Caddy) connect over `loopback`. The AWS ALB recipe uses the VPC CIDR block for direct ALB-to-pnpr traffic. If your architecture routes traffic through multiple proxy layers (such as a CDN or edge load balancer followed by an internal ingress controller), include all intermediate proxy networks in `trustedProxies`.
+
+The client IP determined by this traversal is used for:
 - Per-IP rate limiting (`rate_limiting`)
 - Structured audit logs (`pnpr::audit`) and access logs (`pnpr::access`)
 - CIDR-restricted bearer tokens

@@ -170,6 +170,6 @@ The write-ahead journal is kept on the local disk of the replica handling the pu
 
 - **Abort incomplete multipart uploads**: Configure a lifecycle rule on your S3 bucket to abort incomplete multipart uploads after 1 to 7 days.
 - **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
-- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr verify --prune-orphans` to detect and remove orphaned blobs.
+- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr verify --prune-orphans` to detect and remove orphaned blobs associated with verified npm packages.
 - **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
 
