@@ -117,7 +117,9 @@ pub(super) async fn add_user(
         Err(err) => {
             if matches!(
                 err,
-                RegistryError::Unauthenticated { .. } | RegistryError::Forbidden { .. },
+                RegistryError::Unauthenticated { .. }
+                    | RegistryError::Forbidden { .. }
+                    | RegistryError::ReservedUsername { .. },
             ) {
                 state.inner.identity.login_rate_limiter.record_failure(client_ip, name);
             }
@@ -134,6 +136,13 @@ pub(super) async fn add_user(
         );
     }
     user_upsert_response(outcome, &username, &token)
+}
+
+fn is_reserved_username(state: &AppState, name: &str) -> Result<bool, RegistryError> {
+    if state.inner.config.identity.is_reserved_name(name) {
+        return Ok(true);
+    }
+    super::scim::is_scim_provisioned(state, name)
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
@@ -165,6 +174,9 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
+        if is_reserved_username(state, name)? {
+            return Err(RegistryError::ReservedUsername { name: name.to_string() });
+        }
         // Tokens a removed account left behind must not reach the account
         // this login may create, not even while it is being created.
         super::user_admin::revoke_all_tokens(state, name).await?;

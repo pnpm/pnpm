@@ -57,10 +57,11 @@ impl Directory {
     }
 }
 
-/// This replica's copy of the usernames the directory marks inactive.
+/// This replica's copy of the usernames the directory marks inactive and provisioned.
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
     inactive: RwLock<Arc<BTreeSet<String>>>,
+    provisioned: RwLock<Arc<BTreeSet<String>>>,
     /// The deprovision count of each user as this replica last read it.
     seen: Mutex<HashMap<String, u64>>,
     /// Set by a failed read of the directory, cleared by the next successful
@@ -76,6 +77,12 @@ impl ScimState {
             .map(|(name, _)| name.clone())
             .collect();
         *self.inactive.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(inactive);
+        let provisioned = directory.users
+            .iter()
+            .filter(|(_, user)| !user.removed)
+            .map(|(name, _)| name.clone())
+            .collect();
+        *self.provisioned.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(provisioned);
         self.unreadable.store(false, Ordering::Release);
         let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
         for name in newly_deprovisioned(&mut seen, directory) {
@@ -115,6 +122,27 @@ pub(in super::super) fn is_deprovisioned(
         });
     }
     Ok(scim.inactive
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(username))
+}
+
+/// Whether a SCIM client provisioned `username` (and has not deleted it).
+/// Always `false` without `auth.scim`. Fails closed while the last read
+/// of the directory failed.
+pub(in super::super) fn is_scim_provisioned(
+    state: &AppState,
+    username: &str,
+) -> Result<bool, RegistryError> {
+    let Some(scim) = &state.inner.identity.managed.scim else {
+        return Ok(false);
+    };
+    if scim.unreadable.load(Ordering::Acquire) {
+        return Err(RegistryError::Internal {
+            reason: "the SCIM directory could not be read; sign-ins resume once it can".to_string(),
+        });
+    }
+    Ok(scim.provisioned
         .read()
         .unwrap_or_else(PoisonError::into_inner)
         .contains(username))

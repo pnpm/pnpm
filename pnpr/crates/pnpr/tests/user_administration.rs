@@ -8,7 +8,7 @@ use axum::{
 };
 use pnpr::{
     AuthState, Config, OwnedTokens, RegistryError, TokenBackend, TokenRecord, TokenStore,
-    UpsertOutcome, UserBackend, UserStore, router, router_with_auth,
+    UpsertOutcome, UserBackend, UserStore, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -18,8 +18,8 @@ use std::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-/// One self-registration slot, which `root` takes, so every other account
-/// has to come from the admin API.
+/// The admin `root` is provisioned ahead of time, with `max_users`: 1 so
+/// every other account has to come from the admin API.
 fn load_config(dir: &TempDir) -> Config {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
@@ -31,6 +31,12 @@ fn load_config(dir: &TempDir) -> Config {
     std::fs::write(&path, yaml).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+async fn app_router(config: Config) -> axum::Router {
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    auth.users.create_user("root", "secret").await.unwrap();
+    router_with_auth(config, auth)
 }
 
 async fn send(
@@ -79,7 +85,7 @@ async fn whoami(app: &axum::Router, token: &str) -> StatusCode {
 #[tokio::test]
 async fn admins_create_accounts_past_the_registration_cap() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(&dir));
+    let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret").await.unwrap();
     assert_eq!(login(&app, "bob", "first").await, Err(StatusCode::FORBIDDEN));
 
@@ -97,7 +103,7 @@ async fn admins_create_accounts_past_the_registration_cap() {
 #[tokio::test]
 async fn a_new_password_replaces_the_old_one() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(&dir));
+    let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret").await.unwrap();
     let path = "/-/pnpr/v0/admin/users/bob";
     send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first" }))).await;
@@ -112,7 +118,7 @@ async fn a_new_password_replaces_the_old_one() {
 #[tokio::test]
 async fn removing_an_account_revokes_its_tokens() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(&dir));
+    let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret").await.unwrap();
     let path = "/-/pnpr/v0/admin/users/bob";
     send(&app, "PUT", path, Some(&root), Some(json!({ "password": "first" }))).await;
@@ -127,7 +133,7 @@ async fn removing_an_account_revokes_its_tokens() {
 #[tokio::test]
 async fn admins_revoke_one_token_of_one_user() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(&dir));
+    let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret").await.unwrap();
     send(&app, "PUT", "/-/pnpr/v0/admin/users/bob", Some(&root), Some(json!({ "password": "x" })))
         .await;
@@ -155,7 +161,7 @@ async fn admins_revoke_one_token_of_one_user() {
 #[tokio::test]
 async fn only_admins_use_the_user_api() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(&dir));
+    let app = app_router(load_config(&dir)).await;
     let root = login(&app, "root", "secret").await.unwrap();
     send(&app, "PUT", "/-/pnpr/v0/admin/users/bob", Some(&root), Some(json!({ "password": "x" })))
         .await;
@@ -266,6 +272,7 @@ impl TokenBackend for FailingRevocation {
 async fn a_failed_revocation_keeps_the_account() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
+    users.create_user("root", "secret").await.unwrap();
     let auth = AuthState {
         users: Arc::clone(&users) as _,
         tokens: Arc::new(FailingRevocation(TokenStore::in_memory())),
@@ -394,6 +401,7 @@ async fn a_removed_account_loses_its_tokens_without_any_revocation() {
 async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
+    users.create_user("root", "secret").await.unwrap();
     let tokens = Arc::new(OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users)));
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
     let app = router_with_auth(load_config(&dir), auth);
