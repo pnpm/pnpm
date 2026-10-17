@@ -45,14 +45,22 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from script')
   }
 
-  project.writePackageJson(manifest)
+  fs.writeFileSync('package.json', fs.readFileSync('package.json'))
 
-  // should be able to execute a script after the mtime of the manifest change but the content doesn't
+  // a manifest rewritten with the content it was installed with needs no check
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+  }
+
+  project.writePackageJson({ ...manifest, description: 'edited' })
+
+  // a manifest edit the lockfile still satisfies is checked once
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from script')
+    expect(stdout.toString()).toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   project.writePackageJson({
@@ -68,8 +76,8 @@ test('single dependency', async () => {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
-    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).not.toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -78,8 +86,8 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   project.writePackageJson({

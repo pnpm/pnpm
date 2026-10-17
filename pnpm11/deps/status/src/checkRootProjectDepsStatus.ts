@@ -5,8 +5,8 @@ import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import type { ProjectId, ProjectManifest } from '@pnpm/types'
-import type { WorkspaceState } from '@pnpm/workspace.state'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { sharedInputPaths, updateWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
@@ -17,7 +17,8 @@ import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
 import { safeStat } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
-import { allowUnawaitedFailure, readWantedLockfileIn, throwLockfileNotFound } from './wantedLockfiles.js'
+import { type ValidationProof, validationProof } from './validationProof.js'
+import { allowUnawaitedFailure, hasUnmergedBranchLockfiles, readWantedLockfileIn, throwLockfileNotFound } from './wantedLockfiles.js'
 
 export interface RootProjectDepsStatusContext {
   opts: CheckDepsStatusOptions
@@ -48,6 +49,7 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
     patchedDependencies: opts.patchedDependencies,
     rootDir: rootProjectManifestDir,
     lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),
+    validation: workspaceState.validation,
     currentPnpmfiles: opts.pnpmfile,
     previousPnpmfiles: workspaceState.pnpmfiles,
     ignorePnpmfile: opts.ignorePnpmfile,
@@ -56,6 +58,9 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
   if (issue) {
     return { upToDate: false, issue, workspaceState }
   }
+
+  const proof = recordedProof(ctx)
+  if (proof != null) return checkRecordedRootProject(ctx, lockfiles, proof)
 
   await assertLockfilesEqualWhenWantedIsNewer(lockfiles, rootProjectManifestDir)
 
@@ -78,6 +83,78 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
   }
 
   return upToDateRootProjectResult(lockfiles, ctx)
+}
+
+function recordedProof ({ opts, rootProjectManifestDir, wantedLockfileName, workspaceState }: RootProjectDepsStatusContext): ValidationProof | undefined {
+  return validationProof(workspaceState, rootProjectManifestDir, {
+    wantedLockfileName,
+    unmergedBranchLockfiles: opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(rootProjectManifestDir, wantedLockfileName),
+  })
+}
+
+/**
+ * The check of a project whose state records what the last validation proved
+ * it installed with. A passing check records the project again, so the next
+ * run need not repeat it.
+ */
+async function checkRecordedRootProject (
+  ctx: RootProjectDepsStatusContext,
+  lockfiles: RootProjectLockfiles,
+  proof: ValidationProof
+): Promise<CheckDepsStatusResult> {
+  const { rootProjectManifest, rootProjectManifestDir, workspaceState } = ctx
+  if (proof.lockfileUnreadable) return outdatedResult('Cannot check whether dependencies are outdated', workspaceState)
+  const projectProof = proof.proofOf(rootProjectManifestDir, rootProjectManifest)
+  if (projectProof === 'proven') {
+    logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
+    if (!lockfiles.currentLockfileStats) await assertNoDependenciesRequired(lockfiles.wantedLockfilePromise, rootProjectManifestDir)
+    if (proof.rehashed) await recordRootProject(ctx, true)
+    return upToDateRootProjectResult(lockfiles, ctx)
+  }
+  logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
+  try {
+    if (projectProof !== 'manifestChanged') await assertWantedLockfileInstalled(lockfiles, rootProjectManifestDir)
+    await assertRootManifestUpToDate(ctx, lockfiles)
+  } catch (err) {
+    return outdatedResult(errorMessageOf(err), workspaceState)
+  }
+  await recordRootProject(ctx, false)
+  return upToDateRootProjectResult(lockfiles, ctx)
+}
+
+/**
+ * Records the project as proven installed. `onlyIfTrusted` is set for a
+ * refresh that only records the lockfile's stat again.
+ */
+async function recordRootProject (
+  { opts, rootProjectManifest, rootProjectManifestDir, wantedLockfileName, workspaceState }: RootProjectDepsStatusContext,
+  onlyIfTrusted: boolean
+): Promise<void> {
+  await updateWorkspaceState({
+    allProjects: [{ rootDir: rootProjectManifestDir as ProjectRootDir, manifest: rootProjectManifest }],
+    workspaceDir: rootProjectManifestDir,
+    pnpmfiles: workspaceState.pnpmfiles,
+    settings: opts,
+    filteredInstall: workspaceState.filteredInstall,
+    configDependencies: workspaceState.configDependencies,
+    validation: {
+      lockfileDir: rootProjectManifestDir,
+      wantedLockfileName,
+      sharedInputs: sharedInputPaths(rootProjectManifestDir, opts.patchedDependencies, opts.pnpmfile),
+      onlyIfTrusted,
+    },
+  })
+}
+
+/** The current lockfile records what the wanted one asks to install. */
+async function assertWantedLockfileInstalled (lockfiles: RootProjectLockfiles, rootProjectManifestDir: string): Promise<void> {
+  if (!lockfiles.wantedLockfileStats) return
+  if (!lockfiles.currentLockfileStats) {
+    await assertNoDependenciesRequired(lockfiles.wantedLockfilePromise, rootProjectManifestDir)
+    return
+  }
+  const wantedLockfile = (await lockfiles.wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
+  assertLockfilesEqual(await lockfiles.currentLockfilePromise, wantedLockfile, { wantedLockfileDir: rootProjectManifestDir })
 }
 
 async function readRootProjectLockfiles ({ opts, rootProjectManifestDir, wantedLockfileName }: RootProjectDepsStatusContext): Promise<RootProjectLockfiles> {

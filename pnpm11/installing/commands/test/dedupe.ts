@@ -199,6 +199,30 @@ describe('pnpm dedupe', () => {
     expect(fs.existsSync(ignoredPath)).toBeFalsy()
   })
 
+  // A check links nothing, so it must not record the projects as installed.
+  test('dedupe --check writes no workspace state', async () => {
+    const project = prepare({
+      name: 'test-dedupe-check-state',
+      version: '0.0.0',
+      dependencies: {
+        'is-positive': '3.1.0',
+      },
+    })
+    const opts = {
+      ...DEFAULT_OPTS,
+      dir: project.dir(),
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+    }
+    await install.handler(opts)
+    const statePath = path.join(project.dir(), 'node_modules/.pnpm-workspace-state-v1.json')
+    fs.rmSync(statePath)
+
+    await dedupe.handler({ ...opts, check: true })
+
+    expect(fs.existsSync(statePath)).toBeFalsy()
+  })
+
   describe('cliOptionsTypes', () => {
     test('trivially contains command line arguments from install command', () => {
       // Using --store-dir and --registry as a gut check to ensure the "pnpm
