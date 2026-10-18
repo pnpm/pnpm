@@ -369,8 +369,8 @@ pub struct PackageFilesIndex {
 
     /// Integrity of the tar the row's archive holds: the row's own integrity
     /// for a tar, the hash of the whole decoded gzip stream for a `.tgz`.
-    /// Absent when the `.tgz` does not decode in full, and on rows written
-    /// before pnpm recorded it.
+    /// `None` when that tar is unknown, such as for a `.tgz` that does not
+    /// decode in full.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tar_integrity: Option<String>,
 }

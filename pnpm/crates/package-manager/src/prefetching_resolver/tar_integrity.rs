@@ -1,6 +1,8 @@
 //! Pinning the tar of a registry package under `lockfile.integrityTarget: tar`.
 
 use super::PrefetchingResolver;
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
@@ -8,6 +10,17 @@ use pnpm_store_dir::{StoreIndex, store_index_key};
 use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, package_mem_cache_key};
 use ssri::Integrity;
 use std::sync::Arc;
+
+/// A package's tar hash is needed while a custom fetcher serves its archive.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot learn the tar hash of {package_id}, because a custom fetcher serves it. Remove lockfile.integrityTarget, or install the package once without the fetcher."
+)]
+#[diagnostic(code(ERR_PNPM_INTEGRITY_TARGET_WITH_CUSTOM_FETCHER))]
+struct TarHashBehindCustomFetcherError {
+    #[error(not(source))]
+    package_id: String,
+}
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Replace the integrity of a registry package's tarball resolution with
@@ -39,6 +52,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let package_id = format!("{}@{}", name_ver.name, name_ver.suffix);
         let tar = match self.stored_tar_integrity(&integrity, &package_id).await {
             Some(tar) => tar,
+            // A custom fetcher owns the download, so pnpm cannot read the
+            // archive past it.
+            None if self.ctx.policy.custom_session.is_some() => {
+                return Err(Box::new(TarHashBehindCustomFetcherError { package_id }));
+            }
             None => self.read_tar_integrity(tarball, &integrity, &package_id).await?,
         };
         if let LockfileResolution::Tarball(tarball) = &mut result.resolution {

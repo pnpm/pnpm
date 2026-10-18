@@ -50,10 +50,11 @@ impl ArchiveVerification {
         Self { expected: expected.cloned(), kind }
     }
 
-    /// Whether the pin can only be checked against a `.tgz`'s whole decoded
-    /// stream, which only the streaming decoder reads.
+    /// Whether a `.tgz` has to be decoded in full, every gzip member, which
+    /// only the streaming decoder does: when the pin may name the tar, or the
+    /// hash being learned is the tar's.
     pub(crate) fn needs_tar_stream(&self) -> bool {
-        self.expected.is_some() && self.kind != IntegrityKind::Resource
+        self.kind != IntegrityKind::Resource
     }
 
     /// The hashers for a resource that is a `.tgz` when `gzip` holds and a

@@ -48,6 +48,30 @@ beforeEach(async () => {
   await setupMockAgent()
 })
 
+test('createNpmResolutionVerifier() rejects a tarball the registry serves as a registry revision', async () => {
+  const tarball = 'https://registry.npmjs.org/-/tarballs/sha512/abc'
+  const meta = {
+    name: 'revision-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'revision-pkg',
+        version: '1.0.0',
+        dist: { tarball, integrity: FAKE_INTEGRITY, revision: 0, revisions: [] },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/revision-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  await expect(verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball } as unknown as Resolution,
+    { name: 'revision-pkg', version: '1.0.0' }
+  )).rejects.toMatchObject({ code: 'ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED' })
+})
+
 test('createNpmResolutionVerifier() still verifies tarball URLs when no age/trust policy is active', async () => {
   // The tarball-URL binding is unconditional, so the verifier exists even
   // with no minimumReleaseAge/trustPolicy configured.

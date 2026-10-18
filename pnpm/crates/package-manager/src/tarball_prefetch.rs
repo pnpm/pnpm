@@ -114,6 +114,8 @@ async fn run_tarball_download<Reporter: self::Reporter>(
         package: pnpm_tarball::TarballPackage {
             integrity_kind: if download.package.revision_addressed {
                 pnpm_tarball::IntegrityKind::Tar
+            } else if pnpm_lockfile::is_git_hosted_tarball_url(&download.package.url) {
+                pnpm_tarball::IntegrityKind::Resource
             } else {
                 download.fetching.integrity_target.into()
             },

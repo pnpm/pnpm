@@ -348,6 +348,7 @@ async fn incomplete_revision_metadata_is_rejected() {
         ("history without a selected revision", "remove-revision"),
         ("selected revision without revision 0", "remove-original"),
         ("digest URL without revision metadata", "remove-both"),
+        ("digest URL of another archive without revision metadata", "remove-both-mismatched"),
     ] {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());
@@ -368,6 +369,11 @@ async fn incomplete_revision_metadata_is_rejected() {
             "remove-both" => {
                 dist.remove("revision");
                 dist.remove("revisions");
+            }
+            "remove-both-mismatched" => {
+                dist.remove("revision");
+                dist.remove("revisions");
+                dist.insert("integrity".to_string(), json!(format!("sha512-{}==", "B".repeat(86))));
             }
             _ => unreachable!(),
         }

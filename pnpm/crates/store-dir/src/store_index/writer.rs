@@ -247,8 +247,10 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
             ?error,
             "batched store-index write failed; dropping this batch and continuing",
         );
+        // An alias of a row this batch failed to write could replace one
+        // that names a row that exists.
+        return;
     }
-    // An alias whose row is missing reads as a miss, so it needs no rollback.
     if let Err(error) = index.set_aliases(&aliases) {
         tracing::warn!(
             target: "pacquet::store_index",

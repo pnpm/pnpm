@@ -146,8 +146,9 @@ pub(super) async fn verify_signatures(
             Some(Ok(None)) | None => {}
             Some(Ok(Some(packument))) => {
                 result.audited += 1;
-                let tie =
-                    tar_ties.get(&(pkg.registry.clone(), pkg.name.clone(), pkg.version.clone()));
+                let tie = pkg.pins_tar
+                    .then(|| tar_ties.get(&tar_binding::tie_key(pkg)))
+                    .flatten();
                 process_version(pkg, packument, keys, tie, &mut result);
             }
         }

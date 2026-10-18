@@ -8,7 +8,7 @@ use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, ResolutionStore, Ta
 use ssri::Integrity;
 
 /// The integrity a registry signature covers, for every package whose
-/// lockfile entry pins its tar, keyed by `(registry, name, version)`.
+/// lockfile entry pins its tar, keyed by [`tie_key`].
 ///
 /// That is the registry's `dist.integrity`, once the lockfile's tar hash is
 /// tied to it: by the store row reachable under it, which records the tar
@@ -20,7 +20,7 @@ pub(super) async fn tie_tar_integrities(
     packuments: &HashMap<(String, String), Result<Option<Packument>, String>>,
     config: &'static Config,
     http_client: &ThrottledClient,
-) -> HashMap<(String, String, String), Result<String, String>> {
+) -> HashMap<TieKey, Result<String, String>> {
     let pending = pending_ties(packages, packuments);
     let stored = stored_tar_integrities(&pending, config);
     let (index_writer, writer_task) = StoreIndexWriter::spawn_for(
@@ -32,13 +32,21 @@ pub(super) async fn tie_tar_integrities(
     let ties = pending
         .iter()
         .map(|tie| async {
-            let key = (tie.pkg.registry.clone(), tie.pkg.name.clone(), tie.pkg.version.clone());
+            let key = tie_key(tie.pkg);
             (key, tie.resolve(&stored, &downloads).await)
         });
     let ties = futures_util::future::join_all(ties).await.into_iter().collect();
     drop(index_writer);
     StoreIndexWriter::drain(writer_task, " after tying tar integrities").await;
     ties
+}
+
+/// One lockfile entry: a `name@version` from a registry, pinned by an
+/// integrity.
+pub(super) type TieKey = (String, String, String, Option<String>);
+
+pub(super) fn tie_key(pkg: &SignaturePackage) -> TieKey {
+    (pkg.registry.clone(), pkg.name.clone(), pkg.version.clone(), pkg.integrity.clone())
 }
 
 /// The signed versions whose lockfile entry pins their tar.
@@ -108,7 +116,7 @@ impl PendingTie<'_> {
         };
         let tied = signed == self.lockfile_integrity
             || stored
-                .get(&self.package_id())
+                .get(&store_index_key(signed, &self.package_id()))
                 .map(String::as_str)
                 == Some(self.lockfile_integrity);
         if !tied {
@@ -119,19 +127,17 @@ impl PendingTie<'_> {
 }
 
 /// The tar integrity the store row of each pending package's published
-/// archive records, by `name@version`.
+/// archive records, by that row's store-index key: one `name@version` from
+/// two registries is two archives.
 fn stored_tar_integrities(pending: &[PendingTie<'_>], config: &Config) -> HashMap<String, String> {
     let Ok(index) = StoreIndex::open_readonly_in(&config.store_dir) else { return HashMap::new() };
     pending
         .iter()
         .filter_map(|tie| {
             let (signed, _) = tie.published?;
-            let package_id = tie.package_id();
-            let row = index
-                .get(&store_index_key(signed, &package_id))
-                .ok()
-                .flatten()?;
-            Some((package_id, row.tar_integrity?))
+            let key = store_index_key(signed, &tie.package_id());
+            let row = index.get(&key).ok().flatten()?;
+            Some((key, row.tar_integrity?))
         })
         .collect()
 }

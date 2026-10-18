@@ -76,6 +76,8 @@ interface AbbreviatedMetaProjection {
   modified?: string
   /** version → `dist.tarball`. */
   versionTarballs?: Map<string, unknown>
+  /** Versions whose metadata selects a registry revision. */
+  revisionVersions?: Set<string>
 }
 
 /**
@@ -410,7 +412,16 @@ function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
   return {
     modified: meta.modified,
     versionTarballs: meta.versions ? projectVersionTarballs(meta.versions) : undefined,
+    revisionVersions: meta.versions ? projectRevisionVersions(meta.versions) : undefined,
   }
+}
+
+function projectRevisionVersions (versions: Record<string, PackageInRegistry>): Set<string> {
+  const revisionVersions = new Set<string>()
+  for (const [version, manifest] of Object.entries(versions)) {
+    if (manifest?.dist?.revision != null || manifest?.dist?.revisions != null) revisionVersions.add(version)
+  }
+  return revisionVersions
 }
 
 function projectVersionTarballs (versions: Record<string, PackageInRegistry>): Map<string, unknown> {

@@ -5,9 +5,8 @@ use super::{
     TarballError, drain_after_archive, extract_tarball_entries_streaming,
 };
 
-/// Extract the first gzip member of a `.tgz`, the archive pnpm has always
-/// installed from it. The member is the archive's tar only when nothing
-/// follows it.
+/// Extract the first gzip member of a `.tgz`, which a resource pin installs.
+/// The member is the archive's tar only when nothing follows it.
 pub(super) fn extract_first_member(
     gz_data: impl Read,
     tar_hasher: BodyHasher,

@@ -1,5 +1,6 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { ResolutionVerification } from '@pnpm/resolving.resolver-base'
+import { createRegistryRevisionsUnsupportedError } from '@pnpm/resolving.tarball-url'
 import type { RegistriesByScope } from '@pnpm/types'
 
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
@@ -45,6 +46,11 @@ export async function runTarballUrlCheck (
     // as a tampering-style URL mismatch. The gate aborts the install with that
     // error — still fail-closed, the entry never reaches the filesystem.
     throw error
+  }
+  if (meta?.revisionVersions?.has(pin.version)) {
+    throw createRegistryRevisionsUnsupportedError(
+      `The registry serves ${pin.name}@${pin.version} as a registry revision`
+    )
   }
   const registryTarball = meta?.versionTarballs?.get(pin.version)
   if (typeof registryTarball === 'string' && sameTarballUrl(pin.tarballUrl, registryTarball)) return undefined

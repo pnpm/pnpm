@@ -36,12 +36,23 @@ pub(super) fn tarball_revision(
             &picked.dist.tarball,
             "the URL does not match its complete sha512 integrity and registry",
         ))),
-        (None, true) => Err(Box::new(InvalidTarballRevisionMetadataError::new(
-            &picked.dist.tarball,
-            "the URL is addressed by its integrity but has no revision",
-        ))),
+        (None, _) if is_on_digest_route(&picked.dist.tarball, registry) => {
+            Err(Box::new(InvalidTarballRevisionMetadataError::new(
+                &picked.dist.tarball,
+                "the URL is on the registry's digest route but has no revision",
+            )))
+        }
         _ => Ok(revision),
     }
+}
+
+/// Whether `tarball` sits on `registry`'s `-/tarballs/sha512/` route, whatever
+/// digest it names.
+fn is_on_digest_route(tarball: &str, registry: &str) -> bool {
+    let registry = registry.trim_end_matches('/');
+    tarball
+        .strip_prefix(registry)
+        .is_some_and(|path| path.starts_with("/-/tarballs/sha512/"))
 }
 
 pub(super) fn select_package_revision<'a>(
