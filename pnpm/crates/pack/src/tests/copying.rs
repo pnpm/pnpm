@@ -9,11 +9,7 @@ fn workspace_copying_with_extension_is_injected() {
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     dbg!(&result.contents);
-    assert!(
-        result
-            .contents
-            .contains(&"COPYING.txt".to_string())
-    );
+    assert!(result.contents.contains(&"COPYING.txt".to_string()));
     let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
     dbg!(&names);
     assert!(names.contains(&"package/COPYING.txt".to_string()));
@@ -29,16 +25,8 @@ fn package_copying_prevents_workspace_license_injection() {
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     dbg!(&result.contents);
-    assert!(
-        result
-            .contents
-            .contains(&"COPYING.txt".to_string())
-    );
-    assert!(
-        !result
-            .contents
-            .contains(&"LICENSE".to_string())
-    );
+    assert!(result.contents.contains(&"COPYING.txt".to_string()));
+    assert!(!result.contents.contains(&"LICENSE".to_string()));
     let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
     dbg!(&names);
     assert!(names.contains(&"package/COPYING.txt".to_string()));
