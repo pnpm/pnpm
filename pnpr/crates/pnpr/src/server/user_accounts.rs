@@ -176,9 +176,13 @@ async fn log_in(
         }
         // Tokens a removed account left behind must not reach the account
         // this login may create, not even while it is being created.
-        super::user_admin::revoke_all_tokens(state, name).await?;
+        state.inner.identity.auth.revoke_all_tokens(name).await?;
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
+    if matches!(outcome, UpsertOutcome::Created) && is_reserved_username(state, &username) {
+        take_back_reserved_account(state, &username, password).await?;
+        return Err(RegistryError::ReservedUsername { name: username });
+    }
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
     let refused = match super::scim::is_deprovisioned(state, &username) {
         Ok(false) => None,
@@ -218,6 +222,24 @@ async fn undo_login(
     if matches!(outcome, UpsertOutcome::Created) {
         auth.users.delete_user(username).await?;
     }
+    Ok(())
+}
+
+/// Remove the account a login created under a reserved name, which happens
+/// when an admin removes the account after the login looked it up. An account
+/// that no longer accepts the login's password is an admin's rewrite and
+/// stays. The name's tokens are revoked either way, since a concurrent login
+/// may have issued one for the created account.
+async fn take_back_reserved_account(
+    state: &AppState,
+    username: &str,
+    password: &str,
+) -> Result<(), RegistryError> {
+    let auth = &state.inner.identity.auth;
+    if still_the_same_account(state, username, password, None).await? {
+        auth.users.delete_user(username).await?;
+    }
+    auth.revoke_all_tokens(username).await?;
     Ok(())
 }
 

@@ -4,7 +4,6 @@
 use super::super::{
     AppState, RegistryError,
     managed_state::{WRITE_ATTEMPTS, store_registry_record},
-    user_admin::revoke_all_tokens,
 };
 use pnpr_storage::{RegistryRecord, SCIM_DIRECTORY};
 use serde::{Deserialize, Serialize};
@@ -199,9 +198,10 @@ pub(super) async fn clean_up_before_reactivating(
 /// replica. Other replicas refuse its sessions once they reload the
 /// directory. Safe to repeat.
 pub(super) async fn deprovision(state: &AppState, username: &str) -> Result<(), RegistryError> {
-    revoke_all_tokens(state, username).await?;
-    state.inner.identity.auth.users.delete_user(username).await?;
-    revoke_all_tokens(state, username).await?;
+    let auth = &state.inner.identity.auth;
+    auth.revoke_all_tokens(username).await?;
+    auth.users.delete_user(username).await?;
+    auth.revoke_all_tokens(username).await?;
     state.inner.identity.oidc.revoke_user_sessions(username);
     Ok(())
 }
