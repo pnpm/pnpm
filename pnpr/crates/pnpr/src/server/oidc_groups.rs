@@ -1,9 +1,25 @@
 //! Team memberships that OIDC sessions earn from their groups claim.
 
+use indexmap::IndexMap;
 use pnpr_auth::oidc::SessionUser;
-use pnpr_config::{Config, Management, validate_team_name};
+use pnpr_config::{Config, HostedConfig, Management, validate_team_name};
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, Membership};
+
+fn find_hosted<'a>(
+    hosted: &'a IndexMap<String, HostedConfig>,
+    registry: &str,
+) -> Option<&'a HostedConfig> {
+    hosted
+        .get(registry)
+        .or_else(|| {
+            hosted
+                .iter()
+                .find_map(|(key, config)| {
+                    (pnpr_registry::Registries::local_name(key) == registry).then_some(config)
+                })
+        })
+}
 
 /// The identity of a browser session: its username, and a membership for
 /// every team its groups claim earned.
@@ -11,7 +27,7 @@ pub(super) fn session_identity(config: &Config, user: SessionUser) -> Identity {
     let memberships = user.teams
         .into_iter()
         .filter_map(|grant| {
-            let hosted = config.routing.hosted.get(&grant.registry)?;
+            let hosted = find_hosted(&config.routing.hosted, &grant.registry)?;
             Some(Membership { directory: hosted.teams.clone(), team: grant.team })
         })
         .collect();
@@ -29,8 +45,7 @@ pub(super) fn validate_group_grants(config: &Config) -> Result<(), RegistryError
         let invalid = |reason: String| RegistryError::InvalidConfig {
             reason: format!("OIDC group {:?}: {reason}", grant.group),
         };
-        let hosted = config.routing.hosted
-            .get(&grant.registry)
+        let hosted = find_hosted(&config.routing.hosted, &grant.registry)
             .ok_or_else(|| invalid(format!("{:?} is not a hosted registry", grant.registry)))?;
         validate_team_name(&grant.team).map_err(invalid)?;
         if hosted.teams_managed_by == Management::Config

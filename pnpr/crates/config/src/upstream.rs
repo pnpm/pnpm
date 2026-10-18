@@ -139,6 +139,7 @@ impl fmt::Debug for RedactedHeaders<'_> {
 /// ([`super::resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)) and resolved into [`UpstreamConfig`] by
 /// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -152,17 +153,17 @@ pub(super) struct UpstreamConfigFile {
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     pub(super) headers: IndexMap<String, String>,
-    /// Verdaccio interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
+    /// Interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
     /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
-    #[serde(default)]
+    #[serde(default, rename = "maxAge", alias = "maxage", alias = "max_age")]
     pub(super) maxage: Option<Interval>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, rename = "maxFails", alias = "max_fails")]
     pub(super) max_fails: Option<u32>,
-    #[serde(default)]
+    #[serde(default, rename = "failTimeout", alias = "fail_timeout")]
     pub(super) fail_timeout: Option<Interval>,
     #[serde(default)]
     pub(super) cache: Option<bool>,
@@ -215,11 +216,12 @@ impl<'de> Deserialize<'de> for Interval {
 /// `token_env`; either resolves to the credential placed in the
 /// `Authorization` header, encoded per [`UpstreamAuthType`].
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct UpstreamAuthFile {
     pub(super) r#type: UpstreamAuthType,
     #[serde(default)]
     pub(super) token: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "tokenEnv", alias = "token_env")]
     pub(super) token_env: Option<TokenEnv>,
 }
 
@@ -310,9 +312,9 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
                 })
                 .transpose()
         };
-    let maxage = parse_field("maxage", &file.maxage)?;
+    let maxage = parse_field("maxAge", &file.maxage)?;
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
-    let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
+    let fail_timeout = parse_field("failTimeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
     let access = resolve_upstream_access(name, file.access.as_ref(), teams)?;
 

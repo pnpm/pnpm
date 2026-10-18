@@ -209,7 +209,12 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
-        reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
+        reject_removed_blocks(
+            file.packages.is_some(),
+            file.groups.is_some(),
+            file.uplinks.is_some(),
+            file.upstreams.is_some(),
+        )?;
         let features = build_features(
             !file.registries.is_empty(),
             file.resolver,
@@ -280,7 +285,13 @@ fn build_http_config(
         cors,
         ui,
         oci: std::mem::take(&mut file.oci),
-        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        packument_ttl: match &file.packument_ttl {
+            Some(interval) => super::parse_interval(&interval.0)
+                .ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!("packumentTtl {:?} is not a valid interval", interval.0),
+                })?,
+            None => Config::DEFAULT_PACKUMENT_TTL,
+        },
         trusted_proxies,
         trusted_proxy_header,
         request_timeout,

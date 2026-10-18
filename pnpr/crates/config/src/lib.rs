@@ -38,9 +38,9 @@ mod byte_size;
 mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
-    DefaultRegistryFile, FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile,
-    RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
-    parse_config_file, reject_removed_blocks,
+    DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
+    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile,
+    StorageAccessFile, UpstreamFile, parse_config_file, reject_removed_blocks,
 };
 
 mod hosted;
@@ -90,8 +90,7 @@ use std::{
     time::Duration,
 };
 
-/// The bundled verdaccio-shaped YAML config, mirrored from
-/// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
+/// The bundled default YAML config. Other crates can
 /// pull this in directly when they need pnpr's defaults
 /// (upstreams, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
@@ -115,14 +114,9 @@ pub enum ConfigSource {
 
 /// Runtime configuration for the pnpm registry server.
 ///
-/// The persisted (YAML) shape follows verdaccio's `config.yaml` —
-/// `storage`, `upstreams`, `packages` — restricted to the subset
-/// pnpr implements (no web UI, auth, plugins, or logs
-/// routing).
-///
+/// Top-level sections configure storage, auth, routing, and server behavior.
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
-/// are set by the binary's CLI flags after the YAML is loaded,
-/// matching verdaccio's CLI overrides.
+/// can be overridden by the binary's CLI flags after the YAML is loaded.
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -133,8 +127,8 @@ pub enum ConfigSource {
 #[derive(Clone)]
 pub struct Config {
     /// Format and level for the `tracing-subscriber` the binary
-    /// installs at startup. Sourced from the YAML `log:` object
-    /// (Verdaccio 6+ shape). Defaults to pretty/info.
+    /// installs at startup. Sourced from the YAML `log:` object.
+    /// Defaults to pretty/info.
     pub logs: LogConfig,
     /// Optional local OSV database used by mounted surfaces to reject
     /// known vulnerable npm package versions without live API calls.
@@ -252,8 +246,11 @@ pub enum TarballFormat {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct OciConfig {
+    #[serde(default, rename = "bearerAuth", alias = "bearer_auth")]
     pub bearer_auth: bool,
+    #[serde(default, rename = "maxBlobBytes", alias = "max_blob_bytes")]
     pub max_blob_bytes: u64,
+    #[serde(default, rename = "maxManifestBytes", alias = "max_manifest_bytes")]
     pub max_manifest_bytes: usize,
 }
 

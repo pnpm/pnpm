@@ -139,13 +139,12 @@ storage: /var/lib/pnpr
 backend:
   sqlite:
     url: sqlite:///var/lib/pnpr/auth.db
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
-        "expected an InvalidConfig naming the backend selection, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("unknown field `sqlite`")),
+        "expected an InvalidConfig naming the unknown field, got {err:?}",
     );
 }
 
@@ -159,7 +158,6 @@ backend:
     maxConnections: 12
     timeout: 5s
     startupTimeout: 2m
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -180,7 +178,6 @@ storage: /var/lib/pnpr
 backend:
   postgresql:
     url: postgresql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -204,7 +201,6 @@ storage: /var/lib/pnpr
 backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {

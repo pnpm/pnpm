@@ -260,13 +260,17 @@ pub(super) fn protect(response: Response) -> Response {
 
 pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
     for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
-        if !matches!(
-            config.routing.registries.get(&workload.registry),
-            Some(pnpr_registry::Registry::Hosted { .. }),
-        ) || config.routing.registries.ecosystem(&workload.registry)
-            != Some(pnpr_registry::Ecosystem::Npm)
-            || workload.packages.is_empty()
-        {
+        let registry_key =
+            config.routing.registries.addressed(&workload.registry, pnpr_registry::Ecosystem::Npm);
+        let is_valid =
+            match registry_key.and_then(|key| config.routing.registries.get(key)) {
+                Some(pnpr_registry::Registry::Hosted { .. }) => {
+                    config.routing.registries.ecosystem(registry_key.unwrap())
+                        == Some(pnpr_registry::Ecosystem::Npm)
+                }
+                _ => false,
+            };
+        if !is_valid || workload.packages.is_empty() {
             return Err(RegistryError::InvalidConfig {
                 reason: "OIDC workloads require a hosted npm registry and explicit packages"
                     .to_string(),
@@ -293,10 +297,11 @@ pub(super) fn check_workload_request(
 ) -> Result<(), RegistryError> {
     let decoded = pnpr_search::percent_decode(path);
     let base = pnpr_registry::Ecosystem::Npm.base_path();
+    let local = pnpr_registry::Registries::local_name(&workload.registry);
     if *method == axum::http::Method::PUT
         && workload.packages
             .iter()
-            .any(|package| decoded == format!("{base}/~{}/{package}", workload.registry))
+            .any(|package| decoded == format!("{base}/~{local}/{package}"))
     {
         return Ok(());
     }

@@ -10,7 +10,7 @@ use super::{
 /// `${ENV}` substitution still runs first, so inline `${...}` values
 /// work too.
 #[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct S3Settings {
     /// Bucket the hosted packages live in.
     pub bucket: String,
@@ -25,18 +25,18 @@ pub struct S3Settings {
     /// Lets one bucket hold more than just the hosted store.
     #[serde(default)]
     pub prefix: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "accessKeyId", alias = "access_key_id")]
     pub access_key_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "secretAccessKey", alias = "secret_access_key")]
     pub secret_access_key: Option<String>,
     /// Force path-style addressing (`endpoint/bucket/key`) instead of
     /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
     /// this; AWS and R2 work with the default.
-    #[serde(default)]
+    #[serde(default, rename = "forcePathStyle", alias = "force_path_style")]
     pub force_path_style: Option<bool>,
     /// Allow plain-HTTP endpoints — needed for a local `MinIO` over
     /// `http://`. Defaults to HTTPS-only.
-    #[serde(default)]
+    #[serde(default, rename = "allowHttp", alias = "allow_http")]
     pub allow_http: Option<bool>,
 }
 

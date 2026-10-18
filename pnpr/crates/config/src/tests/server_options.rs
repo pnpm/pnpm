@@ -100,7 +100,8 @@ fn relative_cache_key_is_resolved_against_base_dir() {
 #[test]
 fn osv_config_defaults_off_and_resolves_relative_path() {
     let defaulted =
-        Config::from_yaml_str("upstreams: {}\n", Path::new("/etc/pnpr"), listen(), None).unwrap();
+        Config::from_yaml_str("storage: /etc/pnpr\n", Path::new("/etc/pnpr"), listen(), None)
+            .unwrap();
     assert!(!defaulted.osv.enabled);
     assert_eq!(defaulted.osv.path, None);
 
@@ -118,7 +119,6 @@ backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
     startupTimeout: 0
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero startup timeout must not be accepted");
@@ -136,7 +136,6 @@ backend:
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
     timeout: 0
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero timeout must not be accepted");
@@ -148,12 +147,11 @@ upstreams: {}
 
 #[test]
 fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
-    // `type: file` parses (verdaccio compatibility) but is not a
-    // sink the server implements, so `sink_is_supported` is false
-    // and the binary warns at startup. Format/level still apply.
+    // `type: file` parses but is not a sink the server implements, so
+    // `sink_is_supported` is false and the binary warns at startup.
+    // Format/level still apply.
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   type: file
   format: json
@@ -168,7 +166,6 @@ log:
 fn log_pretty_and_level_picked_from_singular_block() {
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   type: stdout
   format: pretty
@@ -180,21 +177,16 @@ log:
 }
 
 #[test]
-fn log_legacy_plural_list_is_ignored() {
-    // Verdaccio 4/5 used `logs:` as a list. We only honor the
-    // verdaccio-6 `log:` (singular) shape, so the older spelling
-    // is silently dropped and defaults apply.
+fn log_legacy_plural_list_is_rejected() {
     let yaml = "\
 storage: ./s
-upstreams: {}
 logs:
   - type: stdout
     format: json
     level: error
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.logs.format, LogFormat::Pretty);
-    assert_eq!(config.logs.level, LogLevel::Info);
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("unknown field `logs`"));
 }
 
 #[test]
@@ -202,7 +194,6 @@ fn log_missing_fields_fall_back_to_defaults() {
     // Only `type:` is given. Format and level default individually.
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   type: stdout
 ";
@@ -361,7 +352,6 @@ trustedProxies:
   - 10.0.0.0/8
   - 192.168.1.1
 trustedProxyHeader: forwarded
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.http.trusted_proxies.len(), 4);
