@@ -63,7 +63,7 @@ fn pnpr_binary() -> PathBuf {
 /// `cargo build -p pnpr` once before invoking the mock if
 /// it isn't already built. `--public-url` defaults to
 /// `http://localhost:<port>` so the tarball URLs the registry rewrites
-/// match the URL pacquet's tests expect via `port_to_url`. The
+/// sit under the URL [`crate::RegistryInfo::url`] returns. The
 /// integrated benchmark can override it when a proxy fronts the registry
 /// port: packuments served by pnpr must advertise the proxy URL, or
 /// tarball downloads bypass the emulated registry link.

@@ -47,7 +47,7 @@ const testFixtures = fixtures(import.meta.dirname)
 const basePatchOption = {
   pnpmHomeDir: '',
   configByUri: {},
-  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,

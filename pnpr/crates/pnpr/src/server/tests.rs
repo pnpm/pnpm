@@ -188,12 +188,12 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
 
 #[test]
 fn is_write_request_flags_only_mutating_requests() {
-    assert!(is_write_request(&Method::PUT, "/foo"));
-    assert!(is_write_request(&Method::DELETE, "/foo/-rev/1"));
-    assert!(is_write_request(&Method::PATCH, "/foo"));
-    assert!(!is_write_request(&Method::GET, "/foo"));
-    assert!(!is_write_request(&Method::HEAD, "/foo"));
-    assert!(!is_write_request(&Method::OPTIONS, "/foo"));
+    assert!(is_write_request(&Method::PUT, "/npm/foo"));
+    assert!(is_write_request(&Method::DELETE, "/npm/foo/-rev/1"));
+    assert!(is_write_request(&Method::PATCH, "/npm/foo"));
+    assert!(!is_write_request(&Method::GET, "/npm/foo"));
+    assert!(!is_write_request(&Method::HEAD, "/npm/foo"));
+    assert!(!is_write_request(&Method::OPTIONS, "/npm/foo"));
 
     // Known read POSTs are allowed:
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
@@ -202,19 +202,22 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/blob"));
     assert!(!is_write_request(&Method::POST, "/-/oidc/handoff"));
+    assert!(!is_write_request(&Method::POST, "/npm/-/npm/v1/security/audits"));
+    assert!(!is_write_request(&Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk"));
 
     // All other POSTs (uploads, staging, approval, etc.) are write requests:
     assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
     assert!(is_write_request(&Method::POST, "/pypi/legacy"));
-    assert!(is_write_request(&Method::POST, "/legacy/"));
-    assert!(is_write_request(&Method::POST, "/-/stage/package/foo"));
-    assert!(is_write_request(&Method::POST, "/-/stage/123/approve"));
+    assert!(is_write_request(&Method::POST, "/npm/legacy/"));
+    assert!(is_write_request(&Method::POST, "/npm/-/stage/package/foo"));
+    assert!(is_write_request(&Method::POST, "/npm/-/stage/123/approve"));
+    assert!(is_write_request(&Method::POST, "/-/npm/v1/security/audits"));
     assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
     assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
 
     let propfind = Method::from_bytes(b"PROPFIND").unwrap();
     assert!(!is_write_request(&propfind, "/-/pnpr/v0/compiler-cache/default/key"));
-    assert!(is_write_request(&propfind, "/other/path"));
+    assert!(is_write_request(&propfind, "/npm/other/path"));
 }
 
 #[test]
@@ -436,12 +439,12 @@ async fn team_tokens_reach_package_authorization() {
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     let allowed = app
         .clone()
-        .oneshot(signed(Method::GET, "/@team/missing", "tok"))
+        .oneshot(signed(Method::GET, "/npm/@team/missing", "tok"))
         .await
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
     let anonymous = app
-        .oneshot(signed(Method::GET, "/@team/missing", "unknown"))
+        .oneshot(signed(Method::GET, "/npm/@team/missing", "unknown"))
         .await
         .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
@@ -453,9 +456,12 @@ async fn readonly_token_is_refused_for_writes() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // Publish (PUT), unpublish (DELETE), and token creation (POST) are rejected
     // before the handler ever reads the body.
-    assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN);
     assert_eq!(
-        status(app.clone(), signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
+        status(app.clone(), signed(Method::PUT, "/npm/foo", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        status(app.clone(), signed(Method::DELETE, "/npm/foo/-rev/1", "ro")).await,
         StatusCode::FORBIDDEN,
     );
     assert_eq!(
@@ -470,12 +476,15 @@ async fn readonly_token_still_reads() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // A GET is not a write, so the read-only gate lets it through; the
     // package simply isn't published, so it 404s rather than 403s.
-    assert_eq!(status(app.clone(), signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
+    assert_eq!(
+        status(app.clone(), signed(Method::GET, "/npm/foo", "ro")).await,
+        StatusCode::NOT_FOUND,
+    );
     // Audit endpoints are read-only queries despite using HTTP POST.
     assert_eq!(
         status(
             app.clone(),
-            signed_json(Method::POST, "/-/npm/v1/security/advisories/bulk", "ro", "{}")
+            signed_json(Method::POST, "/npm/-/npm/v1/security/advisories/bulk", "ro", "{}")
         )
         .await,
         StatusCode::OK,
@@ -483,7 +492,7 @@ async fn readonly_token_still_reads() {
     assert_eq!(
         status(
             app,
-            signed_json(Method::POST, "/~local/-/npm/v1/security/advisories/bulk", "ro", "{}")
+            signed_json(Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk", "ro", "{}")
         )
         .await,
         StatusCode::OK,
@@ -497,7 +506,7 @@ async fn unrestricted_token_passes_the_gate_for_writes() {
     // The gate doesn't block an unrestricted token's write: the request
     // reaches the publish handler (which then rejects the empty body on
     // its own terms). The point is that it is not a 403 from the gate.
-    let status = status(app, signed(Method::PUT, "/foo", "rw")).await;
+    let status = status(app, signed(Method::PUT, "/npm/foo", "rw")).await;
     assert_ne!(status, StatusCode::FORBIDDEN);
     assert_ne!(status, StatusCode::UNAUTHORIZED);
 }
@@ -508,7 +517,7 @@ async fn cidr_token_is_refused_when_peer_is_unknown() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     // No ConnectInfo on the request: the restriction can't be checked, so
     // it fails closed even for a read.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "pinned")).await, StatusCode::FORBIDDEN);
+    assert_eq!(status(app, signed(Method::GET, "/npm/foo", "pinned")).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -517,7 +526,7 @@ async fn cidr_token_is_refused_from_outside_the_range() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     let outside = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5)), 40000);
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), outside)).await,
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), outside)).await,
         StatusCode::FORBIDDEN,
     );
 }
@@ -527,7 +536,7 @@ async fn cidr_token_is_allowed_from_inside_the_range() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), PEER)).await,
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), PEER)).await,
         StatusCode::NOT_FOUND,
     );
 }
@@ -538,7 +547,7 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     // A spoofed X-Forwarded-For for an in-range address must not help: the
     // gate reads the socket peer (here absent), never the header.
-    let request = signed(Method::GET, "/foo", "pinned");
+    let request = signed(Method::GET, "/npm/foo", "pinned");
     let request = {
         let mut request = request;
         request
@@ -555,7 +564,7 @@ async fn trusted_proxy_forwards_client_ip_satisfying_cidr() {
     let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
     let app =
         app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
-    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
     req.headers_mut()
         .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
     assert_eq!(status(app, req).await, StatusCode::NOT_FOUND);
@@ -567,7 +576,7 @@ async fn trusted_proxy_rejects_client_ip_outside_cidr() {
     let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
     let app =
         app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
-    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
     req.headers_mut()
         .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
     assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
@@ -580,7 +589,7 @@ async fn untrusted_peer_cannot_spoof_client_ip() {
     let app =
         app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
     let untrusted_peer = SocketAddr::new(ip("192.168.1.5"), 40000);
-    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), untrusted_peer);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), untrusted_peer);
     req.headers_mut()
         .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
     assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
@@ -592,7 +601,7 @@ async fn client_injected_forwarded_header_is_ignored_when_proxy_uses_x_forwarded
     let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
     let app =
         app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
-    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
     req.headers_mut()
         .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
     req.headers_mut()
@@ -610,7 +619,7 @@ async fn malformed_forwarding_header_from_trusted_proxy_does_not_bypass_proxy_ci
         "pinned",
         record(false, &["127.0.0.1/32"]),
     );
-    let mut req = with_peer(signed(Method::GET, "/foo", "pinned"), PROXY_PEER);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
     req.headers_mut()
         .insert("x-forwarded-for", "bad_client_ip, 127.0.0.1".parse().unwrap());
     assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
@@ -679,14 +688,14 @@ async fn team_listing_serves_config_declared_teams() {
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
     let response = app
         .clone()
-        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
     let prefixed = app
-        .oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok"))
+        .oneshot(signed(Method::GET, "/npm/~local/-/org/myorg/team", "tok"))
         .await
         .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
@@ -701,21 +710,21 @@ async fn team_members_are_listed_sorted() {
     let expected = serde_json::json!([{ "name": "alice" }, { "name": "bob" }]);
     let response = app
         .clone()
-        .oneshot(signed(Method::GET, "/-/team/myorg/developers/user", "tok"))
+        .oneshot(signed(Method::GET, "/npm/-/team/myorg/developers/user", "tok"))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     let prefixed = app
         .clone()
-        .oneshot(signed(Method::GET, "/~local/-/team/myorg/developers/user", "tok"))
+        .oneshot(signed(Method::GET, "/npm/~local/-/team/myorg/developers/user", "tok"))
         .await
         .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
     let missing = app
-        .oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok"))
+        .oneshot(signed(Method::GET, "/npm/-/team/myorg/nope/user", "tok"))
         .await
         .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
@@ -726,14 +735,14 @@ async fn team_mutations_are_rejected_as_config_managed() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
     let mutations = [
-        (Method::PUT, "/-/org/myorg/team"),
-        (Method::DELETE, "/-/team/myorg/developers"),
-        (Method::PUT, "/-/team/myorg/developers/user"),
-        (Method::DELETE, "/-/team/myorg/developers/user"),
-        (Method::PUT, "/~local/-/org/myorg/team"),
-        (Method::DELETE, "/~local/-/team/myorg/developers"),
-        (Method::PUT, "/~local/-/team/myorg/developers/user"),
-        (Method::DELETE, "/~local/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/-/org/myorg/team"),
+        (Method::DELETE, "/npm/-/team/myorg/developers"),
+        (Method::PUT, "/npm/-/team/myorg/developers/user"),
+        (Method::DELETE, "/npm/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/~local/-/org/myorg/team"),
+        (Method::DELETE, "/npm/~local/-/team/myorg/developers"),
+        (Method::PUT, "/npm/~local/-/team/myorg/developers/user"),
+        (Method::DELETE, "/npm/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
         let response = app
@@ -759,9 +768,9 @@ async fn team_listing_masks_callers_the_registry_denies() {
     // An anonymous caller gets the not-found mask on reads and mutations
     // alike — team names must not become an existence probe.
     for (method, path) in [
-        (Method::GET, "/-/org/myorg/team"),
-        (Method::GET, "/-/team/myorg/developers/user"),
-        (Method::PUT, "/-/org/myorg/team"),
+        (Method::GET, "/npm/-/org/myorg/team"),
+        (Method::GET, "/npm/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/-/org/myorg/team"),
     ] {
         let response = app
             .clone()
@@ -772,7 +781,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
     }
     // The authenticated caller passes the gate.
     let allowed = app
-        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
         .await
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
@@ -839,7 +848,7 @@ async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     let token = "header.payload.signature";
     let app = app_with_config_and_token(config, token, record(true, &[]));
     assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
-    assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
+    assert_eq!(status(app, signed(Method::PUT, "/npm/foo", token)).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]

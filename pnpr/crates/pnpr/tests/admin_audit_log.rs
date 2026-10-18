@@ -360,9 +360,14 @@ async fn audit_log_team_admin() {
     let root = login(&app, "root", "secret").await;
 
     // 1. team.create
-    let (status, _) =
-        send(&app, "PUT", "/-/org/audscope/team", Some(&root), Some(json!({ "name": "auddevs" })))
-            .await;
+    let (status, _) = send(
+        &app,
+        "PUT",
+        "/npm/-/org/audscope/team",
+        Some(&root),
+        Some(json!({ "name": "auddevs" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let ev = find_event(&logs, "team.create", "team", "auddevs");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
@@ -373,7 +378,7 @@ async fn audit_log_team_admin() {
     let (status, _) = send(
         &app,
         "PUT",
-        "/-/team/audscope/auddevs/user",
+        "/npm/-/team/audscope/auddevs/user",
         Some(&root),
         Some(json!({ "user": "audmember" })),
     )
@@ -388,7 +393,7 @@ async fn audit_log_team_admin() {
     let (status, _) = send(
         &app,
         "PUT",
-        "/-/team/audscope/auddevs/package",
+        "/npm/-/team/audscope/auddevs/package",
         Some(&root),
         Some(json!({ "package": "@audscope/pkg", "permissions": "read-write" })),
     )
@@ -403,7 +408,7 @@ async fn audit_log_team_admin() {
     let (status, _) = send(
         &app,
         "DELETE",
-        "/-/team/audscope/auddevs/package",
+        "/npm/-/team/audscope/auddevs/package",
         Some(&root),
         Some(json!({ "package": "@audscope/pkg" })),
     )
@@ -417,7 +422,7 @@ async fn audit_log_team_admin() {
     let (status, _) = send(
         &app,
         "DELETE",
-        "/-/team/audscope/auddevs/user",
+        "/npm/-/team/audscope/auddevs/user",
         Some(&root),
         Some(json!({ "user": "audmember" })),
     )
@@ -428,7 +433,7 @@ async fn audit_log_team_admin() {
     assert_request_span(&ev, "DELETE");
 
     // 6. team.destroy
-    let (status, _) = send(&app, "DELETE", "/-/team/audscope/auddevs", Some(&root), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/-/team/audscope/auddevs", Some(&root), None).await;
     assert_eq!(status, StatusCode::OK);
     let ev = find_event(&logs, "team.destroy", "team", "auddevs");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("root"));
@@ -523,14 +528,14 @@ async fn audit_log_unpublish_and_dist_tags() {
 
     // Publish package
     let body = publish_doc("audit-unpub-pkg", "1.0.0", b"tarball-contents");
-    let (status, _) = send(&app, "PUT", "/audit-unpub-pkg", Some(&publisher), Some(body)).await;
+    let (status, _) = send(&app, "PUT", "/npm/audit-unpub-pkg", Some(&publisher), Some(body)).await;
     assert_eq!(status, StatusCode::CREATED);
 
     // 1. package.dist_tag_set
     let (status, _) = send(
         &app,
         "PUT",
-        "/-/package/audit-unpub-pkg/dist-tags/beta",
+        "/npm/-/package/audit-unpub-pkg/dist-tags/beta",
         Some(&publisher),
         Some(json!("1.0.0")),
     )
@@ -547,7 +552,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     let (status, _) = send(
         &app,
         "PUT",
-        "/-/package/audit-unpub-pkg/dist-tags/bad%0Atag",
+        "/npm/-/package/audit-unpub-pkg/dist-tags/bad%0Atag",
         Some(&publisher),
         Some(json!("1.0.0")),
     )
@@ -558,7 +563,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     let (status, _) = send(
         &app,
         "DELETE",
-        "/-/package/audit-unpub-pkg/dist-tags/nonexistent",
+        "/npm/-/package/audit-unpub-pkg/dist-tags/nonexistent",
         Some(&publisher),
         None,
     )
@@ -576,9 +581,14 @@ async fn audit_log_unpublish_and_dist_tags() {
     );
 
     // 2. package.dist_tag_remove
-    let (status, _) =
-        send(&app, "DELETE", "/-/package/audit-unpub-pkg/dist-tags/beta", Some(&publisher), None)
-            .await;
+    let (status, _) = send(
+        &app,
+        "DELETE",
+        "/npm/-/package/audit-unpub-pkg/dist-tags/beta",
+        Some(&publisher),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let ev = find_event(&logs, "package.dist_tag_remove", "package", "audit-unpub-pkg");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_publisher"));
@@ -590,7 +600,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     let (status, _) = send(
         &app,
         "DELETE",
-        "/audit-unpub-pkg/-/audit-unpub-pkg-1.0.0.tgz/-rev/anything",
+        "/npm/audit-unpub-pkg/-/audit-unpub-pkg-1.0.0.tgz/-rev/anything",
         Some(&publisher),
         None,
     )
@@ -604,7 +614,7 @@ async fn audit_log_unpublish_and_dist_tags() {
 
     // 4. package.unpublish
     let (status, _) =
-        send(&app, "DELETE", "/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
+        send(&app, "DELETE", "/npm/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
     assert_eq!(status, StatusCode::CREATED);
     let ev = find_event(&logs, "package.unpublish", "package", "audit-unpub-pkg");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_publisher"));
@@ -613,7 +623,7 @@ async fn audit_log_unpublish_and_dist_tags() {
 
     // Duplicate package unpublish does not emit duplicate audit record
     let (status, _) =
-        send(&app, "DELETE", "/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
+        send(&app, "DELETE", "/npm/audit-unpub-pkg/-rev/anything", Some(&publisher), None).await;
     assert_eq!(status, StatusCode::CREATED);
     let count = logs
         .lock()

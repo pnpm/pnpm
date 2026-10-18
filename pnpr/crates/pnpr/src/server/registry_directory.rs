@@ -30,9 +30,8 @@ pub(super) async fn serve(
             }
         }
     }
-    let ecosystems: serde_json::Map<String, Value> = Ecosystem::all()
-        .map(|ecosystem| ecosystem_capability(registries, &entries, ecosystem))
-        .collect();
+    let ecosystems: serde_json::Map<String, Value> =
+        Ecosystem::all().map(|ecosystem| ecosystem_capability(&entries, ecosystem)).collect();
     private_no_cache(
         Json(json!({
             "registries": entries, "defaultRegistries": defaults, "ecosystems": ecosystems,
@@ -43,19 +42,17 @@ pub(super) async fn serve(
 }
 
 /// What one ecosystem's clients can expect of this server.
-fn ecosystem_capability(
-    registries: &Registries,
-    entries: &[Value],
-    ecosystem: Ecosystem,
-) -> (String, Value) {
+fn ecosystem_capability(entries: &[Value], ecosystem: Ecosystem) -> (String, Value) {
     let name = ecosystem.to_string();
     let available = entries
         .iter()
         .any(|entry| entry["ecosystem"] == name);
-    let prefixed = ecosystem != Ecosystem::Oci && !registries.is_only_ecosystem(ecosystem);
+    // An image client cannot be pointed at a prefix, so the default image
+    // registry answers at the host root. Its named registries are prefixed.
+    let prefixed = ecosystem != Ecosystem::Oci;
     let mut capability = json!({ "available": available, "prefixed": prefixed });
     if ecosystem == Ecosystem::Oci {
-        capability["namedPrefixed"] = json!(!registries.is_only_ecosystem(ecosystem));
+        capability["namedPrefixed"] = json!(true);
     }
     (name, capability)
 }

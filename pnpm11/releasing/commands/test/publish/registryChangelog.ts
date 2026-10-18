@@ -10,7 +10,7 @@ import tar from 'tar-stream'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
     '@': { authToken: getRegistryMockToken() },
@@ -43,7 +43,7 @@ async function releaseAndPublish (version: string, section: string): Promise<voi
 }
 
 async function fetchPublishedChangelog (version: string): Promise<string | undefined> {
-  const packumentResponse = await fetch(`${REGISTRY_URL}/${PKG_NAME.replace('/', '%2F')}`)
+  const packumentResponse = await fetch(`${REGISTRY_URL}${PKG_NAME.replaceAll('/', '%2F')}`)
   const packument = await packumentResponse.json() as { versions: Record<string, { dist: { tarball: string } }> }
   const tarballUrl = packument.versions[version]?.dist.tarball
   if (tarballUrl == null) return undefined

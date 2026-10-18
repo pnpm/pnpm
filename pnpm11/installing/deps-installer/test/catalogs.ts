@@ -1416,7 +1416,7 @@ describe('add', () => {
       name: 'project1',
       dependencies: {},
     }])
-    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`
 
     const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
       projects['project1' as ProjectId],

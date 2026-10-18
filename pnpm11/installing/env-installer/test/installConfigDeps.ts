@@ -11,7 +11,7 @@ import { createTempStore } from '@pnpm/testing.temp-store'
 import { rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 function makeEnvLockfile (deps: Record<string, { version: string, integrity: string }>): EnvLockfile {
   const lockfile = createEnvLockfile()

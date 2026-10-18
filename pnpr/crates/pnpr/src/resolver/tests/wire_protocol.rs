@@ -60,7 +60,7 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     .expect("authorized caller reuses private cached lockfile");
     let tarball = lockfile_tarball_url(&cached, "acme@1.0.0");
 
-    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 }
 
@@ -134,7 +134,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
-    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
     assert!(frame.get("revision").is_none());
 }
@@ -173,7 +173,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
 
     // Routed by the corp registry, not the CDN host — so the raw upstream CDN
     // URL is never emitted to the client.
-    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"), "got {tarball}");
+    assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"), "got {tarball}");
     assert!(!tarball.contains("split-domain.example"), "raw CDN URL leaked: {tarball}");
 }
 
@@ -277,7 +277,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
     let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
     let tarball = frame["tarball"].as_str().expect("tarball URL");
-    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 }
 

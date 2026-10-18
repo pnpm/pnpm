@@ -1,6 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{recover_publish_journal, serve, serve_listener};
-pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;

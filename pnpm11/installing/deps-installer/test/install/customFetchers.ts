@@ -71,7 +71,7 @@ test.each(['isolated', 'hoisted'] as const)('custom fetcher delegates a custom-t
       id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
       resolution: {
         type: 'custom:e2e',
-        url: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+        url: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
       },
     }),
@@ -125,7 +125,7 @@ test('a custom-typed resolution without a claiming fetcher fails the install', a
       id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
       resolution: {
         type: 'custom:e2e',
-        url: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+        url: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
       },
     }),

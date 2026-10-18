@@ -609,10 +609,10 @@ async function createGitPreparePackage (): Promise<string> {
 test('allowBuilds does not run lifecycle scripts for direct tarball identities', async () => {
   prepareEmpty()
   const registries = {
-    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }
-  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
   const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
@@ -639,10 +639,10 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
 test('surfaces a tarball artifact as an ignored build when its depPath approval is revoked', async () => {
   prepareEmpty()
   const registries = {
-    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }
-  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
   const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
 
   // First install approves the artifact by its depPath, so the build runs and

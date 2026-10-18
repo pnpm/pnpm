@@ -148,7 +148,7 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     '@pnpm/xyz-parent-parent-parent-parent',
     '@pnpm/xyz-parent-parent-with-xyz',
     '@pnpm/x@npm:@pnpm.e2e/peer-a@1.0.0',
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   const suffix1 = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
@@ -175,7 +175,7 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
   await addDependenciesToPackage({}, [
     '@pnpm/xyz-parent-parent-parent-parent',
     '@pnpm/x@npm:@pnpm.e2e/peer-a@1.0.0',
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   const suffix = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])

@@ -93,13 +93,7 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
             )
             .with_ecosystem(name, ecosystem);
         });
-    // The server's root is its npm alias; every other ecosystem is
-    // addressed under its own prefix.
-    if ecosystem == Ecosystem::Npm {
-        format!("http://{addr}")
-    } else {
-        format!("http://{addr}/{ecosystem}/")
-    }
+    format!("http://{addr}/{ecosystem}/")
 }
 
 /// A bound port and storage directory waiting for [`Self::serve`] to start
@@ -194,7 +188,7 @@ fn point_npmrc_registry_at(npmrc_path: &Path, registry_url: &str) {
         .lines()
         .map(|line| {
             if line.starts_with("registry=") {
-                format!("registry={registry_url}/")
+                format!("registry={}/", registry_url.trim_end_matches('/'))
             } else {
                 line.to_string()
             }

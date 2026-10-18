@@ -13,7 +13,7 @@ jest.unstable_mockModule('open', () => ({
 
 const { repo } = await import('@pnpm/deps.inspection.commands')
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const BASE_OPTIONS = {
   registriesByScope: { default: REGISTRY_URL },

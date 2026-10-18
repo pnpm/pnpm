@@ -40,7 +40,7 @@ async fn serves_scoped_packument_from_storage() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps")
+            Request::get("/npm/@foo/no-deps")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +58,7 @@ async fn serves_scoped_packument_from_storage() {
     // pointed at our `public_url`.
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
-        format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
+        format!("{PUBLIC_URL}/npm/@foo/no-deps/-/no-deps-1.0.0.tgz"),
     );
     // Other fields (integrity, shasum, name, version) should pass
     // through untouched.
@@ -84,7 +84,7 @@ async fn serves_scoped_tarball_from_storage() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz")
+            Request::get("/npm/@foo/no-deps/-/no-deps-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -102,7 +102,7 @@ async fn static_mode_returns_404_for_unknown_package() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/this-package-does-not-exist")
+            Request::get("/npm/@foo/this-package-does-not-exist")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -118,7 +118,7 @@ async fn abbreviated_accept_header_strips_packument() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps")
+            Request::get("/npm/@foo/no-deps")
                 .header(
                     "Accept",
                     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
@@ -150,7 +150,7 @@ async fn abbreviated_accept_header_strips_packument() {
     assert_eq!(version_obj["version"], "1.0.0");
     assert_eq!(
         version_obj["dist"]["tarball"],
-        format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
+        format!("{PUBLIC_URL}/npm/@foo/no-deps/-/no-deps-1.0.0.tgz"),
     );
     assert!(
         version_obj["dist"]["integrity"]
@@ -185,7 +185,7 @@ async fn full_packument_served_when_accept_does_not_request_abbreviated() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps")
+            Request::get("/npm/@foo/no-deps")
                 .header("Accept", "application/json")
                 .body(Body::empty())
                 .unwrap(),
@@ -214,7 +214,7 @@ async fn serves_version_manifest_by_dist_tag() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps/latest")
+            Request::get("/npm/@foo/no-deps/latest")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -227,7 +227,7 @@ async fn serves_version_manifest_by_dist_tag() {
     assert_eq!(manifest["version"], "1.0.0");
     assert_eq!(
         manifest["dist"]["tarball"],
-        format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
+        format!("{PUBLIC_URL}/npm/@foo/no-deps/-/no-deps-1.0.0.tgz"),
     );
     // The response is the single-version manifest, not the whole
     // packument — `versions` shouldn't be there.
@@ -241,7 +241,7 @@ async fn serves_version_manifest_by_literal_version() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps/1.0.0")
+            Request::get("/npm/@foo/no-deps/1.0.0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -260,7 +260,7 @@ async fn version_manifest_returns_404_for_unknown_version() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps/99.0.0")
+            Request::get("/npm/@foo/no-deps/99.0.0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -276,7 +276,7 @@ async fn static_mode_returns_404_for_unknown_tarball() {
 
     let response = app
         .oneshot(
-            Request::get("/@foo/no-deps/-/no-deps-99.0.0.tgz")
+            Request::get("/npm/@foo/no-deps/-/no-deps-99.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -290,7 +290,7 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
 
-    for path in ["/@foo/no-deps", "/~main/@foo/no-deps", "/~local/@foo/no-deps"] {
+    for path in ["/npm/@foo/no-deps", "/npm/~main/@foo/no-deps", "/npm/~local/@foo/no-deps"] {
         let response = app
             .clone()
             .oneshot(
@@ -307,7 +307,7 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz")
+            Request::get("/npm/@foo/no-deps/-/no-deps-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -320,7 +320,7 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     );
     let response = app
         .oneshot(
-            Request::get("/~main/-/whoami")
+            Request::get("/npm/~main/-/whoami")
                 .body(Body::empty())
                 .unwrap(),
         )

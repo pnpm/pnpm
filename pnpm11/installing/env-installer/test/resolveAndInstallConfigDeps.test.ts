@@ -15,7 +15,7 @@ import { loadJsonFileSync } from 'load-json-file'
 
 import { bravoDepMatureUpTo101MinimumReleaseAge } from './utils/minimumReleaseAge.js'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 function createOpts (registryUrl: string = registry) {
   const { storeController, storeDir } = createTempStore()
@@ -231,7 +231,7 @@ test('takes the tarball of an old-format config dep from the packument', async (
 // registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
 // at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
 async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
-  const bases = { upstream: `http://localhost:${REGISTRY_MOCK_PORT}`, proxy: '' }
+  const bases = { upstream: `http://localhost:${REGISTRY_MOCK_PORT}/npm`, proxy: '' }
   const server = http.createServer((req, res) => {
     proxyToUpstream(req, res, bases).catch((err: unknown) => {
       res.writeHead(500)

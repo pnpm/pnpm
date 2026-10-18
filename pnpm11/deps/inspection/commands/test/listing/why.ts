@@ -36,7 +36,7 @@ test('"why" should show reverse dependency tree for a non-direct dependency', as
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -61,7 +61,7 @@ test('"why" should find packages by alias name when using npm: protocol', async 
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -83,7 +83,7 @@ test('"why" should find packages by actual package name when using npm: protocol
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -105,7 +105,7 @@ test('"why" should display parseable output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -128,7 +128,7 @@ test('"why" should display finder message in tree output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),
@@ -156,7 +156,7 @@ test('"why" should display finder message in JSON output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),
@@ -186,7 +186,7 @@ test('"why" finder can read manifest from store', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),

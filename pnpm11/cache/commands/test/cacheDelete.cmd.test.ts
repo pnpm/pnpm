@@ -10,7 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 describe('cache delete', () => {
   let cacheDir: string
@@ -58,7 +58,7 @@ describe('cache delete', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`http%3A+localhost+${REGISTRY_MOCK_PORT}/is-negative.jsonl
+    expect(result).toBe(`http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/is-negative.jsonl
 https%3A+registry.npmjs.org/is-negative.jsonl`)
   })
 })

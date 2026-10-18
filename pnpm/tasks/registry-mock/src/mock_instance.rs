@@ -161,6 +161,7 @@ impl AutoMockInstance {
         }
     }
 
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> String {
         self.info().url()

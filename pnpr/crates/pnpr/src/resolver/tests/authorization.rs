@@ -163,7 +163,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
 
-    assert!(tarball.starts_with("http://127.0.0.1:7677/~corp/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.starts_with("http://127.0.0.1:7677/npm/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 
     let upstream = router.verification_lockfile(&routed);
@@ -186,7 +186,7 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
     let routed = router.route_lockfile(&pnpm_config, &package_lockfile("@acme/foo", "1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "@acme/foo@1.0.0");
 
-    assert!(tarball.contains("/~corp/@acme/foo/-/foo-1.0.0.tgz"));
+    assert!(tarball.contains("/npm/~corp/@acme/foo/-/foo-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 
     let upstream = router.verification_lockfile(&routed);

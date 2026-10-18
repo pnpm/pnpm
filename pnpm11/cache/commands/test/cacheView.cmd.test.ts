@@ -10,7 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 describe('cache view', () => {
   let cacheDir: string
@@ -49,7 +49,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toMatchObject({
-      [`http://localhost:${REGISTRY_MOCK_PORT}/`]: {
+      [`http://localhost:${REGISTRY_MOCK_PORT}/npm/`]: {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',

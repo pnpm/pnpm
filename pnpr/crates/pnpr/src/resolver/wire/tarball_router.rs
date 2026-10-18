@@ -49,13 +49,11 @@ impl TarballRouter {
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
-                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
-                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -133,13 +131,11 @@ impl TarballRouter {
             RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
-                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
-                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -153,8 +149,7 @@ impl TarballRouter {
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
     pub(super) fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let base_path = self.context.base_path(pnpr_registry::Ecosystem::Npm);
-        let prefix = format!("{}{base_path}/~", self.public_url.trim_end_matches('/'));
+        let prefix = format!("{}/~", npm_endpoint(&self.public_url));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
         let registry = self.context.upstream_registry(&self.identity, upstream)?;
@@ -172,22 +167,20 @@ pub(super) fn tarball_filename(package: &str, version: &str, tarball_url: &str) 
     }
 }
 
-pub(super) fn pnpr_tarball_url(
-    public_url: &str,
-    base_path: &str,
-    package: &str,
-    filename: &str,
-) -> String {
-    format!("{}{base_path}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+pub(super) fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
+    format!("{}/{package}/-/{filename}", npm_endpoint(public_url))
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.
 pub(super) fn upstream_endpoint_tarball_url(
     public_url: &str,
-    base_path: &str,
     upstream: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}{base_path}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}/~{upstream}/{package}/-/{filename}", npm_endpoint(public_url))
+}
+
+fn npm_endpoint(public_url: &str) -> String {
+    format!("{}{}", public_url.trim_end_matches('/'), pnpr_registry::Ecosystem::Npm.base_path())
 }

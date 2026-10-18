@@ -1,4 +1,4 @@
-use super::{TargetKind, TargetSpec};
+use super::{RegistryMode, TargetKind, TargetSpec};
 use std::str::FromStr;
 
 #[test]
@@ -42,4 +42,24 @@ fn target_spec_empty_rev_is_rejected() {
     assert!(err.contains("<rev> must not be empty"), "err = {err}");
     let err = TargetSpec::from_str("pnpr@").unwrap_err();
     assert!(err.contains("<rev> must not be empty"), "err = {err}");
+}
+
+#[test]
+fn spawned_mock_serves_npm_under_its_base_path() {
+    assert_eq!(
+        RegistryMode::Verdaccio.local_registry_url("http://localhost:4873"),
+        "http://localhost:4873/npm/",
+    );
+    assert_eq!(
+        RegistryMode::Verdaccio.local_registry_url("http://127.0.0.1:4873/"),
+        "http://127.0.0.1:4873/npm/",
+    );
+}
+
+#[test]
+fn external_registry_serves_npm_at_its_root() {
+    assert_eq!(
+        RegistryMode::Virtual.local_registry_url("http://localhost:4873"),
+        "http://localhost:4873/",
+    );
 }

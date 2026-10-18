@@ -119,22 +119,22 @@ async fn publish_with_provenance_and_serve_attestations() {
 
     let res = app
         .clone()
-        .oneshot(put_publish("/prov-pkg", &token, &doc))
+        .oneshot(put_publish("/npm/prov-pkg", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    let packument = body_json(get_req(&app, "/prov-pkg").await.into_body()).await;
+    let packument = body_json(get_req(&app, "/npm/prov-pkg").await.into_body()).await;
     assert_eq!(
         packument["versions"]["1.0.0"]["dist"]["attestations"]["url"],
-        format!("{PUBLIC_URL}/-/npm/v1/attestations/prov-pkg@1.0.0"),
+        format!("{PUBLIC_URL}/npm/-/npm/v1/attestations/prov-pkg@1.0.0"),
     );
     assert_eq!(
         packument["versions"]["1.0.0"]["dist"]["attestations"]["provenance"]["predicateType"],
         "https://slsa.dev/provenance/v1",
     );
 
-    let attest_res = get_req(&app, "/-/npm/v1/attestations/prov-pkg@1.0.0").await;
+    let attest_res = get_req(&app, "/npm/-/npm/v1/attestations/prov-pkg@1.0.0").await;
     assert_eq!(attest_res.status(), StatusCode::OK);
     let payload = body_json(attest_res.into_body()).await;
     let items = payload["attestations"].as_array().expect("array");
@@ -143,10 +143,10 @@ async fn publish_with_provenance_and_serve_attestations() {
     assert_eq!(items[0]["bundle"]["mediaType"], "application/vnd.dev.sigstore.bundle.v0.3+json");
 
     for bad_path in [
-        "/-/npm/v1/attestations/prov-pkg@2.0.0",
-        "/-/npm/v1/attestations/prov-pkg@1.0.0/subpath",
-        "/-/npm/v1/attestations/prov-pkg@",
-        "/-/npm/v1/attestations/@prov-pkg",
+        "/npm/-/npm/v1/attestations/prov-pkg@2.0.0",
+        "/npm/-/npm/v1/attestations/prov-pkg@1.0.0/subpath",
+        "/npm/-/npm/v1/attestations/prov-pkg@",
+        "/npm/-/npm/v1/attestations/@prov-pkg",
     ] {
         assert_eq!(get_req(&app, bad_path).await.status(), StatusCode::NOT_FOUND);
     }
@@ -170,21 +170,21 @@ async fn publish_scoped_package_with_sigstore_json_attachment() {
 
     let res = app
         .clone()
-        .oneshot(put_publish("/@scope%2Fprov-pkg", &token, &doc))
+        .oneshot(put_publish("/npm/@scope%2Fprov-pkg", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    let packument = body_json(get_req(&app, "/@scope%2Fprov-pkg").await.into_body()).await;
+    let packument = body_json(get_req(&app, "/npm/@scope%2Fprov-pkg").await.into_body()).await;
     assert_eq!(
         packument["versions"]["2.0.0"]["dist"]["attestations"]["url"],
-        format!("{PUBLIC_URL}/-/npm/v1/attestations/@scope/prov-pkg@2.0.0"),
+        format!("{PUBLIC_URL}/npm/-/npm/v1/attestations/@scope/prov-pkg@2.0.0"),
     );
 
     // Both percent-encoded and unencoded slash paths must succeed.
     for path in [
-        "/-/npm/v1/attestations/@scope%2Fprov-pkg@2.0.0",
-        "/-/npm/v1/attestations/@scope/prov-pkg@2.0.0",
+        "/npm/-/npm/v1/attestations/@scope%2Fprov-pkg@2.0.0",
+        "/npm/-/npm/v1/attestations/@scope/prov-pkg@2.0.0",
     ] {
         let res = get_req(&app, path).await;
         assert_eq!(res.status(), StatusCode::OK);
@@ -211,14 +211,14 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
 
     let res = app
         .clone()
-        .oneshot(put_publish("/del-pkg", &token, &doc))
+        .oneshot(put_publish("/npm/del-pkg", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
     assert!(storage.join("del-pkg/del-pkg-1.0.0.sigstore").exists());
 
-    let del = Request::delete("/del-pkg/-/del-pkg-1.0.0.tgz/-rev/anything")
+    let del = Request::delete("/npm/del-pkg/-/del-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -233,7 +233,7 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
 
     assert!(!storage.join("del-pkg/del-pkg-1.0.0.sigstore").exists());
 
-    let get_attest = Request::get("/-/npm/v1/attestations/del-pkg@1.0.0")
+    let get_attest = Request::get("/npm/-/npm/v1/attestations/del-pkg@1.0.0")
         .body(Body::empty())
         .unwrap();
     assert_eq!(
@@ -251,7 +251,7 @@ async fn hosted_keys_endpoint_returns_empty_keys() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
 
-    for path in ["/-/npm/v1/keys", "/~local/-/npm/v1/keys"] {
+    for path in ["/npm/-/npm/v1/keys", "/npm/~local/-/npm/v1/keys"] {
         let res = get_req(&app, path).await;
         assert_eq!(res.status(), StatusCode::OK);
         let payload = body_json(res.into_body()).await;
@@ -285,13 +285,13 @@ async fn upstream_attestations_and_keys_proxy() {
     let app = router(config);
 
     // Keys proxied
-    let keys_res = get_req(&app, "/-/npm/v1/keys").await;
+    let keys_res = get_req(&app, "/npm/-/npm/v1/keys").await;
     assert_eq!(keys_res.status(), StatusCode::OK);
     let keys_payload = body_json(keys_res.into_body()).await;
     assert_eq!(keys_payload["keys"][0]["keyid"], "sigstore-root");
 
     // Attestations proxied
-    let attest_res = get_req(&app, "/-/npm/v1/attestations/proxied-pkg@1.0.0").await;
+    let attest_res = get_req(&app, "/npm/-/npm/v1/attestations/proxied-pkg@1.0.0").await;
     assert_eq!(attest_res.status(), StatusCode::OK);
     let attest_payload = body_json(attest_res.into_body()).await;
     assert_eq!(
@@ -317,7 +317,7 @@ async fn invalid_sigstore_attachment_is_rejected() {
     });
 
     let res = app
-        .oneshot(put_publish("/bad-sig", &token, &doc))
+        .oneshot(put_publish("/npm/bad-sig", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
@@ -343,7 +343,7 @@ async fn orphan_sigstore_attachment_is_rejected() {
         .remove("orphan-sig-1.0.0.tgz");
 
     let res = app
-        .oneshot(put_publish("/orphan-sig", &token, &doc))
+        .oneshot(put_publish("/npm/orphan-sig", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
@@ -372,7 +372,7 @@ async fn duplicate_sigstore_attachments_are_rejected() {
     });
 
     let res = app
-        .oneshot(put_publish("/dup-sig", &token, &doc))
+        .oneshot(put_publish("/npm/dup-sig", &token, &doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);

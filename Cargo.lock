@@ -6096,6 +6096,7 @@ dependencies = [
  "home",
  "pipe-trait",
  "pnpr-fixtures",
+ "pnpr-package-name",
  "reqwest",
  "serde",
  "serde_json",

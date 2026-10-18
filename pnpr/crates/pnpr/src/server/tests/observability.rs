@@ -144,14 +144,16 @@ async fn metrics_records_request_count_and_duration() {
 }
 
 #[tokio::test]
-async fn metrics_or_packument_routes_distinguish_accept_header() {
+async fn metrics_and_the_npm_package_named_metrics_have_separate_paths() {
     let tmp = TempDir::new().unwrap();
     let app = test_app(&tmp);
+    let npm_accept = HeaderValue::from_static(
+        "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8",
+    );
 
-    // Prometheus or general scraper sends text/plain or */*
     let scrape_req = Request::builder()
         .uri("/metrics")
-        .header(header::ACCEPT, "text/plain; version=0.0.4")
+        .header(header::ACCEPT, npm_accept.clone())
         .body(Body::empty())
         .unwrap();
     let scrape_res = app
@@ -165,19 +167,13 @@ async fn metrics_or_packument_routes_distinguish_accept_header() {
         "text/plain; version=0.0.4; charset=utf-8",
     );
 
-    // npm client requests packument for package "metrics" with npm accept header
     let npm_req = Request::builder()
-        .uri("/metrics")
-        .header(
-            header::ACCEPT,
-            HeaderValue::from_static(
-                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8",
-            ),
-        )
+        .uri("/npm/metrics")
+        .header(header::ACCEPT, npm_accept)
         .body(Body::empty())
         .unwrap();
     let npm_res = app.oneshot(npm_req).await.unwrap();
-    // Package "metrics" is not in the empty test store, so packument lookup returns 404 Not Found
+    // The empty test store has no package named "metrics".
     assert_eq!(npm_res.status(), StatusCode::NOT_FOUND);
 }
 

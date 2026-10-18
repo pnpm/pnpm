@@ -62,7 +62,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     let first_page = app
         .clone()
         .oneshot(
-            Request::get("/-/v1/search?text=ajv&size=2")
+            Request::get("/npm/-/v1/search?text=ajv&size=2")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -76,7 +76,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
 
     let second_page = app
         .oneshot(
-            Request::get("/-/v1/search?text=ajv&from=2&size=1")
+            Request::get("/npm/-/v1/search?text=ajv&from=2&size=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -119,7 +119,7 @@ async fn search_truncates_a_huge_upstream_instead_of_refusing() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=jquery&size=20")
+            Request::get("/npm/-/v1/search?text=jquery&size=20")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -173,7 +173,7 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=widget&size=20")
+            Request::get("/npm/-/v1/search?text=widget&size=20")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -221,7 +221,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+            "tarball": "http://example.test/npm/@acme/widget/-/widget-1.0.0.tgz",
             "integrity": sha512_integrity(tarball),
         } } },
         "_attachments": { "@acme/widget-1.0.0.tgz": {
@@ -233,7 +233,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let publish = app
         .clone()
         .oneshot(
-            authed(Request::put("/~acme/@acme/widget"))
+            authed(Request::put("/npm/~acme/@acme/widget"))
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
                 .unwrap(),
@@ -246,7 +246,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let tags = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
+            authed(Request::get("/npm/~acme/-/package/@acme%2Fwidget/dist-tags"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -259,7 +259,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let add = app
         .clone()
         .oneshot(
-            authed(Request::put("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+            authed(Request::put("/npm/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#""1.0.0""#))
                 .unwrap(),
@@ -270,7 +270,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let tags = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
+            authed(Request::get("/npm/~acme/-/package/@acme%2Fwidget/dist-tags"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -280,7 +280,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let remove = app
         .clone()
         .oneshot(
-            authed(Request::delete("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+            authed(Request::delete("/npm/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -292,7 +292,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let whoami = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/whoami"))
+            authed(Request::get("/npm/~acme/-/whoami"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -306,7 +306,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let search = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/v1/search?text=widget"))
+            authed(Request::get("/npm/~acme/-/v1/search?text=widget"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -318,7 +318,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let anon_search = app
         .clone()
         .oneshot(
-            Request::get("/~acme/-/v1/search?text=widget")
+            Request::get("/npm/~acme/-/v1/search?text=widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -331,7 +331,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let manifest = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/@acme/widget/1.0.0"))
+            authed(Request::get("/npm/~acme/@acme/widget/1.0.0"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -341,7 +341,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let manifest = body_json(manifest.into_body()).await;
     assert_eq!(
         manifest["dist"]["tarball"],
-        json!("http://example.test/~acme/@acme/widget/-/widget-1.0.0.tgz"),
+        json!("http://example.test/npm/~acme/@acme/widget/-/widget-1.0.0.tgz"),
     );
 
     // The unpublish flow: PUT back a packument without the version, delete
@@ -350,7 +350,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let put_back = app
         .clone()
         .oneshot(
-            authed(Request::put("/~acme/@acme%2Fwidget/-rev/1"))
+            authed(Request::put("/npm/~acme/@acme%2Fwidget/-rev/1"))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
@@ -363,7 +363,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let delete_tar = app
         .clone()
         .oneshot(
-            authed(Request::delete("/~acme/@acme/widget/-/widget-1.0.0.tgz/-rev/1"))
+            authed(Request::delete("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz/-rev/1"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -378,7 +378,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let delete_pkg = app
         .clone()
         .oneshot(
-            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1"))
+            authed(Request::delete("/npm/~acme/@acme%2Fwidget/-rev/1"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -411,7 +411,11 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
-    for path in ["/@acme/widget", "/@acme%2Fwidget/1.0.0", "/-/package/@acme%2Fwidget/dist-tags"] {
+    for path in [
+        "/npm/@acme/widget",
+        "/npm/@acme%2Fwidget/1.0.0",
+        "/npm/-/package/@acme%2Fwidget/dist-tags",
+    ] {
         let response = app
             .clone()
             .oneshot(
@@ -436,7 +440,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
                 .headers()
                 .get(header::VARY)
                 .and_then(|value| value.to_str().ok()),
-            if path == "/@acme/widget" {
+            if path == "/npm/@acme/widget" {
                 Some("Accept, Authorization")
             } else {
                 Some("Authorization")
@@ -457,7 +461,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let app = router_with_auth(config, AuthState::in_memory());
     let response = app
         .oneshot(
-            Request::get("/@acme/widget")
+            Request::get("/npm/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -500,7 +504,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
 
     let response = app
         .oneshot(
-            Request::get("/@acme/widget")
+            Request::get("/npm/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -584,7 +588,7 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
         Some("main".to_string()),
     );
     let app = router(config);
-    for base in ["", "/~main"] {
+    for base in ["/npm", "/npm/~main"] {
         for (from, name) in [(0, "alpha"), (1, "beta"), (2, "gamma")] {
             let response = app
                 .clone()
@@ -611,7 +615,7 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
     }
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?browse=true&from=3")
+            Request::get("/npm/-/v1/search?browse=true&from=3")
                 .body(Body::empty())
                 .unwrap(),
         )

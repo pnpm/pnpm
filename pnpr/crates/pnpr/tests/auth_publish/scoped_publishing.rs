@@ -47,7 +47,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
             },
         },
     });
-    let request = Request::put(format!("/{pkg}"))
+    let request = Request::put(format!("/npm/{pkg}"))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -68,7 +68,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     // And it serves back via the spec URL form.
     let served = app
         .oneshot(
-            Request::get("/@pnpmtest/lib-pub-form/-/lib-pub-form-1.0.0.tgz")
+            Request::get("/npm/@pnpmtest/lib-pub-form/-/lib-pub-form-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -90,7 +90,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // older one removed — simulating the partial-unpublish flow.
     for version in ["1.0.0", "2.0.0"] {
         let body = publish_doc("unpub-partial", version, version.as_bytes());
-        let request = Request::put("/unpub-partial")
+        let request = Request::put("/npm/unpub-partial")
             .header("content-type", "application/json")
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -111,7 +111,7 @@ async fn unpublish_partial_writes_modified_packument() {
             }},
         },
     });
-    let request = Request::put("/unpub-partial/-rev/anything")
+    let request = Request::put("/npm/unpub-partial/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&modified).unwrap()))
@@ -127,7 +127,7 @@ async fn unpublish_partial_writes_modified_packument() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/unpub-partial")
+            Request::get("/npm/unpub-partial")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -153,7 +153,7 @@ async fn unpublish_partial_writes_modified_packument() {
     );
 
     // DELETE the 1.0.0 tarball next.
-    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -170,7 +170,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // returns 201 here too (idempotent). The pnpm unpublish flow
     // tolerates 404 separately as a fallback, but we shouldn't even
     // get there.
-    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -187,7 +187,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = publish_doc("blend-pkg", "1.0.0", b"hosted-bytes");
-    let request = Request::put("/blend-pkg")
+    let request = Request::put("/npm/blend-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -209,7 +209,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
     std::fs::create_dir_all(&cache_subsystem).unwrap();
     std::fs::write(cache_subsystem.join("data.txt"), b"cache-data").unwrap();
 
-    let request = Request::delete("/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -234,7 +234,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
 
     let response = app
         .oneshot(
-            Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz")
+            Request::get("/npm/blend-pkg/-/blend-pkg-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -251,7 +251,7 @@ async fn unpublish_force_removes_entire_package() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = publish_doc("unpub-force", "1.0.0", b"contents");
-    let request = Request::put("/unpub-force")
+    let request = Request::put("/npm/unpub-force")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -262,7 +262,7 @@ async fn unpublish_force_removes_entire_package() {
         .unwrap();
     assert!(storage.join("unpub-force/package.json").exists());
 
-    let request = Request::delete("/unpub-force/-rev/anything")
+    let request = Request::delete("/npm/unpub-force/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -277,7 +277,7 @@ async fn unpublish_force_removes_entire_package() {
     // Re-fetch returns 404 (static mode + no on-disk packument).
     let response = app
         .oneshot(
-            Request::get("/unpub-force")
+            Request::get("/npm/unpub-force")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -294,7 +294,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = publish_doc("@scope/unpub", "1.0.0", b"bytes");
-    let request = Request::put("/@scope/unpub")
+    let request = Request::put("/npm/@scope/unpub")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -308,7 +308,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     // pnpm reconstructs the DELETE URL from the rewritten tarball URL
     // in the packument, which uses literal `/` for the scope segment
     // (not `%2F`). That lands on the 6-seg route.
-    let request = Request::delete("/@scope/unpub/-/unpub-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/@scope/unpub/-/unpub-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -330,7 +330,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = publish_doc("missing-unpublish", "1.0.0", b"contents");
-    let request = Request::put("/missing-unpublish")
+    let request = Request::put("/npm/missing-unpublish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -344,7 +344,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
         StatusCode::CREATED,
     );
 
-    let request = Request::delete("/missing-unpublish/-rev/anything")
+    let request = Request::delete("/npm/missing-unpublish/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
@@ -374,7 +374,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = publish_doc("replace-policy", "1.0.0", b"contents");
-    let request = Request::put("/replace-policy")
+    let request = Request::put("/npm/replace-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -393,7 +393,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     replacement["owner"] = json!("admin");
 
-    let request = Request::put("/replace-policy/-rev/anything")
+    let request = Request::put("/npm/replace-policy/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
@@ -409,7 +409,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     assert!(on_disk.get("owner").is_none());
 
-    let request = Request::put("/replace-policy/-rev/anything")
+    let request = Request::put("/npm/replace-policy/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
@@ -444,7 +444,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
         let token = token.clone();
         tokio::spawn(async move {
             let body = publish_doc("racer", version, version.as_bytes());
-            let request = Request::put("/racer")
+            let request = Request::put("/npm/racer")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))

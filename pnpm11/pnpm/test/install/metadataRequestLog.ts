@@ -92,7 +92,8 @@ function describe (request: RecordedRequest, etags: Map<string, string | undefin
   return `${request.method} ${request.path} ${document}${validators} ${request.status}`
 }
 
-// Forwards to the mock registry. Tarball URLs in the packuments name the mock
+// Serves the mock registry's npm endpoints at its root, so the recorded paths
+// match the shared table. Tarball URLs in the packuments name the mock
 // registry itself, so only metadata requests pass through here.
 async function startRecordingRegistry (): Promise<RecordingRegistry> {
   let requests: RecordedRequest[] = []
@@ -101,7 +102,7 @@ async function startRecordingRegistry (): Promise<RecordingRegistry> {
       host: 'localhost',
       port: REGISTRY_MOCK_PORT,
       method: req.method,
-      path: req.url,
+      path: `/npm${req.url}`,
       headers: req.headers,
     }, (upstreamRes) => {
       requests.push({

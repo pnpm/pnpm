@@ -18,7 +18,7 @@ mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
     cold_mock_config_yaml, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
-    wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 
 mod measurements;
@@ -291,14 +291,8 @@ impl WorkEnv {
             if scenario.uses_linked_workspace_fixture() {
                 linked_workspace::create_projects(&dir);
             }
-            create_pnpm_workspace(
-                &dir,
-                self.options.selection.fixture_dir.as_deref(),
-                registry,
-                scenario,
-            );
+            self.write_registry_config(&dir, registry);
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
-            create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
             save_pristine_copies(&dir);
         }
@@ -309,6 +303,19 @@ impl WorkEnv {
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
         }
+    }
+
+    /// Write the `pnpm-workspace.yaml` and `.npmrc` that point a bench dir at
+    /// `registry`.
+    fn write_registry_config(&self, dir: &Path, registry: &str) {
+        let scenario = self.options.selection.scenario.expect("scenario set before writing config");
+        create_pnpm_workspace(
+            dir,
+            self.options.selection.fixture_dir.as_deref(),
+            registry,
+            scenario,
+        );
+        create_npmrc(dir, registry, scenario);
     }
 
     fn benchmark(
@@ -455,12 +462,12 @@ impl WorkEnv {
     pub fn run(&self) {
         let registry_proxy = self.start_client_registry_proxy();
         let client_registry = match &registry_proxy {
-            Some(proxy) => format!("http://{}/", proxy.addr),
+            Some(proxy) => self.proxied_registry_url(proxy),
             None => self.registry.client.clone(),
         };
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
         let pnpr_server_registry = match &pnpr_server_registry_proxy {
-            Some(proxy) => format!("http://{}/", proxy.addr),
+            Some(proxy) => self.proxied_registry_url(proxy),
             None => self.registry.cache_populator.clone(),
         };
 

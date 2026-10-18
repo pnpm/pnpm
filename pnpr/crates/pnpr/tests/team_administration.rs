@@ -94,7 +94,7 @@ async fn add_user(app: &axum::Router, username: &str) -> String {
 }
 
 async fn team_names(app: &axum::Router, token: &str) -> Value {
-    let (status, teams) = send(app, "GET", "/-/org/acme/team", Some(token), None).await;
+    let (status, teams) = send(app, "GET", "/npm/-/org/acme/team", Some(token), None).await;
     assert_eq!(status, StatusCode::OK);
     teams
 }
@@ -108,11 +108,11 @@ async fn admin_edits_reach_team_rules_at_once() {
 
     // The package does not exist, so 404 proves the read was authorized and
     // 403 proves it was not.
-    let read = || send(&app, "GET", "/@secret/thing", Some(&bob), None);
+    let read = || send(&app, "GET", "/npm/@secret/thing", Some(&bob), None);
     assert_eq!(read().await.0, StatusCode::FORBIDDEN);
 
     let add = json!({ "user": "bob" });
-    let path = "/-/team/acme/readers/user";
+    let path = "/npm/-/team/acme/readers/user";
     assert_eq!(send(&app, "PUT", path, Some(&root), Some(add)).await.0, StatusCode::CREATED);
     assert_eq!(read().await.0, StatusCode::NOT_FOUND);
     let (_, members) = send(&app, "GET", path, Some(&root), None).await;
@@ -133,9 +133,10 @@ async fn only_admins_edit_the_roster() {
     let bob = add_user(&app, "bob").await;
     let create = json!({ "name": "ops" });
 
-    let (status, _) = send(&app, "PUT", "/-/org/acme/team", Some(&bob), Some(create.clone())).await;
+    let (status, _) =
+        send(&app, "PUT", "/npm/-/org/acme/team", Some(&bob), Some(create.clone())).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = send(&app, "PUT", "/-/org/acme/team", None, Some(create)).await;
+    let (status, _) = send(&app, "PUT", "/npm/-/org/acme/team", None, Some(create)).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(team_names(&app, &bob).await, json!([{ "name": "readers" }]));
 }
@@ -148,20 +149,20 @@ async fn roster_edits_refuse_conflicting_state() {
     let create = json!({ "name": "ops" });
 
     let (status, team) =
-        send(&app, "PUT", "/-/org/acme/team", Some(&root), Some(create.clone())).await;
+        send(&app, "PUT", "/npm/-/org/acme/team", Some(&root), Some(create.clone())).await;
     assert_eq!((status, team), (StatusCode::CREATED, json!({ "name": "ops" })));
-    let (status, _) = send(&app, "PUT", "/-/org/acme/team", Some(&root), Some(create)).await;
+    let (status, _) = send(&app, "PUT", "/npm/-/org/acme/team", Some(&root), Some(create)).await;
     assert_eq!(status, StatusCode::CONFLICT);
     // A `packages:` rule names `readers`, so it cannot be destroyed.
-    let (status, _) = send(&app, "DELETE", "/-/team/acme/readers", Some(&root), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/-/team/acme/readers", Some(&root), None).await;
     assert_eq!(status, StatusCode::CONFLICT);
-    let (status, _) = send(&app, "DELETE", "/-/team/acme/nope", Some(&root), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/-/team/acme/nope", Some(&root), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let add = json!({ "user": "bob" });
-    let (status, _) = send(&app, "PUT", "/-/team/acme/nope/user", Some(&root), Some(add)).await;
+    let (status, _) = send(&app, "PUT", "/npm/-/team/acme/nope/user", Some(&root), Some(add)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
-    let (status, _) = send(&app, "DELETE", "/-/team/acme/ops", Some(&root), None).await;
+    let (status, _) = send(&app, "DELETE", "/npm/-/team/acme/ops", Some(&root), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(team_names(&app, &root).await, json!([{ "name": "readers" }]));
 }
@@ -173,7 +174,9 @@ async fn a_new_process_serves_the_stored_roster() {
     let root = add_user(&app, "root").await;
     let create = json!({ "name": "ops" });
     assert_eq!(
-        send(&app, "PUT", "/-/org/acme/team", Some(&root), Some(create)).await.0,
+        send(&app, "PUT", "/npm/-/org/acme/team", Some(&root), Some(create))
+            .await
+            .0,
         StatusCode::CREATED,
     );
 
@@ -211,7 +214,7 @@ async fn team_edits_refuse_oversized_bodies() {
     let app = app_router(load_config(dir.path())).await;
     let body = json!({ "name": "x".repeat(100 * 1024) });
 
-    let (status, _) = send(&app, "PUT", "/-/org/acme/team", None, Some(body)).await;
+    let (status, _) = send(&app, "PUT", "/npm/-/org/acme/team", None, Some(body)).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
 }
 
@@ -225,8 +228,8 @@ async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     let app = app_router(load_config_with(dir.path(), &config)).await;
 
     let bob = add_user(&app, "bob").await;
-    let (status, _) = send(&app, "GET", "/@secret/thing", Some(&bob), None).await;
+    let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = send(&app, "GET", "/lodash", Some(&bob), None).await;
+    let (status, _) = send(&app, "GET", "/npm/lodash", Some(&bob), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }

@@ -173,16 +173,14 @@ steps:
       token=$(jq -er '.value' <<< "$response")
       echo "::add-mask::$token"
       export NODE_AUTH_TOKEN="pnpr_workload_${token}"
-      npm publish --registry=https://registry.example/~private/
+      npm publish --registry=https://registry.example/npm/~private/
 ```
 
 The project's `.npmrc` holds only the environment reference:
 
 ```ini title=".npmrc"
-//registry.example/~private/:_authToken=${NODE_AUTH_TOKEN}
+//registry.example/npm/~private/:_authToken=${NODE_AUTH_TOKEN}
 ```
-
-On a server with more than one ecosystem, use `/npm/~private/` in both places.
 
 The credential permits ordinary `PUT` publications to the configured packages
 through that named registry and nothing else. It cannot read packages, unpublish,

@@ -31,7 +31,7 @@ const { add, install, update } = await import('@pnpm/installing.commands')
 
 const mockCheckbox = jest.mocked(checkbox)
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const DEFAULT_OPTIONS = {
   argv: {

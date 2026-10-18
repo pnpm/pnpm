@@ -10,7 +10,7 @@ export const REGISTRY_MOCK_CREDENTIALS = {
   password: 'password',
 }
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/`
+export const REGISTRY_MOCK_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 /**
  * The bearer token the with-registry jest globalSetup mints for the test user
@@ -71,7 +71,7 @@ export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
     packageName: opts.package,
     version: opts.version,
     distTag: opts.distTag,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     authHeader: `Bearer ${getRegistryMockToken()}`,
     fetchFromRegistry: createFetchFromRegistry({}),
   })
@@ -90,7 +90,7 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
     username: opts.username,
     password: opts.password,
     email: opts.email,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     fetch: createFetchFromRegistry({}),
   })
 }

@@ -8,7 +8,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-const NAMED_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const NAMED_REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const registriesByPrefix = { work: NAMED_REGISTRY }
 
 function readLockfile (): LockfileFile {

@@ -7,12 +7,19 @@ use super::{
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
+    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml, serves_npm_under_base_path},
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
 use pnpm_lockfile::Lockfile;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    net::TcpListener,
+    path::Path,
+    thread,
+};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
@@ -669,4 +676,43 @@ fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
     assert!(scenario.cleanup().remove.is_empty());
     assert!(scenario.cleanup().restore.is_empty());
     fs::remove_dir_all(dir).unwrap();
+}
+
+/// Answer one request on a loopback port with `status_line` and `body`.
+fn serve_registry_directory_once(status_line: &'static str, body: &'static str) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a registry directory stub");
+    let port = listener
+        .local_addr()
+        .expect("stub address")
+        .port();
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept the directory request");
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request).expect("read the directory request");
+        write!(
+            stream,
+            "{status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len(),
+        )
+        .expect("answer the directory request");
+    });
+    port
+}
+
+#[test]
+fn registry_directory_reports_where_npm_is_served() {
+    let prefixed = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":true}}}"#,
+    );
+    assert!(serves_npm_under_base_path(prefixed));
+
+    let root = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":false}}}"#,
+    );
+    assert!(!serves_npm_under_base_path(root));
+
+    let without_directory = serve_registry_directory_once("HTTP/1.1 404 Not Found", "{}");
+    assert!(!serves_npm_under_base_path(without_directory));
 }

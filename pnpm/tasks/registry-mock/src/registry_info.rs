@@ -1,4 +1,8 @@
-use crate::{MockInstanceOptions, port_to_url::port_to_url, process_kill::kill_process_by_pid};
+use crate::{
+    MockInstanceOptions,
+    port_to_url::{npm_registry_url, port_to_url},
+    process_kill::kill_process_by_pid,
+};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,9 +23,10 @@ pub struct RegistryInfo {
 }
 
 impl RegistryInfo {
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> String {
-        port_to_url(self.port)
+        npm_registry_url(&port_to_url(self.port))
     }
 }
 

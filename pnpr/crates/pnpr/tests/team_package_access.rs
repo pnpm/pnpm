@@ -46,7 +46,7 @@ registries:
 defaultRegistry: main
 ";
 
-const PACKAGES: &str = "/-/team/acme/devs/package";
+const PACKAGES: &str = "/npm/-/team/acme/devs/package";
 const RULES: &str = "/-/pnpr/v0/admin/rules/npm/local";
 
 fn load_config(dir: &Path) -> Config {
@@ -103,7 +103,7 @@ async fn add_user(app: &axum::Router, username: &str) -> String {
 /// The package does not exist, so 404 means the read was allowed and 403
 /// that it was refused.
 async fn read_app(app: &axum::Router, token: &str) -> StatusCode {
-    send(app, "GET", "/@acme/app", Some(token), None).await.0
+    send(app, "GET", "/npm/@acme/app", Some(token), None).await.0
 }
 
 async fn app_rule(app: &axum::Router, root: &str) -> Value {
@@ -176,8 +176,8 @@ async fn grants_need_an_admin_a_declared_package_and_a_known_team() {
             json!({ "package": "@acme/app", "permissions": "admin" }),
             StatusCode::BAD_REQUEST,
         ),
-        ("/-/team/acme/nobody/package", &root, grant("@acme/app"), StatusCode::NOT_FOUND),
-        ("/-/team/fixed/devs/package", &root, grant("@fixed/app"), StatusCode::FORBIDDEN),
+        ("/npm/-/team/acme/nobody/package", &root, grant("@acme/app"), StatusCode::NOT_FOUND),
+        ("/npm/-/team/fixed/devs/package", &root, grant("@fixed/app"), StatusCode::FORBIDDEN),
     ];
     for (path, token, body, expected) in cases {
         let (status, _) = send(&app, "PUT", path, Some(token), Some(body.clone())).await;

@@ -42,7 +42,7 @@ It listens on `127.0.0.1:7677` and proxies `https://registry.npmjs.org/`
 by default. Point a client at it with:
 
 ```sh
-pnpm config set registry http://127.0.0.1:7677/
+pnpm config set registry http://127.0.0.1:7677/npm/
 ```
 
 ### Install accelerator
