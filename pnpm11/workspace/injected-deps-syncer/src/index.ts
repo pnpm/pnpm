@@ -131,11 +131,11 @@ async function publishToTargets (
   { sourceDir, targetDirs, includeOnlyPackageFiles }: { sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean },
   editedSinceMs: number
 ): Promise<void> {
-  // A publish directory the script has not built yet reads back empty, which
-  // would empty the injected copies.
-  if (!await dirExists(sourceDir)) return
   let source: PublishSource
   try {
+    // A publish directory the script has not built yet reads back empty,
+    // which would empty the injected copies.
+    if (!await dirExists(sourceDir)) return
     source = await readPublishSource(sourceDir, includeOnlyPackageFiles)
   } catch (err: unknown) {
     watchLogger.debug({

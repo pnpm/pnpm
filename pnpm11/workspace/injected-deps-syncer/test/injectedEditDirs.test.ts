@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
-import { injectedEditDirs } from '../src/index.js'
+import { injectedEditDirs, watchInjectedEdits } from '../src/index.js'
 
 function writeJson (file: string, value: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -66,4 +66,24 @@ test('injectedEditDirs reads the root\'s copies from its configured modules dire
     sourceDir: path.join(workspaceDir, 'lib'),
     targetDirs: [path.join(workspaceDir, 'deps/.pnpm/lib@file+lib/node_modules/lib')],
   }])
+})
+
+test('watchInjectedEdits logs a source directory it cannot inspect and stops cleanly', async () => {
+  prepareEmpty()
+  const loop = path.resolve('loop')
+  fs.symlinkSync(loop, loop)
+  const unhandled: unknown[] = []
+  const onUnhandled = (reason: unknown): void => {
+    unhandled.push(reason)
+  }
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    const watch = watchInjectedEdits(loop, [path.resolve('copy')])
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await watch.stop()
+    await new Promise((resolve) => setImmediate(resolve))
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
+  }
+  expect(unhandled).toEqual([])
 })
