@@ -66,7 +66,8 @@ pub struct RegistryResolution {
 /// Largest registry revision every pnpm implementation can represent exactly.
 pub const MAX_TARBALL_REVISION: u64 = 9_007_199_254_740_991;
 
-/// A positive registry artifact revision in JavaScript's safe-integer range.
+/// A registry artifact revision in JavaScript's safe-integer range. Revision
+/// 0 is the original artifact.
 #[derive(
     Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Into,
 )]
@@ -84,7 +85,7 @@ impl TryFrom<u64> for TarballRevision {
     type Error = InvalidTarballRevisionError;
 
     fn try_from(revision: u64) -> Result<Self, Self::Error> {
-        if (1..=MAX_TARBALL_REVISION).contains(&revision) {
+        if revision <= MAX_TARBALL_REVISION {
             Ok(Self(revision))
         } else {
             Err(InvalidTarballRevisionError { revision })
@@ -93,7 +94,7 @@ impl TryFrom<u64> for TarballRevision {
 }
 
 #[derive(Debug, Display, Error, Clone, Copy)]
-#[display("tarball revision {revision} is not a positive integer at most {MAX_TARBALL_REVISION}")]
+#[display("tarball revision {revision} is not an integer at most {MAX_TARBALL_REVISION}")]
 pub struct InvalidTarballRevisionError {
     pub revision: u64,
 }
@@ -462,9 +463,8 @@ impl LockfileResolution {
         // `/download/` URLs).
         let rebuildable = !git_hosted
             && !tarball.tarball.starts_with("file:")
-            && (integrity_addressed
+            && (tarball.revision.is_some()
                 || (!opts.include_tarball_url
-                    && tarball.revision.is_none()
                     && is_canonical_registry_tarball_url(
                         &tarball.tarball,
                         name,
