@@ -9,4 +9,4 @@
 "pacquet": patch
 ---
 
-When `pnpm install` resolves a dependency again, it now reuses a version that the install already resolved for the same package instead of a different version the lockfile pinned. The lockfile result then matches a fresh install, without a second copy of the package. A locked version still stays when nothing else in the install prefers another version. To pin a transitive dependency on purpose, use `overrides` [#17084](https://github.com/pnpm/pnpm/issues/17084).
+When `pnpm install` resolves a dependency again, it now reuses a version that the install already resolved for the same package, as a fresh install does. Before, it kept the version the lockfile pinned and added a second copy of the package. A locked version still stays when nothing else in the install prefers another version. To pin a transitive dependency on purpose, use `overrides` [#17084](https://github.com/pnpm/pnpm/issues/17084).

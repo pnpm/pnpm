@@ -116,10 +116,11 @@ pub(super) fn prioritize_preferred_versions(
 
 /// Group-by-weight accumulator, including the quirk that weight `0`
 /// acts as a sentinel a later non-zero `add` overwrites rather than
-/// sums with.
+/// sums with. The sums are `u64`: thousands of manifest ranges matching
+/// one version add up past `u32::MAX`.
 #[derive(Default)]
 pub(super) struct PreferredVersionsPrioritizer {
-    pub(super) preferred_versions: BTreeMap<String, u32>,
+    pub(super) preferred_versions: BTreeMap<String, u64>,
 }
 
 impl PreferredVersionsPrioritizer {
@@ -158,14 +159,14 @@ impl PreferredVersionsPrioritizer {
             // JS truthiness: `0` is falsy, so a later positive
             // weight replaces the seed. Once non-zero, further
             // adds sum normally.
-            *entry = weight;
+            *entry = u64::from(weight);
         } else {
-            *entry += weight;
+            *entry += u64::from(weight);
         }
     }
 
     pub(super) fn versions_by_priority(&self) -> Vec<Vec<String>> {
-        let mut by_weight: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+        let mut by_weight: BTreeMap<u64, Vec<String>> = BTreeMap::new();
         for (version, weight) in &self.preferred_versions {
             by_weight
                 .entry(*weight)

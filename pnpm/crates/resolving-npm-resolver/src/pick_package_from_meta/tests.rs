@@ -1172,3 +1172,48 @@ fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
         "deprecation must be read from the raw fragment, not via hydration",
     );
 }
+
+#[test]
+fn thousands_of_matching_manifest_ranges_do_not_overflow_the_weight() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("latest", "1.1.0")]);
+    let selectors: VersionSelectors = (0..5_000)
+        .map(|patch| {
+            (
+                format!(">=1.0.0 <1.1.0-{patch}"),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Range,
+                    weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                }),
+            )
+        })
+        .collect();
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn stable_cached_range_proves_a_version_resolved_higher_in_the_chain() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[]);
+    let selectors: VersionSelectors =
+        [("1.0.0", EXISTING_VERSION_SELECTOR_WEIGHT), ("1.1.0", RESOLVED_VERSION_SELECTOR_WEIGHT)]
+            .into_iter()
+            .map(|(version, weight)| {
+                (
+                    version.to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight,
+                    }),
+                )
+            })
+            .collect();
+    assert_eq!(
+        pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
+        Some("1.1.0"),
+    );
+}

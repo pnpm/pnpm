@@ -122,6 +122,20 @@ test('a single dominant lockfile version makes a cached range stable', () => {
   expect(result).toBe('1.0.0')
 })
 
+test('a version resolved higher in the chain makes a cached range stable over the lockfile pin', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '1.1.0': { selectorType: 'version', weight: RESOLVED_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.1.0')
+})
+
 test('a cache missing the lockfile version is not stable', () => {
   const meta = metaWithoutLatest(['1.0.0'])
   const result = pickStableCachedRangeVersion({

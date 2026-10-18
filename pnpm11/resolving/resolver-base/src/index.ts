@@ -405,9 +405,12 @@ export const DIRECT_DEP_SELECTOR_WEIGHT = 1_000_000
 /** The weight of a version named on the command line. See `EXISTING_VERSION_SELECTOR_WEIGHT`. */
 export const REQUESTED_VERSION_SELECTOR_WEIGHT = 1_000_000_000
 
-/** Whether the wanted lockfile contributes to `weight`. */
+/**
+ * Whether the wanted lockfile contributes to `weight`. A negative weight, such
+ * as an `audit --fix` penalty, never carries a pin.
+ */
 export function pinnedByLockfile (weight: number): boolean {
-  return weight % RESOLVED_VERSION_SELECTOR_WEIGHT !== 0
+  return weight > 0 && weight % RESOLVED_VERSION_SELECTOR_WEIGHT !== 0
 }
 
 export type VersionSelectorType = 'version' | 'range' | 'tag'
