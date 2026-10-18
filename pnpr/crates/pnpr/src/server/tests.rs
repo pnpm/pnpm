@@ -458,7 +458,7 @@ async fn readonly_token_is_refused_for_writes() {
     // before the handler ever reads the body.
     assert_eq!(
         status(app.clone(), signed(Method::PUT, "/npm/foo", "ro")).await,
-        StatusCode::FORBIDDEN
+        StatusCode::FORBIDDEN,
     );
     assert_eq!(
         status(app.clone(), signed(Method::DELETE, "/npm/foo/-rev/1", "ro")).await,
@@ -478,7 +478,7 @@ async fn readonly_token_still_reads() {
     // package simply isn't published, so it 404s rather than 403s.
     assert_eq!(
         status(app.clone(), signed(Method::GET, "/npm/foo", "ro")).await,
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
     // Audit endpoints are read-only queries despite using HTTP POST.
     assert_eq!(

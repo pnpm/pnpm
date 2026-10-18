@@ -64,7 +64,7 @@ fn workload_credentials_only_permit_named_package_publication() {
         "/npm/~private/@org/pkg/",
         "/npm/~private/@org/pkg/../other",
     ] {
-        assert!(check_workload_request(workload, &Method::PUT, path).is_err(), "accepted {path}",);
+        assert!(check_workload_request(workload, &Method::PUT, path).is_err(), "accepted {path}");
     }
     for method in [Method::GET, Method::POST, Method::DELETE, Method::PATCH] {
         assert!(
