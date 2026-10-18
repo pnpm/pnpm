@@ -88,7 +88,7 @@ fn sqlite_alias_targets(
             format!("SELECT key, target FROM package_index_alias WHERE key IN ({placeholders})");
         let mut stmt = match conn.prepare_cached(&sql) {
             Ok(stmt) => stmt,
-            // An index created before aliases existed, opened read-only.
+            // A read-only index without the alias table holds no aliases.
             Err(error) if is_missing_alias_table(&error) => return Ok(out),
             Err(source) => return Err(StoreIndexError::Read { source }),
         };

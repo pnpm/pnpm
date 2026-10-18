@@ -66,11 +66,9 @@ fn pending_ties<'a>(
             let dist = packument.versions
                 .get(&pkg.version)
                 .and_then(|version| version.dist.as_ref())?;
-            // A version without signatures is reported as missing whatever
-            // its tar hash is tied to.
-            dist.signatures
-                .as_ref()
-                .and_then(serde_json::Value::as_array)
+            // A version without well-formed signatures fails whatever its
+            // tar hash is tied to.
+            super::parse_signatures(dist.signatures.as_ref())
                 .filter(|signatures| !signatures.is_empty())?;
             Some(PendingTie {
                 pkg,
