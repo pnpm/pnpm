@@ -50,10 +50,7 @@ use crate::{
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pnpm_deps_path::{
-    DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
-    link_path_to_peer_version,
-};
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix, link_path_to_peer_version};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 

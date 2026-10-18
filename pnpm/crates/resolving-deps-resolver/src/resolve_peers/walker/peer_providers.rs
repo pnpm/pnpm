@@ -1,7 +1,7 @@
 use super::{
     Arc, CurrentProviderSource, DepPath, HashMap, MissingPeerInfo, NodeId, NodePeers,
     NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain, TreeChildren,
-    Walker, create_peer_dep_graph_hash, index_of_dep_path_suffix,
+    Walker, index_of_dep_path_suffix,
 };
 
 use crate::peer_provider::{LockedProvider, PeerScope, ProviderPick, provider_for};
@@ -56,7 +56,8 @@ impl Walker<'_> {
             .iter()
             .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
             .collect();
-        let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
+        let suffix =
+            pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.opts.peers_suffix_max_length);
         DepPath::from(format!("{pkg_id}{suffix}"))
     }
 
