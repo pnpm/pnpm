@@ -642,6 +642,18 @@ describe('createBinaryFetcher', () => {
 })
 
 describe('maxTarballUnpackedSize', () => {
+  it('rejects a zip whose extracted entries total more than the limit', async () => {
+    await expect(unpack(99)).rejects.toMatchObject({
+      code: 'ERR_PNPM_TARBALL_TOO_LARGE',
+      message: 'The archive is larger than pnpm accepts: its files total more than 99 bytes',
+      hint: 'If the package is legitimately this large, raise the maxTarballUnpackedSize setting.',
+    })
+  })
+
+  it('extracts a zip whose extracted entries total exactly the limit, ignoring skipped and directory entries', async () => {
+    await expect(unpack(100)).resolves.toBeUndefined()
+  })
+
   function createZip (): { zipBuffer: Buffer, integrity: string } {
     const zip = new AdmZip()
     zip.addFile('node-v20.0.0/bin/node', Buffer.from('a'.repeat(60)))
@@ -666,16 +678,4 @@ describe('maxTarballUnpackedSize', () => {
       temporaryDirectory()
     )
   }
-
-  it('rejects a zip whose extracted entries total more than the limit', async () => {
-    await expect(unpack(99)).rejects.toMatchObject({
-      code: 'ERR_PNPM_TARBALL_TOO_LARGE',
-      message: 'The archive is larger than pnpm accepts: its files total more than 99 bytes',
-      hint: 'If the package is legitimately this large, raise the maxTarballUnpackedSize setting.',
-    })
-  })
-
-  it('extracts a zip whose extracted entries total exactly the limit, ignoring skipped and directory entries', async () => {
-    await expect(unpack(100)).resolves.toBeUndefined()
-  })
 })
