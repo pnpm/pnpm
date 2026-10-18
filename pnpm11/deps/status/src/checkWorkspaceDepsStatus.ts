@@ -102,7 +102,24 @@ async function checkModifiedSinceLastValidation (
 
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
-  return validateModifiedWorkspace(ctx, lockfilesScan.anyModified ? allManifestStats : modifiedProjects)
+  const projectsToCheck = lockfilesScan.anyModified
+    ? allManifestStats
+    : [...new Set([...modifiedProjects, ...coveredProjectsMissingLockfile(ctx, allManifestStats)])]
+  return validateModifiedWorkspace(ctx, projectsToCheck)
+}
+
+/**
+ * With a lockfile per project, the projects without one among those the
+ * install the gate spawns covers. Checking such a project reports its missing
+ * lockfile. A filtered install leaves the projects it did not select without
+ * a lockfile, and the install the gate spawns keeps that filter, so those are
+ * not held.
+ */
+function coveredProjectsMissingLockfile ({ lockfilesScan, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[]): ProjectStats[] {
+  if (opts.sharedWorkspaceLockfile !== false) return []
+  const missingDirs = new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
+  const installCovers = createInstallCoverage(opts)
+  return allManifestStats.filter(({ project }) => missingDirs.has(path.resolve(project.rootDir)) && installCovers(project.rootDir))
 }
 
 /** What the content check of a recorded workspace covers. */
@@ -233,17 +250,30 @@ async function recordTrustedRefresh (ctx: WorkspaceDepsStatusContext, vouchedPro
 
 /** The projects the gate holds that are not proven installed. */
 function heldProjects ({ opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
+  const installCovers = createInstallCoverage(opts)
+  return allManifestStats.filter(({ project }) => {
+    const projectProof = proof.proofOf(project.rootDir, project.manifest)
+    if (projectProof === 'proven') return false
+    return (opts.selectedProjectsGraph == null && projectProof !== 'unrecorded') || installCovers(project.rootDir)
+  })
+}
+
+/**
+ * Whether the install the gate spawns covers the project at `rootDir`: a
+ * filtered command's install selects the same projects, a non-recursive
+ * command's install runs in the command's directory, and without either the
+ * install covers the whole workspace.
+ */
+function createInstallCoverage (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): (rootDir: string) => boolean {
   const selected = opts.selectedProjectsGraph == null
     ? undefined
     : new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
   const commandDir = opts.dir == null ? undefined : path.resolve(opts.dir)
-  return allManifestStats.filter(({ project }) => {
-    const projectProof = proof.proofOf(project.rootDir, project.manifest)
-    if (projectProof === 'proven') return false
-    const rootDir = path.resolve(project.rootDir)
-    if (selected != null) return selected.has(rootDir)
-    return projectProof !== 'unrecorded' || commandDir == null || commandDir === rootDir
-  })
+  return (rootDir) => {
+    const resolvedRootDir = path.resolve(rootDir)
+    if (selected != null) return selected.has(resolvedRootDir)
+    return commandDir == null || commandDir === resolvedRootDir
+  }
 }
 
 /**
@@ -322,14 +352,15 @@ function createModulesDirStatter (opts: CheckDepsStatusOptions): (project: Proje
 async function checkUnchangedWorkspace (
   { lockfilesScan, opts, wantedLockfileName, workspaceDir, workspaceState }: WorkspaceDepsStatusContext
 ): Promise<CheckDepsStatusResult | undefined> {
-  const wantedLockfileToRestore = lockfilesScan.anyMissing && opts.sharedWorkspaceLockfile && !opts.useGitBranchLockfile
+  const anyMissing = lockfilesScan.missingDirs.length > 0
+  const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile && !opts.useGitBranchLockfile
     ? await missingWantedLockfileStandIn(workspaceDir, wantedLockfileName)
     : undefined
   // A missing wanted lockfile only skips the full check when the current
   // lockfile can stand in for it. Otherwise fall through so the checks
   // below throw RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND instead of silently
   // reporting "up to date".
-  if (lockfilesScan.anyMissing && wantedLockfileToRestore == null) return undefined
+  if (anyMissing && wantedLockfileToRestore == null) return undefined
   logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
 }

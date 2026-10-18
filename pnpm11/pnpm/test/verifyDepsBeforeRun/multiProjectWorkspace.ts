@@ -646,6 +646,88 @@ test('filtered install', async () => {
   }
 })
 
+// https://github.com/pnpm/tasks/issues/138
+test('filtered install with a lockfile per project', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'], sharedWorkspaceLockfile: false })
+
+  await execPnpm([...CONFIG, '--filter=foo', 'install'])
+
+  // The projects the filtered install left out have no lockfile, which a
+  // command covering only the installed project is not held to.
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.foo.dir(), expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+
+  // A command running in a project the filtered install left out is held.
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.bar.dir() })
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
+  }
+
+  await execPnpm([...CONFIG, 'install'])
+  fs.rmSync(path.join(projects.bar.dir(), 'pnpm-lock.yaml'))
+
+  // A deleted project lockfile is reported where the command runs, and
+  // nowhere else.
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.foo.dir(), expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.bar.dir() })
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toMatch(/Cannot find a lockfile in \S+[\\/]bar(\s|$)/)
+  }
+})
+
 // https://github.com/pnpm/pnpm/issues/16322
 test('filtered install accepts a touched lockfile with unchanged contents', async () => {
   preparePackages([

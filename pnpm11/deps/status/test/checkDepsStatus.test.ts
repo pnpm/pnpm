@@ -6,7 +6,7 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { DepPath, IncludedDependencies, ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import type { DepPath, IncludedDependencies, Project, ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import type { WorkspaceState } from '@pnpm/workspace.state'
 
 {
@@ -1131,6 +1131,157 @@ describe('checkDepsStatus - lockfile modification', () => {
     } finally {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
+  })
+
+  it('does not take the optimistic fast-path when a project lockfile is missing and sharedWorkspaceLockfile is false', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-project-lockfile-missing-'))
+    try {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const projectDir = path.join(workspaceDir, 'packages/project')
+      await fs.mkdir(projectDir, { recursive: true })
+      const projectRootDir = projectDir as ProjectRootDir
+      const projectRootDirRealPath = await fs.realpath(projectDir) as ProjectRootDirRealPath
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [projectRootDir]: {
+            name: 'project',
+            version: '1.0.0',
+          },
+        },
+        filteredInstall: false,
+      }
+
+      // No lockfile is written: `pnpm-lock.yaml` is missing in the project.
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(null)
+      jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+      jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+      jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue({
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats)
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [{
+          rootDir: projectRootDir,
+          rootDirRealPath: projectRootDirRealPath,
+          manifest: {
+            name: 'project',
+            version: '1.0.0',
+          },
+          writeProjectManifest: async () => {},
+        }],
+        workspaceDir,
+        sharedWorkspaceLockfile: false,
+        rootProjectManifest: {},
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe(`Cannot find a lockfile in ${projectDir}`)
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  })
+
+  // A filtered install leaves the projects it did not select without a
+  // lockfile, and the install the gate spawns keeps the filter, so only a
+  // project the command covers is held to having one.
+  describe('a project lockfile missing after a filtered install with sharedWorkspaceLockfile false', () => {
+    type ProjectName = 'installed' | 'uninstalled'
+
+    async function checkWithProjectLockfileMissing (selectedBy: 'graph' | 'dir', selectedProject: ProjectName): Promise<{ upToDate?: boolean, issue?: string }> {
+      const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-project-lockfile-'))
+      try {
+        const lastValidatedTimestamp = Date.now() - 10_000
+        const beforeLastValidation = lastValidatedTimestamp - 10_000
+        const projectDirs = {
+          installed: path.join(workspaceDir, 'packages/installed') as ProjectRootDir,
+          uninstalled: path.join(workspaceDir, 'packages/uninstalled') as ProjectRootDir,
+        }
+        await Promise.all(Object.values(projectDirs).map((dir) => fs.mkdir(dir, { recursive: true })))
+        const installedLockfilePath = path.join(projectDirs.installed, 'pnpm-lock.yaml')
+        await fs.writeFile(installedLockfilePath, "lockfileVersion: '9.0'\n")
+        await fs.utimes(installedLockfilePath, new Date(beforeLastValidation), new Date(beforeLastValidation))
+        const createProject = (name: ProjectName): Project => ({
+          rootDir: projectDirs[name],
+          rootDirRealPath: projectDirs[name] as unknown as ProjectRootDirRealPath,
+          manifest: { name, version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        })
+        const projects = { installed: createProject('installed'), uninstalled: createProject('uninstalled') }
+        const mockWorkspaceState: WorkspaceState = {
+          lastValidatedTimestamp,
+          pnpmfiles: [],
+          settings: {
+            excludeLinksFromLockfile: false,
+            linkWorkspacePackages: true,
+            preferWorkspacePackages: true,
+          },
+          projects: {
+            [projectDirs.installed]: { name: 'installed', version: '1.0.0' },
+            [projectDirs.uninstalled]: { name: 'uninstalled', version: '1.0.0' },
+          },
+          filteredInstall: true,
+        }
+        const beforeValidation = {
+          mtime: new Date(beforeLastValidation),
+          mtimeMs: beforeLastValidation,
+          isDirectory: () => true,
+        } as unknown as Stats
+        jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+        jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+        jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) =>
+          filePath === installedLockfilePath ? beforeValidation : undefined)
+        jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
+        jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async (lockfileDir: string) =>
+          lockfileDir === projectDirs.installed
+            ? { lockfileVersion: '9.0', importers: { ['.' as ProjectId]: { specifiers: {} } } }
+            : null)
+
+        const selectedNode = { dependencies: [], package: projects[selectedProject] }
+        const opts: CheckDepsStatusOptions = {
+          allProjects: [projects.installed, projects.uninstalled],
+          ...(selectedBy === 'dir'
+            ? { dir: projectDirs[selectedProject] }
+            : { dir: workspaceDir, selectedProjectsGraph: { [projectDirs[selectedProject]]: selectedNode } }),
+          workspaceDir,
+          sharedWorkspaceLockfile: false,
+          rootProjectManifest: {},
+          rootProjectManifestDir: workspaceDir,
+          pnpmfile: [],
+          ...mockWorkspaceState.settings,
+        }
+        return await checkDepsStatus(opts)
+      } finally {
+        await fs.rm(workspaceDir, { force: true, recursive: true })
+      }
+    }
+
+    it.each(['graph', 'dir'] as const)('is up to date when the command covers only the installed project (selected by %s)', async (selectedBy) => {
+      const result = await checkWithProjectLockfileMissing(selectedBy, 'installed')
+
+      expect(result.issue).toBeUndefined()
+      expect(result.upToDate).toBe(true)
+    })
+
+    it.each(['graph', 'dir'] as const)('reports the missing lockfile when the command covers the uninstalled project (selected by %s)', async (selectedBy) => {
+      const result = await checkWithProjectLockfileMissing(selectedBy, 'uninstalled')
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toMatch(/^Cannot find a lockfile in .*uninstalled$/)
+    })
   })
 
   it('passes the workspace dir as cwd to getWantedLockfileName so git branch is resolved in the correct repo', async () => {

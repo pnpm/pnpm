@@ -83,7 +83,8 @@ export function getWantedLockfileDirs (
 export interface WantedLockfilesScan {
   conflictedDir: string | undefined
   anyModified: boolean
-  anyMissing: boolean
+  /** The lockfile directories without a wanted lockfile. */
+  missingDirs: string[]
 }
 
 interface WantedLockfilesScanOptions {
@@ -93,16 +94,16 @@ interface WantedLockfilesScanOptions {
 
 export function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: number, opts: WantedLockfilesScanOptions): WantedLockfilesScan {
   let anyModified = false
-  let anyMissing = false
+  const missingDirs: string[] = []
   for (const lockfileDir of lockfileDirs) {
     const dirScan = scanWantedLockfilesInDir(lockfileDir, lastValidatedTimestamp, opts)
     anyModified ||= dirScan.anyModified
     if (dirScan.conflicted) {
-      return { conflictedDir: lockfileDir, anyModified, anyMissing }
+      return { conflictedDir: lockfileDir, anyModified, missingDirs }
     }
-    if (!dirScan.found) anyMissing = true
+    if (!dirScan.found) missingDirs.push(lockfileDir)
   }
-  return { conflictedDir: undefined, anyModified, anyMissing }
+  return { conflictedDir: undefined, anyModified, missingDirs }
 }
 
 interface WantedLockfilesInDirScan {
