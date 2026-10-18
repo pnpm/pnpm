@@ -1,7 +1,7 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
-import type { DepPath, ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 
 import { addDirectDependenciesToLockfile } from './addDirectDependenciesToLockfile.js'
 import { depPathToRef } from './depPathToRef.js'
@@ -13,7 +13,6 @@ import { updateProjectManifest } from './updateProjectManifest.js'
 
 export interface UpdateLockfileImportersOptions {
   autoInstallPeers?: boolean
-  dedupeInjectedDeps?: boolean
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: DependenciesGraph
   excludeLinksFromLockfile?: boolean
@@ -46,13 +45,6 @@ async function updateLockfileImporter (
   opts: UpdateLockfileImportersOptions & { index: number }
 ): Promise<void> {
   const resolvedImporter = opts.resolvedImporters[project.id]
-  // Capture previous importer refs before the lockfile importer is rebuilt,
-  // so an install that doesn't actually change a workspace dependency (e.g.
-  // updating an unrelated dependency) does not rewrite its `link:` entry to a
-  // peer-suffixed `file:`.
-  const previousDirectRefs = getDirectRefs(opts.wantedLockfile.importers[project.id])
-  const updateMatching = opts.importers[opts.index].updateMatching
-  const updateTargetedAliases = getUpdateTargetedAliases(project)
   const [updatedManifest, updatedOriginalManifest] = await getUpdatedManifests(project, opts)
 
   if (updatedManifest != null) {
@@ -71,19 +63,12 @@ async function updateLockfileImporter (
 
   opts.importers[opts.index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
 
-  writeDirectDependencyRefs(project, {
-    ...opts,
-    isTargetedByUpdate: (alias, depName) => updateTargetedAliases.has(alias) || (updateMatching?.(depName) ?? false),
-    previousDirectRefs,
-  })
+  writeDirectDependencyRefs(project, opts)
 }
 
 function writeDirectDependencyRefs (
   project: ResolveImporter,
-  opts: UpdateLockfileImportersOptions & {
-    isTargetedByUpdate: (alias: string, depName: string) => boolean
-    previousDirectRefs: Record<string, string>
-  }
+  opts: UpdateLockfileImportersOptions
 ): void {
   // Every project records its manifest's `dependenciesMeta`, including one
   // whose dependencies all resolved to workspace links and so has no entry
@@ -93,44 +78,12 @@ function writeDirectDependencyRefs (
     projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
   }
   for (const [alias, depPath] of opts.dependenciesByProjectId[project.id].entries()) {
-    const depName = opts.dependenciesGraph[depPath].name
-    const ref = getDirectDependencyRef({
+    const ref = depPathToRef(depPath, {
       alias,
-      depName,
-      depPath,
-      isTargetedByUpdate: opts.isTargetedByUpdate(alias, depName),
-      preserveDedupedWorkspaceLinks: Boolean(opts.dedupeInjectedDeps),
-      previousRef: opts.previousDirectRefs[alias],
+      realName: opts.dependenciesGraph[depPath].name,
     })
     setDirectDependencyRef(projectSnapshot, { alias, ref })
   }
-}
-
-function getDirectRefs (importerSnapshot: ProjectSnapshot | undefined): Record<string, string> {
-  return {
-    ...importerSnapshot?.dependencies,
-    ...importerSnapshot?.devDependencies,
-    ...importerSnapshot?.optionalDependencies,
-  }
-}
-
-/**
- * Aliases this run actually targets (added, spec-changed, or matched by a
- * `pnpm update <name>`). Only these may legitimately change their
- * `link:`/`file:` form; the preserve-prior-link guard in
- * `getDirectDependencyRef` is limited to dependencies outside this set.
- * `updateSpec` is deliberately not consulted: a plain install marks every
- * manifest dependency with it, so it signals "re-check the spec", not "the
- * user targeted this dependency".
- */
-function getUpdateTargetedAliases (project: ResolveImporter): Set<string> {
-  return new Set(
-    project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier }) =>
-      alias != null && (isNew === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
-        ? [alias]
-        : []
-    )
-  )
 }
 
 async function getUpdatedManifests (
@@ -159,38 +112,6 @@ function addPeersToDependencies (manifest: ProjectManifest): void {
     manifest.dependencies ??= {}
     manifest.dependencies[peerName] = peerRange
   }
-}
-
-function getDirectDependencyRef (
-  opts: {
-    alias: string
-    depName: string
-    depPath: DepPath
-    isTargetedByUpdate: boolean
-    preserveDedupedWorkspaceLinks: boolean
-    previousRef: string | undefined
-  }
-): string {
-  const ref = depPathToRef(opts.depPath, {
-    alias: opts.alias,
-    realName: opts.depName,
-  })
-  // A workspace dependency resolved to `link:` has no version to update, so
-  // it should stay `link:` unless this run specifically targets it (a spec
-  // change or `pnpm update <name>`). Preserving it stops an update of an
-  // unrelated dependency (e.g. `pnpm update <other-pkg>`) from re-resolving
-  // an untouched injected workspace dep and flipping its `link:` to a
-  // peer-suffixed `file:` on paths dedupeInjectedDeps doesn't reach. See
-  // pnpm/pnpm#10433.
-  if (
-    opts.preserveDedupedWorkspaceLinks &&
-    !opts.isTargetedByUpdate &&
-    ref.startsWith('file:') &&
-    opts.previousRef?.startsWith('link:')
-  ) {
-    return opts.previousRef
-  }
-  return ref
 }
 
 function setDirectDependencyRef (projectSnapshot: ProjectSnapshot, { alias, ref }: { alias: string, ref: string }): void {

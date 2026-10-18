@@ -21,14 +21,10 @@ use super::{
 use indexmap::IndexMap;
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    DirectoryResolution, ImporterDepVersion, LockfileResolution, PkgName, PkgNameVer,
-    ProjectSnapshot, RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec,
-    TarballResolution,
+    DirectoryResolution, LockfileResolution, PkgNameVer, RegistryResolution, TarballResolution,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{
-    DependenciesGraph, DependenciesGraphNode, PeerDep, UpdateReuseScope,
-};
+use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashSet as HashSet;
 
@@ -100,11 +96,6 @@ fn single_importer_opts<'a>(
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
             untracked_pnpmfile_read_package_hook: None,
-        },
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: None,
-            scope: UpdateReuseScope::All,
-            scopes_by_importer: BTreeMap::new(),
         },
     }
 }
@@ -354,29 +345,8 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
     }
 }
 
-/// A single-importer previous lockfile whose `alias` dependency was
-/// recorded as `link:<target>`.
-fn previous_importers_with_link(
-    alias: &str,
-    specifier: &str,
-    target: &str,
-) -> std::collections::HashMap<String, ProjectSnapshot> {
-    let mut deps = ResolvedDependencyMap::new();
-    deps.insert(
-        PkgName::parse(alias).unwrap(),
-        ResolvedDependencySpec {
-            specifier: specifier.to_string(),
-            version: ImporterDepVersion::Link(target.to_string()),
-        },
-    );
-    let snapshot = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
-    let mut importers = std::collections::HashMap::new();
-    importers.insert(".".to_string(), snapshot);
-    importers
-}
-
 /// A `consumer -> n` edge whose fresh resolution is a divergent `file:`
-/// injection, with a previous lockfile that recorded it as `link:`.
+/// injection.
 fn injected_link_fixture()
 -> (TempDir, PackageManifest, DependenciesGraph, BTreeMap<String, DepPath>) {
     let (tmp, manifest) = write_manifest(json!({

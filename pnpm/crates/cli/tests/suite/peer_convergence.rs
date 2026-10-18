@@ -616,24 +616,20 @@ fn workspace_package_with_a_peer() {
             project("a", &[("lib", "workspace:*"), ("@pnpm.e2e/foo", "100.0.0")]),
             project("b", &[("lib", "workspace:*"), ("@pnpm.e2e/foo", "100.1.0")]),
         ],
-        vec![
-            Divergence {
-                issue: INJECTED_BEFORE_PROVIDER_ISSUE,
-                rows: |row| row.inject_workspace_packages,
-                paths: &[
-                    "importers > packages/a > dependencies > lib >",
-                    "importers > packages/b > dependencies > lib >",
-                    "snapshots > lib@file:",
-                ],
-            },
-            Divergence {
-                issue: AUTO_INSTALLED_PEER_MOVES_ISSUE,
-                rows: |row| row.auto_install_peers && !row.auto_dedupe,
-                paths: &["importers > packages/lib > dependencies > @pnpm.e2e/foo >"],
-            },
-        ],
+        vec![Divergence {
+            issue: AUTO_INSTALLED_PEER_MOVES_ISSUE,
+            rows: |row| row.auto_install_peers && !row.auto_dedupe,
+            // Whether an injected `lib` dedupes to `link:` compares its
+            // peer with `lib`'s own pick, so the injected entries follow
+            // that pick.
+            paths: &[
+                "importers > packages/lib > dependencies > @pnpm.e2e/foo >",
+                "importers > packages/a > dependencies > lib >",
+                "importers > packages/b > dependencies > lib >",
+                "snapshots > lib@file:",
+            ],
+        }],
     );
 }
 
-const INJECTED_BEFORE_PROVIDER_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17057";
 const AUTO_INSTALLED_PEER_MOVES_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17058";
