@@ -153,7 +153,7 @@ fn v11_quote(value: &str) -> String {
 
 /// Wrap `value` in single quotes, escaping any embedded single quote as
 /// `'\''`, so the POSIX shell treats it as a literal with no expansion.
-fn sh_quote(value: &str) -> String {
+pub(in crate::cli_args::setup) fn sh_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
 

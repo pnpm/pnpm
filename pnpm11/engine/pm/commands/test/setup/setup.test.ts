@@ -314,6 +314,35 @@ test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
   expect(err?.hint).toBe('If you want to override the existing configuration section, use the --force option')
 })
 
+test('setup prints the lines to add by hand when the shell is unknown', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output).toBe(`Could not infer shell type. No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME='/root/.pnpm'
+export PATH="$PNPM_HOME/bin:$PATH"`)
+})
+
+test('setup quotes PNPM_HOME as a literal in the lines to add by hand', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: "/home/o'neil/$(touch pwned)" })
+  expect(output).toContain("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n")
+})
+
+test('setup prints the lines to add by hand when sh has no ENV', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(
+    new PnpmError('NO_SHELL_CONFIG', 'Cannot find a config file for sh. The ENV environment variable is not set.')
+  ))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output.startsWith('Cannot find a config file for sh. The ENV environment variable is not set. No shell config file was changed.\n\n')).toBe(true)
+})
+
+test('setup fails on an unsupported shell', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNSUPPORTED_SHELL', 'Can\'t setup configuration for "tcsh" shell')))
+  await expect(setup.handler({ pnpmHomeDir: '/root/.pnpm' })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_SHELL' })
+})
+
 test('global install of the standalone executable skips its build scripts', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',

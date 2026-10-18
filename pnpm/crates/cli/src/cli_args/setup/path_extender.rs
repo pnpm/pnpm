@@ -5,6 +5,8 @@
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.
 
+pub(super) use posix::sh_quote;
+
 mod posix;
 mod windows;
 
