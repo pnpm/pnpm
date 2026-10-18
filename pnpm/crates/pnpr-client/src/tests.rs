@@ -542,15 +542,15 @@ async fn pipeline_report_redirects_are_not_followed() {
 }
 
 #[tokio::test]
-async fn negotiates_v1_when_supported_by_handshake() {
+async fn negotiates_v0_when_supported_by_handshake() {
     let mut server = mockito::Server::new_async().await;
     let handshake_mock = server
         .mock("GET", "/-/pnpr")
         .with_body(
             json!({
                 "pnpr": {
-                    "versions": [0, 1],
-                    "fixLockfile": [0, 1]
+                    "versions": [0],
+                    "fixLockfile": [0]
                 }
             })
             .to_string(),
@@ -575,7 +575,7 @@ async fn negotiates_v1_when_supported_by_handshake() {
     });
 
     let resolve_mock = server
-        .mock("POST", "/-/pnpr/v1/resolve")
+        .mock("POST", "/-/pnpr/v0/resolve")
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .with_body(format!("{done}\n"))
         .create_async()
@@ -584,7 +584,7 @@ async fn negotiates_v1_when_supported_by_handshake() {
     let outcome = PnprClient::new(server.url())
         .resolve_projects(options)
         .await
-        .expect("resolve succeeds with negotiated v1");
+        .expect("resolve succeeds with negotiated v0");
 
     assert!(outcome.applied_policies.is_some());
     handshake_mock.assert_async().await;

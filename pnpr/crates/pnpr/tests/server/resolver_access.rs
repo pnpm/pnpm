@@ -238,16 +238,16 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [0, 1],
+                "versions": [0],
                 "artifacts": [],
                 "pipeline": [],
-                "fixLockfile": [0, 1],
+                "fixLockfile": [0],
                 "ecosystems": ["npm", "cargo", "pypi"],
                 "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 1,
-                        "versions": [0, 1],
+                        "version": 0,
+                        "versions": [0],
                         "features": [
                             "fixLockfile",
                             "verifyLockfile",
@@ -471,7 +471,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
                 "publish": [0],
                 "protocols": {
                     "resolver": {
-                        "version": 1,
+                        "version": 0,
                         "versions": [],
                         "features": [
                             "fixLockfile",

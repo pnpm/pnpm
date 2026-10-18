@@ -66,7 +66,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
                 "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 1,
+                        "version": 0,
                         "versions": [],
                         "features": [
                             "fixLockfile",

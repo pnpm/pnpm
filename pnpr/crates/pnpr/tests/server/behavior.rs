@@ -33,7 +33,7 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
                 "publish": [],
                 "protocols": {
                     "resolver": {
-                        "version": 1,
+                        "version": 0,
                         "versions": [],
                         "features": [
                             "fixLockfile",

@@ -348,7 +348,7 @@ pub struct ResolvedPackage {
 }
 
 /// Resolver protocol version this client speaks.
-pub const RESOLVER_PROTOCOL_VERSION: u32 = 1;
+pub const RESOLVER_PROTOCOL_VERSION: u32 = 0;
 
 /// Shared artifacts protocol version this client speaks.
 pub const ARTIFACTS_PROTOCOL_VERSION: u32 = 0;
@@ -430,11 +430,9 @@ impl PnprClient {
             Ok(cap) => {
                 if cap.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
                     Ok(RESOLVER_PROTOCOL_VERSION)
-                } else if cap.versions.contains(&0) {
-                    Ok(0)
                 } else {
                     Err(PnprClientError::server(format!(
-                        "pnpr server speaks protocol versions {:?}, but this client requires v0 or v{RESOLVER_PROTOCOL_VERSION}",
+                        "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
                         cap.versions,
                     )))
                 }
@@ -457,25 +455,18 @@ impl PnprClient {
     async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
         let capability = self.ensure_handshake().await?;
         Self::require_resolver_protocol(capability)?;
-        let version = if capability.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
-            RESOLVER_PROTOCOL_VERSION
-        } else {
-            0
-        };
-        if !capability.fix_lockfile.contains(&version) {
+        if !capability.fix_lockfile.contains(&RESOLVER_PROTOCOL_VERSION) {
             return Err(PnprClientError::server(format!(
-                "pnpr server does not advertise lockfile repair support for resolver protocol v{version}",
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{RESOLVER_PROTOCOL_VERSION}",
             )));
         }
         Ok(())
     }
 
     fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
-        if !capability.versions.contains(&RESOLVER_PROTOCOL_VERSION)
-            && !capability.versions.contains(&0)
-        {
+        if !capability.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
             return Err(PnprClientError::server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v0 or v{RESOLVER_PROTOCOL_VERSION}",
+                "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
                 capability.versions,
             )));
         }

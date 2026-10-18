@@ -22,7 +22,10 @@ use pnpr_error::RegistryError;
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let config = &state.inner.config;
     let resolver_enabled = config.features.resolver.enabled;
-    let versions = if resolver_enabled { vec![0, 1] } else { Vec::new() };
+    let versions = resolver_enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
     let fix_lockfile = versions.clone();
     let ecosystems: Vec<&str> = if resolver_enabled {
         crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
@@ -63,7 +66,10 @@ fn enabled_version(enabled: bool) -> Vec<u32> {
 
 fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
     let resolver_enabled = config.features.resolver.enabled;
-    let versions = if resolver_enabled { vec![0, 1] } else { Vec::new() };
+    let versions = resolver_enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
     let ecosystems: Vec<&str> = if resolver_enabled {
         crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
     } else {
@@ -71,7 +77,7 @@ fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
     };
     serde_json::json!({
         "resolver": {
-            "version": 1,
+            "version": 0,
             "versions": versions,
             "features": [
                 "fixLockfile",
