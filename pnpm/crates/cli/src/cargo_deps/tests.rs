@@ -11,9 +11,156 @@ use super::{
     write_cargo_config, write_cargo_config_in,
 };
 use crate::cargo_deps::{
-    materialize::{MaterializeOptions, materialize},
+    materialize::{DownloadOptions, MaterializeOptions, materialize},
     sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
 };
+
+#[test]
+fn recognizes_a_complete_registry_crate_slot() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path();
+    let cargo_toml = "[package]\n";
+    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
+    fs::write(
+        slot.join(".cargo-checksum.json"),
+        format!(
+            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"checksum"}}"#,
+            pnpm_crypto_hash::create_hex_hash(cargo_toml),
+        ),
+    )
+    .unwrap();
+
+    assert!(super::materialize::slot_is_complete(slot, "checksum"));
+}
+
+#[test]
+fn rejects_a_registry_crate_slot_with_a_missing_or_corrupted_file() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path();
+    let cargo_toml = "[package]\n";
+    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
+    fs::write(
+        slot.join(".cargo-checksum.json"),
+        format!(
+            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"checksum"}}"#,
+            pnpm_crypto_hash::create_hex_hash(cargo_toml),
+        ),
+    )
+    .unwrap();
+    assert!(super::materialize::slot_is_complete(slot, "checksum"));
+
+    fs::write(slot.join("Cargo.toml"), "[package]\nname = \"changed\"\n").unwrap();
+
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    fs::remove_file(slot.join("Cargo.toml")).unwrap();
+
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_registry_crate_slot_with_a_symlinked_parent_directory() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    let external_dir = temp_dir.path().join("external");
+    fs::create_dir_all(&slot).unwrap();
+    fs::create_dir_all(&external_dir).unwrap();
+    let cargo_toml = "[package]\n";
+    fs::write(external_dir.join("Cargo.toml"), cargo_toml).unwrap();
+    symlink(&external_dir, slot.join("src")).unwrap();
+    fs::write(
+        slot.join(".cargo-checksum.json"),
+        format!(
+            r#"{{"files":{{"src/Cargo.toml":"{}"}},"package":"checksum"}}"#,
+            pnpm_crypto_hash::create_hex_hash(cargo_toml),
+        ),
+    )
+    .unwrap();
+
+    assert!(!super::materialize::slot_is_complete(&slot, "checksum"));
+}
+
+#[tokio::test]
+async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let mut config = Config::new();
+    config.store_dir = StoreDir::from(temp_dir.path().join("store"));
+    config.cache_dir = temp_dir.path().join("cache");
+    config.offline = true;
+    config.indexes_by_ecosystem.insert(
+        pnpm_config::Ecosystem::Cargo,
+        vec!["https://registry.example.test/index/".to_string().into()],
+    );
+    let config = Box::leak(Box::new(config));
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+    };
+    let slot = package.store_slot(config.store_dir.root());
+    fs::create_dir_all(&slot).unwrap();
+    let cargo_toml = "[package]\n";
+    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
+    fs::write(
+        slot.join(".cargo-checksum.json"),
+        format!(
+            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"{}"}}"#,
+            pnpm_crypto_hash::create_hex_hash(cargo_toml),
+            package.checksum,
+        ),
+    )
+    .unwrap();
+
+    let slots = super::materialize::download_crates::<SilentReporter>(DownloadOptions {
+        config,
+        packages: vec![package.clone()],
+        http_client: Arc::new(ThrottledClient::default()),
+        logged_methods: Arc::new(AtomicU8::new(0)),
+        requester: "test".to_string(),
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(slots, vec![(package.link_name(), slot)]);
+}
+
+#[test]
+fn rejects_an_incomplete_registry_crate_slot() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path();
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    fs::write(
+        slot.join(".cargo-checksum.json"),
+        r#"{"files":{"Cargo.toml":"hash"},"package":"other-checksum"}"#,
+    )
+    .unwrap();
+
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(slot, "different-checksum"));
+}
+
+#[test]
+fn rejects_a_registry_crate_slot_with_a_corrupt_manifest() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path();
+    fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
+
+    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+}
+
+#[test]
+fn rejects_a_registry_crate_slot_with_an_unsafe_file_path() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    fs::write(
+        temp_dir.path().join(".cargo-checksum.json"),
+        r#"{"files":{"../Cargo.toml":"hash"},"package":"checksum"}"#,
+    )
+    .unwrap();
+
+    assert!(!super::materialize::slot_is_complete(temp_dir.path(), "checksum"));
+}
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};

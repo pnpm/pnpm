@@ -6,6 +6,7 @@ use super::{
     checksum_cache, import_indexed_dir, registry_download_config, stream,
 };
 use miette::WrapErr;
+use std::path::Path;
 
 #[derive(Serialize)]
 struct CargoChecksum<'a> {
@@ -34,28 +35,65 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     if options.packages.is_empty() {
         return Ok(Vec::new());
     }
-    let config = options.config;
-    let store_dir = &config.store_dir;
-    let store_index = StoreIndex::shared_for(store_dir, config.frozen_store);
-    let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
+    download_unmaterialized_crates::<Reporter>(options).await
+}
 
-    let (registry_config, auth_headers) =
-        registry_download_config(config, &options.http_client).await?;
-    let verified_files_cache = SharedVerifiedFilesCache::default();
+fn partition_materialized_crates(
+    packages: Vec<LockedCrate>,
+    store_dir: &StoreDir,
+) -> (Vec<(String, PathBuf)>, Vec<LockedCrate>) {
+    let (completed, pending): (Vec<_>, Vec<_>) = packages
+        .into_iter()
+        .partition(|package| {
+            let slot = package.store_slot(store_dir.root());
+            slot_is_complete(&slot, &package.checksum)
+        });
+    let slots = completed
+        .into_iter()
+        .map(|package| (package.link_name(), package.store_slot(store_dir.root())))
+        .collect();
+    (slots, pending)
+}
 
-    let fetching = CrateDownload::new(&options, registry_config.dl, auth_headers);
+async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
+    mut options: DownloadOptions,
+) -> Result<Vec<(String, PathBuf)>> {
+    let (completed_slots, packages) = partition_materialized_crates(
+        std::mem::take(&mut options.packages),
+        &options.config.store_dir,
+    );
+    if packages.is_empty() {
+        return Ok(completed_slots);
+    }
+    let mut slots = download_pending_crates::<Reporter>(&options, packages).await?;
+    slots.extend(completed_slots);
+    Ok(slots)
+}
+
+async fn download_pending_crates<Reporter: self::Reporter + 'static>(
+    options: &DownloadOptions,
+    packages: Vec<LockedCrate>,
+) -> Result<Vec<(String, PathBuf)>> {
+    let store_dir = &options.config.store_dir;
+    let store_index = StoreIndex::shared_for(store_dir, options.config.frozen_store);
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+        store_dir,
+        options.config.frozen_store,
+        options.config.store_index_format,
+    );
+
+    let fetching = create_crate_download(options).await?;
     let store = CrateStore {
         dir: store_dir,
         index: store_index,
         index_writer: Arc::clone(&store_index_writer),
-        verified_files_cache,
-        logged_methods: options.logged_methods,
-        import_method: config.package_import_method,
-        verify_integrity: config.verify_store_integrity,
-        strict_pkg_content_check: config.strict_store_pkg_content_check,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        logged_methods: Arc::clone(&options.logged_methods),
+        import_method: options.config.package_import_method,
+        verify_integrity: options.config.verify_store_integrity,
+        strict_pkg_content_check: options.config.strict_store_pkg_content_check,
     };
-    let slots = stream::iter(options.packages)
+    let slots = stream::iter(packages)
         .map(|package| {
             materialize::<Reporter>(MaterializeOptions {
                 package,
@@ -63,15 +101,29 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
                 store: store.clone(),
             })
         })
-        .buffer_unordered(config.network_concurrency.clamp(1, 16))
+        .buffer_unordered(options.config.network_concurrency.clamp(1, 16))
         .collect::<Vec<_>>()
         .await
         .into_iter()
-        .collect::<Result<Vec<_>>>();
+        .collect::<Result<Vec<_>>>()?;
     drop(store);
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
-    slots
+    Ok(slots)
+}
+
+async fn create_crate_download(options: &DownloadOptions) -> Result<CrateDownload> {
+    let (registry_config, auth_headers) =
+        registry_download_config(options.config, &options.http_client).await?;
+    Ok(CrateDownload {
+        http_client: Arc::clone(&options.http_client),
+        auth_headers,
+        download_template: registry_config.dl,
+        retry_opts: options.config.retry_opts(),
+        offline: options.config.offline,
+        tar_limits: options.config.tar_limits(),
+        requester: options.requester.clone(),
+    })
 }
 
 pub(super) struct MaterializeOptions {
@@ -137,6 +189,90 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     .into_diagnostic()
     .wrap_err("join cargo package materialization task")??;
     Ok((link_name, slot))
+}
+
+pub(super) fn slot_is_complete(slot: &Path, checksum: &str) -> bool {
+    let Ok(slot_metadata) = std::fs::symlink_metadata(slot) else {
+        return false;
+    };
+    if !slot_metadata.is_dir() {
+        return false;
+    }
+    let Some(files) = read_slot_manifest(slot, checksum) else {
+        return false;
+    };
+    !files.is_empty()
+        && files.iter().all(|(file, checksum)| slot_file_matches(slot, file, checksum))
+}
+
+fn read_slot_manifest(
+    slot: &Path,
+    checksum: &str,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let marker = slot.join(".cargo-checksum.json");
+    let Ok(marker_metadata) = std::fs::symlink_metadata(&marker) else {
+        return None;
+    };
+    if !marker_metadata.is_file() {
+        return None;
+    }
+    let Ok(manifest) = std::fs::read(&marker) else {
+        return None;
+    };
+    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&manifest) else {
+        return None;
+    };
+    if manifest.get("package").and_then(serde_json::Value::as_str) != Some(checksum) {
+        return None;
+    }
+    manifest
+        .get("files")
+        .and_then(serde_json::Value::as_object)
+        .cloned()
+}
+
+fn slot_file_matches(slot: &Path, file: &str, checksum: &serde_json::Value) -> bool {
+    safe_slot_file_path(file)
+        && slot_parent_directories_are_real(slot, file)
+        && slot_file_contents_match(slot, file, checksum)
+}
+
+fn safe_slot_file_path(file: &str) -> bool {
+    Path::new(file)
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)))
+}
+
+fn slot_parent_directories_are_real(slot: &Path, file: &str) -> bool {
+    let mut parent = slot.to_path_buf();
+    let Some(relative_parent) = Path::new(file).parent() else {
+        return true;
+    };
+    for component in relative_parent.components() {
+        parent.push(component.as_os_str());
+        let Ok(metadata) = std::fs::symlink_metadata(&parent) else {
+            return false;
+        };
+        if !metadata.is_dir() {
+            return false;
+        }
+    }
+    true
+}
+
+fn slot_file_contents_match(slot: &Path, file: &str, checksum: &serde_json::Value) -> bool {
+    let path = slot.join(file);
+    let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    let Some(checksum) = checksum.as_str() else {
+        return false;
+    };
+    pnpm_crypto_hash::create_hex_hash_from_file(&path)
+        .is_ok_and(|actual_checksum| actual_checksum == checksum)
 }
 
 pub(super) fn add_cargo_checksum(
@@ -211,22 +347,6 @@ async fn ingest_crate<Reporter: self::Reporter + 'static>(
 }
 
 impl CrateDownload {
-    fn new(
-        options: &DownloadOptions,
-        download_template: String,
-        auth_headers: Arc<AuthHeaders>,
-    ) -> Self {
-        Self {
-            http_client: Arc::clone(&options.http_client),
-            auth_headers,
-            download_template,
-            retry_opts: options.config.retry_opts(),
-            offline: options.config.offline,
-            tar_limits: options.config.tar_limits(),
-            requester: options.requester.clone(),
-        }
-    }
-
     fn archive_options(&self) -> pnpm_tarball::ArchiveFetchOptions<'_> {
         pnpm_tarball::ArchiveFetchOptions {
             http_client: &self.http_client,
