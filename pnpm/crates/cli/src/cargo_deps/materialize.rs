@@ -41,7 +41,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
 
 fn partition_materialized_crates(
     packages: Vec<LockedCrate>,
-    store_dir: &'static StoreDir,
+    store_dir: &StoreDir,
     index: Option<&SharedReadonlyStoreIndex>,
 ) -> (Vec<(String, PathBuf)>, Vec<LockedCrate>) {
     let (completed, pending): (Vec<_>, Vec<_>) = packages
@@ -73,7 +73,7 @@ async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
     let packages = std::mem::take(&mut options.packages);
     let completed_index = store_index.clone();
     let (completed_slots, packages) = tokio::task::spawn_blocking(move || {
-        partition_materialized_crates(packages, store_dir, completed_index.as_ref())
+        partition_materialized_crates(packages, &store_dir, completed_index.as_ref())
     })
     .await
     .into_diagnostic()
