@@ -132,6 +132,7 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: Arc::default(),
                 dir_clone_cache: None,

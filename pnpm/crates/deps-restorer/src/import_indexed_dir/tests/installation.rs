@@ -240,6 +240,7 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     assert!(!target_b.join("stale.txt").exists());
 }
 
+// Each thread stands for one install, with the swap lock an install holds.
 #[test]
 fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
     let tmp = tempdir().unwrap();
@@ -260,13 +261,14 @@ fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
             let target = &target;
             let cas = &cas;
             scope.spawn(move || {
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
                 barrier.wait();
                 import_indexed_dir::<SilentReporter>(
                     &AtomicU8::new(0),
                     PackageImportMethod::Copy,
                     target,
                     cas,
-                    FORCE_KEEP,
+                    ImportIndexedDirOpts { swap_lock: Some(&swap_lock), ..FORCE_KEEP },
                 )
                 .expect("an equivalent concurrent import should succeed");
             });

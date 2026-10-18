@@ -11,6 +11,7 @@ use super::{
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
+use pnpm_deps_restorer::ModulesSwapLock;
 use tracing::Instrument as _;
 
 impl<'a> RunExecution<'a> {
@@ -120,7 +121,11 @@ impl<'a> RunExecution<'a> {
             loaded,
             lockfiles,
             &mut dispatched,
-            (verification, &AtomicU8::new(0)),
+            (
+                verification,
+                &AtomicU8::new(0),
+                &ModulesSwapLock::new(&self.install.context.config.modules_dir),
+            ),
         ))
         .await?;
         super::store_fetch::finish_fresh_fetch::<Reporter>(
@@ -191,7 +196,11 @@ impl<'a> RunExecution<'a> {
         loaded: &'r mut Loaded<'_>,
         lockfiles: &'r Lockfiles<'_>,
         dispatched: &'r mut Dispatched<'a>,
-        (verification, logged_methods): (Verification, &'r AtomicU8),
+        (verification, logged_methods, swap_lock): (
+            Verification,
+            &'r AtomicU8,
+            &'r ModulesSwapLock,
+        ),
     ) -> MaterializationInputs<'r, 'a> {
         let resolution = self.materialization_resolution(loaded);
         let early_host_detection = loaded.early_host_detection.take();
@@ -217,7 +226,7 @@ impl<'a> RunExecution<'a> {
             modules: dispatched.materialization_modules(
                 (self.mode.included, self.options.rebuild.as_ref()),
                 !scope.importers.filtered_install,
-                logged_methods,
+                (logged_methods, swap_lock),
             ),
             execution: self.mode.materialization_execution(
                 (&self.owned, self.install.execution),

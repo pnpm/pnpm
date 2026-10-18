@@ -1,8 +1,8 @@
 //! Locating and repairing the virtual-store slot a build runs in.
 
 use super::{
-    BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageImportMethod,
-    PackageKey, Path, PathBuf, Reporter, import_indexed_dir,
+    BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageKey, Path,
+    PathBuf, Reporter, import_indexed_dir,
 };
 use pnpm_store_dir::SideEffectsOverlay;
 use std::{fs, io};
@@ -292,19 +292,19 @@ fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
 /// needs a link-phase "this slot was re-linked pristine-only this install"
 /// signal threaded from the link phase, which is left as a follow-up.
 pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
-    logged_methods: &std::sync::atomic::AtomicU8,
-    import_method: PackageImportMethod,
+    directories: &crate::BuildLayout<'_>,
     pkg_dir: &Path,
     overlay: &SideEffectsOverlay,
 ) -> Result<(), BuildModulesError> {
     import_indexed_dir::<Reporter>(
-        logged_methods,
-        import_method,
+        directories.import.logged_methods,
+        directories.import_method,
         pkg_dir,
         &overlay.files,
         ImportIndexedDirOpts {
             force: true,
             keep_modules_dir: true,
+            swap_lock: directories.import.swap_lock,
             ..ImportIndexedDirOpts::default()
         },
     )

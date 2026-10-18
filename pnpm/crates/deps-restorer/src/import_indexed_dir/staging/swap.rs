@@ -18,17 +18,17 @@ const DIRECTORY_SWAP_RETRY_DELAY: Duration = Duration::from_millis(10);
 /// Where the platform exchanges two dirents atomically, the target path
 /// is never absent and never names a partial tree. Elsewhere the occupied
 /// target is moved aside by a rename and the stage renamed in, which
-/// leaves the path absent between the two renames. An importer that found
-/// the target absent renames its own stage in without the swap lock, and
-/// that rename fails against a tree that landed in the meantime, so the
-/// vacancy is open only to an importer that checked the target during it,
-/// or that stalled with its stage ready until it. Such an importer's tree
-/// is equivalent and is replaced or kept by the swap that follows.
+/// leaves the path absent between the two renames. The install's swap
+/// lock keeps the other installs' forced imports out of that vacancy; an
+/// importer without the lock that found the target absent renames its
+/// own stage in, and that rename fails against a tree that landed in the
+/// meantime, so the vacancy is open only to one that checked the target
+/// during it, or that stalled with its stage ready until it. Such an
+/// importer's tree is equivalent and is replaced or kept by the swap
+/// that follows.
 ///
 /// Returns the path the displaced tree now sits at, for the caller to
-/// remove once the swap lock is released: the removal touches only that
-/// private sibling path, and a swap waiting for the lock need not wait
-/// for it.
+/// remove: the removal touches only that private sibling path.
 pub(super) fn replace_target(
     paths: &StagePaths,
     dir_path: &Path,

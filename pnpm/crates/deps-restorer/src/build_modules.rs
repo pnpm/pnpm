@@ -34,7 +34,7 @@ use crate::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::{Config, PackageImportMethod};
+use pnpm_config::Config;
 use pnpm_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
 use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,

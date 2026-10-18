@@ -11,7 +11,9 @@ use staging::stage_and_swap;
 #[cfg(windows)]
 mod windows_filenames;
 
-use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
+use crate::{
+    LinkFileError, ModulesSwapLock, remove_quarantine::remove_quarantine_from_native_binaries,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
@@ -32,7 +34,7 @@ use std::{
 /// shape (no force, no nested-modules preservation); the hoisted
 /// linker passes both flags set to `true`.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct ImportIndexedDirOpts {
+pub struct ImportIndexedDirOpts<'a> {
     /// When `true`, re-import even when `dir_path` already exists,
     /// overwriting the existing contents. Without `force`, an
     /// existing directory short-circuits this function (matches
@@ -55,6 +57,11 @@ pub struct ImportIndexedDirOpts {
     /// When `true`, preserve safe symlinks in the imported package instead of
     /// assuming all entries are regular files.
     pub preserve_symlinks: bool,
+    /// The install's [`ModulesSwapLock`], which serializes this install's
+    /// forced replacements of private targets with those of the other
+    /// installs under the same modules directory. `None` replaces
+    /// unserialized.
+    pub swap_lock: Option<&'a ModulesSwapLock>,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -312,8 +319,7 @@ fn import_absent_target<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             staging::SwapTarget::Absent,
-            opts.keep_modules_dir,
-            opts.preserve_symlinks,
+            opts,
         );
     }
     placement::import_absent_dir::<Reporter>(
@@ -369,8 +375,7 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         staging::SwapTarget::Occupied,
-        opts.keep_modules_dir,
-        opts.preserve_symlinks,
+        opts,
     )
 }
 

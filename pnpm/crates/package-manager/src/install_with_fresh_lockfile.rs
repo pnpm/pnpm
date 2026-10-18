@@ -58,7 +58,7 @@ use pnpm_tarball::MemCache;
 use std::{
     collections::{BTreeMap, HashSet},
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::Arc,
 };
 use tokio::sync::watch;
 
@@ -121,9 +121,8 @@ pub(crate) struct FreshInputs<'a> {
 pub(crate) struct FreshInstallDrivers<'a> {
     pub(crate) http_client: &'a ThrottledClient,
     pub(crate) config: &'static Config,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// See `link_file::log_method_once`.
-    pub(crate) logged_methods: &'a AtomicU8,
+    /// The install's import state; see [`pnpm_deps_restorer::InstallImportState`].
+    pub(crate) import: pnpm_deps_restorer::InstallImportState<'a>,
 }
 
 #[derive(Clone, Copy)]

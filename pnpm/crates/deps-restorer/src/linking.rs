@@ -461,6 +461,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                     supported_architectures: inputs.supported_architectures,
                     materialization: crate::HoistedMaterialization {
                         logged_methods: inputs.ctx.caches.logged_methods,
+                        swap_lock: inputs.ctx.caches.swap_lock,
                         requester: inputs.ctx.requester,
                         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
                         dir_clone_cache: inputs.ctx.caches.dir_clone_cache,

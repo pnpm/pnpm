@@ -471,7 +471,10 @@ fn build_directories<'a>(
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
-        logged_methods: ctx.caches.logged_methods,
+        import: pnpm_deps_restorer::InstallImportState {
+            logged_methods: ctx.caches.logged_methods,
+            swap_lock: ctx.caches.swap_lock,
+        },
         link_options: ctx.linker.bin_options,
     }
 }

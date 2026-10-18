@@ -81,6 +81,8 @@ pub struct InstallFrozenLockfile<'a> {
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
+    /// See [`crate::InstallCaches::swap_lock`].
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -333,6 +335,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         let ctx = crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: self.logged_methods,
+                swap_lock: self.swap_lock,
                 git_source_cache: &plan.git_source_cache,
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),

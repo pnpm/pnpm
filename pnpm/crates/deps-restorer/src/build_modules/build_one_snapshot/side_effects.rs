@@ -229,12 +229,7 @@ pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     pkg_dir: &Path,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> OverlayOutcome {
-    match materialize_side_effects::<Reporter>(
-        context.directories.logged_methods,
-        context.directories.import_method,
-        pkg_dir,
-        overlay,
-    ) {
+    match materialize_side_effects::<Reporter>(&context.directories, pkg_dir, overlay) {
         Ok(()) => OverlayOutcome::Materialized,
         Err(error) if pkg_dir.join("package.json").exists() => OverlayOutcome::Rebuild(error),
         Err(error) => OverlayOutcome::Broken(error),

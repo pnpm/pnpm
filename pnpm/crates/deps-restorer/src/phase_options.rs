@@ -7,7 +7,7 @@ use pnpm_store_dir::StoreIndexWriter;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    sync::Arc,
 };
 
 #[derive(Clone, Copy)]
@@ -214,7 +214,7 @@ pub struct BuildPhaseDirectories<'a> {
     /// importer's `node_modules/.bin`. Empty under the hoisted linker
     /// and when no public-hoist pattern is set.
     pub publicly_hoisted_for_post_build: &'a [String],
-    pub logged_methods: &'a AtomicU8,
+    pub import: crate::InstallImportState<'a>,
     /// [`crate::shim_link_options`] output, for the post-build
     /// top-level bin pass.
     pub link_options: &'a LinkBinsOptions,

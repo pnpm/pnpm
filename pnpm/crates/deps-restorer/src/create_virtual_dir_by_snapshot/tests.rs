@@ -169,6 +169,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -261,6 +262,7 @@ fn needs_build_slots_ignore_the_configured_import_method() {
             import: crate::PackageImportOptions {
                 method,
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 requester: "/proj",
                 isolate_mutable_sources: false,
             },
@@ -369,6 +371,7 @@ fn a_build_write_does_not_reach_the_import_source() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -434,6 +437,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -491,6 +495,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
             logged_methods: &AtomicU8::new(0),
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -549,6 +554,7 @@ fn run_rejects_traversal_package_name() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -640,6 +646,7 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -728,6 +735,7 @@ async fn run_removes_obsolete_child_links() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -823,6 +831,7 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
             source_exists: false,
             force_import: false,
         },
+        None,
     );
     assert!(!missing_source.force, "a missing mutable source must not force a reimport");
 
@@ -834,6 +843,7 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
             source_exists: true,
             force_import: false,
         },
+        None,
     );
     assert!(existing_source.force, "an existing mutable source must still force a reimport");
 }
@@ -858,6 +868,7 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
             source_exists: false,
             force_import: false,
         },
+        None,
     );
     assert!(
         !interrupted_build.force,
@@ -872,6 +883,7 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
             source_exists: false,
             force_import: true,
         },
+        None,
     );
     assert!(!force_import.force, "force_import must not force a reimport of a missing source");
 }

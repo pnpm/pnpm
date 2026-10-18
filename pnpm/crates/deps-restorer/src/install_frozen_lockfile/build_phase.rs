@@ -315,7 +315,7 @@ fn build_modules<'a>(
             modules_dir: &config.modules_dir,
             lockfile_dir: inputs.directories.workspace_root,
             import_method: config.package_import_method,
-            logged_methods: inputs.directories.logged_methods,
+            import: inputs.directories.import,
         },
         graph: crate::BuildGraphInputs {
             snapshots: inputs.graph.snapshots,

@@ -232,7 +232,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             self.resolved.early_materializer.as_deref(),
             initial.lockfile(&built_lockfile).snapshots.as_ref(),
             &plan.skipped,
-            self.install.drivers.logged_methods,
+            self.install.drivers.import.logged_methods,
         )
         .await;
         let on_disk =
@@ -327,7 +327,8 @@ pub(super) fn fresh_install_context<'b>(
         caches: pnpm_deps_restorer::InstallCaches {
             materialized_graph: std::sync::Arc::default(),
 
-            logged_methods: install.drivers.logged_methods,
+            logged_methods: install.drivers.import.logged_methods,
+            swap_lock: install.drivers.import.swap_lock,
             git_source_cache: &caches.git_source_cache,
             dir_clone_cache,
         },

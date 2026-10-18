@@ -1,11 +1,8 @@
 use super::{
-    ImportIndexedDirError, Placement, PreserveModulesFailure, PreservedModules,
-    existing_dirent_kind, file_matches_store_entry, populate_dir,
+    ImportIndexedDirError, ImportIndexedDirOpts, Placement, PreserveModulesFailure,
+    PreservedModules, existing_dirent_kind, file_matches_store_entry, populate_dir,
 };
-mod lock;
 mod swap;
-#[cfg(test)]
-mod tests;
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{FsRemoveDirent, FsRename, Host, rename_even_across_devices};
@@ -65,9 +62,9 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     target: SwapTarget,
-    keep_modules_dir: bool,
-    preserve_symlinks: bool,
+    opts: ImportIndexedDirOpts<'_>,
 ) -> Result<(), ImportIndexedDirError> {
+    let keep_modules_dir = opts.keep_modules_dir;
     let paths = StagePaths::new(dir_path, keep_modules_dir);
     populate_staging_dir::<Reporter>(
         logged_methods,
@@ -75,23 +72,25 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         &paths,
         dir_path,
         cas_paths,
-        preserve_symlinks,
+        opts.preserve_symlinks,
     )?;
+    // The install's swap lock serializes this replacement with the other
+    // installs replacing directories under the same modules directory.
+    // An install without one, or one that could not take it, replaces
+    // unserialized; see `ModulesSwapLock`.
+    if let Some(swap_lock) = opts.swap_lock {
+        swap_lock.hold();
+    }
     // An absent target takes the staged tree in one rename, which also
     // settles which of several importers that found it absent owns it.
-    // Only an occupied target, which has to be inspected and replaced,
-    // needs the swap lock, so a fresh forced install never pays for one.
     // A target that got occupied since the caller looked makes the rename
     // fail, and the occupied-target path takes over; `swap::replace_target`
     // explains what a replacement in progress looks like from here.
     if target == SwapTarget::Absent && pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
         return Ok(());
     }
-    let displaced = {
-        let _target_lock = lock::target_swap_lock(dir_path);
-        let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
-        swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)?
-    };
+    let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
+    let displaced = swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)?;
     if let Some(displaced) = displaced
         && let Err(error) = pnpm_fs::remove_dirent(&displaced)
     {

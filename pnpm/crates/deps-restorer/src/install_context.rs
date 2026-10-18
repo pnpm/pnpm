@@ -41,6 +41,9 @@ pub struct InstallCaches<'a> {
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
+    /// The lock this install holds while it replaces package directories;
+    /// see [`crate::ModulesSwapLock`]. `None` replaces unserialized.
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
     /// Install-scoped [`pnpm_git_fetcher::GitSourceCache`] shared by the
     /// resolve-time manifest read and the fetch phase's git fetcher.
     pub git_source_cache: &'a pnpm_git_fetcher::GitSourceCache,

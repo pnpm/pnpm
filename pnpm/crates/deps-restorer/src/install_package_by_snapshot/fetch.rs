@@ -364,6 +364,7 @@ impl InstallPackageBySnapshot<'_> {
                 config,
                 self.ctx.caches.logged_methods,
                 self.ctx.requester,
+                self.ctx.caches.swap_lock,
             ),
             source: crate::SlotImportSource {
                 is_mutable: slot.source_is_mutable,

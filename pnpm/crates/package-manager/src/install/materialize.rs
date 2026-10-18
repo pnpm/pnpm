@@ -10,7 +10,7 @@ use scope::{
 };
 
 use super::{
-    Arc, AtomicU8, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
+    Arc, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
     InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile, LockfileEntries,
     MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
     ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
@@ -65,7 +65,7 @@ pub(super) struct MaterializationModules<'a> {
     pub(super) prune_orphans: bool,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
     pub(super) relink_every_slot_bin: bool,
-    pub(super) logged_methods: &'a AtomicU8,
+    pub(super) import: pnpm_deps_restorer::InstallImportState<'a>,
 }
 
 pub(super) struct MaterializationExecution<'a> {
@@ -229,7 +229,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             drivers: crate::install_with_fresh_lockfile::FreshInstallDrivers {
                 http_client: self.install.context.http_client,
                 config: self.install.context.config,
-                logged_methods: self.modules.logged_methods,
+                import: self.modules.import,
             },
             projects: crate::install_with_fresh_lockfile::FreshInstallProjects {
                 dependency_groups,
