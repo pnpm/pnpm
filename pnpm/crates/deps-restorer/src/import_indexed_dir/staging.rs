@@ -82,6 +82,21 @@ pub(super) fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::
         })
 }
 
+pub(super) fn target_swap_lock_if_forced(
+    force: bool,
+    dir_path: &Path,
+) -> Result<Option<pnpm_fs::DirLock>, ImportIndexedDirError> {
+    force
+        .then(|| {
+            target_swap_lock(dir_path)
+                .map_err(|error| ImportIndexedDirError::AcquireSwapLock {
+                    path: dir_path.to_path_buf(),
+                    error,
+                })
+        })
+        .transpose()
+}
+
 fn populate_staging_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
