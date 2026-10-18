@@ -1,7 +1,7 @@
 use super::{
-    Cow, EnvVar, NpmrcAuth, Path, apply_creds_field, apply_tls_field, env_replace_lossy,
-    expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key, resolve_cafile,
-    split_ini_creds_key, split_ssl_key,
+    Cow, EnvVar, NpmrcAuth, NpmrcRoutes, Path, apply_creds_field, apply_tls_field,
+    env_replace_lossy, expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key,
+    resolve_cafile, split_ini_creds_key, split_ssl_key,
 };
 use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
@@ -96,6 +96,25 @@ impl NpmrcAuth {
             npmrc_dir,
             ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
         )
+    }
+
+    /// The command line's `--config.<key>=<value>` tokens, read as the
+    /// `.npmrc` layer above every file. Values are taken as given, since
+    /// the shell has already expanded them. The command line's registry
+    /// routes are applied by the CLI after the load, so here they only pin
+    /// the unscoped credentials.
+    pub fn from_cli_config(entries: &[(String, String)]) -> Self {
+        let mut auth = NpmrcAuth::default();
+        for (key, value) in entries {
+            if crate::config_types::is_ini_config_key(key) {
+                auth.raw_ini_config.insert(key.clone(), value.clone());
+            }
+            // The empty base leaves a relative `cafile` to the current directory.
+            auth.apply_ini_entry(key, value.clone(), Path::new(""));
+        }
+        auth.rescope_unscoped("<command line>");
+        auth.routes = NpmrcRoutes::default();
+        auth
     }
 
     fn from_ini_with_options<Sys: EnvVar>(

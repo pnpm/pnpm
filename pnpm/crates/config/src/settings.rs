@@ -1822,7 +1822,8 @@ pub struct Config {
     pub cli_setting_values: BTreeMap<String, String>,
 
     /// Every `--config.<key>=<value>` token of the command line, as given
-    /// and in argv order, for forwarding to a child pnpm the command spawns.
+    /// and in argv order. [`Config::current`] reads it as the top `.npmrc`
+    /// layer, and it is forwarded to a child pnpm the command spawns.
     pub raw_cli_config: Vec<(String, String)>,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which

@@ -35,11 +35,30 @@ fn assert_authenticated_install(
     expected_header: &str,
     frozen_reinstall: bool,
 ) {
+    assert_authenticated_install_with_args(
+        package,
+        credentials,
+        |_| Vec::new(),
+        expected_header,
+        frozen_reinstall,
+    );
+}
+
+/// [`assert_authenticated_install`] with `cli_args(authority)` added to
+/// every install command.
+fn assert_authenticated_install_with_args(
+    package: &str,
+    credentials: impl FnOnce(&str) -> String,
+    cli_args: impl FnOnce(&str) -> Vec<String>,
+    expected_header: &str,
+    frozen_reinstall: bool,
+) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let registry_url = registry.url();
     let authority = registry_url.strip_prefix("http://").expect("mock registry is HTTP");
     write_project_config(root.path(), &workspace, &registry_url, &credentials(authority));
+    let cli_args = cli_args(authority);
 
     let tarball = minimal_tarball(package, "1.0.0");
     let integrity = sha512_integrity(&tarball);
@@ -82,6 +101,7 @@ fn assert_authenticated_install(
 
     install_command(&workspace, root.path())
         .with_arg("install")
+        .with_args(&cli_args)
         .assert()
         .success();
     assert!(
@@ -96,6 +116,7 @@ fn assert_authenticated_install(
         fs::remove_dir_all(root.path().join("store")).expect("remove cold store");
         install_command(&workspace, root.path())
             .with_args(["install", "--frozen-lockfile"])
+            .with_args(&cli_args)
             .assert()
             .success();
         assert!(
@@ -116,6 +137,19 @@ fn bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall() {
         "private-pkg",
         |authority| format!("//{authority}/:_authToken=secret-token\n"),
         "Bearer secret-token",
+        true,
+    );
+}
+
+/// A credential passed as `--config.<key>=<value>` is the top `.npmrc`
+/// layer, so it wins over the project `.npmrc` for the same registry.
+#[test]
+fn bearer_auth_from_the_command_line_wins_over_the_project_npmrc() {
+    assert_authenticated_install_with_args(
+        "private-pkg",
+        |authority| format!("//{authority}/:_authToken=project-token\n"),
+        |authority| vec![format!("--config.//{authority}/:_authToken=cli-token")],
+        "Bearer cli-token",
         true,
     );
 }
