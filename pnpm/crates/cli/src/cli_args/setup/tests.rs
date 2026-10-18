@@ -100,7 +100,7 @@ fn other_env_path_errors_fail_the_setup() {
             .code()
             .map(|code| code.to_string())
             .as_deref(),
-        Some("ERR_PNPM_UNSUPPORTED_SHELL")
+        Some("ERR_PNPM_UNSUPPORTED_SHELL"),
     );
 }
 
