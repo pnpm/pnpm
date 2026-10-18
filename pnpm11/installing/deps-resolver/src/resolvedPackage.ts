@@ -153,23 +153,6 @@ export function detectNamedRegistryCollision (
   )
 }
 
-export function detectRegistryRevisionConflict (
-  resolved: ResolvedPackage,
-  pkgResponse: PackageResponse
-): void {
-  const existing = resolved.resolution as TarballResolution | undefined
-  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
-  if (existing?.revision == null && incoming?.revision == null) return
-  if (existing?.revision === incoming?.revision && existing?.integrity === incoming?.integrity) return
-  throw new PnpmError(
-    'REVISION_CONFLICT',
-    `Conflicting registry revisions were requested for "${resolved.name}@${resolved.version}".`,
-    {
-      hint: 'A single package name and version can resolve to only one registry artifact in an install.',
-    }
-  )
-}
-
 /**
  * The {@link PeerSet} of `pkg`, whose `dependencies` no longer hold the names
  * its peers shadow in the scope it resolved in.

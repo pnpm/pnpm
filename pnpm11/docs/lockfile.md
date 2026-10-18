@@ -107,30 +107,6 @@ into a single object first. Both use the `.` importer key, and each carries its
 own `packages` and `snapshots` maps, so merging them overwrites one side's
 importer and loses whichever graph it held.
 
-## Resolutions that carry a revision
-
-Since v11.25.0, a `packages:` entry may carry a `revision` field
-beside its integrity:
-
-```yaml title="pnpm-lock.yaml"
-packages:
-  lodash@4.17.21:
-    resolution:
-      integrity: sha512-<replacement-digest>
-      revision: 1
-```
-
-It says that the bytes are a registry **replacement artifact**, fetched from the
-registry's integrity-addressed route rather than the canonical
-`name@version` URL. An entry with no `revision` field is revision 0 — the
-original — which is what every entry pnpm has ever written means, so a lockfile
-that has adopted no replacements is unchanged. See [Registry
-revisions](./registry-revisions.md).
-
-A tool that reads integrity values should treat `revision` as ordinary metadata:
-`integrity` is still a standard Subresource Integrity value pinning the exact
-bytes.
-
 ## Why the env document comes first
 
 pnpm has to know which pnpm version to switch to, and which plugins to load,

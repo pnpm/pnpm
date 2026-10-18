@@ -49,7 +49,6 @@ export type InstallSomeProject = Pick<ImporterToUpdate,
 | 'peerAliases'
 | 'targetDependenciesField'
 | 'update'
-| 'updatePatches'
 | 'updateToLatest'
 >
 

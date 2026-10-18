@@ -25,20 +25,14 @@ describe('parseBareSpecifier', () => {
     })
   })
 
-  test('separates an exact registry revision from the version used for semver selection', () => {
-    expect(parseBareSpecifier('1.2.3+r0', 'foo', DEFAULT_TAG, NPM_REGISTRY)).toStrictEqual({
-      name: 'foo',
-      fetchSpec: '1.2.3',
-      revision: 0,
-      type: 'version',
-    })
-    expect(parseBareSpecifier('npm:foo@1.2.3+r42', 'alias', DEFAULT_TAG, NPM_REGISTRY)).toStrictEqual({
-      name: 'foo',
-      fetchSpec: '1.2.3',
-      revision: 42,
-      type: 'version',
-    })
-  })
+  test.each(['1.2.3+r0', '1.2.3+r01', '1.2.3+r9007199254740992', 'npm:foo@1.2.3+r42'])(
+    'rejects the registry revision selector %s',
+    (specifier) => {
+      expect(() => parseBareSpecifier(specifier, 'foo', DEFAULT_TAG, NPM_REGISTRY)).toThrow(expect.objectContaining({
+        code: 'ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED',
+      }))
+    }
+  )
 
   test('leaves unrelated semver build metadata unchanged', () => {
     expect(parseBareSpecifier('1.2.3+build.1', 'foo', DEFAULT_TAG, NPM_REGISTRY)).toStrictEqual({
@@ -102,15 +96,6 @@ describe('parseBareSpecifier', () => {
   ])('declines the tarball URL %s %s', (registry, url) => {
     expect(parseBareSpecifier(url, undefined, DEFAULT_TAG, registry)).toBeNull()
   })
-
-  test.each(['1.2.3+r01', '1.2.3+r9007199254740992'])(
-    'rejects non-canonical registry revision spec %s',
-    (specifier) => {
-      expect(() => parseBareSpecifier(specifier, 'foo', DEFAULT_TAG, NPM_REGISTRY)).toThrow(expect.objectContaining({
-        code: 'ERR_PNPM_INVALID_REVISION_SPEC',
-      }))
-    }
-  )
 })
 
 describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
@@ -154,14 +139,10 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
     } as NamedRegistryPackageSpec)
   })
 
-  test('parses a revision-addressed named-registry version', () => {
-    expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:1.0.0+r2', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toStrictEqual({
-      name: '@acme/foo',
-      fetchSpec: '1.0.0',
-      revision: 2,
-      type: 'version',
-      registryName: 'gh',
-    } as NamedRegistryPackageSpec)
+  test('rejects a revision-addressed named-registry version', () => {
+    expect(() => parseNamedRegistrySpecifierToRegistryPackageSpec('gh:1.0.0+r2', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED',
+    }))
   })
 
   test('parses <alias>:@<owner>/<name> and falls back to the default tag', () => {

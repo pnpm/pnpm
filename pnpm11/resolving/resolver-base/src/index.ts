@@ -18,7 +18,6 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
-  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -445,7 +444,6 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
-  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated

@@ -101,7 +101,6 @@ export function getResolveDependencyOptions (
     proceed: extendedWantedDep.proceed || plan.updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: getUpdateMode(extendedWantedDep.wantedDependency, plan.update, options.updateToLatest),
-    updatePatches: options.updatePatches,
     updateChecksums: ctx.updateChecksums,
     updateDepth: plan.updateDepth,
     updateRequested: plan.updateRequested,

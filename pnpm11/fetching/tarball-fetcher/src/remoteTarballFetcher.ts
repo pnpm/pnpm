@@ -6,7 +6,7 @@ import path from 'node:path'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
 import type { Cafs } from '@pnpm/store.cafs-types'
@@ -32,8 +32,6 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
-  redirect?: RequestRedirect
-  retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
   pkgId?: string
@@ -62,7 +60,7 @@ export function createDownloader (
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: CreateDownloaderOptions
 ): DownloadFunction {
-  const defaultRetryOpts = {
+  const downloadRetryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
@@ -78,7 +76,6 @@ export function createDownloader (
       opts.appendManifest?.name
     )
 
-    const downloadRetryOpts = { ...defaultRetryOpts, ...opts.retry }
     const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
@@ -157,7 +154,6 @@ async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
       authHeaderValue: ctx.authHeaderValue,
       headers: { 'accept-encoding': 'identity' },
       retry: { retries: 0 },
-      redirect: ctx.opts.redirect,
       timeout: ctx.gotOpts.timeout,
     })
 
@@ -349,9 +345,7 @@ function handleDownloadRetry (opts: {
   url: string
 }): void {
   const status = opts.error.response?.status
-  const isManualRedirect = opts.opts.redirect === 'manual' && status >= 300 && status < 400
-  const isFatal = isManualRedirect ||
-    status === 401 ||
+  const isFatal = status === 401 ||
     status === 403 ||
     status === 404 ||
     opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||

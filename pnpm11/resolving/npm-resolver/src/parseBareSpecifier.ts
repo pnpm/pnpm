@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
+import { createRegistryRevisionsUnsupportedError } from '@pnpm/resolving.tarball-url'
 import semver from 'semver'
 import validateNpmPackageName from 'validate-npm-package-name'
 import getVersionSelectorType from 'version-selector-type'
@@ -8,7 +9,6 @@ export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'
   name: string
   fetchSpec: string
-  revision?: number
   normalizedBareSpecifier?: string
 }
 
@@ -63,7 +63,7 @@ export function parseBareSpecifier (
     const selector = getVersionSelectorType(bareSpecifier)
     if (selector != null) {
       return {
-        ...parseRevisionSelector(selector, bareSpecifier),
+        ...parseVersionSelector(selector, bareSpecifier),
         name,
       }
     }
@@ -154,7 +154,7 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    ...parseRevisionSelector(selector, spec.versionSelector ?? defaultTag),
+    ...parseVersionSelector(selector, spec.versionSelector ?? defaultTag),
     name: spec.npmPkgName,
     jsrPkgName: spec.jsrPkgName,
   }
@@ -203,7 +203,7 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    ...parseRevisionSelector(selector, versionSelector ?? defaultTag),
+    ...parseVersionSelector(selector, versionSelector ?? defaultTag),
     name: pkgName,
     registryName,
   }
@@ -246,33 +246,22 @@ function splitPackageNameAndSelector (body: string): PackageNameAndSelector {
   }
 }
 
-function parseRevisionSelector (
+function parseVersionSelector (
   selector: VersionSelector,
   rawSelector: string
-): Pick<RegistryPackageSpec, 'fetchSpec' | 'revision' | 'type'> {
-  if (selector.type !== 'version') {
-    return { fetchSpec: selector.normalized, type: selector.type }
+): Pick<RegistryPackageSpec, 'fetchSpec' | 'type'> {
+  if (selector.type === 'version' && hasRegistryRevisionSelector(rawSelector)) {
+    throw createRegistryRevisionsUnsupportedError(
+      `Cannot resolve version specifier "${rawSelector}": it selects a registry revision.`)
   }
+  return { fetchSpec: selector.normalized, type: selector.type }
+}
+
+/** Whether the version's build metadata is a `+rN` registry revision selector. */
+function hasRegistryRevisionSelector (rawSelector: string): boolean {
   const normalizedInput = rawSelector.trim()
   const buildIndex = normalizedInput.indexOf('+')
-  if (buildIndex === -1) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
+  if (buildIndex === -1) return false
   const build = normalizedInput.slice(buildIndex + 1)
-  if (build.length < 2 || build[0] !== 'r' || build.includes('.')) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
-  const digits = build.slice(1)
-  if (![...digits].every((char) => char >= '0' && char <= '9')) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
-  const revision = Number(digits)
-  if ((digits.length > 1 && digits[0] === '0') || !Number.isSafeInteger(revision)) {
-    throw new PnpmError('INVALID_REVISION_SPEC', `Invalid registry revision in version specifier "${rawSelector}"`)
-  }
-  return {
-    fetchSpec: selector.normalized,
-    revision,
-    type: selector.type,
-  }
+  return build.length >= 2 && build[0] === 'r' && [...build.slice(1)].every((char) => char >= '0' && char <= '9')
 }

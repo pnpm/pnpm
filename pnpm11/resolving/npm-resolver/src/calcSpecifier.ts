@@ -15,15 +15,9 @@ export function calcPrefixedSpecifier (opts: {
   pkgName: string
   wantedDependency: WantedDependency
   version: string
-  revision?: number
   defaultRangeSpecStyle?: RangeSpecStyle
   isUpdate?: boolean
 }): string {
-  if (opts.revision != null) {
-    const target = `${opts.version}+r${opts.revision}`
-    if (isSavedUnderOwnName(opts.wantedDependency, opts.pkgName)) return `${opts.prefix}${target}`
-    return `${opts.prefix}${opts.pkgName}@${target}`
-  }
   const range = calcRange(opts.version, opts.wantedDependency, opts.defaultRangeSpecStyle, opts.isUpdate)
   if (isSavedUnderOwnName(opts.wantedDependency, opts.pkgName)) return `${opts.prefix}${range}`
   return `${opts.prefix}${opts.pkgName}@${range}`
@@ -42,11 +36,6 @@ export function calcSpecifier ({
   defaultRangeSpecStyle?: RangeSpecStyle
   isUpdate?: boolean
 }): string {
-  if (spec.revision != null) {
-    const target = `${version}+r${spec.revision}`
-    if (isSavedUnderOwnName(wantedDependency, spec.name)) return target
-    return `npm:${spec.name}@${target}`
-  }
   if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
