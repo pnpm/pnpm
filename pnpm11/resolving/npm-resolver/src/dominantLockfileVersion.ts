@@ -1,6 +1,7 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import {
-  EXISTING_VERSION_SELECTOR_WEIGHT,
+  pinnedByLockfile,
+  RESOLVED_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
   type VersionSelectorType,
 } from '@pnpm/resolving.resolver-base'
@@ -77,7 +78,7 @@ function isLockfileVersionSelector (
   versionRange: string
 ): boolean {
   return selectorType === 'version' &&
-    weight >= EXISTING_VERSION_SELECTOR_WEIGHT &&
+    pinnedByLockfile(weight) &&
     semverSatisfiesLoose(selector, versionRange)
 }
 
@@ -118,7 +119,7 @@ function addSelectorWeight (
       if (selector === lockfileVersion) {
         weights.guaranteedLockfileWeight += weight
       } else if (
-        weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
+        !pinnedByLockfile(weight) &&
         semverSatisfiesLoose(selector, versionRange)
       ) {
         weights.maximumOtherVersionWeight += weight
@@ -150,6 +151,6 @@ export function preferredSelectorInfo (
   value: VersionSelectors[string]
 ): PreferredSelectorInfo {
   return typeof value === 'string'
-    ? { selectorType: value, weight: 1 }
+    ? { selectorType: value, weight: RESOLVED_VERSION_SELECTOR_WEIGHT }
     : value
 }

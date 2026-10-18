@@ -19,7 +19,8 @@ use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    RESOLVED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight,
 };
 use rayon::prelude::*;
 
@@ -190,18 +191,18 @@ fn weighted_lockfile_version(
     ))
 }
 
-/// Bump a selector's weight by `weight`, lifting a `Plain` selector
-/// to `Weighted(weight + 1)` (the `weight + 1` for the bare-string
-/// case) and adding `weight` to an existing weighted entry.
+/// Bump a selector's weight by `weight`. A `Plain` selector weighs
+/// [`RESOLVED_VERSION_SELECTOR_WEIGHT`].
 #[must_use]
 pub fn add_weight_to_version_selector(
     selector: &VersionSelectorEntry,
     weight: u32,
 ) -> VersionSelectorWithWeight {
     match selector {
-        VersionSelectorEntry::Plain(selector_type) => {
-            VersionSelectorWithWeight { selector_type: *selector_type, weight: weight + 1 }
-        }
+        VersionSelectorEntry::Plain(selector_type) => VersionSelectorWithWeight {
+            selector_type: *selector_type,
+            weight: weight + RESOLVED_VERSION_SELECTOR_WEIGHT,
+        },
         VersionSelectorEntry::Weighted(existing) => VersionSelectorWithWeight {
             selector_type: existing.selector_type,
             weight: existing.weight + weight,

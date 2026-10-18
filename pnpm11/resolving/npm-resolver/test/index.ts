@@ -13,7 +13,7 @@ import {
   RegistryResponseError,
 } from '@pnpm/resolving.npm-resolver'
 import type { PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, type PkgResolutionId, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DependencyManifest, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
@@ -908,7 +908,7 @@ test('ignore the lockfile-derived preferred version when updateRequested is true
     bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { '3.0.0': { selectorType: 'version', weight: 1_000_000 } },
+      'is-positive': { '3.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT } },
     },
     updateRequested: true,
   })
@@ -1247,7 +1247,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
     preferredVersions: {
       'is-positive': {
         '^3.0.0': 'range',
-        '3.0.0': { selectorType: 'version', weight: 100 },
+        '3.0.0': { selectorType: 'version', weight: RESOLVED_VERSION_SELECTOR_WEIGHT + 100 },
         '3.1.0': 'version',
       },
     },

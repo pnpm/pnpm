@@ -5,8 +5,8 @@ use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
@@ -528,29 +528,42 @@ fn stable_cached_range_rejects_competing_tie() {
     assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
 }
 
+/// A movable tag that outweighs the pin could point at a version the cached
+/// packument lacks, so the pin is not proven.
 #[test]
-fn stable_cached_range_accounts_for_movable_tag_weight() {
+fn stable_cached_range_refuses_a_pin_a_movable_tag_outweighs() {
     let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
-    let mut selectors = VersionSelectors::new();
-    selectors.insert(
-        "1.0.0".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-        }),
-    );
-    selectors.insert(
-        "next".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Tag,
-            weight: 1_000,
-        }),
-    );
+    let selectors = pin_and_tag(EXISTING_VERSION_SELECTOR_WEIGHT, DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
 
+#[test]
+fn stable_cached_range_keeps_a_pin_that_outweighs_every_movable_tag() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
+    let selectors = pin_and_tag(
+        DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT,
+        RESOLVED_VERSION_SELECTOR_WEIGHT,
+    );
     assert_eq!(
         pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
         Some("1.0.0"),
     );
+}
+
+/// `1.0.0` preferred at `pin_weight` and the `next` tag at `tag_weight`.
+fn pin_and_tag(pin_weight: u32, tag_weight: u32) -> VersionSelectors {
+    [
+        ("1.0.0", VersionSelectorType::Version, pin_weight),
+        ("next", VersionSelectorType::Tag, tag_weight),
+    ]
+    .into_iter()
+    .map(|(selector, selector_type, weight)| {
+        (
+            selector.to_string(),
+            VersionSelectorEntry::Weighted(VersionSelectorWithWeight { selector_type, weight }),
+        )
+    })
+    .collect()
 }
 
 #[test]

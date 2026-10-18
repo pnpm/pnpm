@@ -1401,3 +1401,30 @@ mod selectors;
 mod overrides;
 
 mod compatibility_db;
+
+/// A changed specifier re-resolves its dependency, and that dependency's
+/// own dependencies keep the versions the lockfile pins while nothing else
+/// in the graph prefers another (pnpm/pnpm#2191).
+#[test]
+fn a_changed_specifier_keeps_the_locked_versions_of_its_dependencies() {
+    const FOOBARQAR: &str = "@pnpm.e2e/foobarqar";
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    anchor.set_dist_tag(BAR, "100.0.0", "latest");
+    anchor.set_dist_tag(FOOBARQAR, "1.0.0", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOOBARQAR}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    anchor.set_dist_tag(BAR, "100.1.0", "latest");
+    anchor.set_dist_tag(FOOBARQAR, "1.0.1", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOOBARQAR}": "^1.0.1" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOOBARQAR}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+    assert!(!packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
+
+    drop((root, anchor));
+}

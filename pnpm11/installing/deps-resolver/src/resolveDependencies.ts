@@ -3,7 +3,7 @@ import path from 'node:path'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import type { PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
-import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { type PkgResolutionId, type PreferredVersions, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import type { SupportedArchitectures } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
@@ -64,7 +64,7 @@ export async function resolveDependencies (
   const { currentParentPkgAliases, newPreferredVersions } = indexResolvedDependencies(ctx, pkgAddresses, {
     markUpdated: options.currentDepth === 0,
     preferredVersions,
-    selectorWeight: 1,
+    selectorWeight: RESOLVED_VERSION_SELECTOR_WEIGHT,
   })
   const postponedResolutionOpts: PostponedResolutionOpts = {
     directDepVersions: options.directDepVersions,

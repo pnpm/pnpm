@@ -4,7 +4,7 @@ import { isWorkspaceLocalPathSpecifier, type WantedDependency } from '@pnpm/inst
 import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { type PreferredVersions, REQUESTED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import type { Dependencies } from '@pnpm/types'
 import semver from 'semver'
 
@@ -299,7 +299,7 @@ function resolveCatalogEntryTo (
   // instead of invoking the prototype setter.
   const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
   preferredVersions[alias] = Object.assign(Object.create(null), preferredVersions[alias], {
-    [version]: { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1 },
+    [version]: { selectorType: 'version', weight: REQUESTED_VERSION_SELECTOR_WEIGHT },
   })
   opts.preferredVersions = preferredVersions
 }

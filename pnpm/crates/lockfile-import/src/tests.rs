@@ -2,7 +2,7 @@ use std::path::Path;
 
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+    REQUESTED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
     VersionSelectorWithWeight,
 };
 use pretty_assertions::assert_eq;
@@ -141,7 +141,7 @@ fn every_collected_version_becomes_a_lockfile_weighted_version_selector() {
         preferred_versions["is-positive"].get("1.0.0"),
         Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+            weight: REQUESTED_VERSION_SELECTOR_WEIGHT,
         })),
     );
 }

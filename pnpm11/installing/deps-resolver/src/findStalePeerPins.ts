@@ -1,7 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, pinnedByLockfile, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
@@ -131,7 +131,7 @@ export function releaseStalePeerPins (
 
 function removeLockfileWeight (selectors: PreferredVersions[string], version: string): void {
   const selector = selectors[version]
-  if (typeof selector !== 'object' || selector.selectorType !== 'version' || selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT) return
+  if (typeof selector !== 'object' || selector.selectorType !== 'version' || !pinnedByLockfile(selector.weight)) return
   const manifestWeight = selector.weight - EXISTING_VERSION_SELECTOR_WEIGHT
   if (manifestWeight > 0) {
     selectors[version] = { selectorType: 'version', weight: manifestWeight }
