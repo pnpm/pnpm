@@ -107,18 +107,20 @@ function createMockProject (packages: MockPackages): {
 
 describe('buildDependentsTree', () => {
   test('a devDependency that only satisfies an optional peer has no dependents in a production tree', async () => {
+    // The key records both peers as bindings, as a resolved lockfile does.
+    const ABC_REF = '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)'
     const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
-      abc: { version: '1.0.0', manifest: {}, deps: ['peer-a', 'peer-c'] },
+      abc: { version: ABC_REF, manifest: {}, deps: ['peer-a', 'peer-c'] },
       'peer-a': { version: '1.0.0', manifest: {} },
       'peer-c': { version: '1.0.0', manifest: {} },
     })
     try {
-      Object.assign(currentPackages['abc@1.0.0' as DepPath], {
+      Object.assign(currentPackages[`abc@${ABC_REF}` as DepPath], {
         peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
         peerDependenciesMeta: { 'peer-c': { optional: true } },
       })
       importers['.' as ProjectId] = {
-        dependencies: { abc: '1.0.0' },
+        dependencies: { abc: ABC_REF },
         devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
         specifiers: {},
       }
