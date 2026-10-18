@@ -65,7 +65,7 @@ interface TarballIntegrityFailure {
 }
 
 export async function addTarballToStore (
-  { buffer, tarballFile, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage
+  { buffer, tarballFile, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern, maxTarballUnpackedSize }: TarballExtractMessage
 ): Promise<AddTarballToStoreResult | TarballIntegrityFailure> {
   if (buffer == null && tarballFile == null) throw new Error('Tarball extraction has no source')
   const calculatedIntegrity = tarballFile != null ? await hashTarballFile(tarballFile, integrity) : undefined
@@ -74,8 +74,8 @@ export async function addTarballToStore (
   const cafs = getCafs(storeDir)
   const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
   const addedFiles = tarballFile != null
-    ? await cafs.addFilesFromTarballFile(tarballFile, true, ignore)
-    : await cafs.addFilesFromTarballBounded(buffer!, true, ignore)
+    ? await cafs.addFilesFromTarballFile(tarballFile, { readManifest: true, ignore, maxTarballUnpackedSize })
+    : await cafs.addFilesFromTarballBounded(buffer!, { readManifest: true, ignore, maxTarballUnpackedSize })
   const added = describeAddedPkgFiles(cafs, addedFiles, appendManifest)
   const requiresBuild = pkgRequiresBuild(added.bundledManifest, added.filesIntegrity)
   const pkgFilesIndex: PackageFilesIndex = {

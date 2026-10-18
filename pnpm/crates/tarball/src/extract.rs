@@ -1,6 +1,7 @@
 //! Tarball decompression and entry extraction into the CAS.
 
 pub(crate) use gzip::{GzipExtraction, extract_gzipped_tarball_with_tar};
+pub(crate) use limits::TarBudget;
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
@@ -584,7 +585,7 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
 mod gzip;
 
 mod limits;
-use limits::{TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
+use limits::{TAR_BLOCK, check_trailer, is_tar_block};
 
 mod streaming;
 

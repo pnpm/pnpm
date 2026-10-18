@@ -112,6 +112,7 @@ impl ArchiveIngestion<'_> {
             package_url: self.package.url.to_string(),
             archive_prefix: prefix.map(str::to_string),
             ignore_file_pattern: self.ignore_file_pattern.clone(),
+            limits: self.fetching.tar_limits,
         }
         .run(self.store.dir)
         .await?;
@@ -275,6 +276,7 @@ impl ArchiveIngestion<'_> {
             prefix,
             self.ignore_file_pattern.clone(),
             max_bytes,
+            self.fetching.tar_limits,
         )
         .await?;
         Ok((integrity.clone(), paths, index))

@@ -248,7 +248,7 @@ If you did not expect this package to change, treat it as a potential supply-cha
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'tarballFile' | 'storeDir' | 'filesIndexFile' | 'pkgId' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'tarballFile' | 'storeDir' | 'filesIndexFile' | 'pkgId' | 'integrity' | 'readManifest' | 'pkg' | 'appendManifest' | 'ignoreFilePattern' | 'maxTarballUnpackedSize'> & {
   storeIndex: StoreIndex
   url: string
 }
@@ -266,6 +266,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
     pkg: opts.pkg,
     appendManifest: opts.appendManifest,
     ignoreFilePattern: opts.ignoreFilePattern,
+    maxTarballUnpackedSize: opts.maxTarballUnpackedSize,
   }
   return runInWorker<AddFilesResult>(message, ({ status, error, value, indexWrites }) => {
     if (status === 'error') {
@@ -285,7 +286,7 @@ function createTarballExtractError (error: WorkerError, url: string): PnpmError 
       url,
     } as ConstructorParameters<typeof TarballIntegrityError>[0])
   }
-  return new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${url}" to store: ${error.message}`)
+  return new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${url}" to store: ${error.message}`, { hint: error.hint })
 }
 
 

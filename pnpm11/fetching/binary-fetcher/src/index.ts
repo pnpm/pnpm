@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import { isError, PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
+import { assertUnpackedSize, DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { isSubdir } from 'is-subdir'
@@ -29,6 +30,8 @@ export interface CreateBinaryFetcherOptions {
    * archive's top-level directory (i.e. after the `prefix` has been stripped).
    */
   archiveFilters?: Record<string, string>
+  /** Limits the total size of the files extracted from a zip archive. */
+  maxTarballUnpackedSize?: number
 }
 
 export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
@@ -123,6 +126,7 @@ async function fetchZipArchive (
     basename: resolution.prefix ?? '',
     authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
     ignoreEntry: archiveFilter?.regex,
+    maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
   }, tempLocation)
   return addFilesFromDir({
     storeDir: cafs.storeDir,
@@ -161,6 +165,8 @@ export interface AssetInfo {
    * Matching entries are skipped during extraction.
    */
   ignoreEntry?: RegExp
+  /** The most bytes the extracted files may total. Defaults to `DEFAULT_MAX_TARBALL_UNPACKED_SIZE`. */
+  maxTarballUnpackedSize?: number
 }
 
 /**
@@ -179,7 +185,7 @@ export async function downloadAndUnpackZip (
 
   try {
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
-    await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo.ignoreEntry)
+    await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo)
   } finally {
     try {
       await fsPromises.unlink(tmp)
@@ -226,7 +232,7 @@ async function extractZipToTarget (
   zipPath: string,
   basename: string,
   targetDir: string,
-  ignoreEntry?: RegExp
+  { ignoreEntry, maxTarballUnpackedSize }: Pick<AssetInfo, 'ignoreEntry' | 'maxTarballUnpackedSize'>
 ): Promise<void> {
   const extractionRoot = basename === ''
     ? targetDir
@@ -236,7 +242,7 @@ async function extractZipToTarget (
     if (basename !== '') {
       validatePathSecurity(extractionRoot, basename)
     }
-    await extractEntries(zipPath, { extractionRoot, basename, ignoreEntry })
+    await extractEntries(zipPath, { extractionRoot, basename, ignoreEntry, maxTarballUnpackedSize })
     await renameOverwrite(path.join(extractionRoot, basename), targetDir)
   } finally {
     if (extractionRoot !== targetDir) {
@@ -249,18 +255,22 @@ interface ExtractEntriesOptions {
   extractionRoot: string
   basename: string
   ignoreEntry?: RegExp
+  maxTarballUnpackedSize?: number
 }
 
 /**
  * Extracts one entry at a time, streaming each to disk. An entry is read only up
- * to the uncompressed size the archive declares for it.
+ * to the uncompressed size the archive declares for it. The declared sizes of the
+ * extracted files are summed, and an entry that would take the sum past
+ * `maxTarballUnpackedSize` is not extracted.
  */
-async function extractEntries (zipPath: string, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): Promise<void> {
+async function extractEntries (zipPath: string, { extractionRoot, basename, ignoreEntry, maxTarballUnpackedSize = DEFAULT_MAX_TARBALL_UNPACKED_SIZE }: ExtractEntriesOptions): Promise<void> {
   const basenamePrefix = basename === '' ? '' : `${basename}/`
   const testEntry = toStatelessTester(ignoreEntry)
 
   await fsPromises.mkdir(extractionRoot, { recursive: true })
   const createdDirs = new Set<string>()
+  let unpackedSize = 0
   // File names are decoded here rather than by yauzl so that an unsafe path is
   // rejected by validatePathSecurity, with its error code.
   const zipfile = await yauzl.openPromise(zipPath, { decodeStrings: false })
@@ -271,6 +281,8 @@ async function extractEntries (zipPath: string, { extractionRoot, basename, igno
       if (entryPath.endsWith('/')) continue
       validatePathSecurity(extractionRoot, entryPath)
       if (testEntry?.(stripBasenamePrefix(entryPath, basenamePrefix))) continue
+      unpackedSize += entry.uncompressedSize
+      assertUnpackedSize(unpackedSize, maxTarballUnpackedSize)
       await mkdirWithoutFollowingSymlinks(extractionRoot, path.dirname(entryPath), createdDirs)
       await extractEntry(zipfile, entry, path.join(extractionRoot, entryPath))
     }

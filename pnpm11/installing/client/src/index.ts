@@ -46,6 +46,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
+  maxTarballUnpackedSize?: number
   localDirPackageImportMethod?: LocalDirPackageImportMethod
 } & ResolverFactoryOptions & DispatcherOptions
   & Pick<ResolutionVerifierFactoryOptions,
@@ -148,6 +149,7 @@ function createFetchers (
   | 'includeOnlyPackageFiles'
   | 'offline'
   | 'fetchMinSpeedKiBps'
+  | 'maxTarballUnpackedSize'
   | 'storeIndex'
   | 'localDirPackageImportMethod'
   >
@@ -168,6 +170,7 @@ function createFetchers (
       offline: opts.offline,
       storeIndex: opts.storeIndex,
       archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN },
+      maxTarballUnpackedSize: opts.maxTarballUnpackedSize,
     }),
   }
 }

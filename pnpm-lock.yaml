@@ -4865,6 +4865,9 @@ importers:
       '@pnpm/fetching.types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -5101,6 +5104,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index

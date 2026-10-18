@@ -32,6 +32,7 @@ export const pnpmTypes = {
   'fetch-timeout': Number,
   'fetch-warn-timeout-ms': Number,
   'fetch-min-speed-ki-bps': Number,
+  'max-tarball-unpacked-size': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],

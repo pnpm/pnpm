@@ -37,6 +37,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../store/cafs"
+    },
+    {
       "path": "../../store/cafs-types"
     },
     {

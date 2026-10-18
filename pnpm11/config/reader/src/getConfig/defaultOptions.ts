@@ -49,6 +49,7 @@ const defaultOptions: Partial<KebabCaseConfig> = {
   'fetch-timeout': 60000,
   'fetch-warn-timeout-ms': 10_000, // 10 sec
   'fetch-min-speed-ki-bps': 50, // 50 KiB/s
+  'max-tarball-unpacked-size': 4294967296, // 4 GiB
   'force-ignores-platform': true,
   'force-legacy-deploy': false,
   'git-shallow-hosts': [

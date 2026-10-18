@@ -21,6 +21,7 @@ export const pnpmConfigFileKeys = [
   'fetch-timeout',
   'fetch-warn-timeout-ms',
   'fetch-min-speed-ki-bps',
+  'max-tarball-unpacked-size',
   'fetching-concurrency',
   'force-ignores-platform',
   'frozen-store',

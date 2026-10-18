@@ -228,6 +228,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [fetchTimeout](./settings/network.md#fetchtimeout)
 * [fetchWarnTimeoutMs](./settings/network.md#fetchwarntimeoutms)
 * [fetchMinSpeedKiBps](./settings/network.md#fetchminspeedkibps)
+* [maxTarballUnpackedSize](./settings/network.md#maxtarballunpackedsize)
 
 ### Peer Dependency Settings
 

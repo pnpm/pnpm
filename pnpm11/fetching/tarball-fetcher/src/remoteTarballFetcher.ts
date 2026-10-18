@@ -9,6 +9,7 @@ import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
+import { DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -54,6 +55,7 @@ export interface CreateDownloaderOptions {
   }
   timeout?: number
   fetchMinSpeedKiBps?: number
+  maxTarballUnpackedSize?: number
 }
 
 export function createDownloader (
@@ -68,6 +70,7 @@ export function createDownloader (
     ...gotOpts.retry,
   }
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
+  const maxTarballUnpackedSize = gotOpts.maxTarballUnpackedSize ?? DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = getSecureNodeMirrorAuthHeader(
@@ -87,6 +90,7 @@ export function createDownloader (
           fetchFromRegistry,
           fetchMinSpeedKiBps,
           gotOpts,
+          maxTarballUnpackedSize,
           op,
           opts,
           reject,
@@ -105,6 +109,7 @@ interface DownloadAttemptContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxTarballUnpackedSize: number
   op: ReturnType<typeof retry.operation>
   opts: DownloadOptions
   reject: (err: any) => void // eslint-disable-line
@@ -120,6 +125,7 @@ async function executeDownloadAttempt (ctx: DownloadAttemptContext): Promise<voi
       fetchFromRegistry: ctx.fetchFromRegistry,
       fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
       gotOpts: ctx.gotOpts,
+      maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
       opts: ctx.opts,
       url: ctx.url,
     })
@@ -143,6 +149,7 @@ interface FetchTarballContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxTarballUnpackedSize: number
   opts: DownloadOptions
   url: string
 }
@@ -197,6 +204,7 @@ async function importDownloadedTarball (ctx: FetchTarballContext, data: Download
       pkg: ctx.opts.pkg,
       appendManifest: ctx.opts.appendManifest,
       ignoreFilePattern: ctx.opts.ignoreFilePattern,
+      maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
     })
   } finally {
     await data.cleanup?.()
@@ -350,6 +358,7 @@ function handleDownloadRetry (opts: {
     status === 404 ||
     opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
     opts.error.code === 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' ||
+    opts.error.code === 'ERR_PNPM_TARBALL_TOO_LARGE' ||
     isNonRetryableError(opts.error)
 
   if (isFatal) {
