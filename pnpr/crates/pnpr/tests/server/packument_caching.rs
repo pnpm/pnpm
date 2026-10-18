@@ -3,6 +3,7 @@ use super::{
     foo_packument, header, json, router, router_with_auth,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn public_packument_responses_carry_caching_headers() {
@@ -488,8 +489,8 @@ async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
 #[tokio::test]
 async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() {
     let tmp = TempDir::new().unwrap();
-    let pkg_dir = tmp.path().join("acme/@acme/widget");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
@@ -503,7 +504,7 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), doc.to_string()).unwrap();
+    std::fs::write(&document, doc.to_string()).unwrap();
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.http.packument_ttl = Duration::from_mins(2);
@@ -550,8 +551,8 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
 #[tokio::test]
 async fn anonymous_only_package_carries_private_cache_headers_and_denies_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
-    let pkg_dir = tmp.path().join("acme/@acme/widget");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
@@ -565,7 +566,7 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), doc.to_string()).unwrap();
+    std::fs::write(&document, doc.to_string()).unwrap();
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert(

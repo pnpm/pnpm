@@ -34,12 +34,12 @@ pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
 
 impl Storage {
     pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(STAGED_DIR, &staged_meta_object(stage_id)?).await
+        self.root.read_record(STAGED_DIR, &staged_meta_object(stage_id)?).await
     }
 
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
         let key = staged_meta_object(stage_id)?;
-        if self.hosted.create_record(STAGED_DIR, &key, bytes).await? {
+        if self.root.create_record(STAGED_DIR, &key, bytes).await? {
             return Ok(());
         }
         // Stage ids are minted from the CSPRNG, so a taken key is not a
@@ -57,7 +57,7 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        self.hosted.replace_record_if_current(
+        self.root.replace_record_if_current(
             STAGED_DIR,
             &staged_meta_object(stage_id)?,
             expected,
@@ -67,12 +67,12 @@ impl Storage {
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+        self.root.read_record(STAGED_DIR, &staged_body_object(stage_id)?).await
     }
 
     pub async fn create_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
         let key = staged_body_object(stage_id)?;
-        if self.hosted.create_record(STAGED_DIR, &key, bytes).await? {
+        if self.root.create_record(STAGED_DIR, &key, bytes).await? {
             return Ok(());
         }
         Err(RegistryError::Internal {
@@ -87,9 +87,8 @@ impl Storage {
     /// reader, and an error here would misreport that while leaving nothing
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
-        let removed = self.hosted.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?).await?;
-        if let Err(err) =
-            self.hosted.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+        let removed = self.root.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?).await?;
+        if let Err(err) = self.root.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
         {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
         }
@@ -99,7 +98,7 @@ impl Storage {
     /// Every staged record's id, in unspecified order (the listing endpoint
     /// sorts by staging time).
     pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        let keys = self.hosted.list_record_keys(STAGED_DIR).await?;
+        let keys = self.root.list_record_keys(STAGED_DIR).await?;
         Ok(keys
             .iter()
             .filter_map(|key| staged_id_of_meta_object(key))
@@ -108,7 +107,7 @@ impl Storage {
     }
 
     pub async fn read_pipeline_run(&self, key: &PipelineRunKey<'_>) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(PIPELINE_RUNS_DIR, &key.path()?).await
+        self.root.read_record(PIPELINE_RUNS_DIR, &key.path()?).await
     }
 
     /// Record a run, reporting `false` when that workspace already has one
@@ -118,7 +117,7 @@ impl Storage {
         key: &PipelineRunKey<'_>,
         bytes: &[u8],
     ) -> Result<bool> {
-        self.hosted.create_record(PIPELINE_RUNS_DIR, &key.path()?, bytes).await
+        self.root.create_record(PIPELINE_RUNS_DIR, &key.path()?, bytes).await
     }
 
     /// An organization's recorded run keys, `<workspace>/<run id>`, in
@@ -131,10 +130,10 @@ impl Storage {
     ) -> Result<Vec<String>> {
         let org_namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(org)?);
         let Some(workspace) = workspace else {
-            return self.hosted.list_record_keys(&org_namespace).await;
+            return self.root.list_record_keys(&org_namespace).await;
         };
         let workspace = validated_record_name(workspace)?;
-        let keys = self.hosted.list_record_keys(&format!("{org_namespace}/{workspace}")).await?;
+        let keys = self.root.list_record_keys(&format!("{org_namespace}/{workspace}")).await?;
         Ok(keys
             .into_iter()
             .map(|key| format!("{workspace}/{key}"))

@@ -1,7 +1,7 @@
 //! Integration tests for the `-/stage` endpoints — the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
-use crate::npm;
+use crate::{npm, storage::object_key};
 
 use axum::{
     body::{Body, to_bytes},
@@ -10,10 +10,11 @@ use axum::{
 use npm::{publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
+use pnpr_storage::layout::{local_blob_path, local_package_dir};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -116,7 +117,10 @@ async fn staged_publish_is_held_back_until_approved() {
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
-    assert!(!storage.join("staged-pkg").exists(), "no package dir before approval");
+    assert!(
+        !local_package_dir(&storage, "", "staged-pkg").exists(),
+        "no package dir before approval",
+    );
 
     // Listed, viewable, and its tarball downloadable.
     let list = app
@@ -179,8 +183,9 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(read.status(), StatusCode::OK);
     let packument = body_json(read.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
-    let on_disk = std::fs::read(storage.join("staged-pkg/staged-pkg-1.0.0.tgz"))
-        .expect("tarball promoted on approval");
+    let on_disk =
+        std::fs::read(local_blob_path(&storage, "", "staged-pkg", "staged-pkg-1.0.0.tgz"))
+            .expect("tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 
     let list = app
@@ -230,7 +235,10 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
-    assert!(!storage.join("rejected-pkg").exists(), "a rejected stage publishes nothing");
+    assert!(
+        !local_package_dir(&storage, "", "rejected-pkg").exists(),
+        "a rejected stage publishes nothing",
+    );
 }
 
 #[tokio::test]
@@ -269,7 +277,7 @@ async fn staging_supports_scoped_packages() {
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CREATED);
-    let on_disk = std::fs::read(storage.join("@scope/staged/staged-2.0.0.tgz"))
+    let on_disk = std::fs::read(local_blob_path(&storage, "", "@scope/staged", "staged-2.0.0.tgz"))
         .expect("scoped tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 }
@@ -461,7 +469,12 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     // Another writer takes the tarball key while the stage waits for approval.
     store
         .put(
-            &ObjectPath::from("staged-pkg/staged-pkg-1.0.0.tgz"),
+            &ObjectPath::from(object_key(&local_blob_path(
+                Path::new(""),
+                "",
+                "staged-pkg",
+                "staged-pkg-1.0.0.tgz",
+            ))),
             axum::body::Bytes::from_static(b"the winning tarball").into(),
         )
         .await

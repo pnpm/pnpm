@@ -5,12 +5,13 @@ use super::{
     package_tar_and_tgz, router_with_auth, seed_hosted, sha512_integrity,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn hosted_registry_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
-    // The org "acme" stores under its own namespace (`<storage>/acme/`).
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    // The org "acme" stores under its own namespace (`<storage>/orgs/acme/`).
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
@@ -48,8 +49,8 @@ async fn hosted_registry_serves_only_what_it_hosts() {
 #[tokio::test]
 async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
-    // The org "acme" stores under its own namespace (`<storage>/acme/`).
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    // The org "acme" stores under its own namespace (`<storage>/orgs/acme/`).
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -93,7 +94,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
 #[tokio::test]
 async fn private_hosted_org_masks_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -135,7 +136,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
 #[tokio::test]
 async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -226,18 +227,14 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    // It physically lands in the org's storage namespace, not the flat root.
+    // It physically lands in the org's storage namespace, not the default one.
     assert!(
-        tmp.path()
-            .join("acme/@acme/widget/package.json")
-            .exists(),
+        local_document_path(tmp.path(), "acme", "@acme/widget").exists(),
         "published packument should be in the org namespace",
     );
     assert!(
-        !tmp.path()
-            .join("@acme/widget/package.json")
-            .exists(),
-        "nothing should be written to the flat hosted root",
+        !local_document_path(tmp.path(), "", "@acme/widget").exists(),
+        "nothing should be written to the default namespace",
     );
 
     // It reads back through the org endpoint (authenticated)...
@@ -625,9 +622,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !tmp.path()
-            .join("acme/@typo/widget/package.json")
-            .exists(),
+        !local_document_path(tmp.path(), "acme", "@typo/widget").exists(),
         "an off-pattern publish must write nothing",
     );
 
@@ -820,9 +815,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
+        !local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
         "a denied publish must write nothing",
     );
 
@@ -833,11 +826,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .await
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::CREATED);
-    assert!(
-        tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
-    );
+    assert!(local_document_path(tmp.path(), "corp", "@corp/tool").exists());
 
     // With the package now hosted, the non-member's path-less retag and
     // unpublish are masked the same way; the member's retag succeeds.
@@ -859,9 +848,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
+        local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
         "a denied unpublish must remove nothing",
     );
     let retag_allowed = app
@@ -887,7 +874,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
 
     for url in ["/npm/-/v1/search?text=secret", "/npm/-/v1/search?browse=true"] {
         let tmp = TempDir::new().unwrap();
-        seed_hosted(tmp.path(), "@corp/secret-tool");
+        seed_hosted(tmp.path(), "", "@corp/secret-tool");
 
         let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
         // A surviving public flat-root registry would defeat this access check.

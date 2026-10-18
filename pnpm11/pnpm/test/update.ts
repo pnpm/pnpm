@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, hostedBlobPath } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -18,9 +18,7 @@ import {
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
 test('install rejects a version the registry serves as a registry revision', async () => {
-  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
-  if (storage == null) throw new Error('PNPM_REGISTRY_MOCK_STORAGE is required')
-  const tarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
+  const tarball = fs.readFileSync(hostedBlobPath('ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
   const digest = createHash('sha512').update(tarball).digest()
   const integrity = `sha512-${digest.toString('base64')}`
 

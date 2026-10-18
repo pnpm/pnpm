@@ -4,6 +4,7 @@ use super::{
     publish_request, recover_publish_journal, registry_groups, router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::{local_blob_path, local_document_path};
 
 #[tokio::test]
 async fn publish_then_resolve_and_download_a_hosted_crate() {
@@ -70,16 +71,8 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     assert_eq!(body_bytes(response.into_body()).await, archive);
 
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
-    assert!(
-        tmp.path()
-            .join("crates/demo/demo-0.1.0.crate")
-            .is_file(),
-    );
-    assert!(
-        tmp.path()
-            .join("crates/demo/package.json")
-            .is_file(),
-    );
+    assert!(local_blob_path(tmp.path(), "crates", "demo", "demo-0.1.0.crate").is_file());
+    assert!(local_document_path(tmp.path(), "crates", "demo").is_file());
     assert!(
         std::fs::read_dir(tmp.path().join(".pnpr-journal"))
             .unwrap()
@@ -187,11 +180,7 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert!(
-        !tmp.path()
-            .join("crates/demo/demo-0.2.0.crate")
-            .exists(),
-    );
+    assert!(!local_blob_path(tmp.path(), "crates", "demo", "demo-0.2.0.crate").exists());
 
     // A name the hosted registry does not claim routes to the upstream, where
     // nothing can be published.

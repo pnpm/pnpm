@@ -15,21 +15,20 @@ pub(super) fn load_active_osv_index(
     }
 }
 
-/// Bring the publish journal to a consistent state: apply every sealed
-/// transaction, discard every unsealed one. [`serve`] and [`serve_listener`]
-/// call this before binding; an embedder that builds a router directly should
-/// call it itself on startup, before serving requests.
+/// Check the hosted store's layout, then bring the publish journal to a
+/// consistent state: apply every sealed transaction, discard every unsealed
+/// one. [`serve`] and [`serve_listener`] call this before binding; an embedder
+/// that builds a router directly should call it itself on startup, before
+/// serving requests.
 pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await?;
     let storage = Storage::new(
         &config.storage.hosted_backend,
         config.storage.hosted_dir.clone(),
         config.storage.cache_dir.clone(),
     )?;
-    for hosted in config.routing.hosted.values() {
-        storage.for_hosted(&hosted.org).rebuild_package_index().await?;
-    }
-    Ok(())
+    storage.ensure_hosted_layout().await?;
+    storage.reset_cache_from_other_layout().await?;
+    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
 }
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left

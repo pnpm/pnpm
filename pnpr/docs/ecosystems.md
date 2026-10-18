@@ -124,8 +124,8 @@ caches belong to the individual registry.
 
 A grouped hosted registry defaults to the storage namespace
 `<ecosystem>~<name>`. Set `org` explicitly to keep an existing namespace when
-moving a flat registry into a group, `org: ''` included for the flat storage
-root. Two hosted registries still cannot share a namespace. The flat
+moving a flat registry into a group, `org: ''` included for the default
+namespace. Two hosted registries still cannot share a namespace. The flat
 configuration format and its shared `defaultRegistry: main` remain supported.
 
 ## Cargo

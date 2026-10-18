@@ -192,7 +192,7 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | Storage namespace for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the flat `storage` root. Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide — `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>` — see [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules — see [above](#the-packages-map). Only these names can be served from or published to this registry. |

@@ -9,6 +9,14 @@ use pnpr::{
     migrate_storage::{MigrateStorageOptions, format_migrate_report, migrate_local_to_s3},
     verify::{VerifyOptions, format_verify_report, verify_storage},
 };
+use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
+
+/// Write `bytes` to `path` in a hosted store, creating its directories.
+fn seed_file(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) {
+    let path = path.as_ref();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, bytes).unwrap();
+}
 
 fn create_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
@@ -98,8 +106,8 @@ async fn test_export_storage() {
     let export_out = dir.path().join("exported");
 
     // Seed a package in storage
-    let pkg_dir = config.storage.hosted_dir.join("demo-pkg");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
     let doc = serde_json::json!({
         "name": "demo-pkg",
         "versions": {
@@ -112,8 +120,14 @@ async fn test_export_storage() {
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
-    std::fs::write(pkg_dir.join("demo-pkg-1.0.0.tgz"), b"fake tarball bytes").unwrap();
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        b"fake tarball bytes",
+    );
 
     let report = export_storage(&config, &export_out, true).await.unwrap();
     assert_eq!(report.packages_exported, 1);
@@ -131,8 +145,8 @@ async fn test_verify_storage_health_and_orphan_prune() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
-    let pkg_dir = config.storage.hosted_dir.join("demo-pkg");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
 
     let tarball_bytes = b"hello world tarball";
     let shasum = "18db23e4b48b9af2a99a7b2c9a4a4c9143380a18"; // sha1 of "hello world tarball"
@@ -149,11 +163,17 @@ async fn test_verify_storage_health_and_orphan_prune() {
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
-    std::fs::write(pkg_dir.join("demo-pkg-1.0.0.tgz"), tarball_bytes).unwrap();
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        tarball_bytes,
+    );
 
     // Add an orphaned blob
-    let orphan_path = pkg_dir.join("orphaned-blob.tgz");
+    let orphan_path = local_blob_path(&config.storage.hosted_dir, "", pkg, "orphaned-blob.tgz");
     std::fs::write(&orphan_path, b"unreferenced").unwrap();
 
     // 1. Verify detecting the orphan even with min_age_secs: 86400 (audit reports all orphans)
@@ -181,7 +201,8 @@ async fn test_verify_storage_health_and_orphan_prune() {
     assert!(!orphan_path.exists());
 
     // 4. Verify an undeclared .sigstore file is pruned when dist.attestations is absent
-    let undeclared_sigstore = pkg_dir.join("demo-pkg-1.0.0.sigstore");
+    let undeclared_sigstore =
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.sigstore");
     std::fs::write(&undeclared_sigstore, b"abandoned sigstore").unwrap();
     let sigstore_report = verify_storage(&config, &prune_opts).await.unwrap();
     assert_eq!(sigstore_report.orphaned_blobs.len(), 1);
@@ -193,8 +214,8 @@ async fn test_verify_storage_corrupted_and_missing() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
-    let pkg_dir = config.storage.hosted_dir.join("demo-pkg");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
 
     let doc = serde_json::json!({
         "name": "demo-pkg",
@@ -216,8 +237,14 @@ async fn test_verify_storage_corrupted_and_missing() {
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
-    std::fs::write(pkg_dir.join("corrupt-1.0.0.tgz"), b"some mismatched content").unwrap();
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "corrupt-1.0.0.tgz"),
+        b"some mismatched content",
+    );
 
     let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
     let report = verify_storage(&config, &opts).await.unwrap();
@@ -234,8 +261,8 @@ async fn test_migrate_storage_dry_run() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
-    let pkg_dir = config.storage.hosted_dir.join("demo-pkg");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let pkg = "demo-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
     let doc = serde_json::json!({
         "name": "demo-pkg",
         "versions": {
@@ -248,8 +275,14 @@ async fn test_migrate_storage_dry_run() {
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
-    std::fs::write(pkg_dir.join("demo-pkg-1.0.0.tgz"), b"fake tarball bytes").unwrap();
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "demo-pkg-1.0.0.tgz"),
+        b"fake tarball bytes",
+    );
 
     let options = MigrateStorageOptions {
         from: None,
@@ -275,8 +308,8 @@ async fn test_verify_and_export_attestations() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());
 
-    let pkg_dir = config.storage.hosted_dir.join("signed-pkg");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let pkg = "signed-pkg";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
 
     let tarball_bytes = b"signed package tarball";
     let shasum = "327001467a169ac289299b0a689cab5a19be6372";
@@ -296,9 +329,18 @@ async fn test_verify_and_export_attestations() {
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
-    std::fs::write(pkg_dir.join("signed-pkg-1.0.0.tgz"), tarball_bytes).unwrap();
-    std::fs::write(pkg_dir.join("signed-pkg-1.0.0.sigstore"), b"sigstore bundle bytes").unwrap();
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "signed-pkg-1.0.0.tgz"),
+        tarball_bytes,
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "signed-pkg-1.0.0.sigstore"),
+        b"sigstore bundle bytes",
+    );
 
     let opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
     let rep = verify_storage(&config, &opts).await.unwrap();

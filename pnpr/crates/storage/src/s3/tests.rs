@@ -520,7 +520,8 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     assert!(
         files
             .iter()
-            .any(|file| file.path == "acme/app/tool/sha256-child"),
+            .any(|file| file.package == "acme/app/tool"
+                && file.blob.as_deref() == Some("sha256-child")),
     );
 
     let (store, _staging) = store_with_prefix("npm~internal");
@@ -533,7 +534,8 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     assert!(
         files
             .iter()
-            .any(|file| file.path == "@scope/thing/thing-1.0.0.tgz"),
+            .any(|file| file.package == "@scope/thing"
+                && file.blob.as_deref() == Some("thing-1.0.0.tgz")),
     );
 }
 

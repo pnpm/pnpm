@@ -1,3 +1,5 @@
+use pnpr_storage::layout::local_document_path;
+
 use super::{
     BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
     PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
@@ -112,25 +114,21 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(0, 0))
-                .join("package.json"),
-        )
-        .expect("read first peer-heavy packument"),
+        &fs::read(local_document_path(&registry, "", &peer_heavy_package_name(0, 0)))
+            .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
-                .join("package.json"),
-        )
+        &fs::read(local_document_path(
+            &registry,
+            "",
+            &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0),
+        ))
         .expect("read leaf peer-heavy packument"),
     )
     .expect("parse leaf peer-heavy packument");
     let registry_package_count =
-        fs::read_dir(registry.join("@pnpmtest")).expect("read peer-heavy registry scope").count();
+        fs::read_dir(registry.join("default/packages")).expect("read peer-heavy registry").count();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");

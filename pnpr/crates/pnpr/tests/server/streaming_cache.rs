@@ -1,7 +1,7 @@
 use super::{
     Body, Duration, Request, ServiceExt, StatusCode, TempDir, await_no_tgz, body_bytes, config_for,
-    json, mock_packument_for_tarball, public_cache_pkg, router, sha512_integrity,
-    spawn_truncated_upstream, tarball_cache_entries,
+    json, mock_packument_for_tarball, public_cache_blobs, public_cache_pkg, router,
+    sha512_integrity, spawn_truncated_upstream, tarball_cache_entries,
 };
 
 /// Stale-if-error: once a cached packument is stale, a refetch that fails
@@ -179,7 +179,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     // Any overlapping verified writes atomically target the same final
     // path, so one tarball remains with no temporary siblings.
-    let dir = public_cache_pkg(&cache_dir, "foo");
+    let dir = public_cache_blobs(&cache_dir, "foo");
     let entries = tarball_cache_entries(&dir);
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
@@ -218,7 +218,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = public_cache_pkg(&blocked, "foo").join("foo-1.0.0.tgz");
+    let cache_path = public_cache_blobs(&blocked, "foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
 }
 
@@ -273,7 +273,7 @@ async fn upstream_stream_error_clears_cache() {
     );
 
     // The incomplete body is never promoted to the cache.
-    assert!(await_no_tgz(&public_cache_pkg(&cache_dir, "foo"), Duration::from_secs(1)).await);
+    assert!(await_no_tgz(&public_cache_blobs(&cache_dir, "foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
@@ -305,7 +305,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
     // end-of-stream SRI check that promotes the verified bytes to the cache.
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
-    let cache_path = public_cache_pkg(&cache_dir, "big").join("big-1.0.0.tgz");
+    let cache_path = public_cache_blobs(&cache_dir, "big").join("big-1.0.0.tgz");
     assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }
 
@@ -440,9 +440,9 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
 
     // Nothing was mirrored: the package dir either doesn't exist or holds
     // no tarball or temp tarball. Both requests therefore went to the upstream.
-    let package_dir = public_cache_pkg(&cache_dir, "foo");
+    let blobs_dir = public_cache_blobs(&cache_dir, "foo");
     assert!(
-        tarball_cache_entries(&package_dir).is_empty(),
+        tarball_cache_entries(&blobs_dir).is_empty(),
         "a cache:false upstream must not write tarballs to the mirror",
     );
 

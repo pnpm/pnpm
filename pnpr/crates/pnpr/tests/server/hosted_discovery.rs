@@ -5,6 +5,7 @@ use super::{
     sha512_integrity, to_bytes,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
@@ -54,7 +55,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    seed_hosted(tmp.path(), "ajv");
+    seed_hosted(tmp.path(), "", "ajv");
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
@@ -344,6 +345,8 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         json!("http://example.test/npm/~acme/@acme/widget/-/widget-1.0.0.tgz"),
     );
 
+    assert!(local_blob_path(tmp.path(), "acme", "@acme/widget", "widget-1.0.0.tgz").exists());
+
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
     // package — all through the registry.
@@ -370,11 +373,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
-    assert!(
-        !tmp.path()
-            .join("acme/@acme/widget/widget-1.0.0.tgz")
-            .exists(),
-    );
+    assert!(!local_blob_path(tmp.path(), "acme", "@acme/widget", "widget-1.0.0.tgz").exists());
     let delete_pkg = app
         .clone()
         .oneshot(
@@ -385,11 +384,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
-    assert!(
-        !tmp.path()
-            .join("acme/@acme/widget")
-            .exists(),
-    );
+    assert!(!local_package_dir(tmp.path(), "acme", "@acme/widget").exists());
 }
 
 /// Path-less responses resolved to a private registry carry the same
@@ -399,7 +394,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
 #[tokio::test]
 async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -451,7 +446,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
 
     // Control: the same content behind a public registry stays cacheable.
     let tmp_public = TempDir::new().unwrap();
-    seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp_public.path(), "acme", "@acme/widget");
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
     config.routing.registries = Registries::new(
@@ -485,7 +480,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
 #[tokio::test]
 async fn pathless_acl_gated_package_carries_private_cache_headers() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
@@ -546,11 +541,11 @@ fn pipeline_viewer_renders_publisher_data_as_text() {
 #[tokio::test]
 async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(tmp.path(), "alpha");
-    seed_hosted(tmp.path(), "beta");
-    seed_hosted(tmp.path(), "gamma");
-    seed_hosted(tmp.path(), "routed-to-upstream");
-    seed_hosted(tmp.path(), "hidden");
+    seed_hosted(tmp.path(), "", "alpha");
+    seed_hosted(tmp.path(), "", "beta");
+    seed_hosted(tmp.path(), "", "gamma");
+    seed_hosted(tmp.path(), "", "routed-to-upstream");
+    seed_hosted(tmp.path(), "", "hidden");
     let mut upstream = mockito::Server::new_async().await;
     let search = upstream
         .mock("GET", "/-/v1/search")

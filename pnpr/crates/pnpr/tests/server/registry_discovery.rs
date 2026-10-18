@@ -47,9 +47,9 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
 #[tokio::test]
 async fn organization_packages_are_available_on_both_registry_routes() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(tmp.path(), "@acme/alpha");
-    seed_hosted(tmp.path(), "@acme/beta");
-    seed_hosted(tmp.path(), "@other/ignored");
+    seed_hosted(tmp.path(), "", "@acme/alpha");
+    seed_hosted(tmp.path(), "", "@acme/beta");
+    seed_hosted(tmp.path(), "", "@other/ignored");
     let app = router(Config::static_serve(
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         tmp.path().to_path_buf(),
@@ -374,7 +374,7 @@ async fn upstream_without_a_search_endpoint_is_skipped() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    seed_hosted(tmp.path(), "ajv");
+    seed_hosted(tmp.path(), "", "ajv");
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
@@ -493,7 +493,7 @@ async fn search_excludes_an_upstream_with_a_denying_package_rule() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    seed_hosted(tmp.path(), "ajv");
+    seed_hosted(tmp.path(), "", "ajv");
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     let npmjs = config.routing.upstreams.get_mut("npmjs").unwrap();
     npmjs.search = true;

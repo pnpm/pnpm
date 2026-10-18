@@ -21,6 +21,7 @@ pub mod export;
 pub mod htpasswd_import;
 pub mod migrate_storage;
 pub mod oci_maintenance;
+pub mod upgrade_storage;
 pub mod verify;
 
 pub use pnpr_auth::{

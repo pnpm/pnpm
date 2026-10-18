@@ -382,15 +382,14 @@ async fn an_upload_does_not_cross_between_organizations() {
     );
 }
 
+/// What is left in the default namespace's upload directory.
 fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
-    std::fs::read_dir(
-        tmp.path()
-            .join("storage")
-            .join(".pnpr-uploads"),
-    )
-    .unwrap()
-    .map(|entry| entry.unwrap().file_name())
-    .collect()
+    let mut dir = tmp.path().join("storage");
+    dir.extend(crate::layout::namespace_segments(""));
+    std::fs::read_dir(dir.join(super::UPLOADS_DIR))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect()
 }
 
 fn replicas() -> (Storage, Storage, TempDir, TempDir) {
@@ -408,7 +407,8 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
         Storage {
             tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
             tar_integrity_cache: std::sync::Arc::default(),
-            hosted,
+            hosted: crate::namespace(&hosted, ""),
+            root: hosted,
             cached: crate::Store::new(temp.path().join("cache")),
         }
     };
