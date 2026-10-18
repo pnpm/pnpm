@@ -22,6 +22,12 @@ export interface CreateDirectoryFetcherOptions {
   resolveSymlinks?: boolean
 }
 
+/** Options only a caller that lists a directory, rather than fetching it, sets. */
+export interface ListFilesOptions {
+  /** List a symlink by its own path, a directory link included, without walking into it. Ignored under `resolveSymlinks`. */
+  preserveSymlinks?: boolean
+}
+
 export function createDirectoryFetcher (
   fetcherOpts?: CreateDirectoryFetcherOptions
 ): { directory: DirectoryFetcher } {
@@ -92,14 +98,14 @@ export interface FetchResult {
  */
 export async function listFilesFromDir (
   dir: string,
-  opts: FetchFromDirOptions
+  opts: FetchFromDirOptions & ListFilesOptions
 ): Promise<Pick<FetchResult, 'filesMap' | 'filesStats'>> {
   const start = opts.packageRoot == null ? dir : await resolveInsidePackage(dir, opts.packageRoot)
   if (opts.includeOnlyPackageFiles) {
     const files = await packlist(start)
     return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(start, file)])) }
   }
-  return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start)
+  return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start, '', new Set([dirId(await fs.stat(start))]))
 }
 
 /** The real path of `dir`, which a walk uses so a link pointed elsewhere after this check is not followed. */
@@ -134,8 +140,11 @@ export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Pro
   }
 }
 
-async function createReadFileStat (dir: string, opts: Pick<FetchFromDirOptions, 'includeOnlyPackageFiles' | 'packageRoot' | 'resolveSymlinks'>): Promise<ReadFileStat> {
-  const readStat = opts.resolveSymlinks === true ? realFileStat : fileStat
+async function createReadFileStat (
+  dir: string,
+  opts: Pick<FetchFromDirOptions, 'includeOnlyPackageFiles' | 'packageRoot' | 'resolveSymlinks'> & ListFilesOptions
+): Promise<ReadFileStat> {
+  const readStat = opts.resolveSymlinks === true ? realFileStat : opts.preserveSymlinks === true ? linkStat : fileStat
   if (opts.includeOnlyPackageFiles !== false && opts.packageRoot == null) return readStat
   const rootDir = opts.packageRoot ?? dir
   const root = await fs.realpath(rootDir)
@@ -150,26 +159,37 @@ async function createReadFileStat (dir: string, opts: Pick<FetchFromDirOptions, 
   }
 }
 
+/**
+ * `ancestors` holds the identity of `dir` and of each directory above it in
+ * the walk. A link back to one of them is not walked into, since the walk would
+ * never end.
+ */
 async function _fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string,
-  relativeDir = ''
+  relativeDir: string,
+  ancestors: ReadonlySet<string>
 ): Promise<Pick<FetchResult, 'filesMap' | 'filesStats'>> {
   const filesMap: FilesMap = new Map()
   const filesStats: Record<string, Stats | null> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
-    .map((file) => handleDirEntry(readFileStat, dir, file, relativeDir, filesMap, filesStats))
+    .map((file) => handleDirEntry(readFileStat, { dir, file, relativeDir, ancestors }, filesMap, filesStats))
   )
   return { filesMap, filesStats }
 }
 
+interface DirEntry {
+  dir: string
+  file: string
+  relativeDir: string
+  ancestors: ReadonlySet<string>
+}
+
 async function handleDirEntry (
   readFileStat: ReadFileStat,
-  dir: string,
-  file: string,
-  relativeDir: string,
+  { dir, file, relativeDir, ancestors }: DirEntry,
   filesMap: FilesMap,
   filesStats: Record<string, Stats | null>
 ): Promise<void> {
@@ -178,7 +198,12 @@ async function handleDirEntry (
   const { filePath, stat } = fileStatResult
   const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
   if (stat.isDirectory()) {
-    const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
+    const id = dirId(stat)
+    if (ancestors.has(id)) {
+      directoryFetcherLogger.debug({ linkToAncestor: filePath })
+      return
+    }
+    const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir, new Set([...ancestors, id]))
     for (const [key, value] of subFetchResult.filesMap) {
       filesMap.set(key, value)
     }
@@ -188,6 +213,8 @@ async function handleDirEntry (
     filesStats[relativeSubdir] = fileStatResult.stat
   }
 }
+
+const dirId = (stat: Pick<Stats, 'dev' | 'ino'>): string => `${stat.dev}:${stat.ino}`
 
 interface FileStatResult {
   filePath: string
@@ -213,6 +240,11 @@ async function realFileStat (filePath: string): Promise<FileStatResult | null> {
     }
     throw err
   }
+}
+
+/** A path as it is, a link not followed. */
+async function linkStat (filePath: string): Promise<FileStatResult> {
+  return { filePath, stat: await fs.lstat(filePath) }
 }
 
 async function fileStat (filePath: string): Promise<FileStatResult | null> {

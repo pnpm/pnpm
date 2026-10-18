@@ -10623,6 +10623,9 @@ importers:
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/fs.indexed-pkg-importer':
+        specifier: workspace:*
+        version: link:../../fs/indexed-pkg-importer
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml

@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises'
 import { isError } from '@pnpm/error'
 import { type FetchFromDirOptions, listFilesFromDir } from '@pnpm/fetching.directory-fetcher'
 import { renameFileWithRetry, renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
+import { copyInternalSymlink, internalSymlinkTarget } from '@pnpm/fs.indexed-pkg-importer'
 import { pathTemp } from 'path-temp'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
@@ -19,8 +20,20 @@ export const DIR: unique symbol = Symbol('Path is a directory')
  */
 export type File = string
 export type Dir = typeof DIR
+/**
+ * A link to something inside the tree, by the `/`-separated path it points at
+ * relative to the tree's root. The source and a copy hold the same link
+ * exactly when their links point at the same relative path, whatever the link
+ * text, so a Windows junction's absolute target matches the relative one it was
+ * made from.
+ */
+export type Link = `link:${string}`
 
-export type Value = File | Dir
+export type Value = File | Dir | Link
+
+const LINK_PREFIX = 'link:'
+const isLink = (value: Value | undefined): value is Link => typeof value === 'string' && value.startsWith(LINK_PREFIX)
+const isFile = (value: Value | undefined): value is File => typeof value === 'string' && !value.startsWith(LINK_PREFIX)
 export type InodeMap = Record<string, Value>
 
 export interface DiffItemBase {
@@ -114,15 +127,36 @@ async function applyPatchChange (item: AddedItem | ModifiedItem, sourceDir: stri
   if (item.oldValue !== undefined) {
     await removeRecursive(targetPath)
   }
-  await addRecursive(sourcePath, targetPath, item.newValue)
+  await addRecursive({ sourcePath, targetPath, targetDir }, item.newValue)
 }
 
-async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
+async function addRecursive (
+  { sourcePath, targetPath, targetDir }: { sourcePath: string, targetPath: string, targetDir: string },
+  value: Value
+): Promise<void> {
   if (value === DIR) {
     await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
-  } else if (typeof value === 'string') {
+  } else if (isLink(value)) {
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+    await retryOverBlockingInode(targetPath, async () => placeLink({ sourcePath, targetPath, targetDir }, value))
+  } else {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true })
     await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
+  }
+}
+
+/**
+ * Recreate the link at `sourcePath` at `targetPath`, the way the install
+ * recreates a package's link to its own content. Where the install would import
+ * the linked file instead, so does this.
+ */
+async function placeLink (
+  { sourcePath, targetPath, targetDir }: { sourcePath: string, targetPath: string, targetDir: string },
+  value: Link
+): Promise<void> {
+  const links = { writtenDir: targetDir, finalDir: targetDir, imported: new Set([value.slice(LINK_PREFIX.length)]) }
+  if (!copyInternalSymlink(sourcePath, targetPath, links)) {
+    await linkOrCopy(sourcePath, targetPath)
   }
 }
 
@@ -178,6 +212,12 @@ export interface ExtendFilesMapOptions {
   filesMap: Map<string, string>
   /** Map relative path of each file to their stats */
   filesStats?: Record<string, ExtendFilesMapStats | null>
+  /**
+   * The root of the tree `filesMap` lists. When it is set, a listed link is
+   * read as the install imports it (see `linkValue`), and `filesStats` is
+   * not used, since it does not tell a link from what it points at.
+   */
+  linkRoot?: string
 }
 
 /**
@@ -185,7 +225,7 @@ export interface ExtendFilesMapOptions {
  * and an optional file stats map, which is a map from relative path of each file to their stats,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
  */
-export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOptions): Promise<InodeMap> {
+export async function extendFilesMap ({ filesMap, filesStats, linkRoot }: ExtendFilesMapOptions): Promise<InodeMap> {
   const result: InodeMap = {
     '.': DIR,
   }
@@ -198,29 +238,73 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
     }
   }
 
+  const imported = importedPaths(filesMap.keys())
   await Promise.all(Array.from(filesMap.entries()).map(async ([relativePath, realPath]) => {
-    const stats = filesStats?.[relativePath] ?? await statSkippingMissing(realPath)
-    if (stats == null) return
-    if (stats.isFile()) {
-      addInodeAndAncestors(relativePath, fileId(stats))
-    } else if (stats.isDirectory()) {
-      addInodeAndAncestors(relativePath, DIR)
-    }
-    // Anything else — a FIFO, a socket, a device — cannot be hardlinked into
-    // the injected copy, so it is left out of the map.
+    const value = linkRoot == null
+      ? valueOfStats(filesStats?.[relativePath] ?? await statSkippingMissing(realPath))
+      : await valueOfEntry(realPath, { linkRoot, imported })
+    if (value != null) addInodeAndAncestors(relativePath, value)
   }))
 
   return result
 }
 
+/**
+ * A file or a directory. Anything else, such as a FIFO, a socket, or a device,
+ * cannot be hardlinked into the injected copy, so it has no value.
+ */
+function valueOfStats (stats: ExtendFilesMapStats | null | undefined): Value | undefined {
+  if (stats?.isFile() === true) return fileId(stats)
+  if (stats?.isDirectory() === true) return DIR
+  return undefined
+}
+
+async function valueOfEntry (realPath: string, { linkRoot, imported }: { linkRoot: string, imported: Set<string> }): Promise<Value | undefined> {
+  const stats = await statSkippingMissing(realPath, fs.promises.lstat)
+  return stats?.isSymbolicLink() === true ? linkValue(linkRoot, realPath, imported) : valueOfStats(stats)
+}
+
 /** A listed path can be gone by the time it is stat'd: a build script that deletes as it goes, or a symlink that broke. */
-async function statSkippingMissing (filePath: string): Promise<fs.Stats | undefined> {
+async function statSkippingMissing (
+  filePath: string,
+  stat: (filePath: string) => Promise<fs.Stats> = fs.promises.stat
+): Promise<fs.Stats | undefined> {
   try {
-    return await fs.promises.stat(filePath)
+    return await stat(filePath)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
+}
+
+/** Every listed path and each directory above it, the root included as `''`. */
+function importedPaths (paths: Iterable<string>): Set<string> {
+  const imported = new Set<string>([''])
+  for (const relativePath of paths) {
+    for (let entry = relativePath; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
+      imported.add(entry)
+    }
+  }
+  return imported
+}
+
+/**
+ * What the install writes for the link at `linkPath`, as `copyInternalSymlink`
+ * decides it: the link when it points at an imported path, the file it points
+ * at when that file is not imported, and nothing for any other directory.
+ */
+async function linkValue (rootDir: string, linkPath: string, imported: Set<string>): Promise<Value | undefined> {
+  const destination = path.relative(rootDir, path.resolve(path.dirname(linkPath), internalSymlinkTarget(linkPath)))
+  const relativeDestination = destination.split(path.sep).join('/')
+  if (!escapesDir(destination) && imported.has(relativeDestination)) {
+    return `${LINK_PREFIX}${relativeDestination}`
+  }
+  const stats = await statSkippingMissing(linkPath)
+  return stats?.isFile() === true ? fileId(stats) : undefined
+}
+
+function escapesDir (relativePath: string): boolean {
+  return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
 }
 
 const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
@@ -236,31 +320,17 @@ export interface PublishSource {
 }
 
 export async function readPublishSource (dir: string, includeOnlyPackageFiles?: boolean): Promise<PublishSource> {
-  return { dir, map: await readInodeMap(dir, includeOnlyPackageFiles) }
-}
-
-async function readInodeMap (dir: string, includeOnlyPackageFiles?: boolean): Promise<InodeMap> {
-  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles })
-  const inodeMap = await extendFilesMap(listed)
-  if (!includeOnlyPackageFiles) return inodeMap
-  return addFilesUnderListedDirectories(dir, listed.filesMap, inodeMap)
+  return { dir, map: await readInodeMap(dir, { includeOnlyPackageFiles }) }
 }
 
 /**
- * The packlist names a symlinked directory as one entry, where the walk of
- * every file lists the files under it. Replace the entry with those files, so
- * the copy gets the same tree whichever walk read the source.
+ * The tree under `dir` as the install imports it. A source is read with the
+ * install's file selection, and a copy as it is on disk, its links not
+ * followed.
  */
-async function addFilesUnderListedDirectories (dir: string, filesMap: Map<string, string>, inodeMap: InodeMap): Promise<InodeMap> {
-  const directories = Array.from(filesMap.keys()).filter((relativePath) => inodeMap[relativePath] === DIR)
-  const nestedMaps = await Promise.all(directories.map(async (directory) => {
-    delete inodeMap[directory]
-    const listed = await listFilesFromDir(path.join(dir, directory), { ...LIST_FILES_OPTIONS, packageRoot: dir })
-    return extendFilesMap({
-      filesMap: new Map(Array.from(listed.filesMap, ([relativePath, realPath]) => [`${directory}/${relativePath}`, realPath])),
-    })
-  }))
-  return nestedMaps.reduce((merged, nestedMap) => ({ ...merged, ...nestedMap }), inodeMap)
+async function readInodeMap (dir: string, { includeOnlyPackageFiles, isCopy }: { includeOnlyPackageFiles?: boolean, isCopy?: boolean } = {}): Promise<InodeMap> {
+  const listed = await listFilesFromDir(dir, { ...LIST_FILES_OPTIONS, includeOnlyPackageFiles, preserveSymlinks: isCopy })
+  return extendFilesMap({ ...listed, linkRoot: dir })
 }
 
 /**
@@ -275,11 +345,12 @@ export async function publishEditsForWatchers (
   editedSinceMs: number
 ): Promise<void> {
   const { dir: sourceDir, map: sourceMap } = source
-  const targetMap = await extendFilesMap(await listFilesFromDir(targetDir, LIST_FILES_OPTIONS))
+  const targetMap = await readInodeMap(targetDir, { isCopy: true })
 
   await syncRemovedWatchPaths(targetMap, sourceMap, targetDir)
   const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
   await syncDirectoryWatchPaths(sourcePaths, sourceMap, targetMap, targetDir)
+  await syncLinkWatchPaths({ sourcePaths, sourceMap, targetMap, sourceDir, targetDir })
   await syncFileWatchPaths({ sourcePaths, sourceMap, targetMap, sourceDir, targetDir, editedSinceMs })
 }
 
@@ -309,6 +380,28 @@ async function syncDirectoryWatchPaths (
   }
 }
 
+async function syncLinkWatchPaths ({
+  sourcePaths,
+  sourceMap,
+  targetMap,
+  sourceDir,
+  targetDir,
+}: {
+  sourcePaths: string[]
+  sourceMap: InodeMap
+  targetMap: InodeMap
+  sourceDir: string
+  targetDir: string
+}): Promise<void> {
+  for (const relPath of sourcePaths) {
+    const sourceValue = sourceMap[relPath]
+    if (!isLink(sourceValue) || targetMap[relPath] === sourceValue) continue
+    const targetPath = path.join(targetDir, relPath)
+    await removePath(targetPath) // eslint-disable-line no-await-in-loop -- published in path order
+    await placeLink({ sourcePath: path.join(sourceDir, relPath), targetPath, targetDir }, sourceValue) // eslint-disable-line no-await-in-loop -- published in path order
+  }
+}
+
 async function syncFileWatchPaths ({
   sourcePaths,
   sourceMap,
@@ -326,12 +419,12 @@ async function syncFileWatchPaths ({
 }): Promise<void> {
   for (const relPath of sourcePaths) {
     const sourceValue = sourceMap[relPath]
-    if (typeof sourceValue !== 'string') continue
+    if (!isFile(sourceValue)) continue
     const sourcePath = path.join(sourceDir, relPath)
     const targetPath = path.join(targetDir, relPath)
     const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop -- published in path order
     const targetValue = targetMap[relPath]
-    const targetStat = typeof targetValue === 'string'
+    const targetStat = isFile(targetValue)
       ? await statFile(targetPath) // eslint-disable-line no-await-in-loop -- published in path order
       : null
     if (!shouldPublish({ sourceStat, targetStat, sourceId: sourceValue, targetValue, editedSinceMs })) continue
@@ -346,7 +439,7 @@ function shouldPublish ({ sourceStat, targetStat, sourceId, targetValue, editedS
   targetValue: Value | undefined
   editedSinceMs: number
 }): boolean {
-  if (targetStat == null || typeof targetValue !== 'string') return true
+  if (targetStat == null || !isFile(targetValue)) return true
   if (targetValue === sourceId) return sourceStat.mtimeMs >= editedSinceMs
   return sourceStat.size !== targetStat.size ||
     Math.abs(sourceStat.mtimeMs - targetStat.mtimeMs) > WATCH_MTIME_TOLERANCE_MS
@@ -412,13 +505,9 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean): Promise<DirPatcher[]> {
-    async function loadMap (dir: string, dirIncludeOnlyPackageFiles?: boolean): Promise<[InodeMap, string]> {
-      return [await readInodeMap(dir, dirIncludeOnlyPackageFiles), dir]
-    }
-
-    const [[sourceMap], targetPairs] = await Promise.all([
-      loadMap(sourceDir, includeOnlyPackageFiles),
-      Promise.all(targetDirs.map(async (targetDir) => loadMap(targetDir))),
+    const [sourceMap, targetPairs] = await Promise.all([
+      readInodeMap(sourceDir, { includeOnlyPackageFiles }),
+      Promise.all(targetDirs.map(async (targetDir): Promise<[InodeMap, string]> => [await readInodeMap(targetDir, { isCopy: true }), targetDir])),
     ])
 
     return targetPairs.map(([targetMap, targetDir]) => {

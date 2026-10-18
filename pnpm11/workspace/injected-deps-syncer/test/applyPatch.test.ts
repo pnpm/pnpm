@@ -346,31 +346,32 @@ testOnPosix('readPublishSource skips a dangling symlink among the package files'
   }
 })
 
-function prepareSourceWithLinkedDirectory (root: string, innerLinkTarget: string): string {
+function prepareSourceWithLinkedDirectory (root: string, files: string[]): string {
   const source = path.join(root, 'source')
-  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['link-to-a-dir'] }))
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files }))
   createFile(path.join(source, 'files/foo/bar.txt'), 'bar')
-  createFile(path.join(source, 'other/sibling.txt'), 'sibling')
-  createFile(path.join(root, 'outside/secret.txt'), 'secret')
-  fs.symlinkSync(innerLinkTarget, path.join(source, 'files/foo/inner'))
   fs.symlinkSync('files/foo', path.join(source, 'link-to-a-dir'))
   return source
 }
 
-testOnPosix('readPublishSource lists the files under a symlinked directory the packlist names', async () => {
+// The install keeps a package's link to its own content as a link, and
+// leaves out a link to a directory it does not import.
+testOnPosix('readPublishSource keeps a link to a listed directory as a link', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
   try {
-    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, '../../other'), true)
-    expect(Object.keys(map)).toEqual(expect.arrayContaining(['link-to-a-dir/bar.txt', 'link-to-a-dir/inner/sibling.txt']))
+    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, ['link-to-a-dir', 'files']), true)
+    expect(map['link-to-a-dir']).toBe('link:files/foo')
+    expect(map['files/foo/bar.txt']).toEqual(expect.any(String))
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
 
-testOnPosix('readPublishSource rejects a link under a symlinked directory that leaves the package', async () => {
+testOnPosix('readPublishSource leaves out a link to a directory the packlist does not list', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
   try {
-    await expect(readPublishSource(prepareSourceWithLinkedDirectory(root, '../../../outside'), true)).rejects.toThrow('outside the package directory')
+    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, ['link-to-a-dir']), true)
+    expect(Object.keys(map).filter((key) => key.startsWith('link-to-a-dir'))).toEqual([])
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

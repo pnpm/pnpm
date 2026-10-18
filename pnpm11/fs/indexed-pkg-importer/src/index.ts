@@ -15,6 +15,7 @@ import { type Importer, type ImportFile, importIndexedDir } from './importIndexe
 import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
+export { copyInternalSymlink, internalSymlinkTarget, type SymlinkDirs } from './copyInternalSymlink.js'
 
 const BASE_FILE_MODE = 0o666
 const EXEC_FILE_MODE = 0o755

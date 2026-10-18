@@ -43,6 +43,12 @@ pub struct FileId {
 pub enum Value {
     Dir,
     File(FileId),
+    /// A link to something inside the tree, by a hash of the path it points
+    /// at relative to the tree's root. The source and a copy hold the same
+    /// link exactly when their links point at the same relative path,
+    /// whatever the link text, so a Windows junction's absolute target
+    /// matches the relative one it was made from.
+    Symlink(u64),
 }
 
 /// Relative path → inode type, for every file and directory in a tree.
@@ -229,7 +235,34 @@ fn apply_change_with_link<Sys: FsHardLink>(
                     })
             })
         }
+        Value::Symlink(_) => {
+            let source_path = source_dir.join(&change.path);
+            retry_over_blocking_inode(&target_path, || place_link(&source_path, &target_path))
+        }
     }
+}
+
+/// Recreate the link at `source_path` at `target_path`, the way the install
+/// recreates a package's link to its own content.
+fn place_link(source_path: &Path, target_path: &Path) -> Result<(), PatchError> {
+    let link_error = |error| PatchError::Link {
+        source: source_path.to_path_buf(),
+        target: target_path.to_path_buf(),
+        error,
+    };
+    let contents = pnpm_fs::read_symlink_dir(source_path)
+        .map(|link| pnpm_fs::relative_link_target(source_path, link))
+        .map_err(link_error)?;
+    let link_dir = target_path.parent().unwrap_or_else(|| Path::new(""));
+    fs::create_dir_all(link_dir)
+        .map_err(|error| PatchError::CreateDir { path: link_dir.to_path_buf(), error })?;
+    if fs::metadata(source_path).is_ok_and(|metadata| metadata.is_dir()) {
+        let original = pnpm_fs::lexical_normalize(&link_dir.join(&contents));
+        pnpm_fs::symlink_dir_with_contents(&original, &contents, target_path)
+    } else {
+        pnpm_fs::symlink_file_or_copy(&contents, source_path, target_path)
+    }
+    .map_err(link_error)
 }
 
 /// A source directory's files, read once per poll and published to each of
@@ -273,6 +306,7 @@ pub fn publish_edits(
         }
         ensure_directory(&target_dir.join(path), target_map.get(path))?;
     }
+    publish_links(source, target_dir, &target_map)?;
     for (path, value) in source_map {
         let Value::File(source_id) = value else {
             continue;
@@ -281,6 +315,23 @@ pub fn publish_edits(
             continue;
         }
         publish_file(&source_dir.join(path), &target_dir.join(path), source_id.modified)?;
+    }
+    Ok(())
+}
+
+/// Recreate each link of `source` that `target_map` does not hold.
+fn publish_links(
+    source: &PublishSource<'_>,
+    target_dir: &Path,
+    target_map: &InodeMap,
+) -> Result<(), PatchError> {
+    for (path, value) in &source.map {
+        if !matches!(value, Value::Symlink(_)) || target_map.get(path) == Some(value) {
+            continue;
+        }
+        let target_path = target_dir.join(path);
+        remove_recursive(&target_path)?;
+        place_link(&source.dir.join(path), &target_path)?;
     }
     Ok(())
 }
