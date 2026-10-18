@@ -174,8 +174,8 @@ interface DirHandle {
   chmod: (fd: number, mode: number) => void
 }
 
-// Node does not export O_EXEC. This is its value in the macOS <sys/fcntl.h>,
-// which defines O_SEARCH as O_EXEC | O_DIRECTORY.
+// Node does not export O_EXEC. This is its value in the macOS system headers,
+// which define O_SEARCH as O_EXEC | O_DIRECTORY.
 const DARWIN_O_EXEC = 0x40000000
 
 const DARWIN_SEARCH_HANDLE: DirHandle = {
