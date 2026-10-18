@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Prevent self-registration from squatting configured admin usernames, OIDC bindings, workload bindings, and SCIM-provisioned users, and add the `pnpr add-user` CLI command for provisioning reserved admin accounts [pnpm/tasks#131](https://github.com/pnpm/tasks/issues/131).
+Self-registration can no longer claim the username of a configured admin, an OIDC binding, a workload binding, or a SCIM-provisioned user. The new `pnpr add-user` command creates accounts under reserved usernames [pnpm/tasks#131](https://github.com/pnpm/tasks/issues/131).
