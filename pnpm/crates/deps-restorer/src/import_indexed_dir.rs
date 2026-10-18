@@ -250,7 +250,6 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     opts: ImportIndexedDirOpts,
     repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    let _target_lock = staging::target_swap_lock_if_forced(opts.force, dir_path)?;
     let existing_kind = existing_dirent_kind(dir_path)?;
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
@@ -259,7 +258,16 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, _) => import_absent_dir::<Reporter>(
+        (None, true) => staging::stage_and_swap::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts.keep_modules_dir,
+            opts.preserve_symlinks,
+        )
+        .inspect(|()| unquarantine()),
+        (None, false) => placement::import_absent_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
@@ -370,7 +378,7 @@ fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndex
 /// what is there, because a slot that exists is either finished, being
 /// filled right now, or left behind by an importer that died mid-file —
 /// and the three are indistinguishable from the outside.
-fn import_into_shared_dir<Reporter: self::Reporter>(
+pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -416,35 +424,6 @@ fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
         Err(error) => {
             Err(ImportIndexedDirError::CreateDir { dirname: dir_path.to_path_buf(), error })
         }
-    }
-}
-
-// An absent shared target can be created concurrently; exclusive mkdir establishes ownership.
-fn import_absent_dir<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
-) -> Result<(), ImportIndexedDirError> {
-    if safe_to_skip {
-        import_into_shared_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            preserve_symlinks,
-        )
-    } else {
-        populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            Placement::Fresh,
-            preserve_symlinks.then_some(dir_path),
-        )
     }
 }
 

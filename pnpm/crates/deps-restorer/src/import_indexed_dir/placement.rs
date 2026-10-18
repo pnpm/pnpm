@@ -1,6 +1,9 @@
 pub(super) mod symlinks;
 
-use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
+use super::{
+    ImportIndexedDirError, Placement, import_into_shared_dir, remove_non_dir_dirent,
+    staging::import_atomic,
+};
 use crate::{import_into_fresh_target, link_pool::in_link_pool};
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::Host;
@@ -48,6 +51,34 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             symlinks_final_dir,
         )
     })
+}
+
+pub(super) fn import_absent_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    safe_to_skip: bool,
+    preserve_symlinks: bool,
+) -> Result<(), ImportIndexedDirError> {
+    if safe_to_skip {
+        import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            preserve_symlinks,
+        )
+    } else {
+        populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+            preserve_symlinks.then_some(dir_path),
+        )
+    }
 }
 
 fn populate_dir_on_current_pool<Reporter: self::Reporter>(
