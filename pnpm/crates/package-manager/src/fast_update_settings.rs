@@ -134,9 +134,7 @@ fn changed_settings(
     {
         changed.push(ChangedSetting::InjectWorkspacePackages);
     }
-    if recorded.map(LockfileSettings::integrity_target).unwrap_or_default()
-        != settings.integrity_target()
-    {
+    if integrity_target_changed(recorded, settings) {
         changed.push(ChangedSetting::IntegrityTarget);
     }
     // Unrecorded settings are dropped on write rather than compared.
@@ -146,6 +144,14 @@ fn changed_settings(
         changed.push(ChangedSetting::ResolutionSettings);
     }
     changed
+}
+
+fn integrity_target_changed(
+    recorded: Option<&LockfileSettings>,
+    settings: &LockfileSettings,
+) -> bool {
+    recorded.map(LockfileSettings::integrity_target).unwrap_or_default()
+        != settings.integrity_target()
 }
 
 fn setting_cannot_affect_lockfile(

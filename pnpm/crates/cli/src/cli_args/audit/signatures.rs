@@ -12,18 +12,16 @@
 //! signal.
 
 use super::{bold, red, sanitize_response_body};
-use base64::Engine as _;
 use owo_colors::{OwoColorize, Stream};
-use p256::{
-    ecdsa::{Signature, VerifyingKey, signature::Verifier},
-    pkcs8::DecodePublicKey,
-};
 use pnpm_config::Config;
 use pnpm_network::{
     ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
     walk_reqwest_chain,
 };
+mod keys;
 mod tar_binding;
+
+use keys::{key_is_expired, verify_one};
 
 use registry::{
     PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
@@ -216,10 +214,6 @@ fn process_version(
     result: &mut SignatureVerificationResult,
 ) {
     let version = packument.versions.get(&pkg.version);
-    let published_at = packument.time
-        .get(&pkg.version)
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
     let Some(integrity) = pkg.integrity.clone() else {
         let reason = format!("Missing lockfile integrity for {}@{}", pkg.name, pkg.version);
         result.invalid.push(issue(pkg, None, None, Some(reason)));
@@ -244,18 +238,17 @@ fn process_version(
         return;
     }
 
-    let signed = match tie {
-        None => integrity,
-        Some(Ok(signed)) => signed.clone(),
-        Some(Err(reason)) => {
-            result.invalid.push(issue(pkg, Some(integrity), resolved, Some(reason.clone())));
+    let signed = match tie.cloned().unwrap_or(Ok(integrity)) {
+        Ok(signed) => signed,
+        Err(reason) => {
+            result.invalid.push(issue(pkg, pkg.integrity.clone(), resolved, Some(reason)));
             return;
         }
     };
     match verify_package_signatures(
         pkg,
         &signed,
-        published_at.as_deref(),
+        packument.time.get(&pkg.version).and_then(serde_json::Value::as_str),
         resolved.as_deref(),
         &signatures,
         keys,
@@ -336,29 +329,6 @@ fn verify_package_signatures(
         resolved.map(str::to_string),
         Some(most_telling_failure(pkg, &failures)),
     ))
-}
-
-fn key_is_expired(key: &RegistryKey, published_time: Option<i64>) -> bool {
-    // Key expiry is a consistency check, not a security boundary: the
-    // publish time comes from the same unauthenticated packument as the
-    // signatures. A missing or unparsable publish time therefore keeps the
-    // key usable — the signature check below is what gates acceptance.
-    match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
-        (Some(expires), Some(published)) => published >= expires,
-        _ => false,
-    }
-}
-
-/// Verify one base64 ECDSA-P256 signature over `message` against a base64
-/// SPKI public key. Any malformed key material or signature bytes count as a
-/// non-match rather than an error, so one bad key can't abort the audit.
-fn verify_one(public_key_base64: &str, message: &str, signature_base64: &str) -> bool {
-    let engine = base64::engine::general_purpose::STANDARD;
-    let Ok(key_der) = engine.decode(public_key_base64) else { return false };
-    let Ok(verifying_key) = VerifyingKey::from_public_key_der(&key_der) else { return false };
-    let Ok(signature_der) = engine.decode(signature_base64) else { return false };
-    let Ok(signature) = Signature::from_der(&signature_der) else { return false };
-    verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
 fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {

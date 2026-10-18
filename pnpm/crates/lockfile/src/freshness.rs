@@ -36,6 +36,7 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub integrity_target: crate::IntegrityTarget,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -47,7 +48,6 @@ pub struct ResolutionSettingsCheck<'a> {
     pub add_missing_peer_types: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
-    pub integrity_target: crate::IntegrityTarget,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
     /// The values `lockfile.includeResolutionSettings` records, or `None`
     /// when that setting is off and they go uncompared.
@@ -377,6 +377,7 @@ pub fn check_lockfile_settings(
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
+    check_integrity_target(lockfile, check.integrity_target)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted
@@ -515,4 +516,4 @@ mod recorded_settings;
 mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
-use recorded_settings::check_recorded_settings;
+use recorded_settings::{check_integrity_target, check_recorded_settings};

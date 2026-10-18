@@ -24,13 +24,13 @@ fn manifest_from_json(json: &str) -> (tempfile::TempDir, PackageManifest) {
 
 fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
     LockfileSettingsCheck {
+        integrity_target: crate::IntegrityTarget::Resource,
         catalogs,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
         resolution: crate::freshness::ResolutionSettingsCheck {
-            integrity_target: crate::IntegrityTarget::Resource,
             auto_install_peers: true,
             dedupe_peers: false,
             exclude_links_from_lockfile: false,

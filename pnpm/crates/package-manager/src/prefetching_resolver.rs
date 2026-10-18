@@ -228,8 +228,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let integrity_kind: pnpm_tarball::IntegrityKind =
             result.resolution.integrity_target(self.ctx.config.lockfile_integrity_target).into();
         let package_url = package_url.to_string();
-        let package_unpacked_size = manifest_unpacked_size(result.package.manifest.as_deref());
-        let package_file_count = manifest_file_count(result.package.manifest.as_deref());
+        let dist_stats = (
+            manifest_unpacked_size(result.package.manifest.as_deref()),
+            manifest_file_count(result.package.manifest.as_deref()),
+        );
         let ctx = Arc::clone(&self.ctx);
         let tracked_url = package_url.clone();
 
@@ -239,14 +241,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             // likewise start package fetching before the dependency
             // resolver emits `resolved`; the default reporter counts
             // progress events independently.
-            let mut download = ctx.tarball_download(
+            let download = ctx.tarball_download(
                 &package_url,
                 &package_id,
-                Some(&integrity),
-                package_unpacked_size,
-                package_file_count,
+                (Some(&integrity), integrity_kind),
+                dist_stats.0,
+                dist_stats.1,
             );
-            download.package.integrity_kind = integrity_kind;
             let fetched = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             } else {
@@ -321,14 +322,17 @@ impl OwnedFetchCtx {
         &'a self,
         package_url: &'a str,
         package_id: &'a str,
-        package_integrity: Option<&'a ssri::Integrity>,
+        (package_integrity, integrity_kind): (
+            Option<&'a ssri::Integrity>,
+            pnpm_tarball::IntegrityKind,
+        ),
         package_unpacked_size: Option<usize>,
         package_file_count: Option<usize>,
     ) -> IngestTarballToStore<'a> {
         IngestTarballToStore {
             fetching: self.fetching.options(),
             package: pnpm_tarball::TarballPackage {
-                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
+                integrity_kind,
                 integrity: package_integrity,
                 unpacked_size: package_unpacked_size,
                 file_count: package_file_count,

@@ -67,15 +67,6 @@ pub(super) fn check_recorded_settings(
         });
     }
 
-    let lockfile_integrity_target =
-        settings.map(LockfileSettings::integrity_target).unwrap_or_default();
-    if lockfile_integrity_target != check.integrity_target {
-        return Err(StalenessReason::IntegrityTargetChanged {
-            lockfile: lockfile_integrity_target,
-            config: check.integrity_target,
-        });
-    }
-
     check_resolution_settings(settings, check.resolution_settings)
 }
 
@@ -197,4 +188,17 @@ pub fn recorded_peers_suffix_max_length(recorded: Option<&LockfileSettings>) -> 
 #[must_use]
 pub fn recorded_inject_workspace_packages(recorded: Option<&LockfileSettings>) -> bool {
     recorded.is_some_and(|settings| settings.inject_workspace_packages)
+}
+
+/// `settings.integrityTarget`, compared whether or not the lockfile records
+/// any other setting.
+pub(super) fn check_integrity_target(
+    lockfile: &Lockfile,
+    configured: crate::IntegrityTarget,
+) -> Result<(), StalenessReason> {
+    let recorded = lockfile.integrity_target();
+    if recorded == configured {
+        return Ok(());
+    }
+    Err(StalenessReason::IntegrityTargetChanged { lockfile: recorded, config: configured })
 }

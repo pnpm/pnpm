@@ -21,7 +21,32 @@ pub(super) async fn tie_tar_integrities(
     config: &'static Config,
     http_client: &ThrottledClient,
 ) -> HashMap<(String, String, String), Result<String, String>> {
-    let pending: Vec<PendingTie<'_>> = packages
+    let pending = pending_ties(packages, packuments);
+    let stored = stored_tar_integrities(&pending, config);
+    let (index_writer, writer_task) = StoreIndexWriter::spawn_for(
+        &config.store_dir,
+        config.frozen_store,
+        config.store_index_format,
+    );
+    let downloads = DownloadContext { config, http_client, index_writer: &index_writer };
+    let ties = pending
+        .iter()
+        .map(|tie| async {
+            let key = (tie.pkg.registry.clone(), tie.pkg.name.clone(), tie.pkg.version.clone());
+            (key, tie.resolve(&stored, &downloads).await)
+        });
+    let ties = futures_util::future::join_all(ties).await.into_iter().collect();
+    drop(index_writer);
+    StoreIndexWriter::drain(writer_task, " after tying tar integrities").await;
+    ties
+}
+
+/// The signed versions whose lockfile entry pins their tar.
+fn pending_ties<'a>(
+    packages: &'a [SignaturePackage],
+    packuments: &'a HashMap<(String, String), Result<Option<Packument>, String>>,
+) -> Vec<PendingTie<'a>> {
+    packages
         .iter()
         .filter(|pkg| pkg.pins_tar)
         .filter_map(|pkg| {
@@ -32,60 +57,27 @@ pub(super) async fn tie_tar_integrities(
             };
             let dist = packument.versions
                 .get(&pkg.version)
-                .and_then(|version| version.dist.as_ref());
+                .and_then(|version| version.dist.as_ref())?;
             // A version without signatures is reported as missing whatever
             // its tar hash is tied to.
-            dist.and_then(|dist| dist.signatures.as_ref())
+            dist.signatures
+                .as_ref()
                 .and_then(serde_json::Value::as_array)
                 .filter(|signatures| !signatures.is_empty())?;
             Some(PendingTie {
                 pkg,
                 lockfile_integrity: pkg.integrity.as_deref()?,
-                published: dist.and_then(|dist| {
-                    dist.integrity.as_deref().zip(dist.tarball.as_deref())
-                }),
+                published: dist.integrity.as_deref().zip(dist.tarball.as_deref()),
             })
         })
-        .collect();
-    let stored = stored_tar_integrities(&pending, config);
-    let (index_writer, writer_task) = StoreIndexWriter::spawn_for(
-        &config.store_dir,
-        config.frozen_store,
-        config.store_index_format,
-    );
-    let ties = pending
-        .iter()
-        .map(|tie| {
-            let stored = &stored;
-            let index_writer = &index_writer;
-            async move {
-                let outcome = match tie.published {
-                    None => Err(format!(
-                        "{}@{} has no published integrity to tie its tar integrity to",
-                        tie.pkg.name, tie.pkg.version,
-                    )),
-                    Some((signed, _)) if signed == tie.lockfile_integrity => Ok(signed.to_string()),
-                    Some((signed, _))
-                        if stored
-                            .get(&tie.package_id())
-                            .map(String::as_str)
-                            == Some(tie.lockfile_integrity) =>
-                    {
-                        Ok(signed.to_string())
-                    }
-                    Some((signed, tarball)) => {
-                        download_tie(tie, signed, tarball, config, http_client, index_writer)
-                            .await
-                            .map(|()| signed.to_string())
-                    }
-                };
-                ((tie.pkg.registry.clone(), tie.pkg.name.clone(), tie.pkg.version.clone()), outcome)
-            }
-        });
-    let ties = futures_util::future::join_all(ties).await.into_iter().collect();
-    drop(index_writer);
-    StoreIndexWriter::drain(writer_task, " after tying tar integrities").await;
-    ties
+        .collect()
+}
+
+/// What a download that ties a tar integrity needs.
+struct DownloadContext<'a> {
+    config: &'static Config,
+    http_client: &'a ThrottledClient,
+    index_writer: &'a std::sync::Arc<StoreIndexWriter>,
 }
 
 struct PendingTie<'a> {
@@ -98,6 +90,31 @@ struct PendingTie<'a> {
 impl PendingTie<'_> {
     fn package_id(&self) -> String {
         format!("{}@{}", self.pkg.name, self.pkg.version)
+    }
+
+    /// The signed integrity this entry is tied to: directly when the registry
+    /// publishes the tar's, through the store row that recorded the tar, or by
+    /// downloading the archive.
+    async fn resolve(
+        &self,
+        stored: &HashMap<String, String>,
+        downloads: &DownloadContext<'_>,
+    ) -> Result<String, String> {
+        let Some((signed, tarball)) = self.published else {
+            return Err(format!(
+                "{}@{} has no published integrity to tie its tar integrity to",
+                self.pkg.name, self.pkg.version,
+            ));
+        };
+        let tied = signed == self.lockfile_integrity
+            || stored
+                .get(&self.package_id())
+                .map(String::as_str)
+                == Some(self.lockfile_integrity);
+        if !tied {
+            download_tie(self, signed, tarball, downloads).await?;
+        }
+        Ok(signed.to_string())
     }
 }
 
@@ -123,10 +140,9 @@ async fn download_tie(
     tie: &PendingTie<'_>,
     signed: &str,
     tarball: &str,
-    config: &'static Config,
-    http_client: &ThrottledClient,
-    index_writer: &std::sync::Arc<StoreIndexWriter>,
+    downloads: &DownloadContext<'_>,
 ) -> Result<(), String> {
+    let DownloadContext { config, http_client, index_writer } = *downloads;
     let package_id = tie.package_id();
     let signed_integrity: Integrity = signed
         .parse()

@@ -33,14 +33,7 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         (ours, theirs) if ours == theirs => ours,
         _ => Some(true),
     };
-    // A side whose integrities name another hash cannot lend its entries:
-    // the merged lockfile would pin both kinds. The resolution that follows
-    // every merge resolves what is left out again.
-    let their_graph = if ours.integrity_target() == theirs.integrity_target() {
-        TheirGraph { packages: theirs.packages.as_ref(), snapshots: theirs.snapshots.as_ref() }
-    } else {
-        TheirGraph { packages: None, snapshots: None }
-    };
+    let their_graph = TheirGraph::lent_to(ours, theirs);
     let mut lockfile = Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
         pnpmfile_checksum: ours.pnpmfile_checksum
@@ -67,15 +60,33 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         extra: merge_extra(&ours.extra, &theirs.extra),
     };
     lockfile.set_untracked_pnpmfile_read_package_hook(untracked_hook);
+    keep_our_integrity_target(&mut lockfile, ours);
+    lockfile
+}
+
+/// The merged entries pin the hash [`TheirGraph::lent_to`] kept, which is ours.
+fn keep_our_integrity_target(lockfile: &mut Lockfile, ours: &Lockfile) {
     if let Some(settings) = &mut lockfile.settings {
         settings.integrity_target = ours.settings.as_ref().and_then(|ours| ours.integrity_target);
     }
-    lockfile
 }
 
 struct TheirGraph<'a> {
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+}
+
+impl<'a> TheirGraph<'a> {
+    /// The entries `theirs` lends to the merge. A side whose integrities name
+    /// another hash lends none: the merged lockfile would pin both kinds. The
+    /// resolution that follows every merge resolves what is left out again.
+    fn lent_to(ours: &Lockfile, theirs: &'a Lockfile) -> Self {
+        if ours.integrity_target() == theirs.integrity_target() {
+            TheirGraph { packages: theirs.packages.as_ref(), snapshots: theirs.snapshots.as_ref() }
+        } else {
+            TheirGraph { packages: None, snapshots: None }
+        }
+    }
 }
 
 /// Union the top-level keys pnpm does not define, ours winning a conflict —

@@ -182,7 +182,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         lockfile_dir: &Path,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let (package_url, package_id) = package;
-        let download = self.ctx.tarball_download(package_url, package_id, None, None, None);
+        let download = self.ctx.tarball_download(
+            package_url,
+            package_id,
+            (None, pnpm_tarball::IntegrityKind::Resource),
+            None,
+            None,
+        );
         let pkg = match &result.package.name_ver {
             Some(name_ver) => serde_json::json!({
                 "name": name_ver.name.to_string(), "version": name_ver.suffix.to_string(),

@@ -249,15 +249,18 @@ impl WritePackageForPatch<'_> {
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<(), WritePackageForPatchError> {
-        let cas_paths = self.download_for_patch::<Reporter>(
-            tarball_url,
+        let package = pnpm_tarball::TarballPackage {
+            integrity_kind: resolution
+                .integrity_target(self.config.lockfile_integrity_target)
+                .into(),
             integrity,
-            resolution.integrity_target(self.config.lockfile_integrity_target).into(),
-            package_id,
-            store_index,
-            store_index_writer,
-        )
-        .await?;
+            unpacked_size: None,
+            file_count: None,
+            url: tarball_url,
+            id: package_id,
+        };
+        let cas_paths =
+            self.download_for_patch::<Reporter>(package, store_index, store_index_writer).await?;
         let cas_paths = git_hosted_cas_paths::<Reporter>(
             self.config,
             resolution,
@@ -277,10 +280,7 @@ impl WritePackageForPatch<'_> {
     }
     async fn download_for_patch<Reporter: self::Reporter>(
         &self,
-        tarball_url: &str,
-        integrity: Option<&ssri::Integrity>,
-        integrity_kind: pnpm_tarball::IntegrityKind,
-        package_id: &str,
+        package: pnpm_tarball::TarballPackage<'_>,
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
@@ -292,14 +292,7 @@ impl WritePackageForPatch<'_> {
                 offline: self.config.offline,
                 tar_limits: self.config.tar_limits(),
             },
-            package: pnpm_tarball::TarballPackage {
-                integrity_kind,
-                integrity,
-                unpacked_size: None,
-                file_count: None,
-                url: tarball_url,
-                id: package_id,
-            },
+            package,
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.config.store_dir,
                 index: store_index,

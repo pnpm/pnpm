@@ -265,7 +265,11 @@ pub async fn read_local_tarball_metadata(
         let integrity = match kind {
             crate::IntegrityKind::Resource => verify_tarball_integrity(&buffer, None, package_url)?,
             crate::IntegrityKind::Tar | crate::IntegrityKind::ResourceOrTar => {
-                check_tar_integrity(buffer.as_slice(), None, &package_url)?
+                crate::archive_integrity::check_tar_integrity(
+                    buffer.as_slice(),
+                    None,
+                    &package_url,
+                )?
             }
         };
         let (manifest, has_manifest_entry) =
@@ -405,7 +409,7 @@ pub fn verify_local_file_integrity(
     kind: crate::IntegrityKind,
 ) -> Result<(), TarballError> {
     let check_tar = || {
-        check_tar_integrity(
+        crate::archive_integrity::check_tar_integrity(
             open_local_file_sync(path)?,
             Some(integrity),
             &format!("file:{}", path.display()),
@@ -421,49 +425,6 @@ pub fn verify_local_file_integrity(
             stream_check_integrity(path, &mut open_local_file_sync(path)?, integrity)
                 .or_else(|_| check_tar())
         }
-    }
-}
-
-/// Hash the tar `archive` holds, decoding every gzip member of a `.tgz`,
-/// and check it against `expected` when there is one. A tar decoding past
-/// the default [`TarLimits`](crate::TarLimits) fails.
-pub(crate) fn check_tar_integrity(
-    archive: impl Read,
-    expected: Option<&Integrity>,
-    package_url: &str,
-) -> Result<Integrity, TarballError> {
-    let limit = crate::TarLimits::default().max_decoded();
-    let mut archive = io::BufReader::new(archive);
-    let gzip = io::BufRead::fill_buf(&mut archive)
-        .map_err(TarballError::ReadTarballEntries)?
-        .starts_with(&crate::extract::GZIP_MAGIC);
-    let mut hasher = crate::BodyHasher::new(expected);
-    let mut sink = HasherSink(&mut hasher);
-    let copied = if gzip {
-        io::copy(&mut flate2::read::MultiGzDecoder::new(archive).take(limit + 1), &mut sink)
-    } else {
-        io::copy(&mut archive.take(limit + 1), &mut sink)
-    };
-    let copied = copied.map_err(|error| TarballError::IncompleteTar {
-        url: package_url.to_string(),
-        reason: error.to_string(),
-    })?;
-    if copied > limit {
-        return Err(TarballError::ArchiveLimit(crate::ArchiveLimit::Payload(limit)));
-    }
-    hasher.finish(package_url)
-}
-
-struct HasherSink<'a>(&'a mut crate::BodyHasher);
-
-impl io::Write for HasherSink<'_> {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.0.input(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 

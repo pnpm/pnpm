@@ -351,13 +351,13 @@ fn check_frozen_settings(
     check_lockfile_settings(
         lockfile,
         LockfileSettingsCheck {
+            integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
             catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
             overrides: None,
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
-                integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,

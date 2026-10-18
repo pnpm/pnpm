@@ -119,7 +119,7 @@ impl BufferedExtraction {
             store_dir: self.store_dir,
             ignore_file_pattern: self.ignore_file_pattern.as_deref(),
         };
-        let ExtractedResource { integrity, extracted } = extract_resource_stream(reader, resource);
+        let ExtractedResource { integrity, extracted } = extract_resource_stream(reader, &resource);
         if let Some(error) = watch.error(&self.package_url) {
             return Err(error);
         }

@@ -76,7 +76,7 @@ fn switching_the_target_rewrites_every_hash_and_back() {
         index
             .get(&store_index_key(&tar, PACKAGE))
             .unwrap(),
-        Some(row)
+        Some(row),
     );
     drop(index);
 

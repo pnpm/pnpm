@@ -203,6 +203,16 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
+    /// `--update-checksums`, implied when the lockfile pins another hash than
+    /// `lockfile.integrityTarget` names, since none of its hashes may carry
+    /// forward.
+    fn update_checksums(&self) -> bool {
+        self.install.lockfile_policy.update_checksums
+            || self.lockfiles.wanted.is_some_and(|lockfile| {
+                lockfile.integrity_target() != self.install.context.config.lockfile_integrity_target
+            })
+    }
+
     fn fresh_inputs<'b>(
         &self,
         dependency_groups: &'b [DependencyGroup],
@@ -214,13 +224,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         'a: 'b,
     {
         FreshInputs {
-            // Every hash of a lockfile resolved for another integrity target
-            // names the other kind, so none of them may carry forward.
-            update_checksums: self.install.lockfile_policy.update_checksums
-                || self.lockfiles.wanted.is_some_and(|lockfile| {
-                    lockfile.integrity_target()
-                        != self.install.context.config.lockfile_integrity_target
-                }),
+            update_checksums: self.update_checksums(),
             resolution_verifiers,
             drivers: crate::install_with_fresh_lockfile::FreshInstallDrivers {
                 http_client: self.install.context.http_client,

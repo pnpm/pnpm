@@ -583,7 +583,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     assert_eq!(
         verified.resource.to_string(),
         pinned.to_string(),
-        "the pinned integrity is what verifies"
+        "the pinned integrity is what verifies",
     );
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();

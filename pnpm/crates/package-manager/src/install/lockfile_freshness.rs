@@ -525,13 +525,13 @@ pub(crate) fn check_lockfile_settings_drift(
     pnpm_lockfile::check_lockfile_settings(
         lockfile,
         pnpm_lockfile::LockfileSettingsCheck {
+            integrity_target: config.lockfile_integrity_target,
             catalogs,
             overrides: overrides_map.as_ref(),
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
-                integrity_target: config.lockfile_integrity_target,
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,

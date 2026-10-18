@@ -34,7 +34,7 @@ impl BodyVerification {
             stream_extract_channel(
                 chunks,
                 self.content_coding,
-                StreamedResource {
+                &StreamedResource {
                     verification: self.verification,
                     package_url: &package_url,
                     limits: self.limits,

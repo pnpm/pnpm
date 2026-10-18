@@ -4,6 +4,7 @@
 use crate::{BodyHasher, TarballError, VerifyChecksumError};
 use pnpm_lockfile::IntegrityTarget;
 use ssri::{Algorithm, Integrity};
+use std::io::Read;
 
 /// Which hash of an archive a pinned integrity names.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -30,7 +31,7 @@ impl From<IntegrityTarget> for IntegrityKind {
 
 /// What an extraction checks the archive against: the pinned integrity, if
 /// any, and which hash of the archive it names.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct ArchiveVerification {
     pub(crate) expected: Option<Integrity>,
     pub(crate) kind: IntegrityKind,
@@ -167,5 +168,48 @@ impl ArchiveIntegrity {
     ) -> Option<String> {
         row.tar_integrity = self.tar.as_ref().map(Integrity::to_string);
         self.distinct_tar().map(alias_key)
+    }
+}
+
+/// Hash the tar `archive` holds, decoding every gzip member of a `.tgz`,
+/// and check it against `expected` when there is one. A tar decoding past
+/// the default [`TarLimits`](crate::TarLimits) fails.
+pub(crate) fn check_tar_integrity(
+    archive: impl Read,
+    expected: Option<&Integrity>,
+    package_url: &str,
+) -> Result<Integrity, TarballError> {
+    let limit = crate::TarLimits::default().max_decoded();
+    let mut archive = std::io::BufReader::new(archive);
+    let gzip = std::io::BufRead::fill_buf(&mut archive)
+        .map_err(TarballError::ReadTarballEntries)?
+        .starts_with(&crate::extract::GZIP_MAGIC);
+    let mut hasher = BodyHasher::new(expected);
+    let mut sink = HasherSink(&mut hasher);
+    let copied = if gzip {
+        std::io::copy(&mut flate2::read::MultiGzDecoder::new(archive).take(limit + 1), &mut sink)
+    } else {
+        std::io::copy(&mut archive.take(limit + 1), &mut sink)
+    };
+    let copied = copied.map_err(|error| TarballError::IncompleteTar {
+        url: package_url.to_string(),
+        reason: error.to_string(),
+    })?;
+    if copied > limit {
+        return Err(TarballError::ArchiveLimit(crate::ArchiveLimit::Payload(limit)));
+    }
+    hasher.finish(package_url)
+}
+
+struct HasherSink<'a>(&'a mut BodyHasher);
+
+impl std::io::Write for HasherSink<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.input(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }

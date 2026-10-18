@@ -56,20 +56,8 @@ impl NpmResolutionVerifier {
             Ok(selected) => selected,
             Err(violation) => return Some(violation),
         };
-        let integrity_addressed = selected.tarball
-            .as_deref()
-            .is_some_and(|tarball| {
-                is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
-            });
-        if !integrity_addressed {
-            return Some(ResolutionVerification::Err {
-                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-                reason: format!(
-                    "has revision {requested} that is not addressed by its complete sha512 integrity",
-                ),
-            });
-        }
-        tarball_url_violation(lockfile_tarball, selected.tarball.as_deref())
+        unaddressed_revision_violation(selected.tarball.as_deref(), integrity, registry, requested)
+            .or_else(|| tarball_url_violation(lockfile_tarball, selected.tarball.as_deref()))
     }
 
     /// The registry's own record for this version, recording the dist stats
@@ -99,4 +87,23 @@ impl NpmResolutionVerifier {
         }
         Ok(meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned()))
     }
+}
+
+/// A revision is only trustworthy when its URL is derived from its own
+/// integrity.
+fn unaddressed_revision_violation(
+    tarball: Option<&str>,
+    integrity: &ssri::Integrity,
+    registry: &str,
+    requested: u64,
+) -> Option<ResolutionVerification> {
+    let integrity_addressed = tarball.is_some_and(|tarball| {
+        is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
+    });
+    (!integrity_addressed).then(|| ResolutionVerification::Err {
+        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        reason: format!(
+            "has revision {requested} that is not addressed by its complete sha512 integrity",
+        ),
+    })
 }

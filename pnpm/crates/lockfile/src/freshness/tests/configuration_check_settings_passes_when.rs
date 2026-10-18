@@ -18,6 +18,7 @@ fn check_settings_passes_when_both_sides_empty() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 ignored_optional_dependencies: Some(&[]),
                 ..settings_check(&Catalogs::new())
             }
@@ -40,6 +41,7 @@ fn check_settings_passes_when_sets_match_regardless_of_order() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 ignored_optional_dependencies: Some(&config_set),
                 ..settings_check(&Catalogs::new())
             }
@@ -60,6 +62,7 @@ fn check_settings_returns_drift_when_sets_differ() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             ignored_optional_dependencies: Some(&config_set),
             ..settings_check(&Catalogs::new())
         },
@@ -213,6 +216,7 @@ fn check_settings_passes_when_patched_dependencies_match() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 patched_dependencies: Some(&config),
                 ..settings_check(&Catalogs::new())
             }
@@ -239,6 +243,7 @@ fn check_settings_returns_drift_when_patch_hash_changes() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             patched_dependencies: Some(&config),
             ..settings_check(&Catalogs::new())
         },
@@ -288,6 +293,7 @@ fn check_settings_returns_ok_when_package_extensions_checksum_matches() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 package_extensions_checksum: Some(
                     "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
                 ),
@@ -310,6 +316,7 @@ fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             package_extensions_checksum: Some(
                 "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=",
             ),
@@ -349,6 +356,7 @@ fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not()
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             package_extensions_checksum: Some(
                 "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             ),
@@ -379,6 +387,7 @@ fn check_settings_reports_overrides_before_ignored_optional() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             overrides: Some(&config),
             ignored_optional_dependencies: Some(&ignored),
             ..settings_check(&Catalogs::new())
@@ -416,8 +425,8 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 auto_install_peers: false,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -441,8 +450,8 @@ fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 resolution: crate::freshness::ResolutionSettingsCheck {
-                    integrity_target: crate::IntegrityTarget::Resource,
                     auto_install_peers: false,
                     ..settings_check(&Catalogs::new()).resolution
                 },
@@ -467,8 +476,8 @@ fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 dedupe_peers: true,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -492,8 +501,8 @@ fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 exclude_links_from_lockfile: true,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -526,8 +535,8 @@ fn check_settings_reports_the_field_pnpm_reports_first() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 auto_install_peers: false,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -565,8 +574,8 @@ fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_conf
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 peers_suffix_max_length: 10,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -597,8 +606,8 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 resolution: crate::freshness::ResolutionSettingsCheck {
-                    integrity_target: crate::IntegrityTarget::Resource,
                     auto_install_peers: false,
                     peers_suffix_max_length: 10,
                     ..settings_check(&Catalogs::new()).resolution
@@ -625,8 +634,8 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 auto_install_peers: false,
                 peers_suffix_max_length: 100,
                 ..settings_check(&Catalogs::new()).resolution
@@ -664,8 +673,8 @@ fn check_settings_passes_when_pnpmfile_checksum_matches() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 resolution: crate::freshness::ResolutionSettingsCheck {
-                    integrity_target: crate::IntegrityTarget::Resource,
                     pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
                     ..settings_check(&Catalogs::new()).resolution
                 },
@@ -688,8 +697,8 @@ fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-def")),
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -718,8 +727,8 @@ fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: crate::IntegrityTarget::Resource,
                 pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -768,8 +777,8 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
+                integrity_target: crate::IntegrityTarget::Resource,
                 resolution: crate::freshness::ResolutionSettingsCheck {
-                    integrity_target: crate::IntegrityTarget::Resource,
                     pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
                     ..settings_check(&Catalogs::new()).resolution
                 },
@@ -803,6 +812,7 @@ fn check_settings_reports_a_segment_that_disagrees_with_the_lockfile_s_own_map()
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             patched_dependencies: Some(&config),
             ..settings_check(&Catalogs::new())
         },
@@ -834,6 +844,7 @@ fn check_settings_reports_a_segment_it_cannot_check() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             patched_dependencies: Some(&config),
             ..settings_check(&Catalogs::new())
         },

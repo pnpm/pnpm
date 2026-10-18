@@ -115,6 +115,7 @@ struct SettingsComparison<'a> {
 impl SettingsComparison<'_> {
     fn first_drift(&self) -> Option<&'static str> {
         self.installation_drift()
+            .or_else(|| self.lockfile_drift())
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
@@ -154,6 +155,12 @@ impl SettingsComparison<'_> {
             recorded.add_missing_peer_types != live.add_missing_peer_types,
         );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
+        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        None
+    }
+    fn lockfile_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
         return_drift_if!(
             self,
             "lockfile.includeResolutionSettings",
@@ -165,7 +172,6 @@ impl SettingsComparison<'_> {
             "lockfile.integrityTarget",
             recorded.lockfile_integrity_target != live.lockfile_integrity_target,
         );
-        return_drift_if!(self, "dev", recorded.dev != live.dev);
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {

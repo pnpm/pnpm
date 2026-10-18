@@ -62,6 +62,19 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         row.tar_integrity?.parse().ok()
     }
 
+    /// Make the extraction published under `pinned` reachable under `tar` too.
+    fn share_archive(&self, url: &str, pinned: &Integrity, tar: &Integrity) {
+        let Some(archive) = self.ctx.mem_cache
+            .get(&package_mem_cache_key(url, Some(pinned), false))
+            .map(|entry| Arc::clone(entry.value()))
+        else {
+            return;
+        };
+        self.ctx.mem_cache
+            .entry(package_mem_cache_key(url, Some(tar), false))
+            .or_insert(archive);
+    }
+
     /// Read the archive once per distinct content to learn its tar
     /// integrity, sharing the read with every edge that resolves to it.
     async fn read_tar_integrity(
@@ -97,18 +110,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             // The install pass looks the extraction up by the tar integrity
             // the lockfile now records.
             self.claim_download(&tarball.tarball, &resolved.integrity, false);
-            if let Some(archive) = self.ctx.mem_cache
-                .get(&package_mem_cache_key(&tarball.tarball, Some(integrity), false))
-                .map(|entry| Arc::clone(entry.value()))
-            {
-                self.ctx.mem_cache
-                    .entry(package_mem_cache_key(
-                        &tarball.tarball,
-                        Some(&resolved.integrity),
-                        false,
-                    ))
-                    .or_insert(archive);
-            }
+            self.share_archive(&tarball.tarball, integrity, &resolved.integrity);
             Ok::<_, ResolveError>(resolved.integrity)
         })
         .await

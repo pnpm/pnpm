@@ -13,7 +13,6 @@ use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
@@ -22,10 +21,9 @@ use pnpm_resolving_npm_resolver::{
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
-use pnpm_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
+use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
-    store_index_key,
 };
 use pnpm_tarball::SharedReportedProgressKeys;
 use std::{collections::HashMap, path::Path, sync::Arc};
@@ -119,53 +117,6 @@ pub(super) fn resolve_registries(
         named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
     })
-}
-
-/// Map every remote tarball the prior lockfile recorded (with an
-/// integrity) to its `<integrity>\t<pkg_id>` store-index key, keyed
-/// exactly as `snapshot_cache_key` / the install pass address the row,
-/// so the [`TarballResolver`] can reuse a warm store entry instead of
-/// re-downloading on re-resolution. Git-hosted tarballs are skipped
-/// (they key by `gitHostedStoreIndexKey`, not the integrity) and just
-/// re-fetch. Empty on a first install.
-///
-/// Keyed by `pkg_id` — the bare specifier — rather than
-/// `resolution.tarball`, because that is what the resolver looks a
-/// dependency up by. The two differ once an immutable response has
-/// redirected: the lockfile then records the post-redirect URL while the
-/// id stays the specifier the manifest asked for.
-///
-/// A lockfile whose integrities name another hash than `integrity_target`
-/// contributes nothing.
-pub(super) fn prior_tarball_entries(
-    wanted_lockfile: Option<&Lockfile>,
-    integrity_target: pnpm_lockfile::IntegrityTarget,
-) -> HashMap<String, PriorTarballEntry> {
-    wanted_lockfile
-        .filter(|lockfile| lockfile.integrity_target() == integrity_target)
-        .and_then(|lockfile| lockfile.packages.as_ref())
-        .map(|packages| {
-            packages
-                .iter()
-                .filter_map(|(key, metadata)| match &metadata.resolution {
-                    LockfileResolution::Tarball(tarball) if tarball.git_hosted != Some(true) => {
-                        let integrity = tarball.integrity.clone()?;
-                        let pkg_id = key.pkg_id();
-                        let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);
-                        Some((
-                            pkg_id,
-                            PriorTarballEntry {
-                                integrity,
-                                store_index_key,
-                                tarball_url: tarball.tarball.clone(),
-                            },
-                        ))
-                    }
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// Everything [`build_resolver_chain`] needs. Borrowed for the duration
@@ -549,3 +500,7 @@ async fn load_pnpmfile(
         }),
     })
 }
+
+mod prior_tarballs;
+
+use prior_tarballs::prior_tarball_entries;

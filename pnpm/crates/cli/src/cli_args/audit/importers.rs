@@ -64,10 +64,7 @@ pub(super) fn signature_packages(
     let env_lockfile = read_audit_env_lockfile(lockfile_dir)?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
     let env_lockfile = env_lockfile.as_ref();
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
+    let registries = resolved_registries(state);
     Ok(Some(
         audit_request.request
             .iter()
@@ -92,6 +89,13 @@ pub(super) fn signature_packages(
             })
             .collect(),
     ))
+}
+
+fn resolved_registries(state: &State) -> HashMap<String, String> {
+    state.config
+        .resolved_registries()
+        .into_iter()
+        .collect()
 }
 
 fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
