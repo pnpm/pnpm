@@ -87,10 +87,11 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     )?;
     // An absent target takes the staged tree in one rename, which also
     // settles which of several importers that found it absent owns it.
-    // Only an occupied target, which has to be inspected and removed
-    // first, needs the swap lock, so a fresh forced install never pays
-    // for one. A target that got occupied since the caller looked makes
-    // the rename fail, and the occupied-target path takes over.
+    // Only an occupied target, which has to be inspected and replaced,
+    // needs the swap lock, so a fresh forced install never pays for one.
+    // A target that got occupied since the caller looked makes the rename
+    // fail, and the occupied-target path takes over; `swap::replace_target`
+    // explains what a replacement in progress looks like from here.
     if target == SwapTarget::Absent && pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
         return Ok(());
     }

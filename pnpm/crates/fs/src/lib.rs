@@ -11,6 +11,7 @@ pub use copy_file_exclusive::{
 pub use cross_device::is_cross_device;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;
+pub use exchange_dirents::exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 pub use file_lock::{lock_file, try_lock_file};
 pub use internal_symlink::{relative_link_target, symlink_file_or_copy};
@@ -54,6 +55,7 @@ mod copy_file_exclusive;
 mod cross_device;
 mod dir_lock;
 mod ensure_file;
+mod exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 mod file_lock;
 mod internal_symlink;

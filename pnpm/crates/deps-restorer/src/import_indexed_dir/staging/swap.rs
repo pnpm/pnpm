@@ -15,40 +15,40 @@ const DIRECTORY_SWAP_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 /// Put the staged tree at `dir_path` in place of what is there.
 ///
-/// The occupied target is moved aside by a rename rather than removed,
-/// so the path is never absent while it is being replaced: an importer
-/// that finds the target absent can rename its own stage in without the
-/// swap lock, and that must mean nothing was there yet. The displaced
-/// tree is removed once the staged one is in place.
+/// Where the platform exchanges two dirents atomically, the target path
+/// is never absent and never names a partial tree. Elsewhere the occupied
+/// target is moved aside by a rename and the stage renamed in, which
+/// leaves the path absent between the two renames. An importer that found
+/// the target absent renames its own stage in without the swap lock, and
+/// that rename fails against a tree that landed in the meantime, so a
+/// vacancy of two renames only matters to an importer that checked the
+/// target during it and staged its whole package before the second rename.
+/// The displaced tree is removed once the staged one is in place.
 pub(super) fn replace_target(
     paths: &StagePaths,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     preserved_modules: &PreservedModules,
 ) -> Result<(), ImportIndexedDirError> {
-    let displaced = match move_target_aside(dir_path) {
-        Ok(displaced) => displaced,
-        // A tree that cannot be renamed, as Windows refuses while a
-        // process runs from it, is removed in place instead.
-        Err(_) => match remove_target_for_swap(
-            dir_path,
-            cas_paths,
-            !preserved_modules.has_moved_data(),
-            paths.keep_modules_dir,
-        ) {
-            Ok(true) => {
-                finish_concurrent_import(paths, preserved_modules);
-                return Ok(());
-            }
-            Ok(false) => None,
-            Err(error) => {
-                paths.cleanup_after_failure(preserved_modules);
-                return Err(ImportIndexedDirError::RemoveExisting {
-                    path: dir_path.to_path_buf(),
-                    error,
-                });
-            }
-        },
+    if pnpm_fs::exchange_dirents(&paths.stage, dir_path).is_ok() {
+        discard_replaced_modules(preserved_modules);
+        discard_displaced_target(&paths.stage);
+        return Ok(());
+    }
+    let displaced = match displace_target(paths, dir_path, cas_paths, preserved_modules) {
+        Ok(Displaced::Equivalent) => {
+            finish_concurrent_import(paths, preserved_modules);
+            return Ok(());
+        }
+        Ok(Displaced::Aside(aside)) => Some(aside),
+        Ok(Displaced::Gone) => None,
+        Err(error) => {
+            paths.cleanup_after_failure(preserved_modules);
+            return Err(ImportIndexedDirError::RemoveExisting {
+                path: dir_path.to_path_buf(),
+                error,
+            });
+        }
     };
     if let Err(error) = swap_staged_dir(paths, dir_path, cas_paths, preserved_modules) {
         if let Some(displaced) = &displaced {
@@ -67,15 +67,38 @@ pub(super) fn replace_target(
     Ok(())
 }
 
-/// Rename the occupied target to a sibling path. `None` when nothing is
-/// at `dir_path`.
-fn move_target_aside(dir_path: &Path) -> Result<Option<PathBuf>, io::Error> {
+/// Where the occupied target went to make room for the staged tree.
+enum Displaced {
+    /// Renamed to this sibling path.
+    Aside(PathBuf),
+    /// Removed, or never there.
+    Gone,
+    /// Kept: a concurrent import completed an equivalent tree that could
+    /// not be removed from under it.
+    Equivalent,
+}
+
+fn displace_target(
+    paths: &StagePaths,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    preserved_modules: &PreservedModules,
+) -> Result<Displaced, io::Error> {
     let aside = pick_stage_path(dir_path);
     match pnpm_fs::rename_with_retry(dir_path, &aside) {
-        Ok(()) => Ok(Some(aside)),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error),
+        Ok(()) => return Ok(Displaced::Aside(aside)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Displaced::Gone),
+        // Windows refuses to rename a directory a process runs from; such
+        // a tree is removed in place instead.
+        Err(_) => {}
     }
+    let accepted = remove_target_for_swap(
+        dir_path,
+        cas_paths,
+        !preserved_modules.has_moved_data(),
+        paths.keep_modules_dir,
+    )?;
+    Ok(if accepted { Displaced::Equivalent } else { Displaced::Gone })
 }
 
 /// Put the displaced target back after a failed swap, if the path is

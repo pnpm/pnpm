@@ -51,7 +51,12 @@ test('a concurrent importer repairs a partial shared virtual-store slot before m
   }
 }, 30_000)
 
-test('concurrent forced imports into one target all complete and leave the package in place', async () => {
+// On Windows a rename onto an occupied directory fails with EPERM, which
+// rename-overwrite answers by removing the target and retrying for up to a
+// minute, so contending processes take longer than the test allows.
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('concurrent forced imports into one target all complete and leave the package in place', async () => {
   const tmp = tempDir()
   const srcDir = path.join(tmp, 'src')
   const newDir = path.join(tmp, 'pkg')
