@@ -61,14 +61,20 @@ async function startInjectedEditWatch (opts: {
   lifecycleOpts: RunLifecycleHookOptions
   runScriptOptions: RunScriptOptions
 }): Promise<InjectedEditWatch | undefined> {
-  const located = await injectedEditDirs({
+  const sources = await injectedEditDirs({
     pkgName: opts.manifest.name,
     pkgRootDir: opts.lifecycleOpts.pkgRoot,
     workspaceDir: opts.runScriptOptions.workspaceDir,
+    manifestBeforeScripts: opts.manifest as DependencyManifest,
     sharedWorkspaceLockfile: opts.runScriptOptions.sharedWorkspaceLockfile,
   })
-  if (located == null) return undefined
-  return watchInjectedEdits(located.sourceDir, located.targetDirs, !opts.runScriptOptions.deployAllFiles)
+  if (sources.length === 0) return undefined
+  const watches = sources.map(({ sourceDir, targetDirs }) => watchInjectedEdits(sourceDir, targetDirs, !opts.runScriptOptions.deployAllFiles))
+  return {
+    stop: async () => {
+      await Promise.all(watches.map(async (watch) => watch.stop()))
+    },
+  }
 }
 
 export function getRunScriptCommands (

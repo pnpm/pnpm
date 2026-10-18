@@ -52,10 +52,11 @@ export interface SyncInjectedDepsOptions {
 
 type ModulesManifest = NonNullable<Awaited<ReturnType<typeof readModulesManifest>>>
 
-/** The copies of a package that one `.modules.yaml` lists, resolved against its lockfile directory. */
+/** The copies of one source directory that one `.modules.yaml` lists, resolved against its lockfile directory. */
 interface InjectedTargets {
   lockfileDir: string
   modules: ModulesManifest
+  sourceDir: string
   targetDirs: string[]
 }
 
@@ -64,15 +65,16 @@ export interface InjectedEditWatch {
 }
 
 /**
- * The source directory and injected copies a running script should publish.
- * `undefined` when the package has no name, no workspace, or no injected copies,
- * or when the modules manifest cannot be read. The sync after the script
- * reports that error, so it does not stop the script from starting.
+ * The source directories and injected copies a running script should publish,
+ * the same ones `syncInjectedDeps` patches. Empty when the package has no name,
+ * no workspace, or no injected copies, or when the modules manifest cannot be
+ * read. The sync after the script reports that error, so it does not stop the
+ * script from starting.
  */
 export async function injectedEditDirs (
   opts: SyncInjectedDepsOptions
-): Promise<{ sourceDir: string, targetDirs: string[] } | undefined> {
-  if (!opts.pkgName || opts.workspaceDir == null) return undefined
+): Promise<Array<{ sourceDir: string, targetDirs: string[] }>> {
+  if (!opts.pkgName || opts.workspaceDir == null) return []
   let located: Awaited<ReturnType<typeof readInjectedTargets>>
   try {
     located = await readInjectedTargets({ ...opts, workspaceDir: opts.workspaceDir })
@@ -81,10 +83,13 @@ export async function injectedEditDirs (
       err,
       message: `Not publishing injected dependencies of ${opts.pkgRootDir} while its script is running`,
     })
-    return undefined
+    return []
   }
-  if (located == null || located.targets.length === 0) return undefined
-  return { sourceDir: located.pkgRootDir, targetDirs: located.targets.flatMap(({ targetDirs }) => targetDirs) }
+  const targetDirsBySource = new Map<string, string[]>()
+  for (const { sourceDir, targetDirs } of located?.targets ?? []) {
+    targetDirsBySource.set(sourceDir, [...targetDirsBySource.get(sourceDir) ?? [], ...targetDirs])
+  }
+  return Array.from(targetDirsBySource, ([sourceDir, targetDirs]) => ({ sourceDir, targetDirs }))
 }
 
 /**
@@ -121,6 +126,9 @@ async function publishToTargets (
   { sourceDir, targetDirs, includeOnlyPackageFiles }: { sourceDir: string, targetDirs: string[], includeOnlyPackageFiles?: boolean },
   editedSinceMs: number
 ): Promise<void> {
+  // A publish directory the script has not built yet reads back empty, which
+  // would empty the injected copies.
+  if (!await dirExists(sourceDir)) return
   let source: PublishSource
   try {
     source = await readPublishSource(sourceDir, includeOnlyPackageFiles)
@@ -147,13 +155,18 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   const located = await locateInjectedTargets(opts)
   if (located == null) return
 
-  const { pkgRootDir, targets } = located
-  const patchers = await DirPatcher.fromMultipleTargets(pkgRootDir, targets.flatMap(({ targetDirs }) => targetDirs), opts.includeOnlyPackageFiles)
-  await Promise.all(patchers.map(patcher => patcher.apply()))
-
-  for (const injectedTargets of targets) {
-    await syncInjectedBinLinks(opts, pkgRootDir, injectedTargets) // eslint-disable-line no-await-in-loop -- each relinks every project's bins
+  for (const injectedTargets of located.targets) {
+    await syncTargets(opts, located.pkgRootDir, injectedTargets) // eslint-disable-line no-await-in-loop -- each relinks every project's bins
   }
+}
+
+async function syncTargets (opts: SyncInjectedDepsOptions, pkgRootDir: string, injectedTargets: InjectedTargets): Promise<void> {
+  // A publish directory the script did not build leaves the copies alone
+  // rather than emptying them.
+  if (!await dirExists(injectedTargets.sourceDir)) return
+  const patchers = await DirPatcher.fromMultipleTargets(injectedTargets.sourceDir, injectedTargets.targetDirs, opts.includeOnlyPackageFiles)
+  await Promise.all(patchers.map(patcher => patcher.apply()))
+  await syncInjectedBinLinks(opts, pkgRootDir, injectedTargets)
 }
 
 async function locateInjectedTargets (opts: SyncInjectedDepsOptions): Promise<{
@@ -188,7 +201,7 @@ async function locateInjectedTargets (opts: SyncInjectedDepsOptions): Promise<{
 async function syncInjectedBinLinks (
   opts: SyncInjectedDepsOptions,
   pkgRootDir: string,
-  { lockfileDir, modules, targetDirs: resolvedTargetDirs }: InjectedTargets
+  { lockfileDir, modules, sourceDir, targetDirs: resolvedTargetDirs }: InjectedTargets
 ): Promise<void> {
   const hoistedBinDir = modules.virtualStoreDir == null
     ? undefined
@@ -199,7 +212,7 @@ async function syncInjectedBinLinks (
 
   await syncBinLinks({
     hoistedBinDir,
-    pkgRootDir,
+    pkgRootDir: sourceDir,
     previousBinNames,
     resolvedTargetDirs,
     workspaceDir: opts.workspaceDir!,
@@ -249,31 +262,54 @@ async function dirExists (dir: string): Promise<boolean> {
 }
 
 /**
- * The copies of `opts.pkgRootDir` that the modules manifests list. `undefined`
- * when no manifest lists any injected dependency.
+ * The copies that the modules manifests list of `opts.pkgRootDir` and of the
+ * `publishConfig.directory` the install injects in its place. A `file:`
+ * dependency on the project bypasses the publish directory, so both are
+ * looked up. `undefined` when no manifest lists any injected dependency.
  */
 async function readInjectedTargets (opts: SyncInjectedDepsOptions & { workspaceDir: string }): Promise<{
   pkgRootDir: string
   targets: InjectedTargets[]
 } | undefined> {
   const pkgRootDir = path.resolve(opts.workspaceDir, opts.pkgRootDir)
+  const manifests = await readModulesManifests(opts)
+  if (manifests.every(({ modules }) => modules?.injectedDeps == null)) return undefined
+  const publishDir = await readPublishDir(pkgRootDir, opts.manifestBeforeScripts)
+  const sourceDirs = publishDir === pkgRootDir ? [pkgRootDir] : [publishDir, pkgRootDir]
+  const targets: InjectedTargets[] = []
+  for (const sourceDir of sourceDirs) {
+    for (const { lockfileDir, modules } of manifests) {
+      const targetDirs = modules?.injectedDeps?.[normalizePath(path.relative(lockfileDir, sourceDir), true)]
+      if (modules == null || targetDirs == null || targetDirs.length === 0) continue
+      targets.push({ lockfileDir, modules, sourceDir, targetDirs: targetDirs.map(targetDir => path.resolve(lockfileDir, targetDir)) })
+    }
+  }
+  return { pkgRootDir, targets }
+}
+
+/** The modules manifests that list injected copies. See `SyncInjectedDepsOptions.sharedWorkspaceLockfile`. */
+async function readModulesManifests (opts: SyncInjectedDepsOptions & { workspaceDir: string }): Promise<Array<{
+  lockfileDir: string
+  modules: Awaited<ReturnType<typeof readModulesManifest>>
+}>> {
   const lockfileDirs = [opts.workspaceDir]
   if (opts.sharedWorkspaceLockfile === false) {
     const projects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {})
     lockfileDirs.push(...projects.map(({ rootDir }) => rootDir).filter((rootDir) => path.resolve(rootDir) !== path.resolve(opts.workspaceDir)))
   }
-  const manifests = await Promise.all(lockfileDirs.map(async (lockfileDir) => ({
+  return Promise.all(lockfileDirs.map(async (lockfileDir) => ({
     lockfileDir,
     modules: await readModulesManifest(path.join(lockfileDir, 'node_modules')),
   })))
-  if (manifests.every(({ modules }) => modules?.injectedDeps == null)) return undefined
-  const targets: InjectedTargets[] = []
-  for (const { lockfileDir, modules } of manifests) {
-    const targetDirs = modules?.injectedDeps?.[normalizePath(path.relative(lockfileDir, pkgRootDir), true)]
-    if (modules == null || targetDirs == null || targetDirs.length === 0) continue
-    targets.push({ lockfileDir, modules, targetDirs: targetDirs.map(targetDir => path.resolve(lockfileDir, targetDir)) })
-  }
-  return { pkgRootDir, targets }
+}
+
+/** The directory the install injects in place of the project at `pkgRootDir`. */
+async function readPublishDir (pkgRootDir: string, manifestBeforeScripts: DependencyManifest | undefined): Promise<string> {
+  const manifest = manifestBeforeScripts ?? await safeReadPackageJsonFromDir(pkgRootDir) as ProjectManifest | undefined
+  const publishConfig = manifest?.publishConfig
+  return publishConfig?.directory != null && publishConfig.linkDirectory !== false
+    ? path.join(pkgRootDir, publishConfig.directory)
+    : pkgRootDir
 }
 
 /** The commands a package declares, or none when it declares no bins. */
