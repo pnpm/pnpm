@@ -226,6 +226,17 @@ pub async fn download_computing_sha512(
     Ok((sealed, computed))
 }
 
+/// Download an upstream response into `write` without hashing it, and return
+/// the byte count. The caller checks the bytes with [`BlobWrite::check`]
+/// before it promotes or serves them.
+pub async fn download_unverified(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
+    max_bytes: u64,
+) -> Result<u64, BlobStreamError> {
+    download(response, write, max_bytes, |_| {}).await
+}
+
 async fn download_verified(
     response: ThrottledResponse,
     write: &mut BlobWrite,

@@ -1,29 +1,10 @@
 use super::{
     AuthState, Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt,
-    StatusCode, TempDir, body_bytes, body_json, config_for, enable_osv, header,
-    hosted_publish_request, hosted_with_access, osv_database, router, router_with_auth,
-    sha512_integrity,
+    StatusCode, TempDir, body_bytes, body_json, config_for, enable_osv, gzip, header,
+    hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, osv_database,
+    router, router_with_auth, sha512_integrity, tar_of,
 };
 use crate::tokens::issue_token;
-use std::io::Write;
-
-fn tar_of(files: &[(&str, &[u8])]) -> Vec<u8> {
-    let mut builder = tar::Builder::new(Vec::new());
-    for (path, body) in files {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(body.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder.append_data(&mut header, path, *body).unwrap();
-    }
-    builder.into_inner().unwrap()
-}
-
-fn gzip(bytes: &[u8]) -> Vec<u8> {
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(bytes).unwrap();
-    encoder.finish().unwrap()
-}
 
 fn widget_tar() -> Vec<u8> {
     tar_of(&[("package/package.json", br#"{"name":"@acme/widget","version":"1.0.0"}"#)])
@@ -448,48 +429,47 @@ async fn completes_over_http(app: &axum::Router, path: &str, accept: Option<&str
 }
 
 #[tokio::test]
-async fn a_tar_registry_serves_no_integrity_addressed_tgz() {
-    let tmp = TempDir::new().unwrap();
-    let app = router(acme_config(tmp.path().to_path_buf()));
-    let digest = "a".repeat(86);
-    let response = get(&app, &format!("/npm/~zstd/-/tarballs/sha512/{digest}"), None).await;
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn publishing_without_a_tar_registry_derives_no_tar_hash() {
+async fn every_registry_serves_a_published_tar_by_its_digest() {
     let tmp = TempDir::new().unwrap();
     let mut config = acme_config(tmp.path().to_path_buf());
+    // The tar is derived at publish even with no tar registry configured.
     config.routing.tar_registries.clear();
-    assert_publish_derives_no_tar_hash(config, tmp.path()).await;
-}
-
-#[tokio::test]
-async fn publishing_to_a_registry_no_tar_registry_reaches_derives_no_tar_hash() {
-    let tmp = TempDir::new().unwrap();
-    let mut config = acme_config(tmp.path().to_path_buf());
-    config.routing.tar_registries.clear();
-    config.routing.tar_registries.insert("npmjs".to_string());
-    assert_publish_derives_no_tar_hash(config, tmp.path()).await;
-}
-
-async fn assert_publish_derives_no_tar_hash(config: Config, storage: &std::path::Path) {
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(config, auth);
-    let publish = app
-        .clone()
+    let tar = widget_tar();
+    let tgz = gzip(&tar);
+    let publish = router_with_auth(config.clone(), auth.clone())
         .oneshot(hosted_publish_request(
             "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
-            &gzip(&widget_tar()),
+            &tgz,
             &token,
         ))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
-    assert!(!storage.join(".tar-integrity").exists(), "no tar registry serves a tar hash");
+    assert!(
+        tmp.path()
+            .join(".tar-integrity")
+            .exists(),
+        "publish records the tar binding",
+    );
+
+    config.routing.tar_registries.insert("zstd".to_string());
+    let app = router_with_auth(config, auth);
+    let tar_integrity = sha512_integrity(&tar).parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&tar_integrity).unwrap();
+    let tgz_integrity = sha512_integrity(&tgz).parse().unwrap();
+    let tgz_path = integrity_addressed_tarball_path(&tgz_integrity).unwrap();
+    for registry in ["main", "zstd"] {
+        let response = get(&app, &format!("/npm/~{registry}/{revision_path}"), None).await;
+        assert_eq!(response.status(), StatusCode::OK, "{registry}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/x-tar");
+        assert_eq!(body_bytes(response.into_body()).await, tar, "{registry}");
+        let by_tgz = get(&app, &format!("/npm/~{registry}/{tgz_path}"), None).await;
+        assert_eq!(by_tgz.status(), StatusCode::NOT_FOUND, "the .tgz digest names no revision");
+    }
 }
 
 /// A version that only carries the legacy SHA-1 `shasum` still gets a tar.

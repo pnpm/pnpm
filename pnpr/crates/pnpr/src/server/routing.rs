@@ -4,7 +4,7 @@ pub(super) use super::{
     authorize_package, batch, caller_scoped, cargo, check_publish_tombstone, delete_package,
     delete_tarball, get_dist_tags, get_org_teams, get_team_members,
     health::{serve_live, serve_ping, serve_ready},
-    hosted_storage, is_tar_registry, not_found, oci, pnpr_protocols_disabled, private_no_cache,
+    hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache,
     publish_package, pypi, remove_dist_tag, resolve_write_target, serve_batch_publish,
     serve_metrics, serve_org_packages, serve_package_tarball, serve_packument,
     serve_pnpr_handshake, serve_revision_tarball, serve_search, serve_tarball,

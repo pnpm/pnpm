@@ -21,5 +21,7 @@ fn drops_invalid_upstream_revision_history_entries() {
 
     rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
 
-    assert_eq!(doc["dist"]["revisions"], json!([]));
+    dbg!(&doc["dist"]);
+    assert!(doc["dist"].get("revision").is_none());
+    assert!(doc["dist"].get("revisions").is_none());
 }

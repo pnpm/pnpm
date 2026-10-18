@@ -262,6 +262,33 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
 }
 
+fn tar_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, body) in files {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, path, *body).unwrap();
+    }
+    builder.into_inner().unwrap()
+}
+
+fn gzip(bytes: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(bytes).unwrap();
+    encoder.finish().unwrap()
+}
+
+/// A package tar holding `package/package.json` with `contents`, and its
+/// `.tgz`.
+fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
+    let tar = tar_of(&[("package/package.json", contents.as_bytes())]);
+    let tgz = gzip(&tar);
+    (tar, tgz)
+}
+
 fn sha512_integrity(bytes: &[u8]) -> String {
     let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
     opts.input(bytes);

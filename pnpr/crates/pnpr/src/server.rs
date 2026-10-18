@@ -49,7 +49,7 @@ use tar_registry::{
 mod tar_responses;
 use tar_responses::{
     CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
-    tar_response,
+    tar_resource_integrity, tar_response,
 };
 
 mod version_tarballs;
@@ -61,8 +61,8 @@ use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 mod package_responses;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
-    packument_response, revision_tarball_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package,
+    packument_response, tarball_integrity_error, tarball_response, tarball_stream_error,
+    tarball_stream_error_for_package,
 };
 
 mod package_reads;
@@ -80,7 +80,7 @@ use revision_refs::{
 
 mod revision_tarballs;
 use revision_tarballs::{
-    declared_tarball_integrity, hosted_original_is_current, open_hosted_revision_tarball,
+    HostedOriginal, declared_tarball_integrity, hosted_original, open_hosted_revision_tarball,
     serve_revision_tarball,
 };
 
@@ -181,7 +181,6 @@ use axum::{
 use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
-use pnpm_lockfile::TarballRevision;
 use pnpr_auth::{AuthState, UpsertOutcome, identify};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;

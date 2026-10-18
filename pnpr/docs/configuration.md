@@ -311,7 +311,7 @@ A router also takes [`tarballs`](#tar-registries).
 
 ### Tar registries
 
-A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
+A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A version with [registry revisions](/registry-revisions) keeps its `dist.tarball` on the digest route, its `dist.revision`, and its `dist.revisions` history, because a revision is always addressed by the digest of its tar. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
 
 To offer tars next to `.tgz` files, add a router over the same sources:
 

@@ -82,11 +82,16 @@ pub(super) fn rewrite_dist_tarball(
         unique_revision_url(dist, source_registry, public_url)
     });
     if let Some(revision_url) = revision_url {
-        let Some(tarball_value) = dist.get_mut("tarball") else { return };
-        *tarball_value = Value::String(revision_url);
+        dist.insert("tarball".to_string(), Value::String(revision_url));
+        // They sign or hash a source `.tgz`, not the revision's tar.
+        for source_field in ["shasum", "signatures", "npm-signature"] {
+            dist.remove(source_field);
+        }
         return;
     }
+    // Without a validated selection, the version is ordinary metadata.
     dist.remove("revision");
+    dist.remove("revisions");
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
     if !tarball_value.is_string() {
         return;
@@ -117,7 +122,8 @@ fn rewrite_dist_attestations(
 }
 
 /// The integrity-addressed tarball route on this server for the packument's
-/// pinned revision, when exactly one listed revision matches it.
+/// selected revision, when the history lists revision 0 once and exactly one
+/// revision matches the selection.
 pub(super) fn unique_revision_url(
     dist: &serde_json::Map<String, Value>,
     source_registry: &str,
@@ -135,9 +141,15 @@ pub(super) fn unique_revision_url(
         return None;
     }
     let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
-    let matches = dist
-        .get("revisions")?
-        .as_array()?
+    let history = dist.get("revisions")?.as_array()?;
+    let originals = history
+        .iter()
+        .filter(|entry| entry.get("revision").and_then(Value::as_u64) == Some(0))
+        .count();
+    if originals != 1 {
+        return None;
+    }
+    let matches = history
         .iter()
         .filter(|entry| {
             entry.get("revision").and_then(Value::as_u64) == Some(revision)

@@ -2,8 +2,7 @@ use super::{
     ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
     declared_tarball_integrity, describe_tars, filter_osv_vulnerable_versions, header,
-    private_no_cache, rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming,
-    tarball_basename,
+    rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -151,16 +150,14 @@ pub(super) fn packument_response(
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    match view {
-        DistView::Tgz {
-            revision_registry: Some(source_registry),
-        } => {
+    match view.revision_registry {
+        Some(source_registry) => {
             rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
         }
-        DistView::Tgz { revision_registry: None } => {
-            rewrite_tarball_urls(&mut doc, name, tarball_base);
-        }
-        DistView::Tar(table) => describe_tars(&mut doc, table),
+        None => rewrite_tarball_urls(&mut doc, name, tarball_base),
+    }
+    if let Some(table) = view.tar_integrities {
+        describe_tars(&mut doc, table);
     }
     let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {
@@ -319,31 +316,4 @@ pub(super) fn tarball_response(body: Body, content_length: Option<u64>) -> Respo
         builder = builder.header(header::CONTENT_LENGTH, len);
     }
     builder.body(body).expect("static-shape response always builds")
-}
-
-pub(super) fn revision_tarball_response(
-    body: Body,
-    content_length: Option<u64>,
-    digest: &str,
-    integrity: &Integrity,
-) -> Response {
-    let mut response = tarball_response(body, content_length);
-    let headers = response.headers_mut();
-    headers.insert(
-        header::CACHE_CONTROL,
-        "public, max-age=31536000, immutable".parse().expect("static cache control is valid"),
-    );
-    headers.insert(
-        header::ETAG,
-        format!(r#""{digest}""#).parse().expect("canonical base64url digest is a valid ETag"),
-    );
-    if let [hash] = integrity.hashes.as_slice() {
-        headers.insert(
-            "content-digest",
-            format!("sha-512=:{}:", hash.digest)
-                .parse()
-                .expect("canonical base64 digest is a valid header value"),
-        );
-    }
-    private_no_cache(response)
 }

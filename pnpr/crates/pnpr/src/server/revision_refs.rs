@@ -1,21 +1,22 @@
 use super::{
-    AppState, CanonicalPackageName, Ecosystem, HostedGate, HostedOriginalRef, Identity, Integrity,
-    Registry, RegistryError, RegistrySource, Response, StatusCode, Storage, ensure_osv_allowed,
-    hosted_gate, hosted_original_is_current, not_found, open_hosted_revision_tarball,
-    private_no_cache, resolve_registry_source,
+    AppState, CanonicalPackageName, Ecosystem, HeaderMap, HostedGate, HostedOriginal,
+    HostedOriginalRef, Identity, Registry, RegistryError, RegistrySource, Response, StatusCode,
+    Storage, ensure_osv_allowed, hosted_gate, hosted_original, not_found,
+    open_hosted_revision_tarball, private_no_cache, resolve_registry_source,
 };
 use axum::response::IntoResponse;
 
 /// Try the references the anonymous caller could not read, only after every
 /// public one has been tried.
 pub(super) async fn serve_private_revision_refs(
+    state: &AppState,
+    headers: &HeaderMap,
     scan: RevisionScan,
-    digest: &str,
-    integrity: &Integrity,
 ) -> Response {
-    for (storage, package, version) in scan.private_refs {
+    for (storage, package, version, original) in scan.private_refs {
         let response =
-            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
+            open_hosted_revision_tarball(state, headers, &storage, &package, &version, original)
+                .await;
         if response.status() != StatusCode::NOT_FOUND {
             return response;
         }
@@ -32,7 +33,7 @@ pub(super) struct RevisionScan {
     /// References the anonymous caller cannot read, tried only after every
     /// public one, so a public hit answers without disclosing a private
     /// registry's contents through timing.
-    pub(super) private_refs: Vec<(Storage, CanonicalPackageName, String)>,
+    pub(super) private_refs: Vec<(Storage, CanonicalPackageName, String, HostedOriginal)>,
     /// A refusal to hold back until no reference can serve the digest.
     pub(super) policy_error: Option<RegistryError>,
 }
@@ -42,8 +43,9 @@ pub(super) struct RevisionSource<'a> {
     pub(super) registry: &'a str,
     pub(super) source: &'a str,
     pub(super) storage: &'a Storage,
+    /// The request's headers, which choose the tar's content coding.
+    pub(super) headers: &'a HeaderMap,
     pub(super) digest: &'a str,
-    pub(super) integrity: &'a Integrity,
 }
 
 /// Try every reference one source holds.
@@ -59,9 +61,9 @@ pub(super) async fn serve_revision_refs(
             registry: source.registry,
             source: source.source,
             storage: source.storage,
+            headers: source.headers,
             original,
             digest: source.digest,
-            integrity: source.integrity,
         };
         if let Some(response) = serve_revision_ref(state, identity, reference, scan).await {
             return Some(response);
@@ -76,9 +78,9 @@ pub(super) struct RevisionRef<'a> {
     pub(super) registry: &'a str,
     pub(super) source: &'a str,
     pub(super) storage: &'a Storage,
+    pub(super) headers: &'a HeaderMap,
     pub(super) original: HostedOriginalRef,
     pub(super) digest: &'a str,
-    pub(super) integrity: &'a Integrity,
 }
 
 /// Try one reference. `Some` is the response to send; `None` means the scan
@@ -93,9 +95,9 @@ pub(super) async fn serve_revision_ref(
         registry,
         source,
         storage,
+        headers,
         original,
         digest,
-        integrity,
     } = reference;
     let package =
         match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
@@ -109,21 +111,22 @@ pub(super) async fn serve_revision_ref(
     if !readable_here(state, identity, Routed { registry, source }, &package) {
         return None;
     }
-    match hosted_original_is_current(storage, &package, &original.version, digest).await {
-        Ok(true) => {}
-        Ok(false) => return None,
+    let tgz = match hosted_original(storage, &package, &original.version, digest).await {
+        Ok(Some(tgz)) => tgz,
+        Ok(None) => return None,
         Err(err) => return Some(private_no_cache(err.into_response())),
-    }
+    };
     if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
         scan.policy_error.get_or_insert(err);
         return None;
     }
     if !readable_here(state, &Identity::Anonymous, Routed { registry, source }, &package) {
-        scan.private_refs.push((storage.clone(), package, original.version));
+        scan.private_refs.push((storage.clone(), package, original.version, tgz));
         return None;
     }
     let response =
-        open_hosted_revision_tarball(storage, &package, &original.version, digest, integrity).await;
+        open_hosted_revision_tarball(state, headers, storage, &package, &original.version, tgz)
+            .await;
     (response.status() != StatusCode::NOT_FOUND).then_some(response)
 }
 
