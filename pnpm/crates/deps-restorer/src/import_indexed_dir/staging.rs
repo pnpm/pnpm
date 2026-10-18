@@ -87,14 +87,19 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     if target == SwapTarget::Absent && pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
         return Ok(());
     }
-    let _target_lock = lock::target_swap_lock(dir_path);
-    let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
-    if let Some(leftover) = swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)? {
+    let displaced = {
+        let _target_lock = lock::target_swap_lock(dir_path);
+        let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
+        swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)?
+    };
+    if let Some(displaced) = displaced
+        && let Err(error) = pnpm_fs::remove_dirent(&displaced)
+    {
         pnpm_reporter::emit_global_warning::<Reporter>(&format!(
             r#"The previous contents of "{}" could not be removed and were left at "{}": {}. Remove that directory manually."#,
             pnpm_text_sanitize::sanitize_inline(&dir_path.to_string_lossy()),
-            pnpm_text_sanitize::sanitize_inline(&leftover.path.to_string_lossy()),
-            leftover.error,
+            pnpm_text_sanitize::sanitize_inline(&displaced.to_string_lossy()),
+            error,
         ));
     }
     Ok(())

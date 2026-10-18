@@ -151,6 +151,7 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
         }
     }
 
+    WARNINGS.lock().unwrap().clear();
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();

@@ -17,11 +17,15 @@ fn exchange(first: &Path, second: &Path) -> io::Result<()> {
 
     let first = CString::new(first.as_os_str().as_bytes())?;
     let second = CString::new(second.as_os_str().as_bytes())?;
-    // SAFETY: both pointers come from `CString`s that outlive the call, and
-    // the flag is the one documented for an atomic exchange.
+    // The raw syscall rather than the `renameat2` wrapper, which not every
+    // C library this is built against exports.
+    // SAFETY: both pointers come from `CString`s that outlive the call, the
+    // syscall takes exactly these five arguments, and the flag is the one
+    // documented for an atomic exchange.
     #[cfg(any(target_os = "linux", target_os = "android"))]
     let result = unsafe {
-        libc::renameat2(
+        libc::syscall(
+            libc::SYS_renameat2,
             libc::AT_FDCWD,
             first.as_ptr(),
             libc::AT_FDCWD,

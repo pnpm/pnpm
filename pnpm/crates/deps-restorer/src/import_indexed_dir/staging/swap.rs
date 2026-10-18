@@ -13,13 +13,6 @@ use std::{
 const DIRECTORY_SWAP_RETRY_BUDGET: Duration = Duration::from_secs(30);
 const DIRECTORY_SWAP_RETRY_DELAY: Duration = Duration::from_millis(10);
 
-/// A displaced tree that could not be removed after the swap, left next
-/// to the target for the user to remove.
-pub(super) struct LeftoverTree {
-    pub(super) path: PathBuf,
-    pub(super) error: io::Error,
-}
-
 /// Put the staged tree at `dir_path` in place of what is there.
 ///
 /// Where the platform exchanges two dirents atomically, the target path
@@ -30,17 +23,21 @@ pub(super) struct LeftoverTree {
 /// that rename fails against a tree that landed in the meantime, so the
 /// vacancy is open only to an importer that checked the target during it,
 /// or that stalled with its stage ready until it. Such an importer's tree
-/// is equivalent and is replaced or kept by the swap that follows. The
-/// displaced tree is removed once the staged one is in place.
+/// is equivalent and is replaced or kept by the swap that follows.
+///
+/// Returns the path the displaced tree now sits at, for the caller to
+/// remove once the swap lock is released: the removal touches only that
+/// private sibling path, and a swap waiting for the lock need not wait
+/// for it.
 pub(super) fn replace_target(
     paths: &StagePaths,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     preserved_modules: &PreservedModules,
-) -> Result<Option<LeftoverTree>, ImportIndexedDirError> {
+) -> Result<Option<PathBuf>, ImportIndexedDirError> {
     if pnpm_fs::exchange_dirents(&paths.stage, dir_path).is_ok() {
         discard_replaced_modules(preserved_modules);
-        return Ok(discard_displaced_target(paths.stage.clone()));
+        return Ok(Some(paths.stage.clone()));
     }
     let displaced = match displace_target(paths, dir_path, cas_paths, preserved_modules) {
         Ok(Displaced::Equivalent) => {
@@ -68,7 +65,7 @@ pub(super) fn replace_target(
             error,
         });
     }
-    Ok(displaced.and_then(discard_displaced_target))
+    Ok(displaced)
 }
 
 /// Where the occupied target went to make room for the staged tree.
@@ -118,12 +115,6 @@ fn restore_displaced_target(displaced: &Path, dir_path: &Path) {
             "failed to move the replaced package directory back after a failed stage-and-swap",
         );
     }
-}
-
-fn discard_displaced_target(displaced: PathBuf) -> Option<LeftoverTree> {
-    pnpm_fs::remove_dirent(&displaced)
-        .err()
-        .map(|error| LeftoverTree { path: displaced, error })
 }
 
 fn swap_staged_dir(
