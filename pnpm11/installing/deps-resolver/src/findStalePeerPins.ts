@@ -119,7 +119,7 @@ export function releaseStalePeerPins (
     if (opts.preferredVersions[alias] == null) continue
     const selectors = Object.assign(Object.create(null), opts.preferredVersions[alias])
     const namedVersions = [...opts.directSpecsByName.get(alias) ?? []]
-      .map((spec) => semver.valid(spec))
+      .map((spec) => semver.clean(spec))
       .filter((version) => version != null)
     for (const version of [pinnedVersion, ...namedVersions]) {
       removeLockfileWeight(selectors, version)

@@ -90,7 +90,7 @@ fn collect_direct_specs(
             continue;
         };
         for (alias, spec, ..) in wanted {
-            if let Ok(version) = spec.parse::<Version>() {
+            if let Ok(version) = exact_version(&spec) {
                 direct_specs.versions
                     .entry(alias.clone())
                     .or_default()
@@ -105,6 +105,15 @@ fn collect_direct_specs(
         }
     }
     direct_specs
+}
+
+/// The version an exact specifier such as `1.0.0`, `v1.0.0` or `=1.0.0`
+/// names, spelled the way the lockfile weights it.
+fn exact_version(spec: &str) -> Result<Version, node_semver::SemverError> {
+    spec.trim()
+        .trim_start_matches('=')
+        .trim_start()
+        .parse()
 }
 
 fn declares_peers(importer: &WorkspaceImporter<'_>) -> bool {
@@ -197,3 +206,6 @@ fn remove_lockfile_weight(selectors: &mut VersionSelectors, version: &str) {
         selectors.remove(version);
     }
 }
+
+#[cfg(test)]
+mod tests;
