@@ -224,6 +224,105 @@ async fn a_cold_version_request_gets_its_own_tarball() {
     assert_eq!(body_bytes(response.into_body()).await, requested);
 }
 
+/// The version manifest of one version is a fraction of the packument, so a
+/// cold request reads it instead. A tar registry keeps the dist it read.
+#[tokio::test]
+async fn a_cold_version_request_reads_only_its_version_manifest() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let url = upstream.url();
+    let manifest = json!({ "name": "foo", "version": "1.0.0", "dist": {
+        "tarball": format!("{url}/foo/-/foo-1.0.0.tgz"),
+        "integrity": sha512_integrity(&tgz),
+    } });
+    let manifest_mock = upstream
+        .mock("GET", "/foo/1.0.0")
+        .with_header("content-type", "application/json")
+        .with_body(manifest.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .expect(0)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_body(&tgz)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let app = tar_registry_app(&url, tmp.path());
+
+    for _ in 0..2 {
+        let response = get(&app, "/~zstd/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, b"foo");
+    }
+    manifest_mock.assert_async().await;
+    packument_mock.assert_async().await;
+}
+
+/// An upstream answers a dist-tag at the version manifest URL. The route
+/// serves exact versions only, so the packument decides.
+#[tokio::test]
+async fn a_version_manifest_of_another_version_is_not_served() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let url = upstream.url();
+    let manifest = json!({ "name": "foo", "version": "1.0.0", "dist": {
+        "tarball": format!("{url}/foo/-/foo-1.0.0.tgz"),
+        "integrity": sha512_integrity(&tgz),
+    } });
+    upstream
+        .mock("GET", "/foo/latest")
+        .with_header("content-type", "application/json")
+        .with_body(manifest.to_string())
+        .create_async()
+        .await;
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_header("content-type", "application/json")
+        .with_body(packument(&url, "foo-1.0.0.tgz", &tgz))
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&url, tmp.path().to_path_buf()));
+
+    assert_eq!(get(&app, "/foo@latest").await.status(), StatusCode::NOT_FOUND);
+    packument_mock.assert_async().await;
+}
+
+/// The version names a file in the package's cache directory. One that
+/// climbs out of it, even through a directory that exists, is not found.
+#[tokio::test]
+async fn a_version_with_path_segments_is_not_found() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let packument_body = mock_foo(&mut upstream, &tgz).await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    assert_eq!(get(&app, "/foo@1.0.0").await.status(), StatusCode::OK);
+
+    let cached = cached_files_containing(tmp.path(), packument_body.as_bytes());
+    let package_dir = cached[0].parent().unwrap();
+    std::fs::create_dir(package_dir.join("foo-x")).unwrap();
+    std::fs::write(tmp.path().join("secret.tgz"), b"secret").unwrap();
+    let depth = package_dir
+        .strip_prefix(tmp.path())
+        .unwrap()
+        .components()
+        .count()
+        + 1;
+    for separator in ["%2F", "%5C"] {
+        let climb = format!("..{separator}").repeat(depth);
+        let response = get(&app, &format!("/foo@x{separator}{climb}secret")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "separator {separator}");
+    }
+}
+
 fn cached_files_containing(dir: &std::path::Path, needle: &[u8]) -> Vec<std::path::PathBuf> {
     let mut found = Vec::new();
     for entry in std::fs::read_dir(dir).unwrap() {

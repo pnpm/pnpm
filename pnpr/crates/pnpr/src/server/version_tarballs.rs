@@ -3,29 +3,35 @@
 //!
 //! A `.tgz` registry serves a hosted version's blob, or an upstream version's
 //! cached `.tgz`, under the canonical filename, so a warm hit loads no
-//! packument. Otherwise the route reads the version's dist from the
-//! packument, which a tar registry also needs for the `.tgz` integrity. A dist
-//! read from a cached upstream packument is kept in a [`VersionTgzCache`].
+//! packument. Otherwise the route reads the version's dist, which a tar
+//! registry also needs for the `.tgz` integrity: from a fresh cached upstream
+//! packument, else from the upstream's version manifest, else from the
+//! packument. A dist read from an upstream is kept in a [`VersionTgzCache`].
 
 pub(super) use cache::VersionTgzCache;
 
+use cache::DistOrigin;
+
 use super::{
-    Action, AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, HeaderMap, Identity,
-    PackumentDists, RegistryError, RegistrySource, Response, StatusCode, TarSource, TarballOrigin,
-    TgzTrust, UpstreamTarball, Value, addressed_registry, authorize, authorized_upstream,
-    cached_upstream_tarball, caller_scoped, declared_tarball_integrity, ensure_osv_allowed,
-    is_tar_registry, not_found, read_source_packument, resolve_registry_source,
+    Action, AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, FetchOutcome,
+    HeaderMap, Identity, PackumentDists, RegistryError, RegistrySource, Response, StatusCode,
+    TarSource, TarballOrigin, TgzTrust, UpstreamTarball, Value, addressed_registry, authorize,
+    authorized_upstream, cached_upstream_tarball, caller_scoped, declared_tarball_integrity,
+    ensure_osv_allowed, is_tar_registry, not_found, read_source_packument, resolve_registry_source,
     serve_bound_upstream_tarball, serve_registry_tarball, tar_decode_limit, tar_response,
-    tarball_basename, tarball_cache_name, tgz_integrity_key, upstream_cache_namespace,
+    tarball_basename, tarball_cache_name, tgz_integrity_key, timed, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 use pnpr_storage::DocumentStamp;
 use std::{
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 mod cache;
+
+/// The largest upstream version manifest the route reads.
+const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
 
 /// `GET {base}/<name>@<version>`: the version's tarball, as the published
 /// `.tgz` on a `.tgz` registry and as its tar on a tar registry.
@@ -60,6 +66,10 @@ impl VersionRequest<'_> {
                 Ok(name) => name,
                 Err(err) => return err.into_response(),
             };
+        // The version names cache files and upstream URLs.
+        if !pnpr_package_name::is_safe_path_segment(self.version) {
+            return not_found();
+        }
         // Screen the requested version: a hosted manifest's tarball filename
         // may name another version.
         if let Err(err) = ensure_osv_allowed(self.state, &name, self.version) {
@@ -133,7 +143,7 @@ impl VersionRequest<'_> {
     }
 
     /// The requested version's dist in `source`, from the [`VersionTgzCache`]
-    /// or the packument.
+    /// or the upstream.
     async fn version_tgz(
         &self,
         source: &RegistrySource,
@@ -145,23 +155,72 @@ impl VersionRequest<'_> {
             None => None,
         };
         let cache = &self.state.inner.proxy.version_tgzs;
-        if let (Some(cached), Some(stamp)) = (&cached, stamp)
-            && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp)
+        if let Some(cached) = &cached
+            && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp, cached.ttl)
         {
             return Ok(Some(tgz));
+        }
+        let Some((tgz, origin)) = self.read_version_tgz(source, name, stamp).await? else {
+            return Ok(None);
+        };
+        let tgz = Arc::new(tgz);
+        if let (Some(cached), Some(origin)) = (cached, origin) {
+            cache.put(cached.namespace, name, self.version, origin, Arc::clone(&tgz));
+        }
+        Ok(Some(tgz))
+    }
+
+    /// Read the version's dist and say where it came from, when it may be
+    /// cached. Without a fresh cached packument, an upstream's version
+    /// manifest is fetched rather than its whole packument. The packument
+    /// answers when the manifest does not, as for an upstream that serves
+    /// none.
+    async fn read_version_tgz(
+        &self,
+        source: &RegistrySource,
+        name: &CanonicalPackageName,
+        stamp: Option<DocumentStamp>,
+    ) -> Result<Option<(VersionTgz, Option<DistOrigin>)>, RegistryError> {
+        if stamp.is_none()
+            && let RegistrySource::Upstream(upstream) = source
+        {
+            let fetched = Instant::now();
+            if let Some(tgz) = self.fetch_version_manifest(upstream, name).await {
+                return Ok(Some((tgz, Some(DistOrigin::VersionManifest(fetched)))));
+            }
         }
         let Some(packument) = read_source_packument(self.state, self.identity, source, name).await?
         else {
             return Ok(None);
         };
-        let Some(tgz) = version_tgz(&packument, self.version) else { return Ok(None) };
-        let tgz = Arc::new(tgz);
         // The stamp was taken before the read, so a packument rewritten in
         // between only costs the next request a miss.
-        if let (Some(cached), Some(stamp)) = (cached, stamp) {
-            cache.put(cached.namespace, name, self.version, stamp, Arc::clone(&tgz));
+        Ok(version_tgz(&packument, self.version).map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
+    }
+
+    /// The version's dist from `<upstream>/<name>/<version>`, or `None` when
+    /// the upstream does not serve one with an integrity.
+    async fn fetch_version_manifest(
+        &self,
+        upstream: &str,
+        name: &CanonicalPackageName,
+    ) -> Option<VersionTgz> {
+        let upstream = authorized_upstream(self.state, self.identity, upstream).ok()?;
+        let path = format!("{}/{}", name.as_str(), self.version);
+        let fetched = timed(
+            "version_manifest:upstream_fetch",
+            name.as_str(),
+            upstream.fetch_document(&path, Some("application/json"), MAX_VERSION_MANIFEST_BYTES),
+        )
+        .await;
+        match fetched {
+            Ok(FetchOutcome::Ok(manifest)) => version_manifest_tgz(&manifest.bytes, self.version),
+            Ok(FetchOutcome::NotFound) => None,
+            Err(err) => {
+                tracing::debug!(?err, package = %name.as_str(), "version manifest fetch failed");
+                None
+            }
         }
-        Ok(Some(tgz))
     }
 
     /// The upstream cache `source` reads `name`'s packument from, once the
@@ -284,7 +343,27 @@ struct VersionTgz {
 
 fn version_tgz(packument: &[u8], version: &str) -> Option<VersionTgz> {
     let mut packument: PackumentDists = serde_json::from_slice(packument).ok()?;
-    let dist = packument.versions.shift_remove(version)?.dist?;
+    dist_tgz(packument.versions.shift_remove(version)?.dist?)
+}
+
+#[derive(serde::Deserialize)]
+struct VersionManifest {
+    version: String,
+    #[serde(default)]
+    dist: Option<DistBlock>,
+}
+
+/// The dist of a version manifest for `version`. An upstream resolves a
+/// dist-tag at the same URL, so a manifest of another version is refused. A
+/// dist without an integrity is left to the packument, which carries the
+/// integrity pnpr pins for it.
+fn version_manifest_tgz(manifest: &[u8], version: &str) -> Option<VersionTgz> {
+    let manifest: VersionManifest = serde_json::from_slice(manifest).ok()?;
+    let dist = manifest.dist.filter(|dist| dist.integrity.is_some())?;
+    (manifest.version == version).then(|| dist_tgz(dist))?
+}
+
+fn dist_tgz(dist: DistBlock) -> Option<VersionTgz> {
     let filename = dist.tarball
         .as_deref()
         .and_then(tarball_basename)?

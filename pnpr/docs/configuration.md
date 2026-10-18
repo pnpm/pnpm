@@ -340,6 +340,7 @@ defaultRegistry: main
 npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
+- For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
 - pnpr keeps the published `.tgz` and derives the tar from it:
   - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
   - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.

@@ -3,23 +3,33 @@ use pnpr_storage::DocumentStamp;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 /// Versions kept before the cache drops some.
 const CAPACITY: usize = 16 * 1024;
 
-/// The version dists the `name@version` route of a tar registry read from
-/// cached upstream packuments, so a tar response does not parse the packument
-/// again. Each is keyed by the packument's cache namespace and tagged with
-/// the [`DocumentStamp`] of the packument it was read from: a refetched
-/// packument has another stamp, so its old dists stop answering.
+/// The version dists the `name@version` route read from an upstream, so a
+/// repeated request reads no metadata. Each is keyed by the upstream's cache
+/// namespace and answers while its [`DistOrigin`] is fresh.
 #[derive(Default)]
 pub(in super::super) struct VersionTgzCache {
     entries: Mutex<HashMap<(String, String, String), CachedVersionTgz>>,
 }
 
+/// Where a cached dist was read from.
+#[derive(Clone, Copy)]
+pub(super) enum DistOrigin {
+    /// The cached packument with this stamp. A refetched packument has
+    /// another stamp, so its old dists stop answering.
+    Packument(DocumentStamp),
+    /// The version manifest, fetched at this instant. It answers for the
+    /// packument TTL.
+    VersionManifest(Instant),
+}
+
 struct CachedVersionTgz {
-    stamp: DocumentStamp,
+    origin: DistOrigin,
     tgz: Arc<VersionTgz>,
 }
 
@@ -29,12 +39,17 @@ impl VersionTgzCache {
         namespace: &str,
         name: &CanonicalPackageName,
         version: &str,
-        stamp: DocumentStamp,
+        packument: Option<DocumentStamp>,
+        ttl: Duration,
     ) -> Option<Arc<VersionTgz>> {
         let entries = self.entries.lock().expect("version dist cache lock poisoned");
         let key = (namespace.to_string(), name.as_str().to_string(), version.to_string());
         let cached = entries.get(&key)?;
-        (cached.stamp == stamp).then(|| Arc::clone(&cached.tgz))
+        let fresh = match cached.origin {
+            DistOrigin::Packument(stamp) => packument == Some(stamp),
+            DistOrigin::VersionManifest(fetched) => fetched.elapsed() <= ttl,
+        };
+        fresh.then(|| Arc::clone(&cached.tgz))
     }
 
     pub(super) fn put(
@@ -42,7 +57,7 @@ impl VersionTgzCache {
         namespace: String,
         name: &CanonicalPackageName,
         version: &str,
-        stamp: DocumentStamp,
+        origin: DistOrigin,
         tgz: Arc<VersionTgz>,
     ) {
         let mut entries = self.entries.lock().expect("version dist cache lock poisoned");
@@ -59,7 +74,7 @@ impl VersionTgzCache {
             }
         }
         let key = (namespace, name.as_str().to_string(), version.to_string());
-        entries.insert(key, CachedVersionTgz { stamp, tgz });
+        entries.insert(key, CachedVersionTgz { origin, tgz });
     }
 }
 
