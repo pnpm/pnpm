@@ -768,10 +768,11 @@ const LOCKFILE_ONLY_VERSION_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/1
 /// `requires-any-foo` resolves `*` to the version only the lockfile holds,
 /// and the peer binds to it.
 const LOCKFILE_ONLY_VERSION_PATHS: &[&str] = &[
-    "importers > packages/app > dependencies > @pnpm.e2e/has-foo100-peer >",
+    "importers > packages/app > dependencies > @pnpm.e2e/has-foo100-peer > version ",
     "packages > @pnpm.e2e/foo@100.1.0 >",
     "snapshots > @pnpm.e2e/foo@100.1.0 ",
-    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(",
+    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(@pnpm.e2e/foo@100.0.0) ",
+    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(@pnpm.e2e/foo@100.1.0) ",
     "snapshots > @pnpm.e2e/requires-any-foo@1.0.0 > dependencies > @pnpm.e2e/foo ",
 ];
 
