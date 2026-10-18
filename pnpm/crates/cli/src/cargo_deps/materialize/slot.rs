@@ -58,29 +58,41 @@ fn slot_contains_only_indexed_files(
         let Ok(entry) = entry else {
             return false;
         };
-        let Some(name) = entry
-            .file_name()
-            .to_str()
-            .map(str::to_owned)
-        else {
-            return false;
-        };
-        if relative_path.is_empty() && name == ".cargo-checksum.json" {
-            continue;
-        }
-        relative_path.push(name);
-        let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
-            return false;
-        };
-        let is_indexed_file = metadata.is_file() && files.contains_key(&relative_path.join("/"));
-        let is_indexed_directory = metadata.is_dir()
-            && slot_contains_only_indexed_files(&entry.path(), files, relative_path);
-        relative_path.pop();
-        if !is_indexed_file && !is_indexed_directory {
+        if !slot_entry_is_indexed(&entry, files, relative_path) {
             return false;
         }
     }
     true
+}
+
+fn slot_entry_is_indexed(
+    entry: &std::fs::DirEntry,
+    files: &std::collections::HashMap<String, CafsFileInfo>,
+    relative_path: &mut Vec<String>,
+) -> bool {
+    let Some(name) = entry
+        .file_name()
+        .to_str()
+        .map(str::to_owned)
+    else {
+        return false;
+    };
+    if relative_path.is_empty() && name == ".cargo-checksum.json" {
+        return true;
+    }
+    relative_path.push(name);
+    let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+        return false;
+    };
+    let is_indexed = if metadata.is_file() {
+        files.contains_key(&relative_path.join("/"))
+    } else if metadata.is_dir() {
+        slot_contains_only_indexed_files(&entry.path(), files, relative_path)
+    } else {
+        false
+    };
+    relative_path.pop();
+    is_indexed
 }
 
 fn read_slot_manifest(
