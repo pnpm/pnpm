@@ -76,31 +76,28 @@ impl PeerBindings {
 #[must_use]
 pub fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
     let mut segments = Vec::new();
-    let mut depth = 0_i32;
-    let mut start = None;
-    for (idx, byte) in suffix.bytes().enumerate() {
+    let mut rest = suffix;
+    while !rest.is_empty() {
+        let body = rest.strip_prefix('(')?;
+        let close = matching_close_paren(body)?;
+        segments.push(body[..close].to_string());
+        rest = &body[close + 1..];
+    }
+    Some(segments)
+}
+
+/// Index of the `)` that closes a group whose `(` precedes `body`.
+fn matching_close_paren(body: &str) -> Option<usize> {
+    let mut depth = 0_u32;
+    for (idx, byte) in body.bytes().enumerate() {
         match byte {
-            b'(' => {
-                if depth == 0 {
-                    start = Some(idx + 1);
-                }
-                depth += 1;
-            }
-            b')' => {
-                depth -= 1;
-                if depth < 0 {
-                    return None;
-                }
-                if depth == 0 {
-                    let segment_start = start.take()?;
-                    segments.push(suffix[segment_start..idx].to_string());
-                }
-            }
-            _ if depth == 0 => return None,
+            b'(' => depth += 1,
+            b')' if depth == 0 => return Some(idx),
+            b')' => depth -= 1,
             _ => {}
         }
     }
-    (depth == 0).then_some(segments)
+    None
 }
 
 /// Whether a segment is the hash [`PeerBindings::suffix_of`] writes for an
