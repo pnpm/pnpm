@@ -13,9 +13,9 @@ mod json_bytes {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use serde_json::Value;
 
-    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<Ser>(bytes: &[u8], serializer: Ser) -> Result<Ser::Ok, Ser::Error>
     where
-        S: Serializer,
+        Ser: Serializer,
     {
         if let Ok(value) = serde_json::from_slice::<Value>(bytes) {
             value.serialize(serializer)
@@ -24,9 +24,9 @@ mod json_bytes {
         }
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    pub fn deserialize<'de, Deser>(deserializer: Deser) -> Result<Vec<u8>, Deser::Error>
     where
-        D: Deserializer<'de>,
+        Deser: Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
         match value {
@@ -34,11 +34,11 @@ mod json_bytes {
                 if !arr.is_empty()
                     && arr
                         .iter()
-                        .all(|v| v.as_u64().is_some_and(|n| n <= 255)) =>
+                        .all(|val| val.as_u64().is_some_and(|n| n <= 255)) =>
             {
                 let bytes = arr
                     .iter()
-                    .filter_map(|v| v.as_u64().map(|n| n as u8))
+                    .filter_map(|val| val.as_u64().map(|n| n as u8))
                     .collect();
                 Ok(bytes)
             }

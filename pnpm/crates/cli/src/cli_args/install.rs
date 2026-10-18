@@ -43,6 +43,7 @@ use pnpm_pnpr_client::{
     VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
+use pnpr_config_validation::DryRunIncompatibleWithPnpr;
 use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
@@ -52,9 +53,7 @@ use pnpr_request::{
     PnprBenchmarkRegistryOverride, PnprRequestInputs, check_pnpr_applied_settings, pnpr_catalogs,
     pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
 };
-use pnpr_resolution::{
-    DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,
-};
+use pnpr_resolution::{PnprSession, install_via_pnpr_inner, prefetch_allowed};
 
 use std::path::PathBuf;
 
@@ -461,6 +460,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod pnpr_config_validation;
 
 mod pnpr_pnpmfile;
 

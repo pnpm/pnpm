@@ -225,7 +225,7 @@ fn pnpr_serve_subcommand_works_as_alias() {
     let _env = scrubbed_env();
     let args = Args::try_parse_from(["pnpr", "serve", "--listen", "0.0.0.0:4873"]).unwrap();
     assert!(
-        matches!(args.command, Some(super::Command::Serve(server)) if server.listen.to_string() == "0.0.0.0:4873")
+        matches!(args.command, Some(super::Command::Serve(server)) if server.listen.to_string() == "0.0.0.0:4873"),
     );
 }
 
@@ -257,6 +257,6 @@ fn interval_valued_flags_accept_units_and_bare_seconds() {
     let gc_args =
         Args::try_parse_from(["pnpr", "oci-gc", "--registry", "img", "--min-age", "2h"]).unwrap();
     assert!(
-        matches!(gc_args.command, Some(super::Command::OciGc { min_age, .. }) if min_age == Duration::from_hours(2))
+        matches!(gc_args.command, Some(super::Command::OciGc { min_age, .. }) if min_age == Duration::from_hours(2)),
     );
 }

@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, OciConfig, PackageAccess, PathBuf, RegistryError, S3Settings, ScimConfig,
-    SystemEnv, TarballFormat, UpstreamAuthFile, default_storage_string, env_replace_lossy, oidc,
+    LogLevel, Management, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig, TarballFormat,
+    UpstreamAuthFile, default_storage_string, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -503,63 +503,4 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
-}
-
-pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {
-    let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
-    if !unresolved.is_empty() {
-        tracing::warn!(?unresolved, "config references unset environment variables");
-    }
-    let file: ConfigFile = serde_saphyr::from_str(&substituted)
-        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
-    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "oci size limits must be greater than zero".to_string(),
-        });
-    }
-    Ok(file)
-}
-
-/// The global ACL and group blocks are gone, not ignorable: they used
-/// to *enforce* and *grant* access, so dropping either like an unknown
-/// verdaccio key would silently change who may reach what on upgrade.
-/// Fail loudly instead, naming the replacement.
-pub(super) fn reject_removed_blocks(
-    has_packages: bool,
-    has_groups: bool,
-    has_uplinks: bool,
-    has_upstreams: bool,
-) -> Result<(), RegistryError> {
-    if has_packages {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `packages:` block was removed: declare per-package rules \
-                     on the registry that serves them, as `registries.<name>.packages` \
-                     (pattern keys, `access`/`publish`/`unpublish` values)"
-                .to_string(),
-        });
-    }
-    if has_groups {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `groups:` block was removed: declare teams on the \
-                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
-                     member-list values), and reference them from that registry's access \
-                     lists as `team:<name>`"
-                .to_string(),
-        });
-    }
-    if has_uplinks {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `uplinks:` block is not supported: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    if has_upstreams {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `upstreams:` block was removed: declare upstream \
-                     registries under `registries:` with `type: upstream`"
-                .to_string(),
-        });
-    }
-    Ok(())
 }

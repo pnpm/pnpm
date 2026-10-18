@@ -1,66 +1,14 @@
 use super::{
-    Catalogs, Context, Diagnostic, Display, Error, InstallFamilySelection, LocalLockfileInstall,
-    Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError,
-    PnprLink, PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions,
-    State, TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
+    Catalogs, Display, Error, InstallFamilySelection, LocalLockfileInstall, Lockfile,
+    MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError, PnprLink,
+    PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions, State,
+    TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
     check_pnpr_applied_settings, full_workspace_importer_ids, install_from_local_lockfile,
-    link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs, pnpr_lockfile_dir,
-    pnpr_request_inputs, report_merged_lockfile_conflicts, resolve_projects_for_pnpr,
-    resolve_projects_options, selection_importer_ids, wanted_lockfile_satisfies_workspace,
+    link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
+    pnpr_config_validation::validate_pnpr_config, pnpr_lockfile_dir, pnpr_request_inputs,
+    report_merged_lockfile_conflicts, resolve_projects_for_pnpr, resolve_projects_options,
+    selection_importer_ids, wanted_lockfile_satisfies_workspace,
 };
-
-/// `frozenStore` was enabled together with a configured `pnprServer`.
-/// The pnpr path writes resolved files into the store, which `frozenStore`
-/// opens read-only, so the combination can't proceed. Mirrors pnpm's
-/// `ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "The pnpr server resolves dependencies and writes new entries into the store, which is opened read-only when frozenStore is enabled."
-)]
-#[diagnostic(
-    code(ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR),
-    help(
-        "Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes."
-    )
-)]
-struct FrozenStoreIncompatibleWithPnpr;
-
-/// `--dry-run` was requested with a configured `pnprServer`. The pnpr path
-/// resolves and links through the server, so it can't honor the dry-run
-/// "writes nothing" contract. Mirrors pnpm's
-/// `ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server."
-)]
-#[diagnostic(
-    code(ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER),
-    help(
-        "Unset the pnpr server (`--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) to preview locally, or drop --dry-run."
-    )
-)]
-pub(super) struct DryRunIncompatibleWithPnpr;
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "Automatic deduplication requires local dependency resolution. Remove pnprServer or disable autoDedupe."
-)]
-#[diagnostic(code(ERR_PNPM_AUTO_DEDUPE_WITH_PNPR_SERVER))]
-struct AutoDedupeWithPnpr;
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "Recording resolution settings in the lockfile requires local dependency resolution. Remove pnprServer or set lockfile.includeResolutionSettings to false."
-)]
-#[diagnostic(code(ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER))]
-struct ResolutionSettingsWithPnpr;
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
-    "Pinning tar hashes in the lockfile requires local dependency resolution. Remove pnprServer or remove lockfile.integrityTarget."
-)]
-#[diagnostic(code(ERR_PNPM_INTEGRITY_TARGET_WITH_PNPR_SERVER))]
-struct IntegrityTargetWithPnpr;
 
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
@@ -143,23 +91,6 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         inputs,
     )
     .await
-}
-
-fn validate_pnpr_config(config: &pnpm_config::Config, frozen: bool) -> miette::Result<()> {
-    if config.auto_dedupe && !frozen {
-        return Err(AutoDedupeWithPnpr.into());
-    }
-    if config.lockfile_include_resolution_settings && !frozen {
-        return Err(ResolutionSettingsWithPnpr.into());
-    }
-    if config.lockfile_integrity_target != pnpm_lockfile::IntegrityTarget::Resource && !frozen {
-        return Err(IntegrityTargetWithPnpr.into());
-    }
-    if config.frozen_store {
-        return Err(FrozenStoreIncompatibleWithPnpr.into());
-    }
-
-    Ok(())
 }
 
 /// What the pnpr path knows about the workspace before deciding whether the
@@ -293,27 +224,30 @@ async fn resolve_via_pnpr(
     };
     match result {
         Ok(outcome) => Ok((outcome, prefetcher)),
-        // The server rejected the input lockfile under our policy.
-        // Surface the reconstructed `VerifyError` so the abort + the
-        // `ERR_PNPM_*` diagnostic code match the local gate exactly.
-        Err(PnprClientError::Verification(verify_err)) => Err(miette::Report::new(verify_err)),
-        Err(PnprClientError::Server { message, code: Some(code) }) => {
-            #[derive(Debug, derive_more::Display, derive_more::Error)]
-            #[display("{message}")]
-            struct ServerErrorWithCode {
-                message: String,
-                code: String,
-            }
-            impl miette::Diagnostic for ServerErrorWithCode {
-                fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-                    Some(Box::new(&self.code))
-                }
-            }
-            Err(miette::Report::new(ServerErrorWithCode { message, code }))
+        Err(err) => Err(map_pnpr_client_error(err)),
+    }
+}
+
+#[derive(Debug, Display, Error)]
+#[display("{message}")]
+struct ServerErrorWithCode {
+    message: String,
+    code: String,
+}
+
+impl miette::Diagnostic for ServerErrorWithCode {
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        Some(Box::new(&self.code))
+    }
+}
+
+fn map_pnpr_client_error(err: PnprClientError) -> miette::Report {
+    match err {
+        PnprClientError::Verification(verify_err) => miette::Report::new(verify_err),
+        PnprClientError::Server { message, code: Some(code) } => {
+            miette::Report::new(ServerErrorWithCode { message, code })
         }
-        Err(err) => {
-            Err(miette::miette!("{err}")).wrap_err("resolving dependencies via the pnpr server")
-        }
+        other => miette::miette!("{other}").wrap_err("resolving dependencies via the pnpr server"),
     }
 }
 

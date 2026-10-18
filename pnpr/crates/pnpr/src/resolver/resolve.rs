@@ -6,7 +6,11 @@
 //! never populated with package contents — the client fetches every
 //! tarball itself.
 
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
@@ -83,23 +87,11 @@ pub async fn resolve(
     auth_headers: &Arc<AuthHeaders>,
     observer: Option<Arc<dyn ResolutionObserver>>,
 ) -> Result<Lockfile, ResolveError> {
-    let projects = request.projects_normalized();
-
     let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
 
-    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
-    write_workspace_manifest(dir, &member_dirs).await?;
-
-    let manifest = root_manifest(dir, wrote_root)?;
-
-    let input_lockfile = request.lockfile.as_ref();
-    let lockfile_path = dir.join(Lockfile::FILE_NAME);
-    if let Some(lockfile) = input_lockfile {
-        lockfile
-            .save_to_path(&lockfile_path)
-            .map_err(|err| ResolveError::install(err.to_string()))?;
-    }
+    let manifest = prepare_resolve_workspace(dir, request).await?;
+    let lockfile_path = write_input_lockfile(dir, request.lockfile.as_ref())?;
 
     let resolved_packages: ResolvedPackages = DashMap::new();
     ResolutionInstall { config, client, request, auth_headers, observer }
@@ -107,15 +99,36 @@ pub async fn resolve(
         .run::<SilentReporter>()
         .await
         .map_err(|err| {
-            let code = miette::Diagnostic::code(&err).map(|c| c.to_string());
+            let code = miette::Diagnostic::code(&err).map(|code| code.to_string());
             ResolveError::Install { message: err.to_string(), code }
         })?;
 
-    let lockfile = Lockfile::load_wanted_from_dir(dir)
+    Lockfile::load_wanted_from_dir(dir)
         .map_err(|err| ResolveError::install(err.to_string()))?
-        .ok_or(ResolveError::NoLockfile)?;
+        .ok_or(ResolveError::NoLockfile)
+}
 
-    Ok(lockfile)
+async fn prepare_resolve_workspace(
+    dir: &Path,
+    request: &ResolveRequest,
+) -> Result<PackageManifest, ResolveError> {
+    let projects = request.projects_normalized();
+    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
+    write_workspace_manifest(dir, &member_dirs).await?;
+    root_manifest(dir, wrote_root)
+}
+
+fn write_input_lockfile(
+    dir: &Path,
+    input_lockfile: Option<&Lockfile>,
+) -> Result<PathBuf, ResolveError> {
+    let lockfile_path = dir.join(Lockfile::FILE_NAME);
+    if let Some(lockfile) = input_lockfile {
+        lockfile
+            .save_to_path(&lockfile_path)
+            .map_err(|err| ResolveError::install(err.to_string()))?;
+    }
+    Ok(lockfile_path)
 }
 
 /// Install needs an active manifest, but keeping this stand-in in

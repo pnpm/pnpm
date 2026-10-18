@@ -78,14 +78,19 @@ fn resolve_request_body(opts: &ResolveProjectsOptions) -> serde_json::Value {
     serde_json::to_value(opts).expect("resolution request serializes to JSON")
 }
 
-fn handle_resolve_frame(
-    frame: Frame,
-    on_package: &mut impl FnMut(ResolvedPackage),
-    permitted_importers: &HashSet<String>,
-    opts: &ResolveProjectsOptions,
-) -> Result<Option<ResolveOutcome>, PnprClientError> {
-    match frame {
-        Frame::Package {
+fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPackage)) {
+    if let Frame::Package {
+        id,
+        name,
+        version,
+        integrity,
+        tarball,
+        unpacked_size,
+        file_count,
+        revision,
+    } = frame
+    {
+        on_package(ResolvedPackage {
             id,
             name,
             version,
@@ -94,17 +99,19 @@ fn handle_resolve_frame(
             unpacked_size,
             file_count,
             revision,
-        } => {
-            on_package(ResolvedPackage {
-                id,
-                name,
-                version,
-                integrity,
-                tarball,
-                unpacked_size,
-                file_count,
-                revision,
-            });
+        });
+    }
+}
+
+fn handle_resolve_frame(
+    frame: Frame,
+    on_package: &mut impl FnMut(ResolvedPackage),
+    permitted_importers: &HashSet<String>,
+    opts: &ResolveProjectsOptions,
+) -> Result<Option<ResolveOutcome>, PnprClientError> {
+    match frame {
+        Frame::Package { .. } => {
+            forward_package_frame(frame, on_package);
             Ok(None)
         }
         Frame::Done { lockfile, stats, applied_policies } => {
@@ -266,7 +273,7 @@ fn assert_applied_policies(
     {
         return Err(PnprClientError::Protocol(format!(
             "pnpr server ignored requested minimumReleaseAge (expected {:?}, got {:?})",
-            opts.verification.minimum_release_age, applied.minimum_release_age
+            opts.verification.minimum_release_age, applied.minimum_release_age,
         )));
     }
     if opts.resolution.add_missing_peer_types == Some(true) && !applied.add_missing_peer_types {
@@ -277,7 +284,7 @@ fn assert_applied_policies(
     if opts.reuse.frozen_lockfile != applied.frozen_lockfile {
         return Err(PnprClientError::Protocol(format!(
             "pnpr server did not respect frozenLockfile (expected {}, got {})",
-            opts.reuse.frozen_lockfile, applied.frozen_lockfile
+            opts.reuse.frozen_lockfile, applied.frozen_lockfile,
         )));
     }
     Ok(())

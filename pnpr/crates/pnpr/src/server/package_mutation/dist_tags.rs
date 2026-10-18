@@ -230,6 +230,13 @@ where
         });
     };
     mutate(tags)?;
+    update_modified_time(packument_obj)?;
+    Ok(Some(serde_json::to_vec_pretty(&packument)?))
+}
+
+fn update_modified_time(
+    packument_obj: &mut serde_json::Map<String, Value>,
+) -> Result<(), RegistryError> {
     let time_entry = packument_obj
         .entry("time".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
@@ -239,5 +246,5 @@ where
         });
     };
     time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    Ok(Some(serde_json::to_vec_pretty(&packument)?))
+    Ok(())
 }

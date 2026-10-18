@@ -20,7 +20,8 @@ use pnpr_error::RegistryError;
 /// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
 /// transaction.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let resolver_enabled = state.inner.config.features.resolver.enabled;
+    let config = &state.inner.config;
+    let resolver_enabled = config.features.resolver.enabled;
     let versions = if resolver_enabled { vec![0, 1] } else { Vec::new() };
     let fix_lockfile = versions.clone();
     let ecosystems: Vec<&str> = if resolver_enabled {
@@ -28,62 +29,12 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
     } else {
         Vec::new()
     };
-    let artifacts = state.inner.config.features.artifacts.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let publish = state.inner.config.features.registry.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let pipeline = state.inner.config.features.pipeline.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
+    let artifacts = enabled_version(config.features.artifacts.enabled);
+    let publish = enabled_version(config.features.registry.enabled);
+    let pipeline = enabled_version(config.features.pipeline.enabled);
 
-    let has_admin = !state.inner.config.identity.admins.is_empty();
-    let has_scim = state.inner.config.identity.auth.scim.is_some();
-    let has_oidc = !state.inner.config.identity.auth.oidc.is_empty();
-
-    let protocols = serde_json::json!({
-        "resolver": {
-            "version": 1,
-            "versions": &versions,
-            "features": [
-                "fixLockfile",
-                "verifyLockfile",
-                "projectTransforms",
-                "policyEcho",
-                "errorCodes",
-                "acceptedLockfileFormats"
-            ],
-            "ecosystems": &ecosystems,
-        },
-        "artifacts": {
-            "version": 0,
-            "versions": &artifacts,
-        },
-        "compilerCache": {
-            "version": 0,
-            "versions": if state.inner.config.features.artifacts.enabled { vec![0] } else { Vec::new() },
-        },
-        "pipeline": {
-            "version": 0,
-            "versions": &pipeline,
-        },
-        "publish": {
-            "version": 0,
-            "versions": &publish,
-            "pnpmPublish": if state.inner.config.features.registry.enabled { vec![1] } else { Vec::new() },
-        },
-    });
-
-    let features = serde_json::json!({
-        "registries": true,
-        "admin": has_admin,
-        "scim": has_scim,
-        "signIn": has_oidc,
-    });
+    let protocols = build_protocols_payload(config);
+    let features = build_features_payload(config);
 
     (
         StatusCode::OK,
@@ -101,6 +52,58 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
         })),
     )
         .into_response()
+}
+
+fn enabled_version(enabled: bool) -> Vec<u32> {
+    enabled
+        .then_some(0)
+        .into_iter()
+        .collect()
+}
+
+fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
+    let resolver_enabled = config.features.resolver.enabled;
+    let versions = if resolver_enabled { vec![0, 1] } else { Vec::new() };
+    let ecosystems: Vec<&str> = if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    } else {
+        Vec::new()
+    };
+    serde_json::json!({
+        "resolver": {
+            "version": 1,
+            "versions": versions,
+            "features": [
+                "fixLockfile",
+                "verifyLockfile",
+                "projectTransforms",
+                "policyEcho",
+                "errorCodes",
+                "acceptedLockfileFormats"
+            ],
+            "ecosystems": ecosystems,
+        },
+        "artifacts": { "version": 0, "versions": enabled_version(config.features.artifacts.enabled) },
+        "compilerCache": {
+            "version": 0,
+            "versions": if config.features.artifacts.enabled { vec![0] } else { Vec::new() },
+        },
+        "pipeline": { "version": 0, "versions": enabled_version(config.features.pipeline.enabled) },
+        "publish": {
+            "version": 0,
+            "versions": enabled_version(config.features.registry.enabled),
+            "pnpmPublish": if config.features.registry.enabled { vec![1] } else { Vec::new() },
+        },
+    })
+}
+
+fn build_features_payload(config: &crate::Config) -> serde_json::Value {
+    serde_json::json!({
+        "registries": true,
+        "admin": !config.identity.admins.is_empty(),
+        "scim": config.identity.auth.scim.is_some(),
+        "signIn": !config.identity.auth.oidc.is_empty(),
+    })
 }
 
 /// 404 stub mounted on the capability handshake when neither pnpr protocol is

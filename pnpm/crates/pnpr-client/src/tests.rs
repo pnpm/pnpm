@@ -692,7 +692,7 @@ async fn fails_when_server_ignores_trust_policy() {
 
     assert!(
         matches!(err, PnprClientError::Protocol(ref msg) if msg.contains("trustPolicy")),
-        "expected error when server ignores trustPolicy, got: {err}"
+        "expected error when server ignores trustPolicy, got: {err}",
     );
     resolve_mock.assert_async().await;
 }

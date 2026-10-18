@@ -260,31 +260,42 @@ pub(super) fn protect(response: Response) -> Response {
 
 pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
     for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
-        let registry_key =
-            config.routing.registries.addressed(&workload.registry, pnpr_registry::Ecosystem::Npm);
-        let is_valid =
-            match registry_key.and_then(|key| config.routing.registries.get(key)) {
-                Some(pnpr_registry::Registry::Hosted { .. }) => {
-                    config.routing.registries.ecosystem(registry_key.unwrap())
-                        == Some(pnpr_registry::Ecosystem::Npm)
-                }
-                _ => false,
-            };
-        if !is_valid || workload.packages.is_empty() {
+        validate_single_workload(config, workload)?;
+    }
+    Ok(())
+}
+
+fn validate_single_workload(
+    config: &pnpr_config::Config,
+    workload: &pnpr_config::oidc::OidcWorkload,
+) -> Result<(), RegistryError> {
+    if !is_hosted_npm_registry(config, &workload.registry) || workload.packages.is_empty() {
+        return Err(RegistryError::InvalidConfig {
+            reason: "OIDC workloads require a hosted npm registry and explicit packages".to_string(
+            ),
+        });
+    }
+    validate_workload_packages(&workload.packages)
+}
+
+fn is_hosted_npm_registry(config: &pnpr_config::Config, registry: &str) -> bool {
+    let Some(key) = config.routing.registries.addressed(registry, pnpr_registry::Ecosystem::Npm)
+    else {
+        return false;
+    };
+    matches!(config.routing.registries.get(key), Some(pnpr_registry::Registry::Hosted { .. }))
+        && config.routing.registries.ecosystem(key) == Some(pnpr_registry::Ecosystem::Npm)
+}
+
+fn validate_workload_packages(packages: &[String]) -> Result<(), RegistryError> {
+    for package in packages {
+        if !matches!(
+            pnpr_registry::PackagePattern::parse(package, pnpr_registry::Ecosystem::Npm),
+            Ok(pnpr_registry::PackagePattern::Exact(_)),
+        ) {
             return Err(RegistryError::InvalidConfig {
-                reason: "OIDC workloads require a hosted npm registry and explicit packages"
-                    .to_string(),
+                reason: format!("invalid OIDC package {package:?}"),
             });
-        }
-        for package in &workload.packages {
-            if !matches!(
-                pnpr_registry::PackagePattern::parse(package, pnpr_registry::Ecosystem::Npm),
-                Ok(pnpr_registry::PackagePattern::Exact(_)),
-            ) {
-                return Err(RegistryError::InvalidConfig {
-                    reason: format!("invalid OIDC package {package:?}"),
-                });
-            }
         }
     }
     Ok(())

@@ -29,6 +29,7 @@ pub use artifacts::{
 pub use blob_transfer::{ArtifactBlobSource, ArtifactPublication};
 pub use ecosystem_cache::server_resolves;
 pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
+pub use error::PnprClientError;
 pub use pipeline_runs::PublishPipelineRunRequest;
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
@@ -48,7 +49,6 @@ use std::{
     time::Duration,
 };
 
-use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
@@ -347,46 +347,6 @@ pub struct ResolvedPackage {
     pub revision: Option<TarballRevision>,
 }
 
-#[derive(Debug, Display, Error, From)]
-pub enum PnprClientError {
-    #[display("pnpr request failed: {_0}")]
-    Http(reqwest::Error),
-
-    #[display("pnpr server error: {message}")]
-    #[from(ignore)]
-    Server {
-        message: String,
-        code: Option<String>,
-    },
-
-    #[display("malformed server response: {_0}")]
-    #[from(ignore)]
-    Protocol(#[error(not(source))] String),
-
-    /// Any failure talking to a Turborepo Remote Cache server. Callers
-    /// already name the remote cache, so the message stands alone.
-    #[from(ignore)]
-    RemoteCache(#[error(not(source))] String),
-
-    /// The server rejected the input lockfile under the client's
-    /// verification policy. Carries the reconstructed [`VerifyError`]
-    /// so the CLI aborts with the same diagnostic code (and breakdown)
-    /// the local verification gate would have produced.
-    Verification(VerifyError),
-
-    Io(std::io::Error),
-}
-
-impl PnprClientError {
-    pub fn server(message: impl Into<String>) -> Self {
-        Self::Server { message: message.into(), code: None }
-    }
-
-    pub fn server_with_code(message: impl Into<String>, code: Option<String>) -> Self {
-        Self::Server { message: message.into(), code }
-    }
-}
-
 /// Resolver protocol version this client speaks.
 pub const RESOLVER_PROTOCOL_VERSION: u32 = 1;
 
@@ -402,7 +362,7 @@ struct HandshakeResponse {
     pnpr: HandshakeCapability,
 }
 
-#[derive(Clone, Default, Deserialize)]
+#[derive(Default, Clone, Deserialize)]
 pub struct HandshakeCapability {
     #[serde(default)]
     pub versions: Vec<u32>,
@@ -599,5 +559,6 @@ use resolve::read_ndjson_frames;
 
 mod ecosystem_cache;
 mod ecosystems;
+mod error;
 
 use ecosystems::{WireViolation, build_verify_error};

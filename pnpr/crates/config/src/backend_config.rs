@@ -383,7 +383,7 @@ pub(super) fn build_libsql_settings(
                 .ok_or_else(|| RegistryError::InvalidConfig {
                     reason: format!(
                         "backend.libsql.syncInterval {:?} is not a valid interval",
-                        interval.0
+                        interval.0,
                     ),
                 })?;
             Some(dur.as_secs())

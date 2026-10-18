@@ -80,7 +80,7 @@ async fn put_rules(
         if !changes.extra.is_empty()
             || changes.packages
                 .values()
-                .any(|p| !p.extra.is_empty())
+                .any(|pkg| !pkg.extra.is_empty())
         {
             return Err(RegistryError::BadRequest {
                 reason: "unknown field in rule changes".to_string(),

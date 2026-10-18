@@ -30,7 +30,7 @@ struct Args {
     server: ServerArgs,
 }
 
-#[derive(Debug, clap::Args, Clone, Default)]
+#[derive(Debug, Default, Clone, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
     /// `-c`). Unless

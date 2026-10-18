@@ -256,7 +256,7 @@ pub struct ResolveRequest {
     /// Lockfile formats the client accepts (e.g. `["9.0"]`). The server
     /// renders the highest compatible format it supports.
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "part of protocol schema for format negotiation")]
     pub accepted_lockfile_formats: Option<Vec<String>>,
 }
 

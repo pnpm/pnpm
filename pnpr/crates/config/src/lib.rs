@@ -40,7 +40,7 @@ use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
     DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
     PipelineFeatureFile, RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile,
-    StorageAccessFile, UpstreamFile, parse_config_file, reject_removed_blocks,
+    StorageAccessFile, UpstreamFile,
 };
 
 mod hosted;

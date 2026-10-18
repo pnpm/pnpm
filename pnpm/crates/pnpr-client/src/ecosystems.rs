@@ -199,13 +199,7 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-            let code = serde_json::from_slice::<serde_json::Value>(&body)
-                .ok()
-                .and_then(|v| {
-                    v.get("code")
-                        .and_then(|c| c.as_str())
-                        .map(ToString::to_string)
-                });
+            let code = extract_error_code(&body);
             return Err(PnprClientError::Server {
                 message: format!(
                     "/-/pnpr/v0/resolve returned {status}: {}",
@@ -215,29 +209,7 @@ impl PnprClient {
             });
         }
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
-        let mut terminal = None;
-        for line in body
-            .split(|&byte| byte == b'\n')
-            .filter(|line| !line.is_empty())
-        {
-            let is_terminal = match serde_json::from_slice::<serde_json::Value>(line) {
-                Ok(val) => {
-                    matches!(val.get("type").and_then(|t| t.as_str()), Some("done" | "error"))
-                }
-                Err(_) => false,
-            };
-            if is_terminal {
-                if terminal.is_some() {
-                    return Err(PnprClientError::Protocol(
-                        "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
-                    ));
-                }
-                terminal = Some(line.to_vec());
-            }
-        }
-        terminal.ok_or_else(|| {
-            PnprClientError::Protocol("/-/pnpr/v0/resolve returned no terminal frame".to_string())
-        })
+        find_terminal_frame(&body)
     }
 
     /// Ask the server to verify a lockfile under the client's registry
@@ -280,4 +252,37 @@ impl PnprClient {
             ))
         })
     }
+}
+
+fn extract_error_code(body: &[u8]) -> Option<String> {
+    let payload = serde_json::from_slice::<serde_json::Value>(body).ok()?;
+    let code_val = payload.get("code")?.as_str()?;
+    Some(code_val.to_string())
+}
+
+fn is_terminal_frame(line: &[u8]) -> bool {
+    let Ok(val) = serde_json::from_slice::<serde_json::Value>(line) else {
+        return false;
+    };
+    matches!(val.get("type").and_then(|typ| typ.as_str()), Some("done" | "error"))
+}
+
+fn find_terminal_frame(body: &[u8]) -> Result<Vec<u8>, PnprClientError> {
+    let mut terminal = None;
+    for line in body
+        .split(|&byte| byte == b'\n')
+        .filter(|line| !line.is_empty())
+    {
+        if is_terminal_frame(line) {
+            if terminal.is_some() {
+                return Err(PnprClientError::Protocol(
+                    "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
+                ));
+            }
+            terminal = Some(line.to_vec());
+        }
+    }
+    terminal.ok_or_else(|| {
+        PnprClientError::Protocol("/-/pnpr/v0/resolve returned no terminal frame".to_string())
+    })
 }
