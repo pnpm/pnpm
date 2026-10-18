@@ -9,7 +9,7 @@ use super::{
     },
     resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
     tar_integrity_of, tgz_integrity_key,
-    tombstones::{check_publish_tombstone, check_tombstoned_versions},
+    tombstones::{check_publish_tombstone, check_staged_tombstone},
     write_sigstore_bundle,
 };
 
@@ -42,6 +42,9 @@ pub(in super::super) struct ValidatedPublish {
     pub(in super::super) incoming: Value,
     /// One entry per attachment.
     pub(in super::super) prepared: Vec<PreparedAttachment>,
+    /// The caller these checks admitted, for the checks that repeat under
+    /// the package lock.
+    pub(in super::super) publisher: Identity,
 }
 
 /// One publish attachment resolved to its canonical on-disk filename and its
@@ -87,7 +90,8 @@ pub(in super::super) async fn validate_publish_doc(
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
     let prepared = prepare_attachments(&name, &incoming, attachments)?;
-    Ok((ValidatedPublish { name, incoming, prepared }, target))
+    let publisher = identity.clone();
+    Ok((ValidatedPublish { name, incoming, prepared, publisher }, target))
 }
 
 fn prepare_attachments(
@@ -175,13 +179,13 @@ pub(in super::super) async fn stage_publish(
     now_iso: &str,
     org: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
-    let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
     let (hosted, base_version) =
-        parse_hosted_packument(storage.read_hosted_document_for_update(&name).await?)?;
+        parse_hosted_packument(storage.read_hosted_document_for_update(&doc.name).await?)?;
 
-    check_tombstoned_versions(&storage, &name, &incoming).await?;
+    check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
+    let ValidatedPublish { name, incoming, prepared, .. } = doc;
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
