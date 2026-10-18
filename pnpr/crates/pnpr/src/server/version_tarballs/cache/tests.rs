@@ -84,6 +84,23 @@ fn a_version_manifest_dist_answers_for_the_ttl() {
 }
 
 #[test]
+fn a_cached_packument_supersedes_a_version_manifest_dist() {
+    let cache = VersionTgzCache::default();
+    cache.put(
+        "npmjs".to_string(),
+        &foo(),
+        "1.0.0",
+        DistOrigin::VersionManifest(Instant::now()),
+        tgz(),
+    );
+    assert!(
+        cache
+            .get("npmjs", &foo(), "1.0.0", Some(stamp(1)), TTL)
+            .is_none(),
+    );
+}
+
+#[test]
 fn a_full_cache_keeps_most_of_its_entries() {
     let cache = VersionTgzCache::default();
     for version in 0..=CAPACITY {

@@ -24,7 +24,7 @@ pub(super) enum DistOrigin {
     /// another stamp, so its old dists stop answering.
     Packument(DocumentStamp),
     /// The version manifest, fetched at this instant. It answers for the
-    /// packument TTL.
+    /// packument TTL, until a fresh packument is cached.
     VersionManifest(Instant),
 }
 
@@ -47,7 +47,7 @@ impl VersionTgzCache {
         let cached = entries.get(&key)?;
         let fresh = match cached.origin {
             DistOrigin::Packument(stamp) => packument == Some(stamp),
-            DistOrigin::VersionManifest(fetched) => fetched.elapsed() <= ttl,
+            DistOrigin::VersionManifest(fetched) => packument.is_none() && fetched.elapsed() <= ttl,
         };
         fresh.then(|| Arc::clone(&cached.tgz))
     }
