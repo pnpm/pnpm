@@ -248,6 +248,32 @@ test('deploy with a shared lockfile honors --no-optional in the graph and virtua
 // A deployed lockfile must never reference a package the graph filter drops:
 // a later install in the deploy directory would link the missing package and
 // leave the dangling symlinks of https://github.com/pnpm/pnpm/issues/13623.
+// has-optional-peer-also-in-deps keeps bravo-dep as its own dependency when
+// nothing in its scope provides the peer. A devDependency on the same package
+// under another alias does not make that dependency a peer.
+test('deploy --prod keeps an optional peer that a package resolved as its own dependency', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/has-optional-peer-also-in-deps': '1.0.0' },
+        devDependencies: { 'bravo-alias': 'npm:@pnpm.e2e/bravo-dep@1.0.0' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install'])
+
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', '--prod', deployDir])
+
+  const hostDir = fs.realpathSync(path.join(deployDir, 'node_modules/@pnpm.e2e/has-optional-peer-also-in-deps'))
+  expect(fs.existsSync(path.join(hostDir, '../bravo-dep'))).toBe(true)
+})
+
 test('deploy with a shared lockfile drops excluded direct dependency groups', async () => {
   preparePackages([
     { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
