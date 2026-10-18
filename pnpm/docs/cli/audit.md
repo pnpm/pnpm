@@ -38,6 +38,8 @@ Verifies the ECDSA registry signatures of installed packages against the public 
 
 Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
 
+A registry signs the integrity of a package's `.tgz`. When the lockfile pins tars with [`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget), the signature is verified against the `.tgz` integrity the registry publishes, once pnpm has tied it to the tar hash in the lockfile. The store answers for a package it holds. Any other package is downloaded and checked. A package that cannot be tied is reported as invalid, with the reason.
+
 The command exits with code `1` if any package has an invalid signature, or if a registry advertises signing keys but a package was published without a signature. Combine with `--json` to get machine-readable output.
 
 ## Options

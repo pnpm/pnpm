@@ -120,16 +120,31 @@ packages:
       revision: 1
 ```
 
-It says that the bytes are a registry **replacement artifact**, fetched from the
-registry's integrity-addressed route rather than the canonical
-`name@version` URL. An entry with no `revision` field is revision 0 — the
-original — which is what every entry pnpm has ever written means, so a lockfile
-that has adopted no replacements is unchanged. See [Registry
-revisions](./registry-revisions.md).
+It says that the package is a registry revision, fetched from the registry's
+integrity-addressed route rather than the canonical `name@version` URL.
+`revision: 0` is the original, and a positive number is a replacement. An entry
+with no `revision` field is an ordinary entry outside the revision protocol. See
+[Registry revisions](./registry-revisions.md).
 
-A tool that reads integrity values should treat `revision` as ordinary metadata:
-`integrity` is still a standard Subresource Integrity value pinning the exact
-bytes.
+A tool that reads integrity values should treat `revision` as ordinary metadata.
+`integrity` is still a standard Subresource Integrity value, and for a revision
+it pins the uncompressed tar rather than a `.tgz`.
+
+## Which hash `integrity` pins
+
+The `integrity` of a package tarball entry pins the resource at its tarball URL,
+after HTTP content decoding. That is a `.tgz` on most registries and a tar on
+[tar registries](./registries.md#tar-registries). With
+[`lockfile.integrityTarget: tar`](./settings/store.md#lockfileintegritytarget),
+it pins the uncompressed tar of every package, and the lockfile records that in
+its `settings`:
+
+```yaml title="pnpm-lock.yaml"
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+  integrityTarget: tar
+```
 
 ## Why the boot document comes first {#why-the-env-document-comes-first}
 

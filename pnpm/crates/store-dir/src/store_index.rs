@@ -367,8 +367,10 @@ pub struct PackageFilesIndex {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_side_effects_quarantine: Option<HashMap<String, Vec<String>>>,
 
-    /// Integrity of the tar a `.tgz` row decodes to. Present only on a row
-    /// keyed by a `.tgz` integrity whose gzip stream decoded in full.
+    /// Integrity of the tar the row's archive holds: the row's own integrity
+    /// for a tar, the hash of the whole decoded gzip stream for a `.tgz`.
+    /// Absent when the `.tgz` does not decode in full, and on rows written
+    /// before pnpm recorded it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tar_integrity: Option<String>,
 }
