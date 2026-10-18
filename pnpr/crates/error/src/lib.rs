@@ -287,8 +287,8 @@ pub enum RegistryError {
     #[from(skip)]
     TooManyUsers { max: u64 },
 
-    /// A registration attempt targeted a reserved username (`auth.admins`
-    /// or an OIDC login binding).
+    /// A registration attempt targeted a reserved username (`auth.admins`,
+    /// an OIDC binding, or a SCIM-provisioned user).
     #[display("Username {name:?} is reserved")]
     #[from(skip)]
     ReservedUsername {

@@ -187,8 +187,10 @@ pub(super) async fn add_user(
     user_upsert_response(outcome, &username, &token)
 }
 
-fn is_reserved_username(state: &AppState, name: &str) -> bool {
-    state.inner.config.identity.is_reserved_name(name)
+/// A configured reserved name, or a username a SCIM client provisioned.
+fn is_reserved_username(state: &AppState, name: &str) -> Result<bool, RegistryError> {
+    Ok(state.inner.config.identity.is_reserved_name(name)
+        || super::scim::is_provisioned(state, name)?)
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
@@ -220,7 +222,7 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
-        if is_reserved_username(state, name) {
+        if is_reserved_username(state, name)? {
             return Err(RegistryError::ReservedUsername { name: name.to_string() });
         }
         // Tokens a removed account left behind must not reach the account
@@ -228,9 +230,8 @@ async fn log_in(
         state.inner.identity.auth.revoke_all_tokens(name).await?;
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
-    if matches!(outcome, UpsertOutcome::Created) && is_reserved_username(state, &username) {
-        take_back_reserved_account(state, &username, password).await?;
-        return Err(RegistryError::ReservedUsername { name: username });
+    if matches!(outcome, UpsertOutcome::Created) {
+        take_back_if_reserved(state, &username, password).await?;
     }
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
     let refused = match super::scim::is_deprovisioned(state, &username) {
@@ -274,22 +275,29 @@ async fn undo_login(
     Ok(())
 }
 
-/// Remove the account a login created under a reserved name, which happens
-/// when an admin removes the account after the login looked it up. An account
-/// that no longer accepts the login's password is an admin's rewrite and
-/// stays. The name's tokens are revoked either way, since a concurrent login
-/// may have issued one for the created account.
-async fn take_back_reserved_account(
+/// Fail, removing the account a login created, if its name is reserved or the
+/// unreadable SCIM directory cannot clear it. A login sees an unreserved name
+/// when an admin removes the account, or a SCIM client provisions the name,
+/// after the login looked it up. An account that no longer accepts the login's
+/// password is an admin's rewrite and stays. The name's tokens are revoked
+/// either way, since a concurrent login may have issued one for the created
+/// account.
+async fn take_back_if_reserved(
     state: &AppState,
     username: &str,
     password: &str,
 ) -> Result<(), RegistryError> {
+    let refused = match is_reserved_username(state, username) {
+        Ok(false) => return Ok(()),
+        Ok(true) => RegistryError::ReservedUsername { name: username.to_string() },
+        Err(err) => err,
+    };
     let auth = &state.inner.identity.auth;
     if still_the_same_account(state, username, password, None).await? {
         auth.users.delete_user(username).await?;
     }
     auth.revoke_all_tokens(username).await?;
-    Ok(())
+    Err(refused)
 }
 
 /// Whether the account a login verified, or created, is still the one stored,
