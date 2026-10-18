@@ -182,6 +182,22 @@ function pickPreferredPeerSpec (
  * picked only when no other version qualifies. Its provider has moved on, so
  * it must not outrank a version the install resolved.
  */
+/**
+ * The `locked` versions this run resolved, then every version it resolved,
+ * then the `locked` ones. A locked version the run no longer resolves
+ * survives only as a lockfile weight, since whatever provided it has moved
+ * on, so it must not outrank what the graph now holds.
+ */
+function getOptionalPeerTiers (
+  selectors: VersionSelectors,
+  { locked, lockfileOnly }: { locked?: Set<string>, lockfileOnly?: Set<string> }
+): Array<Set<string>> {
+  if (locked == null) return []
+  const resolved = new Set(Object.keys(selectors).filter((version) => !lockfileOnly?.has(version)))
+  const reached = new Set([...locked].filter((version) => resolved.has(version)))
+  return [reached, resolved, locked].filter((tier) => tier.size > 0)
+}
+
 function getRequiredPeerTiers (selectors: VersionSelectors, lockfileOnly: Set<string> | undefined): Array<Set<string>> {
   if (lockfileOnly == null) return []
   return [new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))]
@@ -262,6 +278,14 @@ function omitLockfilePins (selectors: VersionSelectors | undefined): VersionSele
   return Object.keys(resolvedSelectors).length > 0 ? resolvedSelectors : undefined
 }
 
+/** The wanted lockfile's view of the optional peers an importer may hoist. */
+export interface OptionalPeerLockfileVersions {
+  /** The peer versions the wanted lockfile pinned for the importer. See `getImporterLockedPeerVersions`. */
+  lockedVersions?: Map<string, Set<string>>
+  /** See `HoistPeersOptions.lockfileOnlyVersions`. */
+  lockfileOnlyVersions?: Map<string, Set<string>>
+}
+
 export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
   allPreferredVersions: PreferredVersions,
@@ -270,7 +294,8 @@ export function getHoistableOptionalPeers (
    * Rejects a candidate that cannot be installed at the importer, such as one
    * whose own peers the importer provides at versions outside their ranges.
    */
-  acceptsCandidate: (name: string, version: string) => boolean = () => true
+  acceptsCandidate: (name: string, version: string) => boolean = () => true,
+  lockfile: OptionalPeerLockfileVersions = {}
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
@@ -279,7 +304,12 @@ export function getHoistableOptionalPeers (
     // Strict, unlike the required-peer pick: an optional peer nobody declared
     // is installed only to deduplicate, so a prerelease its range rejects is
     // not worth splitting a package family over.
-    const maxSatisfyingVersion = pickProviderVersion(allPreferredVersions[missingOptionalPeerName], {
+    const selectors = allPreferredVersions[missingOptionalPeerName]
+    const maxSatisfyingVersion = pickProviderVersion(selectors, {
+      tiers: getOptionalPeerTiers(selectors, {
+        locked: lockfile.lockedVersions?.get(missingOptionalPeerName),
+        lockfileOnly: lockfile.lockfileOnlyVersions?.get(missingOptionalPeerName),
+      }),
       qualifies: (version) => (rootRange == null || semver.satisfies(version, rootRange)) &&
         ranges.every(range => semver.satisfies(version, range)) &&
         acceptsCandidate(missingOptionalPeerName, version),

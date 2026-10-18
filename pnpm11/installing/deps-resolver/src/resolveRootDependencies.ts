@@ -1,11 +1,13 @@
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { ProjectId } from '@pnpm/types'
 
 import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 import type { WantedDependency } from './getWantedDependencies.js'
 import { getHoistableRootDeps } from './hoistableRootDeps.js'
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
+import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
 import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
 import {
   createCandidatePeerRangesLookup,
@@ -35,6 +37,8 @@ interface PeerHoisting {
   importers: ImporterToResolve[]
   /** See `HoistPeersOptions.lockfileOnlyVersions`. */
   lockfileOnlyVersions?: Map<string, Set<string>>
+  /** Each importer's `getImporterLockedPeerVersions`, read when its optional peers are first hoisted. */
+  lockedPeerVersionsByImporter: Map<number, Map<string, Set<string>>>
   publishedBy?: Date
   /** The versions of the workspace root's direct dependencies. */
   rootDepVersions: Map<string, string>
@@ -75,6 +79,7 @@ async function startPeerHoisting (
     ctx,
     hoistedPeersUpdateDepths: [],
     importerResults,
+    lockedPeerVersionsByImporter: new Map(),
     importers,
     lockfileOnlyVersions: ctx.autoInstallPeers && ctx.allPreferredVersions != null
       ? getLockfileOnlyVersions(ctx.allPreferredVersions)
@@ -309,7 +314,11 @@ async function hoistOptionalPeersOfImporter (
     allMissingOptionalPeers,
     ctx.allPreferredVersions,
     hoisting.workspaceRootDeps,
-    (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions)
+    (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions),
+    {
+      lockedVersions: getLockedPeerVersionsOfImporter(hoisting, index),
+      lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
+    }
   )
   if (!Object.keys(optionalDependencies).length) return false
   for (const [name, version] of Object.entries(optionalDependencies)) {
@@ -335,4 +344,13 @@ function getHoistedPeersUpdateDepth ({ options, wantedDependencies }: ImporterTo
     (updateDepth, wantedDependency) => Math.min(updateDepth, wantedDependency.updateDepth ?? options.updateDepth),
     Infinity
   )
+}
+
+function getLockedPeerVersionsOfImporter (hoisting: PeerHoisting, index: number): Map<string, Set<string>> {
+  let versions = hoisting.lockedPeerVersionsByImporter.get(index)
+  if (versions == null) {
+    versions = getImporterLockedPeerVersions(hoisting.ctx.wantedLockfile, hoisting.importers[index].options.parentIds[0] as string as ProjectId)
+    hoisting.lockedPeerVersionsByImporter.set(index, versions)
+  }
+  return versions
 }
