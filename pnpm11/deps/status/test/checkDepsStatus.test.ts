@@ -1214,12 +1214,13 @@ describe('checkDepsStatus - lockfile modification', () => {
         const installedLockfilePath = path.join(projectDirs.installed, 'pnpm-lock.yaml')
         await fs.writeFile(installedLockfilePath, "lockfileVersion: '9.0'\n")
         await fs.utimes(installedLockfilePath, new Date(beforeLastValidation), new Date(beforeLastValidation))
-        const projects = Object.fromEntries((Object.keys(projectDirs) as ProjectName[]).map((name) => [name, {
+        const createProject = (name: ProjectName): Project => ({
           rootDir: projectDirs[name],
           rootDirRealPath: projectDirs[name] as unknown as ProjectRootDirRealPath,
           manifest: { name, version: '1.0.0' },
           writeProjectManifest: async () => {},
-        }])) as Record<ProjectName, Project>
+        })
+        const projects = { installed: createProject('installed'), uninstalled: createProject('uninstalled') }
         const mockWorkspaceState: WorkspaceState = {
           lastValidatedTimestamp,
           pnpmfiles: [],
