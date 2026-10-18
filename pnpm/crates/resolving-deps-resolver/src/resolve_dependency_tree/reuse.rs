@@ -19,6 +19,9 @@ use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
 
 mod direct_versions;
 
+mod subtree;
+use subtree::subtree_fully_reusable;
+
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
@@ -45,7 +48,6 @@ use super::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
     tree_ctx::TreeCtx,
-    update_scope::update_excludes,
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
         ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
@@ -298,87 +300,6 @@ pub fn real_package_name_of<'edge>(
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
     alias.map(Cow::Borrowed)
-}
-
-/// `true` when `key` and its entire transitive subtree can be
-/// synthesized from `lockfile` (every node a plain-semver registry
-/// package present in `packages:`, every snapshot child non-`link:`).
-/// Memoised on [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable`] so each package is
-/// checked once.
-///
-/// A snapshot cycle is treated as **non**-reusable at the back-edge: the
-/// key is provisionally inserted as `false` before recursing, so a node
-/// reached through a still-in-progress ancestor resolves to `false` and
-/// any subtree containing a dependency cycle conservatively re-resolves.
-/// This avoids the unsound alternative — a provisional `true` could cache
-/// a cycle member as reusable based on an ancestor that later finalizes
-/// `false` (e.g. an update-excluded target reachable only through the
-/// cycle), wrongly reusing it. SCC-aware reuse of acyclic-equivalent
-/// cycles is possible but not worth the complexity for an uncommon case.
-///
-/// [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable`]: crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable
-fn subtree_fully_reusable(
-    ctx: &TreeCtx,
-    lockfile: &pnpm_lockfile::Lockfile,
-    key: &PkgNameVerPeer,
-    depth: i32,
-) -> bool {
-    let scope = ctx.update_scope();
-    let memo_key = (ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
-    if let Some(&cached) = lock_recoverable(&ctx.workspace.cache.subtree_reusable).get(&memo_key) {
-        return cached;
-    }
-    // Provisionally mark non-reusable so a cycle back to `key` resolves to
-    // `false` (re-resolve) instead of recursing forever — see the doc above
-    // for why `false` rather than `true`.
-    lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key.clone(), false);
-    // A `pacquet update` target anywhere in the subtree forces the whole
-    // subtree to re-resolve so the bump's new transitive deps are picked
-    // up — update names match at every depth the update reaches.
-    let name = key.name.to_string();
-    let reusable = !ctx.workspace.reuse.dedupe.covers(&name, key.suffix.version_semver())
-        && !update_excludes(scope, &name, key.suffix.version_semver(), depth)
-        && synthesize_reused_result(lockfile, key, &name).is_some()
-        && subtree_children_reusable(ctx, lockfile, key, depth);
-    lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key, reusable);
-    reusable
-}
-
-/// Recurse [`fn@subtree_fully_reusable`] across `key`'s snapshot
-/// children. A `link:` child (no snapshot key) makes the subtree
-/// non-reusable: the linked importer resolves its own deps, which this
-/// reuse path doesn't model.
-fn subtree_children_reusable(
-    ctx: &TreeCtx,
-    lockfile: &pnpm_lockfile::Lockfile,
-    key: &PkgNameVerPeer,
-    depth: i32,
-) -> bool {
-    let Some(snapshot) = lockfile.snapshots
-        .as_ref()
-        .and_then(|snaps| snaps.get(key))
-    else {
-        // No snapshot entry → the lockfile doesn't record this node's
-        // children, so the reuse walk can't reproduce its subtree.
-        // Force a fresh resolve rather than risk silently dropping
-        // transitive deps. A genuine leaf has an empty-but-*present*
-        // snapshot entry (`{}`); a missing one means an inconsistent
-        // lockfile, which `try_reuse_node`'s contract sends to a fresh
-        // resolve.
-        return false;
-    };
-    let dep_maps = [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()];
-    for dep_map in dep_maps.into_iter().flatten() {
-        for (child_name, dep_ref) in dep_map {
-            let Some(child_key) = dep_ref.resolve(child_name) else {
-                return false;
-            };
-            if !subtree_fully_reusable(ctx, lockfile, &child_key, depth + 1) {
-                return false;
-            }
-        }
-    }
-    true
 }
 
 /// Register a node whose resolution was reused from the prior lockfile,
