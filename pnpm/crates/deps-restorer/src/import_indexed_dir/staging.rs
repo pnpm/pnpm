@@ -89,7 +89,17 @@ fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::Error> {
 }
 
 fn target_swap_lock_path(dir_path: &Path) -> Result<PathBuf, io::Error> {
-    let resolved_path = pnpm_fs::realpath_missing(&pnpm_fs::lexical_normalize(dir_path))?;
+    let normalized_path = pnpm_fs::lexical_normalize(dir_path);
+    let target_name = normalized_path
+        .file_name()
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "target path has no file name")
+        })?;
+    let parent = normalized_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let resolved_path = pnpm_fs::realpath_missing(parent)?.join(target_name);
     pnpm_fs::secure_user_lock_file_path("pnpm-indexed-package-swaps", &resolved_path, "lock")
 }
 
