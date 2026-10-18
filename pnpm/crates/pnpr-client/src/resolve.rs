@@ -376,9 +376,8 @@ impl PnprClient {
         // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers = permitted_importers(&opts);
         let project_transforms_requested = has_project_transforms(&opts);
-        let version = self.negotiated_resolver_version().await?;
         let mut post = self.http
-            .post(format!("{}-/pnpr/v{version}/resolve", self.base_url))
+            .post(format!("{}-/pnpr/v0/resolve", self.base_url))
             .json(&resolve_request_body(&opts));
         if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
@@ -388,7 +387,7 @@ impl PnprClient {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Err(PnprClientError::server(format!(
-                "/-/pnpr/v{version}/resolve returned {status}: {body}",
+                "/-/pnpr/v0/resolve returned {status}: {body}",
             )));
         }
 
@@ -399,9 +398,9 @@ impl PnprClient {
         })
         .await?;
         outcome.ok_or_else(|| {
-            PnprClientError::Protocol(format!(
-                "/-/pnpr/v{version}/resolve stream ended without a terminal frame",
-            ))
+            PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
+            )
         })
     }
 }

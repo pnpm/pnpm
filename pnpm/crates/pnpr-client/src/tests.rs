@@ -581,10 +581,11 @@ async fn negotiates_v0_when_supported_by_handshake() {
         .create_async()
         .await;
 
-    let outcome = PnprClient::new(server.url())
-        .resolve_projects(options)
-        .await
-        .expect("resolve succeeds with negotiated v0");
+    let client = PnprClient::new(server.url());
+    let version = client.negotiated_resolver_version().await.expect("negotiation succeeds");
+    assert_eq!(version, 0);
+
+    let outcome = client.resolve_projects(options).await.expect("resolve succeeds with v0");
 
     assert!(outcome.applied_policies.is_some());
     handshake_mock.assert_async().await;

@@ -220,10 +220,9 @@ impl PnprClient {
         opts: VerifyLockfileOptions,
     ) -> Result<(), PnprClientError> {
         let request = serde_json::to_value(&opts).expect("verification request serializes to JSON");
-        let version = self.negotiated_resolver_version().await?;
 
         let mut post = self.http
-            .post(format!("{}-/pnpr/v{version}/verify-lockfile", self.base_url))
+            .post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url))
             .json(&request);
         if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
@@ -233,7 +232,7 @@ impl PnprClient {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Err(PnprClientError::server(format!(
-                "/-/pnpr/v{version}/verify-lockfile returned {status}: {body}",
+                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
             )));
         }
 
@@ -247,9 +246,9 @@ impl PnprClient {
         })
         .await?;
         done.ok_or_else(|| {
-            PnprClientError::Protocol(format!(
-                "/-/pnpr/v{version}/verify-lockfile stream ended without a terminal frame",
-            ))
+            PnprClientError::Protocol(
+                "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
+            )
         })
     }
 }
