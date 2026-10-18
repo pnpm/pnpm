@@ -17,15 +17,22 @@
 //!
 //! Every violation of a fixture is collected before the test fails, so one
 //! run reports the whole matrix.
+//!
+//! With `PNPM_V11_BUNDLE` naming the pnpm v11 bundle (`pnpm11/pnpm/dist/pnpm.mjs`),
+//! every fixture also runs through v11, apart from the rows that set the
+//! v12-only `autoDedupe`, and each row's fresh v11 lockfile has to equal the
+//! v12 one.
 
 use crate::_utils::{ManifestDeps, WorkspaceFixture, write_project_manifest};
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     cell::RefCell,
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsString,
     fmt, fs,
     path::{Path, PathBuf},
-    process::Output,
+    process::{Command, Output},
 };
 
 type Deps = &'static [(&'static str, &'static str)];
@@ -133,7 +140,21 @@ impl fmt::Display for Row {
     }
 }
 
+/// The pnpm a [`Harness`] runs.
+enum Cli {
+    V12,
+    /// `node` running the pnpm v11 bundle at this path.
+    V11(OsString),
+}
+
+impl Cli {
+    fn runs(&self, row: Row) -> bool {
+        matches!(self, Self::V12) || !row.auto_dedupe
+    }
+}
+
 struct Harness {
+    cli: Cli,
     fixture: WorkspaceFixture,
     base_yaml: String,
     projects: Vec<Project>,
@@ -148,26 +169,28 @@ impl Harness {
     }
 
     fn check_with_moves(projects: Vec<Project>, moves: Vec<Move>, divergences: Vec<Divergence>) {
-        let with_workspace_deps = projects
-            .iter()
-            .flat_map(|project| project.deps)
-            .any(|(_, spec)| spec.starts_with("workspace:"));
-        let fixture = WorkspaceFixture::new();
-        write_project_manifest(&fixture.workspace, "root", ManifestDeps::default());
-        let base_yaml = fs::read_to_string(fixture.workspace.join("pnpm-workspace.yaml"))
-            .expect("read pnpm-workspace.yaml");
-        let harness = Self {
-            fixture,
-            base_yaml,
-            projects,
-            moves,
-            divergences,
-            violations: RefCell::default(),
-        };
-        for row in Row::all(with_workspace_deps) {
-            harness.check_row(row);
+        let v12 = Self::new(Cli::V12, projects, moves, divergences);
+        let v12_fresh = v12.check_rows();
+        let mut violations = v12.violations.into_inner();
+        if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+            let v11 = Self::new(Cli::V11(bundle), v12.projects, v12.moves, v12.divergences);
+            let v11_fresh = v11.check_rows();
+            for (row, v11_lockfile) in &v11_fresh {
+                if let Some(v12_lockfile) = v12_fresh.get(row)
+                    && v12_lockfile != v11_lockfile
+                {
+                    v11.violation_at(
+                        row,
+                        &format!(
+                            "a fresh v11 install differs from a fresh v12 install:\n{}",
+                            diff(v12_lockfile, v11_lockfile),
+                        ),
+                        None,
+                    );
+                }
+            }
+            violations.extend(v11.violations.into_inner());
         }
-        let violations = harness.violations.into_inner();
         assert!(
             violations.is_empty(),
             "{} violations:\n\n{}",
@@ -176,7 +199,41 @@ impl Harness {
         );
     }
 
-    fn check_row(&self, row: Row) {
+    fn new(
+        cli: Cli,
+        projects: Vec<Project>,
+        moves: Vec<Move>,
+        divergences: Vec<Divergence>,
+    ) -> Self {
+        let fixture = WorkspaceFixture::new();
+        write_project_manifest(&fixture.workspace, "root", ManifestDeps::default());
+        let base_yaml = fs::read_to_string(fixture.workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml");
+        Self {
+            cli,
+            fixture,
+            base_yaml,
+            projects,
+            moves,
+            divergences,
+            violations: RefCell::default(),
+        }
+    }
+
+    /// Check every row the CLI runs, returning each row's fresh lockfile by
+    /// the row's description.
+    fn check_rows(&self) -> BTreeMap<String, String> {
+        let with_workspace_deps = self.projects
+            .iter()
+            .flat_map(|project| project.deps)
+            .any(|(_, spec)| spec.starts_with("workspace:"));
+        Row::all(with_workspace_deps)
+            .filter(|row| self.cli.runs(*row))
+            .filter_map(|row| Some((row.to_string(), self.check_row(row)?)))
+            .collect()
+    }
+
+    fn check_row(&self, row: Row) -> Option<String> {
         self.clean();
         fs::write(
             self.workspace().join("pnpm-workspace.yaml"),
@@ -184,13 +241,14 @@ impl Harness {
         )
         .expect("write pnpm-workspace.yaml");
         self.write_manifests(self.dep_count(), false);
-        let Some(fresh) = self.install(row, "a fresh install") else { return };
+        let fresh = self.install(row, "a fresh install")?;
         self.check_frozen(row, &fresh);
         self.check_dedupe(row);
         self.check_deploys(row);
         self.check_from_scratch(row, &fresh);
         self.check_incremental(row, &fresh);
         self.check_moves(row, &fresh);
+        Some(fresh)
     }
 
     fn check_frozen(&self, row: Row, fresh: &str) {
@@ -412,7 +470,18 @@ impl Harness {
     }
 
     fn run(&self, cwd: &Path, args: &[&str]) -> Output {
-        self.fixture.command_at(cwd, args)
+        let Cli::V11(bundle) = &self.cli else {
+            return self.fixture.command_at(cwd, args);
+        };
+        Command::new("node")
+            .without_ambient_pnpm_config()
+            .arg(bundle)
+            .current_dir(cwd)
+            .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run the pnpm v11 bundle")
     }
 
     /// `install` over whatever lockfile is there, returning the lockfile it
@@ -427,6 +496,10 @@ impl Harness {
     }
 
     fn violation(&self, row: Row, what: &str, output: Option<&Output>) {
+        self.violation_at(&row.to_string(), what, output);
+    }
+
+    fn violation_at(&self, row: &str, what: &str, output: Option<&Output>) {
         let detail = output.map_or_else(String::new, |output| {
             format!(
                 "\n--- stdout\n{}\n--- stderr\n{}",
@@ -434,9 +507,10 @@ impl Harness {
                 last_lines(&String::from_utf8_lossy(&output.stderr)),
             )
         });
+        let cli = if matches!(self.cli, Cli::V11(_)) { "v11 " } else { "" };
         self.violations
             .borrow_mut()
-            .push(format!("[{row}] {what}{detail}"));
+            .push(format!("[{cli}{row}] {what}{detail}"));
     }
 }
 
