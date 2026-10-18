@@ -112,8 +112,8 @@ fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
 }
 
-/// The command line's `--config.<key>=<value>` tokens. Trusted, and above
-/// every other source, as pnpm's command-line options are.
+/// The command line's `--config.<key>=<value>` tokens: trusted, and above
+/// every other source.
 fn cli_auth_source(raw_cli_config: &[(String, String)]) -> Option<NpmrcAuth> {
     (!raw_cli_config.is_empty()).then(|| NpmrcAuth::from_cli_config(raw_cli_config))
 }

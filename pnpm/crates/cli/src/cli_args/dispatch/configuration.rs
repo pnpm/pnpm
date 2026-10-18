@@ -205,8 +205,7 @@ impl StoreUse {
 
 /// The config every load starts from. `npmrc_auth_file` is seeded from the
 /// CLI flag before `current()` reads `.npmrc`, so the override redirects the
-/// user-level read, and `raw_cli_config` so the `--config.` credentials join
-/// the `.npmrc` sources. Mirrors pnpm's `--npmrc-auth-file`. Production callers
+/// user-level read. Mirrors pnpm's `--npmrc-auth-file`. Production callers
 /// turbofish `Host` explicitly so the dependency-injection plumbing is
 /// visible at the call site. See
 /// [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).

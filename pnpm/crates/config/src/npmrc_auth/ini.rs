@@ -98,11 +98,8 @@ impl NpmrcAuth {
         )
     }
 
-    /// The command line's `--config.<key>=<value>` tokens, read as the
-    /// `.npmrc` layer above every file. Values are taken as given, since
-    /// the shell has already expanded them. The command line's registry
-    /// routes are applied by the CLI after the load, so here they only pin
-    /// the unscoped credentials.
+    /// Read the command line's `--config.<key>=<value>` tokens as the top
+    /// `.npmrc` layer. Values are used as given: the shell has expanded them.
     pub fn from_cli_config(entries: &[(String, String)]) -> Self {
         let mut auth = NpmrcAuth::default();
         for (key, value) in entries {
@@ -113,6 +110,7 @@ impl NpmrcAuth {
             auth.apply_ini_entry(key, value.clone(), Path::new(""));
         }
         auth.rescope_unscoped("<command line>");
+        // The CLI applies the command line's registry routes after the load.
         auth.routes = NpmrcRoutes::default();
         auth
     }

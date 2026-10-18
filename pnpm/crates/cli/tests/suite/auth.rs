@@ -32,23 +32,6 @@ fn install_command(workspace: &Path, root: &Path) -> Command {
 fn assert_authenticated_install(
     package: &str,
     credentials: impl FnOnce(&str) -> String,
-    expected_header: &str,
-    frozen_reinstall: bool,
-) {
-    assert_authenticated_install_with_args(
-        package,
-        credentials,
-        |_| Vec::new(),
-        expected_header,
-        frozen_reinstall,
-    );
-}
-
-/// [`assert_authenticated_install`] with `cli_args(authority)` added to
-/// every install command.
-fn assert_authenticated_install_with_args(
-    package: &str,
-    credentials: impl FnOnce(&str) -> String,
     cli_args: impl FnOnce(&str) -> Vec<String>,
     expected_header: &str,
     frozen_reinstall: bool,
@@ -136,16 +119,15 @@ fn bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_authToken=secret-token\n"),
+        |_| Vec::new(),
         "Bearer secret-token",
         true,
     );
 }
 
-/// A credential passed as `--config.<key>=<value>` is the top `.npmrc`
-/// layer, so it wins over the project `.npmrc` for the same registry.
 #[test]
 fn bearer_auth_from_the_command_line_wins_over_the_project_npmrc() {
-    assert_authenticated_install_with_args(
+    assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_authToken=project-token\n"),
         |authority| vec![format!("--config.//{authority}/:_authToken=cli-token")],
@@ -159,6 +141,7 @@ fn username_and_password_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:username=foo\n//{authority}/:_password=YmFy\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -169,6 +152,7 @@ fn legacy_basic_auth_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_auth=Zm9vOmJhcg==\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -182,6 +166,7 @@ fn unpadded_legacy_basic_auth_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_auth=Zm9vOmJhcg\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -197,6 +182,7 @@ fn package_scope_bearer_auth_wins_for_scoped_install() {
                  //{authority}/:@private:_authToken=scoped-token\n",
             )
         },
+        |_| Vec::new(),
         "Bearer scoped-token",
         true,
     );
@@ -212,6 +198,7 @@ fn package_scope_legacy_auth_wins_for_scoped_install() {
                  //{authority}/:@private:_auth=Zm9vOmJhcg==\n",
             )
         },
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         true,
     );

@@ -225,14 +225,18 @@ pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
     );
 }
 
-fn config_with_cli_config(tokens: &[(&str, &str)]) -> Config {
-    Config {
-        raw_cli_config: tokens
-            .iter()
-            .map(|&(key, value)| (key.to_string(), value.to_string()))
-            .collect(),
-        ..Config::default()
-    }
+#[test]
+pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("NPM_CONFIG_//env2e.example.com/:_authToken", "upper-token")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer upper-token"),
+    );
 }
 
 #[test]
@@ -242,9 +246,15 @@ pub fn cli_config_auth_outranks_url_scoped_env_and_project_npmrc() {
     write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
     set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
 
-    let config = config_with_cli_config(&[("//env2e.example.com/:_authToken", "cli-token")])
-        .current::<FakeEnv>(project.path())
-        .expect("load config");
+    let config = Config {
+        raw_cli_config: vec![(
+            "//env2e.example.com/:_authToken".to_string(),
+            "cli-token".to_string(),
+        )],
+        ..Config::default()
+    }
+    .current::<FakeEnv>(project.path())
+    .expect("load config");
 
     assert_eq!(
         config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
@@ -262,16 +272,17 @@ pub fn cli_config_auth_outranks_url_scoped_env_and_project_npmrc() {
     );
 }
 
-/// An unscoped `--config._authToken` pins to the command line's own
-/// `registry`, like an unscoped token in an `.npmrc` pins to its file's.
 #[test]
 pub fn unscoped_cli_config_auth_token_pins_to_the_cli_registry() {
     let project = tempdir().expect("project tempdir");
 
-    let config = config_with_cli_config(&[
-        ("registry", "https://cli.example.com/"),
-        ("_authToken", "cli-token"),
-    ])
+    let config = Config {
+        raw_cli_config: vec![
+            ("registry".to_string(), "https://cli.example.com/".to_string()),
+            ("_authToken".to_string(), "cli-token".to_string()),
+        ],
+        ..Config::default()
+    }
     .current::<HostNoHome>(project.path())
     .expect("load config");
 
@@ -294,25 +305,14 @@ pub fn cli_config_tls_setting_outranks_project_npmrc() {
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), "strict-ssl=true\n");
 
-    let config = config_with_cli_config(&[("strict-ssl", "false")])
-        .current::<HostNoHome>(project.path())
-        .expect("load config");
+    let config = Config {
+        raw_cli_config: vec![("strict-ssl".to_string(), "false".to_string())],
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
 
     assert_eq!(config.tls.strict_ssl, Some(false));
-}
-
-#[test]
-pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
-    fake_env!(load_with_fake_env);
-    let project = tempdir().expect("project tempdir");
-    set_fake_env(&[("NPM_CONFIG_//env2e.example.com/:_authToken", "upper-token")]);
-
-    let config = load_with_fake_env(project.path());
-
-    assert_eq!(
-        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
-        Some("Bearer upper-token"),
-    );
 }
 
 #[test]
