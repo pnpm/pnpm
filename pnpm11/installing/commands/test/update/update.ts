@@ -18,7 +18,7 @@ import { DEFAULT_OPTS } from '../utils/index.js'
 
 const execFileAsync = promisify(execFile)
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 test.each([
   { dependencies: ['is-positive'], options: { patches: true } },

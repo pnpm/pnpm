@@ -9,7 +9,7 @@ import chalk from 'chalk'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, MOCK_REGISTRY_AUDIT_PATH, MOCK_REGISTRY_OPTS, MOCK_REGISTRY_ORIGIN } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
@@ -90,8 +90,8 @@ test('audit --fix=update -i does not open the interactive update prompt', async 
   expect(originalLockfile?.packages?.[unchangedPkgId]).toBeDefined()
 
   getMockAgent().enableNetConnect(/localhost/)
-  getMockAgent().get(MOCK_REGISTRY)
-    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+  getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+    .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
     .reply(200, mockResponse)
 
   mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pkg-with-1-dep@<100.1.0'])

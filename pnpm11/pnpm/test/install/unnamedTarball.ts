@@ -66,7 +66,7 @@ test('installing a bzip2 compressed tarball from local file', async () => {
 
 test.each(['3.1.0', '1.0.0'])('adding a new unnamed tarball URL replaces the existing dependency with version %s', async (newVersion) => {
   const project = prepareEmpty()
-  const tarballUrl = (version: string) => `http://127.0.0.1:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-${version}.tgz`
+  const tarballUrl = (version: string) => `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-${version}.tgz`
   const oldTarball = tarballUrl('1.0.0')
   const newTarball = `${tarballUrl(newVersion)}?revision=2`
   await execPnpm(['add', oldTarball])

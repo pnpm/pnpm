@@ -13,7 +13,7 @@ import chalk from 'chalk'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { MOCK_REGISTRY_AUDIT_PATH, MOCK_REGISTRY_OPTS, MOCK_REGISTRY_ORIGIN } from './utils/options.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 
@@ -46,8 +46,8 @@ describe('audit fix with update', () => {
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -94,8 +94,8 @@ The fixed vulnerabilities are:
 
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -147,8 +147,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -216,8 +216,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -264,8 +264,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -315,8 +315,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-3-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -369,8 +369,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'unfixable-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -432,8 +432,8 @@ The remaining vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'audit-multi-version-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -498,8 +498,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -572,8 +572,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -653,8 +653,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -747,8 +747,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -828,8 +828,8 @@ The fixed vulnerabilities are:
 
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -902,8 +902,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {

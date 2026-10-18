@@ -67,7 +67,7 @@ async fn a_warm_version_request_reads_no_packument() {
     let app = router(config);
 
     for _ in 0..2 {
-        let response = get(&app, "/foo@1.0.0").await;
+        let response = get(&app, "/npm/foo@1.0.0").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, tgz);
     }
@@ -93,7 +93,7 @@ async fn a_version_whose_tarball_has_another_name_is_served() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response = get(&app, "/foo@1.0.0").await;
+    let response = get(&app, "/npm/foo@1.0.0").await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, tgz);
 }
@@ -140,7 +140,7 @@ async fn a_repeated_tar_request_parses_no_packument() {
     let app = tar_registry_app(&upstream.url(), tmp.path());
 
     for _ in 0..2 {
-        let warm = get(&app, "/~zstd/foo@1.0.0").await;
+        let warm = get(&app, "/npm/~zstd/foo@1.0.0").await;
         assert_eq!(warm.status(), StatusCode::OK);
         assert_eq!(body_bytes(warm.into_body()).await, b"foo");
     }
@@ -160,7 +160,7 @@ async fn a_repeated_tar_request_parses_no_packument() {
             .set_modified(modified)
             .unwrap();
     }
-    let second = get(&app, "/~zstd/foo@1.0.0").await;
+    let second = get(&app, "/npm/~zstd/foo@1.0.0").await;
     assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(body_bytes(second.into_body()).await, b"foo");
 }
@@ -176,12 +176,12 @@ async fn a_rewritten_packument_replaces_its_cached_dists() {
     let app = tar_registry_app(&upstream.url(), tmp.path());
 
     for _ in 0..2 {
-        assert_eq!(get(&app, "/~zstd/foo@1.0.0").await.status(), StatusCode::OK);
+        assert_eq!(get(&app, "/npm/~zstd/foo@1.0.0").await.status(), StatusCode::OK);
     }
     for path in cached_files_containing(tmp.path(), packument_body.as_bytes()) {
         std::fs::write(path, br#"{"name":"foo","versions":{}}"#).unwrap();
     }
-    assert_eq!(get(&app, "/~zstd/foo@1.0.0").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(get(&app, "/npm/~zstd/foo@1.0.0").await.status(), StatusCode::NOT_FOUND);
 }
 
 /// The canonical filename of one version can be the `dist.tarball` another
@@ -226,7 +226,7 @@ async fn a_cold_version_request_gets_its_own_tarball() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&url, tmp.path().to_path_buf()));
 
-    let response = get(&app, "/foo@1.0.0").await;
+    let response = get(&app, "/npm/foo@1.0.0").await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, requested);
 }
@@ -263,7 +263,7 @@ async fn a_cold_version_request_reads_only_its_version_manifest() {
     let app = tar_registry_app(&url, tmp.path());
 
     for _ in 0..2 {
-        let response = get(&app, "/~zstd/foo@1.0.0").await;
+        let response = get(&app, "/npm/~zstd/foo@1.0.0").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"foo");
     }
@@ -298,7 +298,7 @@ async fn a_version_manifest_of_another_version_is_not_served() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&url, tmp.path().to_path_buf()));
 
-    assert_eq!(get(&app, "/foo@latest").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(get(&app, "/npm/foo@latest").await.status(), StatusCode::NOT_FOUND);
     packument_mock.assert_async().await;
 }
 
@@ -311,7 +311,7 @@ async fn a_version_with_path_segments_is_not_found() {
     let packument_body = mock_foo(&mut upstream, &tgz).await;
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
-    assert_eq!(get(&app, "/foo@1.0.0").await.status(), StatusCode::OK);
+    assert_eq!(get(&app, "/npm/foo@1.0.0").await.status(), StatusCode::OK);
 
     let cached = cached_files_containing(tmp.path(), packument_body.as_bytes());
     let package_dir = cached[0].parent().unwrap();
@@ -325,7 +325,7 @@ async fn a_version_with_path_segments_is_not_found() {
         + 1;
     for separator in ["%2F", "%5C"] {
         let climb = format!("..{separator}").repeat(depth);
-        let response = get(&app, &format!("/foo@x{separator}{climb}secret")).await;
+        let response = get(&app, &format!("/npm/foo@x{separator}{climb}secret")).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "separator {separator}");
     }
 }
@@ -351,7 +351,7 @@ async fn a_version_manifest_with_a_malformed_integrity_is_not_served() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&url, tmp.path().to_path_buf()));
 
-    let response = get(&app, "/foo@1.0.0").await;
+    let response = get(&app, "/npm/foo@1.0.0").await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, tgz);
 }
@@ -374,7 +374,7 @@ async fn an_unreachable_manifest_serves_the_stale_packument() {
     let app = router(config);
 
     for _ in 0..2 {
-        let response = get(&app, "/~zstd/foo@1.0.0").await;
+        let response = get(&app, "/npm/~zstd/foo@1.0.0").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"foo");
     }

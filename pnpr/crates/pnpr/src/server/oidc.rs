@@ -287,13 +287,12 @@ pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), Reg
 }
 
 pub(super) fn check_workload_request(
-    config: &pnpr_config::Config,
     workload: &pnpr_config::oidc::OidcWorkload,
     method: &axum::http::Method,
     path: &str,
 ) -> Result<(), RegistryError> {
     let decoded = pnpr_search::percent_decode(path);
-    let base = config.routing.registries.base_path(pnpr_registry::Ecosystem::Npm);
+    let base = pnpr_registry::Ecosystem::Npm.base_path();
     if *method == axum::http::Method::PUT
         && workload.packages
             .iter()

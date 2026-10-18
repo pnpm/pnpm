@@ -78,7 +78,7 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &tgz,
@@ -88,7 +88,7 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let packument = body_json(get(&app, "/~zstd/@acme%2Fwidget", None).await.into_body()).await;
+    let packument = body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
     let dist = &packument["versions"]["1.0.0"]["dist"];
     dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
@@ -96,23 +96,23 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
     }
 
-    let response = get(&app, "/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
+    let response = get(&app, "/npm/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/x-tar");
     assert_eq!(response.headers()[header::CONTENT_ENCODING], "zstd");
     let decoded = zstd::decode_all(body_bytes(response.into_body()).await.as_slice()).unwrap();
     assert_eq!(decoded, tar);
 
-    let identity = get(&app, "/~zstd/@acme/widget@1.0.0", None).await;
+    let identity = get(&app, "/npm/~zstd/@acme/widget@1.0.0", None).await;
     let identity_encoding = identity.headers().get(header::CONTENT_ENCODING);
     assert!(identity_encoding.is_none(), "{identity_encoding:?}");
     assert_eq!(body_bytes(identity.into_body()).await.as_slice(), tar.as_slice());
 
     // The `.tgz` registry serves the published bytes at the same path.
-    let tgz_response = get(&app, "/@acme/widget@1.0.0", Some("zstd")).await;
+    let tgz_response = get(&app, "/npm/@acme/widget@1.0.0", Some("zstd")).await;
     assert_eq!(tgz_response.status(), StatusCode::OK);
     assert_eq!(body_bytes(tgz_response.into_body()).await.as_slice(), tgz.as_slice());
-    let packument = body_json(get(&app, "/@acme%2Fwidget", None).await.into_body()).await;
+    let packument = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
 }
 
@@ -126,7 +126,7 @@ async fn a_tar_registry_serves_no_tgz_path() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &tgz,
@@ -136,9 +136,9 @@ async fn a_tar_registry_serves_no_tgz_path() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let tgz_path = get(&app, "/~zstd/@acme/widget/-/widget-1.0.0.tgz", None).await;
+    let tgz_path = get(&app, "/npm/~zstd/@acme/widget/-/widget-1.0.0.tgz", None).await;
     assert_eq!(tgz_path.status(), StatusCode::NOT_FOUND);
-    let main_path = get(&app, "/@acme/widget/-/widget-1.0.0.tgz", None).await;
+    let main_path = get(&app, "/npm/@acme/widget/-/widget-1.0.0.tgz", None).await;
     assert_eq!(main_path.status(), StatusCode::OK);
 }
 
@@ -178,20 +178,20 @@ async fn an_upstream_version_gains_its_tar_integrity_once_its_tar_was_served() {
     config.routing.tar_registries.insert("zstd".to_string());
     let app = router(config);
 
-    let before = body_json(get(&app, "/~zstd/left-pad", None).await.into_body()).await;
+    let before = body_json(get(&app, "/npm/~zstd/left-pad", None).await.into_body()).await;
     assert!(
         before["versions"]["1.0.0"]["dist"].get("integrity").is_none(),
         "the tar integrity is unknown before pnpr holds the tgz: {before}",
     );
 
-    let served = get(&app, "/~zstd/left-pad@1.0.0", None).await;
+    let served = get(&app, "/npm/~zstd/left-pad@1.0.0", None).await;
     assert_eq!(served.status(), StatusCode::OK);
     assert_eq!(body_bytes(served.into_body()).await, tar);
 
     // The integrity is recorded once the decode finished, off the response path.
     let mut after = serde_json::Value::Null;
     for _ in 0..50 {
-        after = body_json(get(&app, "/~zstd/left-pad", None).await.into_body()).await;
+        after = body_json(get(&app, "/npm/~zstd/left-pad", None).await.into_body()).await;
         if after["versions"]["1.0.0"]["dist"].get("integrity").is_some() {
             break;
         }
@@ -216,7 +216,7 @@ async fn a_gzip_client_gets_the_stored_tgz() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &tgz,
@@ -226,7 +226,7 @@ async fn a_gzip_client_gets_the_stored_tgz() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let response = get(&app, "/~zstd/@acme/widget@1.0.0", Some("gzip")).await;
+    let response = get(&app, "/npm/~zstd/@acme/widget@1.0.0", Some("gzip")).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_ENCODING], "gzip");
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/x-tar");
@@ -243,7 +243,7 @@ async fn a_level_19_variant_replaces_the_streamed_encoding() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &gzip(&tar),
@@ -253,7 +253,7 @@ async fn a_level_19_variant_replaces_the_streamed_encoding() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let streamed = get(&app, "/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
+    let streamed = get(&app, "/npm/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
     assert!(
         streamed
             .headers()
@@ -265,7 +265,7 @@ async fn a_level_19_variant_replaces_the_streamed_encoding() {
 
     let mut stored = None;
     for _ in 0..100 {
-        let response = get(&app, "/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
+        let response = get(&app, "/npm/~zstd/@acme/widget@1.0.0", Some("zstd")).await;
         if response
             .headers()
             .get(header::CONTENT_LENGTH)
@@ -319,7 +319,7 @@ async fn an_uncached_upstream_gets_no_tar_variants() {
     let app = router(config);
 
     for _ in 0..2 {
-        let served = get(&app, "/~zstd/left-pad@1.0.0", Some("zstd, gzip")).await;
+        let served = get(&app, "/npm/~zstd/left-pad@1.0.0", Some("zstd, gzip")).await;
         assert_eq!(served.status(), StatusCode::OK);
         assert_eq!(served.headers()[header::CONTENT_ENCODING], "zstd", "zstd stays available");
         assert_eq!(zstd::decode_all(body_bytes(served.into_body()).await.as_slice()).unwrap(), tar);
@@ -390,7 +390,7 @@ async fn stale_cached_tgz_scenario(accept: Option<&str>) {
     config.routing.tar_registries.insert("zstd".to_string());
     let app = router(config);
 
-    let cached = get(&app, "/~zstd/left-pad@1.0.0", None).await;
+    let cached = get(&app, "/npm/~zstd/left-pad@1.0.0", None).await;
     assert_eq!(body_bytes(cached.into_body()).await, old_tar, "the first fetch caches the old tgz");
 
     old_packument.remove_async().await;
@@ -407,13 +407,13 @@ async fn stale_cached_tgz_scenario(accept: Option<&str>) {
         .await;
 
     assert!(
-        !completes_over_http(&app, "/~zstd/left-pad@1.0.0", accept).await,
+        !completes_over_http(&app, "/npm/~zstd/left-pad@1.0.0", accept).await,
         "stale bytes must not complete a tar response ({accept:?})",
     );
 
     let mut refetched = Vec::new();
     for _ in 0..50 {
-        let response = get(&app, "/~zstd/left-pad@1.0.0", None).await;
+        let response = get(&app, "/npm/~zstd/left-pad@1.0.0", None).await;
         if let Ok(body) = axum::body::to_bytes(response.into_body(), usize::MAX).await {
             refetched = body.to_vec();
             break;
@@ -452,7 +452,7 @@ async fn a_tar_registry_serves_no_integrity_addressed_tgz() {
     let tmp = TempDir::new().unwrap();
     let app = router(acme_config(tmp.path().to_path_buf()));
     let digest = "a".repeat(86);
-    let response = get(&app, &format!("/~zstd/-/tarballs/sha512/{digest}"), None).await;
+    let response = get(&app, &format!("/npm/~zstd/-/tarballs/sha512/{digest}"), None).await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -480,7 +480,7 @@ async fn assert_publish_derives_no_tar_hash(config: Config, storage: &std::path:
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &gzip(&widget_tar()),
@@ -526,7 +526,7 @@ async fn a_shasum_only_upstream_version_is_served_as_a_tar() {
     config.routing.tar_registries.insert("zstd".to_string());
     let app = router(config);
 
-    let served = get(&app, "/~zstd/old-pkg@1.0.0", None).await;
+    let served = get(&app, "/npm/~zstd/old-pkg@1.0.0", None).await;
     assert_eq!(served.status(), StatusCode::OK);
     assert_eq!(body_bytes(served.into_body()).await, tar);
 }
@@ -541,7 +541,7 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &gzip(&tar),
@@ -551,7 +551,8 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    let version = body_json(get(&app, "/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
+    let version =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
     dbg!(&version["dist"]);
     assert_eq!(version["dist"]["integrity"], sha512_integrity(&tar));
     assert!(version["dist"].get("tarball").is_none());
@@ -559,7 +560,7 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     let abbreviated = app
         .clone()
         .oneshot(
-            Request::get("/~zstd/@acme%2Fwidget")
+            Request::get("/npm/~zstd/@acme%2Fwidget")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -572,7 +573,7 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
     assert!(dist.get("tarball").is_none());
 
-    let encoded = get(&app, "/~zstd/@acme%2Fwidget@1.0.0", None).await;
+    let encoded = get(&app, "/npm/~zstd/@acme%2Fwidget@1.0.0", None).await;
     assert_eq!(encoded.status(), StatusCode::OK);
     assert_eq!(body_bytes(encoded.into_body()).await.as_slice(), tar.as_slice());
 }
@@ -589,7 +590,7 @@ async fn the_version_route_refuses_a_vulnerable_version() {
     let publish = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             &gzip(&widget_tar()),
@@ -599,7 +600,7 @@ async fn the_version_route_refuses_a_vulnerable_version() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    for path in ["/~zstd/@acme/widget@1.0.0", "/@acme/widget@1.0.0"] {
+    for path in ["/npm/~zstd/@acme/widget@1.0.0", "/npm/@acme/widget@1.0.0"] {
         let response = get(&app, path, Some("zstd")).await;
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{path}");
     }

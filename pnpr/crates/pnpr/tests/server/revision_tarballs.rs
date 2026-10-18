@@ -63,7 +63,7 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/~npmjs/foo")
+            Request::get("/npm/~npmjs/foo")
                 .header(header::AUTHORIZATION, &authorization)
                 .body(Body::empty())
                 .unwrap(),
@@ -75,10 +75,10 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
     assert_eq!(body["versions"]["1.0.0"]["dist"]["revision"], 2);
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        format!("http://example.test/~npmjs/{revision_path}"),
+        format!("http://example.test/npm/~npmjs/{revision_path}"),
     );
 
-    for path in [format!("/~npmjs/{revision_path}"), format!("/{revision_path}")] {
+    for path in [format!("/npm/~npmjs/{revision_path}"), format!("/npm/{revision_path}")] {
         let response = app
             .clone()
             .oneshot(
@@ -112,7 +112,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
     let redirect = upstream
         .mock("GET", format!("/{revision_path}").as_str())
         .with_status(302)
-        .with_header("location", "/redirected.tgz")
+        .with_header("location", "/npm/redirected.tgz")
         .expect(1)
         .create_async()
         .await;
@@ -129,7 +129,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
     let app = router_with_auth(config, auth);
     let response = app
         .oneshot(
-            Request::get(format!("/~npmjs/{revision_path}"))
+            Request::get(format!("/npm/~npmjs/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -158,7 +158,7 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
         router_config(&upstream.url(), &upstream.url(), tmp.path().join("router")),
         AuthState::in_memory(),
     );
-    for path in [format!("/~main/{revision_path}"), format!("/{revision_path}")] {
+    for path in [format!("/npm/~main/{revision_path}"), format!("/npm/{revision_path}")] {
         let response = router_app
             .clone()
             .oneshot(
@@ -176,7 +176,7 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
         PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let response = router_with_auth(config, AuthState::in_memory())
         .oneshot(
-            Request::get(format!("/~npmjs/{revision_path}"))
+            Request::get(format!("/npm/~npmjs/{revision_path}"))
                 .body(Body::empty())
                 .unwrap(),
         )

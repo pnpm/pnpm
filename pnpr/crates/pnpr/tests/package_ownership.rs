@@ -217,7 +217,7 @@ async fn first_publish_claims_package_in_maintainers() {
     let doc = publish_doc("my-pkg", "1.0.0", b"tarball-v1");
     let response = app
         .clone()
-        .oneshot(authed_put("/my-pkg", &alice_token, doc))
+        .oneshot(authed_put("/npm/my-pkg", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -225,7 +225,7 @@ async fn first_publish_claims_package_in_maintainers() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/my-pkg")
+            Request::get("/npm/my-pkg")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -253,7 +253,7 @@ async fn owners_policy_restricts_subsequent_publish() {
     let doc = publish_doc("owned-lib", "1.0.0", b"tarball-1");
     let response = app
         .clone()
-        .oneshot(authed_put("/owned-lib", &alice_token, doc))
+        .oneshot(authed_put("/npm/owned-lib", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -262,7 +262,7 @@ async fn owners_policy_restricts_subsequent_publish() {
     let doc = publish_doc("owned-lib", "1.0.1", b"tarball-2");
     let response = app
         .clone()
-        .oneshot(authed_put("/owned-lib", &bob_token, doc))
+        .oneshot(authed_put("/npm/owned-lib", &bob_token, doc))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -271,7 +271,7 @@ async fn owners_policy_restricts_subsequent_publish() {
     let doc = publish_doc("owned-lib", "1.0.1", b"tarball-2");
     let response = app
         .clone()
-        .oneshot(authed_put("/owned-lib", &alice_token, doc))
+        .oneshot(authed_put("/npm/owned-lib", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -280,7 +280,7 @@ async fn owners_policy_restricts_subsequent_publish() {
     let doc = publish_doc("owned-lib", "1.0.2", b"tarball-3");
     let response = app
         .clone()
-        .oneshot(authed_put("/owned-lib", &admin_token, doc))
+        .oneshot(authed_put("/npm/owned-lib", &admin_token, doc))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -301,7 +301,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     let doc = publish_doc("team-pkg", "1.0.0", b"content-1");
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg", &alice_token, doc))
+        .oneshot(authed_put("/npm/team-pkg", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -314,7 +314,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg/-rev/1-abc", &bob_token, mutation))
+        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &bob_token, mutation))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -327,7 +327,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg/-rev/1-abc", &alice_token, empty_mutation))
+        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &alice_token, empty_mutation))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
@@ -343,7 +343,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg/-rev/1-abc", &alice_token, add_bob_mutation))
+        .oneshot(authed_put("/npm/team-pkg/-rev/1-abc", &alice_token, add_bob_mutation))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -352,7 +352,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     let doc = publish_doc("team-pkg", "1.0.1", b"content-2");
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg", &bob_token, doc))
+        .oneshot(authed_put("/npm/team-pkg", &bob_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -365,7 +365,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg/-rev/2-def", &admin_token, admin_mutation))
+        .oneshot(authed_put("/npm/team-pkg/-rev/2-def", &admin_token, admin_mutation))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -374,7 +374,7 @@ async fn npm_owner_maintainer_mutation_flow() {
     let doc = publish_doc("team-pkg", "1.0.2", b"content-3");
     let res = app
         .clone()
-        .oneshot(authed_put("/team-pkg", &alice_token, doc))
+        .oneshot(authed_put("/npm/team-pkg", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -392,7 +392,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
     let doc = publish_doc("open-pkg", "1.0.0", b"content-1");
     let res = app
         .clone()
-        .oneshot(authed_put("/open-pkg", &alice_token, doc))
+        .oneshot(authed_put("/npm/open-pkg", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -401,7 +401,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
     let dash_maintainer = json!({ "_id": "open-pkg", "maintainers": [{ "name": "-" }] });
     let res = app
         .clone()
-        .oneshot(authed_put("/open-pkg/-rev/1-abc", &alice_token, dash_maintainer))
+        .oneshot(authed_put("/npm/open-pkg/-rev/1-abc", &alice_token, dash_maintainer))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -410,7 +410,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
     let res = app
         .clone()
         .oneshot(
-            Request::put("/open-pkg/-rev/2-def")
+            Request::put("/npm/open-pkg/-rev/2-def")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&takeover).unwrap()))
                 .unwrap(),
@@ -434,7 +434,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc1 = publish_doc("tomb-pkg", "1.0.0", b"v1");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc1))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc1))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -442,7 +442,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc2 = publish_doc("tomb-pkg", "1.1.0", b"v2");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc2))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc2))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -450,7 +450,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     // Alice unpublishes the entire package
     let res = app
         .clone()
-        .oneshot(authed_delete("/tomb-pkg/-rev/1", &alice_token))
+        .oneshot(authed_delete("/npm/tomb-pkg/-rev/1", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -459,7 +459,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_squat = publish_doc("tomb-pkg", "1.0.0", b"malicious");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &charlie_token, doc_squat))
+        .oneshot(authed_put("/npm/tomb-pkg", &charlie_token, doc_squat))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -467,7 +467,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_squat_new = publish_doc("tomb-pkg", "2.0.0", b"malicious2");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &charlie_token, doc_squat_new))
+        .oneshot(authed_put("/npm/tomb-pkg", &charlie_token, doc_squat_new))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -476,7 +476,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_repub = publish_doc("tomb-pkg", "1.0.0", b"v1-again");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_repub))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc_repub))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -485,7 +485,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_new = publish_doc("tomb-pkg", "2.0.0", b"v2-new");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_new))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc_new))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -493,7 +493,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     // Alice partial-unpublishes 2.0.0 by deleting tarball
     let res = app
         .clone()
-        .oneshot(authed_delete("/tomb-pkg/-/tomb-pkg-2.0.0.tgz/-rev/1", &alice_token))
+        .oneshot(authed_delete("/npm/tomb-pkg/-/tomb-pkg-2.0.0.tgz/-rev/1", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -502,7 +502,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_repub_2 = publish_doc("tomb-pkg", "2.0.0", b"v2-again");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_repub_2))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc_repub_2))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -511,7 +511,7 @@ async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let doc_201 = publish_doc("tomb-pkg", "2.0.1", b"v2.0.1");
     let res = app
         .clone()
-        .oneshot(authed_put("/tomb-pkg", &alice_token, doc_201))
+        .oneshot(authed_put("/npm/tomb-pkg", &alice_token, doc_201))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -532,7 +532,7 @@ async fn scoped_package_ownership_and_unpublish() {
     let doc = publish_doc("@my-org/core", "1.0.0", b"scoped-1");
     let res = app
         .clone()
-        .oneshot(authed_put("/@my-org/core", &alice_token, doc))
+        .oneshot(authed_put("/npm/@my-org/core", &alice_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -545,7 +545,7 @@ async fn scoped_package_ownership_and_unpublish() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/@my-org/core/-rev/1-abc", &bob_token, mutation))
+        .oneshot(authed_put("/npm/@my-org/core/-rev/1-abc", &bob_token, mutation))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -561,7 +561,7 @@ async fn scoped_package_ownership_and_unpublish() {
     });
     let res = app
         .clone()
-        .oneshot(authed_put("/@my-org/core/-rev/1-abc", &alice_token, add_bob))
+        .oneshot(authed_put("/npm/@my-org/core/-rev/1-abc", &alice_token, add_bob))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -569,7 +569,7 @@ async fn scoped_package_ownership_and_unpublish() {
     // Bob unpublishes the scoped package
     let res = app
         .clone()
-        .oneshot(authed_delete("/@my-org/core/-rev/1", &bob_token))
+        .oneshot(authed_delete("/npm/@my-org/core/-rev/1", &bob_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -578,7 +578,7 @@ async fn scoped_package_ownership_and_unpublish() {
     let squat = publish_doc("@my-org/core", "1.0.0", b"evil");
     let res = app
         .clone()
-        .oneshot(authed_put("/@my-org/core", &charlie_token, squat))
+        .oneshot(authed_put("/npm/@my-org/core", &charlie_token, squat))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -596,7 +596,7 @@ async fn cannot_unpublish_or_lock_nonexistent_package() {
     // Eve tries to DELETE a tarball for a nonexistent package
     let res = app
         .clone()
-        .oneshot(authed_delete("/unclaimed-pkg/-/unclaimed-pkg-1.0.0.tgz/-rev/1", &eve_token))
+        .oneshot(authed_delete("/npm/unclaimed-pkg/-/unclaimed-pkg-1.0.0.tgz/-rev/1", &eve_token))
         .await
         .unwrap();
     assert!(res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::NOT_FOUND);
@@ -605,7 +605,7 @@ async fn cannot_unpublish_or_lock_nonexistent_package() {
     let doc = publish_doc("unclaimed-pkg", "1.0.0", b"legit");
     let res = app
         .clone()
-        .oneshot(authed_put("/unclaimed-pkg", &eve_token, doc))
+        .oneshot(authed_put("/npm/unclaimed-pkg", &eve_token, doc))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -625,7 +625,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     let doc1 = publish_doc("staged-owner-pkg", "1.0.0", b"v1");
     let res = app
         .clone()
-        .oneshot(authed_put("/staged-owner-pkg", &alice_token, doc1))
+        .oneshot(authed_put("/npm/staged-owner-pkg", &alice_token, doc1))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -634,7 +634,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     let doc2 = publish_doc("staged-owner-pkg", "1.1.0", b"v2");
     let res = app
         .clone()
-        .oneshot(authed_post("/-/stage/package/staged-owner-pkg", &alice_token, doc2))
+        .oneshot(authed_post("/npm/-/stage/package/staged-owner-pkg", &alice_token, doc2))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -644,7 +644,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     // Bob (not maintainer) attempts to approve the staged publish -> 403 Forbidden
     let res = app
         .clone()
-        .oneshot(authed_post(&format!("/-/stage/{stage_id}/approve"), &bob_token, json!({})))
+        .oneshot(authed_post(&format!("/npm/-/stage/{stage_id}/approve"), &bob_token, json!({})))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
@@ -652,7 +652,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     // Alice (maintainer) approves the staged publish -> 201 Created
     let res = app
         .clone()
-        .oneshot(authed_post(&format!("/-/stage/{stage_id}/approve"), &alice_token, json!({})))
+        .oneshot(authed_post(&format!("/npm/-/stage/{stage_id}/approve"), &alice_token, json!({})))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -660,7 +660,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
     // Verify 1.1.0 is published
     let res = app
         .clone()
-        .oneshot(authed_get("/staged-owner-pkg", &alice_token))
+        .oneshot(authed_get("/npm/staged-owner-pkg", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -681,7 +681,7 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
     let doc1 = publish_doc("fail-pkg", "1.0.0", b"v1");
     let res = app
         .clone()
-        .oneshot(authed_put("/fail-pkg", &alice_token, doc1))
+        .oneshot(authed_put("/npm/fail-pkg", &alice_token, doc1))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
@@ -689,14 +689,14 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
     let doc2 = publish_doc("fail-pkg", "1.1.0", b"v2");
     let res = app
         .clone()
-        .oneshot(authed_put("/fail-pkg", &alice_token, doc2))
+        .oneshot(authed_put("/npm/fail-pkg", &alice_token, doc2))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
     let res = app
         .clone()
-        .oneshot(authed_get("/fail-pkg", &alice_token))
+        .oneshot(authed_get("/npm/fail-pkg", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -720,7 +720,7 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
     // Alice attempts to rewrite the packument to remove 1.1.0
     let res = app
         .clone()
-        .oneshot(authed_put("/fail-pkg/-rev/1", &alice_token, packument))
+        .oneshot(authed_put("/npm/fail-pkg/-rev/1", &alice_token, packument))
         .await
         .unwrap();
     assert!(
@@ -732,7 +732,7 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
     // Verify rollback restored the original packument so 1.1.0 is still present
     let res = app
         .clone()
-        .oneshot(authed_get("/fail-pkg", &alice_token))
+        .oneshot(authed_get("/npm/fail-pkg", &alice_token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);

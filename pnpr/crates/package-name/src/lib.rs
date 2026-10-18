@@ -28,13 +28,16 @@ impl Ecosystem {
     }
 
     /// Every ecosystem pnpr can serve.
-    ///
-    /// Derived rather than written out, because a caller asking "is this the
-    /// only one configured" has to compare against all of them, and a list
-    /// maintained by hand answers that wrongly the moment an ecosystem is
-    /// added without it.
     pub fn all() -> impl Iterator<Item = Self> {
         Self::iter()
+    }
+
+    /// The path this ecosystem's endpoints sit under, whatever else the
+    /// server is configured with. Every URL pnpr writes about itself and every
+    /// route it mounts starts here.
+    #[must_use]
+    pub fn base_path(self) -> String {
+        format!("/{self}")
     }
 }
 

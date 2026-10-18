@@ -11,7 +11,7 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const DEFAULT_OPTIONS = {
   argv: {

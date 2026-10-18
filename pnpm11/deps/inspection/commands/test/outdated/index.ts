@@ -24,7 +24,7 @@ const hasOutdatedDepsUsingCatalogProtocol = testFixtures.find('has-outdated-deps
 const hasOutdatedDepsUsingNpmAlias = testFixtures.find('has-outdated-deps-using-npm-alias')
 const hasOnlyDeprecatedDepsFixture = testFixtures.find('has-only-deprecated-deps')
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const OUTDATED_OPTIONS = {
   cacheDir: 'cache',

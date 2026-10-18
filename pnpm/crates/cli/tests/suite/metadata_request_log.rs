@@ -79,7 +79,11 @@ fn three_installs(
             remove_if_present(fs::remove_dir_all(workspace.join("node_modules")));
             remove_if_present(fs::remove_file(workspace.join("pnpm-lock.yaml")));
             pacquet.assert().success();
-            mock_instance.take_requests()
+            mock_instance
+                .take_requests()
+                .into_iter()
+                .map(registry_relative)
+                .collect()
         })
         .collect();
     drop(root);
@@ -116,6 +120,14 @@ fn three_installs(
         .map(|requests| log_of(requests, true))
         .collect();
     (metadata, tarballs)
+}
+
+/// The table spells paths relative to the npm registry URL.
+fn registry_relative(mut request: RecordedRequest) -> RecordedRequest {
+    if let Some(path) = request.path.strip_prefix("/npm") {
+        request.path = path.to_string();
+    }
+    request
 }
 
 fn remove_if_present(result: io::Result<()>) {

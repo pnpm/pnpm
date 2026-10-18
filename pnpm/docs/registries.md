@@ -120,7 +120,7 @@ A project uses a tar registry by keying its URL and declaring its layout:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
-  https://pnpr.corp.example/~zstd/:
+  https://pnpr.corp.example/npm/~zstd/:
     scopes: ["@"]
     serverType: pnpr
 ```

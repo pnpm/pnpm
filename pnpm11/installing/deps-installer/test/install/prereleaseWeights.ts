@@ -82,9 +82,9 @@ test('prerelease specifiers do not cause not-yet-used version to be resolved', a
   }
 
   await setupMockAgent()
-  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
+  const { origin: registryUrl, pathname: registryPath } = new URL(options.registriesByScope.default)
   // cspell:disable-next-line
-  const metadataPath = '/@pnpm.e2e%2Fprerelease'
+  const metadataPath = `${registryPath}@pnpm.e2e%2Fprerelease`
 
   getMockAgent().get(registryUrl)
     .intercept({ path: metadataPath, method: 'GET' })

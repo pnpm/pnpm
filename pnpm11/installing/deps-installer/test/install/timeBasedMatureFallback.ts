@@ -19,18 +19,19 @@ test.each(['highest', 'time-based'] as const)('time-based fallback chooses a mat
   }, { retry: { retries: 0 } })
   await setupMockAgent()
   const registry = opts.registriesByScope.default.replace(/\/$/, '')
-  const pool = getMockAgent().get(registry)
+  const { origin: registryOrigin, pathname: registryPath } = new URL(opts.registriesByScope.default)
+  const pool = getMockAgent().get(registryOrigin)
   const manifest = (name: string, version: string, dependencies = {}) => ({
     name, version, dependencies,
     dist: { integrity: 'sha512-' + Buffer.alloc(64).toString('base64'), tarball: `${registry}/${name}-${version}.tgz` },
   })
-  pool.intercept({ path: '/fallback-parent', method: 'GET' }).reply(200, {
+  pool.intercept({ path: `${registryPath}fallback-parent`, method: 'GET' }).reply(200, {
     name: 'fallback-parent',
     'dist-tags': { latest: '1.0.0' },
     versions: { '1.0.0': manifest('fallback-parent', '1.0.0', { 'fallback-child': '^1.0.0' }) },
     time: { '1.0.0': '2022-04-01T00:00:00Z' },
   }).persist()
-  pool.intercept({ path: '/fallback-child', method: 'GET' }).reply(200, {
+  pool.intercept({ path: `${registryPath}fallback-child`, method: 'GET' }).reply(200, {
     name: 'fallback-child',
     'dist-tags': { latest: '1.1.0' },
     versions: {

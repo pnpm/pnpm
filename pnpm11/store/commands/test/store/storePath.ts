@@ -7,7 +7,7 @@ import { prepare } from '@pnpm/prepare'
 import { store } from '@pnpm/store.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 test('CLI prints the current store path', async () => {
   prepare()

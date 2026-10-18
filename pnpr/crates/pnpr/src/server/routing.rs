@@ -6,8 +6,8 @@ pub(super) use super::{
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, is_tar_registry, not_found, oci, pnpr_protocols_disabled, private_no_cache,
     publish_package, pypi, remove_dist_tag, resolve_write_target, serve_batch_publish,
-    serve_metrics, serve_metrics_or_packument, serve_org_packages, serve_package_tarball,
-    serve_packument, serve_pnpr_handshake, serve_revision_tarball, serve_search, serve_tarball,
+    serve_metrics, serve_org_packages, serve_package_tarball, serve_packument,
+    serve_pnpr_handshake, serve_revision_tarball, serve_search, serve_tarball,
     serve_version_manifest, set_dist_tag, split_package_identifier, staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
@@ -175,7 +175,7 @@ fn surface_routes(
             .route(&path("/-/ready"), get(serve_ready))
             .route(&path("/-/live"), get(serve_live))
             .route(&path("/-/metrics"), get(serve_metrics))
-            .route(&path("/metrics"), get(serve_metrics_or_packument));
+            .route(&path("/metrics"), get(serve_metrics));
     }
     router = router
         .merge(super::oidc::routes(ui_served))
@@ -227,22 +227,17 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     let mut router = router
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
-    if registries.is_only_ecosystem(Ecosystem::Npm) {
-        router = router.merge(npm);
-    } else {
-        router = router.nest("/npm", account_routes().merge(npm));
+    if registries.has_ecosystem(Ecosystem::Npm) {
+        router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
     }
     if registries.has_ecosystem(Ecosystem::Cargo) {
-        router = router.merge(cargo::routes(!registries.is_only_ecosystem(Ecosystem::Cargo)));
+        router = router.merge(cargo::routes());
     }
     if registries.has_ecosystem(Ecosystem::Pypi) {
-        router = router.merge(pypi::routes(!registries.is_only_ecosystem(Ecosystem::Pypi)));
+        router = router.merge(pypi::routes());
     }
-    // The image surface keeps `/v2/` at the host root whatever else is served,
-    // because a client derives it from the image reference's host and cannot be
-    // pointed at a prefix.
     if registries.has_ecosystem(Ecosystem::Oci) {
-        router = router.merge(oci::routes(!registries.is_only_ecosystem(Ecosystem::Oci)));
+        router = router.merge(oci::routes());
     }
     router
 }

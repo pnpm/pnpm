@@ -98,7 +98,7 @@ async fn add_user(app: &axum::Router, username: &str) -> String {
 /// The package does not exist, so 404 means the read was allowed and 403
 /// that it was refused.
 async fn read_secret(app: &axum::Router, token: &str) -> StatusCode {
-    send(app, "GET", "/@secret/thing", Some(token), None).await.0
+    send(app, "GET", "/npm/@secret/thing", Some(token), None).await.0
 }
 
 #[tokio::test]

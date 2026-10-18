@@ -24,7 +24,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     let hit = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -36,7 +36,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     // no upstream fall-through.
     let miss = app
         .oneshot(
-            Request::get("/~acme/@acme/absent")
+            Request::get("/npm/~acme/@acme/absent")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -66,7 +66,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let anon = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -77,7 +77,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     // The authorized caller reads it.
     let authed = app
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -113,9 +113,9 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     let app = router_with_auth(config, AuthState::in_memory());
 
     for path in [
-        "/~acme/@acme/widget",                    // packument
-        "/~acme/@acme/widget/1.0.0",              // version manifest
-        "/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
+        "/npm/~acme/@acme/widget",                    // packument
+        "/npm/~acme/@acme/widget/1.0.0",              // version manifest
+        "/npm/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
     ] {
         let resp = app
             .clone()
@@ -154,7 +154,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
 
     let resp = app
         .oneshot(
-            Request::get("/-/package/@acme%2Fwidget/dist-tags")
+            Request::get("/npm/-/package/@acme%2Fwidget/dist-tags")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -216,7 +216,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let publish = app
         .clone()
         .oneshot(
-            Request::put("/~acme/@acme/widget")
+            Request::put("/npm/~acme/@acme/widget")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -244,7 +244,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let read = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -263,7 +263,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let search = app
         .clone()
         .oneshot(
-            Request::get("/~acme/-/v1/search?text=maintainer%3Aalice")
+            Request::get("/npm/~acme/-/v1/search?text=maintainer%3Aalice")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -279,7 +279,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let tar = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
+            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -293,7 +293,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     // an upstream registry.
     let rejected = app
         .oneshot(
-            Request::put("/lodash")
+            Request::put("/npm/lodash")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -333,7 +333,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let publish = router_with_auth(config.clone(), auth.clone())
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             tarball,
@@ -345,9 +345,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let app = router_with_auth(config, auth);
     for path in [
-        format!("/~acme/{revision_path}"),
-        format!("/~main/{revision_path}"),
-        format!("/{revision_path}"),
+        format!("/npm/~acme/{revision_path}"),
+        format!("/npm/~main/{revision_path}"),
+        format!("/npm/{revision_path}"),
     ] {
         let response = app
             .clone()
@@ -396,7 +396,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let canonical = app
         .oneshot(
-            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
+            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -427,7 +427,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         let response = app
             .clone()
             .oneshot(hosted_publish_request(
-                &format!("/~acme/{package}"),
+                &format!("/npm/~acme/{package}"),
                 &package,
                 "1.0.0",
                 tarball,
@@ -441,7 +441,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let rejected = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/shared-artifact-overflow",
+            "/npm/~acme/shared-artifact-overflow",
             "shared-artifact-overflow",
             "1.0.0",
             tarball,
@@ -454,7 +454,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let overflow_packument = app
         .clone()
         .oneshot(
-            Request::get("/~acme/shared-artifact-overflow")
+            Request::get("/npm/~acme/shared-artifact-overflow")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -467,7 +467,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
 
     let existing = app
         .oneshot(
-            Request::get(format!("/~acme/{revision_path}"))
+            Request::get(format!("/npm/~acme/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -497,13 +497,13 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let publish = app
         .clone()
-        .oneshot(hosted_publish_request("/~corp/secret", "secret", "1.0.0", tarball, &alice))
+        .oneshot(hosted_publish_request("/npm/~corp/secret", "secret", "1.0.0", tarball, &alice))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
     for authorization in [None, Some(format!("Bearer {bob}"))] {
-        let mut request = Request::get(format!("/~corp/{revision_path}"));
+        let mut request = Request::get(format!("/npm/~corp/{revision_path}"));
         if let Some(authorization) = authorization {
             request = request.header(header::AUTHORIZATION, authorization);
         }
@@ -531,7 +531,7 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let response = app
         .oneshot(
-            Request::get(format!("/~corp/{revision_path}"))
+            Request::get(format!("/npm/~corp/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {alice}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -615,9 +615,9 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     // An off-pattern publish is rejected on the registry's own URL, through the
     // router, and via the path-less base — and nothing lands in the store.
     for (url, pkg) in [
-        ("/~acme/@typo/widget", "@typo/widget"),
-        ("/~main/@typo/widget", "@typo/widget"),
-        ("/@typo%2Fwidget", "@typo/widget"),
+        ("/npm/~acme/@typo/widget", "@typo/widget"),
+        ("/npm/~main/@typo/widget", "@typo/widget"),
+        ("/npm/@typo%2Fwidget", "@typo/widget"),
     ] {
         let rejected = app
             .clone()
@@ -636,13 +636,13 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     // A claimed name publishes normally through the registry's own URL.
     let accepted = app
         .clone()
-        .oneshot(publish_to("/~acme/@acme/widget", "@acme/widget"))
+        .oneshot(publish_to("/npm/~acme/@acme/widget", "@acme/widget"))
         .await;
     assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
 
     // An off-pattern read is a definitive 404 on both addresses, before the
     // hosted store is consulted.
-    for url in ["/~acme/@typo/widget", "/~main/@typo/widget"] {
+    for url in ["/npm/~acme/@typo/widget", "/npm/~main/@typo/widget"] {
         let read = app
             .clone()
             .oneshot(
@@ -683,7 +683,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/~corp/@typo/widget")
+        Request::put("/npm/~corp/@typo/widget")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
@@ -736,7 +736,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/~corp/lodash")
+        Request::put("/npm/~corp/lodash")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -799,14 +799,14 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     })
     .to_string();
     let publish_as = |token: &str| {
-        Request::put("/~corp/@corp/tool")
+        Request::put("/npm/~corp/@corp/tool")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(publish_body.clone()))
             .unwrap()
     };
     let retag_as = |token: &str| {
-        Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
+        Request::put("/npm/-/package/@corp%2Ftool/dist-tags/latest")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(r#""1.0.0""#))
@@ -852,7 +852,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     let unpublish_denied = app
         .clone()
         .oneshot(
-            Request::delete("/@corp%2Ftool/-rev/1")
+            Request::delete("/npm/@corp%2Ftool/-rev/1")
                 .header(header::AUTHORIZATION, format!("Bearer {outsider}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -887,7 +887,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
         request.body(Body::empty()).unwrap()
     };
 
-    for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
+    for url in ["/npm/-/v1/search?text=secret", "/npm/-/v1/search?browse=true"] {
         let tmp = TempDir::new().unwrap();
         seed_hosted(tmp.path(), "@corp/secret-tool");
 

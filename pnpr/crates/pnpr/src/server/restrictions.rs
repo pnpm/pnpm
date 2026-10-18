@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use axum::http::Method;
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
+use pnpr_registry::Ecosystem;
 
 /// Enforce a bearer token's own restrictions. A read-only token may not
 /// drive a mutating request; a CIDR-pinned token may only be used from a
@@ -61,8 +62,18 @@ fn strip_registry_prefix(path: &str) -> &str {
 }
 
 fn is_read_only_post_path(path: &str) -> bool {
-    let path = strip_registry_prefix(path.trim_end_matches('/'));
-    matches!(
+    let path = path.trim_end_matches('/');
+    let npm_path = path
+        .strip_prefix(Ecosystem::Npm.base_path().as_str())
+        .map(strip_registry_prefix);
+    npm_path.is_some_and(|npm_path| {
+        matches!(
+            npm_path,
+            "/-/npm/v1/security/advisories/bulk"
+                | "/-/npm/v1/security/audits"
+                | "/-/npm/v1/security/audits/quick",
+        )
+    }) || matches!(
         path,
         "/-/pnpr/v0/resolve"
             | "/-/pnpr/v1/resolve"
@@ -76,10 +87,7 @@ fn is_read_only_post_path(path: &str) -> bool {
             | "/-/pnpr/v1/artifacts/blob"
             | "/-/pnpr/v0/shared-artifacts/blob"
             | "/-/pnpr/v1/shared-artifacts/blob"
-            | "/-/oidc/handoff"
-            | "/-/npm/v1/security/advisories/bulk"
-            | "/-/npm/v1/security/audits"
-            | "/-/npm/v1/security/audits/quick",
+            | "/-/oidc/handoff",
     )
 }
 

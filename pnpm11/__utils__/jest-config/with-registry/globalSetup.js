@@ -65,7 +65,7 @@ export default async () => {
     ],
     { stdio: 'inherit' }
   )
-  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/`
+  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/npm/`
 
   let killed = false
   const closed = new Set()

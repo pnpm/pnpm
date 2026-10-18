@@ -49,7 +49,7 @@ beforeEach(() => {
   mockGlobalWarn.mockClear()
 })
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 async function execPnpmInstall (opts?: { enableGlobalVirtualStore?: boolean }): Promise<void> {
@@ -68,7 +68,7 @@ async function getApproveBuildsConfig () {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
   }
   const { config, context } = await getConfig({
     cliOptions,

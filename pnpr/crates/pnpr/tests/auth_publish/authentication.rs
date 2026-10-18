@@ -51,7 +51,7 @@ async fn bearer_token_grants_access_to_protected_package() {
 
     let response = app
         .oneshot(
-            Request::get("/@pnpm.e2e/needs-auth")
+            Request::get("/npm/@pnpm.e2e/needs-auth")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -73,7 +73,7 @@ async fn basic_auth_is_rejected_for_protected_package() {
     let basic = BASE64.encode(b"alice:secret");
     let response = app
         .oneshot(
-            Request::get("/@pnpm.e2e/needs-auth")
+            Request::get("/npm/@pnpm.e2e/needs-auth")
                 .header("Authorization", format!("Basic {basic}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -92,7 +92,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 
     let bytes = b"fake-tarball-bytes";
     let body = publish_doc("mypkg", "1.0.0", bytes);
-    let request = Request::put("/mypkg")
+    let request = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -122,7 +122,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     // Subsequent GET serves it back with the public URL rewritten.
     let response = app
         .oneshot(
-            Request::get("/mypkg")
+            Request::get("/npm/mypkg")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -132,7 +132,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let served = body_json(response.into_body()).await;
     assert_eq!(
         served["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
+        "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
     );
 }
 
@@ -140,7 +140,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 async fn dist_tag_set_requires_auth_before_body_parsing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let request = Request::put("/-/package/anything/dist-tags/latest")
+    let request = Request::put("/npm/-/package/anything/dist-tags/latest")
         .header("content-type", "application/json")
         .body(Body::from("not json"))
         .unwrap();
@@ -163,7 +163,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = publish_doc("unpub-policy", "1.0.0", b"contents");
-    let request = Request::put("/unpub-policy")
+    let request = Request::put("/npm/unpub-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -178,7 +178,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     );
     assert!(storage.join("unpub-policy/package.json").exists());
 
-    let request = Request::delete("/unpub-policy/-rev/anything")
+    let request = Request::delete("/npm/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
@@ -192,7 +192,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     );
     assert!(storage.join("unpub-policy/package.json").exists());
 
-    let request = Request::delete("/unpub-policy/-rev/anything")
+    let request = Request::delete("/npm/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();
@@ -222,7 +222,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = publish_doc("tarball-policy", "1.0.0", b"contents");
-    let request = Request::put("/tarball-policy")
+    let request = Request::put("/npm/tarball-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -237,7 +237,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     );
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
-    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
@@ -251,7 +251,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     );
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
-    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();

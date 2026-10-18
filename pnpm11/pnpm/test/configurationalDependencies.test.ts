@@ -108,7 +108,7 @@ test('config deps are installed after switching to a pnpm version that supports 
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   // Write .npmrc so the switched-to pnpm version can find the mock registry
-  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n`)
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n`)
   // Use old inline integrity format that pnpm v10 understands
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {

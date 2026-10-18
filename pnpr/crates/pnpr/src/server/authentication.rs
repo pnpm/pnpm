@@ -264,7 +264,7 @@ async fn resolve_caller(
                 .ok_or_else(|| RegistryError::Unauthenticated {
                     resource: "OIDC workload credentials".to_string(),
                 })?;
-            super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
+            super::oidc::check_workload_request(&workload, method, path)?;
             return Ok(Identity::user(workload.identity.username));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {

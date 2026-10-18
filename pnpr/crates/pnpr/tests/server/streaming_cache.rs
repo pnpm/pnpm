@@ -32,7 +32,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +58,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     // The stale cached packument is served (200), not a 502.
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -96,7 +96,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -118,7 +118,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -148,7 +148,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -159,14 +159,14 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let req1 = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         );
     let req2 = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         );
@@ -209,7 +209,7 @@ async fn cache_tmp_open_failure_fails_closed() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -238,7 +238,7 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
 
     let response = app
         .oneshot(
-            Request::get("/borked")
+            Request::get("/npm/borked")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -258,7 +258,7 @@ async fn upstream_stream_error_clears_cache() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -294,7 +294,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
 
     let response = app
         .oneshot(
-            Request::get("/big/-/big-1.0.0.tgz")
+            Request::get("/npm/big/-/big-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -330,7 +330,7 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     // them even when the client offers `Accept-Encoding: gzip`.
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .header("accept-encoding", "gzip")
                 .body(Body::empty())
                 .unwrap(),
@@ -378,7 +378,7 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -389,7 +389,7 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
 
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -428,7 +428,7 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/foo/-/foo-1.0.0.tgz")
+                Request::get("/npm/foo/-/foo-1.0.0.tgz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -473,7 +473,7 @@ async fn upstream_404_purges_cached_packument() {
     let first = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -497,7 +497,7 @@ async fn upstream_404_purges_cached_packument() {
     let gone = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -510,7 +510,7 @@ async fn upstream_404_purges_cached_packument() {
     let dead = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
     let outage = dead
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -543,7 +543,7 @@ async fn upstream_packument_concurrent_fetches_are_coalesced_by_singleflight() {
     let tasks = (0..5).map(|_| {
         let app = app.clone();
         tokio::spawn(async move {
-            let request = Request::get("/coalesce-pkg")
+            let request = Request::get("/npm/coalesce-pkg")
                 .body(Body::empty())
                 .unwrap();
             let response = app.oneshot(request).await.unwrap();

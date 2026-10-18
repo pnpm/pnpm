@@ -98,9 +98,9 @@ outside the namespace is a definitive 404 answered before storage or the
 upstream is consulted, and an off-namespace publish is rejected. This closes
 the dependency-confusion class of attacks by construction.
 
-`defaultRegistry` names the registry that the path-less base URL
-(`https://<pnpr>/`) aliases — usually a router. When omitted, the bare host
-serves no registry and clients must address a `/~<name>/` URL.
+`defaultRegistry` names the registry that an ecosystem's base URL, such as
+`https://<pnpr>/npm/`, aliases — usually a router. When omitted, the base serves
+no registry and clients must address a `/~<name>/` URL under it.
 
 A registry name is served as the single URL path segment `/~<name>/`, so it
 must be one URL-safe segment: it cannot be empty, `.` or `..`, start with `.`,
@@ -109,8 +109,8 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 
 Since v0.1.0-alpha.11, a registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
-A server that serves more than one addresses them through `/npm/`, `/cargo/`,
-`/pypi/`, and `/oci/` path prefixes, and registry names can be reused across ecosystems
+Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
+`/pypi/`, or `/oci/`), and registry names can be reused across ecosystems
 by grouping the entries under an ecosystem key. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
@@ -337,7 +337,7 @@ registries:
 defaultRegistry: main
 ```
 
-npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
+npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/npm/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
 - For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
@@ -626,8 +626,8 @@ set an explicit secret to keep private caches warm across restarts.
 pnpr exposes four independently deployable HTTP surfaces:
 
 - The **registry surface** — package and tarball reads, publish,
-  unpublish, dist-tags, and search, on the path-less base and on every
-  `/~<name>/` endpoint, for [every ecosystem](ecosystems.md) the config
+  unpublish, dist-tags, and search, on each ecosystem's base and on every
+  `/~<name>/` endpoint under it, for [every ecosystem](ecosystems.md) the config
   declares. It has no config toggle: it is served exactly when at
   least one registry is declared under `registries:`. The CLI flag
   `--disable-registry` turns it off for one process.

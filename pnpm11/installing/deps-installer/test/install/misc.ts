@@ -558,7 +558,7 @@ test('scoped package with custom registry', async () => {
   await addDependenciesToPackage({}, ['@scoped/peer'], testDefaults({
     // setting an incorrect default registry URL
     authConfig: {
-      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
     registry: 'http://localhost:9999/',
   }))

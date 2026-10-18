@@ -1,4 +1,4 @@
-use pnpr::Config;
+use pnpr::{Config, Ecosystem};
 use pnpr_fixtures::MockConfigPresets;
 use std::{
     net::{Ipv4Addr, TcpListener},
@@ -10,6 +10,7 @@ use std::{
 #[derive(Debug)]
 #[must_use]
 pub struct TestRegistry {
+    server_url: String,
     url: String,
     /// The fixture storage this registry serves, for the tests that own it
     /// outright. [`None`] for the process-global instance, whose storage
@@ -37,15 +38,12 @@ type RequestLog = Arc<Mutex<Vec<RecordedRequest>>>;
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { url: TestRegistryInstance::get().url.clone(), storage: None, requests: None }
+        Self::new(TestRegistryInstance::get().server_url.clone(), None, None)
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
-        Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
-            storage: Some(storage.to_path_buf()),
-            requests: None,
-        }
+        let instance = TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy);
+        Self::new(instance.server_url, Some(storage.to_path_buf()), None)
     }
 
     /// Like [`Self::start_with_own_storage`], and records every request it
@@ -63,7 +61,7 @@ impl TestRegistry {
             RegistryMode::Proxy,
             Some(Arc::clone(&requests)),
         );
-        Self { url: instance.url, storage: Some(storage), requests: Some(requests) }
+        Self::new(instance.server_url, Some(storage), Some(requests))
     }
 
     /// The requests answered since the last call, in the order they finished.
@@ -106,16 +104,26 @@ impl TestRegistry {
     }
 
     pub fn start_static_with_storage(storage: &Path) -> Self {
-        Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
-            storage: Some(storage.to_path_buf()),
-            requests: None,
-        }
+        let instance = TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static);
+        Self::new(instance.server_url, Some(storage.to_path_buf()), None)
     }
 
+    fn new(server_url: String, storage: Option<PathBuf>, requests: Option<RequestLog>) -> Self {
+        let url = format!("{}{}/", server_url.trim_end_matches('/'), Ecosystem::Npm.base_path());
+        Self { server_url, url, storage, requests }
+    }
+
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> &str {
         &self.url
+    }
+
+    /// The server's own URL, with a trailing `/`, where the pnpr protocols
+    /// answer.
+    #[must_use]
+    pub fn server_url(&self) -> &str {
+        &self.server_url
     }
 
     /// Move `tag` to `version`, the way the JS harness's `addDistTag` does.
@@ -145,7 +153,7 @@ impl TestRegistry {
 
 #[derive(Debug)]
 struct TestRegistryInstance {
-    url: String,
+    server_url: String,
 }
 
 #[derive(Clone, Copy)]
@@ -175,7 +183,7 @@ impl TestRegistryInstance {
         listener.set_nonblocking(true).expect("set test registry listener to nonblocking");
         let listen = listener.local_addr().expect("read test registry listener address");
 
-        let url = format!("http://{listen}/");
+        let server_url = format!("http://{listen}/");
         // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
         // the npm upstream — matching how registry-mock served pacquet's tests.
@@ -187,7 +195,7 @@ impl TestRegistryInstance {
             }
             RegistryMode::Static => Config::static_serve(listen, storage),
         };
-        config.http.public_url = url.trim_end_matches('/').to_string();
+        config.http.public_url = server_url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
         config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
@@ -199,7 +207,7 @@ impl TestRegistryInstance {
             .spawn(move || run_registry(config, listener, requests))
             .expect("spawn test registry thread");
 
-        Self { url }
+        Self { server_url }
     }
 }
 

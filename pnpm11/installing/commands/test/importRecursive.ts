@@ -12,7 +12,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { temporaryDirectory } from 'tempy'
 
 const testFixtures = fixtures(import.meta.dirname)
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const TMP = temporaryDirectory()
 
 const DEFAULT_OPTS = {

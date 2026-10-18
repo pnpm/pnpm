@@ -68,7 +68,9 @@ query reaches that limit.
 
 `GET /-/pnpr/v0/registries` lists the named registries the caller can see. It
 returns `registries`, the visible `defaultRegistries` keyed by ecosystem, and
-the mounted `ecosystems` with their `available` and `prefixed` flags.
+the mounted `ecosystems` with their `available` and `prefixed` flags. `prefixed`
+is `false` only for container images, whose default registry answers at the
+host root.
 
 Each entry carries its `name`, its `kind` (`hosted`, `upstream`, or `router`),
 and its `ecosystem`; the identity is the pair `(ecosystem, name)`. Concrete

@@ -10,7 +10,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { bravoDepMatureUpTo101MinimumReleaseAge } from './utils/minimumReleaseAge.js'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 test('configuration dependency is resolved', async () => {
   prepareEmpty()

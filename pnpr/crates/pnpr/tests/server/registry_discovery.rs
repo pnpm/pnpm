@@ -21,7 +21,7 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
     let page = app
         .clone()
         .oneshot(
-            Request::get("/-/v1/search?text=tool&from=1&size=1")
+            Request::get("/npm/-/v1/search?text=tool&from=1&size=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -33,7 +33,7 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
 
     let maintained = app
         .oneshot(
-            Request::get("/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
+            Request::get("/npm/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -55,7 +55,7 @@ async fn organization_packages_are_available_on_both_registry_routes() {
         tmp.path().to_path_buf(),
     ));
 
-    for route in ["/-/org/acme/package", "/~main/-/org/acme/package"] {
+    for route in ["/npm/-/org/acme/package", "/npm/~main/-/org/acme/package"] {
         let response = app
             .clone()
             .oneshot(
@@ -113,7 +113,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/-/v1/search?text=remote&size=5")
+            Request::get("/npm/-/v1/search?text=remote&size=5")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -126,7 +126,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
 
     let response = app
         .oneshot(
-            Request::get("/-/org/acme/package")
+            Request::get("/npm/-/org/acme/package")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -182,7 +182,7 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=remote&size=1")
+            Request::get("/npm/-/v1/search?text=remote&size=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -219,7 +219,7 @@ async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=remote&from=2001")
+            Request::get("/npm/-/v1/search?text=remote&from=2001")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -259,7 +259,7 @@ async fn upstream_search_stops_after_eight_short_pages() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=remote")
+            Request::get("/npm/-/v1/search?text=remote")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -322,7 +322,7 @@ async fn upstream_search_stops_at_the_request_cap_however_many_sources_route() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=remote")
+            Request::get("/npm/-/v1/search?text=remote")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -352,7 +352,7 @@ async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=remote")
+            Request::get("/npm/-/v1/search?text=remote")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -381,7 +381,7 @@ async fn upstream_without_a_search_endpoint_is_skipped() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=ajv")
+            Request::get("/npm/-/v1/search?text=ajv")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -445,7 +445,7 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
     );
     assert_eq!(body["registries"][0]["name"], "public");
     assert!(body["registries"][0]["patterns"].is_null());
-    assert_eq!(body["ecosystems"]["npm"]["prefixed"], false);
+    assert_eq!(body["ecosystems"]["npm"]["prefixed"], true);
 }
 
 #[tokio::test]
@@ -467,9 +467,9 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
     let directory: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         directory["ecosystems"]["oci"],
-        json!({"available": true, "prefixed": false, "namedPrefixed": false}),
+        json!({"available": true, "prefixed": false, "namedPrefixed": true}),
     );
-    for path in ["/~internal/v2/", "/v2/"] {
+    for path in ["/oci/~internal/v2/", "/v2/"] {
         let response = app
             .clone()
             .oneshot(
@@ -502,7 +502,7 @@ async fn search_excludes_an_upstream_with_a_denying_package_rule() {
 
     let response = app
         .oneshot(
-            Request::get("/-/v1/search?text=ajv")
+            Request::get("/npm/-/v1/search?text=ajv")
                 .body(Body::empty())
                 .unwrap(),
         )

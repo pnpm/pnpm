@@ -20,7 +20,8 @@ import delay from 'delay'
 import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
+const registryOrigin = `http://localhost:${REGISTRY_MOCK_PORT}`
+const registry = `${registryOrigin}/npm/`
 const testFixtures = fixtures(import.meta.dirname)
 const IS_POSITIVE_TARBALL = testFixtures.find('is-positive-1.0.0.tgz')
 
@@ -91,7 +92,7 @@ test('request package', async () => {
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   const { files } = await pkgResponse.fetching!()
@@ -170,7 +171,7 @@ test('request package but skip fetching', async () => {
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   expect(pkgResponse.fetching).toBeFalsy()
@@ -196,7 +197,7 @@ test('request package but skip fetching, when resolution is already available', 
       id: 'is-positive@1.0.0' as PkgResolutionId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
     downloadPriority: 0,
@@ -221,7 +222,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   expect(pkgResponse.fetching).toBeFalsy()
@@ -460,7 +461,7 @@ test('force fetch when resolution integrity differs from current package integri
       latest: '1.0.0',
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
       manifest: {
         name: 'is-positive',
@@ -486,7 +487,7 @@ test('force fetch when resolution integrity differs from current package integri
       resolution: {
         // Different valid integrity than what the resolver returns
         integrity: 'sha512-AvAi2XyFuGzKkv+hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
     downloadPriority: 0,
@@ -565,7 +566,7 @@ test('computed tarball integrity replaces a non-string lockfile integrity', asyn
 
   const resolution = {
     integrity: true,
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
   } as unknown as Resolution
   const customResolve: typeof resolve = async () => ({
     id: 'is-positive@1.0.0' as PkgResolutionId,
@@ -626,7 +627,7 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -652,7 +653,7 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -692,7 +693,7 @@ test('fetchPackageToStore() rejects remote tarballs without integrity by default
       version: '1.0.0',
       id: 'is-positive@1.0.0',
       resolution: {
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -728,7 +729,7 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
     }),
@@ -741,7 +742,7 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
     }),
@@ -898,12 +899,12 @@ test('fetchPackageToStore() coalesces concurrent refetches of a legacy git cache
 
 test('fetchPackageToStore() does not cache errors', async () => {
   const agent = await setupMockAgent()
-  const mockPool = agent.get(registry)
+  const mockPool = agent.get(registryOrigin)
   // First request returns 404
-  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
+  mockPool.intercept({ path: '/npm/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
   // Second request returns the tarball
   const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
-  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+  mockPool.intercept({ path: '/npm/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(200, tarballContent, {
     headers: { 'content-length': String(tarballContent.length) },
   })
 
@@ -941,7 +942,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -956,7 +957,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
@@ -1001,7 +1002,7 @@ test('always return a package manifest in the response', async () => {
         id: 'is-positive@1.0.0' as PkgResolutionId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
       downloadPriority: 0,
@@ -1028,8 +1029,8 @@ test('always return a package manifest in the response', async () => {
 test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   const agent = await setupMockAgent()
   const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
-  agent.get(registry)
-    .intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
+  agent.get(registryOrigin)
+    .intercept({ path: '/npm/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
     .reply(200, tarballContent, {
       headers: { 'content-length': String(tarballContent.length) },
     })
@@ -1048,7 +1049,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 
   const pkgId = 'is-positive@1.0.0'
   const resolution = {
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
   }
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
@@ -1609,7 +1610,7 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   const projectDir = temporaryDirectory()
   // Request a package via HTTP tarball URL (simulated via the local registry)
   const pkgResponse = await requestPackage(
-    { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz` },
+    { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz` },
     {
       downloadPriority: 0,
       lockfileDir: projectDir,
@@ -1652,7 +1653,7 @@ test('registry tarball without integrity gets integrity computed even when alrea
     id: 'is-positive@1.0.0' as PkgResolutionId,
     latest: '1.0.0',
     resolution: {
-      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
     },
     manifest: {
       name: 'is-positive',
@@ -1692,7 +1693,7 @@ test('skipFetch still downloads the tarball to compute a missing integrity', asy
     id: 'is-positive@1.0.0' as PkgResolutionId,
     latest: '1.0.0',
     resolution: {
-      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`,
     },
     manifest: {
       name: 'is-positive',
@@ -1734,7 +1735,7 @@ test('a tarball whose integrity was computed during fetch is found in the store 
   const cafs = createCafsStore(storeDir)
   const localFetchers = createFetchersForStore(storeDir)
   const projectDir = temporaryDirectory()
-  const tarball = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+  const tarball = `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`
   const requestPackageOpts = {
     downloadPriority: 0,
     lockfileDir: projectDir,
