@@ -180,6 +180,20 @@ pub enum RegistryMode {
     Virtual,
 }
 
+impl RegistryMode {
+    /// The npm registry URL, with a trailing `/`, of the local registry at
+    /// `origin`. The spawned mock is a pnpr server, which serves npm under
+    /// its own path; an external registry serves npm at its root.
+    #[must_use]
+    pub fn local_registry_url(self, origin: &str) -> String {
+        match self {
+            RegistryMode::Verdaccio => pnpm_registry_mock::npm_registry_url(origin),
+            RegistryMode::Virtual => format!("{}/", origin.trim_end_matches('/')),
+            RegistryMode::Npm => panic!("--registry=npm has no local registry"),
+        }
+    }
+}
+
 /// Slug shape: `<linker>.<action>.<cache state>.<store state>`. Dots
 /// separate the four axes that the bench varies, so charts and
 /// dashboards can group by leading segment (`isolated-linker.*`,
