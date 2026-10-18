@@ -172,6 +172,15 @@ fn encode_pkg_files_index_value(
         write_str(writer, name);
         encode_cafs_file_info(writer, state, info)?;
     }
+    encode_side_effects_fields(writer, state, idx)
+}
+
+/// The fields after `files`, in the order [`pkg_files_index_fields`] names them.
+fn encode_side_effects_fields(
+    writer: &mut Vec<u8>,
+    state: &mut EncodeState,
+    idx: &PackageFilesIndex,
+) -> Result<(), EncodeError> {
     if let Some(side_effects) = &idx.side_effects {
         write_map_header(writer, side_effects.len());
         for (platform, diff) in sorted_by_key(side_effects) {

@@ -191,6 +191,9 @@ pub(crate) fn extract_resource_stream(
     finish_resource(hashing, extracted, Some(tar_integrity), &verification, limits, package_url)
 }
 
+/// The CAFS files and the store row of one extraction.
+type Extraction = Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>;
+
 /// Extract the first gzip member of a `.tgz`, the archive pnpm has always
 /// installed from it. The member is the archive's tar only when nothing
 /// follows it.
@@ -201,10 +204,7 @@ fn extract_first_member(
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
     package_url: &str,
-) -> (
-    Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
-    Result<Integrity, TarballError>,
-) {
+) -> (Extraction, Result<Integrity, TarballError>) {
     let mut compressed = std::io::BufReader::new(gz_data);
     let mut tar = HashingReader {
         inner: flate2::bufread::GzDecoder::new(&mut compressed),
@@ -227,7 +227,7 @@ fn extract_first_member(
 /// [`finish_tar`] for a tar the extractor accepted. A tar it rejected has no
 /// integrity, so the rest of it is not read.
 fn finish_tar_of(
-    extracted: &Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
+    extracted: &Extraction,
     tar: HashingReader<impl Read>,
     limits: TarLimits,
     package_url: &str,

@@ -328,7 +328,7 @@ impl OwnedFetchCtx {
         IngestTarballToStore {
             fetching: self.fetching.options(),
             package: pnpm_tarball::TarballPackage {
-                integrity_kind: Default::default(),
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                 integrity: package_integrity,
                 unpacked_size: package_unpacked_size,
                 file_count: package_file_count,

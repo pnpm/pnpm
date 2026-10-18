@@ -71,7 +71,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -157,7 +157,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -526,7 +526,7 @@ async fn falls_through_when_cafs_file_missing() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -608,7 +608,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -722,7 +722,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&integrity),
             unpacked_size: None,
             file_count: None,

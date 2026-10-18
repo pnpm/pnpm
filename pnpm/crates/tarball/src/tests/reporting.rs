@@ -32,7 +32,7 @@ async fn network_fetch_records_progress_key() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: Some(16697),
             file_count: None,
@@ -108,7 +108,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -216,7 +216,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -258,7 +258,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -372,7 +372,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -425,7 +425,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,

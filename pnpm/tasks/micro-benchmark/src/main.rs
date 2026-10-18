@@ -181,7 +181,7 @@ async fn ingest_benchmark_package(
             prefetched_cas_paths: None,
         },
         package: pnpm_tarball::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: Some(&package.integrity),
             unpacked_size: Some(package.unpacked_size),
             file_count: package.file_count,

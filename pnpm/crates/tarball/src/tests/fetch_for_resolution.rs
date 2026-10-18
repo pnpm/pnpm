@@ -34,7 +34,7 @@ fn ingest<'a>(
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,
@@ -68,7 +68,7 @@ fn resolution_read<'a>(
         http_client: client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,

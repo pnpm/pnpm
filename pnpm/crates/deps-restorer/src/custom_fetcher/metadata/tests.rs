@@ -68,7 +68,7 @@ fn ingest<'a>(
             tar_limits: pnpm_tarball::TarLimits::default(),
         },
         package: TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity,
             unpacked_size: None,
             file_count: None,

@@ -239,7 +239,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                         tar_limits: crate::TarLimits::default(),
                     },
                     package: crate::TarballPackage {
-                        integrity_kind: Default::default(),
+                        integrity_kind: crate::IntegrityKind::Resource,
                         integrity: Some(pkg_integrity),
                         unpacked_size: None,
                         file_count: None,
@@ -402,7 +402,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -603,7 +603,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -656,7 +656,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -888,7 +888,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -980,7 +980,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,

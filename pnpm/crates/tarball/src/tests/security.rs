@@ -67,7 +67,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,

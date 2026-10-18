@@ -21,7 +21,7 @@ fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: Default::default(),
+                integrity_target: crate::IntegrityTarget::Resource,
                 peers_suffix_max_length: 100,
                 inject_workspace_packages: true,
                 ..settings_check(&Catalogs::new()).resolution
@@ -36,7 +36,7 @@ fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: Default::default(),
+                integrity_target: crate::IntegrityTarget::Resource,
                 peers_suffix_max_length: 10,
                 inject_workspace_packages: true,
                 ..settings_check(&Catalogs::new()).resolution

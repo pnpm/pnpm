@@ -245,7 +245,7 @@ fn process_version(
     }
 
     let signed = match tie {
-        None => integrity.clone(),
+        None => integrity,
         Some(Ok(signed)) => signed.clone(),
         Some(Err(reason)) => {
             result.invalid.push(issue(pkg, Some(integrity), resolved, Some(reason.clone())));

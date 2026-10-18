@@ -56,7 +56,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,

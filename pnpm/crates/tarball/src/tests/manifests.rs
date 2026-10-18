@@ -243,7 +243,7 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -311,7 +311,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 tar_limits: crate::TarLimits::default(),
             },
             package: crate::TarballPackage {
-                integrity_kind: Default::default(),
+                integrity_kind: crate::IntegrityKind::Resource,
                 integrity: Some(&package_integrity),
                 unpacked_size: None,
                 file_count: None,
@@ -354,7 +354,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 tar_limits: crate::TarLimits::default(),
             },
             package: crate::TarballPackage {
-                integrity_kind: Default::default(),
+                integrity_kind: crate::IntegrityKind::Resource,
                 integrity: Some(&package_integrity),
                 unpacked_size: None,
                 file_count: None,
@@ -412,7 +412,7 @@ async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -470,7 +470,7 @@ async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -520,7 +520,7 @@ async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one()
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
-            integrity_kind: Default::default(),
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,

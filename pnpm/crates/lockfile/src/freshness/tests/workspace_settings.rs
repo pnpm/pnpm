@@ -138,7 +138,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_true() {
             &lockfile,
             LockfileSettingsCheck {
                 resolution: crate::freshness::ResolutionSettingsCheck {
-                    integrity_target: Default::default(),
+                    integrity_target: crate::IntegrityTarget::Resource,
                     auto_install_peers: false,
                     inject_workspace_packages: true,
                     ..settings_check(&Catalogs::new()).resolution
@@ -160,7 +160,7 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: Default::default(),
+                integrity_target: crate::IntegrityTarget::Resource,
                 inject_workspace_packages: true,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -188,7 +188,7 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
-                integrity_target: Default::default(),
+                integrity_target: crate::IntegrityTarget::Resource,
                 auto_install_peers: false,
                 ..settings_check(&Catalogs::new()).resolution
             },
