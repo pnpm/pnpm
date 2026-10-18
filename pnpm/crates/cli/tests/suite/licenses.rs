@@ -285,32 +285,66 @@ snapshots:
     )
     .expect("write lockfile");
 
-    let listed_names = |args: &[&str]| -> Vec<String> {
-        let output = pacquet_in(&workspace.path().join("bar"))
-            .args(args)
-            .output()
-            .expect("run licenses");
-        assert!(
-            output.status.success(),
-            "licenses should succeed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
-            .iter()
-            .map(|package| {
-                package["name"]
-                    .as_str()
-                    .expect("package name")
-                    .to_string()
-            })
-            .collect()
-    };
+    let project_dir = workspace.path().join("bar");
+    assert_eq!(listed_names(&project_dir, &["licenses", "list", "--json"]), ["zeta"]);
+    assert_eq!(
+        listed_names(&project_dir, &["--recursive", "licenses", "list", "--json"]),
+        ["alpha", "zeta"],
+    );
+}
 
-    assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
-    assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
+#[test]
+fn licenses_lists_transitive_optional_dependencies_under_prod() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "alpha": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+  native@1.0.0:
+    resolution: {integrity: sha512-native}
+snapshots:
+  alpha@1.0.0:
+    optionalDependencies:
+      native: 1.0.0
+  native@1.0.0:
+    optional: true
+",
+    )
+    .expect("write lockfile");
+    for name in ["alpha", "native"] {
+        let package_dir = workspace
+            .path()
+            .join(format!("node_modules/.pnpm/{name}@1.0.0/node_modules/{name}"));
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write package manifest");
+    }
+
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod"]),
+        ["alpha", "native"],
+    );
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod", "--no-optional"]),
+        ["alpha"],
+    );
 }
 
 fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
@@ -378,9 +412,10 @@ snapshots:
     workspace
 }
 
-fn listed_paths(workspace: &tempfile::TempDir) -> Value {
-    let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+/// The `MIT` group of `pnpm licenses list --json` run with `args` in `dir`.
+fn listed_mit_packages(dir: &Path, args: &[&str]) -> Vec<Value> {
+    let output = pacquet_in(dir)
+        .args(args)
         .output()
         .expect("run licenses");
     assert!(
@@ -389,10 +424,27 @@ fn listed_paths(workspace: &tempfile::TempDir) -> Value {
         String::from_utf8_lossy(&output.stderr),
     );
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    report["MIT"]
+        .as_array()
+        .expect("MIT group")
+        .clone()
+}
+
+fn listed_names(dir: &Path, args: &[&str]) -> Vec<String> {
+    listed_mit_packages(dir, args)
+        .iter()
+        .map(|package| {
+            package["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
+}
+
+fn listed_paths(workspace: &tempfile::TempDir) -> Value {
     Value::Array(
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
+        listed_mit_packages(workspace.path(), &["licenses", "list", "--json"])
             .iter()
             .map(|package| package["paths"][0].clone())
             .collect(),
