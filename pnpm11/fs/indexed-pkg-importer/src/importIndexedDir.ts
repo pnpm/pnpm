@@ -20,11 +20,16 @@ import {
 } from './fileMapUtils.js'
 import {
   allFilesMatch,
+  allImportedEntriesMatchExactly,
   allSymlinksMatch,
   repairIndexedDir,
 } from './repairIndexedDir.js'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
+
+const concurrentImportSettleSleep = new Int32Array(new SharedArrayBuffer(4))
+const CONCURRENT_IMPORT_SETTLE_ATTEMPTS = 5
+const CONCURRENT_IMPORT_SETTLE_DELAY_MS = 20
 
 export type ImportFile = (src: string, dest: string) => void
 
@@ -100,17 +105,39 @@ function importWithStaging (dirImport: IndexedDirImport): void {
     if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
-  commitStagedDir(stage, newDir)
+  commitStagedDir(stage, dirImport)
 }
 
-function commitStagedDir (stage: string, newDir: string): void {
+// A rename that fails because a concurrent import of the same package already
+// completed the target is a success: the target holds exactly this import, and
+// a preserved `node_modules/` moved into the stage goes back where it was.
+function commitStagedDir (stage: string, { newDir, filenames, opts }: IndexedDirImport): void {
   try {
     withFileLockRetry(() => {
       renameOverwriteSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
+    const keepModulesDir = opts.keepModulesDir === true
+    if (destinationHoldsThisImport({ dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir })) {
+      if (keepModulesDir) {
+        moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
+      }
+      cleanStageDir(stage)
+      return
+    }
     cleanStageDir(stage)
     throw renameErr
+  }
+}
+
+// A concurrent import that is mid-swap leaves the destination absent or
+// incomplete for a moment. Give it that moment before concluding that the
+// destination is not this package.
+function destinationHoldsThisImport (entries: Parameters<typeof allImportedEntriesMatchExactly>[0]): boolean {
+  for (let attempt = 1; ; attempt++) {
+    if (allImportedEntriesMatchExactly(entries)) return true
+    if (attempt === CONCURRENT_IMPORT_SETTLE_ATTEMPTS) return false
+    Atomics.wait(concurrentImportSettleSleep, 0, 0, CONCURRENT_IMPORT_SETTLE_DELAY_MS)
   }
 }
 

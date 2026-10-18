@@ -14,6 +14,7 @@ jest.unstable_mockModule('rename-overwrite', () => ({
 }))
 
 const { importIndexedDir } = await import('../src/importIndexedDir.js')
+const { allImportedEntriesMatchExactly } = await import('../src/repairIndexedDir.js')
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 
@@ -225,4 +226,125 @@ test('the staged directory is renamed into place after a WSL file lock clears', 
 
   expect(renameOverwriteSyncMock).toHaveBeenCalledTimes(2)
   expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+})
+
+test('a staged import accepts an equivalent directory installed by a concurrent process', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(srcDir, 'index.js'), 'content')
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    fs.writeFileSync(path.join(target as string, 'package.json'), '{"name":"pkg"}')
+    fs.writeFileSync(path.join(target as string, 'index.js'), 'content')
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['package.json', path.join(srcDir, 'package.json')],
+      ['index.js', path.join(srcDir, 'index.js')],
+    ]),
+    {}
+  )).not.toThrow()
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('content')
+})
+
+test('a staged import rejects a concurrent directory with extra entries', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(srcDir, 'index.js'), 'content')
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    fs.writeFileSync(path.join(target as string, 'package.json'), '{"name":"pkg"}')
+    fs.writeFileSync(path.join(target as string, 'index.js'), 'content')
+    fs.writeFileSync(path.join(target as string, 'stale.js'), 'stale')
+    fs.mkdirSync(path.join(target as string, 'stale-dir'))
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['package.json', path.join(srcDir, 'package.json')],
+      ['index.js', path.join(srcDir, 'index.js')],
+    ]),
+    {}
+  )).toThrow(/ENOTEMPTY/)
+})
+
+test('a staged import rejects a concurrent file with a different mode', () => {
+  if (process.platform === 'win32') return
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  const src = path.join(srcDir, 'package.json')
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  fs.chmodSync(src, 0o644)
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    const destination = path.join(target as string, 'package.json')
+    fs.writeFileSync(destination, '{"name":"pkg"}')
+    fs.chmodSync(destination, 0o600)
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['package.json', src]]),
+    {}
+  )).toThrow(/ENOTEMPTY/)
+})
+
+test('a staged import accepts a linkable CAFS hardlink mode', () => {
+  if (process.platform === 'win32') return
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'store', 'v3', 'files', 'aa')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  const src = path.join(srcDir, 'a'.repeat(40))
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  const expectedMode = (0o666 & ~process.umask()) & 0o777
+  fs.chmodSync(src, expectedMode ^ 0o020)
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    fs.linkSync(src, path.join(target as string, 'package.json'))
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['package.json', src]]),
+    {}
+  )).not.toThrow()
+})
+
+test('an exact match rejects an absolute file map entry without spinning on its parents', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  fs.mkdirSync(newDir)
+
+  expect(allImportedEntriesMatchExactly({
+    dir: newDir,
+    filenames: new Map([['/package.json', src]]),
+    symlinks: undefined,
+    keepModulesDir: false,
+  })).toBe(false)
 })
