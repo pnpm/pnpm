@@ -2,11 +2,10 @@
 //!
 //! glibc gives each thread its own malloc arena, up to eight per CPU, and
 //! keeps the memory freed in it. Decoding a packument allocates the whole
-//! body and every version's fragment. On tokio's blocking pool, any of
-//! dozens of threads could run a decode and then hold an arena of freed
-//! packument memory, which drove peak RSS past 3 GB in pnpm/pnpm#17020.
-//! Running every decode on the same few threads keeps that memory in a few
-//! arenas.
+//! body and every version's fragment, so each thread that decodes ends up
+//! holding an arena of freed packument memory. Decodes run on this pool of
+//! a few threads, not on tokio's blocking pool, whose dozens of threads
+//! would each hold such an arena (pnpm/pnpm#17020).
 
 use std::{
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},

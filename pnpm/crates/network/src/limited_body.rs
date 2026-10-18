@@ -48,8 +48,8 @@ impl BodyChunks {
     /// Join the chunks, decoding invalid UTF-8 lossily.
     pub fn into_text(self) -> String {
         let mut bytes = Vec::with_capacity(self.0.iter().map(Bytes::len).sum());
-        for chunk in &self.0 {
-            bytes.extend_from_slice(chunk);
+        for chunk in self.0 {
+            bytes.extend_from_slice(&chunk);
         }
         String::from_utf8(bytes)
             .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
