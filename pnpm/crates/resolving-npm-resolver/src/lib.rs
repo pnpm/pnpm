@@ -85,6 +85,7 @@ pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm
 mod calc_specifier;
 mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;
+mod decode_pool;
 mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
