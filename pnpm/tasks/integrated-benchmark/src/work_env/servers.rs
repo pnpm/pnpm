@@ -96,12 +96,7 @@ impl WorkEnv {
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
-        // `init()` pointed this revision's targets at the npm base path before
-        // its mock existed. A revision from before pnpr always served npm
-        // under that path serves it at the root.
-        if !serves_npm_under_base_path(mock_port) {
-            self.write_revision_registry_config(revision, &format!("{}/", registry.origin));
-        }
+        self.follow_revision_npm_base_path(revision, &registry.origin, mock_port);
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
         server
@@ -362,6 +357,14 @@ impl WorkEnv {
     /// The npm registry URL behind a latency proxy fronting the local registry.
     pub(super) fn proxied_registry_url(&self, proxy: &LatencyProxy) -> String {
         self.options.network.registry.local_registry_url(&format!("http://{}", proxy.addr))
+    }
+    /// `init()` pointed this revision's targets at the npm base path before its
+    /// mock existed. A revision from before pnpr always served npm under that
+    /// path serves it at the root.
+    fn follow_revision_npm_base_path(&self, revision: &str, origin: &str, mock_port: u16) {
+        if !serves_npm_under_base_path(mock_port) {
+            self.write_revision_registry_config(revision, &format!("{origin}/"));
+        }
     }
     /// Point every target of `revision` at `registry`.
     fn write_revision_registry_config(&self, revision: &str, registry: &str) {
