@@ -83,6 +83,8 @@ struct Divergence {
     issue: &'static str,
     check: Check,
     rows: fn(Row) -> bool,
+    /// The divergence reproduces only through pnpm v11.
+    v11_only: bool,
     paths: &'static [&'static str],
 }
 
@@ -364,7 +366,11 @@ impl Harness {
         let changed = changed_entries(expected, actual);
         let known: Vec<&Divergence> = self.divergences
             .iter()
-            .filter(|divergence| divergence.check == check && (divergence.rows)(row))
+            .filter(|divergence| {
+                divergence.check == check
+                    && (divergence.rows)(row)
+                    && (!divergence.v11_only || matches!(self.cli, Cli::V11(_)))
+            })
             .collect();
         for divergence in &known {
             if !changed
@@ -834,6 +840,16 @@ fn peer_provided_by_a_workspace_dependency_moves() {
             project("app", &[("@pnpm.e2e/wants-peer-c-1", "1.0.0"), ("provider", "workspace:*")]),
         ],
         vec![Move { project: "provider", alias: "@pnpm.e2e/peer-c", to: "1.0.1" }],
-        vec![],
+        vec![Divergence {
+            issue: "https://github.com/pnpm/pnpm/issues/17094",
+            check: Check::Incremental,
+            rows: |row| row.inject_workspace_packages && !row.dedupe_peer_dependents,
+            v11_only: true,
+            paths: &[
+                "importers > packages/app > dependencies > provider > version ",
+                "packages > provider@file:",
+                "snapshots > provider@file:",
+            ],
+        }],
     );
 }
