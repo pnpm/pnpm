@@ -333,14 +333,22 @@ test('a deployed workspace package keeps its declared peers, so the deployed loc
     { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
     {
       location: 'packages/lib',
-      package: { name: 'lib', version: '1.0.0', peerDependencies: { '@pnpm.e2e/foo': '100' } },
+      package: {
+        name: 'lib',
+        version: '1.0.0',
+        peerDependencies: { '@pnpm.e2e/foo': '100' },
+        peerDependenciesMeta: { '@pnpm.e2e/bar': { optional: true } },
+      },
     },
     {
       location: 'packages/app',
       package: { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', '@pnpm.e2e/foo': '100.0.0' } },
     },
   ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'], injectWorkspacePackages: false })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    injectWorkspacePackages: false,
+  })
   await execPnpm(['install'])
 
   const workspaceDir = process.cwd()
@@ -349,7 +357,8 @@ test('a deployed workspace package keeps its declared peers, so the deployed loc
 
   const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
   const libEntry = Object.entries(deployLockfile.packages ?? {}).find(([key]) => key.startsWith('lib@'))?.[1]
-  expect(libEntry?.peerDependencies).toStrictEqual({ '@pnpm.e2e/foo': '100' })
+  expect(libEntry?.peerDependencies).toStrictEqual({ '@pnpm.e2e/foo': '100', '@pnpm.e2e/bar': '*' })
+  expect(libEntry?.peerDependenciesMeta).toStrictEqual({ '@pnpm.e2e/bar': { optional: true } })
 
   fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true })
   process.chdir(deployDir)

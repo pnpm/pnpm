@@ -190,6 +190,9 @@ function shouldRecordVersion (
  * records for the peers `manifest` declares. Every declared peer is recorded,
  * whether or not an install takes it, so the entry is the same in every scope
  * the package resolves in.
+ *
+ * An optional peer is listed in both blocks. Both blocks are absent when
+ * `manifest` declares no peers.
  */
 export function getLockfilePeerDependencies (manifest: ProjectManifest): Pick<PackageSnapshot, 'peerDependencies' | 'peerDependenciesMeta'> {
   return toLockfilePeerDependencies(getPeerSet(manifest).declared)
