@@ -1,7 +1,7 @@
 pub use redact_url::redact_url_credentials;
 
 mod redact_url;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 mod response;
 
 use derive_more::{Display, Error, From};
@@ -10,7 +10,7 @@ use derive_more::{Display, Error, From};
 #[non_exhaustive]
 pub enum RegistryError {
     #[display("Upstream request to {url} failed: {source}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Upstream {
         url: String,
         #[error(source)]
@@ -375,12 +375,12 @@ pub enum RegistryError {
 
     /// Bcrypt hash/verify failure. Operational error, not user-facing.
     #[display("Bcrypt failure: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Bcrypt(bcrypt::BcryptError),
 
     /// SQLite-backed token store failure.
     #[display("Token database error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Sqlite(rusqlite::Error),
 
     /// Networked-SQLite (libsql / Turso) auth backend failure.
@@ -405,7 +405,7 @@ pub enum RegistryError {
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     JoinError(tokio::task::JoinError),
 
     #[display("I/O error: {_0}")]
@@ -414,15 +414,15 @@ pub enum RegistryError {
     /// Object-store (S3 / R2 / S3-compatible) backend failure on the
     /// hosted store.
     #[display("Object store error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     ObjectStore(object_store::Error),
 
     #[display("JSON error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Json(serde_json::Error),
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(all(test, feature = "server"))]
 mod tests;

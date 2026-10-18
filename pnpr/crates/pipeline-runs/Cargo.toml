@@ -11,7 +11,7 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 pnpr-storage = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -12,7 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 pnpr-package-name = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
