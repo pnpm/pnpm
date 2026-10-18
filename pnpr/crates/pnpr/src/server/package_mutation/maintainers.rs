@@ -112,7 +112,13 @@ fn check_maintainer_authority(
     hosted: &Value,
     name: &CanonicalPackageName,
 ) -> Result<(), RegistryError> {
-    let caller = identity.username().unwrap_or("-");
+    let not_maintainer = || RegistryError::NotPackageMaintainer {
+        action: "modify maintainers of",
+        package: name.as_str().to_string(),
+    };
+    let Some(caller) = identity.username() else {
+        return Err(not_maintainer());
+    };
     let is_admin = state.inner.config.identity.admins.contains(caller);
     let is_maintainer = hosted
         .get("maintainers")
@@ -121,14 +127,7 @@ fn check_maintainer_authority(
             arr.iter()
                 .any(|entry| entry.get("name").and_then(Value::as_str) == Some(caller))
         });
-    if is_admin || is_maintainer {
-        Ok(())
-    } else {
-        Err(RegistryError::NotPackageMaintainer {
-            action: "modify maintainers of",
-            package: name.as_str().to_string(),
-        })
-    }
+    if is_admin || is_maintainer { Ok(()) } else { Err(not_maintainer()) }
 }
 
 fn log_maintainers_updated(identity: &Identity, name: &CanonicalPackageName, source: &str) {

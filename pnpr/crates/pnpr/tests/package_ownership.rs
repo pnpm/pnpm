@@ -381,6 +381,46 @@ async fn npm_owner_maintainer_mutation_flow() {
 }
 
 #[tokio::test]
+async fn anonymous_caller_cannot_change_maintainers() {
+    let (_dir, config) = config_with_packages(
+        "packages:\n  'open-pkg':\n    access: $all\n    publish: $all\n",
+        &[],
+    );
+    let app = app_router(config, &[]).await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let doc = publish_doc("open-pkg", "1.0.0", b"content-1");
+    let res = app
+        .clone()
+        .oneshot(authed_put("/open-pkg", &alice_token, doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    // `-` is the name the audit log gives a caller without a username.
+    let dash_maintainer = json!({ "_id": "open-pkg", "maintainers": [{ "name": "-" }] });
+    let res = app
+        .clone()
+        .oneshot(authed_put("/open-pkg/-rev/1-abc", &alice_token, dash_maintainer))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let takeover = json!({ "_id": "open-pkg", "maintainers": [{ "name": "mallory" }] });
+    let res = app
+        .clone()
+        .oneshot(
+            Request::put("/open-pkg/-rev/2-def")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&takeover).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn package_tombstones_prevent_squatting_and_version_republishing() {
     let (_dir, config) = config_with_packages(
         "packages:\n  'tomb-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
