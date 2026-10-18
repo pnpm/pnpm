@@ -41,6 +41,7 @@ fn adding_a_local_dependency_reuses_a_cyclic_subtree_without_the_registry() {
         "@pnpm.e2e/circular-deps-1-of-2": "1.0.2",
         "local": "file:./local",
     }));
+    bump_mtime(&manifest_path);
 
     pacquet_at(&workspace)
         .with_arg("install")

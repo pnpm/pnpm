@@ -28,23 +28,28 @@ pub(super) fn subtree_fully_reusable(
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
-    SubtreeWalk { ctx, lockfile, path: HashMap::default(), undecided: Vec::new() }.visit(key, depth)
+    SubtreeWalk { ctx, lockfile, open: HashMap::default(), undecided: Vec::new(), discovered: 0 }
+        .visit(key, depth)
         .reusable
 }
 
 struct SubtreeWalk<'a> {
     ctx: &'a TreeCtx,
     lockfile: &'a pnpm_lockfile::Lockfile,
-    /// The nodes on the walk's current path, by their position on it.
-    path: HashMap<SubtreeReuseKey, usize>,
-    /// The nodes found reusable that reach a node still on the path. They
-    /// take that node's answer when its component is decided.
+    /// The nodes discovered and not yet decided, by the order they were
+    /// discovered in: the walk's current path and the [`Self::undecided`]
+    /// nodes.
+    open: HashMap<SubtreeReuseKey, usize>,
+    /// The nodes found reusable that reach an open node discovered before
+    /// them. They take the answer of their component, decided when its
+    /// first-discovered member finishes.
     undecided: Vec<SubtreeReuseKey>,
+    discovered: usize,
 }
 
 struct Visit {
     reusable: bool,
-    /// The lowest path position the subtree reached through a cycle, or
+    /// The earliest discovered open node the subtree reached, or
     /// `usize::MAX` when it reached none.
     lowest_reached: usize,
 }
@@ -63,21 +68,21 @@ impl SubtreeWalk<'_> {
         {
             return Visit { reusable, lowest_reached: usize::MAX };
         }
-        if let Some(&position) = self.path.get(&memo_key) {
-            return Visit { reusable: true, lowest_reached: position };
+        if let Some(&discovered) = self.open.get(&memo_key) {
+            return Visit { reusable: true, lowest_reached: discovered };
         }
-        let position = self.path.len();
-        self.path.insert(memo_key.clone(), position);
+        let discovered = self.discovered;
+        self.discovered += 1;
+        self.open.insert(memo_key.clone(), discovered);
         let undecided_from = self.undecided.len();
         let visit = self.visit_node(key, depth);
-        self.path.remove(&memo_key);
-        if visit.reusable && visit.lowest_reached < position {
+        if visit.reusable && visit.lowest_reached < discovered {
             self.undecided.push(memo_key);
             return visit;
         }
         // Every undecided node above `undecided_from` reaches this one, so a
         // non-reusable node decides them all. A reusable node that reached
-        // nothing above itself closes its component.
+        // nothing discovered before it closes its component.
         self.decide(memo_key, undecided_from, visit.reusable);
         Visit { reusable: visit.reusable, lowest_reached: usize::MAX }
     }
@@ -134,10 +139,13 @@ impl SubtreeWalk<'_> {
 
     fn decide(&mut self, memo_key: SubtreeReuseKey, undecided_from: usize, reusable: bool) {
         let mut memo = lock_recoverable(&self.ctx.workspace.cache.subtree_reusable);
-        for member in self.undecided.drain(undecided_from..) {
+        for member in self.undecided
+            .drain(undecided_from..)
+            .chain([memo_key])
+        {
+            self.open.remove(&member);
             memo.insert(member, reusable);
         }
-        memo.insert(memo_key, reusable);
     }
 }
 
