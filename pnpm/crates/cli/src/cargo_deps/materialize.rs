@@ -88,13 +88,12 @@ async fn download_pending_crates<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<(String, PathBuf)>> {
     let store_dir = &options.config.store_dir;
     let store_index = StoreIndex::shared_for(store_dir, options.config.frozen_store);
+    let fetching = create_crate_download(options).await?;
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
         store_dir,
         options.config.frozen_store,
         options.config.store_index_format,
     );
-
-    let fetching = create_crate_download(options).await?;
     let store = CrateStore {
         dir: store_dir,
         index: store_index,
@@ -117,11 +116,11 @@ async fn download_pending_crates<Reporter: self::Reporter + 'static>(
         .collect::<Vec<_>>()
         .await
         .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>();
     drop(store);
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
-    Ok(slots)
+    slots
 }
 
 async fn create_crate_download(options: &DownloadOptions) -> Result<CrateDownload> {

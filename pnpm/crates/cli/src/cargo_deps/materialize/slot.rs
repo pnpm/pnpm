@@ -38,11 +38,49 @@ pub(in crate::cargo_deps) fn slot_is_complete_with_index(
     };
     !indexed.files.is_empty()
         && manifest.len() == indexed.files.len()
+        && slot_contains_only_indexed_files(slot, &indexed.files, &mut Vec::new())
         && indexed.files
             .iter()
             .all(|(file, info)| {
                 manifest.contains_key(file) && slot_file_matches_cas(slot, file, info, store_dir)
             })
+}
+
+fn slot_contains_only_indexed_files(
+    directory: &Path,
+    files: &std::collections::HashMap<String, CafsFileInfo>,
+    relative_path: &mut Vec<String>,
+) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let Some(name) = entry
+            .file_name()
+            .to_str()
+            .map(str::to_owned)
+        else {
+            return false;
+        };
+        if relative_path.is_empty() && name == ".cargo-checksum.json" {
+            continue;
+        }
+        relative_path.push(name);
+        let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+            return false;
+        };
+        let is_indexed_file = metadata.is_file() && files.contains_key(&relative_path.join("/"));
+        let is_indexed_directory = metadata.is_dir()
+            && slot_contains_only_indexed_files(&entry.path(), files, relative_path);
+        relative_path.pop();
+        if !is_indexed_file && !is_indexed_directory {
+            return false;
+        }
+    }
+    true
 }
 
 fn read_slot_manifest(
@@ -127,12 +165,7 @@ fn slot_file_contents_match_cas(
     if !cas_metadata.is_file() || cas_metadata.len() != info.size {
         return false;
     }
-    cas_file_matches_digest(&cas_path, &info.digest)
-        && pnpm_crypto_hash::create_hex_hash_from_file(&path)
-            .is_ok_and(|slot_checksum| {
-                pnpm_crypto_hash::create_hex_hash_from_file(&cas_path)
-                    .is_ok_and(|cas_checksum| slot_checksum == cas_checksum)
-            })
+    cas_file_matches_digest(&cas_path, &info.digest) && cas_file_matches_digest(&path, &info.digest)
 }
 
 fn cas_file_matches_digest(path: &Path, digest: &str) -> bool {
