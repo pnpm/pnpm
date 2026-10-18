@@ -18,7 +18,7 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, read_self_delimiting_text,
+    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, read_self_delimiting_body,
     redact_url_credentials, redact_url_for_display, retry_async, send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
@@ -27,6 +27,7 @@ use std::time::Duration;
 
 use crate::{
     FetchMetadataError,
+    decode_pool::run_decode,
     metadata_cache_policy::{DocumentKind, normalizes_to_abbreviated},
     mirror::clear_meta,
     registry_url::to_registry_url,
@@ -355,7 +356,7 @@ pub(crate) struct MetadataResponse<'a> {
 /// - The connection and its network-concurrency permit are released once
 ///   the body is buffered, before the parse, so the permit bounds sockets,
 ///   not parses.
-/// - `finish` runs on the blocking pool too, so it may write the mirror.
+/// - `finish` runs on the decode pool too, so it may write the mirror.
 /// - The slow-request warning counts from the permit's acquisition to the
 ///   end of the parse.
 pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
@@ -371,7 +372,7 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
             url: redact_url_credentials(url),
             error: error.without_url(),
         })?;
-    let raw_body = read_self_delimiting_text(response).await
+    let raw_body = read_self_delimiting_body(response).await
         .inspect_err(|error| http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(url),
@@ -383,12 +384,16 @@ pub(crate) async fn decode_metadata_response<Output: Send + 'static>(
     // worker for hundreds of milliseconds and stalls every socket that
     // worker pumps.
     let task_url = url.to_string();
-    let (output, elapsed) = tokio::task::spawn_blocking(move || {
+    let (output, elapsed) = run_decode(move || {
+        let raw_body = raw_body.into_text();
         let mut meta = serde_json::from_str::<Package>(&raw_body)
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&task_url),
                 error,
             })?;
+        // Each version's fragment is copied out of the body, so it can go
+        // before `finish` writes the mirror.
+        drop(raw_body);
         meta.drop_incomplete_publish_times();
         let elapsed = started_at.elapsed();
         if normalize_to_abbreviated {

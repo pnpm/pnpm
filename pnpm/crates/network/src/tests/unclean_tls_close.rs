@@ -1,5 +1,5 @@
 use super::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
-use crate::read_self_delimiting_text;
+use crate::{BodyChunks, read_self_delimiting_body};
 use flate2::{Compression, write::GzEncoder};
 use rustls::{
     ServerConfig, ServerConnection, StreamOwned,
@@ -72,7 +72,7 @@ async fn fetch_text(address: SocketAddr) -> Result<String, reqwest::Error> {
         .send()
         .await
         .expect("receive response head");
-    read_self_delimiting_text(response).await
+    read_self_delimiting_body(response).await.map(BodyChunks::into_text)
 }
 
 #[tokio::test]
