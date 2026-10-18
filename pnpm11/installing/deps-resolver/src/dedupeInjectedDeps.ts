@@ -75,10 +75,14 @@ function getDedupeMap<Pkg extends PartialResolvedPackage> (
   opts: DedupeMapOptions<Pkg>
 ): DedupeMap {
   const toDedupe = new Map<string, Map<string, string>>()
+  const targetProjectDeps = new Map<string, Map<string, DepPath> | undefined>()
   for (const [id, deps] of injectedDepsByProjects.entries()) {
     const dedupedInjectedDeps = new Map<string, string>()
     for (const [alias, dep] of deps.entries()) {
-      if (canDedupeInjectedDep(dep, opts)) {
+      if (!targetProjectDeps.has(dep.id)) {
+        targetProjectDeps.set(dep.id, getTargetProjectDeps(dep.id, opts))
+      }
+      if (canDedupeInjectedDep(dep, targetProjectDeps.get(dep.id), opts)) {
         dedupedInjectedDeps.set(alias, dep.id)
       }
     }
@@ -89,10 +93,10 @@ function getDedupeMap<Pkg extends PartialResolvedPackage> (
 
 function canDedupeInjectedDep<Pkg extends PartialResolvedPackage> (
   dep: { depPath: DepPath, id: string },
+  targetProjectDeps: Map<string, DepPath> | undefined,
   opts: DedupeMapOptions<Pkg>
 ): boolean {
   const node = opts.depGraph[dep.depPath]
-  const targetProjectDeps = getTargetProjectDeps(dep.id, opts)
   // In single-project operations (e.g. `pnpm rm` from inside a workspace package) the target
   // workspace project isn't being resolved, so its children aren't in
   // `dependenciesByProjectId`. The injected dep was resolved against the same workspace
