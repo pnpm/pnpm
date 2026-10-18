@@ -69,16 +69,11 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         cas_paths,
         preserve_symlinks,
     )?;
-    let _target_lock = target_swap_lock(dir_path)
-        .map_err(|error| {
-            let _ = fs::remove_dir_all(&paths.stage);
-            ImportIndexedDirError::AcquireSwapLock { path: dir_path.to_path_buf(), error }
-        })?;
     let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
     swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)
 }
 
-fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::Error> {
+pub(super) fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::Error> {
     let lock_path =
         pnpm_fs::secure_user_lock_file_path("pnpm-indexed-package-swaps", dir_path, "lock")?;
     pnpm_fs::DirLock::acquire(lock_path, TARGET_SWAP_LOCK_WAIT, TARGET_SWAP_LOCK_ABANDONED_AFTER)?

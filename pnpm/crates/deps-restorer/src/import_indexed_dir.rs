@@ -250,6 +250,17 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     opts: ImportIndexedDirOpts,
     repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
+    let _target_lock = if opts.force {
+        Some(
+            staging::target_swap_lock(dir_path)
+                .map_err(|error| ImportIndexedDirError::AcquireSwapLock {
+                    path: dir_path.to_path_buf(),
+                    error,
+                })?,
+        )
+    } else {
+        None
+    };
     let existing_kind = existing_dirent_kind(dir_path)?;
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
