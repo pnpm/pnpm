@@ -94,7 +94,8 @@ pub struct HoistedProjects<'a> {
     pub manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Every real importer manifest represented in the full hoisted graph.
     /// The shared package map needs all project names for self-reference
-    /// entries even though direct links are limited to selected anchors.
+    /// entries, and the root links of workspace projects need every
+    /// project, even though direct links are limited to selected anchors.
     pub package_map_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub walker_lockfile_dir: &'a Path,
