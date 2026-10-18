@@ -14,6 +14,11 @@ use std::{collections::HashMap, time::Duration};
 /// (<https://github.com/pnpm/pnpm/issues/11454>).
 const MIN_PUBLISH_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
 
+/// The cap on a buffered full package document, the registry's
+/// `/<package>` response. The documents of packages with a long publish
+/// history, such as `typescript`, exceed 15 MiB.
+pub(crate) const PACKAGE_DOCUMENT_BODY_LIMIT: usize = 50 * 1024 * 1024;
+
 /// Resolve the configured registries map, overriding the `"default"` entry
 /// when a CLI registry override is provided.
 pub fn resolve_registries_with_override(

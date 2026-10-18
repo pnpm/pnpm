@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::{OwnerArgs, OwnerError};
+use crate::cli_args::registry_client::PACKAGE_DOCUMENT_BODY_LIMIT;
 use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;
 use serde_json::json;
@@ -213,7 +214,7 @@ async fn owner_ls_rejects_oversized_metadata() {
     let mock = server
         .mock("GET", "/my-pkg")
         .with_status(200)
-        .with_body(format!("{{}}{}", " ".repeat(super::OWNER_BODY_LIMIT)))
+        .with_body(format!("{{}}{}", " ".repeat(PACKAGE_DOCUMENT_BODY_LIMIT)))
         .create_async()
         .await;
 
