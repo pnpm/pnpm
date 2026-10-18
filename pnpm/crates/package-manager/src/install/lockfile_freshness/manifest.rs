@@ -43,8 +43,8 @@ pub(crate) struct WorkspaceProjects<'a> {
 pub(crate) struct OptionalDependencyExclusions<'a> {
     /// The configured `ignoredOptionalDependencies` patterns.
     pub(crate) ignored: &'a pnpm_matcher::Matcher,
-    /// See [`super::FreshnessScope::allow_unresolved_optional_dependencies`].
-    pub(crate) allow_unresolved: bool,
+    /// See [`super::FreshnessScope::frozen_lockfile`].
+    pub(crate) frozen_lockfile: bool,
 }
 
 pub(crate) fn check_importer_satisfies(
@@ -119,7 +119,7 @@ fn excluded_optional_dependency_names(
     let exclusions = check.optional_exclusions;
     let mut names = ignored_optional_dependency_names(manifest, exclusions.ignored);
     let mut unresolved = Vec::new();
-    if exclusions.allow_unresolved {
+    if exclusions.frozen_lockfile {
         for (name, specifier) in
             unresolved_optional_dependencies_of(manifest, importer, exclusions.ignored)
         {

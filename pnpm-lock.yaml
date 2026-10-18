@@ -7747,6 +7747,9 @@ importers:
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
@@ -7765,6 +7768,9 @@ importers:
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
+      '@pnpm/installing.deps-resolver':
+        specifier: workspace:*
+        version: link:../../installing/deps-resolver
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -7780,9 +7786,15 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
       p-every:
         specifier: 'catalog:'
         version: 2.0.0
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

@@ -206,7 +206,7 @@ function referenceSatisfiesWantedSpec (
  * checked against, or `undefined` when the locked package cannot satisfy the
  * wanted dependency whatever its version.
  */
-function getRangeOfLockedPackage (
+export function getRangeOfLockedPackage (
   wantedDep: { alias: string, bareSpecifier: string },
   { name, registryName }: { name: string, registryName?: string }
 ): string | undefined {
@@ -220,14 +220,26 @@ function getRangeOfLockedPackage (
     // resolve to a package of any name.
     return name === wantedDep.alias || semver.validRange(bareSpecifier) == null ? bareSpecifier : undefined
   }
+  return getRangeOfNamedRegistrySpec(wantedDep, { name, registryName })
+}
+
+function getRangeOfNamedRegistrySpec (
+  wantedDep: { alias: string, bareSpecifier: string },
+  { name, registryName }: { name: string, registryName: string }
+): string | undefined {
+  const { bareSpecifier } = wantedDep
   // A registry-qualified entry may only satisfy a spec of the same named
   // registry. A plain semver range means a default/scope-registry dep, which
   // the qualified entry must never be substituted for.
   if (!bareSpecifier.startsWith(`${registryName}:`)) return undefined
   // Reduce `<registryName>:[<name>@]<range>` to its range for the semver check.
+  // A spec that names no package names the alias.
   const body = bareSpecifier.slice(registryName.length + 1)
   const versionDelimiter = body.lastIndexOf('@')
-  return versionDelimiter > 0 ? body.slice(versionDelimiter + 1) : body
+  if (versionDelimiter > 0) {
+    return body.slice(0, versionDelimiter) === name ? body.slice(versionDelimiter + 1) : undefined
+  }
+  return name === wantedDep.alias ? body : undefined
 }
 
 /**

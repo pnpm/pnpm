@@ -1,6 +1,7 @@
 //! End-to-end coverage for a `file:` directory dependency that has no
 //! `package.json` of its own.
 
+use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -55,6 +56,41 @@ fn ranged_package_extension_skips_a_directory_without_a_manifest() {
         lockfile.contains("is-negative"),
         "the bare selector must match a directory without a manifest:\n{lockfile}",
     );
+
+    drop((root, mock_instance));
+}
+
+/// A frozen install accepts the lockfile it wrote for a directory without a
+/// manifest.
+#[test]
+fn frozen_install_accepts_a_directory_without_a_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("pkg")).expect("create the dependency directory");
+    fs::write(workspace.join("pkg/index.js"), "").expect("write index.js");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "dependencies": { "pkg": "file:./pkg" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/pkg/index.js").exists());
 
     drop((root, mock_instance));
 }

@@ -325,7 +325,7 @@ async fn frozen_path<Reporter: self::Reporter>(
     // remains without a manifest does.
     let freshness = LockfileFreshnessInputs {
         scope: FreshnessScope {
-            allow_unresolved_optional_dependencies: true,
+            frozen_lockfile: true,
             prune_stale_importers: false,
             ..dispatch.freshness.scope
         },

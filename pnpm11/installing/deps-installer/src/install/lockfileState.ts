@@ -168,5 +168,6 @@ export function upToDateCheckOptions (
     workspacePackages: ctx.workspacePackages,
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
+    readPackageHook: opts.readPackageHook,
   }
 }

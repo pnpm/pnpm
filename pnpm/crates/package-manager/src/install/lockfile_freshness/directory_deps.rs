@@ -231,11 +231,26 @@ pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<Pack
     };
     let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
     let publishing_project = || manifest_of_project_publishing_from(injected);
-    if injected.declared_as_file {
+    let manifest = if injected.declared_as_file {
         project_manifest().or_else(on_disk).or_else(publishing_project)
     } else {
         project_manifest().or_else(publishing_project).or_else(on_disk)
+    };
+    manifest.or_else(|| directory_name_manifest(injected.dir))
+}
+
+/// The manifest the resolver gives an existing directory that nothing else
+/// describes: its name alone. A manifest that fails to read describes it
+/// too, so it gets none.
+fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
+    if !dir.is_dir() || !matches!(pnpm_workspace::safe_read_project_manifest_only(dir), Ok(None)) {
+        return None;
     }
+    let name = dir
+        .file_name()?
+        .to_string_lossy()
+        .into_owned();
+    Some(PackageManifest::from_value(dir.join("package.json"), serde_json::json!({ "name": name })))
 }
 
 /// The manifest of the workspace project whose `publishConfig.directory` is
@@ -344,8 +359,14 @@ fn child_is_fresh(
         return recorded_child(snapshot, name, false).is_none();
     }
     match recorded_child(snapshot, name, *optional) {
-        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded),
-        None => *optional && check.optional_exclusions.allow_unresolved,
+        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded)
+            .unwrap_or(check.optional_exclusions.frozen_lockfile),
+        // A child recorded as required has changed, not gone unresolved.
+        None => {
+            *optional
+                && check.optional_exclusions.frozen_lockfile
+                && recorded_child(snapshot, name, false).is_none()
+        }
     }
 }
 

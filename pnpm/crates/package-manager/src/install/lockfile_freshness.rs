@@ -120,7 +120,7 @@ async fn workspace_manifests_satisfy(
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: true,
-                allow_unresolved_optional_dependencies: false,
+                frozen_lockfile: false,
                 prune_stale_importers: true,
                 patches_only: false,
             },
@@ -228,12 +228,16 @@ pub(crate) struct FreshnessScope {
     /// Treat a project with no importer entry and no dependencies as
     /// satisfied rather than missing.
     pub(crate) allow_missing_dependency_free_importers: bool,
-    /// Treat an `optionalDependencies` entry the importer has no entry
-    /// for as satisfied: the install that wrote the lockfile could not
-    /// resolve it and skipped it. Only the explicit `--frozen-lockfile`
-    /// path may assume this; a resolving install retries the dependency
-    /// instead ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960)).
-    pub(crate) allow_unresolved_optional_dependencies: bool,
+    /// The explicit `--frozen-lockfile` install, which never resolves. It
+    /// keeps what the lockfile records and the check cannot verify; a
+    /// resolving install resolves it again:
+    /// - an `optionalDependencies` entry the importer has no entry for,
+    ///   which the install that wrote the lockfile could not resolve
+    ///   ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960));
+    /// - a local directory dependency's child whose spec is not a range,
+    ///   such as a tag or a git or tarball spec, since the lockfile does not
+    ///   record the spec it resolved.
+    pub(crate) frozen_lockfile: bool,
     /// Treat an importer no project claims as staleness. Only an
     /// unfiltered workspace install may, since only it sees the
     /// complete project list.
@@ -418,7 +422,7 @@ fn check_single_importer(
         },
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
-            allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,
+            frozen_lockfile: inputs.scope.frozen_lockfile,
         },
         parsed_overrides,
     })?;

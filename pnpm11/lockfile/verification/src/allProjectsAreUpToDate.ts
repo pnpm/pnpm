@@ -4,30 +4,33 @@ import type {
   LockfileObject,
 } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependencyManifest, type ProjectId, type ReadPackageHook } from '@pnpm/types'
 import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
 import { catalogResolutionsAreUpToDate } from './catalogResolutionsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
-import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
+import { linkedPackagesAreUpToDate, type LinkedPackagesContext } from './linkedPackagesAreUpToDate.js'
 import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
 import { satisfiesPackageManifest } from './satisfiesPackageManifest.js'
 
+export interface AllProjectsAreUpToDateOptions {
+  catalogs: Catalogs
+  autoInstallPeers: boolean
+  excludeLinksFromLockfile: boolean
+  ignoredOptionalDependencies?: string[]
+  linkWorkspacePackages: boolean
+  wantedLockfile: LockfileObject
+  workspacePackages: WorkspacePackages
+  lockfileDir: string
+  workspaceDir?: string
+  readPackageHook?: ReadPackageHook
+}
+
 export async function allProjectsAreUpToDate (
   projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'> & { id: ProjectId }>,
-  opts: {
-    catalogs: Catalogs
-    autoInstallPeers: boolean
-    excludeLinksFromLockfile: boolean
-    ignoredOptionalDependencies?: string[]
-    linkWorkspacePackages: boolean
-    wantedLockfile: LockfileObject
-    workspacePackages: WorkspacePackages
-    lockfileDir: string
-    workspaceDir?: string
-  }
+  opts: AllProjectsAreUpToDateOptions
 ): Promise<boolean> {
   // Projects may declare dependencies using catalog protocol specifiers. If the
   // catalog config definitions are edited by users, projects using them are out
@@ -42,15 +45,7 @@ export async function allProjectsAreUpToDate (
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
   })
-  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
-    linkWorkspacePackages: opts.linkWorkspacePackages,
-    manifestsByDir,
-    workspacePackages: opts.workspacePackages,
-    lockfilePackages: opts.wantedLockfile.packages,
-    lockfileDir: opts.lockfileDir,
-    workspaceDir: opts.workspaceDir,
-    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
-  })
+  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, createLinkedPackagesContext(opts, manifestsByDir))
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),
     lockfilePackages: opts.wantedLockfile.packages,
@@ -74,4 +69,25 @@ export async function allProjectsAreUpToDate (
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
       _linkedPackagesAreUpToDate(projectInfo)
   })
+}
+
+function createLinkedPackagesContext (
+  opts: AllProjectsAreUpToDateOptions,
+  manifestsByDir: Record<string, DependencyManifest>
+): LinkedPackagesContext {
+  return {
+    linkWorkspacePackages: opts.linkWorkspacePackages,
+    manifestsByDir,
+    workspacePackages: opts.workspacePackages,
+    lockfilePackages: opts.wantedLockfile.packages,
+    lockfileDir: opts.lockfileDir,
+    workspaceDir: opts.workspaceDir,
+    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
+    resolution: {
+      autoInstallPeers: opts.autoInstallPeers,
+      catalogs: opts.catalogs,
+      readPackageHook: opts.readPackageHook,
+    },
+    hookedManifests: new Map(),
+  }
 }
