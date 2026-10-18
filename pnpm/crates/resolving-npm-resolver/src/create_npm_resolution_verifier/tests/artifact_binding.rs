@@ -1,7 +1,7 @@
 use super::{
     Arc, FAKE_INTEGRITY, Integrity, LockfileResolution, PkgName, PlatformAssetResolution,
-    REVISION_ONE_DIGEST, REVISION_TWO_DIGEST, RegistryResolution, ResolutionVerification,
-    TarballResolution, TarballRevision, VariationsResolution, assert_eq,
+    REVISION_ONE_DIGEST, REVISION_TWO_DIGEST, REVISION_ZERO_DIGEST, RegistryResolution,
+    ResolutionVerification, TarballResolution, TarballRevision, VariationsResolution, assert_eq,
     create_npm_resolution_verifier, ctx, default_opts, fake_integrity, now_at,
     observed_dist_stats_sink, revision_integrity, tarball_resolution,
 };
@@ -68,6 +68,11 @@ async fn rejects_a_revision_with_an_unadvertised_integrity() {
                     "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
                     "revision": 2,
                     "revisions": [{
+                        "revision": 0,
+                        "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+                        "manifest": {},
+                    }, {
                         "revision": 1,
                         "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
                         "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),
