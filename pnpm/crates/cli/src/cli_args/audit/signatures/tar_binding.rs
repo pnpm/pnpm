@@ -41,6 +41,22 @@ pub(super) async fn tie_tar_integrities(
     ties
 }
 
+/// The integrity the registry's signature covers: the lockfile's own, or for
+/// a tar pin, the one it was tied to.
+pub(super) fn signed_integrity(
+    pkg: &SignaturePackage,
+    tie: Option<&Result<String, String>>,
+    integrity: String,
+) -> Result<String, String> {
+    match tie {
+        Some(tie) => tie.clone(),
+        None if pkg.pins_tar => {
+            Err(format!("{}@{} has no signed integrity tied to its tar", pkg.name, pkg.version))
+        }
+        None => Ok(integrity),
+    }
+}
+
 /// One lockfile entry: a `name@version` from a registry, pinned by an
 /// integrity.
 pub(super) type TieKey = (String, String, String, Option<String>);

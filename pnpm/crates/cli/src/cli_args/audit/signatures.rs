@@ -239,7 +239,7 @@ fn process_version(
         return;
     }
 
-    let signed = match tie.cloned().unwrap_or(Ok(integrity)) {
+    let signed = match tar_binding::signed_integrity(pkg, tie, integrity) {
         Ok(signed) => signed,
         Err(reason) => {
             result.invalid.push(issue(pkg, pkg.integrity.clone(), resolved, Some(reason)));
