@@ -1,8 +1,8 @@
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, build_registry_client_with_otp_guard,
-        join_registry_endpoint, resolve_registries_with_override,
-        resolve_target_registry_for_package,
+        PACKAGE_DOCUMENT_BODY_LIMIT, apply_auth_and_otp, auth_header_for_package,
+        build_registry_client_with_otp_guard, join_registry_endpoint,
+        resolve_registries_with_override, resolve_target_registry_for_package,
     },
     sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
 };
@@ -17,8 +17,6 @@ use pnpm_network::{
 use reqwest::Response;
 use serde::Deserialize;
 use std::collections::HashMap;
-
-const OWNER_BODY_LIMIT: usize = 50 * 1024 * 1024;
 
 #[derive(Debug, Args)]
 pub struct OwnerArgs {
@@ -173,12 +171,12 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
     }
 
-    let body = read_limited_body(response, OWNER_BODY_LIMIT).await
+    let body = read_limited_body(response, PACKAGE_DOCUMENT_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading owners response", source))?;
     if body.truncated {
         return Err(registry_operation_error(
             "reading owners response",
-            format!("registry response exceeded {OWNER_BODY_LIMIT} bytes"),
+            format!("registry response exceeded {PACKAGE_DOCUMENT_BODY_LIMIT} bytes"),
         ));
     }
     let metadata: PackageOwners = serde_json::from_slice(&body.bytes)

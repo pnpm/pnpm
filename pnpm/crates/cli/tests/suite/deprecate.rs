@@ -82,6 +82,38 @@ fn deprecates_a_package_version_successfully() {
 }
 
 #[test]
+fn deprecates_a_package_whose_document_is_larger_than_10_mib() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+
+    let get_mock = server
+        .mock("GET", "/large")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "readme": "x".repeat(11 * 1024 * 1024),
+                "versions": { "1.0.0": {} },
+            })
+            .to_string(),
+        )
+        .create();
+    let put_mock = server
+        .mock("PUT", "/large")
+        .with_status(200)
+        .with_body("{}")
+        .create();
+
+    let auth_file = empty_auth_file(root.path());
+    let output =
+        run_deprecate(&workspace, &auth_file, Some(&registry), &["large@1.0.0", "use another"]);
+
+    get_mock.assert();
+    put_mock.assert();
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
 fn fails_when_package_is_not_provided() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());

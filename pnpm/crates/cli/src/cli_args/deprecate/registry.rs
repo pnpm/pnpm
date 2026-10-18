@@ -1,13 +1,13 @@
 use super::{
-    BTreeMap, DEPRECATION_BODY_LIMIT, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext,
-    DeprecateError, Deserialize, LimitedBody, Response, Serialize, StatusCode, read_limited_body,
-    redact_url_credentials, retry_async, sanitize, send_with_retry,
+    BTreeMap, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Deserialize,
+    LimitedBody, Response, Serialize, StatusCode, read_limited_body, redact_url_credentials,
+    retry_async, sanitize, send_with_retry,
 };
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, package_endpoint_url,
-        resolve_target_registry_for_package,
+        PACKAGE_DOCUMENT_BODY_LIMIT, apply_auth_and_otp, auth_header_for_package,
+        package_endpoint_url, resolve_target_registry_for_package,
     },
 };
 
@@ -77,11 +77,12 @@ async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
     }
     if response
         .content_length()
-        .is_some_and(|length| length > DEPRECATION_BODY_LIMIT as u64)
+        .is_some_and(|length| length > PACKAGE_DOCUMENT_BODY_LIMIT as u64)
     {
         return Err(FetchError::BodyTooLarge);
     }
-    let body = read_limited_body(response, DEPRECATION_BODY_LIMIT).await.map_err(FetchError::Body)?;
+    let body =
+        read_limited_body(response, PACKAGE_DOCUMENT_BODY_LIMIT).await.map_err(FetchError::Body)?;
     if body.truncated {
         return Err(FetchError::BodyTooLarge);
     }
@@ -97,7 +98,7 @@ fn map_fetch_error(error: FetchError, package_name: &str) -> miette::Report {
         }
         FetchError::BodyTooLarge => DeprecateError::RegistryResponseTooLarge {
             resource: "package metadata",
-            limit: DEPRECATION_BODY_LIMIT,
+            limit: PACKAGE_DOCUMENT_BODY_LIMIT,
         }
         .into(),
         FetchError::NotFound => {
