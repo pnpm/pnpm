@@ -591,8 +591,9 @@ may:
 - change the rules of every registry with
   [`rulesManagedBy: api`](#changing-rules-through-the-api).
 
-Nobody can self-register an admin's username, or a username an
-[OIDC binding](oidc.md) maps to. Create the first admin account with
+Nobody can self-register an admin's username, a username an
+[OIDC binding](oidc.md) maps to, or a username a
+[SCIM client](scim.md) provisioned. Create the first admin account with
 [`pnpr add-user`](cli.md#add-user).
 
 ```yaml title="pnpr.yaml"

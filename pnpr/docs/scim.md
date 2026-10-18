@@ -53,7 +53,11 @@ Before it does, pnpr repeats the cleanup above, so no credential from before
 the deprovisioning comes back.
 
 Provisioning a user does not create a password account. Users sign in through
-OIDC, or an admin creates the account.
+OIDC, or an admin creates the account. Nobody can self-register a provisioned
+username. A password account that exists when its user is provisioned keeps
+working, including one registered on another replica before that replica
+applies the provisioning. To keep names free until they are provisioned,
+leave [self-registration](configuration.md#auth) disabled.
 
 ## Endpoints
 
