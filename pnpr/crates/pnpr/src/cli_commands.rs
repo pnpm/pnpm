@@ -1,10 +1,137 @@
 use crate::{Config, RegistryError};
-use clap::Subcommand;
+use clap::{Args, Subcommand, builder::BoolishValueParser};
 use pnpm_diagnostics::{print, println};
-use std::{path::PathBuf, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
+
+pub fn parse_cli_interval(raw: &str) -> std::result::Result<Duration, String> {
+    pnpr_config::parse_interval(raw)
+        .ok_or_else(|| format!("invalid interval {raw:?}; expected e.g. 30s, 5m, 1h, 1d"))
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct ServerArgs {
+    /// Address to bind to.
+    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
+    pub listen: SocketAddr,
+
+    /// URL clients should use to reach this server. Used when
+    /// rewriting `dist.tarball` URLs in served packuments. Defaults
+    /// to `http://<listen>`.
+    #[arg(long, env = "PNPR_PUBLIC_URL")]
+    pub public_url: Option<String>,
+
+    /// Duration before a cached packument is considered stale and
+    /// refetched (e.g. "5m", "300s"). A registry's `maxage` overrides it.
+    #[arg(long, env = "PNPR_PACKUMENT_TTL", alias = "packument-ttl-secs", value_parser = parse_cli_interval)]
+    pub packument_ttl: Option<Duration>,
+
+    #[command(flatten)]
+    pub osv_options: OsvArgs,
+
+    #[command(flatten)]
+    pub features: FeatureArgs,
+}
+
+impl Default for ServerArgs {
+    fn default() -> Self {
+        Self {
+            listen: Config::DEFAULT_LISTEN.parse().unwrap(),
+            public_url: None,
+            packument_ttl: None,
+            osv_options: OsvArgs::default(),
+            features: FeatureArgs::default(),
+        }
+    }
+}
+
+impl ServerArgs {
+    #[must_use]
+    pub fn merge(mut self, other: Self) -> Self {
+        if other.listen.to_string() != Config::DEFAULT_LISTEN {
+            self.listen = other.listen;
+        }
+        if other.public_url.is_some() {
+            self.public_url = other.public_url;
+        }
+        if other.packument_ttl.is_some() {
+            self.packument_ttl = other.packument_ttl;
+        }
+        if other.osv_options.osv.is_some() {
+            self.osv_options.osv = other.osv_options.osv;
+        }
+        if other.osv_options.osv_db.is_some() {
+            self.osv_options.osv_db = other.osv_options.osv_db;
+        }
+        if other.features.disable_registry {
+            self.features.disable_registry = true;
+        }
+        if other.features.disable_resolver {
+            self.features.disable_resolver = true;
+        }
+        if other.features.disable_artifacts {
+            self.features.disable_artifacts = true;
+        }
+        if other.features.disable_pipeline {
+            self.features.disable_pipeline = true;
+        }
+        self
+    }
+}
+
+#[derive(Debug, Args, Clone, Default)]
+pub struct OsvArgs {
+    /// Enable local OSV npm vulnerability checks. Requires a local OSV
+    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
+    #[arg(long, env = "PNPR_OSV", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
+    pub osv: Option<bool>,
+
+    /// Path to the local OSV npm database zip or extracted JSON directory.
+    #[arg(long, env = "PNPR_OSV_DB")]
+    pub osv_db: Option<PathBuf>,
+}
+
+#[derive(Debug, Args, Clone, Default)]
+pub struct FeatureArgs {
+    /// Disable the npm-registry surface (packument/tarball reads, publish,
+    /// unpublish, dist-tag, search) on this tier. Without the flag the
+    /// surface is served whenever the loaded config declares at least one
+    /// registry under `registries:`.
+    #[arg(long, env = "PNPR_DISABLE_REGISTRY", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
+    pub disable_registry: bool,
+
+    /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
+    /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
+    /// loaded config.
+    #[arg(long, env = "PNPR_DISABLE_RESOLVER", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
+    pub disable_resolver: bool,
+
+    /// Disable the signed shared-artifact surface. Overrides
+    /// `artifacts.enabled` from the loaded config.
+    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
+    pub disable_artifacts: bool,
+
+    /// Disable the pipeline run-record surface (`/-/pnpr/v0/pipeline`). Overrides
+    /// `pipeline.enabled` from the loaded config.
+    #[arg(long, env = "PNPR_DISABLE_PIPELINE", num_args = 0..=1, default_missing_value = "true", value_parser = BoolishValueParser::new())]
+    pub disable_pipeline: bool,
+}
+
+impl FeatureArgs {
+    #[must_use]
+    pub fn feature_overrides(&self) -> pnpr_config::FeatureOverrides {
+        pnpr_config::FeatureOverrides {
+            disable_registry: self.disable_registry,
+            disable_resolver: self.disable_resolver,
+            disable_artifacts: self.disable_artifacts,
+            disable_pipeline: self.disable_pipeline,
+        }
+    }
+}
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Run the registry server (default when no subcommand is specified).
+    Serve(ServerArgs),
     /// Collect old, unreferenced image blobs. Stop all registry writers first.
     OciGc {
         /// Concrete hosted OCI registry from the config.
@@ -13,9 +140,9 @@ pub enum Command {
         /// Report reclaimable blobs without deleting them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum blob age to reclaim, in seconds.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Reclaim cached upstream tarballs and packuments.
     CacheGc {
@@ -25,9 +152,9 @@ pub enum Command {
         /// Maximum total cache size to retain (e.g. "10GB", "500MB", or raw bytes).
         #[arg(long)]
         max_size: Option<String>,
-        /// Maximum file age in seconds. Entries older than this are deleted.
-        #[arg(long)]
-        max_age_secs: Option<u64>,
+        /// Maximum file age (e.g. "30d", "1h", or bare seconds). Entries older than this are deleted.
+        #[arg(long, alias = "max-age-secs", value_parser = parse_cli_interval)]
+        max_age: Option<Duration>,
         /// Only prune orphaned upstream namespaces without evicting active cache files.
         #[arg(long)]
         orphans_only: bool,
@@ -48,9 +175,9 @@ pub enum Command {
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
-        /// Minimum age in seconds before an unreferenced blob is considered for pruning.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
@@ -125,6 +252,9 @@ pub enum ConfigSubcommand {
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
     match command {
+        Command::Serve(..) => {
+            unreachable!("Serve is handled directly by main()")
+        }
         Command::OciGc { .. } => run_oci_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::ConfigCheck | Command::Config { .. } => run_config_check(),
@@ -144,35 +274,30 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 }
 
 async fn run_oci_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::OciGc { registry, dry_run, min_age_secs } = command else {
+    let Command::OciGc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    run_oci_gc(config, registry, dry_run, min_age_secs).await
+    run_oci_gc(config, registry, dry_run, min_age.as_secs()).await
 }
 
 async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Result<()> {
     let Command::CacheGc {
         dry_run,
         max_size,
-        max_age_secs,
+        max_age,
         orphans_only,
     } = command
     else {
         return Ok(());
     };
-    run_cache_gc(config, dry_run, max_size, max_age_secs, orphans_only).await
+    run_cache_gc(config, dry_run, max_size, max_age.map(|d| d.as_secs()), orphans_only).await
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify {
-        skip_hashes,
-        prune_orphans,
-        min_age_secs,
-    } = command
-    else {
+    let Command::Verify { skip_hashes, prune_orphans, min_age } = command else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans, min_age_secs).await
+    run_verify(config, !skip_hashes, prune_orphans, min_age.as_secs()).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {

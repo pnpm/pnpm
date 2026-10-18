@@ -24,6 +24,9 @@ pub mod oci_maintenance;
 pub mod upgrade_storage;
 pub mod verify;
 
+pub use cli_commands::{
+    Command, ConfigSubcommand, FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval, run_command,
+};
 pub use pnpr_auth::{
     AuthState, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
     UserStore, identify,

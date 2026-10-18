@@ -377,6 +377,7 @@ pub struct FeatureOverrides {
     pub disable_registry: bool,
     pub disable_resolver: bool,
     pub disable_artifacts: bool,
+    pub disable_pipeline: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -421,7 +422,7 @@ fn build_features(
             orgs: parse_storage_access(artifacts_file.orgs)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
-        pipeline: PipelineFeature { enabled: pipeline_file.enabled },
+        pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },
     })
 }
 

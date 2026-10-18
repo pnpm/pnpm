@@ -23,6 +23,7 @@ fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
         disable_registry: true,
         disable_resolver: true,
         disable_artifacts: true,
+        disable_pipeline: true,
     };
     let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
         .expect_err("all surfaces disabled must error rather than panic");
