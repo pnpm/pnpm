@@ -261,9 +261,11 @@ registries:
 }
 
 /// A user store whose login finds the account removed after the login looked
-/// it up, as if an admin removed it in between.
+/// it up, as if an admin removed it in between. With `rewritten_to`, the admin
+/// then sets that password on the account the login created.
 struct RemovedDuringLogin {
     users: UserStore,
+    rewritten_to: Option<&'static str>,
 }
 
 #[async_trait::async_trait]
@@ -274,7 +276,11 @@ impl UserBackend for RemovedDuringLogin {
         password: &str,
     ) -> pnpr::Result<(UpsertOutcome, String)> {
         self.users.delete_user(username).await?;
-        self.users.add_or_login(username, password).await
+        let created = self.users.add_or_login(username, password).await?;
+        if let Some(rewritten_to) = self.rewritten_to {
+            self.users.set_password(username, rewritten_to).await?;
+        }
+        Ok(created)
     }
 
     async fn list_users(&self) -> pnpr::Result<Vec<String>> {
@@ -301,7 +307,7 @@ impl UserBackend for RemovedDuringLogin {
 #[tokio::test]
 async fn a_login_racing_the_removal_of_a_reserved_account_keeps_no_account() {
     let dir = TempDir::new().unwrap();
-    let users = Arc::new(RemovedDuringLogin { users: UserStore::in_memory() });
+    let users = Arc::new(RemovedDuringLogin { users: UserStore::in_memory(), rewritten_to: None });
     users.users.create_user("admin_alice", "correct_alice_password").await.unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
@@ -348,4 +354,23 @@ async fn cli_add_user_revokes_tokens_left_under_the_name() {
         .await
         .unwrap();
     assert_eq!(auth.tokens.lookup(&left_behind).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn a_login_racing_the_removal_of_a_reserved_account_keeps_an_admin_rewrite() {
+    let dir = TempDir::new().unwrap();
+    let users = Arc::new(RemovedDuringLogin {
+        users: UserStore::in_memory(),
+        rewritten_to: Some("admin_rewritten_password"),
+    });
+    users.users.create_user("admin_alice", "correct_alice_password").await.unwrap();
+    let auth =
+        AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(TokenStore::in_memory()) };
+    let app = router_with_auth(test_config(dir.path()), auth);
+
+    let (status, _, _) = put_login(&app, "admin_alice", "malicious_password").await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (outcome, _) =
+        users.users.add_or_login("admin_alice", "admin_rewritten_password").await.unwrap();
+    assert_eq!(outcome, UpsertOutcome::LoggedIn);
 }

@@ -108,7 +108,7 @@ pub struct AuthState {
     pub tokens: Arc<dyn TokenBackend>,
 }
 
-/// What [`AuthState::put_user`] did.
+/// The outcome of [`AuthState::put_user`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserPut {
     Created,
