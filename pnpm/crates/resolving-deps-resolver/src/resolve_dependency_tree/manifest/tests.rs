@@ -170,7 +170,7 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
 }
 
 #[test]
-fn declared_peers_are_dereferenced_from_catalogs_whether_or_not_they_are_taken() {
+fn only_taken_peers_are_dereferenced_from_catalogs() {
     let result = manifest_result(serde_json::json!({
         "name": "lib",
         "version": "1.0.0",
@@ -194,14 +194,15 @@ fn declared_peers_are_dereferenced_from_catalogs_whether_or_not_they_are_taken()
             .declared()
             .iter()
             .collect::<Vec<_>>(),
-        [(&"bar".to_string(), &peer("^2.0.0")), (&"foo".to_string(), &peer("^1.0.0"))],
+        [(&"bar".to_string(), &peer("catalog:")), (&"foo".to_string(), &peer("catalog:"))],
+        "the lockfile records the peers as the manifest writes them",
     );
     assert_eq!(
         peer_set
             .taken()
-            .keys()
+            .iter()
             .collect::<Vec<_>>(),
-        ["bar"],
+        [(&"bar".to_string(), &peer("^2.0.0"))],
         "the unshadowed `foo` dependency supplies the package itself",
     );
 }
