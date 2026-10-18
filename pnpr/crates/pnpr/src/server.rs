@@ -53,7 +53,7 @@ use tar_responses::{
 };
 
 mod version_tarballs;
-use version_tarballs::serve_package_tarball;
+use version_tarballs::{VersionTgzCache, serve_package_tarball};
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
@@ -94,7 +94,7 @@ mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
     load_packument_for_read, load_upstream_packument, read_source_packument,
-    serve_packument_via_upstream,
+    recover_stale_upstream_packument, serve_packument_via_upstream,
 };
 
 mod request_access;
