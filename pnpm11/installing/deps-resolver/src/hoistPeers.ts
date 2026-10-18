@@ -1,6 +1,7 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { PackageManifest } from '@pnpm/types'
 import semver from 'semver'
 
 /** One workspace-root dependency that a missing peer can be satisfied with. */
@@ -8,6 +9,23 @@ export interface HoistableRootDep {
   alias: string
   pkgName: string
   normalizedBareSpecifier?: string
+}
+
+/**
+ * The peers of `pkg` that shadow its own `dependencies` entry of the same
+ * name, which the peer edge therefore supplies. Under `autoInstallPeers`
+ * every required peer shadows, since it is auto-installed. Otherwise, and
+ * for optional peers, only the peers `inScope` shadow.
+ */
+export function getPeerShadowedDependencies (
+  pkg: Pick<PackageManifest, 'dependencies' | 'peerDependencies' | 'peerDependenciesMeta'>,
+  opts: { autoInstallPeers: boolean, inScope: (alias: string) => boolean }
+): string[] {
+  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
+  if (!peerDependencies || !dependencies) return []
+  return Object.keys(peerDependencies).filter((peerDep) =>
+    (opts.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true) || opts.inScope(peerDep)
+  )
 }
 
 export interface HoistPeersOptions {

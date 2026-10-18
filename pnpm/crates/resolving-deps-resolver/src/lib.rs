@@ -69,13 +69,10 @@ pub use dependencies_graph::{
 };
 pub use lockfile_reuse::locked_child_admits;
 pub use node_id::NodeId;
-pub use parent_pkg_aliases::{
-    ParentPkgAliases, declared_peer_dependencies, own_dependency_names,
-    peer_shadowed_dependency_names,
-};
+pub use parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies, own_dependency_names};
 pub use peer_provider::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-    get_hoistable_optional_peers, hoist_peers,
+    get_hoistable_optional_peers, hoist_peers, peer_shadowed_dependency_names,
 };
 pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;

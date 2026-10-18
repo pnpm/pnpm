@@ -70,9 +70,8 @@ use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
 use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
-    parent_pkg_aliases::{
-        ParentPkgAliases, dependencies_named_as_peers, peer_shadowed_dependencies,
-    },
+    parent_pkg_aliases::ParentPkgAliases,
+    peer_provider::{dependencies_named_as_peers, peer_shadowed_dependencies},
     resolved_tree::{
         AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
     },

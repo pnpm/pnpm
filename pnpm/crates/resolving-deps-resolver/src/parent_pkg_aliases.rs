@@ -55,40 +55,6 @@ impl ParentPkgAliases {
     }
 }
 
-/// [`peer_shadowed_dependency_names`] in the scope `parent_pkg_aliases`.
-pub(crate) fn peer_shadowed_dependencies(
-    manifest: Option<&Value>,
-    parent_pkg_aliases: &ParentPkgAliases,
-    auto_install_peers: bool,
-) -> HashSet<String> {
-    peer_shadowed_dependency_names(
-        manifest,
-        |name| parent_pkg_aliases.contains(name),
-        auto_install_peers,
-    )
-    .map(str::to_string)
-    .collect()
-}
-
-/// The `dependencies` entries of `manifest` that its own
-/// `peerDependencies` shadow, and that the peer edge therefore supplies
-/// instead. Under `auto_install_peers` every non-optional shadowed name
-/// is dropped (the peer is auto-installed at the importer, so it always
-/// resolves). Otherwise, and for optional peers, which are never
-/// auto-installed, only the names `in_scope` are dropped, since dropping
-/// a peer nothing in scope provides would leave it unsatisfied.
-pub fn peer_shadowed_dependency_names(
-    manifest: Option<&Value>,
-    in_scope: impl Fn(&str) -> bool,
-    auto_install_peers: bool,
-) -> impl Iterator<Item = &str> {
-    dependencies_named_as_peers(manifest)
-        .filter(move |(name, is_optional_peer)| {
-            (auto_install_peers && !is_optional_peer) || in_scope(name)
-        })
-        .map(|(name, _)| name.as_str())
-}
-
 /// The names `manifest` resolves as its own dependencies, which it
 /// therefore records as no peer: the `dependencies` entries that are not
 /// `peer_shadowed`, every `optionalDependencies` entry, and the package's
@@ -118,6 +84,8 @@ pub fn own_dependency_names(
 /// `dependencies` entry of the same name stays, since whether it is
 /// supplied as a peer depends on the scope
 /// ([`peer_shadowed_dependency_names`]).
+///
+/// [`peer_shadowed_dependency_names`]: crate::peer_provider::peer_shadowed_dependency_names
 #[must_use]
 pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep> {
     let own: HashSet<&str> = own_dependency_names(manifest, |_| true).collect();
@@ -143,30 +111,6 @@ pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep>
             .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
     }
     peers
-}
-
-/// The `dependencies` entries of `manifest` that its own
-/// `peerDependencies` also name, each with whether that peer is
-/// optional. These are the only names
-/// [`peer_shadowed_dependencies`] can drop.
-pub(crate) fn dependencies_named_as_peers(
-    manifest: Option<&Value>,
-) -> impl Iterator<Item = (&String, bool)> {
-    let object = |key| manifest?.get(key).and_then(Value::as_object);
-    let peers = object("peerDependencies");
-    let peers_meta = object("peerDependenciesMeta");
-    let deps = if peers.is_some() { object("dependencies") } else { None };
-    deps.into_iter()
-        .flat_map(|deps| deps.keys())
-        .filter(move |name| peers.is_some_and(|peers| peers.contains_key(*name)))
-        .map(move |name| {
-            let is_optional_peer = peers_meta
-                .and_then(|meta| meta.get(name))
-                .and_then(|entry| entry.get("optional"))
-                .and_then(Value::as_bool)
-                == Some(true);
-            (name, is_optional_peer)
-        })
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ import { omit } from 'ramda'
 import semver from 'semver'
 
 import { getRangeOfLockedPackage } from './getDepsToResolve.js'
+import { getPeerShadowedDependencies } from './hoistPeers.js'
 
 export interface DependencyManifestContext {
   autoInstallPeers: boolean
@@ -24,21 +25,13 @@ export function prepareDependencyManifest (pkg: PackageManifest, ctx: Dependency
   return pkg
 }
 
-function omitPeersFromDependencies (
-  pkg: PackageManifest,
-  { autoInstallPeers, parentPkgAliases }: DependencyManifestContext
-): PackageManifest {
-  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
-  if (!peerDependencies || !dependencies) return pkg
-  const isAutoInstalledPeer = (peerDep: string): boolean =>
-    autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
-  return {
-    ...pkg,
-    dependencies: omit(
-      Object.keys(peerDependencies).filter((peerDep) => isAutoInstalledPeer(peerDep) || parentPkgAliases[peerDep]),
-      dependencies
-    ),
-  }
+function omitPeersFromDependencies (pkg: PackageManifest, ctx: DependencyManifestContext): PackageManifest {
+  if (!pkg.dependencies || !pkg.peerDependencies) return pkg
+  const shadowed = getPeerShadowedDependencies(pkg, {
+    autoInstallPeers: ctx.autoInstallPeers,
+    inScope: (alias) => Boolean(ctx.parentPkgAliases[alias]),
+  })
+  return { ...pkg, dependencies: omit(shadowed, pkg.dependencies) }
 }
 
 /**
