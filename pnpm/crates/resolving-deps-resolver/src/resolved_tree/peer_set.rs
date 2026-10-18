@@ -33,6 +33,18 @@ impl PeerSet {
         PeerSet { taken: declared.clone(), declared }
     }
 
+    /// Rewrites the range of every `taken` peer. The `declared` ranges stay
+    /// as the manifest writes them.
+    pub fn try_map_taken_ranges<Failure>(
+        mut self,
+        mut map: impl FnMut(&str, String) -> Result<String, Failure>,
+    ) -> Result<Self, Failure> {
+        for (name, peer) in &mut self.taken {
+            peer.version = map(name, std::mem::take(&mut peer.version))?;
+        }
+        Ok(self)
+    }
+
     /// What the lockfile records for the package.
     #[must_use]
     pub fn declared(&self) -> &BTreeMap<String, PeerDep> {
