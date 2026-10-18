@@ -3,6 +3,8 @@ use super::{
     existing_dirent_kind, file_matches_store_entry, populate_dir,
 };
 mod swap;
+#[cfg(test)]
+mod tests;
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{FsRemoveDirent, FsRename, Host, rename_even_across_devices};
@@ -79,12 +81,16 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
 }
 
 fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::Error> {
-    let lock_path =
-        pnpm_fs::secure_user_lock_file_path("pnpm-indexed-package-swaps", dir_path, "lock")?;
+    let lock_path = target_swap_lock_path(dir_path)?;
     pnpm_fs::DirLock::acquire(lock_path, TARGET_SWAP_LOCK_WAIT, TARGET_SWAP_LOCK_ABANDONED_AFTER)?
         .ok_or_else(|| {
             io::Error::new(io::ErrorKind::TimedOut, "timed out waiting for target swap lock")
         })
+}
+
+fn target_swap_lock_path(dir_path: &Path) -> Result<PathBuf, io::Error> {
+    let resolved_path = pnpm_fs::realpath_missing(&pnpm_fs::lexical_normalize(dir_path))?;
+    pnpm_fs::secure_user_lock_file_path("pnpm-indexed-package-swaps", &resolved_path, "lock")
 }
 
 fn populate_staging_dir<Reporter: self::Reporter>(
