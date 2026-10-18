@@ -9103,6 +9103,9 @@ importers:
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: link:../../installing/commands
+      '@pnpm/installing.deps-resolver':
+        specifier: workspace:*
+        version: link:../../installing/deps-resolver
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs

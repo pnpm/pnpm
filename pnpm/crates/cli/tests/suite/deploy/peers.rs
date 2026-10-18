@@ -453,3 +453,44 @@ fn shared_lockfile_deploy_does_not_resurrect_an_excluded_optional_peer() {
 }
 
 mod ancestors;
+
+/// The deployed `packages:` entry of a workspace package records the peers
+/// it declares, as every entry of a resolved lockfile does, so pnpm v11's
+/// frozen check accepts the deployed lockfile (pnpm/pnpm#17093).
+#[test]
+fn deploy_records_the_peers_a_workspace_package_declares() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_workspace(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let lib = lockfile.packages
+        .iter()
+        .flatten()
+        .find(|(key, _)| key.name.to_string() == "lib")
+        .map(|(_, metadata)| metadata)
+        .expect("the deployed lockfile has a packages entry for lib");
+    assert_eq!(
+        lib.peer_dependencies,
+        Some(std::iter::once(("@pnpm.e2e/peer-a".to_string(), "*".to_string())).collect()),
+    );
+
+    drop((root, mock_instance));
+}

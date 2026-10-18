@@ -1,5 +1,30 @@
 use super::PeerDep;
-use std::collections::BTreeMap;
+use pnpm_lockfile::PeerDependencyMeta;
+use std::collections::{BTreeMap, HashMap};
+
+/// The `peerDependencies` (name → range) and `peerDependenciesMeta`
+/// (name → `{ optional: true }`) blocks of a `packages:` entry.
+pub type LockfilePeerBlocks =
+    (Option<HashMap<String, String>>, Option<HashMap<String, PeerDependencyMeta>>);
+
+/// The blocks a `packages:` entry records for the `declared` peers. Every
+/// declared peer is recorded, whether or not an install takes it, so the
+/// entry is the same in every scope the package resolves in.
+#[must_use]
+pub fn lockfile_peer_blocks(declared: &BTreeMap<String, PeerDep>) -> LockfilePeerBlocks {
+    if declared.is_empty() {
+        return (None, None);
+    }
+    let mut peers = HashMap::new();
+    let mut peers_meta = HashMap::new();
+    for (name, peer) in declared {
+        peers.insert(name.clone(), peer.version.clone());
+        if peer.optional {
+            peers_meta.insert(name.clone(), PeerDependencyMeta { optional: true });
+        }
+    }
+    (Some(peers), (!peers_meta.is_empty()).then_some(peers_meta))
+}
 
 /// A package's peers: every one it declares, and the ones it takes as
 /// peers. A declared peer that is also one of the package's own

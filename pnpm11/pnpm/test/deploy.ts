@@ -327,6 +327,39 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
   })
 })
 
+// https://github.com/pnpm/pnpm/issues/17093
+test('a deployed workspace package keeps its declared peers, so the deployed lockfile installs frozen', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/lib',
+      package: { name: 'lib', version: '1.0.0', peerDependencies: { '@pnpm.e2e/foo': '100' } },
+    },
+    {
+      location: 'packages/app',
+      package: { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', '@pnpm.e2e/foo': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'], injectWorkspacePackages: false })
+  await execPnpm(['install'])
+
+  const workspaceDir = process.cwd()
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', deployDir])
+
+  const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
+  const libEntry = Object.entries(deployLockfile.packages ?? {}).find(([key]) => key.startsWith('lib@'))?.[1]
+  expect(libEntry?.peerDependencies).toStrictEqual({ '@pnpm.e2e/foo': '100' })
+
+  fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true })
+  process.chdir(deployDir)
+  try {
+    await execPnpm(['install', '--frozen-lockfile'])
+  } finally {
+    process.chdir(workspaceDir)
+  }
+})
+
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
 // carry it (or its platform-specific binary sub-packages), so this test
 // requires the public registry to be reachable. Matches the pattern in

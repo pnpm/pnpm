@@ -103,8 +103,9 @@ pub use resolve_workspace::{
     resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, PeerSet,
-    ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
+    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, LockfilePeerBlocks, PeerDep,
+    PeerSet, ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
+    lockfile_peer_blocks,
 };
 
 mod dedupe_injected_deps;

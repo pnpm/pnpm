@@ -124,6 +124,8 @@ struct ProjectInfo {
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
+    /// The `packages:` entry blocks for the peers the project declares.
+    peer_blocks: pnpm_resolving_deps_resolver::LockfilePeerBlocks,
     /// Names the project declares as prod or optional dependencies. A peer it
     /// depends on itself is already bound by that edge, whether or not the
     /// deploy's group filter kept the edge in the deployed snapshot.
@@ -356,6 +358,11 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                 peer_dependencies: manifest_dependency_names(
                     &project.manifest,
                     &["peerDependencies"],
+                ),
+                peer_blocks: pnpm_resolving_deps_resolver::lockfile_peer_blocks(
+                    &pnpm_resolving_deps_resolver::declared_peer_dependencies(
+                        project.manifest.value(),
+                    ),
                 ),
                 declared_dependencies: manifest_dependency_names(
                     &project.manifest,
