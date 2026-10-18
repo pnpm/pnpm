@@ -18,8 +18,14 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-const TARGET_SWAP_LOCK_WAIT: Duration = Duration::from_secs(30);
-const TARGET_SWAP_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(10);
+/// How long a swap waits for another process's swap of the same target
+/// before it replaces the target unserialized, as the global virtual
+/// store slot lock does. A swap takes seconds at most, so a wait this
+/// long only runs out on a holder that is stuck.
+const TARGET_SWAP_LOCK_WAIT: Duration = Duration::from_mins(10);
+/// Past how long a swap can legitimately take, so a holder that cannot
+/// prove it is alive never has its lock stolen mid-swap.
+const TARGET_SWAP_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
 /// Place a file atomically (pnpm's `importFileAtomic`): link it into a
 /// private temp sibling, then rename onto `target` so it is never
@@ -54,11 +60,19 @@ pub(super) fn import_atomic<Reporter: self::Reporter>(
         }
     }
 }
+/// What the caller found at the target before staging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SwapTarget {
+    Absent,
+    Occupied,
+}
+
 pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
+    target: SwapTarget,
     keep_modules_dir: bool,
     preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
@@ -73,11 +87,11 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     )?;
     // An absent target takes the staged tree in one rename, which also
     // settles which of several importers that found it absent owns it.
-    // Only an occupied target, which has to be removed first, needs the
-    // swap lock, so a fresh forced install never pays for one. Whatever
-    // else made the rename fail, the occupied-target path inspects,
-    // removes, and renames again, and reports the step that failed.
-    if pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
+    // Only an occupied target, which has to be inspected and removed
+    // first, needs the swap lock, so a fresh forced install never pays
+    // for one. A target that got occupied since the caller looked makes
+    // the rename fail, and the occupied-target path takes over.
+    if target == SwapTarget::Absent && pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
         return Ok(());
     }
     let _target_lock = target_swap_lock(dir_path);

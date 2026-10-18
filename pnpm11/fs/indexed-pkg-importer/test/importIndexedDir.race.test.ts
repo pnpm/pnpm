@@ -14,6 +14,7 @@ jest.unstable_mockModule('rename-overwrite', () => ({
 }))
 
 const { importIndexedDir } = await import('../src/importIndexedDir.js')
+const { allImportedEntriesMatchExactly } = await import('../src/repairIndexedDir.js')
 
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
 
@@ -331,4 +332,19 @@ test('a staged import accepts a linkable CAFS hardlink mode', () => {
     new Map([['package.json', src]]),
     {}
   )).not.toThrow()
+})
+
+test('an exact match rejects an absolute file map entry without spinning on its parents', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  fs.mkdirSync(newDir)
+
+  expect(allImportedEntriesMatchExactly({
+    dir: newDir,
+    filenames: new Map([['/package.json', src]]),
+    symlinks: undefined,
+    keepModulesDir: false,
+  })).toBe(false)
 })

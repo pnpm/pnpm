@@ -123,10 +123,8 @@ function collectExpectedEntries (
   for (const entry of [...filenames.keys(), ...(symlinks?.keys() ?? [])]) {
     if (preserveNodeModules && (entry === 'node_modules' || entry.startsWith('node_modules/'))) continue
     entries.add(entry)
-    let parent = path.posix.dirname(entry)
-    while (parent !== '.') {
+    for (let parent = path.posix.dirname(entry); parent !== '.' && parent !== '/'; parent = path.posix.dirname(parent)) {
       entries.add(parent)
-      parent = path.posix.dirname(parent)
     }
   }
   return entries

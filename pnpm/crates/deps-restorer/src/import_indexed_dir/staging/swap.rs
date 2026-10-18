@@ -1,6 +1,6 @@
 use super::{
     super::{ImportIndexedDirError, PreservedModules},
-    StagePaths, discard_replaced_modules,
+    StagePaths, discard_replaced_modules, pick_stage_path,
 };
 use crate::import_indexed_dir::placement::exact::all_imported_entries_match_exactly;
 use std::{
@@ -13,32 +13,47 @@ use std::{
 const DIRECTORY_SWAP_RETRY_BUDGET: Duration = Duration::from_secs(30);
 const DIRECTORY_SWAP_RETRY_DELAY: Duration = Duration::from_millis(10);
 
+/// Put the staged tree at `dir_path` in place of what is there.
+///
+/// The occupied target is moved aside by a rename rather than removed,
+/// so the path is never absent while it is being replaced: an importer
+/// that finds the target absent can rename its own stage in without the
+/// swap lock, and that must mean nothing was there yet. The displaced
+/// tree is removed once the staged one is in place.
 pub(super) fn replace_target(
     paths: &StagePaths,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     preserved_modules: &PreservedModules,
 ) -> Result<(), ImportIndexedDirError> {
-    match remove_target_for_swap(
-        dir_path,
-        cas_paths,
-        !preserved_modules.has_moved_data(),
-        paths.keep_modules_dir,
-    ) {
-        Ok(true) => {
-            finish_concurrent_import(paths, preserved_modules);
-            return Ok(());
-        }
-        Ok(false) => {}
-        Err(error) => {
-            paths.cleanup_after_failure(preserved_modules);
-            return Err(ImportIndexedDirError::RemoveExisting {
-                path: dir_path.to_path_buf(),
-                error,
-            });
-        }
-    }
+    let displaced = match move_target_aside(dir_path) {
+        Ok(displaced) => displaced,
+        // A tree that cannot be renamed, as Windows refuses while a
+        // process runs from it, is removed in place instead.
+        Err(_) => match remove_target_for_swap(
+            dir_path,
+            cas_paths,
+            !preserved_modules.has_moved_data(),
+            paths.keep_modules_dir,
+        ) {
+            Ok(true) => {
+                finish_concurrent_import(paths, preserved_modules);
+                return Ok(());
+            }
+            Ok(false) => None,
+            Err(error) => {
+                paths.cleanup_after_failure(preserved_modules);
+                return Err(ImportIndexedDirError::RemoveExisting {
+                    path: dir_path.to_path_buf(),
+                    error,
+                });
+            }
+        },
+    };
     if let Err(error) = swap_staged_dir(paths, dir_path, cas_paths, preserved_modules) {
+        if let Some(displaced) = &displaced {
+            restore_displaced_target(displaced, dir_path);
+        }
         paths.rescue_or_leak(preserved_modules, dir_path);
         return Err(ImportIndexedDirError::Swap {
             from: paths.stage.clone(),
@@ -46,7 +61,47 @@ pub(super) fn replace_target(
             error,
         });
     }
+    if let Some(displaced) = &displaced {
+        discard_displaced_target(displaced);
+    }
     Ok(())
+}
+
+/// Rename the occupied target to a sibling path. `None` when nothing is
+/// at `dir_path`.
+fn move_target_aside(dir_path: &Path) -> Result<Option<PathBuf>, io::Error> {
+    let aside = pick_stage_path(dir_path);
+    match pnpm_fs::rename_with_retry(dir_path, &aside) {
+        Ok(()) => Ok(Some(aside)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Put the displaced target back after a failed swap, if the path is
+/// free. A displaced tree that stays behind keeps the user's data; the
+/// rescue of the preserved `node_modules/` reports the paths involved.
+fn restore_displaced_target(displaced: &Path, dir_path: &Path) {
+    if let Err(error) = pnpm_fs::rename_with_retry(displaced, dir_path) {
+        tracing::warn!(
+            target: "pacquet::import_indexed_dir",
+            ?displaced,
+            ?dir_path,
+            %error,
+            "failed to move the replaced package directory back after a failed stage-and-swap",
+        );
+    }
+}
+
+fn discard_displaced_target(displaced: &Path) {
+    if let Err(error) = pnpm_fs::remove_dirent(displaced) {
+        tracing::warn!(
+            target: "pacquet::import_indexed_dir",
+            ?displaced,
+            %error,
+            "failed to remove the replaced package directory after a successful stage-and-swap",
+        );
+    }
 }
 
 fn swap_staged_dir(
