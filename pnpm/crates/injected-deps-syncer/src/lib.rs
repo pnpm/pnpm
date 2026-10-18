@@ -16,19 +16,21 @@ pub use dir_patcher::{
 
 mod bin_links;
 mod dir_patcher;
+mod injection_records;
 
 #[cfg(test)]
 mod tests;
 
 use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
 use derive_more::{Display, Error};
+use injection_records::{
+    InjectionRecord, injection_records, resolved_injected_targets, targets_of_source,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pnpm_package_manifest::PackageManifestError;
-use pnpm_workspace::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects_no_check,
-};
+use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -172,46 +174,6 @@ fn sync_workspace_injected_deps(
     Ok(())
 }
 
-/// A `.modules.yaml` and the directory its injected-copy paths are
-/// relative to: the workspace root, or a project with its own lockfile.
-struct InjectionRecord {
-    lockfile_dir: PathBuf,
-    modules: Option<pnpm_modules_yaml::Modules>,
-}
-
-/// The modules manifests that list injected copies. See
-/// [`SyncInjectedDeps::shared_workspace_lockfile`].
-fn injection_records(
-    opts: &SyncInjectedDeps<'_>,
-    workspace_dir: &Path,
-) -> Result<Vec<InjectionRecord>, SyncInjectedDepsError> {
-    let mut records = vec![InjectionRecord {
-        lockfile_dir: workspace_dir.to_path_buf(),
-        modules: read_workspace_modules(opts.workspace_modules_dir)?,
-    }];
-    if opts.shared_workspace_lockfile {
-        return Ok(records);
-    }
-    let projects = find_workspace_projects_no_check(
-        workspace_dir,
-        &FindWorkspaceProjectsOpts {
-            patterns: None,
-            ignored_directories: opts.bin_links.ignored_directories.clone(),
-        },
-    )
-    .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
-    let workspace_root = pnpm_fs::lexical_normalize(workspace_dir);
-    for project in projects {
-        if pnpm_fs::lexical_normalize(&project.root_dir) == workspace_root {
-            continue;
-        }
-        let modules =
-            read_workspace_modules(&project.root_dir.join(opts.bin_links.modules_dir_name))?;
-        records.push(InjectionRecord { lockfile_dir: project.root_dir, modules });
-    }
-    Ok(records)
-}
-
 /// Patch every injected copy of `source_dir` that `record` lists, and
 /// relink its bins.
 fn sync_injected_deps_from_source(
@@ -304,42 +266,6 @@ pub fn injected_source_dirs<'a>(
         .collect()
 }
 
-/// The resolved directories that hold injected copies of `content_source_dir`,
-/// or `None` if there are none to sync.
-fn resolved_injected_targets(
-    opts: &SyncInjectedDeps<'_>,
-    lockfile_dir: &Path,
-    source_dir: &Path,
-    modules: Option<&pnpm_modules_yaml::Modules>,
-) -> Option<Vec<PathBuf>> {
-    let Some(injected_deps) = modules.and_then(|modules| modules.injected_deps.as_ref()) else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            "Skipping sync of injected dependencies because none were detected",
-        );
-        return None;
-    };
-
-    let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(lockfile_dir, source_dir))
-        .filter(|dirs| !dirs.is_empty())
-    else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            pkg_root_dir = ?opts.pkg_root_dir,
-            "There are no injected dependencies from this package",
-        );
-        return None;
-    };
-
-    Some(
-        target_dirs
-            .iter()
-            .map(|target_dir| lockfile_dir.join(target_dir))
-            .collect(),
-    )
-}
-
 /// A source directory and the injected copies a running script should
 /// publish from it.
 pub struct InjectedEditSource {
@@ -379,18 +305,7 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
     sources
         .into_iter()
         .filter_map(|source| {
-            let targets: Vec<PathBuf> = records
-                .iter()
-                .filter_map(|record| {
-                    resolved_injected_targets(
-                        opts,
-                        &record.lockfile_dir,
-                        &source,
-                        record.modules.as_ref(),
-                    )
-                })
-                .flatten()
-                .collect();
+            let targets = targets_of_source(opts, &records, &source);
             if targets.is_empty() {
                 return None;
             }
@@ -491,7 +406,7 @@ fn publish_to_targets(
     }
 }
 
-fn read_workspace_modules(
+pub(crate) fn read_workspace_modules(
     workspace_modules_dir: &Path,
 ) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {
     read_modules_manifest::<pnpm_modules_yaml::Host>(workspace_modules_dir)
@@ -567,11 +482,4 @@ fn patch_targets(
         patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
     }
     Ok(())
-}
-
-/// The key `.modules.yaml` files an injected dependency under: the
-/// package's path relative to the manifest's lockfile directory, with
-/// forward slashes on every host.
-fn injected_dep_key(lockfile_dir: &Path, pkg_root_dir: &Path) -> String {
-    pnpm_fs::relative_path(lockfile_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
 }
