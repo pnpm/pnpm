@@ -1,6 +1,5 @@
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
 import semver from 'semver'
 import validateNpmPackageName from 'validate-npm-package-name'
 import getVersionSelectorType from 'version-selector-type'
@@ -70,7 +69,7 @@ export function parseBareSpecifier (
     }
   }
   if (bareSpecifier.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(bareSpecifier)
+    const pkg = parseNpmTarballUrl(bareSpecifier, registry)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,
@@ -81,6 +80,47 @@ export function parseBareSpecifier (
     }
   }
   return null
+}
+
+interface NpmTarballUrl {
+  name: string
+  version: string
+}
+
+/**
+ * Extracts the name and version from an npm tarball URL like
+ * `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. The name is read from the
+ * path after the path of `registry`, so a registry served under a path such as
+ * `https://example.com/npm/` adds nothing to the name. Returns null when the
+ * URL doesn't fit the npm tarball layout under `registry` or the trailing
+ * version segment isn't valid semver.
+ */
+function parseNpmTarballUrl (url: string, registry: string): NpmTarballUrl | null {
+  const parsed = URL.parse(url)
+  const registryUrl = URL.parse(registry)
+  if (!parsed?.host || registryUrl == null) return null
+  const registryPath = registryUrl.pathname.replace(/\/+$/, '')
+  if (!parsed.pathname.startsWith(registryPath)) return null
+  const parts = parsed.pathname.slice(registryPath.length).split('/-/')
+  if (parts.length !== 2 || !parts[0].startsWith('/')) return null
+  const name = safeDecodeURIComponent(parts[0].slice(1))
+  if (!name) return null
+  // The tarball filename starts with the scopeless name followed by `-`.
+  // Anchoring on that prefix rejects a URL like `foo/-/bar-1.0.0.tgz`.
+  const scopelessNamePrefix = `${name.slice(name.lastIndexOf('/') + 1)}-`
+  const fileName = parts[1].replace(/\.tgz$/, '')
+  if (!fileName.startsWith(scopelessNamePrefix)) return null
+  const version = fileName.slice(scopelessNamePrefix.length)
+  if (!semver.valid(version, true)) return null
+  return { name, version }
+}
+
+function safeDecodeURIComponent (encoded: string): string | null {
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return null
+  }
 }
 
 /**

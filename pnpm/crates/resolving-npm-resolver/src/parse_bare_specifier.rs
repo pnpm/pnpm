@@ -66,7 +66,7 @@ pub fn parse_bare_specifier(
     }
 
     if bare.starts_with(registry)
-        && let Some(pkg) = parse_npm_tarball_url(&bare)
+        && let Some(pkg) = parse_npm_tarball_url(&bare, registry)
     {
         return Some(RegistryPackageSpec {
             name: pkg.name,
@@ -378,23 +378,22 @@ struct NpmTarballUrl {
 }
 
 /// Extract `(name, version)` from an npm tarball URL like
-/// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. Returns `None`
-/// when the URL doesn't fit the npm tarball layout or the trailing
-/// version segment isn't valid semver.
-fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
+/// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. The name is read
+/// from the path after the path of `registry`, so a registry served
+/// under a path such as `https://example.com/npm/` adds nothing to the
+/// name. Returns `None` when the URL doesn't fit the npm tarball layout
+/// under `registry` or the trailing version segment isn't valid semver.
+fn parse_npm_tarball_url(url: &str, registry: &str) -> Option<NpmTarballUrl> {
     let parsed = Url::parse(url).ok()?;
     parsed.host_str()?;
-    let path = parsed.path();
-    if path.is_empty() {
-        return None;
-    }
+    let registry = Url::parse(registry).ok()?;
+    let registry_path = registry.path().trim_end_matches('/');
+    let path = parsed.path().strip_prefix(registry_path)?;
     let parts: Vec<&str> = path.split("/-/").collect();
     if parts.len() != 2 {
         return None;
     }
-    let raw_name = parts[0]
-        .strip_prefix('/')
-        .unwrap_or(parts[0]);
+    let raw_name = parts[0].strip_prefix('/')?;
     if raw_name.is_empty() {
         return None;
     }
