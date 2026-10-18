@@ -307,3 +307,28 @@ test('a staged import rejects a concurrent file with a different mode', () => {
     {}
   )).toThrow(/ENOTEMPTY/)
 })
+
+test('a staged import accepts a linkable CAFS hardlink mode', () => {
+  if (process.platform === 'win32') return
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'store', 'v3', 'files', 'aa')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  const src = path.join(srcDir, 'a'.repeat(40))
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  const expectedMode = (0o666 & ~process.umask()) & 0o777
+  fs.chmodSync(src, expectedMode | 0o020)
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    fs.linkSync(src, path.join(target as string, 'package.json'))
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['package.json', src]]),
+    {}
+  )).not.toThrow()
+})

@@ -6,7 +6,7 @@ import { globalInfo } from '@pnpm/logger'
 import { fastPathTemp as pathTemp } from 'path-temp'
 
 import { clearDirBlockingFile, clearDirentBlockingDir, makeFileMapDirs } from './dirUtils.js'
-import { fileModeForImport } from './fileMode.js'
+import { fileModeForImport, isLinkableStoreMode, storeEntryModeForSource } from './fileMode.js'
 import { filesHaveEqualContents } from './filesHaveEqualContents.js'
 import { filesHaveSameIdentity } from './hardlinkedDirMatches.js'
 import type { ImportFile, IndexedDirImport } from './importIndexedDir.js'
@@ -175,9 +175,15 @@ export function mismatchReason (target: string, src: string): string | undefined
     const targetStat = fs.lstatSync(target, { bigint: true })
     if (!targetStat.isFile()) return 'is not a regular file'
     const srcStat = gfs.statSync(src, { bigint: true })
-    const expectedMode = fileModeForImport(src, srcStat.mode)
-    if (expectedMode !== undefined && (targetStat.mode & 0o777n) !== BigInt(expectedMode)) return 'has a different mode'
-    if (filesHaveSameIdentity(targetStat, srcStat)) return undefined
+    const storeMode = storeEntryModeForSource(src)
+    const expectedMode = fileModeForImport(srcStat.mode, storeMode)
+    const sameIdentity = filesHaveSameIdentity(targetStat, srcStat)
+    if (
+      expectedMode !== undefined &&
+      (targetStat.mode & 0o777n) !== BigInt(expectedMode) &&
+      (!sameIdentity || storeMode === undefined || !isLinkableStoreMode(Number(targetStat.mode), expectedMode))
+    ) return 'has a different mode'
+    if (sameIdentity) return undefined
     if (targetStat.size !== srcStat.size) return 'has a different size'
     if (!filesHaveEqualContents(target, src)) return 'has different content'
     return undefined

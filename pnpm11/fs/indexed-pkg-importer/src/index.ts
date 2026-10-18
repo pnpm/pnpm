@@ -10,7 +10,7 @@ import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
-import { storeEntryModeForSource } from './fileMode.js'
+import { isLinkableStoreMode, storeEntryModeForSource } from './fileMode.js'
 import { hardlinkedDirMatches } from './hardlinkedDirMatches.js'
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
 import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
@@ -340,15 +340,6 @@ function alignStoreFileMode (src: string, dest: string): void {
 function storeModeDiffers (existingPath: string): boolean {
   const storeMode = storeEntryModeForSource(existingPath)
   return storeMode !== undefined && !isLinkableStoreMode(fs.statSync(existingPath).mode, storeMode)
-}
-
-// Group- and other-write may be missing, and group-write may be extra: a
-// store write takes those bits from its shard directory, not from the umask,
-// and the shared inode already grants them through the store. Every other bit
-// must match, so a store populated under a wider umask is still not linked.
-function isLinkableStoreMode (mode: number, storeMode: number): boolean {
-  const groupOtherWrite = 0o022
-  return ((mode ^ storeMode) & 0o777 & ~groupOtherWrite) === 0 && (mode & ~storeMode & 0o002) === 0
 }
 
 function linkOrCopy (existingPath: string, newPath: string): void {

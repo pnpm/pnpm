@@ -13,9 +13,14 @@ export function storeEntryModeForSource (src: string): number | undefined {
   return ((src.endsWith(CAFS_EXEC_SUFFIX) ? EXEC_FILE_MODE : BASE_FILE_MODE) & ~umask) & 0o777
 }
 
-export function fileModeForImport (src: string, sourceMode: bigint): number | undefined {
+export function fileModeForImport (sourceMode: bigint, storeMode: number | undefined): number | undefined {
   if (process.platform === 'win32') return undefined
-  return storeEntryModeForSource(src) ?? Number(sourceMode & 0o777n)
+  return storeMode ?? Number(sourceMode & 0o777n)
+}
+
+export function isLinkableStoreMode (mode: number, storeMode: number): boolean {
+  const groupOtherWrite = 0o022
+  return ((mode ^ storeMode) & 0o777 & ~groupOtherWrite) === 0 && (mode & ~storeMode & 0o002) === 0
 }
 
 function isCafsFile (src: string): boolean {

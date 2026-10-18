@@ -424,14 +424,15 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     if !target_meta.is_file() {
         return false;
     }
-    #[cfg(unix)]
-    if !file_mode_matches_store_entry(&target_meta, store_path) {
-        return false;
-    }
     let Ok(store_meta) = fs::metadata(store_path) else {
         return false;
     };
-    if file_identity_matches((target, &target_meta), (store_path, &store_meta)) {
+    let same_identity = file_identity_matches((target, &target_meta), (store_path, &store_meta));
+    #[cfg(unix)]
+    if !file_mode_matches_store_entry(&target_meta, (store_path, &store_meta), same_identity) {
+        return false;
+    }
+    if same_identity {
         return true;
     }
     target_meta.len() == store_meta.len()
@@ -439,9 +440,13 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
 }
 
 #[cfg(unix)]
-fn file_mode_matches_store_entry(target_meta: &fs::Metadata, store_path: &Path) -> bool {
+fn file_mode_matches_store_entry(
+    target_meta: &fs::Metadata,
+    store: (&Path, &fs::Metadata),
+    same_identity: bool,
+) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    let Ok(store_meta) = fs::metadata(store_path) else { return false };
+    let (store_path, store_meta) = store;
     let expected_mode = if pnpm_fs::file_mode::is_cas_file_path(store_path) {
         pnpm_fs::file_mode::store_entry_mode(
             pnpm_fs::file_mode::cas_path_is_executable(store_path),
@@ -450,7 +455,11 @@ fn file_mode_matches_store_entry(target_meta: &fs::Metadata, store_path: &Path) 
     } else {
         store_meta.permissions().mode() & 0o777
     };
-    target_meta.permissions().mode() & 0o777 == expected_mode
+    let target_mode = target_meta.permissions().mode() & 0o777;
+    target_mode == expected_mode
+        || same_identity
+            && pnpm_fs::file_mode::is_cas_file_path(store_path)
+            && pnpm_fs::file_mode::store_inode_mode_is_linkable(target_mode, expected_mode)
 }
 
 /// Byte-compare two files without buffering either one.
