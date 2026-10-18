@@ -70,6 +70,36 @@ describe('parseBareSpecifier', () => {
     })
   })
 
+  test('parses a tarball URL under the registry', () => {
+    const url = 'https://registry.npmjs.org/@scope/foo/-/foo-1.0.0.tgz'
+    expect(parseBareSpecifier(url, undefined, DEFAULT_TAG, NPM_REGISTRY)).toStrictEqual({
+      fetchSpec: '1.0.0',
+      name: '@scope/foo',
+      normalizedBareSpecifier: url,
+      type: 'version',
+    })
+  })
+
+  test.each([
+    ['https://example.com/artifactory/api/npm/npm-remote/', 'foo'],
+    ['https://example.com/npm/', '@scope/foo'],
+  ])('parses a tarball URL under the registry %s that has a path', (registry, name) => {
+    const url = `${registry}${name}/-/foo-1.0.0.tgz`
+    expect(parseBareSpecifier(url, undefined, DEFAULT_TAG, registry)).toStrictEqual({
+      fetchSpec: '1.0.0',
+      name,
+      normalizedBareSpecifier: url,
+      type: 'version',
+    })
+  })
+
+  test.each([
+    ['https://example.com/npm', 'https://example.com/npm-other/foo/-/foo-1.0.0.tgz'],
+    [NPM_REGISTRY, 'https://registry.npmjs.org/foo/-/bar-1.0.0.tgz'],
+  ])('declines the tarball URL %s %s', (registry, url) => {
+    expect(parseBareSpecifier(url, undefined, DEFAULT_TAG, registry)).toBeNull()
+  })
+
   test.each(['1.2.3+r01', '1.2.3+r9007199254740992'])(
     'rejects non-canonical registry revision spec %s',
     (specifier) => {
