@@ -23,14 +23,6 @@ pub(super) fn registry_access_list(
     })
 }
 
-/// Compile a concrete registry's `packages:` map into its [`PackageRules`]:
-/// keys parsed into the decidable [`PackagePattern`] language, values into
-/// per-package permission rules (`{}`/null ⇒ all fields default). Selection
-/// is by specificity, so key order carries no meaning; a duplicate key is the
-/// only within-registry error, and the YAML parser already rejects literal
-/// duplicates in one mapping — the check here guards the graph invariant for
-/// any other construction path. Routing-graph checks are handled later by
-/// [`Registries::validate`](super::Registries::validate) once the whole graph exists.
 fn compile_rule_access_list(
     registry: &str,
     key: &str,
