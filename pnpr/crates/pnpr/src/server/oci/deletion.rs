@@ -99,6 +99,13 @@ impl Request {
             .map(|stored| ImageDocument::parse(&stored.bytes))
             .transpose()?
             .unwrap_or_else(|| ImageDocument::new(key.as_str()));
+        if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: key.as_str().to_string(),
+                format_version: document.format_version,
+                supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+            });
+        }
         if document.deleting_blob.is_some() {
             return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
         }
@@ -141,6 +148,13 @@ async fn clear_deletion_mark(
         let mut document = ImageDocument::parse(bytes.ok_or_else(|| RegistryError::Internal {
             reason: "OCI deletion document disappeared".to_string(),
         })?)?;
+        if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: key.as_str().to_string(),
+                format_version: document.format_version,
+                supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+            });
+        }
         if document.deleting_blob.as_ref() != Some(digest) {
             return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
         }

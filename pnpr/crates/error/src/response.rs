@@ -56,6 +56,7 @@ impl RegistryError {
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
+            RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
@@ -223,6 +224,7 @@ impl RegistryError {
             | RegistryError::CannotRepublishUnpublishedVersion { .. } => {
                 Some(StatusCode::FORBIDDEN)
             }
+            RegistryError::DocumentFormatTooNew { .. } => Some(StatusCode::CONFLICT),
             _ => None,
         }
     }

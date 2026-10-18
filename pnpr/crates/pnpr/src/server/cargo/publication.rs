@@ -128,6 +128,7 @@ impl CratePublication {
     /// whatever the registry already holds for the crate.
     pub(super) fn document(&self) -> CrateDocument {
         CrateDocument {
+            format_version: pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION,
             name: self.entry.name.clone(),
             versions: vec![self.entry.clone()],
             description: self.description.clone(),
@@ -236,6 +237,13 @@ pub(super) async fn set_yanked(
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
             let Some(bytes) = existing else { return Ok(None) };
             let mut document = CrateDocument::parse(bytes)?;
+            if document.format_version > pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION {
+                return Err(RegistryError::DocumentFormatTooNew {
+                    document: key.as_str().to_string(),
+                    format_version: document.format_version,
+                    supported_version: pnpr_cargo::CRATE_DOCUMENT_FORMAT_VERSION,
+                });
+            }
             let Some(entry) = document.version_mut(version) else { return Ok(None) };
             entry.yanked = yanked;
             Ok(Some(document.to_bytes()))

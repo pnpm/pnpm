@@ -108,6 +108,13 @@ impl Request {
             |existing| {
                 let Some(bytes) = existing else { return Ok(None) };
                 let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
+                if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+                    return Err(RegistryError::DocumentFormatTooNew {
+                        document: repo.key.as_str().to_string(),
+                        format_version: document.format_version,
+                        supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+                    });
+                }
                 let removed = match Digest::parse(reference) {
                     Ok(digest) => document.remove_manifest(&digest),
                     Err(_) => document.remove_tag(reference),

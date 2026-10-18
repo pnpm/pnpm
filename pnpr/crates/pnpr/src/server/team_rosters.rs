@@ -25,7 +25,8 @@ async fn read_roster(
     registry: &str,
     seed: &Teams,
 ) -> Result<Teams, RegistryError> {
-    match state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, registry).await? {
+    let canonical = super::managed_state::canonical_registry_key(state, registry);
+    match state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, canonical).await? {
         Some(bytes) => parse_roster(registry, &bytes),
         None => Ok(seed.clone()),
     }
@@ -46,10 +47,11 @@ where
 {
     let managed = &state.inner.identity.managed;
     let seed = managed.roster_seeds.get(registry).ok_or(RegistryError::NotFound)?;
+    let canonical = super::managed_state::canonical_registry_key(state, registry);
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
         let stored =
-            state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, registry).await?;
+            state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, canonical).await?;
         let mut teams = match &stored {
             Some(bytes) => parse_roster(registry, bytes)?,
             None => seed.clone(),

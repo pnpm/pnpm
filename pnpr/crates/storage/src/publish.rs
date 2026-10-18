@@ -257,6 +257,8 @@ fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
 /// * `dist-tags` — union, new body overrides on key collision.
 /// * `time` — union, new entries override on key collision.
 ///   `time.modified` is always bumped to "now".
+pub const PACKUMENT_FORMAT_VERSION: u32 = 1;
+
 /// * Other top-level keys (`description`, `readme`, `maintainers`,
 ///   `users`, etc.) come from the new body when present, falling
 ///   back to the existing packument otherwise.
@@ -276,6 +278,8 @@ pub fn merge_manifest(
             merge_manifest_field(&mut out, key, value, hosted);
         }
     }
+
+    out.insert("formatVersion".to_string(), Value::from(PACKUMENT_FORMAT_VERSION));
 
     stamp_time_entries(&mut out, now_iso);
 
@@ -466,7 +470,19 @@ pub fn merge_journaled_packument(merge: &DocumentMerge<'_>) -> Result<Option<Vec
         drop_lost_versions(&mut journaled, &lost_versions);
     }
     let existing: Option<Value> = match merge.existing {
-        Some(bytes) => Some(serde_json::from_slice(bytes)?),
+        Some(bytes) => {
+            let val: Value = serde_json::from_slice(bytes)?;
+            if let Some(format_version) = val.get("formatVersion").and_then(Value::as_u64)
+                && format_version > u64::from(PACKUMENT_FORMAT_VERSION)
+            {
+                return Err(RegistryError::DocumentFormatTooNew {
+                    document: merge.name.as_str().to_string(),
+                    format_version: format_version as u32,
+                    supported_version: PACKUMENT_FORMAT_VERSION,
+                });
+            }
+            Some(val)
+        }
         None => None,
     };
     let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());

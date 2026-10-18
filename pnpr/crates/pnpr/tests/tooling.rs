@@ -304,6 +304,49 @@ async fn test_migrate_storage_dry_run() {
 }
 
 #[tokio::test]
+async fn test_migrate_storage_non_npm_package() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_test_config(dir.path());
+
+    let pkg = "my-crate";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let doc = serde_json::json!({
+        "format_version": 1,
+        "name": "my-crate",
+        "vers": [
+            {
+                "name": "my-crate",
+                "vers": "0.1.0",
+                "cksum": "abc"
+            }
+        ]
+    });
+    seed_file(
+        local_document_path(&config.storage.hosted_dir, "", pkg),
+        serde_json::to_vec(&doc).unwrap(),
+    );
+    seed_file(
+        local_blob_path(&config.storage.hosted_dir, "", pkg, "my-crate-0.1.0.crate"),
+        b"fake crate bytes",
+    );
+
+    let options = MigrateStorageOptions {
+        from: None,
+        to_bucket: Some("mock-bucket".to_string()),
+        to_region: Some("us-east-1".to_string()),
+        to_endpoint: None,
+        to_prefix: None,
+        dry_run: true,
+        verify: false,
+    };
+
+    let report = migrate_local_to_s3(&config, &options).await.unwrap();
+    assert_eq!(report.packages_migrated, 1);
+    assert_eq!(report.blobs_transferred, 1);
+    assert!(report.dry_run);
+}
+
+#[tokio::test]
 async fn test_verify_and_export_attestations() {
     let dir = TempDir::new().unwrap();
     let (config, _cfg_file) = create_test_config(dir.path());

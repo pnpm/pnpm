@@ -3,9 +3,61 @@ use super::{
     integrity_addressed_tarball_integrity,
 };
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+pub const REVISION_INDEX_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    REVISION_INDEX_FORMAT_VERSION
+}
+
+mod json_bytes {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_json::Value;
+
+    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Ok(value) = serde_json::from_slice::<Value>(bytes) {
+            value.serialize(serializer)
+        } else {
+            bytes.serialize(serializer)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::Array(arr)
+                if !arr.is_empty()
+                    && arr
+                        .iter()
+                        .all(|v| v.as_u64().is_some_and(|n| n <= 255)) =>
+            {
+                let bytes = arr
+                    .iter()
+                    .filter_map(|v| v.as_u64().map(|n| n as u8))
+                    .collect();
+                Ok(bytes)
+            }
+            other => serde_json::to_vec(&other).map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HostedRevisionRefIndex {
+    #[serde(rename = "formatVersion", default = "default_format_version")]
+    pub(super) format_version: u32,
     pub(super) refs: Vec<HostedRevisionRefIndexEntry>,
+}
+
+impl Default for HostedRevisionRefIndex {
+    fn default() -> Self {
+        Self { format_version: REVISION_INDEX_FORMAT_VERSION, refs: Vec::new() }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,6 +65,7 @@ pub(super) struct HostedRevisionRefIndexEntry {
     pub(super) id: String,
     pub(super) committed: bool,
     pub(super) pending_owners: Vec<String>,
+    #[serde(with = "json_bytes")]
     pub(super) bytes: Vec<u8>,
 }
 
@@ -26,6 +79,13 @@ pub enum HostedRevisionRefWrite {
 impl HostedRevisionRefIndex {
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let index: Self = serde_json::from_slice(bytes)?;
+        if index.format_version > REVISION_INDEX_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: "hosted revision reference index".to_string(),
+                format_version: index.format_version,
+                supported_version: REVISION_INDEX_FORMAT_VERSION,
+            });
+        }
         if index.refs.len() > MAX_HOSTED_REVISION_REFS {
             return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
         }

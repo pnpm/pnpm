@@ -364,6 +364,27 @@ impl S3Store {
             .boxed()
     }
 
+    pub(super) async fn list_package_blobs(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Vec<String>> {
+        use futures_util::StreamExt;
+        let prefix = format!("{}{BLOBS_DIR}/", self.package_prefix(name));
+        let scope = ObjectPath::from(prefix.as_str());
+        let mut listing = self.store.list(Some(&scope));
+        let mut blobs = Vec::new();
+        while let Some(result) = listing.next().await {
+            let meta = result?;
+            if let Some(rest) = meta.location.as_ref().strip_prefix(prefix.as_str())
+                && let Some(decoded) = decode_segment(rest)
+            {
+                blobs.push(decoded);
+            }
+        }
+        blobs.sort();
+        Ok(blobs)
+    }
+
     pub(super) async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
         let scope =
             (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')));

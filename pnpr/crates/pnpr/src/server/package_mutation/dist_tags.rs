@@ -203,11 +203,24 @@ where
         return Ok(None);
     };
     let mut packument: Value = serde_json::from_slice(bytes)?;
+    if let Some(format_version) = packument.get("formatVersion").and_then(Value::as_u64)
+        && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
+    {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: "packument".to_string(),
+            format_version: format_version as u32,
+            supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
+        });
+    }
     let Some(packument_obj) = packument.as_object_mut() else {
         return Err(RegistryError::BadRequest {
             reason: "stored packument is not an object".to_string(),
         });
     };
+    packument_obj.insert(
+        "formatVersion".to_string(),
+        serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
+    );
     let tags_entry = packument_obj
         .entry("dist-tags".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));

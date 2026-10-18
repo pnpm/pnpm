@@ -64,12 +64,20 @@ pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
 
+pub const JOURNAL_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    JOURNAL_FORMAT_VERSION
+}
+
 /// Per-process counter feeding [`txn_id`] so two transactions sealed in
 /// the same millisecond get distinct directories.
 static TXN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Manifest {
+    #[serde(rename = "formatVersion", default = "default_format_version")]
+    format_version: u32,
     packages: Vec<ManifestPackage>,
 }
 
@@ -353,6 +361,13 @@ impl SealedTxn {
     ) -> Result<()> {
         let manifest: Manifest =
             serde_json::from_slice(&fs::read(self.dir.join(MANIFEST_FILE)).await?)?;
+        if manifest.format_version > JOURNAL_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: "journal manifest".to_string(),
+                format_version: manifest.format_version,
+                supported_version: JOURNAL_FORMAT_VERSION,
+            });
+        }
         let mut context = ApplyContext { documents, progress };
         let mut lost_tmp_paths = Vec::new();
         for (index, package) in manifest.packages.iter().enumerate() {

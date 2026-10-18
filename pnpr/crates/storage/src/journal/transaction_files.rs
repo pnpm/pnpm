@@ -1,14 +1,17 @@
 use super::{
-    AsyncWriteExt, COMMIT_MARKER, JournaledPublish, MANIFEST_FILE, Manifest, ManifestBlob,
-    ManifestPackage, Ordering, Path, RegistryError, Result, SystemTime, TXN_COUNTER, UNIX_EPOCH,
-    fs, io, is_canonical_revision_ref_owner, unique_tmp_path,
+    AsyncWriteExt, COMMIT_MARKER, JOURNAL_FORMAT_VERSION, JournaledPublish, MANIFEST_FILE,
+    Manifest, ManifestBlob, ManifestPackage, Ordering, Path, RegistryError, Result, SystemTime,
+    TXN_COUNTER, UNIX_EPOCH, fs, io, is_canonical_revision_ref_owner, unique_tmp_path,
 };
 
 /// Write the transaction's documents and manifest and seal them with the
 /// commit marker, the single atomic rename that commits the publish.
 pub(super) async fn write_transaction(dir: &Path, packages: &[JournaledPublish<'_>]) -> Result<()> {
     fs::create_dir_all(dir).await?;
-    let mut manifest = Manifest { packages: Vec::with_capacity(packages.len()) };
+    let mut manifest = Manifest {
+        format_version: JOURNAL_FORMAT_VERSION,
+        packages: Vec::with_capacity(packages.len()),
+    };
     for (index, package) in packages.iter().enumerate() {
         let document_file = format!("document-{index}.json");
         write_synced(&dir.join(&document_file), package.document).await?;

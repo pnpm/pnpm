@@ -110,10 +110,26 @@ fn prepare_packument_rewrite(
 ) -> Result<(Value, Vec<String>), Response> {
     let hosted: Value = serde_json::from_slice(hosted_bytes)
         .map_err(|err| RegistryError::Json(err).into_response())?;
+    if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
+        && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
+    {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: name.as_str().to_string(),
+            format_version: format_version as u32,
+            supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
+        }
+        .into_response());
+    }
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
         return Err(err.into_response());
     }
     preserve_existing_maintainers(&hosted, packument);
+    if let Some(packument_obj) = packument.as_object_mut() {
+        packument_obj.insert(
+            "formatVersion".to_string(),
+            serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
+        );
+    }
     let removed = detect_removed_versions(&hosted, packument);
     Ok((hosted, removed))
 }

@@ -122,6 +122,15 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
 }
 
+/// Canonicalize a registry key with its local name so moving a registry
+/// to or from an ecosystem group does not change its storage key.
+pub(super) fn canonical_registry_key<'a>(_state: &AppState, registry: &'a str) -> &'a str {
+    if registry == pnpr_storage::SCIM_DIRECTORY {
+        return registry;
+    }
+    pnpr_registry::Registries::local_name(registry)
+}
+
 /// Store `bytes` as the record of `kind` for `registry`: create it when
 /// `expected` is `None`, otherwise replace it only while it still holds
 /// `expected`. Reports whether the write landed.
@@ -133,11 +142,12 @@ pub(super) async fn store_registry_record(
     bytes: &[u8],
 ) -> Result<bool, RegistryError> {
     let storage = &state.inner.storage;
+    let canonical = canonical_registry_key(state, registry);
     match expected {
-        None => storage.create_registry_record(kind, registry, bytes).await,
+        None => storage.create_registry_record(kind, canonical, bytes).await,
         Some(expected) => {
             let written =
-                storage.replace_registry_record_if_current(kind, registry, expected, bytes).await?;
+                storage.replace_registry_record_if_current(kind, canonical, expected, bytes).await?;
             Ok(written == DocumentWrite::Written)
         }
     }

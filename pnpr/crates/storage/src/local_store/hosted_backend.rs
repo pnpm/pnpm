@@ -118,6 +118,28 @@ impl HostedBackend for Store {
         Store::list_package_names(self).await
     }
 
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        let blobs_dir = self.package_dir(name).join(BLOBS_DIR);
+        let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
+            return Ok(Vec::new());
+        };
+        let mut list = Vec::new();
+        while let Some(entry) = blobs.next_entry().await? {
+            let metadata = entry.metadata().await?;
+            if let Some(blob) = entry
+                .file_name()
+                .to_str()
+                .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
+                .and_then(decode_segment)
+                && metadata.is_file()
+            {
+                list.push(blob);
+            }
+        }
+        list.sort();
+        Ok(list)
+    }
+
     async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
         let mut dirs = Vec::new();
         let Some(mut entries) = read_dir_if_present(&self.root).await? else {

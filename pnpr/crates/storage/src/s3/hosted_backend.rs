@@ -172,6 +172,10 @@ impl HostedBackend for S3Store {
         S3Store::list_package_names(self).await
     }
 
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        S3Store::list_package_blobs(self, name).await
+    }
+
     async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
         S3Store::list_top_level_dirs(self).await
     }

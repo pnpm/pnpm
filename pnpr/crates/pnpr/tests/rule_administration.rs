@@ -333,3 +333,83 @@ async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version()
     assert_ne!(after["version"], before["version"]);
     assert_eq!(after["access"], json!(["$authenticated"]));
 }
+
+#[tokio::test]
+async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
+    let dir = TempDir::new().unwrap();
+    let storage_dir = dir.path().join("storage/.rule-overrides/v0");
+    std::fs::create_dir_all(&storage_dir).unwrap();
+    let change_with_unknown = json!({
+        "access": ["$authenticated"],
+        "futureFieldFromNewerReplica": true,
+        "packages": {
+            "@secret/*": {
+                "access": ["root"],
+                "unknownPackageField": 123
+            }
+        }
+    });
+    std::fs::write(
+        storage_dir.join("local.json"),
+        serde_json::to_vec(&change_with_unknown).unwrap(),
+    )
+    .unwrap();
+
+    let app = app_router(load_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+    let (status, rules) = send(&app, "GET", RULES, Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rules["access"], json!(["$authenticated"]));
+    assert_eq!(rules["packages"]["@secret/*"]["access"], json!(["root"]));
+}
+
+#[tokio::test]
+async fn moving_registry_into_ecosystem_group_preserves_rules() {
+    let dir = TempDir::new().unwrap();
+    let app1 = app_router(load_config(dir.path())).await;
+    let root = add_user(&app1, "root").await;
+    let change = json!({ "access": ["$authenticated"] });
+    assert_eq!(send(&app1, "PUT", RULES, Some(&root), Some(change)).await.0, StatusCode::OK);
+
+    let grouped_config_yaml = "\
+auth:
+  admins: [root]
+  htpasswd:
+    max_users: 100
+registries:
+  npm:
+    local:
+      type: hosted
+      org: \"\"
+      rulesManagedBy: api
+      teams:
+        readers: [carol]
+      packages:
+        '@secret/*':
+          access: [$authenticated]
+        '**': {}
+  fixed:
+    type: hosted
+    org: fixed
+    packages:
+      '@fixed/*': {}
+  main:
+    type: router
+    sources: [fixed, 'npm/local']
+defaultRegistry: main
+";
+    let storage = dir.path().join("storage");
+    let path = dir.path().join("config_grouped.yaml");
+    std::fs::write(&path, format!("storage: {}\n{grouped_config_yaml}", storage.display()))
+        .unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let config2 =
+        Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+    let app2 = app_router(config2).await;
+    let root2 = add_user(&app2, "root").await;
+
+    let (status, rules) =
+        send(&app2, "GET", "/-/pnpr/v0/admin/rules/npm/local", Some(&root2), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rules["access"], json!(["$authenticated"]));
+}

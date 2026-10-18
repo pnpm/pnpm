@@ -253,6 +253,13 @@ impl Storage {
         self.hosted.list_package_names().await
     }
 
+    pub async fn hosted_package_blobs(
+        &self,
+        canonical: &CanonicalPackageName,
+    ) -> Result<Vec<String>> {
+        self.hosted.list_package_blobs(canonical).await
+    }
+
     pub async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         validate_revision_digest(digest)?;
         self.hosted.read_revision_refs(digest).await
