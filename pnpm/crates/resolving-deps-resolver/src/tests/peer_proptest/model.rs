@@ -76,10 +76,9 @@ fn edge(package_count: usize) -> impl Strategy<Value = Edge> {
 }
 
 fn peer(package_count: usize) -> impl Strategy<Value = Peer> {
-    let range = prop_oneof![
-        prop::sample::select(MAJORS.to_vec()).prop_map(PeerRange::Major),
-        Just(PeerRange::Any),
-    ];
+    let major = prop::sample::select(MAJORS.to_vec()).prop_map(PeerRange::Major);
+    let unbounded = Just(PeerRange::Any);
+    let range = prop_oneof![major, unbounded];
     (0..package_count, range, any::<bool>(), prop::bool::weighted(0.3)).prop_map(
         |(target, range, optional, also_dependency)| Peer {
             target,

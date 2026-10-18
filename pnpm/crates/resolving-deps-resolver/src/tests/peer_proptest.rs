@@ -7,13 +7,12 @@
 mod counterexamples;
 mod model;
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use model::{IMPORTER_IDS, Outcome, Workspace, importer_dependencies, lockfile_of, outcome_of};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use proptest::prelude::*;
-use std::collections::BTreeMap;
 
 use super::StubResolver;
 use crate::{

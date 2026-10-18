@@ -102,15 +102,25 @@ pub(super) fn locked_peer_versions_for_key(
         }
         for (name, peer) in locked_peer_keys(lockfile, &key, snapshot) {
             versions.push((name, peer.suffix.without_peer().to_string()));
-            if !peer.suffix.peer().is_empty() {
-                let peer_snapshot = lockfile.snapshots
-                    .as_ref()
-                    .and_then(|snapshots| snapshots.get(&peer));
-                pending.push((peer, peer_snapshot));
-            }
+            pending.extend(provider_with_peers(lockfile, peer));
         }
     }
     versions
+}
+
+/// A provider whose own key carries peers, with its snapshot, so its peers
+/// are read too.
+fn provider_with_peers(
+    lockfile: &pnpm_lockfile::Lockfile,
+    provider: pnpm_lockfile::PkgNameVerPeer,
+) -> Option<(pnpm_lockfile::PkgNameVerPeer, Option<&pnpm_lockfile::SnapshotEntry>)> {
+    if provider.suffix.peer().is_empty() {
+        return None;
+    }
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&provider));
+    Some((provider, snapshot))
 }
 
 /// The peers `key`'s own suffix pins, each with the snapshot key of its

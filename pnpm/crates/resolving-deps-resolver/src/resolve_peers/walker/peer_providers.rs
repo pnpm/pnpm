@@ -85,40 +85,55 @@ impl Walker<'_> {
         ) else {
             return pins;
         };
-        for (peer_name, previous_dep_path) in locked_peer_context {
-            let Some(peer_dep) = pkg.peer_set.taken().get(peer_name) else { continue };
-            let Some(locked) = self.locked_provider(previous_dep_path, provider_paths) else {
-                continue;
-            };
-            let scope = PeerScope {
-                inherited: None,
-                inherited_must_win: || {
-                    self.has_current_peer_provider_that_must_win(
-                        peer_name,
-                        parent_refs,
-                        parent_node_ids,
-                    )
-                },
-                locked: Some(locked),
-            };
-            if let ProviderPick::Bound {
-                provider: (peer_node_id, depth, version),
-                pinned_by_lockfile: true,
-            } = provider_for(&peer_dep.version, scope)
-            {
-                pins.push((
-                    peer_name.clone(),
-                    ParentRef {
-                        version: Arc::clone(version),
-                        node_id: Some(peer_node_id.clone()),
-                        alias: Some(peer_name.clone()),
-                        depth,
-                        occurrence: 0,
-                    },
-                ));
-            }
-        }
+        let site = PinSite { pkg, provider_paths, parent_refs, parent_node_ids };
+        pins.extend(
+            locked_peer_context
+                .iter()
+                .filter_map(|(peer_name, previous_dep_path)| {
+                    self.locked_peer_pin(peer_name, previous_dep_path, &site)
+                }),
+        );
         pins
+    }
+
+    /// The pin one entry of the wanted lockfile's peer context puts into the
+    /// scope, when [`provider_for`] picks the recorded provider.
+    fn locked_peer_pin(
+        &self,
+        peer_name: &str,
+        previous_dep_path: &DepPath,
+        site: &PinSite<'_>,
+    ) -> Option<(String, ParentRef)> {
+        let peer_dep = site.pkg.peer_set.taken().get(peer_name)?;
+        let locked = self.locked_provider(previous_dep_path, site.provider_paths)?;
+        let scope = PeerScope {
+            inherited: None,
+            inherited_must_win: || {
+                self.has_current_peer_provider_that_must_win(
+                    peer_name,
+                    site.parent_refs,
+                    site.parent_node_ids,
+                )
+            },
+            locked: Some(locked),
+        };
+        let ProviderPick::Bound {
+            provider: (peer_node_id, depth, version),
+            pinned_by_lockfile: true,
+        } = provider_for(&peer_dep.version, scope)
+        else {
+            return None;
+        };
+        Some((
+            peer_name.to_string(),
+            ParentRef {
+                version: Arc::clone(version),
+                node_id: Some(peer_node_id.clone()),
+                alias: Some(peer_name.to_string()),
+                depth,
+                occurrence: 0,
+            },
+        ))
     }
 
     /// The provider the wanted lockfile recorded at `previous_dep_path`, as
@@ -225,4 +240,12 @@ impl Walker<'_> {
         }
         false
     }
+}
+
+/// What one node's locked peer pins are checked against.
+struct PinSite<'a> {
+    pkg: &'a ResolvedPackage,
+    provider_paths: &'a HashMap<NodeId, DepPath>,
+    parent_refs: &'a ParentRefs,
+    parent_node_ids: &'a SharedChain<NodeId>,
 }
