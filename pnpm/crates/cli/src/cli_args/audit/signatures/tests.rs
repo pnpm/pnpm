@@ -203,6 +203,28 @@ fn process_version_verifies_the_recorded_artifact() {
 }
 
 #[test]
+fn process_version_rejects_an_untied_tar_pin() {
+    let key = signing_key();
+    let mut pkg = package();
+    pkg.pins_tar = true;
+    let signature = sign_b64(&key, "foo@1.0.0:sha512-abc");
+    let packument = serde_json::from_value(serde_json::json!({
+        "versions": {"1.0.0": {"dist": {
+            "integrity": "sha512-abc",
+            "signatures": [{"keyid": "test", "sig": signature}]
+        }}}
+    }))
+    .unwrap();
+    let mut result = SignatureVerificationResult::default();
+    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], None, &mut result);
+    assert_eq!(result.verified, 0);
+    assert_eq!(
+        result.invalid[0].reason.as_deref(),
+        Some("foo@1.0.0 has no signed integrity tied to its tar"),
+    );
+}
+
+#[test]
 fn process_version_rejects_signature_for_different_artifact() {
     let key = signing_key();
     let pkg = package();

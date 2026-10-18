@@ -11,6 +11,8 @@ use super::{
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     write_sigstore_bundle,
 };
+use std::sync::Arc;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// What kind of payload an attachment carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,12 +188,8 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let decode = state.inner.proxy.tar_decodes
-        .acquire()
-        .await
-        .expect("the decode semaphore is never closed");
-    let written = write_attachment_slots(&storage, &name, prepared).await?;
-    drop(decode);
+    let decodes = &state.inner.proxy.tar_decodes;
+    let written = write_attachment_slots(&storage, &name, prepared, decodes).await?;
     let revision_refs = written.tars
         .iter()
         .filter_map(|tar| staged_hosted_original_ref(&name, tar))
@@ -227,11 +225,12 @@ pub(super) async fn write_attachment_slots(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: Vec<PreparedAttachment>,
+    decodes: &Arc<Semaphore>,
 ) -> Result<WrittenAttachments, RegistryError> {
     let mut written =
         WrittenAttachments { slots: Vec::with_capacity(prepared.len()), tars: Vec::new() };
     for attachment in prepared {
-        match write_attachment_slot(storage, name, attachment).await {
+        match write_attachment_slot(storage, name, attachment, decodes).await {
             Ok((slot, tar)) => {
                 written.slots.push(slot);
                 written.tars.extend(tar);
@@ -248,11 +247,13 @@ pub(super) async fn write_attachment_slots(
 /// Stream-decode, verify and write one tarball into a reserved slot, and
 /// derive the tar a `.tgz` decodes to. A mismatch, or a missing integrity
 /// field, fails with a 400. A `.tgz` that does not decode in full has no tar
-/// and is published without one.
+/// and is published without one. A tarball holds a permit from `decodes`
+/// until its tar is hashed.
 pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
+    decodes: &Arc<Semaphore>,
 ) -> Result<(pnpr_storage::BlobSlot, Option<PublishedTar>), RegistryError> {
     let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
@@ -263,10 +264,7 @@ pub(super) async fn write_attachment_slot(
         dist,
         kind,
     } = prepared;
-    let result = tokio::task::spawn_blocking(move || {
-        write_and_derive_tar(&attachment, kind, &dist, &tmp_path)
-    })
-    .await;
+    let result = write_under_permit(attachment, kind, dist, tmp_path, decodes).await;
     match result {
         Ok(Ok(None)) => Ok((slot, None)),
         Ok(Ok(Some((tgz_integrity, integrity)))) => {
@@ -287,13 +285,39 @@ pub(super) async fn write_attachment_slot(
     }
 }
 
+/// Run [`write_and_derive_tar`] on a blocking thread. A tarball waits for a
+/// permit from `decodes` first.
+async fn write_under_permit(
+    attachment: PendingAttachment,
+    kind: AttachmentKind,
+    dist: Value,
+    tmp_path: std::path::PathBuf,
+    decodes: &Arc<Semaphore>,
+) -> Result<Result<Option<(String, Integrity)>, RegistryError>, tokio::task::JoinError> {
+    let permit = match kind {
+        AttachmentKind::Tarball => Some(
+            Arc::clone(decodes)
+                .acquire_owned()
+                .await
+                .expect("the decode semaphore is never closed"),
+        ),
+        AttachmentKind::Sigstore => None,
+    };
+    tokio::task::spawn_blocking(move || {
+        write_and_derive_tar(&attachment, kind, &dist, &tmp_path, permit)
+    })
+    .await
+}
+
 /// Write the attachment to `tmp_path`, and for a `.tgz` return its integrity
-/// key and the integrity of the tar it decodes to.
+/// key and the integrity of the tar it decodes to. `_decode` is held until
+/// the tar is hashed.
 fn write_and_derive_tar(
     attachment: &PendingAttachment,
     kind: AttachmentKind,
     dist: &Value,
     tmp_path: &std::path::Path,
+    _decode: Option<OwnedSemaphorePermit>,
 ) -> Result<Option<(String, Integrity)>, RegistryError> {
     decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
     if kind != AttachmentKind::Tarball {

@@ -476,3 +476,30 @@ async fn subsequent_write_tombstone_replaces_maintainers_and_merges_version_bans
     assert_eq!(stored.unpublished_versions, vec!["1.0.0".to_string(), "2.0.0".to_string()]);
     assert_eq!(stored.unpublished_by.as_deref(), Some("bob"));
 }
+
+#[tokio::test]
+async fn an_upstream_revision_blob_named_by_a_tgz_digest_is_not_served() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let digest = "A".repeat(86);
+    let tgz_keyed = tmp.path().join("cache/upstream/.revisions/sha512");
+    fs::create_dir_all(&tgz_keyed).await.unwrap();
+    fs::write(tgz_keyed.join(&digest), b"tgz").await.unwrap();
+    assert!(
+        storage
+            .open_upstream_revision_blob("upstream", &digest)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    let mut write = storage.open_upstream_revision_blob_tmp("upstream", &digest).await.unwrap();
+    write.write_all(b"tar").await.unwrap();
+    write.finalize().await.unwrap();
+    let (_file, len) = storage
+        .open_upstream_revision_blob("upstream", &digest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(len, 3);
+}
