@@ -22,6 +22,12 @@ test('injectedEditDirs reads the copies each project with its own lockfile lists
   writeJson(path.join(workspaceDir, 'app/deps/.modules.yaml'), {
     injectedDeps: { '../lib': ['deps/.pnpm/lib@file+..+lib/node_modules/lib'] },
   })
+  // An installed package under the custom modules directory is no project,
+  // even though the broad pattern below matches it.
+  writeJson(path.join(workspaceDir, 'app/deps/installed/package.json'), { name: 'installed', version: '1.0.0' })
+  writeJson(path.join(workspaceDir, 'app/deps/installed/deps/.modules.yaml'), {
+    injectedDeps: { '../../../lib': ['deps/.pnpm/lib@file+..+..+..+lib/node_modules/lib'] },
+  })
   writeJson(path.join(workspaceDir, 'excluded/package.json'), { name: 'excluded', version: '1.0.0' })
   writeJson(path.join(workspaceDir, 'excluded/deps/.modules.yaml'), {
     injectedDeps: { '../lib': ['deps/.pnpm/lib@file+..+lib/node_modules/lib'] },
@@ -31,7 +37,7 @@ test('injectedEditDirs reads the copies each project with its own lockfile lists
     pkgName: 'lib',
     pkgRootDir: 'lib',
     workspaceDir,
-    projectLockfiles: { workspacePackagePatterns: ['app', 'lib'], modulesDir: 'deps' },
+    projectLockfiles: { workspacePackagePatterns: ['app/**', 'lib'], modulesDir: 'deps' },
   })
 
   expect(sources).toEqual([{

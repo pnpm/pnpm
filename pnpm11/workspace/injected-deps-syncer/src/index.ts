@@ -217,7 +217,7 @@ async function syncInjectedBinLinks (
     pkgRootDir: sourceDir,
     previousBinNames,
     workspaceDir: opts.workspaceDir!,
-    workspacePackagePatterns: opts.projectLockfiles?.workspacePackagePatterns,
+    projectLockfiles: opts.projectLockfiles,
   })
 }
 
@@ -302,8 +302,8 @@ async function readModulesManifests (opts: SyncInjectedDepsOptions & { workspace
 }>> {
   const modulesDirs = [{ lockfileDir: opts.workspaceDir, modulesDir: path.join(opts.workspaceDir, 'node_modules') }]
   if (opts.projectLockfiles != null) {
-    const { workspacePackagePatterns, modulesDir, modulesDirsByProjectName } = opts.projectLockfiles
-    const projects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, { patterns: workspacePackagePatterns })
+    const { modulesDir, modulesDirsByProjectName } = opts.projectLockfiles
+    const projects = await findWorkspaceProjects(opts.workspaceDir, opts.projectLockfiles)
     for (const { rootDir, manifest } of projects) {
       if (path.resolve(rootDir) === path.resolve(opts.workspaceDir)) continue
       const projectModulesDir = (manifest.name != null ? modulesDirsByProjectName?.[manifest.name] : undefined) ?? modulesDir ?? 'node_modules'
@@ -314,6 +314,18 @@ async function readModulesManifests (opts: SyncInjectedDepsOptions & { workspace
     lockfileDir,
     modules: await readModulesManifest(modulesDir),
   })))
+}
+
+/**
+ * The workspace's projects, found with its `packages` patterns. The modules
+ * directories keep installed packages from being taken for projects.
+ */
+async function findWorkspaceProjects (workspaceDir: string, projectLockfiles: ProjectLockfiles | undefined): Promise<Awaited<ReturnType<typeof findWorkspaceProjectsNoCheck>>> {
+  return findWorkspaceProjectsNoCheck(workspaceDir, {
+    patterns: projectLockfiles?.workspacePackagePatterns,
+    modulesDir: projectLockfiles?.modulesDir,
+    modulesDirsByProjectName: projectLockfiles?.modulesDirsByProjectName,
+  })
 }
 
 /** The directory the install injects in place of the project at `pkgRootDir`. */
@@ -338,7 +350,7 @@ interface SyncBinLinksOptions {
   pkgRootDir: string
   previousBinNames: string[]
   workspaceDir: string
-  workspacePackagePatterns: string[] | undefined
+  projectLockfiles: ProjectLockfiles | undefined
 }
 
 async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
@@ -358,7 +370,7 @@ async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
     await linkInjectedTargetBins(dir, manifest, staleBinNames, hoistedBinDir)
   })
 
-  const allProjects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, { patterns: opts.workspacePackagePatterns })
+  const allProjects = await findWorkspaceProjects(opts.workspaceDir, opts.projectLockfiles)
   const consumerLinkPromises = allProjects.map(async project => {
     await relinkWorkspaceConsumerBins(project, staleBinNames)
   })
