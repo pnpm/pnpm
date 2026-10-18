@@ -41,13 +41,10 @@ const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set',
 
 loudRejection()
 
-// This prevents the program from crashing when the pipe's read side closes early
-// (e.g., when running `pnpm config list | head`)
+// When the reader of stdout is gone (e.g., `pnpm outdated | head`), the rest of
+// the output is dropped. The command still finishes and exits with its own code.
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EPIPE') {
-    // eslint-disable-next-line n/no-process-exit -- the reader is gone, so there is nothing left to print to
-    process.exit(0)
-  }
+  if (err.code === 'EPIPE') return
   throw err
 })
 
