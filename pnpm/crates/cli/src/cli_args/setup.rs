@@ -13,7 +13,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
-    PathExtenderReport,
+    PathExtenderReport, sh_quote,
 };
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
@@ -110,8 +110,8 @@ fn render_env_path_outcome(
 
 fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
     format!(
-        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME=\"{}\"\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
-        pnpm_home_dir.display(),
+        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME={}\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        sh_quote(&pnpm_home_dir.to_string_lossy()),
     )
 }
 

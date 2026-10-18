@@ -69,8 +69,18 @@ fn unknown_shell_prints_the_lines_to_add_by_hand() {
             .expect("an unknown shell leaves the install in place");
     assert_eq!(
         output,
-        "Could not infer shell type. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME=\"/root/.pnpm\"\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        "Could not infer shell type. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
     );
+}
+
+#[test]
+fn manual_setup_lines_quote_pnpm_home_as_a_literal() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::UnknownShell),
+        Path::new("/home/o'neil/$(touch pwned)"),
+    )
+    .expect("an unknown shell leaves the install in place");
+    assert!(output.contains("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n"), "{output}");
 }
 
 #[test]

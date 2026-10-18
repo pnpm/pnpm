@@ -320,8 +320,14 @@ test('setup prints the lines to add by hand when the shell is unknown', async ()
   expect(output).toBe(`Could not infer shell type. No shell config file was changed.
 
 To start using pnpm, add these lines to your shell config file:
-export PNPM_HOME="/root/.pnpm"
+export PNPM_HOME='/root/.pnpm'
 export PATH="$PNPM_HOME/bin:$PATH"`)
+})
+
+test('setup quotes PNPM_HOME as a literal in the lines to add by hand', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: "/home/o'neil/$(touch pwned)" })
+  expect(output).toContain("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n")
 })
 
 test('setup prints the lines to add by hand when sh has no ENV', async () => {

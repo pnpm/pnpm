@@ -327,8 +327,12 @@ function renderManualSetupOutput (reason: string, pnpmHomeDir: string): string {
   return `${reason} No shell config file was changed.
 
 To start using pnpm, add these lines to your shell config file:
-export PNPM_HOME="${pnpmHomeDir}"
+export PNPM_HOME=${shSingleQuote(pnpmHomeDir)}
 export PATH="$PNPM_HOME/bin:$PATH"`
+}
+
+function shSingleQuote (text: string): string {
+  return `'${text.replace(/'/g, "'\\''")}'`
 }
 
 function renderSetupOutput (report: PathExtenderReport): string {
