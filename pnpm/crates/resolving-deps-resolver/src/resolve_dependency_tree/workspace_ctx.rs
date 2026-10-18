@@ -58,7 +58,7 @@ use super::{
     UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
-type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
+pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// An importer's resolved direct-dependency versions, keyed by package
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
