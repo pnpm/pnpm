@@ -570,6 +570,7 @@ async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
             None,
             None,
             Some(16),
+            crate::TarLimits::default(),
         )
         .await
         .unwrap_err();

@@ -583,7 +583,7 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
 
 mod gzip;
 
-mod limits;
+pub(crate) mod limits;
 use limits::{TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
 
 mod streaming;
