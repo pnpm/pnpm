@@ -258,10 +258,8 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        let with_teams = team_routes(staged_routes(router, base), base);
+        let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
         router = super::security_audit::routes(with_teams, base)
-            // `npm ping` asks the registry URL, not the server root.
-            .route(&path("/-/ping"), get(serve_ping))
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
             .route(
@@ -302,6 +300,11 @@ fn npm_registry_routes() -> Router<AppState> {
             );
     }
     router
+}
+
+/// `npm ping` asks the registry URL, not the server root.
+fn ping_route(router: Router<AppState>, base: &str) -> Router<AppState> {
+    router.route(&format!("{base}/-/ping"), get(serve_ping))
 }
 
 fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
