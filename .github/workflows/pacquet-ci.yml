@@ -32,6 +32,7 @@ jobs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
       changesets: ${{ steps.filter.outputs.changesets }}
       docs: ${{ steps.filter.outputs.docs }}
+      convergence: ${{ steps.manual.outputs.rust || steps.filter.outputs.convergence }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -108,6 +109,21 @@ jobs:
               - '.github/workflows/pacquet-ci.yml'
             changesets:
               - '.changeset/**'
+            # What decides the lockfile either CLI writes, for the job that
+            # runs the peer convergence harness through both.
+            convergence:
+              - 'pnpm/crates/resolving-*/**'
+              - 'pnpm/crates/lockfile*/**'
+              - 'pnpm/crates/package-manager/**'
+              - 'pnpm/crates/cli/src/cli_args/deploy*'
+              - 'pnpm/crates/cli/src/cli_args/deploy/**'
+              - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
+              - 'pnpm11/installing/**'
+              - 'pnpm11/lockfile/**'
+              - 'pnpm11/resolving/**'
+              - 'pnpm11/releasing/commands/src/deploy/**'
+              - 'pnpr/.fixtures/**'
+              - '.github/workflows/pacquet-ci.yml'
 
   change-check:
     name: Rust CI / Change Check
@@ -351,6 +367,62 @@ jobs:
           path: .bench/artifact/rust/
           if-no-files-found: error
           retention-days: 14
+
+  # The peer convergence harness through pnpm v11 as well as v12, so a
+  # resolution or lockfile change in either stack cannot make them drift
+  # apart. The harness also runs through v12 alone in the test job above.
+  convergence:
+    name: Rust CI / Peer Convergence v11+v12
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.convergence == 'true' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          install: false
+
+      - name: Install Node.js via pnpm
+        run: pnpm runtime set node 22 --global
+
+      - name: Install just
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: just,cargo-nextest
+
+      - name: Install dependencies
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just install
+
+      - name: Bundle pnpm v11
+        run: |
+          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm run bundle
+
+      - name: Run the peer convergence harness through v11 and v12
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+            pnpm test:rust -p pnpm-cli -E 'test(/^peer_convergence::/)'
 
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
@@ -726,6 +798,7 @@ jobs:
       - changes
       - change-check
       - test
+      - convergence
       - npm-wrapper
       - clippy
       - doc
