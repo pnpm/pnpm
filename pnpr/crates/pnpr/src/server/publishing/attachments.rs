@@ -1,11 +1,16 @@
 use super::{
-    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentForUpdate,
-    HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
-    PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_package, cleanup_tmp_slots, create_hex_hash, extract_attachments,
-    extract_predicate_type, hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
+    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion,
+    HostedOriginalRef, Identity, Integrity, JournaledRevisionRef, PendingAttachment, RegistryError,
+    RegistrySource, Storage, Value, WriteTarget, authorize_package, cleanup_tmp_slots,
+    create_hex_hash, extract_attachments, hosted_storage, integrity_addressed_tarball_path,
+    manifest::{
+        check_publishable_versions, parse_hosted_packument, prepare_staged_document,
+        record_publisher,
+    },
     resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
-    tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
+    tar_integrity_of, tgz_integrity_key,
+    tombstones::{check_publish_tombstone, check_tombstoned_versions},
+    write_sigstore_bundle,
 };
 
 /// Whether a tar registry serves `name` from the hosted registry `org`, so
@@ -85,32 +90,6 @@ pub(in super::super) async fn validate_publish_doc(
     Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
 
-async fn check_publish_tombstone(
-    state: &AppState,
-    identity: &Identity,
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Result<(), RegistryError> {
-    let Some(tombstone) = storage.read_tombstone(name).await? else {
-        return Ok(());
-    };
-    if storage.read_hosted_document(name).await?.is_some() {
-        return Ok(());
-    }
-    let username = identity.username();
-    let is_admin =
-        username.is_some_and(|user| state.inner.config.identity.admins.contains(user));
-    let is_former_maintainer = username.is_some_and(|user| {
-        tombstone.maintainers
-            .iter()
-            .any(|maintainer| maintainer == user)
-    });
-    if !is_admin && !is_former_maintainer {
-        return Err(RegistryError::PackageTombstoned { package: name.as_str().to_string() });
-    }
-    Ok(())
-}
-
 fn prepare_attachments(
     name: &CanonicalPackageName,
     incoming: &Value,
@@ -163,43 +142,6 @@ fn parse_attachment_kind(
             package: name.as_str().to_string(),
             filename: filename.to_string(),
         })
-    }
-}
-
-pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
-    if let Identity::User { username, .. } = identity {
-        record_publisher_in_maintainers(incoming, username);
-    }
-    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
-        return;
-    };
-    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
-        match identity {
-            Identity::User { username, .. } => {
-                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
-            }
-            _ => {
-                manifest.remove("_npmUser");
-            }
-        }
-    }
-}
-
-fn record_publisher_in_maintainers(incoming: &mut Value, username: &str) {
-    let Some(incoming_obj) = incoming.as_object_mut() else { return };
-    let maintainers = incoming_obj
-        .entry("maintainers")
-        .or_insert_with(|| json!([]));
-    let publisher = json!({ "name": username });
-    let Some(list) = maintainers.as_array_mut() else {
-        *maintainers = json!([publisher]);
-        return;
-    };
-    let already_present = list
-        .iter()
-        .any(|entry| entry.get("name").and_then(Value::as_str) == Some(username));
-    if !already_present {
-        list.insert(0, publisher);
     }
 }
 
@@ -269,79 +211,6 @@ pub(in super::super) async fn stage_publish(
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
-}
-
-async fn check_tombstoned_versions(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-    incoming: &Value,
-) -> Result<(), RegistryError> {
-    let Some(tombstone) = storage.read_tombstone(name).await? else {
-        return Ok(());
-    };
-    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    for version in incoming_versions.keys() {
-        if tombstone.unpublished_versions.contains(version) {
-            return Err(RegistryError::CannotRepublishUnpublishedVersion {
-                package: name.as_str().to_string(),
-                version: version.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn prepare_staged_document(
-    name: &CanonicalPackageName,
-    hosted: Option<&Value>,
-    incoming: &Value,
-    prepared: &[PreparedAttachment],
-    now_iso: &str,
-) -> Result<Vec<u8>, RegistryError> {
-    let mut merged = merge_manifest(hosted, incoming, hosted, now_iso);
-    attach_sigstore_attestations(&mut merged, name, prepared);
-    serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)
-}
-
-fn attach_sigstore_attestations(
-    merged: &mut Value,
-    name: &CanonicalPackageName,
-    prepared: &[PreparedAttachment],
-) {
-    for attachment in prepared
-        .iter()
-        .filter(|att| att.kind == AttachmentKind::Sigstore)
-    {
-        if let Some(dist) = merged
-            .get_mut("versions")
-            .and_then(|v| v.get_mut(&attachment.version))
-            .and_then(|m| m.get_mut("dist"))
-            .and_then(Value::as_object_mut)
-        {
-            let predicate_type = extract_predicate_type(&attachment.attachment.data);
-            dist.insert(
-                "attestations".to_string(),
-                json!({
-                    "url": format!("/-/npm/v1/attestations/{}@{}", name.as_str(), attachment.version),
-                    "provenance": { "predicateType": predicate_type },
-                }),
-            );
-        }
-    }
-}
-
-/// The stored packument, parsed, with the version its update must be based
-/// on. `None` for a package the org has not published yet.
-pub(super) fn parse_hosted_packument(
-    hosted: Option<HostedDocumentForUpdate>,
-) -> Result<(Option<Value>, Option<HostedDocumentVersion>), RegistryError> {
-    let Some(packument) = hosted else {
-        return Ok((None, None));
-    };
-    let value = serde_json::from_slice(&packument.bytes).map_err(RegistryError::Json)?;
-    Ok((Some(value), Some(packument.version)))
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -442,59 +311,6 @@ fn decode_and_write_attachment(
         }
     }
     Ok(())
-}
-
-/// Validate each incoming version against the locally hosted packument. A
-/// hosted packument is served as-is, so anything not in it is genuinely new
-/// Validate versions against existing hosted versions. Published content is
-/// immutable, so re-publishes with modified tarballs or integrity are rejected.
-/// New versions must provide a tarball.
-pub(super) fn check_publishable_versions(
-    name: &CanonicalPackageName,
-    incoming: &Value,
-    hosted: Option<&Value>,
-    prepared: &[PreparedAttachment],
-) -> Result<(), RegistryError> {
-    let attachment_versions: HashSet<&str> = prepared
-        .iter()
-        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
-        .map(|attachment| attachment.version.as_str())
-        .collect();
-    let hosted_versions = hosted
-        .and_then(|h| h.get("versions"))
-        .and_then(Value::as_object);
-    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    for (version, incoming_manifest) in incoming_versions {
-        let has_attachment = attachment_versions.contains(version.as_str());
-        let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if has_attachment {
-                continue;
-            }
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot publish version {version} of {:?} without a tarball",
-                    name.as_str(),
-                ),
-            });
-        };
-        if has_attachment || integrity_changed(incoming_manifest, hosted_manifest) {
-            return Err(RegistryError::VersionAlreadyPublished {
-                package: name.as_str().to_string(),
-                version: version.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Whether the incoming manifest declares an integrity other than the one
-/// the hosted manifest carries.
-pub(super) fn integrity_changed(incoming_manifest: &Value, hosted_manifest: &Value) -> bool {
-    let incoming_integrity = incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-    let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-    incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity)
 }
 
 pub(super) fn staged_hosted_original_ref(

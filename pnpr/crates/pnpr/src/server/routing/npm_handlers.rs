@@ -1,14 +1,14 @@
-use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 
 use super::{
     Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
     StatusCode, TargetRegistry, addressed_registry, authorize_package, caller_scoped,
-    delete_package, delete_tarball, get_dist_tags, hosted_storage, is_tar_registry, not_found,
-    package_mutation, private_no_cache, publish_package, remove_dist_tag, resolve_write_target,
-    serve_package_tarball, serve_packument, serve_revision_tarball, serve_search, serve_tarball,
-    serve_version_manifest, set_dist_tag, split_package_identifier, update_packument,
+    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, hosted_storage,
+    is_tar_registry, not_found, private_no_cache, publish_package, remove_dist_tag,
+    resolve_write_target, serve_package_tarball, serve_packument, serve_revision_tarball,
+    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
+    update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -227,36 +227,9 @@ async fn preauthorize_publish(
         return Err(err.into_response());
     }
     let storage = hosted_storage(state, Some(&target.org));
-    check_publish_tombstone(state, identity, &storage, &name).await?;
+    check_publish_tombstone(state, identity, &storage, &name).await
+        .map_err(IntoResponse::into_response)?;
     Ok(name)
-}
-
-async fn check_publish_tombstone(
-    state: &AppState,
-    identity: &Identity,
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Result<(), Response> {
-    let Ok(Some(tombstone)) = storage.read_tombstone(name).await else {
-        return Ok(());
-    };
-    if storage.read_hosted_document(name).await.is_ok_and(|doc| doc.is_some()) {
-        return Ok(());
-    }
-    let username = identity.username();
-    let is_admin =
-        username.is_some_and(|user| state.inner.config.identity.admins.contains(user));
-    let is_former_maintainer = username.is_some_and(|user| {
-        tombstone.maintainers
-            .iter()
-            .any(|maintainer| maintainer == user)
-    });
-    if !is_admin && !is_former_maintainer {
-        return Err(
-            RegistryError::PackageTombstoned { package: name.as_str().to_string() }.into_response()
-        );
-    }
-    Ok(())
 }
 
 async fn preauthorize_rewrite(

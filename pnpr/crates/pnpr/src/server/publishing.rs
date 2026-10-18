@@ -1,8 +1,11 @@
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
+pub(super) use tombstones::check_publish_tombstone;
 
 mod attachments;
+mod manifest;
+mod tombstones;
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -21,11 +24,11 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
+    HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
-        PendingAttachment, extract_attachments, extract_predicate_type, merge_manifest, now_iso,
-        stream_decode_verify_and_write, write_sigstore_bundle,
+        PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
+        write_sigstore_bundle,
     },
 };
 

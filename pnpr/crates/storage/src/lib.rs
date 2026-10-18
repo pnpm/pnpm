@@ -30,8 +30,9 @@ pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
 pub use staged_records::PipelineRunKey;
 
-mod tar_integrities;
 pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
+
+mod tar_integrities;
 
 mod staged_records;
 

@@ -160,8 +160,8 @@ use self::{
         update_packument,
     },
     publishing::{
-        PublishTarget, commit_publishes, publish_package, resolve_publish_target_for,
-        serve_batch_publish, stage_publish, validate_publish_doc,
+        PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
+        resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
     },
     routing::router_with_auth_and_osv,
 };
