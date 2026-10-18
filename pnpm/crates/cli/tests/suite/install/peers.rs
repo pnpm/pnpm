@@ -155,6 +155,59 @@ fn auto_installed_peer_bins_are_linked_at_workspace_root() {
     drop((root, mock_instance));
 }
 
+/// `peer-scope-host@2` depends on `peer-scope-plugin`, whose peer is
+/// `peer-scope-host@^1`. `packages/a` depends on `peer-scope-host@^2`,
+/// and both `.` and `packages/b` depend on the plugin directly. Nothing in
+/// `packages/b` provides the host, so its plugin gets the auto-installed
+/// `peer-scope-host@1.0.0`, not the `2.0.0` from `packages/a`'s subtree.
+#[test]
+fn a_peer_is_not_borrowed_from_another_importers_subtree() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read workspace settings");
+    workspace_yaml.push_str("packages:\n  - packages/*\nresolvePeersFromWorkspaceRoot: false\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+    let write_manifest = |dir: &std::path::Path, name: &str, dependency: &str, range: &str| {
+        fs::create_dir_all(dir).expect("create project dir");
+        let manifest = serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { dependency: range },
+        });
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    };
+    write_manifest(&workspace, "root", "@pnpm.e2e/peer-scope-plugin", "^1.0.0");
+    write_manifest(&workspace.join("packages/a"), "a", "@pnpm.e2e/peer-scope-host", "^2.0.0");
+    write_manifest(&workspace.join("packages/b"), "b", "@pnpm.e2e/peer-scope-plugin", "^1.0.0");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let plugin_of_b = lockfile.importers["packages/b"].dependencies
+        .as_ref()
+        .and_then(|deps| {
+            deps.iter()
+                .find(|(name, _)| name.to_string() == "@pnpm.e2e/peer-scope-plugin")
+        })
+        .map(|(_, dep)| dep.version.to_string())
+        .expect("packages/b depends on the plugin");
+    assert_eq!(plugin_of_b, "1.0.0(@pnpm.e2e/peer-scope-host@1.0.0)");
+
+    drop((root, mock_instance));
+}
+
 /// `peer-diamond-plugin` peer-depends both `peer-diamond-parser` and
 /// `peer-diamond-ts`, and `peer-diamond-parser` peer-depends
 /// `peer-diamond-ts`. The plugin's parser and its ts must agree: when

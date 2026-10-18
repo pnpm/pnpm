@@ -345,9 +345,22 @@ impl Walker<'_> {
             return;
         }
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
-        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id);
+        let own_peers = &self.tree.packages[&pkg_id].peer_set.taken();
+        let missing_own_peers: HashSet<String> = output.missing_peers
+            .keys()
+            .filter(|peer_name| own_peers.contains_key(*peer_name))
+            .cloned()
+            .collect();
+        let chain_with_self = parent_pkg_ids_chain.pushed(Arc::clone(&pkg_id));
         for (peer_name, info) in output.missing_peers.iter() {
-            if self.missing_issue_suppressed(&chain_with_self, peer_name) {
+            // A package's own peers resolve against its ancestors, which
+            // another importer's walk of the package says nothing about.
+            let declaring_chain = if missing_own_peers.contains(peer_name) {
+                parent_pkg_ids_chain
+            } else {
+                &chain_with_self
+            };
+            if self.missing_issue_suppressed(declaring_chain, peer_name) {
                 continue;
             }
             self.record_missing_issue(
@@ -358,7 +371,7 @@ impl Walker<'_> {
                     optional: info.optional,
                     parents: self.issue_parents(parent_chain_names),
                 },
-                &chain_with_self,
+                declaring_chain,
             );
         }
     }

@@ -164,7 +164,7 @@ proptest! {
 
     /// Installing over the lockfile a fresh resolution wrote changes nothing.
     #[test]
-    #[ignore = "fails on counterexamples::fresh_resolve_does_not_borrow_a_peer_from_another_importers_subtree (pnpm/tasks#143)"]
+    #[ignore = "fails on counterexamples::install_over_own_lockfile_keeps_a_cycle_members_peer_suffix (pnpm/tasks#143)"]
     fn install_over_own_lockfile_matches_fresh(workspace in model::workspace()) {
         let order = in_order(&workspace);
         let fresh = resolve(&workspace, &order, Reuse::Fresh).expect("generated workspaces resolve");
