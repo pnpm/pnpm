@@ -2,9 +2,20 @@
 //!
 //! - [`peer_shadowed_dependency_names`]: which of a package's own
 //!   `dependencies` its peers supply in a scope.
+//! - [`provider_for`]: which provider in scope a package's declared peer
+//!   binds to during the peer walk, and whether the wanted lockfile's
+//!   provider wins over the inherited one.
 //! - [`hoist_peers`] and [`get_hoistable_optional_peers`]: the version
 //!   that provides a missing peer when it is hoisted to the importer. The
 //!   orchestrator (`resolve_importer`) calls them inside its hoist loop.
+//!
+//! Two decisions that shape a peer suffix are not provider picks, so they
+//! live elsewhere:
+//!
+//! - The cycle cut. A provider that is still being walked is written as
+//!   `name@version` in the suffix (`Walker::build_peer_id`).
+//! - The dedupe survivor. `dedupe_peer_dependents` keeps the largest
+//!   compatible variant of a package. It picks a variant, not a provider.
 //!
 //! Both pickers go through [`highest_provider_version`]. They differ only
 //! in their tiers and range check:
@@ -25,7 +36,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 
-use crate::parent_pkg_aliases::ParentPkgAliases;
+use crate::{parent_pkg_aliases::ParentPkgAliases, resolve_peers::satisfies_with_prereleases};
 
 /// One workspace-root dep the loop can satisfy a peer with.
 #[derive(Debug, Clone)]
@@ -406,6 +417,49 @@ pub(crate) fn optional_peer_specifier(
         .filter(|specifier| specifier.starts_with("workspace:"))
         .cloned()
         .unwrap_or(version)
+}
+
+/// The provider [`provider_for`] binds a peer to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ProviderPick<Provider> {
+    Bound { provider: Provider, pinned_by_lockfile: bool },
+    Missing,
+}
+
+/// The provider the wanted lockfile recorded for a peer, resolved to the
+/// same path in this pass.
+pub(crate) struct LockedProvider<'version, Provider> {
+    pub(crate) provider: Provider,
+    pub(crate) version: &'version str,
+}
+
+/// What a node's scope offers for one of its declared peers.
+pub(crate) struct PeerScope<'version, Provider, MustWin> {
+    /// The provider the nearest ancestor binds the name to.
+    pub(crate) inherited: Option<Provider>,
+    /// Whether [`Self::inherited`] wins over a locked provider. Only asked
+    /// when a locked provider would otherwise win.
+    pub(crate) inherited_must_win: MustWin,
+    pub(crate) locked: Option<LockedProvider<'version, Provider>>,
+}
+
+/// Bind the peer `peer_range` of a node to a provider in `scope`. The
+/// locked provider wins when the inherited one need not win and it
+/// satisfies the range. Otherwise the inherited provider binds.
+pub(crate) fn provider_for<Provider>(
+    peer_range: &str,
+    scope: PeerScope<'_, Provider, impl FnOnce() -> bool>,
+) -> ProviderPick<Provider> {
+    if let Some(locked) = scope.locked
+        && !(scope.inherited_must_win)()
+        && satisfies_with_prereleases(locked.version, &get_peer_version_range(peer_range))
+    {
+        return ProviderPick::Bound { provider: locked.provider, pinned_by_lockfile: true };
+    }
+    match scope.inherited {
+        Some(provider) => ProviderPick::Bound { provider, pinned_by_lockfile: false },
+        None => ProviderPick::Missing,
+    }
 }
 
 /// [`peer_shadowed_dependency_names`] in the scope `parent_pkg_aliases`.

@@ -2,11 +2,11 @@
 //! map, the shared ancestor chains threaded down the walk, `link:`
 //! node-id remapping, peer-suffix parsing, and range matching.
 
-pub(crate) use peer_specifier::split_peer_suffix_segments;
 pub(super) use peer_specifier::{
     ComparablePeerRange, importer_relative_link_dep_path, link_node_id_as_dep_path, peer_id_pair,
-    peer_segment_names, remap_link_node_id, satisfies_with_prereleases,
+    peer_segment_names, remap_link_node_id,
 };
+pub(crate) use peer_specifier::{satisfies_with_prereleases, split_peer_suffix_segments};
 
 mod peer_specifier;
 use peer_specifier::version_gte;

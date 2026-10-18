@@ -4,7 +4,7 @@ use super::{
     Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
 };
 
-impl Walker<'_> {}
+use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
 
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
@@ -64,8 +64,13 @@ impl Walker<'_> {
         let comparable_range = self.comparable_peer_range(raw_range);
         let optional = peer_dep.optional;
 
-        match parent_refs.get(peer_name) {
-            None => {
+        let scope = PeerScope {
+            inherited: parent_refs.get(peer_name),
+            inherited_must_win: || false,
+            locked: None,
+        };
+        match provider_for(raw_range, scope) {
+            ProviderPick::Missing => {
                 missing.insert(
                     peer_name.to_string(),
                     MissingPeerInfo { range: raw_range.to_string(), optional },
@@ -78,7 +83,7 @@ impl Walker<'_> {
                     &comparable_range,
                 );
             }
-            Some(parent) => {
+            ProviderPick::Bound { provider: parent, .. } => {
                 if !comparable_range.satisfies(&parent.version)
                     && !self.traversal.in_canonical_drain
                 {

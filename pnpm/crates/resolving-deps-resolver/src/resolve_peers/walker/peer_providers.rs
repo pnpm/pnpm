@@ -1,11 +1,10 @@
 use super::{
-    Arc, CurrentProviderSource, DepPath, HashMap, LockedPinContext, MissingPeerInfo, NodeId,
-    NodePeers, NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain,
-    TreeChildren, Walker, create_peer_dep_graph_hash, get_peer_version_range,
-    index_of_dep_path_suffix, satisfies_with_prereleases,
+    Arc, CurrentProviderSource, DepPath, HashMap, MissingPeerInfo, NodeId, NodePeers,
+    NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain, TreeChildren,
+    Walker, create_peer_dep_graph_hash, index_of_dep_path_suffix,
 };
 
-impl Walker<'_> {}
+use crate::peer_provider::{LockedProvider, PeerScope, ProviderPick, provider_for};
 
 impl Walker<'_> {
     /// Resolve this node's own peer requirements against the augmented
@@ -61,18 +60,13 @@ impl Walker<'_> {
         DepPath::from(format!("{pkg_id}{suffix}"))
     }
 
-    /// The upstream locked-peer-provider reuse block
-    /// (`resolvePeers.ts:594`): for each `peer name → provider DepPath`
-    /// the wanted lockfile recorded on this node, re-pin the provider
-    /// into `parent_refs` when it is still reachable in the current
-    /// tree, resolved to the same path in the previous pass, carries no
-    /// peer suffix of its own, has not diverged in this pass, is not
-    /// overridden by a current provider that must win, and satisfies
-    /// the node's current peer range.
-    /// The pins [`apply_locked_peer_context` upstream] would insert into
-    /// `parent_refs`, computed without mutating it so the caller can keep
-    /// sharing an unchanged map. Each pin reads only its own name's
-    /// current binding, so collecting against the pre-pin map is
+    /// The pins the wanted lockfile's peer context puts into `parent_refs`
+    /// (upstream `resolvePeers.ts:594`): for each peer the node declares,
+    /// the recorded provider when [`provider_for`] picks it. The inherited
+    /// binding already sits in `parent_refs`, so only the pins are
+    /// returned. They are computed without mutating `parent_refs`, so the
+    /// caller can keep sharing an unchanged map. Each pin reads only its own
+    /// name's current binding, so collecting against the pre-pin map is
     /// equivalent to inserting while iterating.
     pub(super) fn locked_peer_context_pins(
         &self,
@@ -90,70 +84,66 @@ impl Walker<'_> {
         ) else {
             return pins;
         };
-        let context = LockedPinContext { pkg, provider_paths, parent_refs, parent_node_ids };
         for (peer_name, previous_dep_path) in locked_peer_context {
-            if let Some(pin) = self.locked_peer_pin(peer_name, previous_dep_path, &context) {
-                pins.push(pin);
+            let Some(peer_dep) = pkg.peer_set.taken().get(peer_name) else { continue };
+            let Some(locked) = self.locked_provider(previous_dep_path, provider_paths) else {
+                continue;
+            };
+            let scope = PeerScope {
+                inherited: None,
+                inherited_must_win: || {
+                    self.has_current_peer_provider_that_must_win(
+                        peer_name,
+                        parent_refs,
+                        parent_node_ids,
+                    )
+                },
+                locked: Some(locked),
+            };
+            if let ProviderPick::Bound {
+                provider: (peer_node_id, depth, version),
+                pinned_by_lockfile: true,
+            } = provider_for(&peer_dep.version, scope)
+            {
+                pins.push((
+                    peer_name.clone(),
+                    ParentRef {
+                        version: Arc::clone(version),
+                        node_id: Some(peer_node_id.clone()),
+                        alias: Some(peer_name.clone()),
+                        depth,
+                        occurrence: 0,
+                    },
+                ));
             }
         }
         pins
     }
 
-    /// The parent ref one entry of the wanted lockfile's peer context pins,
-    /// or `None` when this pass may not reuse it.
-    pub(super) fn locked_peer_pin(
+    /// The provider the wanted lockfile recorded at `previous_dep_path`, as
+    /// its node, depth, and version, or `None` when this pass resolved it elsewhere or
+    /// to a path with peers of its own, which depends on the bindings this
+    /// pass is still computing.
+    pub(super) fn locked_provider(
         &self,
-        peer_name: &str,
         previous_dep_path: &DepPath,
-        context: &LockedPinContext<'_>,
-    ) -> Option<(String, ParentRef)> {
+        provider_paths: &HashMap<NodeId, DepPath>,
+    ) -> Option<LockedProvider<'_, (&NodeId, i32, &Arc<str>)>> {
         let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
-        let peer_dep = context.pkg.peer_set.taken().get(peer_name)?;
-        if context.provider_paths.get(peer_node_id) != Some(previous_dep_path) {
-            return None;
-        }
-        // Only pin providers that have no peer context of their
-        // own — a suffixed path depends on the very bindings this
-        // pass is still computing.
-        if index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_some() {
-            return None;
-        }
-        // A provider that already resolved to a different path
-        // this pass must not be rebound.
-        if self.caches.node_dep_paths
-            .get(peer_node_id)
-            .is_some_and(|current| current != previous_dep_path)
-        {
-            return None;
-        }
-        if self.has_current_peer_provider_that_must_win(
-            peer_name,
-            context.parent_refs,
-            context.parent_node_ids,
-        ) {
+        let unchanged = provider_paths.get(peer_node_id) == Some(previous_dep_path)
+            && index_of_dep_path_suffix(previous_dep_path.as_str()).peers_index.is_none()
+            && self.caches.node_dep_paths
+                .get(peer_node_id)
+                .is_none_or(|current| current == previous_dep_path);
+        if !unchanged {
             return None;
         }
         let peer_tree_node = self.tree.dependencies_tree.get(peer_node_id)?;
         let peer_pkg = self.tree.packages.get(&peer_tree_node.resolved_package_id)?;
-        if !satisfies_with_prereleases(
-            peer_pkg.version(),
-            &get_peer_version_range(&peer_dep.version),
-        ) {
-            return None;
-        }
-        // Upstream builds the pinned ref through `toPkgByName`,
-        // which always starts at occurrence 0; the shadow counter
-        // only tracks child-level replacements.
-        Some((
-            peer_name.to_string(),
-            ParentRef {
-                version: Arc::clone(peer_pkg.version()),
-                node_id: Some(peer_node_id.clone()),
-                alias: Some(peer_name.to_string()),
-                depth: peer_tree_node.depth,
-                occurrence: 0,
-            },
-        ))
+        Some(LockedProvider {
+            provider: (peer_node_id, peer_tree_node.depth, peer_pkg.version()),
+            version: peer_pkg.version(),
+        })
     }
 
     /// The upstream `hasCurrentPeerProviderThatMustWin`: the current

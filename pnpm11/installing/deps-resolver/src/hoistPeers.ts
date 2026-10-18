@@ -2,6 +2,7 @@ import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { PackageManifest } from '@pnpm/types'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import semver from 'semver'
 
 /** One workspace-root dependency that a missing peer can be satisfied with. */
@@ -9,6 +10,43 @@ export interface HoistableRootDep {
   alias: string
   pkgName: string
   normalizedBareSpecifier?: string
+}
+
+export type ProviderPick<Provider> =
+  | { kind: 'bound', provider: Provider, pinnedByLockfile: boolean }
+  | { kind: 'missing' }
+
+/** What a node's scope offers for one of its declared peers. */
+export interface PeerScope<Provider extends { version: string }> {
+  /** The provider the nearest ancestor binds the name to. */
+  inherited?: Provider
+  /** Whether `inherited` wins over a locked provider. Only asked when a locked provider would otherwise win. */
+  inheritedMustWin: () => boolean
+  /** The provider the wanted lockfile recorded, resolved to the same path in this pass. Built only when asked. */
+  locked?: () => Provider
+}
+
+/**
+ * Binds the peer `peerRange` of a node to a provider in `scope`. The locked
+ * provider wins when the inherited one need not win and it satisfies the
+ * range. Otherwise the inherited provider binds.
+ *
+ * Two decisions that shape a peer suffix are not provider picks: the cycle
+ * cut, and the variant `dedupePeerDependents` keeps.
+ */
+export function providerFor<Provider extends { version: string }> (
+  peerRange: string,
+  scope: PeerScope<Provider>
+): ProviderPick<Provider> {
+  if (scope.locked != null && !scope.inheritedMustWin()) {
+    const locked = scope.locked()
+    if (semverUtils.satisfiesWithPrereleases(locked.version, getPeerVersionRange(peerRange), true)) {
+      return { kind: 'bound', provider: locked, pinnedByLockfile: true }
+    }
+  }
+  return scope.inherited == null
+    ? { kind: 'missing' }
+    : { kind: 'bound', provider: scope.inherited, pinnedByLockfile: false }
 }
 
 /**

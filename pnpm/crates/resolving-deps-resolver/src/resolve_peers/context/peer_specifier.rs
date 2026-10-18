@@ -213,7 +213,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// `version` is a prerelease and the straight check fails, see whether
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
-pub(in super::super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
+pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     let parsed_range = Range::parse(range).ok();
     satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
 }
