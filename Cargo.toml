@@ -275,6 +275,7 @@ assert_cmd = { version = "2.2.2" }
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 pretty_assertions = { version = "1.4.1" }
 project-root = { version = "0.2.2" }
+proptest = { version = "1.12.0", default-features = false, features = ["std"] }
 tempfile = { version = "3.27.0" }
 mockito = { version = "1.7.2" }
 
