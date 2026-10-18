@@ -373,9 +373,10 @@ test('directories and symlinks', async () => {
         .sort()
     ).toStrictEqual(['foo.txt'])
 
-    // should recreate the structure of the symlinks at the injected location
-    // NOTE: The current implementation of @pnpm/fetching.directory-fetcher would treat symlinks to dir at real dir
-    //       because it uses fs.stat instead of fs.lstat, so testing with fs.realpathSync wouldn't work.
+    // should recreate the symlinks at the injected location, as the install does
+    const injectedFoo = 'node_modules/.pnpm/foo@file+foo/node_modules/foo'
+    expect(fs.lstatSync(path.join(injectedFoo, 'link-to-a-dir')).isSymbolicLink()).toBe(true)
+    expect(fs.realpathSync(path.join(injectedFoo, 'link-to-a-dir'))).toBe(fs.realpathSync(path.join(injectedFoo, 'files/foo')))
     expect(fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/link-to-a-file', 'utf-8')).toBe('This is foo_bar')
     expect(
       fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/link-to-a-dir')
