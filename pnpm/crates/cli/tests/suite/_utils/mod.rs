@@ -355,6 +355,7 @@ impl WorkspaceFixture {
         Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(cwd)
+            .without_ambient_pnpm_config()
             .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
             .arg("--reporter=ndjson")
             .args(args)

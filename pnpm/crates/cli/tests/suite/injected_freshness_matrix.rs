@@ -13,11 +13,16 @@
 //!   install of the whole workspace, so only this catches a stale lockfile of
 //!   another project.
 
-pub use _utils::*;
+use crate::_utils::{
+    ManifestDeps, WorkspaceFixture, assert_success, copy_sources, read_manifest, set_dependency,
+    walk_files, write_manifest_value,
+};
 
-use crate::_utils;
-
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde_json::{Value, json};
 
@@ -165,7 +170,7 @@ impl Scenario {
     }
 
     /// A copy of the sources, without `node_modules`.
-    fn clean_copy(&mut self) -> std::path::PathBuf {
+    fn clean_copy(&mut self) -> PathBuf {
         self.copies += 1;
         let copy = self
             .workspace()

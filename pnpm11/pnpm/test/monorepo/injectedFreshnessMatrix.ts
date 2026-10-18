@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
 import { describe, expect, test } from '@jest/globals'
 import { preparePackages, tempDir } from '@pnpm/prepare'
@@ -65,7 +66,7 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
     const before = readLockfiles('.')
     await execPnpm(['install', '--no-frozen-lockfile', ...filter])
     const after = readLockfiles('.')
-    expect(isEqual(before, after)).toBe(frozenPassed)
+    expect(isDeepStrictEqual(before, after)).toBe(frozenPassed)
 
     expect(await frozenInstallPasses()).toBe(true)
 
@@ -153,6 +154,3 @@ function readLockfiles (dir: string, prefix = ''): Record<string, string> {
   return lockfiles
 }
 
-function isEqual (left: Record<string, string>, right: Record<string, string>): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
-}
