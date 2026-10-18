@@ -130,10 +130,13 @@ fn importer_stale_peer_pins(
         .filter_map(|(alias, peer_spec)| {
             let ranges = direct_ranges.get(alias)?;
             let peer_range = peer_spec.parse::<Range>().ok()?;
-            let pinned = locked_importer_version(lockfile, &importer.id, alias)?;
-            ranges
+            let mut overlapping = ranges
                 .iter()
                 .filter(|range| range.allows_any(&peer_range))
+                .peekable();
+            overlapping.peek()?;
+            let pinned = locked_importer_version(lockfile, &importer.id, alias)?;
+            overlapping
                 .any(|range| !range.satisfies(&pinned))
                 .then(|| (alias.to_string(), pinned))
         })

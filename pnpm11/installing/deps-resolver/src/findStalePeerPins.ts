@@ -68,6 +68,7 @@ export function findStalePeerPins (
     const directSpecs = opts.directSpecsByName.get(alias)
     if (directSpecs == null) continue
     const overlappingSpecs = [...directSpecs].filter((spec) => semver.intersects(spec, peerRange))
+    if (!overlappingSpecs.length) continue
     const pinned = getPinnedNameVer(opts.lockfile, resolvedDependencies[alias], alias)
     if (pinned != null && overlappingSpecs.some((spec) => !semver.satisfies(pinned.version, spec, true))) {
       stale.set(alias, pinned.version)
@@ -117,7 +118,9 @@ export function releaseStalePeerPins (
     delete resolvedDependencies[alias]
     if (opts.preferredVersions[alias] == null) continue
     const selectors = Object.assign(Object.create(null), opts.preferredVersions[alias])
-    const namedVersions = [...opts.directSpecsByName.get(alias) ?? []].filter((spec) => semver.valid(spec) != null)
+    const namedVersions = [...opts.directSpecsByName.get(alias) ?? []]
+      .map((spec) => semver.valid(spec))
+      .filter((version) => version != null)
     for (const version of [pinnedVersion, ...namedVersions]) {
       removeLockfileWeight(selectors, version)
     }
