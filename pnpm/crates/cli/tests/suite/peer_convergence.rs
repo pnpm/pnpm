@@ -7,8 +7,13 @@
 //! - every project deploys, and its deployed lockfile installs frozen,
 //! - a second resolution from scratch writes the same lockfile,
 //! - adding the dependencies one install at a time writes the same lockfile,
-//!   apart from the entries a [`Divergence`] of the row owns,
-//! - `dedupe` after those installs writes the same lockfile.
+//! - `dedupe` after those installs writes the same lockfile,
+//! - applying the fixture's [`Move`]s over the fresh lockfile writes the
+//!   lockfile a fresh resolution of the moved manifests writes, and moving
+//!   back writes the fresh lockfile again.
+//!
+//! A [`Check`] that writes a lockfile may differ from the fresh one in the
+//! entries a [`Divergence`] of the row owns.
 //!
 //! Every violation of a fixture is collected before the test fails, so one
 //! run reports the whole matrix.
@@ -35,11 +40,41 @@ const fn project(dir: &'static str, deps: Deps) -> Project {
     Project { dir, deps, peers: &[] }
 }
 
-/// A known case where adding the dependencies one install at a time leaves a
-/// lockfile that differs from a fresh resolution. On every row it names, at
-/// least one [`lockfile_entries`] path under its `paths` differs.
+/// A dependency of `project` whose specifier changes to `to`, so whatever it
+/// provides as a peer moves to another version.
+struct Move {
+    project: &'static str,
+    alias: &'static str,
+    to: &'static str,
+}
+
+/// A sequence of installs whose lockfile must equal a fresh resolution's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Check {
+    /// Adding the dependencies one install at a time.
+    Incremental,
+    /// Applying the [`Move`]s over the fresh lockfile.
+    Move,
+    /// Undoing the [`Move`]s over the moved lockfile.
+    MoveBack,
+}
+
+impl fmt::Display for Check {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Incremental => "adding one dependency at a time",
+            Self::Move => "moving the providers over the lockfile",
+            Self::MoveBack => "moving the providers back over the lockfile",
+        })
+    }
+}
+
+/// A known case where a [`Check`] leaves a lockfile that differs from a fresh
+/// resolution. On every row it names, at least one [`lockfile_entries`] path
+/// under its `paths` differs.
 struct Divergence {
     issue: &'static str,
+    check: Check,
     rows: fn(Row) -> bool,
     paths: &'static [&'static str],
 }
@@ -102,12 +137,17 @@ struct Harness {
     fixture: WorkspaceFixture,
     base_yaml: String,
     projects: Vec<Project>,
+    moves: Vec<Move>,
     divergences: Vec<Divergence>,
     violations: RefCell<Vec<String>>,
 }
 
 impl Harness {
     fn check(projects: Vec<Project>, divergences: Vec<Divergence>) {
+        Self::check_with_moves(projects, vec![], divergences);
+    }
+
+    fn check_with_moves(projects: Vec<Project>, moves: Vec<Move>, divergences: Vec<Divergence>) {
         let with_workspace_deps = projects
             .iter()
             .flat_map(|project| project.deps)
@@ -116,8 +156,14 @@ impl Harness {
         write_project_manifest(&fixture.workspace, "root", ManifestDeps::default());
         let base_yaml = fs::read_to_string(fixture.workspace.join("pnpm-workspace.yaml"))
             .expect("read pnpm-workspace.yaml");
-        let harness =
-            Self { fixture, base_yaml, projects, divergences, violations: RefCell::default() };
+        let harness = Self {
+            fixture,
+            base_yaml,
+            projects,
+            moves,
+            divergences,
+            violations: RefCell::default(),
+        };
         for row in Row::all(with_workspace_deps) {
             harness.check_row(row);
         }
@@ -137,13 +183,14 @@ impl Harness {
             format!("{}{}", self.base_yaml, row.yaml()),
         )
         .expect("write pnpm-workspace.yaml");
-        self.write_manifests(self.dep_count());
+        self.write_manifests(self.dep_count(), false);
         let Some(fresh) = self.install(row, "a fresh install") else { return };
         self.check_frozen(row, &fresh);
         self.check_dedupe(row);
         self.check_deploys(row);
         self.check_from_scratch(row, &fresh);
         self.check_incremental(row, &fresh);
+        self.check_moves(row, &fresh);
     }
 
     fn check_frozen(&self, row: Row, fresh: &str) {
@@ -198,7 +245,7 @@ impl Harness {
     fn check_incremental(&self, row: Row, fresh: &str) {
         self.clean();
         for count in 0..=self.dep_count() {
-            self.write_manifests(count);
+            self.write_manifests(count, false);
             if self
                 .install(row, &format!("installing {count} dependencies"))
                 .is_none()
@@ -207,36 +254,7 @@ impl Harness {
             }
         }
         let incremental = self.lockfile();
-        let changed = changed_entries(fresh, &incremental);
-        let known: Vec<&Divergence> = self.divergences
-            .iter()
-            .filter(|divergence| (divergence.rows)(row))
-            .collect();
-        for divergence in &known {
-            if !changed
-                .iter()
-                .any(|(_, entry)| divergence.owns(entry))
-            {
-                let what =
-                    format!("the divergence tracked by {} no longer reproduces", divergence.issue);
-                self.violation(row, &what, None);
-            }
-        }
-        let unexplained: Vec<String> = changed
-            .iter()
-            .filter(|(_, entry)| {
-                !known
-                    .iter()
-                    .any(|divergence| divergence.owns(entry))
-            })
-            .map(|(sign, entry)| format!("{sign} {entry}"))
-            .collect();
-        if !unexplained.is_empty() {
-            let what =
-                format!("adding one dependency at a time differs:\n{}", unexplained.join("\n"));
-            self.violation(row, &what, None);
-        }
-        if !changed.is_empty() {
+        if self.compare(row, Check::Incremental, fresh, &incremental) {
             self.check_dedupe_converges(row, fresh);
         }
     }
@@ -255,6 +273,67 @@ impl Harness {
             );
             self.violation(row, &what, None);
         }
+    }
+
+    fn check_moves(&self, row: Row, fresh: &str) {
+        if self.moves.is_empty() {
+            return;
+        }
+        self.clean();
+        self.write_manifests(self.dep_count(), true);
+        let Some(moved) = self.install(row, "a fresh install of the moved manifests") else {
+            return;
+        };
+        self.clean();
+        self.write_manifests(self.dep_count(), false);
+        if self.install(row, "a fresh install before moving").is_none() {
+            return;
+        }
+        for (check, moved_manifests, expected) in
+            [(Check::Move, true, moved.as_str()), (Check::MoveBack, false, fresh)]
+        {
+            self.write_manifests(self.dep_count(), moved_manifests);
+            let Some(actual) = self.install(row, &check.to_string()) else { return };
+            self.compare(row, check, expected, &actual);
+        }
+    }
+
+    /// Record a violation for every entry of `actual` that differs from
+    /// `expected` and no [`Divergence`] of `check` on `row` owns, and for
+    /// every such divergence that no longer reproduces. Whether anything
+    /// differs.
+    fn compare(&self, row: Row, check: Check, expected: &str, actual: &str) -> bool {
+        let changed = changed_entries(expected, actual);
+        let known: Vec<&Divergence> = self.divergences
+            .iter()
+            .filter(|divergence| divergence.check == check && (divergence.rows)(row))
+            .collect();
+        for divergence in &known {
+            if !changed
+                .iter()
+                .any(|(_, entry)| divergence.owns(entry))
+            {
+                let what = format!(
+                    "the divergence tracked by {} in {check} no longer reproduces",
+                    divergence.issue,
+                );
+                self.violation(row, &what, None);
+            }
+        }
+        let unexplained: Vec<String> = changed
+            .iter()
+            .filter(|(_, entry)| {
+                !known
+                    .iter()
+                    .any(|divergence| divergence.owns(entry))
+            })
+            .map(|(sign, entry)| format!("{sign} {entry}"))
+            .collect();
+        if !unexplained.is_empty() {
+            let what = format!("{check} differs from a fresh install:\n{}", unexplained.join("\n"));
+            self.violation(row, &what, None);
+        }
+        !changed.is_empty()
     }
 
     fn workspace(&self) -> &Path {
@@ -289,19 +368,29 @@ impl Harness {
     }
 
     /// Write the manifests with the first `count` dependencies of the
-    /// fixture, counted across projects in fixture order.
-    fn write_manifests(&self, count: usize) {
+    /// fixture, counted across projects in fixture order, with the
+    /// [`Move`]s applied when `moved`.
+    fn write_manifests(&self, count: usize, moved: bool) {
         let mut remaining = count;
         for project in &self.projects {
             let take = remaining.min(project.deps.len());
             remaining -= take;
-            let deps = ManifestDeps {
-                prod: &project.deps[..take],
-                peer: project.peers,
-                ..ManifestDeps::default()
-            };
+            let prod: Vec<(&str, &str)> = project.deps[..take]
+                .iter()
+                .map(|&(alias, spec)| {
+                    (alias, if moved { self.moved_spec(project, alias, spec) } else { spec })
+                })
+                .collect();
+            let deps = ManifestDeps { prod: &prod, peer: project.peers, ..ManifestDeps::default() };
             write_project_manifest(&self.project_dir(project), project.dir, deps);
         }
+    }
+
+    fn moved_spec(&self, project: &Project, alias: &str, spec: &'static str) -> &'static str {
+        self.moves
+            .iter()
+            .find(|change| change.project == project.dir && change.alias == alias)
+            .map_or(spec, |change| change.to)
     }
 
     fn remove_node_modules(&self) {
@@ -409,11 +498,12 @@ fn collect_entries(value: &Value, path: &str, entries: &mut BTreeSet<String>) {
 
 #[test]
 fn satisfied_peer() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![project(
             "app",
             &[("@pnpm.e2e/has-foo100-peer", "1.0.0"), ("@pnpm.e2e/foo", "100.0.0")],
         )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/foo", to: "100.1.0" }],
         vec![],
     );
 }
@@ -425,7 +515,7 @@ fn missing_peer() {
 
 #[test]
 fn several_peers() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![project(
             "app",
             &[
@@ -435,24 +525,26 @@ fn several_peers() {
                 ("@pnpm.e2e/peer-c", "1.0.0"),
             ],
         )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/peer-c", to: "1.0.1" }],
         vec![],
     );
 }
 
 #[test]
 fn optional_peers_partly_provided() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![project(
             "app",
             &[("@pnpm.e2e/abc-optional-peers", "1.0.0"), ("@pnpm.e2e/peer-a", "1.0.0")],
         )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/peer-a", to: "1.0.1" }],
         vec![],
     );
 }
 
 #[test]
 fn optional_peer_also_in_dependencies() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![project(
             "app",
             &[
@@ -460,13 +552,14 @@ fn optional_peer_also_in_dependencies() {
                 ("@pnpm.e2e/bravo-dep", "1.0.0"),
             ],
         )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/bravo-dep", to: "1.1.0" }],
         vec![],
     );
 }
 
 #[test]
 fn optional_peer_also_in_dependencies_provided_by_another_project() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![
             project("a", &[("@pnpm.e2e/has-optional-peer-also-in-deps", "1.0.0")]),
             project(
@@ -477,6 +570,7 @@ fn optional_peer_also_in_dependencies_provided_by_another_project() {
                 ],
             ),
         ],
+        vec![Move { project: "b", alias: "@pnpm.e2e/bravo-dep", to: "1.1.0" }],
         vec![],
     );
 }
@@ -494,7 +588,7 @@ fn two_package_peer_cycle() {
 
 #[test]
 fn three_package_peer_cycle() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![project(
             "app",
             &[
@@ -505,6 +599,7 @@ fn three_package_peer_cycle() {
                 ("@pnpm.e2e/peer-b", "1.0.0"),
             ],
         )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/peer-a", to: "1.0.1" }],
         vec![],
     );
 }
@@ -588,11 +683,12 @@ fn peer_of_a_peer() {
 
 #[test]
 fn projects_with_different_providers() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![
             project("a", &[("@pnpm.e2e/has-foo100-peer", "1.0.0"), ("@pnpm.e2e/foo", "100.0.0")]),
             project("b", &[("@pnpm.e2e/has-foo100-peer", "1.0.0"), ("@pnpm.e2e/foo", "100.1.0")]),
         ],
+        vec![Move { project: "a", alias: "@pnpm.e2e/foo", to: "100.1.0" }],
         vec![],
     );
 }
@@ -610,12 +706,85 @@ fn projects_with_conflicting_peer_ranges() {
 
 #[test]
 fn workspace_package_with_a_peer() {
-    Harness::check(
+    Harness::check_with_moves(
         vec![
             Project { dir: "lib", deps: &[], peers: &[("@pnpm.e2e/foo", "100")] },
             project("a", &[("lib", "workspace:*"), ("@pnpm.e2e/foo", "100.0.0")]),
             project("b", &[("lib", "workspace:*"), ("@pnpm.e2e/foo", "100.1.0")]),
         ],
+        vec![Move { project: "b", alias: "@pnpm.e2e/foo", to: "100.0.0" }],
+        vec![],
+    );
+}
+
+#[test]
+fn peer_provider_moves_out_of_its_range() {
+    Harness::check_with_moves(
+        vec![project(
+            "app",
+            &[("@pnpm.e2e/has-foo100-peer", "1.0.0"), ("@pnpm.e2e/foo", "100.0.0")],
+        )],
+        vec![Move { project: "app", alias: "@pnpm.e2e/foo", to: "2.0.0" }],
+        vec![],
+    );
+}
+
+/// The peer's provider is a dependency's own dependency, and another
+/// dependency of it accepts any version of the peer.
+#[test]
+fn peer_provided_by_a_dependency_moves() {
+    Harness::check_with_moves(
+        vec![project(
+            "app",
+            &[
+                ("@pnpm.e2e/has-foo100-peer", "1.0.0"),
+                ("provider", "npm:@pnpm.e2e/has-foo-as-dep-and-subdep@1.0.0"),
+            ],
+        )],
+        vec![Move {
+            project: "app",
+            alias: "provider",
+            to: "npm:@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0",
+        }],
+        vec![
+            Divergence {
+                issue: LOCKFILE_ONLY_VERSION_ISSUE,
+                check: Check::MoveBack,
+                rows: |row| !row.auto_dedupe,
+                paths: LOCKFILE_ONLY_VERSION_PATHS,
+            },
+            Divergence {
+                issue: LOCKFILE_ONLY_VERSION_ISSUE,
+                check: Check::Incremental,
+                rows: |row| row.auto_install_peers && !row.auto_dedupe,
+                paths: LOCKFILE_ONLY_VERSION_PATHS,
+            },
+        ],
+    );
+}
+
+const LOCKFILE_ONLY_VERSION_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17084";
+
+/// `requires-any-foo` resolves `*` to the version only the lockfile holds,
+/// and the peer binds to it.
+const LOCKFILE_ONLY_VERSION_PATHS: &[&str] = &[
+    "importers > packages/app > dependencies > @pnpm.e2e/has-foo100-peer >",
+    "packages > @pnpm.e2e/foo@100.1.0 >",
+    "snapshots > @pnpm.e2e/foo@100.1.0 ",
+    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(",
+    "snapshots > @pnpm.e2e/requires-any-foo@1.0.0 > dependencies > @pnpm.e2e/foo ",
+];
+
+/// The only provider of the required peer is a workspace dependency's own
+/// dependency, so an auto-installed peer follows it (pnpm/tasks#61).
+#[test]
+fn peer_provided_by_a_workspace_dependency_moves() {
+    Harness::check_with_moves(
+        vec![
+            project("provider", &[("@pnpm.e2e/peer-c", "1.0.0")]),
+            project("app", &[("@pnpm.e2e/wants-peer-c-1", "1.0.0"), ("provider", "workspace:*")]),
+        ],
+        vec![Move { project: "provider", alias: "@pnpm.e2e/peer-c", to: "1.0.1" }],
         vec![],
     );
 }
