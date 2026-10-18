@@ -623,6 +623,11 @@ fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
     std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
 }
 
+/// [`fn@take_locked`] for a [`RwLock`].
+fn take_write_locked<Value: Default>(cell: &mut RwLock<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
 #[cfg(test)]
 mod tests;
 

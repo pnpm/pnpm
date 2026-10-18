@@ -1,8 +1,8 @@
 use super::{
     Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, MissingNames, MutexGuard,
     OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx, collect_newly_visited,
-    fold_version, fold_visited_versions, lock_recoverable, take_locked, walk_reachable_children,
-    walk_reachable_nodes,
+    fold_version, fold_visited_versions, lock_recoverable, take_locked, take_write_locked,
+    walk_reachable_children, walk_reachable_nodes,
 };
 
 impl WorkspaceTreeCtx {
@@ -197,11 +197,7 @@ impl WorkspaceTreeCtx {
             take_locked(&mut self.cache.resolved_by_wanted),
             take_locked(&mut self.cache.resolved_workspace_by_wanted),
             take_locked(&mut self.cache.resolved_workspace_final_by_wanted),
-            std::mem::take(
-                self.children.specs_by_id
-                    .get_mut()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-            ),
+            take_write_locked(&mut self.children.specs_by_id),
         );
         pnpm_fs::background_drop(dedup_caches);
         tree

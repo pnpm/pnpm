@@ -86,6 +86,7 @@ use super::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_children,
         extract_peer_dependencies, is_exotic_resolved_via, pkg_is_leaf,
     },
+    read_recoverable,
     reuse::{
         ReuseSource, higher_direct_dep_version, node_depends_on_changed_direct_dep,
         pinned_specifier, real_package_name_of, resolve_reused_node, reuse_matches_peer_scope,
@@ -103,6 +104,7 @@ use super::{
         make_non_owner_nodes_lazy, pinned_children_scope, record_children, recorded_children_match,
         register_peer_dep_names, register_shadowable_dep_names,
     },
+    write_recoverable,
 };
 
 /// Resolve one `(alias, range)` edge end-to-end with no
