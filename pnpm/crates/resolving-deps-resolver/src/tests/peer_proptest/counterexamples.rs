@@ -86,11 +86,9 @@ fn peer(target: usize, major: u8, optional: bool, also_dependency: bool) -> Peer
 
 /// `p0@2` has the optional peer `p1@^2`, also a dependency, and `p1@2`
 /// depends on `p0@^2`, a peer cycle. `p2@2` depends on `p0@^2` and has the
-/// peer `p1@^2`. `.` depends on `p1@^1`, `packages/a` on `p2@^2`. A
-/// fresh resolve writes `p0@2.0.0(p1@2.0.0)`, and resolving over that
-/// lockfile cuts the cycle at `p0@2.0.0`.
+/// peer `p1@^2`. `.` depends on `p1@^1`, `packages/a` on `p2@^2`.
+/// Resolving over the fresh lockfile keeps `p0@2.0.0(p1@2.0.0)`.
 #[test]
-#[ignore = "known divergence: the cycle cut differs between a fresh resolve and one over its lockfile (pnpm/tasks#143)"]
 fn install_over_own_lockfile_keeps_a_cycle_members_peer_suffix() {
     let workspace = Workspace {
         packages: vec![
@@ -117,4 +115,120 @@ fn install_over_own_lockfile_keeps_a_cycle_members_peer_suffix() {
     let lockfile = lockfile_of(&fresh, &workspace);
     let reused = resolve(&workspace, &order, Reuse::Install(&lockfile)).expect("reuse resolve");
     assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+}
+
+/// `p0@1` and `p0@2` depend on `p3@^2`, `p1@2` on `p2@^1`, `p2@1` on
+/// `p3@^2`. `p3@1` has the peer `p0@^2`, and `p3@2` depends on `p0@^1` and
+/// has it as an optional peer too. `.` depends on `p1@^2`, `packages/a` on
+/// `p3@^1`, `packages/b` on `p0@^1`. The first dedupe binds `p3@2.0.0` to
+/// `p0@1.0.0`, and the second to `p0@2.0.0`. pnpm v11 and the CLI keep the
+/// bindings on the same graph, so only this harness's lockfile shows it.
+#[test]
+#[ignore = "known divergence: a second dedupe rebinds an optional peer that is also a dependency (pnpm/tasks#143)"]
+fn a_second_dedupe_keeps_the_first_ones_peer_bindings() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![depending_on(3, 2), depending_on(3, 2)],
+            vec![leaf(), depending_on(2, 1)],
+            vec![depending_on(3, 2), leaf()],
+            vec![
+                peer_of(0, 2),
+                PackageVersion {
+                    dependencies: vec![Edge { target: 0, major: 1 }],
+                    peers: vec![peer(0, 1, true, false)],
+                },
+            ],
+        ],
+        importers: vec![direct(1, 2), direct(3, 1), direct(0, 1)],
+    };
+    let order = in_order(&workspace);
+    let fresh = resolve(&workspace, &order, Reuse::Fresh).expect("fresh resolve");
+    let first = resolve(&workspace, &order, Reuse::Dedupe(&lockfile_of(&fresh, &workspace)))
+        .expect("first dedupe");
+    let second = resolve(&workspace, &order, Reuse::Dedupe(&lockfile_of(&first, &workspace)))
+        .expect("second dedupe");
+    assert_eq!(outcome_of(&first, &workspace), outcome_of(&second, &workspace));
+}
+
+fn version(dependencies: Vec<Edge>, peers: Vec<Peer>) -> PackageVersion {
+    PackageVersion { dependencies, peers }
+}
+
+fn assert_install_over_own_lockfile_matches_fresh(workspace: &Workspace) {
+    let order = in_order(workspace);
+    let fresh = resolve(workspace, &order, Reuse::Fresh).expect("fresh resolve");
+    let lockfile = lockfile_of(&fresh, workspace);
+    let reused = resolve(workspace, &order, Reuse::Install(&lockfile)).expect("reuse resolve");
+    assert_eq!(outcome_of(&fresh, workspace), outcome_of(&reused, workspace));
+}
+
+/// `p0@1` has the optional peer `p1@^1`, also a dependency, `p0@2` depends
+/// on `p1@^1`, and `p1@1` on `p0@^1`, a cycle through an optional peer. `.`
+/// depends on `p0@^2`.
+#[test]
+#[ignore = "known divergence: an optional peer on a dependency cycle binds differently over the lockfile (pnpm/tasks#143)"]
+fn install_over_own_lockfile_keeps_an_optional_peer_on_a_cycle() {
+    assert_install_over_own_lockfile_matches_fresh(&Workspace {
+        packages: vec![
+            vec![version(Vec::new(), vec![peer(1, 1, true, true)]), depending_on(1, 1)],
+            vec![depending_on(0, 1), leaf()],
+        ],
+        importers: vec![direct(0, 2)],
+    });
+}
+
+/// `p0@1` depends on `p1@^1`, and `p1@1` depends on `p0@^1` and has it as
+/// an optional peer. `.` depends on `p1@^2`, whose `p1@2` depends on
+/// `p0@^1`.
+#[test]
+#[ignore = "known divergence: an optional peer on a dependency cycle binds differently over the lockfile (pnpm/tasks#143)"]
+fn install_over_own_lockfile_keeps_an_optional_peer_back_into_its_dependent() {
+    assert_install_over_own_lockfile_matches_fresh(&Workspace {
+        packages: vec![
+            vec![depending_on(1, 1), leaf()],
+            vec![
+                version(vec![Edge { target: 0, major: 1 }], vec![peer(0, 1, true, false)]),
+                depending_on(0, 1),
+            ],
+        ],
+        importers: vec![direct(1, 2)],
+    });
+}
+
+/// `p0@1` has the optional peers `p2@^1`, also a dependency, and `p1@^1`.
+/// `p0@2` has the optional peer `p1` and the peer `p2@^1`. `p1@2` and
+/// `p2@1` depend on `p0@^1`. `.` depends on `p0@^2`, `packages/a` on
+/// `p1@^2`.
+#[test]
+#[ignore = "known divergence: a second dedupe rebinds an optional peer on a dependency cycle (pnpm/tasks#143)"]
+fn a_second_dedupe_keeps_an_optional_peer_on_a_cycle() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                version(Vec::new(), vec![peer(2, 1, true, true), peer(1, 1, true, false)]),
+                version(
+                    Vec::new(),
+                    vec![
+                        Peer {
+                            target: 1,
+                            range: PeerRange::Any,
+                            optional: true,
+                            also_dependency: false,
+                        },
+                        peer(2, 1, false, false),
+                    ],
+                ),
+            ],
+            vec![leaf(), depending_on(0, 1)],
+            vec![depending_on(0, 1), leaf()],
+        ],
+        importers: vec![direct(0, 2), direct(1, 2)],
+    };
+    let order = in_order(&workspace);
+    let fresh = resolve(&workspace, &order, Reuse::Fresh).expect("fresh resolve");
+    let first = resolve(&workspace, &order, Reuse::Dedupe(&lockfile_of(&fresh, &workspace)))
+        .expect("first dedupe");
+    let second = resolve(&workspace, &order, Reuse::Dedupe(&lockfile_of(&first, &workspace)))
+        .expect("second dedupe");
+    assert_eq!(outcome_of(&first, &workspace), outcome_of(&second, &workspace));
 }

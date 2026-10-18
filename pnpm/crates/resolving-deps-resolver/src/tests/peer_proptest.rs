@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use model::{IMPORTER_IDS, Outcome, Workspace, importer_dependencies, lockfile_of, outcome_of};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
-use proptest::prelude::*;
+use proptest::{prelude::*, test_runner::RngSeed};
 
 use super::StubResolver;
 use crate::{
@@ -154,8 +154,16 @@ fn outcome(workspace: &Workspace, order: &[usize], reuse: Reuse<'_>) -> Outcome 
     outcome_of(&result, workspace)
 }
 
+/// A fixed seed, so every run checks the same cases. Run others locally with
+/// `PROPTEST_CASES=5000 PROPTEST_RNG_SEED=<n>`.
 fn config() -> ProptestConfig {
-    ProptestConfig { cases: 64, failure_persistence: None, ..ProptestConfig::default() }
+    let from_env = ProptestConfig::default();
+    let cases = if std::env::var_os("PROPTEST_CASES").is_some() { from_env.cases } else { 64 };
+    let rng_seed = match from_env.rng_seed {
+        RngSeed::Random => RngSeed::Fixed(143),
+        seed @ RngSeed::Fixed(_) => seed,
+    };
+    ProptestConfig { cases, rng_seed, failure_persistence: None, ..from_env }
 }
 
 proptest! {
@@ -163,7 +171,7 @@ proptest! {
 
     /// Installing over the lockfile a fresh resolution wrote changes nothing.
     #[test]
-    #[ignore = "fails on counterexamples::install_over_own_lockfile_keeps_a_cycle_members_peer_suffix (pnpm/tasks#143)"]
+    #[ignore = "fails on counterexamples::install_over_own_lockfile_keeps_an_optional_peer_on_a_cycle (pnpm/tasks#143)"]
     fn install_over_own_lockfile_matches_fresh(workspace in model::workspace()) {
         let order = in_order(&workspace);
         let fresh = resolve(&workspace, &order, Reuse::Fresh).expect("generated workspaces resolve");
