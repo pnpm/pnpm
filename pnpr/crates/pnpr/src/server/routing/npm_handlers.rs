@@ -3,11 +3,12 @@ use pnpr_policy::Identity;
 use super::{
     Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
-    StatusCode, TargetRegistry, addressed_registry, authorize, caller_scoped, delete_package,
-    delete_tarball, get_dist_tags, is_tar_registry, not_found, package_mutation, private_no_cache,
-    publish_package, remove_dist_tag, resolve_write_target, serve_package_tarball, serve_packument,
-    serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
-    split_package_identifier, update_packument,
+    StatusCode, TargetRegistry, addressed_registry, authorize_package, caller_scoped,
+    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, hosted_storage,
+    is_tar_registry, not_found, private_no_cache, publish_package, remove_dist_tag,
+    resolve_write_target, serve_package_tarball, serve_packument, serve_revision_tarball,
+    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
+    update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -50,6 +51,14 @@ pub(super) struct ScopedTarballPath {
     pub(super) scope: String,
     pub(super) name: String,
     pub(super) filename: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct ScopedRevPath {
+    pub(super) scope: String,
+    pub(super) name: String,
+    #[serde(default)]
+    pub(super) _rev: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -191,7 +200,7 @@ pub(super) async fn get_search(
 // Package writes — publish, unpublish, dist-tags.
 // --------------------------------------------------------------------
 
-fn preauthorize_publish(
+async fn preauthorize_publish(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
@@ -205,19 +214,25 @@ fn preauthorize_publish(
         Ok(target) => target,
         Err(err) => return Err(err.into_response()),
     };
-    if let Err(err) = authorize(
+    if let Err(err) = authorize_package(
         state,
         identity,
-        &RegistrySource::Hosted(target.source),
+        &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    ) {
+        Some(&target.org),
+    )
+    .await
+    {
         return Err(err.into_response());
     }
+    let storage = hosted_storage(state, Some(&target.org));
+    check_publish_tombstone(state, identity, &storage, &name).await
+        .map_err(IntoResponse::into_response)?;
     Ok(name)
 }
 
-fn preauthorize_rewrite(
+async fn preauthorize_rewrite(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
@@ -232,7 +247,16 @@ fn preauthorize_rewrite(
         Err(err) => return Err(err.into_response()),
     };
     let source = RegistrySource::Hosted(target.source);
-    if let Err(err) = package_mutation::authorize_rewrite(state, identity, &source, name.as_str()) {
+    if let Err(err) = authorize_package(
+        state,
+        identity,
+        &source,
+        name.as_str(),
+        Action::Publish,
+        Some(&target.org),
+    )
+    .await
+    {
         return Err(err.into_response());
     }
     Ok(name)
@@ -255,7 +279,8 @@ pub(super) async fn put_package(
     Path(path): Path<NamePath>,
     body: axum::body::Body,
 ) -> Response {
-    if let Err(rejection) = preauthorize_publish(&state, &identity, registry.as_deref(), &path.name)
+    if let Err(rejection) =
+        preauthorize_publish(&state, &identity, registry.as_deref(), &path.name).await
     {
         return rejection;
     }
@@ -280,7 +305,9 @@ pub(super) async fn put_scoped_package(
         return not_found();
     }
     let full = format!("{first}/{second}");
-    if let Err(rejection) = preauthorize_publish(&state, &identity, registry.as_deref(), &full) {
+    if let Err(rejection) =
+        preauthorize_publish(&state, &identity, registry.as_deref(), &full).await
+    {
         return rejection;
     }
     let body_bytes = match collect_publish_body(&state, body).await {
@@ -299,7 +326,8 @@ pub(super) async fn put_packument_revision(
     Path(path): Path<NamePath>,
     body: axum::body::Body,
 ) -> Response {
-    if let Err(rejection) = preauthorize_rewrite(&state, &identity, registry.as_deref(), &path.name)
+    if let Err(rejection) =
+        preauthorize_rewrite(&state, &identity, registry.as_deref(), &path.name).await
     {
         return rejection;
     }
@@ -308,6 +336,32 @@ pub(super) async fn put_packument_revision(
         Err(response) => return response,
     };
     update_packument(&state, &identity, registry.as_deref(), &path.name, &body_bytes).await
+}
+
+/// `PUT {base}/@{scope}/{pkg}/-rev/{rev}` — full mutated packument or
+/// maintainer update for a scoped package.
+pub(super) async fn put_scoped_packument_revision(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedRevPath>,
+    body: axum::body::Body,
+) -> Response {
+    let ScopedRevPath { scope, name, .. } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    if let Err(rejection) =
+        preauthorize_rewrite(&state, &identity, registry.as_deref(), &full).await
+    {
+        return rejection;
+    }
+    let body_bytes = match collect_publish_body(&state, body).await {
+        Ok(bytes) => bytes,
+        Err(response) => return response,
+    };
+    update_packument(&state, &identity, registry.as_deref(), &full, &body_bytes).await
 }
 
 /// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
@@ -319,6 +373,21 @@ pub(super) async fn unpublish_package(
     Path(path): Path<NamePath>,
 ) -> Response {
     delete_package(&state, &identity, registry.as_deref(), &path.name).await
+}
+
+/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package.
+pub(super) async fn unpublish_scoped_package(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedRevPath>,
+) -> Response {
+    let ScopedRevPath { scope, name, .. } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    delete_package(&state, &identity, registry.as_deref(), &full).await
 }
 
 /// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}` — remove one version's

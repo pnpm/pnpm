@@ -1,11 +1,16 @@
 use super::{
-    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentForUpdate,
-    HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
-    PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
-    cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
-    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
+    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion,
+    HostedOriginalRef, Identity, Integrity, JournaledRevisionRef, PendingAttachment, RegistryError,
+    RegistrySource, Storage, Value, WriteTarget, authorize_package, cleanup_tmp_slots,
+    create_hex_hash, extract_attachments, hosted_storage, integrity_addressed_tarball_path,
+    manifest::{
+        check_publishable_versions, parse_hosted_packument, prepare_staged_document,
+        record_publisher,
+    },
     resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
-    tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
+    tar_integrity_of, tgz_integrity_key,
+    tombstones::{check_publish_tombstone, check_staged_tombstone},
+    write_sigstore_bundle,
 };
 
 /// Whether a tar registry serves `name` from the hosted registry `org`, so
@@ -37,6 +42,9 @@ pub(in super::super) struct ValidatedPublish {
     pub(in super::super) incoming: Value,
     /// One entry per attachment.
     pub(in super::super) prepared: Vec<PreparedAttachment>,
+    /// The caller these checks admitted, for the checks that repeat under
+    /// the package lock.
+    pub(in super::super) publisher: Identity,
 }
 
 /// One publish attachment resolved to its canonical on-disk filename and its
@@ -63,13 +71,18 @@ pub(in super::super) async fn validate_publish_doc(
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
-    authorize(
+    authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    )?;
+        Some(&target.org),
+    )
+    .await?;
+
+    let storage = hosted_storage(state, Some(&target.org));
+    check_publish_tombstone(state, identity, &storage, &name).await?;
 
     let attachments = extract_attachments(&mut incoming)?;
     record_publisher(&mut incoming, identity);
@@ -77,7 +90,8 @@ pub(in super::super) async fn validate_publish_doc(
     // Validate attachment filenames against the package and parse their
     // canonical storage filename, matching version, and payload kind.
     let prepared = prepare_attachments(&name, &incoming, attachments)?;
-    Ok((ValidatedPublish { name, incoming, prepared }, target))
+    let publisher = identity.clone();
+    Ok((ValidatedPublish { name, incoming, prepared, publisher }, target))
 }
 
 fn prepare_attachments(
@@ -135,22 +149,6 @@ fn parse_attachment_kind(
     }
 }
 
-pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
-    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
-        return;
-    };
-    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
-        match identity {
-            Identity::User { username, .. } => {
-                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
-            }
-            Identity::Anonymous | _ => {
-                manifest.remove("_npmUser");
-            }
-        }
-    }
-}
-
 /// A publish whose document is computed and whose blobs are fully written to
 /// tmp slots — everything verified, nothing visible to readers yet.
 /// [`commit_publishes`](super::commit_publishes) makes it visible. Every surface stages into this, so
@@ -181,19 +179,17 @@ pub(in super::super) async fn stage_publish(
     now_iso: &str,
     org: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
-    let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
     let (hosted, base_version) =
-        parse_hosted_packument(storage.read_hosted_document_for_update(&name).await?)?;
+        parse_hosted_packument(storage.read_hosted_document_for_update(&doc.name).await?)?;
+
+    check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
+    let ValidatedPublish { name, incoming, prepared, .. } = doc;
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    // A hosted registry has no upstream, so a publish seeds the merge only from
-    // the org's own hosted packument; a brand-new package starts from `None`.
-    let mut merged = merge_manifest(hosted.as_ref(), &incoming, hosted.as_ref(), now_iso);
-    attach_sigstore_attestations(&mut merged, &name, &prepared);
-    let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
+    let document = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso)?;
     let original_refs = prepared
         .iter()
         .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
@@ -213,51 +209,12 @@ pub(in super::super) async fn stage_publish(
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
-        document: merged_bytes,
+        document,
         base_version,
         slots: written_slots,
         revision_refs: original_refs,
         org: org.map(str::to_string),
     })
-}
-
-fn attach_sigstore_attestations(
-    merged: &mut Value,
-    name: &CanonicalPackageName,
-    prepared: &[PreparedAttachment],
-) {
-    for attachment in prepared
-        .iter()
-        .filter(|att| att.kind == AttachmentKind::Sigstore)
-    {
-        if let Some(dist) = merged
-            .get_mut("versions")
-            .and_then(|v| v.get_mut(&attachment.version))
-            .and_then(|m| m.get_mut("dist"))
-            .and_then(Value::as_object_mut)
-        {
-            let predicate_type = extract_predicate_type(&attachment.attachment.data);
-            dist.insert(
-                "attestations".to_string(),
-                json!({
-                    "url": format!("/-/npm/v1/attestations/{}@{}", name.as_str(), attachment.version),
-                    "provenance": { "predicateType": predicate_type },
-                }),
-            );
-        }
-    }
-}
-
-/// The stored packument, parsed, with the version its update must be based
-/// on. `None` for a package the org has not published yet.
-pub(super) fn parse_hosted_packument(
-    hosted: Option<HostedDocumentForUpdate>,
-) -> Result<(Option<Value>, Option<HostedDocumentVersion>), RegistryError> {
-    let Some(packument) = hosted else {
-        return Ok((None, None));
-    };
-    let value = serde_json::from_slice(&packument.bytes).map_err(RegistryError::Json)?;
-    Ok((Some(value), Some(packument.version)))
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -358,59 +315,6 @@ fn decode_and_write_attachment(
         }
     }
     Ok(())
-}
-
-/// Validate each incoming version against the locally hosted packument. A
-/// hosted packument is served as-is, so anything not in it is genuinely new
-/// Validate versions against existing hosted versions. Published content is
-/// immutable, so re-publishes with modified tarballs or integrity are rejected.
-/// New versions must provide a tarball.
-pub(super) fn check_publishable_versions(
-    name: &CanonicalPackageName,
-    incoming: &Value,
-    hosted: Option<&Value>,
-    prepared: &[PreparedAttachment],
-) -> Result<(), RegistryError> {
-    let attachment_versions: HashSet<&str> = prepared
-        .iter()
-        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
-        .map(|attachment| attachment.version.as_str())
-        .collect();
-    let hosted_versions = hosted
-        .and_then(|h| h.get("versions"))
-        .and_then(Value::as_object);
-    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    for (version, incoming_manifest) in incoming_versions {
-        let has_attachment = attachment_versions.contains(version.as_str());
-        let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if has_attachment {
-                continue;
-            }
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot publish version {version} of {:?} without a tarball",
-                    name.as_str(),
-                ),
-            });
-        };
-        if has_attachment || integrity_changed(incoming_manifest, hosted_manifest) {
-            return Err(RegistryError::VersionAlreadyPublished {
-                package: name.as_str().to_string(),
-                version: version.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Whether the incoming manifest declares an integrity other than the one
-/// the hosted manifest carries.
-pub(super) fn integrity_changed(incoming_manifest: &Value, hosted_manifest: &Value) -> bool {
-    let incoming_integrity = incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-    let hosted_integrity = hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
-    incoming_integrity.is_some_and(|integrity| Some(integrity) != hosted_integrity)
 }
 
 pub(super) fn staged_hosted_original_ref(

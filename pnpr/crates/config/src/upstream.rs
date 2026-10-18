@@ -267,6 +267,24 @@ impl TokenEnv {
 /// custom `headers:` are merged on top — so a custom `Authorization`
 /// entry overrides the one derived from `auth:`, matching verdaccio's
 /// merge order. A configured `auth:` block that resolves to no token,
+fn resolve_upstream_access(
+    name: &str,
+    spec: Option<&AccessSpec>,
+    teams: &TeamDirectory,
+) -> Result<Option<AccessList>, RegistryError> {
+    spec.map(|spec| {
+        let list = spec.to_access_list(teams)?;
+        if list.references_owners() {
+            return Err("`$owners` is not valid for upstream `access` rules".to_string());
+        }
+        Ok(list)
+    })
+    .transpose()
+    .map_err(|reason| RegistryError::InvalidConfig {
+        reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
+    })
+}
+
 /// an unknown header name, or a non-ASCII header value is a config
 /// error rather than a silent unauthenticated request.
 pub(super) fn resolve_upstream_config<Sys: EnvVar>(
@@ -296,13 +314,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
-    let access = file.access
-        .as_ref()
-        .map(|spec| spec.to_access_list(teams))
-        .transpose()
-        .map_err(|reason| RegistryError::InvalidConfig {
-            reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
-        })?;
+    let access = resolve_upstream_access(name, file.access.as_ref(), teams)?;
 
     Ok(UpstreamConfig {
         url: file.url,

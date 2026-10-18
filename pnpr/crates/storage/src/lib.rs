@@ -4,6 +4,8 @@ pub mod publish;
 
 pub mod streaming;
 
+pub mod tombstones;
+
 pub mod upload;
 
 pub use atomic_write::{
@@ -27,6 +29,8 @@ pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVer
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
 pub use staged_records::PipelineRunKey;
+
+pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
 
 mod tar_integrities;
 

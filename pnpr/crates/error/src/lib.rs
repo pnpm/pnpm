@@ -296,6 +296,44 @@ pub enum RegistryError {
         name: String,
     },
 
+    /// Caller is not a maintainer of the package.
+    #[display("You must be a package maintainer to {action} {package:?}")]
+    #[from(skip)]
+    NotPackageMaintainer {
+        #[error(not(source))]
+        action: &'static str,
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// Package was unpublished and cannot be claimed by non-maintainers.
+    #[display(
+        "Package {package:?} was unpublished and can only be republished by former maintainers"
+    )]
+    #[from(skip)]
+    PackageTombstoned {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// A version that was previously unpublished cannot be republished.
+    #[display("Cannot republish previously unpublished version {version:?} of package {package:?}")]
+    #[from(skip)]
+    CannotRepublishUnpublishedVersion {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
+    /// Maintainers list cannot be emptied.
+    #[display("Package {package:?} must have at least one maintainer")]
+    #[from(skip)]
+    EmptyMaintainers {
+        #[error(not(source))]
+        package: String,
+    },
+
     /// The client sent too many requests. Maps to 429 Too Many Requests.
     #[display("Too many requests: {reason}")]
     #[from(skip)]

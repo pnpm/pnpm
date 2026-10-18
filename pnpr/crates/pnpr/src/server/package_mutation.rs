@@ -1,24 +1,30 @@
 pub(super) use dist_tags::{get_dist_tags, remove_dist_tag, set_dist_tag};
+pub(super) use unpublish::{delete_package, delete_tarball};
 
 mod dist_tags;
 mod immutability;
-use immutability::{enforce_published_version_immutability, submitted_packument};
+mod maintainers;
+mod unpublish;
+
+#[cfg(test)]
+mod tests;
 
 use axum::{
     body::Body,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 
+use immutability::{enforce_published_version_immutability, submitted_packument};
+use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::DocumentWrite;
+use pnpr_storage::{DocumentWrite, PackageTombstone};
 
 use super::{
-    Action, AppState, RegistrySource, authorize, hosted_storage, resolve_write_target,
-    tarball_basename,
+    Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
 };
 
 /// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
@@ -30,6 +36,10 @@ use super::{
 /// [`enforce_published_version_immutability`] so the body can't tamper with
 /// a published version's `dist` or smuggle in a new one — everything else in
 /// the body is trusted verbatim, the same trust verdaccio extends.
+///
+/// If the request body contains `maintainers` without `versions`, this is an
+/// `npm owner` mutation. Maintainer updates require maintainer/admin privileges
+/// and validate that maintainers cannot be emptied.
 pub(super) async fn update_packument(
     state: &AppState,
     identity: &Identity,
@@ -46,16 +56,81 @@ pub(super) async fn update_packument(
         Err(err) => return err.into_response(),
     };
     let source = RegistrySource::Hosted(target.source.clone());
-    if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str()) {
-        return err.into_response();
-    }
     let org = target.org;
     let storage = hosted_storage(state, Some(&org));
+
+    let incoming_val: Value = match serde_json::from_slice(body) {
+        Ok(val) => val,
+        Err(err) => return RegistryError::Json(err).into_response(),
+    };
+
+    if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {
+        if let Err(err) =
+            authorize_package(state, identity, &source, name.as_str(), Action::Publish, Some(&org))
+                .await
+        {
+            return err.into_response();
+        }
+        return update_package_maintainers(
+            state,
+            identity,
+            &target.source,
+            &storage,
+            &name,
+            &incoming_val,
+        )
+        .await;
+    }
+
+    if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str(), Some(&org)).await {
+        return err.into_response();
+    }
     let mut packument = match submitted_packument(body, &name) {
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
     rewrite_packument(state, identity, &target.source, &storage, &name, &mut packument).await
+}
+
+async fn read_hosted_packument(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+) -> Result<pnpr_storage::HostedDocumentForUpdate, Response> {
+    match storage.read_hosted_document_for_update(name).await {
+        Ok(Some(packument)) => Ok(packument),
+        Ok(None) => Err(no_published_packument(name).into_response()),
+        Err(err) => Err(err.into_response()),
+    }
+}
+
+fn prepare_packument_rewrite(
+    hosted_bytes: &[u8],
+    name: &CanonicalPackageName,
+    packument: &mut Value,
+) -> Result<(Value, Vec<String>), Response> {
+    let hosted: Value = serde_json::from_slice(hosted_bytes)
+        .map_err(|err| RegistryError::Json(err).into_response())?;
+    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
+        return Err(err.into_response());
+    }
+    preserve_existing_maintainers(&hosted, packument);
+    let removed = detect_removed_versions(&hosted, packument);
+    Ok((hosted, removed))
+}
+
+async fn rollback_hosted_packument(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    written_bytes: &[u8],
+    fallback_bytes: &[u8],
+) {
+    if let Ok(Some(current)) = storage.read_hosted_document_for_update(name).await
+        && current.bytes == written_bytes
+    {
+        let _ =
+            storage.write_hosted_document_if_current(name, fallback_bytes, Some(&current.version))
+                .await;
+    }
 }
 
 /// Serialize against other same-package writers so the rewrite cannot
@@ -69,27 +144,30 @@ async fn rewrite_packument(
     packument: &mut serde_json::Value,
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_document_for_update(name).await {
-        Ok(Some(packument)) => packument,
-        Ok(None) => return no_published_packument(name).into_response(),
-        Err(err) => return err.into_response(),
+    let hosted_packument = match read_hosted_packument(storage, name).await {
+        Ok(packument) => packument,
+        Err(response) => return response,
     };
-    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
-        Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
-        return err.into_response();
-    }
+    let (hosted, removed) =
+        match prepare_packument_rewrite(&hosted_packument.bytes, name, packument) {
+            Ok(pair) => pair,
+            Err(response) => return response,
+        };
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let written =
-        storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
-            .await;
-    match written {
+    match storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
+        .await
+    {
         Ok(DocumentWrite::Written) => {
+            if let Err(err) =
+                record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed)
+                    .await
+            {
+                rollback_hosted_packument(storage, name, &bytes, &hosted_packument.bytes).await;
+                return err.into_response();
+            }
             log_packument_update(identity, name, source);
             ok_created()
         }
@@ -98,6 +176,77 @@ async fn rewrite_packument(
                 .into_response()
         }
         Err(err) => err.into_response(),
+    }
+}
+
+fn preserve_existing_maintainers(hosted: &Value, packument: &mut Value) {
+    let Some(obj) = packument.as_object_mut() else { return };
+    if let Some(existing) = hosted.get("maintainers") {
+        obj.insert("maintainers".to_string(), existing.clone());
+    } else {
+        obj.remove("maintainers");
+    }
+}
+
+fn detect_removed_versions(hosted: &Value, packument: &Value) -> Vec<String> {
+    let Some(hosted_versions) = hosted.get("versions").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let incoming_versions = packument.get("versions").and_then(Value::as_object);
+    hosted_versions
+        .keys()
+        .filter(|version| incoming_versions.is_none_or(|inc| !inc.contains_key(*version)))
+        .cloned()
+        .collect()
+}
+
+async fn record_removed_versions_in_tombstone(
+    storage: &pnpr_storage::Storage,
+    identity: &Identity,
+    name: &CanonicalPackageName,
+    hosted: &Value,
+    removed_versions: &[String],
+) -> Result<(), RegistryError> {
+    if removed_versions.is_empty() {
+        return Ok(());
+    }
+    let fallback = new_tombstone_from_hosted(identity, name, hosted);
+    let removed = removed_versions.to_vec();
+    storage.update_tombstone(name, move |existing| {
+        let mut tombstone = existing.unwrap_or_else(|| fallback.clone());
+        for version in &removed {
+            if !tombstone.unpublished_versions
+                .iter()
+                .any(|existing| existing == version)
+            {
+                tombstone.unpublished_versions.push(version.clone());
+            }
+        }
+        tombstone
+    })
+    .await?;
+    Ok(())
+}
+
+fn new_tombstone_from_hosted(
+    identity: &Identity,
+    name: &CanonicalPackageName,
+    hosted: &Value,
+) -> PackageTombstone {
+    let mut maintainers = Vec::new();
+    if let Some(entries) = hosted.get("maintainers").and_then(Value::as_array) {
+        for entry in entries {
+            if let Some(user) = entry.get("name").and_then(Value::as_str) {
+                maintainers.push(user.to_string());
+            }
+        }
+    }
+    PackageTombstone {
+        package: name.as_str().to_string(),
+        unpublished_by: identity.username().map(ToString::to_string),
+        unpublished_at: chrono::Utc::now().to_rfc3339(),
+        maintainers,
+        unpublished_versions: Vec::new(),
     }
 }
 
@@ -115,14 +264,15 @@ fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source
 
 /// A packument rewrite adds nothing but may remove anything, so it is held to
 /// both write permissions.
-pub(super) fn authorize_rewrite(
+pub(super) async fn authorize_rewrite(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
     name: &str,
+    org: Option<&str>,
 ) -> Result<(), RegistryError> {
     for action in [Action::Publish, Action::Unpublish] {
-        authorize(state, identity, source, name, action)?;
+        authorize_package(state, identity, source, name, action, org).await?;
     }
     Ok(())
 }
@@ -137,133 +287,9 @@ fn no_published_packument(name: &CanonicalPackageName) -> RegistryError {
 }
 
 fn ok_created() -> Response {
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<name>/:pkg/-rev/:rev`
-/// — remove the entire package directory, packument and all tarballs. Used
-/// by `pnpm unpublish --force`.
-pub(super) async fn delete_package(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Unpublish,
-    ) {
-        return err.into_response();
-    }
-    let org = target.org;
-    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let removed = match hosted_storage(state, Some(&org)).remove_package(&name).await {
-        Ok(removed) => removed,
-        Err(err) => return err.into_response(),
-    };
-    if removed {
-        log_package_deleted(identity, &name, &target.source);
-    }
-    ok_created_response()
-}
-
-fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.unpublish",
-        actor = %actor,
-        package = %name.as_str(),
-        registry = %source,
-        "entire package unpublished",
-    );
-}
-
-/// `DELETE /:pkg/-/:filename/-rev/:rev` — remove a single tarball
-/// file from the package directory. The partial-unpublish flow calls
-/// this after PUT'ing the modified packument back. Accept the
-/// libnpmpublish-style scoped filename as well as the canonical one
-/// by going through `parse_tarball_name` first.
-pub(super) async fn delete_tarball(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    filename: &str,
-) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    let (canonical, version) = match name.parse_tarball_name(filename) {
-        Ok(parsed) => parsed,
-        Err(err) => return err.into_response(),
-    };
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    let source = RegistrySource::Hosted(target.source.clone());
-    if let Err(err) = authorize(state, identity, &source, name.as_str(), Action::Unpublish) {
-        return err.into_response();
-    }
-    let org = target.org;
-    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let removed = match hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
-        Ok(removed) => removed,
-        Err(err) => return err.into_response(),
-    };
-    let sigstore_name = name.sigstore_name_for_version(&version);
-    let _ = hosted_storage(state, Some(&org)).remove_blob(&name, &sigstore_name).await;
-    if removed {
-        log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
-    }
-    ok_created_response()
-}
-
-fn log_tarball_deleted(
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    filename: &str,
-    version: &str,
-    source: &str,
-) {
-    let actor = identity.username().unwrap_or("-");
-    tracing::info!(
-        target: "pnpr::audit",
-        action = "package.unpublish_tarball",
-        actor = %actor,
-        package = %name.as_str(),
-        tarball = %filename,
-        version = %version,
-        registry = %source,
-        "package tarball unpublished",
-    );
-}
-
-fn ok_created_response() -> Response {
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
+        .body(Body::from(r#"{"ok":true}"#))
         .expect("static-shape response always builds")
 }

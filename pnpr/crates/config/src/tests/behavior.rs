@@ -392,6 +392,8 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
         ("'@authenticated'", "$authenticated"),
         ("anonymous", "$anonymous"),
         ("'@anonymous'", "$anonymous"),
+        ("owners", "$owners"),
+        ("'@owners'", "$owners"),
     ] {
         let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
         assert!(
@@ -403,6 +405,17 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
             "unexpected error for {token:?}: {err}",
         );
     }
+}
+
+#[test]
+fn rule_accepts_owners_builtin_token() {
+    let config = hosted_rules_config(
+        "      '@team/*':\n        publish: $owners\n        unpublish: $owners\n",
+    );
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let effective = table.for_package("@team/pkg");
+    assert!(effective.publish.references_owners());
+    assert!(effective.unpublish.references_owners());
 }
 
 #[test]

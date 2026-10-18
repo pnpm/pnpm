@@ -88,10 +88,7 @@ async fn user_store_rejects_invalid_username_before_persisting() {
         );
     }
     assert!(
-        store.users
-            .lock()
-            .expect("UserStore mutex poisoned")
-            .is_empty(),
+        store.is_empty_for_test(),
         "invalid username should be rejected before any persistence",
     );
 }
@@ -100,11 +97,8 @@ async fn user_store_rejects_invalid_username_before_persisting() {
 async fn user_store_rejects_invalid_username_before_lookup() {
     let store = test_user_store();
     let hash = bcrypt::hash("secret", TEST_COST).unwrap();
-    {
-        let mut users = store.users.lock().expect("UserStore mutex poisoned");
-        for username in INVALID_USERNAMES {
-            users.insert((*username).to_string(), hash.clone());
-        }
+    for username in INVALID_USERNAMES {
+        store.insert_user_for_test((*username).to_string(), hash.clone());
     }
 
     for username in INVALID_USERNAMES {
@@ -1017,4 +1011,145 @@ async fn tokens_scopes_and_kind_persist_across_reopen() {
         .unwrap();
     assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
     assert_eq!(looked_up.kind.as_deref(), Some("granular"));
+}
+
+#[tokio::test]
+async fn file_backed_user_store_picks_up_external_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store1 = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+    let store2 = UserStore::open(htpasswd_path, MaxUsers::Unlimited).unwrap();
+
+    assert!(store1.create_user("alice", "pass1").await.unwrap());
+    // store2 (simulating a running server or other process) should observe alice
+    assert!(
+        store2
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    // store2 updates alice's password
+    assert!(store2.set_password("alice", "pass2").await.unwrap());
+    // store1 adds bob
+    assert!(store1.create_user("bob", "pass3").await.unwrap());
+
+    // Both stores should observe both alice and bob without losing either edit
+    assert!(
+        store2
+            .password_hash("bob")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        store1
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+}
+
+#[tokio::test]
+async fn holds_fails_closed_on_corrupt_htpasswd_and_reflects_deletion() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+
+    assert!(store.create_user("alice", "pass1").await.unwrap());
+    assert!(store.holds("alice").unwrap());
+    assert!(!store.holds("bob").unwrap());
+
+    // Corrupt the htpasswd file
+    std::fs::write(&htpasswd_path, b"invalid htpasswd line without colon\n").unwrap();
+    assert!(store.holds("alice").is_err(), "must fail closed on corrupt htpasswd");
+
+    // Delete the htpasswd file: accounts are cleared
+    std::fs::remove_file(&htpasswd_path).unwrap();
+    assert!(!store.holds("alice").unwrap(), "deleted file must reflect as empty store");
+}
+
+#[tokio::test]
+async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store =
+        std::sync::Arc::new(UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap());
+
+    assert!(store.create_user("alice", "pass1").await.unwrap());
+
+    let mut handles = Vec::new();
+    for index in 0..10 {
+        let store = std::sync::Arc::clone(&store);
+        handles.push(tokio::spawn(async move {
+            for _ in 0..20 {
+                let _ = store.holds("alice");
+                let _ = store.password_hash("alice").await;
+                let _ = store.list_users().await;
+                tokio::time::sleep(std::time::Duration::from_millis((index % 3) + 1)).await;
+            }
+        }));
+    }
+
+    let replacer = tokio::spawn(async move {
+        for round in 0..10 {
+            let _ = std::fs::remove_file(&htpasswd_path);
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+            let hash = bcrypt::hash(format!("pass{round}"), TEST_COST).unwrap();
+            std::fs::write(&htpasswd_path, format!("alice:{hash}\n")).unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    });
+
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    replacer.await.unwrap();
+
+    assert!(store.holds("alice").unwrap());
+    assert!(
+        store
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(store.list_users().await.unwrap(), vec!["alice".to_string()]);
+}
+
+#[tokio::test]
+async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let htpasswd_path = dir.path().join("htpasswd");
+    let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
+
+    let hash_alice = bcrypt::hash("pass_alice", TEST_COST).unwrap();
+    let initial_content = format!("alice:{hash_alice}\n");
+    std::fs::write(&htpasswd_path, &initial_content).unwrap();
+
+    assert!(store.holds("alice").unwrap());
+
+    let orig_mtime = std::fs::metadata(&htpasswd_path)
+        .unwrap()
+        .modified()
+        .unwrap();
+
+    let hash_bob = bcrypt::hash("pass_bob00", TEST_COST).unwrap();
+    let replacement = format!("bob00:{hash_bob}\n");
+    assert_eq!(initial_content.len(), replacement.len());
+
+    let tmp_path = dir.path().join("htpasswd.tmp");
+    std::fs::write(&tmp_path, &replacement).unwrap();
+    let tmp_file = std::fs::File::options()
+        .write(true)
+        .open(&tmp_path)
+        .unwrap();
+    tmp_file.set_modified(orig_mtime).unwrap();
+    drop(tmp_file);
+    std::fs::rename(&tmp_path, &htpasswd_path).unwrap();
+
+    assert!(store.holds("bob00").unwrap());
+    assert!(!store.holds("alice").unwrap());
 }

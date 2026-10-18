@@ -7,7 +7,7 @@ use axum::{
 use crate::server::{
     AppState, MAX_LOGIN_BODY_BYTES,
     tokens::{delete_session_token, delete_token_by_key, get_token_list, post_create_token},
-    user_accounts::{get_profile, get_whoami, put_login},
+    user_accounts::{get_profile, get_user, get_whoami, put_login},
     web_login::{get_v1_login_poll, get_v1_login_start, post_v1_login},
 };
 
@@ -32,7 +32,9 @@ pub(super) fn account_routes() -> Router<AppState> {
             .route(&path("/-/whoami"), get(get_whoami))
             .route(
                 &path("/-/user/{user}"),
-                put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+                put(put_login)
+                    .get(get_user)
+                    .route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
             )
             .route(&path("/-/user/token/{token}"), delete(delete_session_token))
             .route(&path("/-/npm/v1/user"), get(get_profile))
