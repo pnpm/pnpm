@@ -156,7 +156,7 @@ impl OwnerArgs {
 
 async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
     let package_name = params.first().ok_or(OwnerError::LsPackageRequired)?;
-    let endpoint = owner_endpoint(context, package_name, &escaped_package_name(package_name));
+    let endpoint = registry_endpoint(context, package_name, &escaped_package_name(package_name));
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
@@ -187,15 +187,10 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
 
     Ok(metadata.maintainers
         .unwrap_or_default()
-        .iter()
-        .map(|owner| {
-            match owner.email
-                .as_deref()
-                .filter(|email| !email.is_empty())
-            {
-                Some(email) => format!("{} <{email}>", owner.name),
-                None => owner.name.clone(),
-            }
+        .into_iter()
+        .map(|owner| match owner.email.filter(|email| !email.is_empty()) {
+            Some(email) => format!("{} <{email}>", owner.name),
+            None => owner.name,
         })
         .collect::<Vec<_>>()
         .join("\n"))
@@ -251,8 +246,8 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
 }
 
-/// A package endpoint on its registry, with the credential
-/// configured for that registry.
+/// An endpoint on a package's registry, with the credential configured for
+/// that registry.
 pub(super) struct OwnersEndpoint {
     pub(super) url: String,
     pub(super) auth_header: Option<String>,
@@ -260,10 +255,10 @@ pub(super) struct OwnersEndpoint {
 
 pub(super) fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
     let path = format!("-/package/{}/owners", escaped_package_name(package_name));
-    owner_endpoint(context, package_name, &path)
+    registry_endpoint(context, package_name, &path)
 }
 
-fn owner_endpoint(context: &OwnerContext<'_>, package_name: &str, path: &str) -> OwnersEndpoint {
+fn registry_endpoint(context: &OwnerContext<'_>, package_name: &str, path: &str) -> OwnersEndpoint {
     let registry_url = resolve_target_registry_for_package(
         &context.registries,
         context.registry_override,

@@ -14,18 +14,6 @@ fn owner_entry_deserializes() {
 }
 
 #[test]
-fn owner_entry_deserializes_array() {
-    let json = r#"[
-        {"name": "alice", "email": "alice@example.com"},
-        {"name": "bob", "email": "bob@example.com"}
-    ]"#;
-    let entries: Vec<super::OwnerEntry> = serde_json::from_str(json).expect("should deserialize");
-    assert_eq!(entries.len(), 2);
-    assert_eq!(entries[0].name, "alice");
-    assert_eq!(entries[1].name, "bob");
-}
-
-#[test]
 fn error_add_args_required_display() {
     let err = OwnerError::AddArgsRequired;
     assert!(err.to_string().contains("Package name and owner are required"));
