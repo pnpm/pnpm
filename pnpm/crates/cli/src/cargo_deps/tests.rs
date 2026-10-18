@@ -16,7 +16,7 @@ use crate::cargo_deps::{
 };
 
 #[test]
-fn recognizes_a_complete_registry_crate_slot() {
+fn rejects_a_registry_crate_slot_without_verified_store_data() {
     let temp_dir = tempfile::tempdir().unwrap();
     let slot = temp_dir.path();
     let cargo_toml = "[package]\n";
@@ -30,7 +30,13 @@ fn recognizes_a_complete_registry_crate_slot() {
     )
     .unwrap();
 
-    assert!(super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 }
 
 #[test]
@@ -47,14 +53,32 @@ fn rejects_a_registry_crate_slot_with_a_missing_or_corrupted_file() {
         ),
     )
     .unwrap();
-    assert!(super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 
     fs::write(slot.join("Cargo.toml"), "[package]\nname = \"changed\"\n").unwrap();
 
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
     fs::remove_file(slot.join("Cargo.toml")).unwrap();
 
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 }
 
 #[cfg(unix)]
@@ -77,7 +101,13 @@ fn rejects_a_registry_crate_slot_with_a_symlinked_parent_directory() {
     )
     .unwrap();
 
-    assert!(!super::materialize::slot_is_complete(&slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        &slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 }
 
 #[tokio::test]
@@ -110,6 +140,32 @@ async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config()
         ),
     )
     .unwrap();
+    config.store_dir.init().unwrap();
+    let (_, cargo_toml_digest) =
+        config.store_dir.write_cas_file(cargo_toml.as_bytes(), false).unwrap();
+    let integrity = Integrity::from_hex(&package.checksum, Algorithm::Sha256).unwrap();
+    StoreIndex::open_in(&config.store_dir)
+        .unwrap()
+        .set(
+            &ArchiveStoreProjection::RawArchive.store_index_key(
+                &integrity.to_string(),
+                "crate:demo@1.0.0",
+            ),
+            &PackageFilesIndex {
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    "Cargo.toml".to_string(),
+                    CafsFileInfo {
+                        digest: format!("{cargo_toml_digest:x}"),
+                        mode: 0o644,
+                        size: cargo_toml.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                ..PackageFilesIndex::default()
+            },
+        )
+        .unwrap();
 
     let slots = super::materialize::download_crates::<SilentReporter>(DownloadOptions {
         config,
@@ -128,17 +184,36 @@ async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config()
 fn rejects_an_incomplete_registry_crate_slot() {
     let temp_dir = tempfile::tempdir().unwrap();
     let slot = temp_dir.path();
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
     fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
     fs::write(
         slot.join(".cargo-checksum.json"),
         r#"{"files":{"Cargo.toml":"hash"},"package":"other-checksum"}"#,
     )
     .unwrap();
 
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
-    assert!(!super::materialize::slot_is_complete(slot, "different-checksum"));
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    assert!(!super::materialize::slot_is_complete(slot, "demo", "1.0.0", "checksum", &store_dir));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "different-checksum",
+        &store_dir,
+    ));
 }
 
 #[test]
@@ -147,7 +222,13 @@ fn rejects_a_registry_crate_slot_with_a_corrupt_manifest() {
     let slot = temp_dir.path();
     fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
 
-    assert!(!super::materialize::slot_is_complete(slot, "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        slot,
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 }
 
 #[test]
@@ -159,7 +240,13 @@ fn rejects_a_registry_crate_slot_with_an_unsafe_file_path() {
     )
     .unwrap();
 
-    assert!(!super::materialize::slot_is_complete(temp_dir.path(), "checksum"));
+    assert!(!super::materialize::slot_is_complete(
+        temp_dir.path(),
+        "demo",
+        "1.0.0",
+        "checksum",
+        &StoreDir::from(temp_dir.path().join("store")),
+    ));
 }
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
@@ -498,6 +585,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
     fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
     fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
     fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
+    assert!(!super::materialize::slot_is_complete(&slot, "demo", "1.0.0", checksum, store_dir,));
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
 
     materialize::<SilentReporter>(MaterializeOptions {

@@ -6,6 +6,8 @@ use super::{
     checksum_cache, import_indexed_dir, registry_download_config, stream,
 };
 use miette::WrapErr;
+use sha2::{Digest, Sha512};
+use std::io::Read;
 use std::path::Path;
 
 #[derive(Serialize)]
@@ -41,12 +43,20 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
 fn partition_materialized_crates(
     packages: Vec<LockedCrate>,
     store_dir: &StoreDir,
+    index: Option<&SharedReadonlyStoreIndex>,
 ) -> (Vec<(String, PathBuf)>, Vec<LockedCrate>) {
     let (completed, pending): (Vec<_>, Vec<_>) = packages
         .into_iter()
         .partition(|package| {
             let slot = package.store_slot(store_dir.root());
-            slot_is_complete(&slot, &package.checksum)
+            slot_is_complete_with_index(
+                &slot,
+                &package.name,
+                &package.version,
+                &package.checksum,
+                store_dir,
+                index,
+            )
         });
     let slots = completed
         .into_iter()
@@ -58,9 +68,12 @@ fn partition_materialized_crates(
 async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
     mut options: DownloadOptions,
 ) -> Result<Vec<(String, PathBuf)>> {
+    let store_index =
+        StoreIndex::shared_for(&options.config.store_dir, options.config.frozen_store);
     let (completed_slots, packages) = partition_materialized_crates(
         std::mem::take(&mut options.packages),
         &options.config.store_dir,
+        store_index.as_ref(),
     );
     if packages.is_empty() {
         return Ok(completed_slots);
@@ -191,18 +204,57 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     Ok((link_name, slot))
 }
 
-pub(super) fn slot_is_complete(slot: &Path, checksum: &str) -> bool {
+#[cfg(test)]
+pub(super) fn slot_is_complete(
+    slot: &Path,
+    name: &str,
+    version: &str,
+    checksum: &str,
+    store_dir: &StoreDir,
+) -> bool {
+    let index = StoreIndex::shared_readonly_in(store_dir);
+    slot_is_complete_with_index(slot, name, version, checksum, store_dir, index.as_ref())
+}
+
+fn slot_is_complete_with_index(
+    slot: &Path,
+    name: &str,
+    version: &str,
+    checksum: &str,
+    store_dir: &StoreDir,
+    index: Option<&SharedReadonlyStoreIndex>,
+) -> bool {
     let Ok(slot_metadata) = std::fs::symlink_metadata(slot) else {
         return false;
     };
     if !slot_metadata.is_dir() {
         return false;
     }
-    let Some(files) = read_slot_manifest(slot, checksum) else {
+    let Some(manifest) = read_slot_manifest(slot, checksum) else {
         return false;
     };
-    !files.is_empty()
-        && files.iter().all(|(file, checksum)| slot_file_matches(slot, file, checksum))
+    let Some(index) = index else {
+        return false;
+    };
+    let Ok(integrity) = Integrity::from_hex(checksum, Algorithm::Sha256) else {
+        return false;
+    };
+    let package_id = format!("crate:{name}@{version}");
+    let key =
+        ArchiveStoreProjection::RawArchive.store_index_key(&integrity.to_string(), &package_id);
+    let Ok(index) = index.lock() else {
+        return false;
+    };
+    let Ok(Some(indexed)) = index.get(&key) else {
+        return false;
+    };
+    !indexed.files.is_empty()
+        && manifest.len() == indexed.files.len()
+        && indexed.files
+            .iter()
+            .all(|(file, info)| {
+                manifest.contains_key(file) && slot_file_matches_cas(slot, file, info, store_dir)
+            })
 }
 
 fn read_slot_manifest(
@@ -231,10 +283,15 @@ fn read_slot_manifest(
         .cloned()
 }
 
-fn slot_file_matches(slot: &Path, file: &str, checksum: &serde_json::Value) -> bool {
+fn slot_file_matches_cas(
+    slot: &Path,
+    file: &str,
+    info: &CafsFileInfo,
+    store_dir: &StoreDir,
+) -> bool {
     safe_slot_file_path(file)
         && slot_parent_directories_are_real(slot, file)
-        && slot_file_contents_match(slot, file, checksum)
+        && slot_file_contents_match_cas(slot, file, info, store_dir)
 }
 
 fn safe_slot_file_path(file: &str) -> bool {
@@ -260,19 +317,51 @@ fn slot_parent_directories_are_real(slot: &Path, file: &str) -> bool {
     true
 }
 
-fn slot_file_contents_match(slot: &Path, file: &str, checksum: &serde_json::Value) -> bool {
+fn slot_file_contents_match_cas(
+    slot: &Path,
+    file: &str,
+    info: &CafsFileInfo,
+    store_dir: &StoreDir,
+) -> bool {
     let path = slot.join(file);
+    let Some(cas_path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
+        return false;
+    };
     let Ok(metadata) = std::fs::symlink_metadata(&path) else {
         return false;
     };
-    if !metadata.is_file() {
+    if !metadata.is_file() || metadata.len() != info.size {
         return false;
     }
-    let Some(checksum) = checksum.as_str() else {
+    let Ok(cas_metadata) = std::fs::symlink_metadata(&cas_path) else {
         return false;
     };
-    pnpm_crypto_hash::create_hex_hash_from_file(&path)
-        .is_ok_and(|actual_checksum| actual_checksum == checksum)
+    if !cas_metadata.is_file() || cas_metadata.len() != info.size {
+        return false;
+    }
+    cas_file_matches_digest(&cas_path, &info.digest)
+        && pnpm_crypto_hash::create_hex_hash_from_file(&path)
+            .is_ok_and(|slot_checksum| {
+                pnpm_crypto_hash::create_hex_hash_from_file(&cas_path)
+                    .is_ok_and(|cas_checksum| slot_checksum == cas_checksum)
+            })
+}
+
+fn cas_file_matches_digest(path: &Path, digest: &str) -> bool {
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut hasher = Sha512::new();
+    let mut buffer = [0; 16 * 1024];
+    loop {
+        let Ok(read) = file.read(&mut buffer) else {
+            return false;
+        };
+        if read == 0 {
+            return format!("{:x}", hasher.finalize()) == digest;
+        }
+        hasher.update(&buffer[..read]);
+    }
 }
 
 pub(super) fn add_cargo_checksum(
