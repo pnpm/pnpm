@@ -302,3 +302,21 @@ fn a_merged_lockfile_records_no_resolution_settings() {
         assert_eq!(settings.resolution, crate::ResolutionSettings::default());
     }
 }
+
+/// Entries pinning another hash cannot share a lockfile with ours, so the
+/// resolution after the merge resolves them again.
+#[test]
+fn a_side_pinning_another_integrity_target_lends_no_entries() {
+    let theirs = THEIRS.replacen(
+        "lockfileVersion: '9.0'\n",
+        "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n  integrityTarget: tar\n",
+        1,
+    );
+    let merged = merged(OURS, &theirs);
+    assert_eq!(merged.integrity_target(), crate::IntegrityTarget::Resource);
+    let packages = merged.packages.as_ref().unwrap();
+    assert!(packages.contains_key(&"is-positive@3.0.0".parse::<PackageKey>().unwrap()));
+    assert!(!packages.contains_key(&"only-theirs@2.0.0".parse::<PackageKey>().unwrap()));
+    let snapshots = merged.snapshots.as_ref().unwrap();
+    assert!(!snapshots.contains_key(&"only-theirs@2.0.0".parse::<PackageKey>().unwrap()));
+}

@@ -34,6 +34,13 @@ fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
     if config.add_missing_peer_types {
         manifest.insert("addMissingPeerTypes".to_string(), Value::Bool(true));
     }
+    // The deploy lockfile keeps the hashes the source lockfile pins.
+    if config.lockfile_integrity_target != pnpm_lockfile::IntegrityTarget::Resource {
+        manifest.insert(
+            "lockfile".to_string(),
+            serde_json::json!({ "integrityTarget": config.lockfile_integrity_target }),
+        );
+    }
     if let Some(virtual_store_dir) = configured_virtual_store_dir(config) {
         manifest.insert(
             "virtualStoreDir".to_string(),

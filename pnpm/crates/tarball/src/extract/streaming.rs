@@ -5,7 +5,7 @@ use super::{
     write_pending_files,
 };
 use crate::{
-    ArchiveIntegrity, BodyHasher,
+    ArchiveIntegrity, BodyHasher, IntegrityKind,
     archive_integrity::{ArchiveHashers, ArchiveVerification},
     content_coding::ContentCoding,
 };
@@ -175,15 +175,70 @@ pub(crate) fn extract_resource_stream(
         );
         return finish_resource(hashing, extracted, None, &verification, limits, package_url);
     };
+    let (extracted, tar_integrity) = if verification.kind == IntegrityKind::Resource {
+        extract_first_member(body, tar_hasher, limits, store_dir, ignore_file_pattern, package_url)
+    } else {
+        let mut tar = HashingReader {
+            inner: flate2::read::MultiGzDecoder::new(body),
+            hasher: tar_hasher,
+            failure: None,
+        };
+        let extracted =
+            extract_tarball_entries_streaming(&mut tar, limits, store_dir, ignore_file_pattern);
+        let tar_integrity = finish_tar_of(&extracted, tar, limits, package_url);
+        (extracted, tar_integrity)
+    };
+    finish_resource(hashing, extracted, Some(tar_integrity), &verification, limits, package_url)
+}
+
+/// Extract the first gzip member of a `.tgz`, the archive pnpm has always
+/// installed from it. The member is the archive's tar only when nothing
+/// follows it.
+fn extract_first_member(
+    gz_data: impl Read,
+    tar_hasher: BodyHasher,
+    limits: TarLimits,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    package_url: &str,
+) -> (
+    Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
+    Result<Integrity, TarballError>,
+) {
+    let mut compressed = std::io::BufReader::new(gz_data);
     let mut tar = HashingReader {
-        inner: flate2::read::MultiGzDecoder::new(body),
+        inner: flate2::bufread::GzDecoder::new(&mut compressed),
         hasher: tar_hasher,
         failure: None,
     };
     let extracted =
         extract_tarball_entries_streaming(&mut tar, limits, store_dir, ignore_file_pattern);
-    let tar_integrity = finish_tar(tar, limits.max_non_payload, package_url);
-    finish_resource(hashing, extracted, Some(tar_integrity), &verification, limits, package_url)
+    let tar_integrity = finish_tar_of(&extracted, tar, limits, package_url)
+        .and_then(|tar| match std::io::BufRead::fill_buf(&mut compressed) {
+            Ok([]) => Ok(tar),
+            _ => Err(TarballError::IncompleteTar {
+                url: package_url.to_string(),
+                reason: "data follows the first gzip member".to_string(),
+            }),
+        });
+    (extracted, tar_integrity)
+}
+
+/// [`finish_tar`] for a tar the extractor accepted. A tar it rejected has no
+/// integrity, so the rest of it is not read.
+fn finish_tar_of(
+    extracted: &Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
+    tar: HashingReader<impl Read>,
+    limits: TarLimits,
+    package_url: &str,
+) -> Result<Integrity, TarballError> {
+    match extracted {
+        Ok(_) => finish_tar(tar, limits.max_non_payload, package_url),
+        Err(error) => Err(TarballError::IncompleteTar {
+            url: package_url.to_string(),
+            reason: error.to_string(),
+        }),
+    }
 }
 
 /// Read what the decoded tar has left into its hash. Any decode failure,
@@ -315,14 +370,16 @@ pub(crate) fn stream_extract_gzipped_tarball_with_tar(
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<super::GzipExtraction, TarballError> {
-    let mut tar = HashingReader {
-        inner: flate2::read::MultiGzDecoder::new(gz_data),
-        hasher: BodyHasher::new(None),
-        failure: None,
-    };
-    let (files, index) =
-        extract_tarball_entries_streaming(&mut tar, limits, store_dir, ignore_file_pattern)?;
-    Ok((files, index, finish_tar(tar, limits.max_non_payload, "")))
+    let (extracted, tar) = extract_first_member(
+        gz_data,
+        BodyHasher::new(None),
+        limits,
+        store_dir,
+        ignore_file_pattern,
+        "",
+    );
+    let (files, index) = extracted?;
+    Ok((files, index, tar))
 }
 
 /// Walk a tar stream, writing each regular-file entry into the CAFS

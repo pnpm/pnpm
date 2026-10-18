@@ -36,6 +36,11 @@ impl Default for TarLimits {
 }
 
 impl TarLimits {
+    /// Every byte a tar under these limits may decode to.
+    pub(crate) fn max_decoded(self) -> u64 {
+        self.max_payload.saturating_add(self.max_non_payload)
+    }
+
     #[must_use]
     pub const fn new(max_payload: u64) -> Self {
         Self { max_payload, max_non_payload: MAX_NON_PAYLOAD_BYTES, unpacked_size: None }

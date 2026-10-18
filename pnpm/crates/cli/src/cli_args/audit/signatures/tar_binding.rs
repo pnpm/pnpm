@@ -3,7 +3,7 @@
 
 use super::{Config, HashMap, Packument, SignaturePackage, ThrottledClient};
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreIndex, store_index_key};
+use pnpm_store_dir::{StoreIndex, StoreIndexWriter, store_index_key};
 use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, ResolutionStore, TarballPackage};
 use ssri::Integrity;
 
@@ -33,6 +33,11 @@ pub(super) async fn tie_tar_integrities(
             let dist = packument.versions
                 .get(&pkg.version)
                 .and_then(|version| version.dist.as_ref());
+            // A version without signatures is reported as missing whatever
+            // its tar hash is tied to.
+            dist.and_then(|dist| dist.signatures.as_ref())
+                .and_then(serde_json::Value::as_array)
+                .filter(|signatures| !signatures.is_empty())?;
             Some(PendingTie {
                 pkg,
                 lockfile_integrity: pkg.integrity.as_deref()?,
@@ -43,31 +48,43 @@ pub(super) async fn tie_tar_integrities(
         })
         .collect();
     let stored = stored_tar_integrities(&pending, config);
-    let mut ties = HashMap::new();
-    for tie in pending {
-        let outcome = match tie.published {
-            None => Err(format!(
-                "{}@{} has no published integrity to tie its tar integrity to",
-                tie.pkg.name, tie.pkg.version,
-            )),
-            Some((signed, _)) if signed == tie.lockfile_integrity => Ok(signed.to_string()),
-            Some((signed, _))
-                if stored
-                    .get(&tie.package_id())
-                    .map(String::as_str)
-                    == Some(tie.lockfile_integrity) =>
-            {
-                Ok(signed.to_string())
+    let (index_writer, writer_task) = StoreIndexWriter::spawn_for(
+        &config.store_dir,
+        config.frozen_store,
+        config.store_index_format,
+    );
+    let ties = pending
+        .iter()
+        .map(|tie| {
+            let stored = &stored;
+            let index_writer = &index_writer;
+            async move {
+                let outcome = match tie.published {
+                    None => Err(format!(
+                        "{}@{} has no published integrity to tie its tar integrity to",
+                        tie.pkg.name, tie.pkg.version,
+                    )),
+                    Some((signed, _)) if signed == tie.lockfile_integrity => Ok(signed.to_string()),
+                    Some((signed, _))
+                        if stored
+                            .get(&tie.package_id())
+                            .map(String::as_str)
+                            == Some(tie.lockfile_integrity) =>
+                    {
+                        Ok(signed.to_string())
+                    }
+                    Some((signed, tarball)) => {
+                        download_tie(tie, signed, tarball, config, http_client, index_writer)
+                            .await
+                            .map(|()| signed.to_string())
+                    }
+                };
+                ((tie.pkg.registry.clone(), tie.pkg.name.clone(), tie.pkg.version.clone()), outcome)
             }
-            Some((signed, tarball)) => download_tie(&tie, signed, tarball, config, http_client)
-                .await
-                .map(|()| signed.to_string()),
-        };
-        ties.insert(
-            (tie.pkg.registry.clone(), tie.pkg.name.clone(), tie.pkg.version.clone()),
-            outcome,
-        );
-    }
+        });
+    let ties = futures_util::future::join_all(ties).await.into_iter().collect();
+    drop(index_writer);
+    StoreIndexWriter::drain(writer_task, " after tying tar integrities").await;
     ties
 }
 
@@ -108,6 +125,7 @@ async fn download_tie(
     tarball: &str,
     config: &'static Config,
     http_client: &ThrottledClient,
+    index_writer: &std::sync::Arc<StoreIndexWriter>,
 ) -> Result<(), String> {
     let package_id = tie.package_id();
     let signed_integrity: Integrity = signed
@@ -115,7 +133,10 @@ async fn download_tie(
         .map_err(|_| format!("{package_id} has an unparsable published integrity"))?;
     let resolved = FetchTarballForResolution {
         http_client,
-        store: ResolutionStore { dir: &config.store_dir, index_writer: None },
+        store: ResolutionStore {
+            dir: &config.store_dir,
+            index_writer: Some(std::sync::Arc::clone(index_writer)),
+        },
         package: TarballPackage {
             integrity_kind: IntegrityKind::Resource,
             integrity: Some(&signed_integrity),

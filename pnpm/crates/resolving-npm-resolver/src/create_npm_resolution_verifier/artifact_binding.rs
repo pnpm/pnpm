@@ -57,7 +57,7 @@ pub(super) fn current_revision_number(
     let Some(raw_revision) = artifact.current.revision.as_ref() else {
         return Err(ResolutionVerification::Err {
             code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-            reason: "registry metadata has a revision history but no current revision".to_string(),
+            reason: "registry metadata has no current revision".to_string(),
         });
     };
     let revision = raw_revision

@@ -86,7 +86,7 @@ fn sqlite_alias_targets(
         let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
         let sql =
             format!("SELECT key, target FROM package_index_alias WHERE key IN ({placeholders})");
-        let mut stmt = match conn.prepare(&sql) {
+        let mut stmt = match conn.prepare_cached(&sql) {
             Ok(stmt) => stmt,
             // An index created before aliases existed, opened read-only.
             Err(error) if is_missing_alias_table(&error) => return Ok(out),

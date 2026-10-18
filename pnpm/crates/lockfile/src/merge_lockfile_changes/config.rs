@@ -24,7 +24,7 @@ pub(super) fn merge_settings(
                 || theirs.inject_workspace_packages,
             peers_suffix_max_length: ours.peers_suffix_max_length
                 .or(theirs.peers_suffix_max_length),
-            integrity_target: ours.integrity_target.or(theirs.integrity_target),
+            integrity_target: ours.integrity_target,
             resolution: crate::ResolutionSettings::default(),
         }),
     };

@@ -252,6 +252,7 @@ impl WritePackageForPatch<'_> {
         let cas_paths = self.download_for_patch::<Reporter>(
             tarball_url,
             integrity,
+            resolution.integrity_target(self.config.lockfile_integrity_target).into(),
             package_id,
             store_index,
             store_index_writer,
@@ -278,6 +279,7 @@ impl WritePackageForPatch<'_> {
         &self,
         tarball_url: &str,
         integrity: Option<&ssri::Integrity>,
+        integrity_kind: pnpm_tarball::IntegrityKind,
         package_id: &str,
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
@@ -291,7 +293,7 @@ impl WritePackageForPatch<'_> {
                 tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
-                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
+                integrity_kind,
                 integrity,
                 unpacked_size: None,
                 file_count: None,

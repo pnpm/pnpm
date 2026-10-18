@@ -220,7 +220,7 @@ With `tar`, the lockfile no longer changes when a registry recompresses its tarb
 
 The lockfile records the setting as `integrityTarget: tar` in its `settings`. A lockfile resolved under the other value is outdated. `pnpm install` resolves it again and rewrites every hash, and `pnpm install --frozen-lockfile` fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
 
-The store remembers the tar hash of every `.tgz` it extracts, whatever this setting says. A version already in the store therefore needs no download to learn its tar hash, and a frozen install finds its files under either hash. A version the store has not extracted is downloaded once to learn the hash, even by `pnpm install --lockfile-only`. Packages extracted by pnpm versions without this setting are downloaded once too.
+The store remembers the tar hash of every `.tgz` it extracts, whatever this setting says. A version already in the store therefore needs no download to learn its tar hash, and a frozen install finds its files under either hash. A version the store has not extracted is downloaded once to learn the hash, even by `pnpm install --lockfile-only`, and so is an optional dependency for another platform, which the lockfile records but no install on this machine extracts. Packages extracted by pnpm versions without this setting are downloaded once too.
 
 `pnpm audit signatures` checks the registry signature of the `.tgz` and ties it to the tar hash in the lockfile, through the store or by downloading the package.
 

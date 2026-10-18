@@ -46,6 +46,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             }
             Err(err) => return Err(err),
         };
+        // A read that pinned the hash under a lockfile that pins tars learned
+        // the tar's hash too.
+        let pins_tar = tarball.is_some_and(|tarball| {
+            self.read_integrity_kind(tarball) == IntegrityKind::ResourceOrTar
+        });
+        let missing =
+            MissingTarballMetadata { integrity: missing.integrity || pins_tar, ..missing };
         self.record_archive_metadata(result, missing, metadata);
         Ok(missing.integrity && self.ctx.policy.custom_session.is_none())
     }

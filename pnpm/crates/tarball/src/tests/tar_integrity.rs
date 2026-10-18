@@ -115,3 +115,38 @@ async fn a_tar_split_across_gzip_members_is_hashed_whole() {
         .expect("every member is part of the tar");
     assert_eq!(integrity, ArchiveIntegrity { resource: sha512(&tgz), tar: Some(sha512(&tar)) });
 }
+
+/// Checked as the resource, a `.tgz` installs from its first gzip member on
+/// both the in-memory and the streaming path, and a later member leaves it
+/// without a tar.
+#[tokio::test]
+async fn a_resource_pin_extracts_the_first_member_only() {
+    for tar in [small_tar(), large_tar()] {
+        let mut tgz = gzip_bytes(&tar);
+        tgz.extend(gzip_bytes(b"later member"));
+        let integrity = fetch_tgz(tgz.clone(), Some(&sha512(&tgz)), IntegrityKind::Resource)
+            .await
+            .expect("the first member is a complete tar");
+        assert_eq!(integrity.tar, None);
+    }
+}
+
+/// A `file:` tarball read as the resource keeps tolerating data after its
+/// gzip stream; only its tar's hash needs the whole stream.
+#[tokio::test]
+async fn a_local_tarball_with_trailing_data_resolves_as_the_resource() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("pkg.tgz");
+    let mut tgz = gzip_bytes(&small_tar());
+    tgz.extend_from_slice(b"trailing garbage");
+    std::fs::write(&path, &tgz).unwrap();
+
+    let metadata = crate::read_local_tarball_metadata(&path, IntegrityKind::Resource)
+        .await
+        .expect("the resource needs no tar");
+    assert_eq!(metadata.integrity, sha512(&tgz));
+    let error = crate::read_local_tarball_metadata(&path, IntegrityKind::Tar)
+        .await
+        .expect_err("a tar hash needs the whole gzip stream");
+    assert!(matches!(error, TarballError::IncompleteTar { .. }), "{error:?}");
+}

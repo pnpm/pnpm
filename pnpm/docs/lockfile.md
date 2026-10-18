@@ -136,8 +136,8 @@ The `integrity` of a package tarball entry pins the resource at its tarball URL,
 after HTTP content decoding. That is a `.tgz` on most registries and a tar on
 [tar registries](./registries.md#tar-registries). With
 [`lockfile.integrityTarget: tar`](./settings/store.md#lockfileintegritytarget),
-it pins the uncompressed tar of every package, and the lockfile records that in
-its `settings`:
+it pins the uncompressed tar of every registry package, `tarball:` URL, and
+`file:` tarball, and the lockfile records that in its `settings`:
 
 ```yaml title="pnpm-lock.yaml"
 settings:

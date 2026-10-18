@@ -219,6 +219,12 @@ pub(crate) type GzipExtraction =
 /// when it is the whole archive. The eager decoder reads one gzip member and
 /// skips its checksum, so the member's trailer, which is the archive's last 8
 /// bytes only if the member is the only one, must describe exactly `tar_data`.
+///
+/// The decoder does not report where the member ends, so a publisher can
+/// append data whose last 8 bytes repeat the trailer. The tar recorded for
+/// such an archive is then its first member, which a tar pin checked by the
+/// streaming decoder rejects: the mistake fails installs, it never changes
+/// what they install.
 fn eager_tar_integrity(gz_data: &[u8], tar_data: &[u8]) -> Result<Integrity, TarballError> {
     let incomplete = |reason: &str| TarballError::IncompleteTar {
         url: String::new(),

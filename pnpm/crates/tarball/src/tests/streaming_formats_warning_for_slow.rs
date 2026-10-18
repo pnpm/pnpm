@@ -729,8 +729,9 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("missing.tgz");
 
-    let err =
-        read_local_tarball_metadata(&tarball_path).await.expect_err("a missing tarball must fail");
+    let err = read_local_tarball_metadata(&tarball_path, crate::IntegrityKind::Resource)
+        .await
+        .expect_err("a missing tarball must fail");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
             assert_eq!(path, tarball_path);

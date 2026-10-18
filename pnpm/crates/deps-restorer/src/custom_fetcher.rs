@@ -316,7 +316,6 @@ async fn fetch_location<Reporter: self::Reporter>(
     let url = local_file_tarball_install_url(location.tarball.as_str().into(), lockfile_dir);
     IngestTarballToStore {
         package: pnpm_tarball::TarballPackage {
-            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: download.package.integrity.or_else(|| {
                 location.integrity
                     .as_ref()

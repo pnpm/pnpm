@@ -319,10 +319,9 @@ async fn resolve_local_tarball(
     // kinds of missing `file:` target share one error code.
     let LocalTarballMetadata {
         integrity,
-        tar_integrity,
         manifest,
         has_manifest_entry,
-    } = match read_local_tarball_metadata(&spec.fetch_spec).await {
+    } = match read_local_tarball_metadata(&spec.fetch_spec, integrity_target.into()).await {
         Ok(metadata) => metadata,
         Err(err) if is_missing_tarball(&err) => {
             return Err(ResolveLocalError::LinkedPkgDirNotFound {
@@ -340,10 +339,7 @@ async fn resolve_local_tarball(
         normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: spec.id.as_str().to_string(),
-            integrity: Some(match integrity_target {
-                IntegrityTarget::Resource => integrity,
-                IntegrityTarget::Tar => tar_integrity,
-            }),
+            integrity: Some(integrity),
             revision: None,
             git_hosted: None,
             path: None,

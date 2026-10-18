@@ -5,8 +5,8 @@
 pub use env::merge_env_lockfile_changes;
 
 use crate::{
-    Lockfile, LockfileExtra, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    Lockfile, LockfileExtra, LockfileVersion, PackageKey, PackageMetadata, ProjectSnapshot,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use node_semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
@@ -33,6 +33,14 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         (ours, theirs) if ours == theirs => ours,
         _ => Some(true),
     };
+    // A side whose integrities name another hash cannot lend its entries:
+    // the merged lockfile would pin both kinds. The resolution that follows
+    // every merge resolves what is left out again.
+    let their_graph = if ours.integrity_target() == theirs.integrity_target() {
+        TheirGraph { packages: theirs.packages.as_ref(), snapshots: theirs.snapshots.as_ref() }
+    } else {
+        TheirGraph { packages: None, snapshots: None }
+    };
     let mut lockfile = Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
         pnpmfile_checksum: ours.pnpmfile_checksum
@@ -43,8 +51,8 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
             theirs.ignored_optional_dependencies.as_deref(),
         ),
         importers: merge_importers(&ours.importers, &theirs.importers),
-        packages: merge_maps(ours.packages.as_ref(), theirs.packages.as_ref(), spread),
-        snapshots: merge_maps(ours.snapshots.as_ref(), theirs.snapshots.as_ref(), merge_snapshot),
+        packages: merge_maps(ours.packages.as_ref(), their_graph.packages, spread),
+        snapshots: merge_maps(ours.snapshots.as_ref(), their_graph.snapshots, merge_snapshot),
         settings: merge_settings(ours.settings.as_ref(), theirs.settings.as_ref()),
         catalogs: merge_catalogs(ours.catalogs.as_ref(), theirs.catalogs.as_ref()),
         overrides: merge_overrides(ours.overrides.as_ref(), theirs.overrides.as_ref()),
@@ -59,7 +67,15 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         extra: merge_extra(&ours.extra, &theirs.extra),
     };
     lockfile.set_untracked_pnpmfile_read_package_hook(untracked_hook);
+    if let Some(settings) = &mut lockfile.settings {
+        settings.integrity_target = ours.settings.as_ref().and_then(|ours| ours.integrity_target);
+    }
     lockfile
+}
+
+struct TheirGraph<'a> {
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
 }
 
 /// Union the top-level keys pnpm does not define, ours winning a conflict —

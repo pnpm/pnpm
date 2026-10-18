@@ -215,10 +215,9 @@ pub async fn read_subdir_manifest(
 /// its root `package.json`.
 #[derive(Debug)]
 pub struct LocalTarballMetadata {
+    /// The hash the requested [`IntegrityKind`](crate::IntegrityKind) names:
+    /// the file's, or that of the tar the file holds.
     pub integrity: Integrity,
-    /// The integrity of the tar the file holds: the file itself when it is a
-    /// tar, its whole gzip-decoded stream when it is a `.tgz`.
-    pub tar_integrity: Integrity,
     /// `None` when the narrowing kept nothing — the archive has no root
     /// `package.json`, or one that is not a JSON object, or one whose
     /// every field was dropped.
@@ -249,6 +248,7 @@ pub struct LocalTarballMetadata {
 /// row written here would never be read.
 pub async fn read_local_tarball_metadata(
     path: &Path,
+    kind: crate::IntegrityKind,
 ) -> Result<LocalTarballMetadata, TarballError> {
     let package_url = format!("file:{}", path.display());
     // pnpm names the plain filesystem path — not the `file:` URL — when
@@ -262,11 +262,15 @@ pub async fn read_local_tarball_metadata(
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
     spawn_extraction(post_download_permit, move || {
-        let integrity = verify_tarball_integrity(&buffer, None, package_url.clone())?;
-        let tar_integrity = check_tar_integrity(buffer.as_slice(), None, &package_url)?;
+        let integrity = match kind {
+            crate::IntegrityKind::Resource => verify_tarball_integrity(&buffer, None, package_url)?,
+            crate::IntegrityKind::Tar | crate::IntegrityKind::ResourceOrTar => {
+                check_tar_integrity(buffer.as_slice(), None, &package_url)?
+            }
+        };
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
-        Ok(LocalTarballMetadata { integrity, tar_integrity, manifest, has_manifest_entry })
+        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
     })
     .await
     .map_err(TarballError::TaskJoin)?
@@ -421,12 +425,14 @@ pub fn verify_local_file_integrity(
 }
 
 /// Hash the tar `archive` holds, decoding every gzip member of a `.tgz`,
-/// and check it against `expected` when there is one.
+/// and check it against `expected` when there is one. A tar decoding past
+/// the default [`TarLimits`](crate::TarLimits) fails.
 pub(crate) fn check_tar_integrity(
     archive: impl Read,
     expected: Option<&Integrity>,
     package_url: &str,
 ) -> Result<Integrity, TarballError> {
+    let limit = crate::TarLimits::default().max_decoded();
     let mut archive = io::BufReader::new(archive);
     let gzip = io::BufRead::fill_buf(&mut archive)
         .map_err(TarballError::ReadTarballEntries)?
@@ -434,14 +440,17 @@ pub(crate) fn check_tar_integrity(
     let mut hasher = crate::BodyHasher::new(expected);
     let mut sink = HasherSink(&mut hasher);
     let copied = if gzip {
-        io::copy(&mut flate2::read::MultiGzDecoder::new(archive), &mut sink)
+        io::copy(&mut flate2::read::MultiGzDecoder::new(archive).take(limit + 1), &mut sink)
     } else {
-        io::copy(&mut archive, &mut sink)
+        io::copy(&mut archive.take(limit + 1), &mut sink)
     };
-    copied.map_err(|error| TarballError::IncompleteTar {
+    let copied = copied.map_err(|error| TarballError::IncompleteTar {
         url: package_url.to_string(),
         reason: error.to_string(),
     })?;
+    if copied > limit {
+        return Err(TarballError::ArchiveLimit(crate::ArchiveLimit::Payload(limit)));
+    }
     hasher.finish(package_url)
 }
 
