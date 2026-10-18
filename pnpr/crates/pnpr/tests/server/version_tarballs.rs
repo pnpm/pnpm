@@ -2,7 +2,14 @@ use super::{
     Body, Duration, Registries, Registry, Request, ServiceExt, StatusCode, TempDir, body_bytes,
     config_for, json, router, sha512_integrity,
 };
-use std::io::Write;
+use std::{
+    io::Write,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 async fn get(app: &axum::Router, uri: &str) -> axum::response::Response {
     app.clone()
@@ -321,6 +328,92 @@ async fn a_version_with_path_segments_is_not_found() {
         let response = get(&app, &format!("/foo@x{separator}{climb}secret")).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "separator {separator}");
     }
+}
+
+/// A manifest whose integrity does not parse leaves the version to the
+/// packument.
+#[tokio::test]
+async fn a_version_manifest_with_a_malformed_integrity_is_not_served() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let url = upstream.url();
+    let manifest = json!({ "name": "foo", "version": "1.0.0", "dist": {
+        "tarball": format!("{url}/foo/-/foo-1.0.0.tgz"),
+        "integrity": "not an integrity",
+    } });
+    upstream
+        .mock("GET", "/foo/1.0.0")
+        .with_header("content-type", "application/json")
+        .with_body(manifest.to_string())
+        .create_async()
+        .await;
+    mock_foo(&mut upstream, &tgz).await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&url, tmp.path().to_path_buf()));
+
+    let response = get(&app, "/foo@1.0.0").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, tgz);
+}
+
+/// An upstream that drops the manifest's connection would drop the
+/// packument's too, so the stale cached packument answers at once.
+#[tokio::test]
+async fn an_unreachable_manifest_serves_the_stale_packument() {
+    let tgz = gzip(b"foo");
+    let (url, packument_fetches) = spawn_upstream_without_manifests(tgz.clone()).await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&url, tmp.path().to_path_buf());
+    config.http.packument_ttl = Duration::ZERO;
+    let graph = vec![
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        ("zstd".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] }),
+    ];
+    config.routing.registries = Registries::new(graph.into_iter().collect(), None);
+    config.routing.tar_registries.insert("zstd".to_string());
+    let app = router(config);
+
+    for _ in 0..2 {
+        let response = get(&app, "/~zstd/foo@1.0.0").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, b"foo");
+    }
+    assert_eq!(packument_fetches.load(Ordering::SeqCst), 1);
+}
+
+/// An upstream serving `foo`'s packument and tarball. It counts packument
+/// requests and closes every other connection unanswered.
+async fn spawn_upstream_without_manifests(tgz: Vec<u8>) -> (String, Arc<AtomicUsize>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let packument = packument(&url, "foo-1.0.0.tgz", &tgz).into_bytes();
+    let fetches = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&fetches);
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let (packument, tgz, counter) = (packument.clone(), tgz.clone(), Arc::clone(&counter));
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 4096];
+                let read = socket.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..read]).into_owned();
+                let body = if request.starts_with("GET /foo HTTP/") {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    packument
+                } else if request.starts_with("GET /foo/-/foo-1.0.0.tgz HTTP/") {
+                    tgz
+                } else {
+                    return;
+                };
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len(),
+                );
+                let _ = socket.write_all(head.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+            });
+        }
+    });
+    (url, fetches)
 }
 
 fn cached_files_containing(dir: &std::path::Path, needle: &[u8]) -> Vec<std::path::PathBuf> {

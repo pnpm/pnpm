@@ -15,9 +15,10 @@ use cache::DistOrigin;
 use super::{
     Action, AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, FetchOutcome,
     HeaderMap, Identity, PackumentDists, RegistryError, RegistrySource, Response, StatusCode,
-    TarSource, TarballOrigin, TgzTrust, UpstreamTarball, Value, addressed_registry, authorize,
-    authorized_upstream, cached_upstream_tarball, caller_scoped, declared_tarball_integrity,
-    ensure_osv_allowed, is_tar_registry, not_found, read_source_packument, resolve_registry_source,
+    TarSource, TarballOrigin, TgzTrust, Upstream, UpstreamTarball, Value, addressed_registry,
+    authorize, authorized_upstream, cached_upstream_tarball, caller_scoped,
+    declared_tarball_integrity, ensure_osv_allowed, is_tar_registry, not_found,
+    read_source_packument, recover_stale_upstream_packument, resolve_registry_source,
     serve_bound_upstream_tarball, serve_registry_tarball, tar_decode_limit, tar_response,
     tarball_basename, tarball_cache_name, tgz_integrity_key, timed, upstream_cache_namespace,
 };
@@ -160,7 +161,9 @@ impl VersionRequest<'_> {
         {
             return Ok(Some(tgz));
         }
-        let Some((tgz, origin)) = self.read_version_tgz(source, name, stamp).await? else {
+        let Some((tgz, origin)) =
+            self.read_version_tgz(source, name, cached.as_ref(), stamp).await?
+        else {
             return Ok(None);
         };
         let tgz = Arc::new(tgz);
@@ -179,15 +182,14 @@ impl VersionRequest<'_> {
         &self,
         source: &RegistrySource,
         name: &CanonicalPackageName,
+        cached: Option<&CachedPackument>,
         stamp: Option<DocumentStamp>,
     ) -> Result<Option<(VersionTgz, Option<DistOrigin>)>, RegistryError> {
         if stamp.is_none()
-            && let RegistrySource::Upstream(upstream) = source
+            && let RegistrySource::Upstream(id) = source
+            && let Some(read) = self.read_version_manifest(id, name, cached).await
         {
-            let fetched = Instant::now();
-            if let Some(tgz) = self.fetch_version_manifest(upstream, name).await {
-                return Ok(Some((tgz, Some(DistOrigin::VersionManifest(fetched)))));
-            }
+            return Ok(Some(read));
         }
         let Some(packument) = read_source_packument(self.state, self.identity, source, name).await?
         else {
@@ -198,14 +200,38 @@ impl VersionRequest<'_> {
         Ok(version_tgz(&packument, self.version).map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
     }
 
-    /// The version's dist from `<upstream>/<name>/<version>`, or `None` when
-    /// the upstream does not serve one with an integrity.
+    /// The version's dist from its manifest, or from the stale cached
+    /// packument when the upstream is unreachable. `None` leaves the version
+    /// to its packument.
+    async fn read_version_manifest(
+        &self,
+        id: &str,
+        name: &CanonicalPackageName,
+        cached: Option<&CachedPackument>,
+    ) -> Option<(VersionTgz, Option<DistOrigin>)> {
+        let upstream = authorized_upstream(self.state, self.identity, id).ok()?;
+        let fetched = Instant::now();
+        let err = match self.fetch_version_manifest(upstream, name).await {
+            ManifestRead::Dist(tgz) => {
+                return Some((tgz, Some(DistOrigin::VersionManifest(fetched))));
+            }
+            ManifestRead::Unreachable(err) => err,
+            ManifestRead::Unusable => return None,
+        };
+        // A packument fetch would wait on the same upstream again.
+        let stale =
+            recover_stale_upstream_packument(self.state, &cached?.namespace, upstream, name, err)
+                .await
+                .ok()??;
+        version_tgz(&stale, self.version).map(|tgz| (tgz, None))
+    }
+
+    /// The version's dist from `<upstream>/<name>/<version>`.
     async fn fetch_version_manifest(
         &self,
-        upstream: &str,
+        upstream: &Upstream,
         name: &CanonicalPackageName,
-    ) -> Option<VersionTgz> {
-        let upstream = authorized_upstream(self.state, self.identity, upstream).ok()?;
+    ) -> ManifestRead {
         let path = format!("{}/{}", name.as_str(), self.version);
         let fetched = timed(
             "version_manifest:upstream_fetch",
@@ -214,11 +240,21 @@ impl VersionRequest<'_> {
         )
         .await;
         match fetched {
-            Ok(FetchOutcome::Ok(manifest)) => version_manifest_tgz(&manifest.bytes, self.version),
-            Ok(FetchOutcome::NotFound) => None,
+            Ok(FetchOutcome::Ok(manifest)) => version_manifest_tgz(&manifest.bytes, self.version)
+                .map_or(ManifestRead::Unusable, ManifestRead::Dist),
+            Ok(FetchOutcome::NotFound) => ManifestRead::Unusable,
+            // A status, even a 5xx, may only mean the upstream serves no
+            // manifests, so its packument is fetched.
+            Err(
+                err @ (RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. }),
+            ) => ManifestRead::Unreachable(err),
             Err(err) => {
-                tracing::debug!(?err, package = %name.as_str(), "version manifest fetch failed");
-                None
+                tracing::debug!(
+                    error = %err.log_message(),
+                    package = %name.as_str(),
+                    "version manifest fetch failed",
+                );
+                ManifestRead::Unusable
             }
         }
     }
@@ -329,6 +365,15 @@ fn keeps_content(state: &AppState, source: &RegistrySource) -> bool {
     }
 }
 
+/// What an upstream's version manifest says about the requested version.
+enum ManifestRead {
+    Dist(VersionTgz),
+    /// No connection to the upstream, or its circuit is open.
+    Unreachable(RegistryError),
+    /// No manifest, or none the route can serve, so the packument decides.
+    Unusable,
+}
+
 /// Where an upstream's cached packument lives, and how long it stays fresh.
 struct CachedPackument {
     namespace: String,
@@ -355,12 +400,13 @@ struct VersionManifest {
 
 /// The dist of a version manifest for `version`. An upstream resolves a
 /// dist-tag at the same URL, so a manifest of another version is refused. A
-/// dist without an integrity is left to the packument, which carries the
+/// dist without a valid integrity is left to the packument, which carries the
 /// integrity pnpr pins for it.
 fn version_manifest_tgz(manifest: &[u8], version: &str) -> Option<VersionTgz> {
     let manifest: VersionManifest = serde_json::from_slice(manifest).ok()?;
     let dist = manifest.dist.filter(|dist| dist.integrity.is_some())?;
-    (manifest.version == version).then(|| dist_tgz(dist))?
+    let tgz = (manifest.version == version).then(|| dist_tgz(dist))??;
+    tgz.integrity_key.is_some().then_some(tgz)
 }
 
 fn dist_tgz(dist: DistBlock) -> Option<VersionTgz> {

@@ -94,7 +94,7 @@ mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
     load_packument_for_read, load_upstream_packument, read_source_packument,
-    serve_packument_via_upstream,
+    recover_stale_upstream_packument, serve_packument_via_upstream,
 };
 
 mod request_access;
