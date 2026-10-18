@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
@@ -36,6 +36,13 @@ for (const suffix of [
   delete process.env[`pnpm_config_${suffix}`]
   delete process.env[`PNPM_CONFIG_${suffix.toUpperCase()}`]
 }
+// The developer's global config.yaml would replace the defaults these tests
+// assert, so the global config is read from an empty directory instead.
+const isolatedConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-config-reader-'))
+process.env.XDG_CONFIG_HOME = isolatedConfigHome
+afterAll(() => {
+  fs.rmSync(isolatedConfigHome, { recursive: true, force: true })
+})
 
 const env = {
   PNPM_HOME: import.meta.dirname,
