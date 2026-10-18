@@ -377,7 +377,7 @@ fn extract_zip_rejects_files_past_the_payload_limit() {
 
     assert!(
         matches!(error, TarballError::ArchiveLimit(ArchiveLimit::Payload(1000))),
-        "got {error:?}"
+        "got {error:?}",
     );
     drop(tempdir);
 }

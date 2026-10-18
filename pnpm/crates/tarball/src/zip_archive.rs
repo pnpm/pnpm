@@ -40,7 +40,7 @@ pub(crate) fn extract_zip_entries(
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let entry_count = archive.len();
     let mut extracted = ExtractedEntries::with_capacity(entry_count);
-    let budget = crate::extract::limits::TarBudget::new(limits);
+    let budget = crate::extract::TarBudget::new(limits);
 
     // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
     // keeping entry paths verbatim when there is no prefix. The
