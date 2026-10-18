@@ -52,6 +52,7 @@ fn seed_store_row(config: &Config, package_key: &PackageKey) -> String {
                 files,
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .expect("seed store index");

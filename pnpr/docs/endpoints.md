@@ -185,7 +185,7 @@ are checked against the serving registry's matching
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and, since v0.1.0-alpha.11, the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable artifact by its base64url SHA-512 digest, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). Not served by a tar registry. |
+| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -202,15 +202,32 @@ and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
 Since v0.1.0-alpha.8, the digest route answers integrity-addressed
-[registry revisions](/registry-revisions). For a proxied upstream registry, pnpr
-forwards the request with its own credentials, verifies the integrity, and
-caches the object; for a hosted registry, every publish seals a durable
-package/version reference under the artifact's SHA-512 digest, so a digest is
-resolved with one bounded index read rather than a scan over packuments. Before
-the bytes are served, pnpr revalidates the current packument, the revision
-history, the caller's access, registry routing, and OSV policy — so a digest URL
-is not a way around any of them. Every 3xx fails a digest fetch on the client
-side, same-origin included.
+[registry revisions](/registry-revisions). The digest is the SHA-512 of the
+uncompressed tar, on every registry, `.tgz` and tar registries alike. The
+response is the tar with `Content-Type: application/x-tar`, sent with the
+`gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
+none, and `Vary: Accept-Encoding`. It carries no `ETag`, and a `Range` request
+gets the whole body.
+
+For a proxied upstream registry, pnpr forwards the request with its own
+credentials and accepts a gzip-encoded or plain tar. It decodes the whole
+response and checks the tar against the digest before it caches or serves any
+of it. For a hosted registry, every publish decodes the `.tgz` and seals a
+durable package/version reference under the digest of its tar, so a digest is
+resolved with one bounded index read rather than a scan over packuments. A
+`.tgz` whose gzip stream does not decode in full has no tar, and gets no
+reference. Before the bytes are served, pnpr revalidates the current packument,
+the caller's access, registry routing, and OSV policy, so a digest URL is not a
+way around any of them. Every 3xx fails a digest fetch on the client side,
+same-origin included.
+
+Package metadata keeps an upstream's revision fields only when they form a
+complete revision record: `dist.revision`, including `0` for the original, a
+`dist.tarball` on the digest route, and a `dist.revisions` history that lists
+revision `0` once and the selected revision once. Such a version's `dist`
+omits `shasum` and `signatures`, which describe a `.tgz`, on either registry
+format. Any other version is served as ordinary metadata, without `revision`
+or `revisions`.
 
 ## Registry write endpoints
 

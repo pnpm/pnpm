@@ -186,6 +186,7 @@ async fn ingest_crate<Reporter: self::Reporter + 'static>(
     let cas_paths = IngestTarballToStore {
         fetching: options.fetching.archive_options(),
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: Some(&integrity),
             unpacked_size: None,
             file_count: None,

@@ -72,21 +72,12 @@ export interface PublishedAtLookupContext {
   fullMetaForTrustCache: Map<string, Promise<PackageMeta>>
 }
 
-export interface RegistryArtifact {
-  revision: unknown
-  integrity: unknown
-  tarball: unknown
-}
-
-export interface RegistryArtifactHistory {
-  current: RegistryArtifact
-  revisions: RegistryArtifact[]
-}
-
 interface AbbreviatedMetaProjection {
   modified?: string
-  /** version → current and historical registry artifacts. */
-  versionArtifacts?: Map<string, RegistryArtifactHistory>
+  /** version → `dist.tarball`. */
+  versionTarballs?: Map<string, unknown>
+  /** Versions whose metadata selects a registry revision. */
+  revisionVersions?: Set<string>
 }
 
 /**
@@ -310,7 +301,7 @@ async function tryAbbreviatedModifiedShortcut (
   const modifiedMs = Date.parse(modified)
   if (Number.isNaN(modifiedMs)) return undefined
   if (modifiedMs >= context.cutoffMs) return undefined
-  if (!meta?.versionArtifacts?.has(version)) return undefined
+  if (!meta?.versionTarballs?.has(version)) return undefined
   return modified
 }
 
@@ -420,39 +411,25 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
 function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
   return {
     modified: meta.modified,
-    versionArtifacts: meta.versions ? projectVersionArtifacts(meta.versions) : undefined,
+    versionTarballs: meta.versions ? projectVersionTarballs(meta.versions) : undefined,
+    revisionVersions: meta.versions ? projectRevisionVersions(meta.versions) : undefined,
   }
 }
 
-function projectVersionArtifacts (
-  versions: Record<string, PackageInRegistry>
-): Map<string, RegistryArtifactHistory> {
-  const versionArtifacts = new Map<string, RegistryArtifactHistory>()
+function projectRevisionVersions (versions: Record<string, PackageInRegistry>): Set<string> {
+  const revisionVersions = new Set<string>()
   for (const [version, manifest] of Object.entries(versions)) {
-    if (manifest != null) versionArtifacts.set(version, projectArtifactHistory(manifest))
+    if (manifest?.dist?.revision != null || manifest?.dist?.revisions != null) revisionVersions.add(version)
   }
-  return versionArtifacts
+  return revisionVersions
 }
 
-function projectArtifactHistory (manifest: PackageInRegistry): RegistryArtifactHistory {
-  return {
-    current: {
-      revision: manifest.dist?.revision,
-      integrity: manifest.dist?.integrity,
-      tarball: manifest.dist?.tarball,
-    },
-    revisions: Array.isArray(manifest.dist?.revisions)
-      ? manifest.dist.revisions.map(projectRegistryArtifact)
-      : [],
+function projectVersionTarballs (versions: Record<string, PackageInRegistry>): Map<string, unknown> {
+  const versionTarballs = new Map<string, unknown>()
+  for (const [version, manifest] of Object.entries(versions)) {
+    if (manifest != null) versionTarballs.set(version, manifest.dist?.tarball)
   }
-}
-
-function projectRegistryArtifact (artifact: RegistryArtifact): RegistryArtifact {
-  return {
-    revision: artifact.revision,
-    integrity: artifact.integrity,
-    tarball: artifact.tarball,
-  }
+  return versionTarballs
 }
 
 function readLocalMetaTime (

@@ -5,10 +5,9 @@ use super::{
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
     StatusCode, TargetRegistry, addressed_registry, authorize_package, caller_scoped,
     check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, hosted_storage,
-    is_tar_registry, not_found, private_no_cache, publish_package, remove_dist_tag,
-    resolve_write_target, serve_package_tarball, serve_packument, serve_revision_tarball,
-    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
-    update_packument,
+    not_found, private_no_cache, publish_package, remove_dist_tag, resolve_write_target,
+    serve_package_tarball, serve_packument, serve_revision_tarball, serve_search, serve_tarball,
+    serve_version_manifest, set_dist_tag, split_package_identifier, update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -173,14 +172,12 @@ pub(super) async fn get_revision_tarball(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<DigestPath>,
+    headers: HeaderMap,
 ) -> Response {
     let Some(target) = addressed_registry(&state, registry.as_deref(), Ecosystem::Npm) else {
         return not_found();
     };
-    if is_tar_registry(&state, &target) {
-        return not_found();
-    }
-    serve_revision_tarball(&state, &identity, &target, &path.digest).await
+    serve_revision_tarball(&state, &identity, &headers, &target, &path.digest).await
 }
 
 /// `GET {base}/-/v1/search`.

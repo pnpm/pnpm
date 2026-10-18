@@ -60,7 +60,6 @@ export async function install (
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
         update: opts.update,
-        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
@@ -93,7 +92,6 @@ export async function mutateModulesInSingleProject (
       {
         ...project,
         update: maybeOpts.update,
-        updatePatches: maybeOpts.updatePatches,
         updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
@@ -143,7 +141,6 @@ export async function addDependenciesToPackage (
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
-        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,

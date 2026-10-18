@@ -307,7 +307,7 @@ impl VersionRequest<'_> {
             None => false,
         };
         TarSource {
-            name,
+            name: Some(name),
             tgz_integrity: tgz.integrity_key.clone(),
             keeps_content: keeps_content(self.state, source),
             trust,

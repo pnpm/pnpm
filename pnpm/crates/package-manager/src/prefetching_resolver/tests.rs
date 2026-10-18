@@ -515,9 +515,13 @@ async fn reads_a_revision_addressed_tarball_under_its_own_network_policy() {
     let mut server = mockito::Server::new_async().await;
     let tarball_path = "/revision-1.0.0.tgz";
     let body = tarball_with_a_dependency("revision");
+    // A revision pins its tar, whatever the response compresses it with.
+    let mut tar = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(body.as_slice()), &mut tar)
+        .expect("gunzip the fixture");
     let integrity = ssri::IntegrityOpts::new()
         .algorithm(ssri::Algorithm::Sha512)
-        .chain(&body)
+        .chain(&tar)
         .result()
         .to_string();
     let tarball_url = format!("{}{tarball_path}", server.url());

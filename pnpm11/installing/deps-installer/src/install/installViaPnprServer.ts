@@ -288,7 +288,6 @@ function createResolveRequest (
     // lockfile it promises to leave alone.
     frozenLockfile,
     preferFrozenLockfile: opts.preferFrozenLockfile,
-    updatePatches: opts.updatePatches,
     lockfile: existingLockfile ?? undefined,
   }
 }

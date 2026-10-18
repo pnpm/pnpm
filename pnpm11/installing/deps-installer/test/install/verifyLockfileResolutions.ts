@@ -126,7 +126,6 @@ test('throws a generic code with per-entry codes in the breakdown when violation
 test.each([
   'MISSING_TARBALL_INTEGRITY',
   'TARBALL_URL_MISMATCH',
-  'TARBALL_REVISION_MISMATCH',
   'MISSING_NAMED_REGISTRY',
 ])('does not suggest relaxing a policy for %s, alone or in a mixed batch', async (code) => {
   const lockfile = makeLockfile({

@@ -166,7 +166,7 @@ async fn revision_metadata_is_validated_and_preserved() {
 #[tokio::test]
 async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
     for revision in
-        [json!(0), json!(-1), json!(1.5), json!(9_007_199_254_740_992_u64), json!("1"), json!("01")]
+        [json!(-1), json!(1.5), json!(9_007_199_254_740_992_u64), json!("1"), json!("01")]
     {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());

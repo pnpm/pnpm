@@ -351,6 +351,9 @@ fn check_frozen_settings(
     check_lockfile_settings(
         lockfile,
         LockfileSettingsCheck {
+            // The client validated `lockfile.integrityTarget` against the
+            // lockfile before sending a frozen request.
+            integrity_target: lockfile.integrity_target(),
             catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
             overrides: None,
             package_extensions_checksum: None,

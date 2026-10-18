@@ -1,10 +1,16 @@
+pub(crate) use gzip_members::stream_extract_gzipped_tarball_with_tar;
+
 use super::{
     Archive, BuildTriggers, CafsFileInfo, GZIP_MAGIC, HashMap, IgnoreEntryFilter,
     PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TAR_BLOCK, TarBudget, TarLimits,
     TarballError, check_trailer, clean_archive_entry_path, file_mode, is_tar_block,
     write_pending_files,
 };
-use crate::{BodyHasher, content_coding::ContentCoding};
+use crate::{
+    ArchiveIntegrity, BodyHasher, IntegrityKind,
+    archive_integrity::{ArchiveHashers, ArchiveVerification},
+    content_coding::ContentCoding,
+};
 use ssri::Integrity;
 
 /// Body chunks in flight between the download loop and the extractor.
@@ -84,7 +90,7 @@ impl Read for ChannelBytesReader {
 pub(crate) fn stream_extract_channel(
     rx: BodyChunkReceiver,
     content_coding: ContentCoding,
-    resource: StreamedResource<'_>,
+    resource: &StreamedResource<'_>,
 ) -> ExtractedResource {
     let package_url = resource.package_url;
     match content_coding.decode(ChannelBytesReader::new(rx)) {
@@ -101,7 +107,7 @@ pub(crate) fn stream_extract_channel(
 
 /// What one streamed extraction checks the resource against and writes it to.
 pub(crate) struct StreamedResource<'a> {
-    pub(crate) hasher: BodyHasher,
+    pub(crate) verification: ArchiveVerification,
     pub(crate) package_url: &'a str,
     pub(crate) limits: TarLimits,
     pub(crate) store_dir: &'a StoreDir,
@@ -111,8 +117,8 @@ pub(crate) struct StreamedResource<'a> {
 /// The two verdicts on a streamed resource. They are kept apart so the caller
 /// can rank an integrity mismatch above whatever it made the extractor do.
 pub(crate) struct ExtractedResource {
-    pub(crate) integrity: Result<Integrity, TarballError>,
-    pub(crate) extracted: Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
+    pub(crate) integrity: Result<ArchiveIntegrity, TarballError>,
+    pub(crate) extracted: Extraction,
 }
 
 impl ExtractedResource {
@@ -131,62 +137,96 @@ impl ExtractedResource {
 /// it as a `.tgz` when it opens with the gzip magic and as a tar otherwise.
 ///
 /// The hash covers the whole resource, so what is left after the archive
-/// ends is read too, up to the non-payload limit.
+/// ends is read too, up to the non-payload limit. A `.tgz` is hashed a second
+/// time as the tar it decodes to, every gzip member of it.
 pub(crate) fn extract_resource_stream(
-    reader: impl Read,
-    resource: StreamedResource<'_>,
+    mut reader: impl Read,
+    resource: &StreamedResource<'_>,
 ) -> ExtractedResource {
-    let StreamedResource {
-        hasher,
-        package_url,
-        limits,
-        store_dir,
-        ignore_file_pattern,
-    } = resource;
-    let mut hashing = HashingReader { inner: reader, hasher };
     let mut head = [0u8; TAR_BLOCK];
-    let extracted = read_prefix(&mut hashing, &mut head)
-        .and_then(|head_len| {
-            let prefix = &head[..head_len];
-            if !prefix.starts_with(&GZIP_MAGIC) && !prefix.is_empty() && !is_tar_block(prefix) {
-                return Err(TarballError::UnrecognizedArchive);
-            }
-            let body = prefix.chain(&mut hashing);
-            if prefix.starts_with(&GZIP_MAGIC) {
-                extract_tarball_entries_streaming(
-                    flate2::read::GzDecoder::new(body),
-                    limits,
-                    store_dir,
-                    ignore_file_pattern,
-                )
-            } else {
-                extract_tarball_entries_streaming(
-                    body,
-                    limits.for_tar(),
-                    store_dir,
-                    ignore_file_pattern,
-                )
-            }
-        });
-    finish_resource(hashing, extracted, limits.max_non_payload, package_url)
+    let head_len = match read_prefix(&mut reader, &mut head) {
+        Ok(head_len) => head_len,
+        Err(error) => return ExtractedResource::failed(error),
+    };
+    let prefix = &head[..head_len];
+    let gzip = prefix.starts_with(&GZIP_MAGIC);
+    let ArchiveHashers { resource: mut resource_hasher, tar } = resource
+        .verification
+        .hashers(gzip);
+    resource_hasher.input(prefix);
+    let mut hashing = HashingReader { inner: reader, hasher: resource_hasher, failure: None };
+    let (extracted, tar) = if !gzip && !prefix.is_empty() && !is_tar_block(prefix) {
+        (Err(TarballError::UnrecognizedArchive), None)
+    } else {
+        resource.extract(prefix.chain(&mut hashing), tar)
+    };
+    finish_resource(hashing, extracted, tar, resource)
 }
 
-/// Drain what follows the archive into its hash and pair the hash with the
-/// extraction's verdict. A failed drain leaves no hash, and an extraction
+impl StreamedResource<'_> {
+    /// Extract `body`, a tar when `tar_hasher` is `None` and a `.tgz`
+    /// otherwise, and hash the tar a `.tgz` decodes to.
+    fn extract(
+        &self,
+        body: impl Read,
+        tar_hasher: Option<BodyHasher>,
+    ) -> (Extraction, Option<Result<Integrity, TarballError>>) {
+        let Some(tar_hasher) = tar_hasher else {
+            let extracted = extract_tarball_entries_streaming(
+                body,
+                self.limits.for_tar(),
+                self.store_dir,
+                self.ignore_file_pattern,
+            );
+            return (extracted, None);
+        };
+        if self.verification.kind == IntegrityKind::Resource {
+            let (extracted, tar) = extract_first_member(
+                body,
+                tar_hasher,
+                self.limits,
+                self.store_dir,
+                self.ignore_file_pattern,
+                self.package_url,
+            );
+            return (extracted, Some(tar));
+        }
+        let mut tar = HashingReader {
+            inner: flate2::read::MultiGzDecoder::new(body),
+            hasher: tar_hasher,
+            failure: None,
+        };
+        let extracted = extract_tarball_entries_streaming(
+            &mut tar,
+            self.limits,
+            self.store_dir,
+            self.ignore_file_pattern,
+        );
+        let tar = finish_tar_of(&extracted, tar, self.limits, self.package_url);
+        (extracted, Some(tar))
+    }
+}
+
+/// The CAFS files and the store row of one extraction.
+pub(crate) type Extraction = Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>;
+
+/// Drain what follows the archive into its hash and pair the hashes with
+/// the extraction's verdict. A failed drain leaves no hash, and an extraction
 /// error then says why.
 fn finish_resource(
     mut hashing: HashingReader<impl Read>,
-    extracted: Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>,
-    max_non_payload: u64,
-    package_url: &str,
+    extracted: Extraction,
+    tar: Option<Result<Integrity, TarballError>>,
+    resource: &StreamedResource<'_>,
 ) -> ExtractedResource {
-    let integrity = match drain_after_archive(&mut hashing, max_non_payload) {
-        Ok(()) => hashing.hasher.finish(package_url),
+    let integrity = match drain_after_archive(&mut hashing, resource.limits.max_non_payload) {
+        Ok(()) => hashing.hasher.finish(resource.package_url),
         Err(drain) => match extracted {
             Err(error) => return ExtractedResource::failed(error),
             Ok(_) => Err(drain),
         },
     };
+    let integrity = resource.verification.finish(integrity, tar, resource.package_url);
     ExtractedResource { integrity, extracted }
 }
 
@@ -213,15 +253,21 @@ fn drain_after_archive(reader: &mut impl Read, limit: u64) -> Result<(), Tarball
     Ok(())
 }
 
-/// Feeds every byte read through it into a [`BodyHasher`].
+/// Feeds every byte read through it into a [`BodyHasher`], and remembers
+/// the first read error, which a reader above it may swallow.
 struct HashingReader<Inner> {
     inner: Inner,
     hasher: BodyHasher,
+    failure: Option<String>,
 }
 
 impl<Inner: Read> Read for HashingReader<Inner> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let len = self.inner.read(buf)?;
+        let len = self.inner
+            .read(buf)
+            .inspect_err(|error| {
+                self.failure.get_or_insert_with(|| error.to_string());
+            })?;
         self.hasher.input(&buf[..len]);
         Ok(len)
     }
@@ -244,29 +290,6 @@ pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
 /// while typical batches are still large enough for the parallel
 /// CAS-write fan-out to pay off.
 pub(super) const STREAM_BATCH_BUDGET_BYTES: usize = 32 * 1024 * 1024;
-
-/// Decompress and extract a gzipped tarball without materializing the
-/// decompressed archive: [`extract_tarball_entries_streaming`] over a
-/// streaming gzip decoder.
-///
-/// The eager [`decompress_gzip`](crate::extract::decompress_gzip) + [`extract_tarball_entries`](crate::extract::extract_tarball_entries) pair
-/// stays the default for small tarballs, where the whole-archive
-/// buffer is cheap and buys zero-copy payload slices plus one big
-/// parallel write phase; [`should_stream_extract`](crate::extract::should_stream_extract) decides which path
-/// a download takes.
-pub(crate) fn stream_extract_gzipped_tarball(
-    gz_data: &[u8],
-    limits: TarLimits,
-    store_dir: &StoreDir,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    extract_tarball_entries_streaming(
-        flate2::read::GzDecoder::new(gz_data),
-        limits,
-        store_dir,
-        ignore_file_pattern,
-    )
-}
 
 /// Walk a tar stream, writing each regular-file entry into the CAFS
 /// and returning the same outputs as [`extract_tarball_entries`](crate::extract::extract_tarball_entries),
@@ -432,3 +455,7 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
             ))
         })
 }
+
+mod gzip_members;
+
+use gzip_members::{extract_first_member, finish_tar_of};

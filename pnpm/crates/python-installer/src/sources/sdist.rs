@@ -144,6 +144,7 @@ impl Registry<'_> {
         IngestTarballToStore {
             fetching,
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                 integrity: Some(&integrity),
                 unpacked_size: None,
                 file_count: None,

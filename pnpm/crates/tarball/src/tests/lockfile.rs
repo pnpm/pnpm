@@ -31,6 +31,7 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: Some(Arc::clone(&writer)) },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,

@@ -6,7 +6,8 @@ use super::{
 };
 
 /// The tarball's revision, when the registry serves one: it must pair
-/// with a URL addressed by the pick's complete sha512 integrity.
+/// with a URL addressed by the pick's complete sha512 integrity, and a
+/// URL addressed that way must carry a revision.
 pub(super) fn tarball_revision(
     picked: &PackageVersion,
     integrity: Option<&Integrity>,
@@ -17,7 +18,7 @@ pub(super) fn tarball_revision(
         .map(|revision| {
             revision
                 .as_u64()
-                .ok_or_else(|| "the revision is not a positive safe integer".to_string())
+                .ok_or_else(|| "the revision is not a nonnegative safe integer".to_string())
                 .and_then(|revision| {
                     TarballRevision::try_from(revision).map_err(|error| error.to_string())
                 })
@@ -27,17 +28,31 @@ pub(super) fn tarball_revision(
             Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
                 as ResolveError
         })?;
-    if revision.is_some()
-        && !integrity.is_some_and(|integrity| {
-            is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
-        })
-    {
-        return Err(Box::new(InvalidTarballRevisionMetadataError::new(
+    let integrity_addressed = integrity.is_some_and(|integrity| {
+        is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
+    });
+    match (revision, integrity_addressed) {
+        (Some(_), false) => Err(Box::new(InvalidTarballRevisionMetadataError::new(
             &picked.dist.tarball,
             "the URL does not match its complete sha512 integrity and registry",
-        )));
+        ))),
+        (None, _) if is_on_digest_route(&picked.dist.tarball, registry) => {
+            Err(Box::new(InvalidTarballRevisionMetadataError::new(
+                &picked.dist.tarball,
+                "the URL is on the registry's digest route but has no revision",
+            )))
+        }
+        _ => Ok(revision),
     }
-    Ok(revision)
+}
+
+/// Whether `tarball` sits on `registry`'s `-/tarballs/sha512/` route, whatever
+/// digest it names.
+fn is_on_digest_route(tarball: &str, registry: &str) -> bool {
+    let registry = registry.trim_end_matches('/');
+    tarball
+        .strip_prefix(registry)
+        .is_some_and(|path| path.starts_with("/-/tarballs/sha512/"))
 }
 
 pub(super) fn select_package_revision<'a>(
@@ -62,10 +77,10 @@ pub(super) fn select_package_revision<'a>(
             revision: requested,
         }) as ResolveError
     };
-    // A package with no revision history answers only for revision 0, and
-    // only when it carries no revision of its own.
+    // A version outside the revision protocol answers only for revision 0,
+    // which leaves its ordinary resolution unchanged.
     if picked.dist.revisions.is_none() {
-        if requested == 0 && picked.dist.revision.is_none() {
+        if requested == 0 {
             return Ok(Cow::Borrowed(picked));
         }
         return Err(no_matching_revision());
@@ -104,11 +119,7 @@ pub(super) fn apply_revision_record<'a>(
     );
     dist.insert("tarball".to_string(), serde_json::Value::String(record.tarball.to_string()));
     dist.remove("shasum");
-    if requested == 0 {
-        dist.remove("revision");
-    } else {
-        dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
-    }
+    dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
     serde_json::from_value(selected)
         .map(Cow::Owned)
         .map_err(|error| malformed_revision_history(picked, error.to_string()))
@@ -161,11 +172,22 @@ pub(super) fn package_revision_record<'a>(
     validate_package_revision_record(picked, requested, registry, matches[0]).map(Some)
 }
 
+/// A revision-aware version advertises both its selected revision and a
+/// history that holds revision 0 and the selected record; a version
+/// outside the protocol advertises neither.
 pub(super) fn validate_current_package_revision(
     picked: &PackageVersion,
     registry: &str,
 ) -> Result<(), ResolveError> {
-    let Some(raw_revision) = picked.dist.revision.as_ref() else { return Ok(()) };
+    let Some(raw_revision) = picked.dist.revision.as_ref() else {
+        return match picked.dist.revisions {
+            Some(_) => Err(malformed_revision_history(
+                picked,
+                "the revision history has no selected revision",
+            )),
+            None => Ok(()),
+        };
+    };
     let revision = raw_revision
         .as_u64()
         .and_then(|revision| TarballRevision::try_from(revision).ok())
@@ -173,9 +195,12 @@ pub(super) fn validate_current_package_revision(
         .ok_or_else(|| {
             malformed_revision_history(
                 picked,
-                format!("current revision {raw_revision} is not a canonical positive safe integer"),
+                format!("current revision {raw_revision} is not a nonnegative safe integer"),
             )
         })?;
+    if revision != 0 && package_revision_record(picked, 0, registry)?.is_none() {
+        return Err(malformed_revision_history(picked, "the revision history has no revision 0"));
+    }
     let record = package_revision_record(picked, revision, registry)?
         .ok_or_else(|| {
             malformed_revision_history(

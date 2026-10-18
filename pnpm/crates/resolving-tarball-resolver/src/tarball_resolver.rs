@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_resolver_base::{
@@ -37,6 +37,8 @@ pub struct TarballFetchContext {
     /// `<cacheDir>` for the URL → integrity record. `None` in unit tests
     /// that only exercise the HEAD preflight.
     pub cache_dir: Option<PathBuf>,
+    /// Which hash the resolution's integrity names.
+    pub integrity_target: IntegrityTarget,
 }
 
 /// One remote-tarball entry carried over from the prior lockfile.
@@ -174,6 +176,7 @@ impl TarballResolver {
             http_client: &self.http_client,
             store: ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: ctx.integrity_target.into(),
                 integrity: None,
                 unpacked_size: None,
                 file_count: None,

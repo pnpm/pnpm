@@ -12,7 +12,9 @@
 //! as they stream, and a mismatch fails the response. Hosted and freshly
 //! fetched `.tgz` files are already verified, so they are not hashed again.
 
-pub(super) use decode::{MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of};
+pub(super) use decode::{
+    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_resource_integrity,
+};
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
 use axum::body::Body;
@@ -28,7 +30,9 @@ mod verify;
 
 /// The version a tar response serves.
 pub(super) struct TarSource {
-    pub(super) name: CanonicalPackageName,
+    /// The package, which keys the level-19 variant and the tar-integrity
+    /// table. `None` for a revision fetched from an upstream by its digest.
+    pub(super) name: Option<CanonicalPackageName>,
     /// The version's `.tgz` integrity, which keys what is derived from it:
     /// the tar's integrity and the level-19 variant.
     pub(super) tgz_integrity: Option<String>,
@@ -68,12 +72,13 @@ pub(super) async fn tar_response(
     match preferred_coding(headers) {
         TarCoding::Zstd => {
             let mut copy = None;
-            if let Some(key) = source.tgz_integrity.as_deref().filter(|_| source.keeps_content) {
-                if let Some((file, len)) = open_variant(storage, &source.name, key).await {
+            if let (Some(name), Some(key)) = (&source.name, source.tgz_integrity.as_deref())
+                && source.keeps_content
+            {
+                if let Some((file, len)) = open_variant(storage, name, key).await {
                     return encoded_response(tgz, streaming::stream_file(file), Some(len), "zstd");
                 }
-                copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, &source.name, key)
-                    .await;
+                copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, name, key).await;
             }
             decoded_response(state, tgz, source, copy)
         }
@@ -157,7 +162,7 @@ fn decoded_response(
     let runtime = tokio::runtime::Handle::current();
     let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
     let body = gunzip_body(body, derived, decodes, move |tar_integrity| {
-        let Some(key) = tgz_integrity else { return };
+        let (Some(key), Some(name)) = (tgz_integrity, name) else { return };
         runtime.spawn(async move {
             if let Err(err) =
                 storage.record_tar_integrity(&name, &key, &tar_integrity.to_string()).await

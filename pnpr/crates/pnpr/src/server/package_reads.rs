@@ -68,24 +68,20 @@ pub(super) async fn serve_registry_version_manifest(
         Err(err) => return err.into_response(),
     };
     let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
-    let manifest = match view {
-        DistView::Tgz {
-            revision_registry: Some(source_registry),
-        } => extract_upstream_version_manifest(
+    let manifest = match view.revision_registry {
+        Some(source_registry) => extract_upstream_version_manifest(
             &packument,
             &name,
             version_or_tag,
             source_registry,
             tarball_base,
         ),
-        DistView::Tgz { revision_registry: None } | DistView::Tar(_) => {
-            extract_version_manifest(&packument, &name, version_or_tag, tarball_base)
-        }
+        None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
     };
     let Some(mut manifest) = manifest else {
         return not_found();
     };
-    if let DistView::Tar(table) = view {
+    if let Some(table) = view.tar_integrities {
         describe_tar(&mut manifest, table);
     }
     match serde_json::to_vec(&manifest) {

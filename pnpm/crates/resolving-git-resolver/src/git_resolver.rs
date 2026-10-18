@@ -287,6 +287,7 @@ async fn read_archive(
         // this point — its name is what this fetch is here to learn —
         // and such archives carry no scoped-registry auth or pinned hash.
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,

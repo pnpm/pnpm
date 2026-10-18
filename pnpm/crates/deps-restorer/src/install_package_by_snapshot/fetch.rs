@@ -212,6 +212,9 @@ impl InstallPackageBySnapshot<'_> {
                 tar_limits: config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: metadata.resolution
+                    .integrity_target(config.lockfile_integrity_target)
+                    .into(),
                 integrity: metadata.resolution.checkable_integrity(),
                 unpacked_size: None,
                 file_count: None,

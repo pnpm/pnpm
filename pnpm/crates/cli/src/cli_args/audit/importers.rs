@@ -64,10 +64,7 @@ pub(super) fn signature_packages(
     let env_lockfile = read_audit_env_lockfile(lockfile_dir)?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
     let env_lockfile = env_lockfile.as_ref();
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
+    let registries = resolved_registries(state);
     Ok(Some(
         audit_request.request
             .iter()
@@ -81,8 +78,9 @@ pub(super) fn signature_packages(
                         let registry = registry.clone();
                         signature_integrities(&format!("{name}@{version}"), lockfile, env_lockfile)
                             .into_iter()
-                            .map(move |integrity| signatures::SignaturePackage {
+                            .map(move |(integrity, pins_tar)| signatures::SignaturePackage {
                                 integrity,
+                                pins_tar,
                                 name: name.clone(),
                                 registry: registry.clone(),
                                 version: version.clone(),
@@ -91,6 +89,13 @@ pub(super) fn signature_packages(
             })
             .collect(),
     ))
+}
+
+fn resolved_registries(state: &State) -> HashMap<String, String> {
+    state.config
+        .resolved_registries()
+        .into_iter()
+        .collect()
 }
 
 fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
@@ -102,22 +107,31 @@ fn signature_integrities(
     package_id: &str,
     lockfile: &Lockfile,
     env_lockfile: Option<&EnvLockfile>,
-) -> Vec<Option<String>> {
+) -> Vec<(Option<String>, bool)> {
     let Ok(key) = package_id.parse::<pnpm_lockfile::PackageKey>() else {
-        return vec![None];
+        return vec![(None, false)];
     };
-    let mut integrities: Vec<Option<String>> = [
-        lockfile.packages
-            .as_ref()
-            .and_then(|packages| packages.get(&key)),
-        env_lockfile.and_then(|env| env.packages.get(&key)),
-    ]
-    .into_iter()
-    .flatten()
-    .map(|package| package.resolution.integrity().map(ToString::to_string))
-    .collect();
+    let pins_tar = |package: &pnpm_lockfile::PackageMetadata, target| {
+        package.resolution.integrity_target(target) == pnpm_lockfile::IntegrityTarget::Tar
+    };
+    let mut integrities: Vec<(Option<String>, bool)> = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&key))
+        .map(|package| (package, pins_tar(package, lockfile.integrity_target())))
+        .into_iter()
+        .chain(
+            env_lockfile
+                .and_then(|env| env.packages.get(&key))
+                .map(|package| {
+                    (package, pins_tar(package, pnpm_lockfile::IntegrityTarget::Resource))
+                }),
+        )
+        .map(|(package, pins_tar)| {
+            (package.resolution.integrity().map(ToString::to_string), pins_tar)
+        })
+        .collect();
     if integrities.is_empty() {
-        integrities.push(None);
+        integrities.push((None, false));
     }
     integrities.sort_unstable();
     integrities.dedup();

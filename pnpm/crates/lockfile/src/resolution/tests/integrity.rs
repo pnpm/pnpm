@@ -125,7 +125,30 @@ fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
 }
 
 #[test]
-fn to_lockfile_form_always_normalizes_an_integrity_addressed_url_without_a_revision() {
+fn to_lockfile_form_compacts_revision_zero() {
+    let registry = "https://registry.example.test/npm/private/";
+    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
+        .expect("complete sha512 integrity");
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball,
+        integrity: Some(integrity(REVISION_SHA512)),
+        revision: Some(TarballRevision::try_from(0).unwrap()),
+        git_hosted: None,
+        path: None,
+    });
+    assert_eq!(
+        resolution
+            .to_lockfile_form("foo", "1.0.0", undeclared_form(registry, false))
+            .unwrap(),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(REVISION_SHA512),
+            revision: Some(TarballRevision::try_from(0).unwrap()),
+        }),
+    );
+}
+
+#[test]
+fn to_lockfile_form_keeps_an_integrity_addressed_url_without_a_revision() {
     let registry = "https://registry.example.test/npm/private/";
     let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
         .expect("complete sha512 integrity");
@@ -139,12 +162,9 @@ fn to_lockfile_form_always_normalizes_an_integrity_addressed_url_without_a_revis
 
     assert_eq!(
         resolution
-            .to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true))
+            .to_lockfile_form("foo", "1.0.0", undeclared_form(registry, false))
             .unwrap(),
-        LockfileResolution::Registry(RegistryResolution {
-            integrity: integrity(REVISION_SHA512),
-            revision: None,
-        }),
+        resolution,
     );
 }
 

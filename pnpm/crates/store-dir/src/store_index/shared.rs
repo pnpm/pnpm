@@ -16,7 +16,7 @@ impl StoreIndex {
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
         match StoreIndex::lock_or_detach(index, |index| index.get(key)) {
             Detached::Files(files) => files
-                .get(key)?
+                .get_through_alias(key)?
                 .map(|bytes| decode_index_value(&bytes))
                 .transpose(),
             Detached::Locked(result) => result.unwrap_or(Ok(None)),
@@ -30,7 +30,7 @@ impl StoreIndex {
         key: &str,
     ) -> Result<bool, StoreIndexError> {
         match StoreIndex::lock_or_detach(index, |index| index.contains_key(key)) {
-            Detached::Files(files) => files.contains(key),
+            Detached::Files(files) => files.contains_through_alias(key),
             Detached::Locked(result) => result.unwrap_or(Ok(false)),
         }
     }

@@ -172,6 +172,15 @@ fn encode_pkg_files_index_value(
         write_str(writer, name);
         encode_cafs_file_info(writer, state, info)?;
     }
+    encode_side_effects_fields(writer, state, idx)
+}
+
+/// The fields after `files`, in the order [`pkg_files_index_fields`] names them.
+fn encode_side_effects_fields(
+    writer: &mut Vec<u8>,
+    state: &mut EncodeState,
+    idx: &PackageFilesIndex,
+) -> Result<(), EncodeError> {
     if let Some(side_effects) = &idx.side_effects {
         write_map_header(writer, side_effects.len());
         for (platform, diff) in sorted_by_key(side_effects) {
@@ -186,17 +195,20 @@ fn encode_pkg_files_index_value(
             write_string_array(writer, digests);
         }
     }
+    if let Some(tar_integrity) = &idx.tar_integrity {
+        write_str(writer, tar_integrity);
+    }
 
     Ok(())
 }
 
 /// Field order `[algo, requiresBuild?, requiresPrepare?, manifest?, files,
-/// sideEffects?, remoteSideEffectsQuarantine?]`. Optional fields are omitted
+/// sideEffects?, remoteSideEffectsQuarantine?, tarIntegrity?]`. Optional fields are omitted
 /// from the schema when `None`, matching msgpackr's field-omit-when-absent
 /// shape so a pnpm reader sees the same JS object regardless of whether
 /// pacquet or pnpm wrote the row.
 fn pkg_files_index_fields(idx: &PackageFilesIndex) -> Vec<&'static str> {
-    let mut fields: Vec<&str> = Vec::with_capacity(7);
+    let mut fields: Vec<&str> = Vec::with_capacity(8);
     fields.push("algo");
     if idx.requires_build.is_some() {
         fields.push("requiresBuild");
@@ -213,6 +225,9 @@ fn pkg_files_index_fields(idx: &PackageFilesIndex) -> Vec<&'static str> {
     }
     if idx.remote_side_effects_quarantine.is_some() {
         fields.push("remoteSideEffectsQuarantine");
+    }
+    if idx.tar_integrity.is_some() {
+        fields.push("tarIntegrity");
     }
     fields
 }

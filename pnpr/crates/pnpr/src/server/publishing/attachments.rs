@@ -7,23 +7,10 @@ use super::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher,
     },
-    resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
-    tar_integrity_of, tgz_integrity_key,
+    resolve_write_target, stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     write_sigstore_bundle,
 };
-
-/// Whether a tar registry serves `name` from the hosted registry `org`, so
-/// a publish there has a tar hash worth deriving. Without `org`, any hosted
-/// registry counts.
-fn served_as_tar(state: &AppState, org: Option<&str>, name: &CanonicalPackageName) -> bool {
-    state.inner.config.routing.tar_registries
-        .iter()
-        .any(|registry| match resolve_registry_source(state, registry, name.as_str()) {
-            RegistrySource::Hosted(source) => org.is_none_or(|org| org == source),
-            _ => false,
-        })
-}
 
 /// What kind of payload an attachment carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,11 +177,6 @@ pub(in super::super) async fn stage_publish(
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
     let document = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso)?;
-    let original_refs = prepared
-        .iter()
-        .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
-        .filter_map(|attachment| staged_hosted_original_ref(&name, attachment))
-        .collect();
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -204,17 +186,34 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let derive_tars = served_as_tar(state, org, &name);
-    let written_slots = write_attachment_slots(&storage, &name, prepared, derive_tars).await?;
+    let written = write_attachment_slots(&storage, &name, prepared).await?;
+    let revision_refs = written.tars
+        .iter()
+        .filter_map(|tar| staged_hosted_original_ref(&name, tar))
+        .collect();
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
         document,
         base_version,
-        slots: written_slots,
-        revision_refs: original_refs,
+        slots: written.slots,
+        revision_refs,
         org: org.map(str::to_string),
     })
+}
+
+/// The blob slots a publish wrote, and the tar each of its `.tgz` files
+/// decodes to.
+pub(super) struct WrittenAttachments {
+    pub(super) slots: Vec<pnpr_storage::BlobSlot>,
+    pub(super) tars: Vec<PublishedTar>,
+}
+
+/// A published `.tgz` whose whole gzip stream decoded to a tar.
+pub(super) struct PublishedTar {
+    pub(super) version: String,
+    pub(super) filename: String,
+    pub(super) integrity: Integrity,
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -223,62 +222,57 @@ pub(super) async fn write_attachment_slots(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: Vec<PreparedAttachment>,
-    derive_tars: bool,
-) -> Result<Vec<pnpr_storage::BlobSlot>, RegistryError> {
-    let mut written_slots = Vec::with_capacity(prepared.len());
+) -> Result<WrittenAttachments, RegistryError> {
+    let mut written =
+        WrittenAttachments { slots: Vec::with_capacity(prepared.len()), tars: Vec::new() };
     for attachment in prepared {
-        match write_attachment_slot(storage, name, attachment, derive_tars).await {
-            Ok(slot) => written_slots.push(slot),
+        match write_attachment_slot(storage, name, attachment).await {
+            Ok((slot, tar)) => {
+                written.slots.push(slot);
+                written.tars.extend(tar);
+            }
             Err(err) => {
-                cleanup_tmp_slots(written_slots).await;
+                cleanup_tmp_slots(written.slots).await;
                 return Err(err);
             }
         }
     }
-    Ok(written_slots)
+    Ok(written)
 }
 
-/// Stream-decode, verify and write one tarball into a reserved slot. A
-/// mismatch, or a missing integrity field, fails with a 400.
+/// Stream-decode, verify and write one tarball into a reserved slot, and
+/// derive the tar a `.tgz` decodes to. A mismatch, or a missing integrity
+/// field, fails with a 400. A `.tgz` that does not decode in full has no tar
+/// and is published without one.
 pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
-    derive_tars: bool,
-) -> Result<pnpr_storage::BlobSlot, RegistryError> {
+) -> Result<(pnpr_storage::BlobSlot, Option<PublishedTar>), RegistryError> {
     let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
-    let tgz_integrity = match prepared.kind {
-        AttachmentKind::Tarball if derive_tars => {
-            prepared.dist.as_object().and_then(tgz_integrity_key)
-        }
-        AttachmentKind::Tarball => None,
-        AttachmentKind::Sigstore => None,
-    };
+    let PreparedAttachment {
+        attachment,
+        canonical,
+        version,
+        dist,
+        kind,
+    } = prepared;
     let result = tokio::task::spawn_blocking(move || {
-        decode_and_write_attachment(
-            &prepared.attachment,
-            prepared.kind,
-            &prepared.dist,
-            &tmp_path,
-        )?;
-        // A tar registry describes the version by the tar this `.tgz` decodes to.
-        let tar_integrity = tgz_integrity
-            .zip(std::fs::File::open(&tmp_path).ok())
-            .and_then(|(key, tgz)| Some((key, tar_integrity_of(std::io::BufReader::new(tgz))?)));
-        Ok::<_, RegistryError>(tar_integrity)
+        write_and_derive_tar(&attachment, kind, &dist, &tmp_path)
     })
     .await;
     match result {
-        Ok(Ok(tar_integrity)) => {
-            // The first tar response derives a hash publish failed to record.
-            if let Some((key, tar_integrity)) = tar_integrity
-                && let Err(err) =
-                    storage.record_tar_integrity(name, &key, &tar_integrity.to_string()).await
+        Ok(Ok(None)) => Ok((slot, None)),
+        Ok(Ok(Some((tgz_integrity, integrity)))) => {
+            // A tar registry's first tar response records a binding publish
+            // failed to.
+            if let Err(err) =
+                storage.record_tar_integrity(name, &tgz_integrity, &integrity.to_string()).await
             {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
-            Ok(slot)
+            Ok((slot, Some(PublishedTar { version, filename: canonical, integrity })))
         }
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
@@ -286,6 +280,23 @@ pub(super) async fn write_attachment_slot(
             Err(RegistryError::Io(std::io::Error::other(join_err.to_string())))
         }
     }
+}
+
+/// Write the attachment to `tmp_path`, and for a `.tgz` return its integrity
+/// key and the integrity of the tar it decodes to.
+fn write_and_derive_tar(
+    attachment: &PendingAttachment,
+    kind: AttachmentKind,
+    dist: &Value,
+    tmp_path: &std::path::Path,
+) -> Result<Option<(String, Integrity)>, RegistryError> {
+    decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
+    if kind != AttachmentKind::Tarball {
+        return Ok(None);
+    }
+    let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else { return Ok(None) };
+    let tgz = std::fs::File::open(tmp_path)?;
+    Ok(tar_integrity_of(std::io::BufReader::new(tgz)).map(|tar| (tgz_integrity, tar)))
 }
 
 fn decode_and_write_attachment(
@@ -317,22 +328,16 @@ fn decode_and_write_attachment(
     Ok(())
 }
 
+/// The reference that serves a published version's tar by its digest.
 pub(super) fn staged_hosted_original_ref(
     package: &CanonicalPackageName,
-    attachment: &PreparedAttachment,
+    tar: &PublishedTar,
 ) -> Option<JournaledRevisionRef> {
-    let integrity: Integrity = attachment.dist
-        .get("integrity")?
-        .as_str()?
-        .parse()
-        .ok()?;
-    let path = integrity_addressed_tarball_path(&integrity)?;
+    let path = integrity_addressed_tarball_path(&tar.integrity)?;
     let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
-    let record = HostedOriginalRef {
-        package: package.as_str().to_string(),
-        version: attachment.version.clone(),
-    };
+    let record =
+        HostedOriginalRef { package: package.as_str().to_string(), version: tar.version.clone() };
     let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
     let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
+    Some(JournaledRevisionRef { filename: tar.filename.clone(), digest, ref_id, bytes })
 }

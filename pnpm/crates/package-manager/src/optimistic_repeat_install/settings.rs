@@ -115,6 +115,7 @@ struct SettingsComparison<'a> {
 impl SettingsComparison<'_> {
     fn first_drift(&self) -> Option<&'static str> {
         self.installation_drift()
+            .or_else(|| self.lockfile_drift())
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
@@ -154,13 +155,23 @@ impl SettingsComparison<'_> {
             recorded.add_missing_peer_types != live.add_missing_peer_types,
         );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
+        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        None
+    }
+    fn lockfile_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
         return_drift_if!(
             self,
             "lockfile.includeResolutionSettings",
             recorded.lockfile_include_resolution_settings
                 != live.lockfile_include_resolution_settings,
         );
-        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        return_drift_if!(
+            self,
+            "lockfile.integrityTarget",
+            recorded.lockfile_integrity_target != live.lockfile_integrity_target,
+        );
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {
@@ -362,6 +373,9 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         lockfile_include_resolution_settings: config
             .lockfile_include_resolution_settings
             .then_some(true),
+        lockfile_integrity_target: (config.lockfile_integrity_target
+            != pnpm_lockfile::IntegrityTarget::Resource)
+            .then(|| "tar".to_string()),
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: Some(

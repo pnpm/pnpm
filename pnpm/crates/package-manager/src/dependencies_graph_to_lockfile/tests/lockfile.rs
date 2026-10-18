@@ -163,6 +163,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
@@ -204,6 +205,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
@@ -297,6 +299,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
                 add_missing_peer_types: None,
                 inject_workspace_packages: false,
                 peers_suffix_max_length: None,
+                integrity_target: None,
                 resolution: pnpm_lockfile::ResolutionSettings::default(),
             },
             metadata_sources: crate::PackageMetadataSources {
@@ -400,6 +403,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
@@ -505,6 +509,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {

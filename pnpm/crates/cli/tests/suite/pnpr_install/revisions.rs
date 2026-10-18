@@ -19,6 +19,7 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
         .create();
     let tarball_mock = upstream
         .mock("GET", format!("/{revision_path}").as_str())
+        .with_header("content-encoding", "gzip")
         .with_body(&tarball)
         .expect(1)
         .create();
@@ -66,6 +67,65 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
     drop((root, mock_instance));
 }
 
+/// An original selected through the revision protocol is recorded as
+/// revision 0 and fetched from its tar digest route like any revision.
+#[test]
+fn a_selected_revision_zero_is_recorded_and_fetched_by_digest() {
+    let mut upstream = mockito::Server::new();
+    let tarball = revision_fixture_tarball();
+    let (integrity, packument) = revision_packument(&upstream, &tarball, 0, &[]);
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let _packument_mock = upstream
+        .mock("GET", "/revision-pkg")
+        .with_body(packument.to_string())
+        .create();
+    let tarball_mock = upstream
+        .mock("GET", format!("/{revision_path}").as_str())
+        .with_header("content-encoding", "gzip")
+        .with_body(&tarball)
+        .expect(1)
+        .create();
+    let registry = start_pnpr_registry(&upstream.url(), Ecosystem::Npm);
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
+    point_npmrc_registry_at(&npmrc_path, &registry);
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "revision-pkg": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("revision: 0"), "{lockfile}");
+    assert!(lockfile.contains(&integrity.to_string()), "{lockfile}");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(&store_dir).expect("remove client store");
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/revision-pkg/index.js").exists());
+    tarball_mock.assert();
+    drop((root, mock_instance));
+}
+
 #[test]
 fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let first_tarball = revision_fixture_tarball_with_value("revision one");
@@ -81,6 +141,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .create();
     first_upstream
         .mock("GET", format!("/{first_path}").as_str())
+        .with_header("content-encoding", "gzip")
         .with_body(&first_tarball)
         .expect(1)
         .create();
@@ -96,6 +157,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .create();
     second_upstream
         .mock("GET", format!("/{second_path}").as_str())
+        .with_header("content-encoding", "gzip")
         .with_body(&second_tarball)
         .expect(1)
         .create();
@@ -158,6 +220,7 @@ fn update_patches_refreshes_a_revision_through_the_pnpr_resolver() {
         .create();
     let first_tarball_mock = upstream
         .mock("GET", format!("/{first_path}").as_str())
+        .with_header("content-encoding", "gzip")
         .with_body(&first_tarball)
         .expect(1)
         .create();
@@ -194,6 +257,7 @@ fn update_patches_refreshes_a_revision_through_the_pnpr_resolver() {
         .create();
     let second_tarball_mock = upstream
         .mock("GET", format!("/{second_path}").as_str())
+        .with_header("content-encoding", "gzip")
         .with_body(&second_tarball)
         .expect(1)
         .create();

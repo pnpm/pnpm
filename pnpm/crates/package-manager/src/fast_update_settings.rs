@@ -22,6 +22,9 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pnpm_config::default_peers_suffix_max_length())
         .then_some(config.peers_suffix_max_length),
+        integrity_target: (config.lockfile_integrity_target
+            != pnpm_lockfile::IntegrityTarget::Resource)
+            .then_some(config.lockfile_integrity_target),
         resolution: resolution_settings_from_config(config),
     }
 }
@@ -54,6 +57,7 @@ pub(crate) enum ChangedSetting {
     AddMissingPeerTypes,
     PeersSuffixMaxLength,
     InjectWorkspacePackages,
+    IntegrityTarget,
     ResolutionSettings,
 }
 
@@ -130,6 +134,9 @@ fn changed_settings(
     {
         changed.push(ChangedSetting::InjectWorkspacePackages);
     }
+    if integrity_target_changed(recorded, settings) {
+        changed.push(ChangedSetting::IntegrityTarget);
+    }
     // Unrecorded settings are dropped on write rather than compared.
     if settings.resolution != ResolutionSettings::default()
         && recorded.map(|recorded| &recorded.resolution) != Some(&settings.resolution)
@@ -137,6 +144,14 @@ fn changed_settings(
         changed.push(ChangedSetting::ResolutionSettings);
     }
     changed
+}
+
+fn integrity_target_changed(
+    recorded: Option<&LockfileSettings>,
+    settings: &LockfileSettings,
+) -> bool {
+    recorded.map(LockfileSettings::integrity_target).unwrap_or_default()
+        != settings.integrity_target()
 }
 
 fn setting_cannot_affect_lockfile(
@@ -156,8 +171,9 @@ fn setting_cannot_affect_lockfile(
         ChangedSetting::InjectWorkspacePackages => {
             has_no_injectable_dependencies(lockfile, manifests, workspace_package_names)
         }
-        // Only a resolution under the recorded values may record them.
-        ChangedSetting::ResolutionSettings => false,
+        // Only a resolution under the recorded values may record them, and
+        // only a resolution rewrites every hash for another target.
+        ChangedSetting::ResolutionSettings | ChangedSetting::IntegrityTarget => false,
     }
 }
 

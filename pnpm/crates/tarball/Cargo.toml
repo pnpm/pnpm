@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }

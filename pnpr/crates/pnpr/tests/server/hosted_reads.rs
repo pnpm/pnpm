@@ -2,7 +2,7 @@ use super::{
     AccessList, AuthState, Body, Ecosystem, PackagePattern, Registries, Registry, Request,
     ServiceExt, StatusCode, TempDir, access_rule, body_bytes, body_json, config_for, header,
     hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, json,
-    router_with_auth, seed_hosted, sha512_integrity,
+    package_tar_and_tgz, router_with_auth, seed_hosted, sha512_integrity,
 };
 use crate::tokens::issue_token;
 
@@ -322,21 +322,16 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
-    let tarball = b"public-hosted-original";
-    let integrity_text = sha512_integrity(tarball);
-    let integrity = integrity_text.parse().unwrap();
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"@acme/widget","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let digest = revision_path
-        .rsplit('/')
-        .next()
-        .unwrap();
 
     let publish = router_with_auth(config.clone(), auth.clone())
         .oneshot(hosted_publish_request(
             "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
-            tarball,
+            &tarball,
             &token,
         ))
         .await
@@ -359,40 +354,43 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(
-            response
-                .headers()
-                .get(header::CACHE_CONTROL)
-                .unwrap(),
-            "private, no-store",
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get(header::VARY)
-                .unwrap(),
-            "Authorization",
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get(header::ETAG)
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            format!(r#""{digest}""#),
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("content-digest")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            format!("sha-512=:{}:", integrity_text.strip_prefix("sha512-").unwrap()),
-        );
-        assert_eq!(body_bytes(response.into_body()).await, tarball, "{path}");
+        let headers = response.headers();
+        assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+        assert_eq!(headers[header::VARY], "accept-encoding, Authorization");
+        assert_eq!(headers[header::CONTENT_TYPE], "application/x-tar");
+        for absent in [header::ETAG.as_str(), "content-digest", header::CONTENT_ENCODING.as_str()] {
+            assert!(headers.get(absent).is_none(), "{path} sends no {absent}");
+        }
+        assert_eq!(body_bytes(response.into_body()).await, tar, "{path}");
     }
+
+    let gzip_response = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/npm/{revision_path}"))
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .header(header::RANGE, "bytes=0-1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(gzip_response.status(), StatusCode::OK, "a range request gets the whole body");
+    assert_eq!(gzip_response.headers()[header::CONTENT_ENCODING], "gzip");
+    assert_eq!(body_bytes(gzip_response.into_body()).await, tarball);
+
+    let tgz_integrity = sha512_integrity(&tarball).parse().unwrap();
+    let tgz_path = integrity_addressed_tarball_path(&tgz_integrity).unwrap();
+    let by_tgz = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/npm/{tgz_path}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(by_tgz.status(), StatusCode::NOT_FOUND, "a digest names the tar, not the .tgz");
 
     let canonical = app
         .oneshot(
@@ -417,8 +415,8 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     );
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
-    let tarball = b"shared-hosted-original";
-    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"shared-artifact","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let app = router_with_auth(config, auth);
 
@@ -430,7 +428,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
                 &format!("/npm/~acme/{package}"),
                 &package,
                 "1.0.0",
-                tarball,
+                &tarball,
                 &token,
             ))
             .await
@@ -444,7 +442,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
             "/npm/~acme/shared-artifact-overflow",
             "shared-artifact-overflow",
             "1.0.0",
-            tarball,
+            &tarball,
             &token,
         ))
         .await
@@ -475,7 +473,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         .await
         .unwrap();
     assert_eq!(existing.status(), StatusCode::OK);
-    assert_eq!(body_bytes(existing.into_body()).await, tarball);
+    assert_eq!(body_bytes(existing.into_body()).await, tar);
 }
 
 #[tokio::test]
@@ -490,14 +488,14 @@ async fn hosted_digest_route_rechecks_package_access() {
     let auth = AuthState::in_memory();
     let alice = issue_token(&auth, "alice").await;
     let bob = issue_token(&auth, "bob").await;
-    let tarball = b"private-hosted-original";
-    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"secret","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let app = router_with_auth(config, auth);
 
     let publish = app
         .clone()
-        .oneshot(hosted_publish_request("/npm/~corp/secret", "secret", "1.0.0", tarball, &alice))
+        .oneshot(hosted_publish_request("/npm/~corp/secret", "secret", "1.0.0", &tarball, &alice))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
@@ -551,9 +549,9 @@ async fn hosted_digest_route_rechecks_package_access() {
             .headers()
             .get(header::VARY)
             .unwrap(),
-        "Authorization",
+        "accept-encoding, Authorization",
     );
-    assert_eq!(body_bytes(response.into_body()).await, tarball);
+    assert_eq!(body_bytes(response.into_body()).await, tar);
 }
 
 /// A hosted registry's declared `patterns:` are enforced on the registry itself, on

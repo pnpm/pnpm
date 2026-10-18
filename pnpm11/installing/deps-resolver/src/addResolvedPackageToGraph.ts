@@ -14,7 +14,6 @@ import type { DependencyRequest } from './requestDependencyPackage.js'
 import type { PkgAddress } from './resolutionTypes.js'
 import {
   detectNamedRegistryCollision,
-  detectRegistryRevisionConflict,
   getPeerSet,
   getResolvedPackage,
   pkgIsLeaf,
@@ -137,7 +136,6 @@ function reportDeprecatedPackage ({ ctx, options }: DependencyRequest, { pkg, pk
 function mergeIntoResolvedPackage ({ ctx, options, wantedDependency }: DependencyRequest, pkgResponse: PackageResponse): void {
   const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
   detectNamedRegistryCollision(resolvedPkg, pkgResponse)
-  detectRegistryRevisionConflict(resolvedPkg, pkgResponse)
   resolvedPkg.prod = resolvedPkg.prod || !wantedDependency.dev && !wantedDependency.optional
   resolvedPkg.dev = resolvedPkg.dev || wantedDependency.dev
   resolvedPkg.optional = resolvedPkg.optional && (wantedDependency.optional || options.parentPkg.optional)

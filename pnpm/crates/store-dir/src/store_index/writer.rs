@@ -76,6 +76,11 @@ enum WriteMsg {
         channel: String,
         envelope_digest: String,
     },
+    /// Make the row at `target` reachable under `alias` as well.
+    Alias {
+        alias: String,
+        target: String,
+    },
 }
 
 const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
@@ -224,8 +229,12 @@ fn drain_queued(
 /// Coalesce the batch by key and write it in one transaction.
 fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
+    let mut aliases: Vec<(String, String)> = Vec::new();
     for msg in batch.drain(..) {
-        apply_write_msg(index, &mut pending, msg);
+        match msg {
+            WriteMsg::Alias { alias, target } => aliases.push((alias, target)),
+            msg => apply_write_msg(index, &mut pending, msg),
+        }
     }
     if let Err(error) = index.set_many(pending.drain()) {
         // Drop the batch and keep going. One failed flush (e.g. a disk-full
@@ -237,6 +246,16 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
             target: "pacquet::store_index",
             ?error,
             "batched store-index write failed; dropping this batch and continuing",
+        );
+        // An alias of a row this batch failed to write could replace one
+        // that names a row that exists.
+        return;
+    }
+    if let Err(error) = index.set_aliases(&aliases) {
+        tracing::warn!(
+            target: "pacquet::store_index",
+            ?error,
+            "batched store-index alias write failed; dropping these aliases and continuing",
         );
     }
 }
@@ -280,6 +299,7 @@ fn apply_write_msg(
                 quarantine_digest(row, channel, envelope_digest);
             }
         }
+        WriteMsg::Alias { .. } => unreachable!("flush_batch collects aliases itself"),
     }
 }
 
@@ -403,6 +423,12 @@ impl StoreIndexWriter {
     /// this cache-key and re-downloads.
     pub fn queue(&self, key: String, value: PackageFilesIndex) {
         self.send_msg(WriteMsg::Replace { key, value });
+    }
+
+    /// Queue an alias: once flushed, a lookup of `alias` reads the row at
+    /// `target`. See [`StoreIndex::set_aliases`].
+    pub fn queue_alias(&self, alias: String, target: String) {
+        self.send_msg(WriteMsg::Alias { alias, target });
     }
 
     /// Queue a side-effects R/M/W: the writer task loads the row,

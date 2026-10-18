@@ -28,6 +28,7 @@ fn sign_b64(key: &SigningKey, message: &str) -> String {
 fn package() -> SignaturePackage {
     SignaturePackage {
         integrity: Some("sha512-abc".to_string()),
+        pins_tar: false,
         name: "foo".to_string(),
         registry: "https://registry.example.com/".to_string(),
         version: "1.0.0".to_string(),
@@ -174,7 +175,7 @@ fn process_version_rejects_missing_lockfile_integrity() {
     }))
     .unwrap();
     let mut result = SignatureVerificationResult::default();
-    super::process_version(&pkg, &packument, &[], &mut result);
+    super::process_version(&pkg, &packument, &[], None, &mut result);
     assert_eq!(result.verified, 0);
     assert_eq!(result.invalid.len(), 1);
     assert_eq!(
@@ -196,7 +197,7 @@ fn process_version_verifies_the_recorded_artifact() {
     }))
     .unwrap();
     let mut result = SignatureVerificationResult::default();
-    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], &mut result);
+    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], None, &mut result);
     assert_eq!(result.verified, 1);
     assert!(result.invalid.is_empty());
 }
@@ -214,7 +215,7 @@ fn process_version_rejects_signature_for_different_artifact() {
     }))
     .unwrap();
     let mut result = SignatureVerificationResult::default();
-    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], &mut result);
+    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], None, &mut result);
     assert_eq!(result.verified, 0);
     assert_eq!(result.invalid.len(), 1);
     assert_eq!(result.invalid[0].integrity.as_deref(), Some("sha512-abc"));
@@ -231,7 +232,7 @@ fn process_version_reports_missing_lockfile_integrity_before_registry_problems()
     for packument in packuments {
         let packument = serde_json::from_value(packument).unwrap();
         let mut result = SignatureVerificationResult::default();
-        super::process_version(&pkg, &packument, &[], &mut result);
+        super::process_version(&pkg, &packument, &[], None, &mut result);
         assert_eq!(
             result.invalid[0].reason.as_deref(),
             Some("Missing lockfile integrity for foo@1.0.0"),

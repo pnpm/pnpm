@@ -261,6 +261,7 @@ impl WorkspaceSettings {
                 config.lockfile_include_resolution_settings = settings
                     .include_resolution_settings
                     .unwrap_or(false);
+                config.lockfile_integrity_target = settings.integrity_target.unwrap_or_default();
             }
             None => {}
         }

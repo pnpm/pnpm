@@ -24,6 +24,7 @@ fn manifest_from_json(json: &str) -> (tempfile::TempDir, PackageManifest) {
 
 fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
     LockfileSettingsCheck {
+        integrity_target: crate::IntegrityTarget::Resource,
         catalogs,
         overrides: None,
         package_extensions_checksum: None,

@@ -30,6 +30,7 @@ fn store_with_rows(present: usize) -> (TempDir, &'static StoreDir, Vec<String>, 
         )]),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_dir).unwrap();
     let present_keys = (0..present)

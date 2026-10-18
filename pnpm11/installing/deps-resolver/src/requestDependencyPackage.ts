@@ -70,13 +70,6 @@ export async function requestDependencyPackage (request: DependencyRequest): Pro
 
 function pinBareSpecifierToCurrentVersion ({ ctx, currentPkg, options, wantedDependency }: DependencyRequest): void {
   if (!currentPkg.version) return
-  if (options.updatePatches && !hasRegistryRevisionSpecifier(wantedDependency.bareSpecifier)) {
-    wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(
-      wantedDependency.bareSpecifier,
-      currentPkg.version,
-      ctx.namedRegistryPrefixes
-    )
-  }
   if (!options.update && pkgIdPinsVersion(currentPkg.pkgId, currentPkg.version) && options.currentDepth !== 0) {
     wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
   }
@@ -112,7 +105,6 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
       : options.parentPkg.rootDir,
     skipFetch: ctx.dryRun,
     update: options.update,
-    updatePatches: options.updatePatches,
     updateRequested: options.updateRequested,
     updateChecksums: options.updateChecksums,
     workspacePackages: ctx.workspacePackages,
@@ -173,16 +165,6 @@ function handlePackageRequestFailure ({ ctx, options, wantedDependency }: Depend
   err.prefix = options.prefix
   err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
   throw err
-}
-
-function hasRegistryRevisionSpecifier (specifier: string): boolean {
-  const selectorStart = Math.max(specifier.lastIndexOf(':'), specifier.lastIndexOf('@')) + 1
-  const selector = specifier.slice(selectorStart)
-  if (semver.valid(selector) == null) return false
-  const marker = selector.lastIndexOf('+r')
-  if (marker === -1) return false
-  const revision = selector.slice(marker + 2)
-  return revision.length > 0 && Array.from(revision).every((character) => character >= '0' && character <= '9')
 }
 
 /**

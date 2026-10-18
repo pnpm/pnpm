@@ -539,6 +539,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     tar_limits: pnpm_tarball::TarLimits::default(),
                 },
                 package: pnpm_tarball::TarballPackage {
+                    integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                     integrity: None,
                     unpacked_size: None,
                     file_count: None,

@@ -221,18 +221,34 @@ fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
     gzip.finish().expect("finish package tarball")
 }
 
+/// The integrity a registry revision pins: the hash of the tar `tarball`
+/// decodes to.
+fn revision_integrity(tarball: &[u8]) -> ssri::Integrity {
+    let mut tar = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(tarball), &mut tar)
+        .expect("decode revision tarball");
+    ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&tar)
+        .result()
+}
+
+/// A revision-aware packument selecting `tarball` as `revision`. Its history
+/// holds an original revision 0, `history`, and the selected record.
 fn revision_packument(
     upstream: &mockito::Server,
     tarball: &[u8],
     revision: u64,
     history: &[(&ssri::Integrity, u64)],
 ) -> (ssri::Integrity, serde_json::Value) {
-    let integrity = ssri::IntegrityOpts::new()
-        .algorithm(ssri::Algorithm::Sha512)
-        .chain(tarball)
-        .result();
+    let integrity = revision_integrity(tarball);
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let revisions = history
+    let original = revision_integrity(&revision_fixture_tarball_with_value("original"));
+    let revisions = std::iter::once((&original, 0))
+        .filter(|_| revision != 0)
+        .chain(history.iter().copied())
+        .collect::<Vec<_>>();
+    let revisions = revisions
         .iter()
         .map(|(integrity, revision)| {
             let path = integrity_addressed_tarball_path(integrity).unwrap();

@@ -336,6 +336,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
                 files,
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .unwrap();

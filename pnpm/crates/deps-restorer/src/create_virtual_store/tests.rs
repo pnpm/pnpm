@@ -186,6 +186,7 @@ impl SeededStoreInstall {
                     files,
                     side_effects,
                     remote_side_effects_quarantine: None,
+                    tar_integrity: None,
                 },
             )
             .expect("seed store index");

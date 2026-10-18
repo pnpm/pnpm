@@ -106,6 +106,9 @@ pub struct TarballPackage<'a> {
     /// [`crate::IngestTarballToStore::fetch_and_extract`] can instead index a plain archive by
     /// its computed integrity.
     pub integrity: Option<&'a Integrity>,
+    /// Which hash of the archive `integrity` names. A revision-addressed
+    /// fetch always checks the tar, whatever this says.
+    pub integrity_kind: crate::IntegrityKind,
     pub unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
     /// `unpacked_size` into the download's queueing priority —

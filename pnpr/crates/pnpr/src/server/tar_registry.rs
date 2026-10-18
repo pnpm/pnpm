@@ -14,13 +14,14 @@ use std::{collections::BTreeMap, sync::Arc};
 
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
-pub(super) enum DistView<'a> {
-    /// The published `.tgz`, at a URL on the addressed base. `revision_registry`
-    /// is the upstream whose integrity-addressed revisions may be linked.
-    Tgz { revision_registry: Option<&'a str> },
-    /// The tar, by the integrities in this table (see
-    /// [`pnpr_storage::Storage::read_tar_integrities`]).
-    Tar(&'a BTreeMap<String, String>),
+pub(super) struct DistView<'a> {
+    /// The upstream whose integrity-addressed revisions may be linked. Every
+    /// other version is described by its canonical resource.
+    pub(super) revision_registry: Option<&'a str>,
+    /// On a tar registry, the table its canonical resources are described by
+    /// (see [`pnpr_storage::Storage::read_tar_integrities`]). `None` describes
+    /// the published `.tgz`, at a URL on the addressed base.
+    pub(super) tar_integrities: Option<&'a BTreeMap<String, String>>,
 }
 
 /// The tar-integrity table of `name` when `registry` is a tar registry and
@@ -46,14 +47,11 @@ pub(super) fn dist_view<'a>(
     source: &RegistrySource,
     tar_integrities: Option<&'a BTreeMap<String, String>>,
 ) -> DistView<'a> {
-    if let Some(table) = tar_integrities {
-        return DistView::Tar(table);
-    }
     let revision_registry = match source {
         RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
-    DistView::Tgz { revision_registry }
+    DistView { revision_registry, tar_integrities }
 }
 
 /// Whether the registry `key` declares `tarballs: tar`.
@@ -73,11 +71,15 @@ pub(super) fn describe_tars(doc: &mut Value, table: &BTreeMap<String, String>) {
 
 /// Rewrite one version manifest's `dist` to describe its tar: the tar's
 /// integrity when it is known, and none of the fields that name or sign the
-/// `.tgz`.
+/// `.tgz`. A projected revision already names its tar by digest, so it is
+/// kept as projected.
 pub(super) fn describe_tar(version: &mut Value, table: &BTreeMap<String, String>) {
     let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
+    if dist.contains_key("revision") {
+        return;
+    }
     let tar_integrity = tgz_integrity_key(dist)
         .and_then(|key| table.get(&key))
         .cloned();

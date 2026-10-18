@@ -622,7 +622,10 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
         fetch_and_extract_with_retry::<SilentReporter>(
             &client,
             &url,
-            Some(&pkg_integrity),
+            &crate::archive_integrity::ArchiveVerification::new(
+                Some(&pkg_integrity),
+                crate::IntegrityKind::Resource,
+            ),
             Some(MAX_UNTRUSTED_PREALLOC_BYTES),
             crate::TarLimits::default(),
             0,
@@ -638,7 +641,7 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
         .await
         .expect("download with a large unpacked-size hint");
 
-    assert_eq!(computed_integrity.to_string(), pkg_integrity.to_string());
+    assert_eq!(computed_integrity.resource.to_string(), pkg_integrity.to_string());
     assert!(cas_paths.contains_key("package.json"));
     assert!(cas_paths.contains_key("bin/tool"));
     assert_eq!(
@@ -726,8 +729,9 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("missing.tgz");
 
-    let err =
-        read_local_tarball_metadata(&tarball_path).await.expect_err("a missing tarball must fail");
+    let err = read_local_tarball_metadata(&tarball_path, crate::IntegrityKind::Resource)
+        .await
+        .expect_err("a missing tarball must fail");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
             assert_eq!(path, tarball_path);
@@ -755,7 +759,10 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&expected),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&expected),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -802,7 +809,10 @@ async fn revision_addressed_tarball_does_not_follow_a_redirect() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&expected),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&expected),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,

@@ -171,6 +171,23 @@ fn the_lockfile_section_turns_the_lockfile_on() {
     assert!(!config.lockfile_include_resolution_settings);
 }
 
+#[test]
+fn the_lockfile_section_sets_the_integrity_target() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("lockfile:\n  integrityTarget: tar\n").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.lockfile_integrity_target, pnpm_lockfile::IntegrityTarget::Tar);
+
+    assert!(
+        serde_saphyr::from_str::<WorkspaceSettings>("lockfile:\n  integrityTarget: tgz\n").is_err(),
+    );
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("lockfile: {}\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.lockfile_integrity_target, pnpm_lockfile::IntegrityTarget::Resource);
+}
+
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
 /// `fetchRetryMintimeout` / `fetchRetryMaxtimeout` from
 /// `pnpm-workspace.yaml` as camelCase keys (mirrors of the kebab-case

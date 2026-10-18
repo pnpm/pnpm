@@ -9809,9 +9809,6 @@ importers:
 
   pnpm11/resolving/tarball-url:
     dependencies:
-      '@pnpm/crypto.integrity':
-        specifier: workspace:*
-        version: link:../../crypto/integrity
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

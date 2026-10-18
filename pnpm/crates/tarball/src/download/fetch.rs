@@ -1,12 +1,15 @@
 use super::{
     Arc, AuthHeaders, BodyProgress, BodyVerification, BufferBody, Buffered, BufferedArchive,
-    FetchingProgressLog, FetchingProgressMessage, HashMap, IgnoreEntryFilter, Integrity, LogEvent,
-    LogLevel, NetworkError, PackageFilesIndex, Path, PathBuf, Reporter, SemaphorePermit, StoreDir,
-    Stream, TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
+    FetchingProgressLog, FetchingProgressMessage, HashMap, IgnoreEntryFilter, LogEvent, LogLevel,
+    NetworkError, PackageFilesIndex, Path, PathBuf, Reporter, SemaphorePermit, StoreDir, Stream,
+    TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
     extract_tarball_buffer, local_file_tarball_path, open_local_tarball, read_local_tarball_buffer,
     streaming_extract_semaphore, streams_while_downloading,
 };
-use crate::{BodyHasher, TarLimits, content_coding::ContentCoding};
+use crate::{
+    TarLimits, archive_integrity::ArchiveVerification, content_coding::ContentCoding,
+    download::buffered::ExtractedFiles,
+};
 
 /// Run one full tarball-fetch attempt: network, body, integrity hash,
 /// decompress, extract into the CAFS. Returns the cas-paths map and the
@@ -28,7 +31,7 @@ use crate::{BodyHasher, TarLimits, content_coding::ContentCoding};
 pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
     tar_limits: TarLimits,
     download_priority: u64,
@@ -43,7 +46,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     let download = TarballDownload {
         http_client,
         package_url,
-        expected_integrity,
+        verification,
         package_unpacked_size,
         tar_limits,
         package_id,
@@ -109,7 +112,7 @@ async fn fetch_remote<Reporter: self::Reporter>(
 }
 
 pub(crate) struct ExtractedArchive {
-    pub integrity: Integrity,
+    pub integrity: crate::ArchiveIntegrity,
     pub files: HashMap<String, PathBuf>,
     pub index: PackageFilesIndex,
     pub meta: crate::archive_request::ArchiveResponseMeta,
@@ -131,7 +134,7 @@ fn empty_meta(package_url: &str) -> crate::archive_request::ArchiveResponseMeta 
 pub(super) struct TarballDownload<'a> {
     pub(super) http_client: &'a ThrottledClient,
     pub(super) package_url: &'a str,
-    pub(super) expected_integrity: Option<&'a Integrity>,
+    pub(super) verification: &'a ArchiveVerification,
     pub(super) package_unpacked_size: Option<usize>,
     pub(super) tar_limits: TarLimits,
     pub(super) package_id: &'a str,
@@ -147,7 +150,7 @@ pub(super) struct TarballDownload<'a> {
 )]
 pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     path: &Path,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
     tar_limits: TarLimits,
     package_url: &str,
@@ -155,7 +158,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     attempt: u32,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     let (file, size) = open_local_tarball(path).await?;
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
@@ -170,7 +173,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
         BufferedArchive {
             buffer,
             content_coding: ContentCoding::Identity,
-            expected_integrity,
+            verification: verification.clone(),
             unpacked_size: package_unpacked_size,
             tar_limits,
         },
@@ -190,10 +193,10 @@ impl TarballDownload<'_> {
         self,
         path: &Path,
         attempt: u32,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<ExtractedFiles, TarballError> {
         fetch_local_tarball::<Reporter>(
             path,
-            self.expected_integrity,
+            self.verification,
             self.package_unpacked_size,
             self.tar_limits,
             self.package_url,
@@ -210,7 +213,7 @@ impl TarballDownload<'_> {
         client: Guard,
         response: reqwest::Response,
         attempt: u32,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<ExtractedFiles, TarballError> {
         let content_coding = ContentCoding::of_response(&response, self.package_url)?;
         let expected_size = response.content_length();
         let mut stream = response.bytes_stream();
@@ -253,7 +256,7 @@ impl TarballDownload<'_> {
         stream: Body,
         progress: BodyProgress<'_>,
         client: Guard,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -279,7 +282,7 @@ impl TarballDownload<'_> {
             BufferedArchive {
                 buffer,
                 content_coding,
-                expected_integrity: self.expected_integrity,
+                verification: self.verification.clone(),
                 unpacked_size: self.package_unpacked_size,
                 tar_limits: self.tar_limits,
             },
@@ -297,7 +300,7 @@ impl TarballDownload<'_> {
         stream: Body,
         progress: BodyProgress<'_>,
         client: Guard,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -325,7 +328,7 @@ impl TarballDownload<'_> {
         mut progress: BodyProgress<'_>,
         client: Guard,
         permit: SemaphorePermit<'static>,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -335,7 +338,7 @@ impl TarballDownload<'_> {
             stream,
             BodyVerification {
                 content_coding,
-                hasher: BodyHasher::new(self.expected_integrity),
+                verification: self.verification.clone(),
                 limits: self.tar_limits.with_unpacked_size(self.package_unpacked_size),
                 store_dir: self.store_dir,
                 ignore_file_pattern: self.ignore_file_pattern,

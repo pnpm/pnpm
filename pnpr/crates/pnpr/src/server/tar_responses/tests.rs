@@ -45,8 +45,10 @@ async fn decode_and_derive(
     .unwrap();
     let stale = super::StaleTgz {
         storage,
-        name: super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
-            .unwrap(),
+        name: Some(
+            super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
+                .unwrap(),
+        ),
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };
@@ -122,8 +124,10 @@ async fn a_tar_response_decodes_only_with_a_permit() {
     .unwrap();
     let stale = super::StaleTgz {
         storage,
-        name: super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
-            .unwrap(),
+        name: Some(
+            super::CanonicalPackageName::parse("left-pad", pnpr_package_name::Ecosystem::Npm)
+                .unwrap(),
+        ),
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };

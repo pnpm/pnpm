@@ -613,6 +613,11 @@ pub struct Config {
     /// `lockfile.includeResolutionSettings` setting.
     pub lockfile_include_resolution_settings: bool,
 
+    /// Which hash the `integrity` of a package tarball entry in the lockfile
+    /// names. The `lockfile.integrityTarget` setting, recorded in the
+    /// lockfile's `settings` when it is `tar`.
+    pub lockfile_integrity_target: pnpm_lockfile::IntegrityTarget,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)

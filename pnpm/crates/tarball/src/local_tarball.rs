@@ -215,6 +215,8 @@ pub async fn read_subdir_manifest(
 /// its root `package.json`.
 #[derive(Debug)]
 pub struct LocalTarballMetadata {
+    /// The hash the requested [`IntegrityKind`](crate::IntegrityKind) names:
+    /// the file's, or that of the tar the file holds.
     pub integrity: Integrity,
     /// `None` when the narrowing kept nothing — the archive has no root
     /// `package.json`, or one that is not a JSON object, or one whose
@@ -246,6 +248,7 @@ pub struct LocalTarballMetadata {
 /// row written here would never be read.
 pub async fn read_local_tarball_metadata(
     path: &Path,
+    kind: crate::IntegrityKind,
 ) -> Result<LocalTarballMetadata, TarballError> {
     let package_url = format!("file:{}", path.display());
     // pnpm names the plain filesystem path — not the `file:` URL — when
@@ -259,7 +262,16 @@ pub async fn read_local_tarball_metadata(
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
     spawn_extraction(post_download_permit, move || {
-        let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
+        let integrity = match kind {
+            crate::IntegrityKind::Resource => verify_tarball_integrity(&buffer, None, package_url)?,
+            crate::IntegrityKind::Tar | crate::IntegrityKind::ResourceOrTar => {
+                crate::archive_integrity::check_tar_integrity(
+                    buffer.as_slice(),
+                    None,
+                    &package_url,
+                )?
+            }
+        };
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
         Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
@@ -270,7 +282,7 @@ pub async fn read_local_tarball_metadata(
 
 /// Read the root `package.json` out of a gzipped archive, decoding it
 /// whole while it is small enough for [`decompress_gzip`] and streaming
-/// it past that. See [`crate::extract::extract_gzipped_tarball`] for
+/// it past that. See [`crate::extract::extract_gzipped_tarball_with_tar`] for
 /// why the whole-archive decode has a ceiling and why reaching it is
 /// not a refusal.
 pub(crate) fn read_bundled_manifest_from_archive(
@@ -389,10 +401,31 @@ fn finish_bundled_manifest(
     Ok((normalize_bundled_manifest(&parsed), true))
 }
 
-/// Verifies a local tarball on disk matches the expected integrity.
-pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result<(), TarballError> {
-    let mut file = open_local_file_sync(path)?;
-    stream_check_integrity(path, &mut file, integrity)
+/// Verifies a local tarball on disk matches the expected integrity, which
+/// names the hash `kind` says.
+pub fn verify_local_file_integrity(
+    path: &Path,
+    integrity: &Integrity,
+    kind: crate::IntegrityKind,
+) -> Result<(), TarballError> {
+    let check_tar = || {
+        crate::archive_integrity::check_tar_integrity(
+            open_local_file_sync(path)?,
+            Some(integrity),
+            &format!("file:{}", path.display()),
+        )
+        .map(|_| ())
+    };
+    match kind {
+        crate::IntegrityKind::Resource => {
+            stream_check_integrity(path, &mut open_local_file_sync(path)?, integrity)
+        }
+        crate::IntegrityKind::Tar => check_tar(),
+        crate::IntegrityKind::ResourceOrTar => {
+            stream_check_integrity(path, &mut open_local_file_sync(path)?, integrity)
+                .or_else(|_| check_tar())
+        }
+    }
 }
 
 fn open_local_file_sync(path: &Path) -> Result<std::fs::File, TarballError> {

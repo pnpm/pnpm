@@ -406,7 +406,25 @@ fn shasum_only_package_body(shasum: &str) -> String {
     .to_string()
 }
 
+/// A revision-aware `acme@1.0.0` whose selected artifact is `revision` at
+/// `tarball`. The history also holds a distinct revision 0 unless the
+/// selected revision is 0.
 fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String {
+    let original_digest =
+        "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
+    let original = json!({
+        "revision": 0,
+        "integrity": format!("sha512-{}==", original_digest.replace('_', "/").replace('-', "+")),
+        "tarball": tarball.replace(&"A".repeat(86), original_digest),
+        "manifest": {},
+    });
+    let selected = json!({
+        "revision": revision,
+        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "tarball": tarball,
+        "manifest": {},
+    });
+    let revisions = if *revision == json!(0) { vec![selected] } else { vec![original, selected] };
     json!({
         "name": "acme",
         "dist-tags": { "latest": "1.0.0" },
@@ -419,12 +437,7 @@ fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String 
                     "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
                     "tarball": tarball,
                     "revision": revision,
-                    "revisions": [{
-                        "revision": revision,
-                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-                        "tarball": tarball,
-                        "manifest": {},
-                    }],
+                    "revisions": revisions,
                 },
             },
         },
