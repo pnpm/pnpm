@@ -103,7 +103,7 @@ function parseNpmTarballUrl (url: string, registry: string): NpmTarballUrl | nul
   if (!parsed.pathname.startsWith(registryPath)) return null
   const parts = parsed.pathname.slice(registryPath.length).split('/-/')
   if (parts.length !== 2 || !parts[0].startsWith('/')) return null
-  const name = decodeURIComponent(parts[0].slice(1))
+  const name = safeDecodeURIComponent(parts[0].slice(1))
   if (!name) return null
   // The tarball filename starts with the scopeless name followed by `-`.
   // Anchoring on that prefix rejects a URL like `foo/-/bar-1.0.0.tgz`.
@@ -113,6 +113,14 @@ function parseNpmTarballUrl (url: string, registry: string): NpmTarballUrl | nul
   const version = fileName.slice(scopelessNamePrefix.length)
   if (!semver.valid(version, true)) return null
   return { name, version }
+}
+
+function safeDecodeURIComponent (encoded: string): string | null {
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return null
+  }
 }
 
 /**
