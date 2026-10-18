@@ -13,7 +13,7 @@ ARG PNPR_SHA256_ARM64
 # verifier, which reads the system CA bundle, so ca-certificates is required.
 RUN set -eu; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates; \
+    apt-get install -y --no-install-recommends ca-certificates tini; \
     rm -rf /var/lib/apt/lists/*; \
     useradd --system --create-home --home-dir /home/pnpr --shell /usr/sbin/nologin pnpr
 
@@ -52,5 +52,5 @@ VOLUME ["/pnpr/storage", "/pnpr/cache"]
 # outside the container (the binary defaults to 127.0.0.1).
 EXPOSE 7677
 
-ENTRYPOINT ["pnpr"]
-CMD ["--listen", "0.0.0.0:7677", "--storage", "/pnpr/storage", "--cache", "/pnpr/cache"]
+ENTRYPOINT ["tini", "--", "pnpr"]
+CMD ["serve", "--listen", "0.0.0.0:7677", "--storage", "/pnpr/storage", "--cache", "/pnpr/cache"]
