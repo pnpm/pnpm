@@ -72,6 +72,7 @@ test('injected dependency dedupes to link: even when an unrelated shared depende
     pathsByNodeId: new Map([[nodeId, depPath]]),
     projects: [{ id: 'packages/consumer', directNodeIdsByAlias } as unknown as Opts['projects'][number]],
     resolvedImporters,
+    wantedLockfile: { importers: {} },
     workspaceProjectIds: new Set(['packages/pkg-c']),
   })
 
@@ -142,6 +143,7 @@ test('injected dependency is NOT deduped when a shared dependency resolves to a 
     pathsByNodeId: new Map([[nodeId, depPath]]),
     projects: [{ id: 'packages/consumer', directNodeIdsByAlias } as unknown as Opts['projects'][number]],
     resolvedImporters,
+    wantedLockfile: { importers: {} },
     workspaceProjectIds: new Set(['packages/pkg-c']),
   })
 

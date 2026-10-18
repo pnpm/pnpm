@@ -1,3 +1,4 @@
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import type {
   DepPath,
   PeerDependencyIssues,
@@ -52,6 +53,7 @@ interface ResolvePeersOptions<Pkg extends PartialResolvedPackage> {
   dedupePeers?: boolean
   dedupeInjectedDeps?: boolean
   resolvedImporters: ResolvedImporters
+  wantedLockfile?: Pick<LockfileObject, 'importers'>
   peersSuffixMaxLength: number
   workspaceProjectIds: Set<string>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
@@ -106,6 +108,7 @@ export async function resolvePeers<Pkg extends PartialResolvedPackage> (
       pathsByNodeId: sharedCtx.pathsByNodeId,
       lockfileDir: opts.lockfileDir,
       resolvedImporters: opts.resolvedImporters,
+      wantedLockfile: opts.wantedLockfile,
       workspaceProjectIds: opts.workspaceProjectIds,
     })
   }
