@@ -1,4 +1,4 @@
-use super::target_swap_lock_path;
+use super::lock::target_swap_lock_path;
 use std::fs;
 
 #[test]

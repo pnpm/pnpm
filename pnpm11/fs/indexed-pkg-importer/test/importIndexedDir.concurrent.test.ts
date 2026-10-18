@@ -53,7 +53,8 @@ test('a concurrent importer repairs a partial shared virtual-store slot before m
 
 // On Windows a rename onto an occupied directory fails with EPERM, which
 // rename-overwrite answers by removing the target and retrying for up to a
-// minute, so contending processes take longer than the test allows.
+// minute, so contending processes take longer than the test allows. Tracked
+// in https://github.com/pnpm/tasks/issues/156.
 const testOnPosix = process.platform === 'win32' ? test.skip : test
 
 testOnPosix('concurrent forced imports into one target all complete and leave the package in place', async () => {

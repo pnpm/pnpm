@@ -125,10 +125,9 @@ fn node_modules_collision_in_file_map_merges() {
     assert!(!target.join("node_modules/foo/stale.js").exists());
 }
 /// A stale subtree the importer cannot unlink does not block the
-/// replacement: the occupied target is moved aside by a rename, the
-/// staged tree takes its place with the preserved `node_modules/`, and
-/// only discarding the old tree fails, which leaves it next to the
-/// target for the user to remove.
+/// replacement: the staged tree takes the target's place with the
+/// preserved `node_modules/`, and only discarding the old tree fails,
+/// which leaves it next to the target and warns the user to remove it.
 ///
 /// `remove_dir_all` fails on a subdirectory chmod'ed to 0o500: it can
 /// read the entries but unlinking them needs write on the containing
@@ -136,7 +135,21 @@ fn node_modules_collision_in_file_map_merges() {
 #[test]
 #[cfg(unix)]
 fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
-    use std::os::unix::fs::PermissionsExt;
+    use pnpm_reporter::{LogEvent, Reporter};
+    use std::{os::unix::fs::PermissionsExt, sync::Mutex};
+
+    static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                WARNINGS
+                    .lock()
+                    .unwrap()
+                    .push(log.message.clone());
+            }
+        }
+    }
 
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
@@ -155,7 +168,7 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
     fs::write(locked.join("immutable.txt"), b"locked").unwrap();
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o500)).unwrap();
 
-    let result = import_indexed_dir::<SilentReporter>(
+    let result = import_indexed_dir::<RecordingReporter>(
         &AtomicU8::new(0),
         PackageImportMethod::Copy,
         &target,
@@ -188,6 +201,9 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
     assert!(!target.join("locked_subdir").exists());
     assert_eq!(displaced.len(), 1, "the old tree is left aside: {displaced:?}");
     assert_eq!(fs::read(displaced[0].join("locked_subdir/immutable.txt")).unwrap(), b"locked");
+    let warnings = WARNINGS.lock().unwrap();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains(&displaced[0].to_string_lossy().into_owned()), "{}", warnings[0]);
 }
 /// `symlink_metadata` errors on the preserved `node_modules/` inspect
 /// must surface as `InspectTarget`, not be swallowed as "nothing to
