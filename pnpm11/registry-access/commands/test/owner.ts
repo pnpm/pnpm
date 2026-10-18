@@ -40,7 +40,7 @@ describe('owner command', () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
       path: /^\/@pnpm%2[Ff]test$/,
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json; q=1.0, */*' },
     }).reply(200, {
       maintainers: [
         { name: 'alice', email: 'alice@example.com' },
@@ -81,7 +81,7 @@ describe('owner command', () => {
     getMockAgent().get('https://registry.example.com').intercept({
       method: 'GET',
       path: /^\/npm\/@pnpm%2[Ff]test$/,
-      headers: { authorization: 'Bearer test-token', accept: 'application/json' },
+      headers: { authorization: 'Bearer test-token', accept: 'application/json; q=1.0, */*' },
     }).reply(200, { maintainers: [{ name: 'alice', email: 'alice@example.com' }] })
 
     const result = await owner.handler({

@@ -212,7 +212,7 @@ async function fetchOwners (
   const packageUrl = new URL(escapedName, registryUrl).href
   const response = await fetchFromRegistry(packageUrl, {
     authHeaderValue: authHeader,
-    headers: { accept: 'application/json' },
+    fullMetadata: true,
   })
 
   if (!response.ok) {

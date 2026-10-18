@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm owner ls` reporting existing packages as not found on the npm registry.
+`pnpm owner ls` now lists the owners of a package on the npm registry. It reported every package as not found.
