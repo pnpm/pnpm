@@ -315,10 +315,12 @@ impl Store {
         self.package_dir(name).join(filename)
     }
 
+    /// Keyed by the digest of the revision's tar. `.revisions/sha512` holds
+    /// blobs a `.tgz` digest named, which this path never serves.
     pub(super) fn revision_blob_path(&self, digest: &str) -> PathBuf {
         self.root
             .join(".revisions")
-            .join("sha512")
+            .join("tar-sha512")
             .join(digest)
     }
 

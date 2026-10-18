@@ -186,7 +186,12 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
+    let decode = state.inner.proxy.tar_decodes
+        .acquire()
+        .await
+        .expect("the decode semaphore is never closed");
     let written = write_attachment_slots(&storage, &name, prepared).await?;
+    drop(decode);
     let revision_refs = written.tars
         .iter()
         .filter_map(|tar| staged_hosted_original_ref(&name, tar))
