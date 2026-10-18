@@ -295,20 +295,23 @@ function copiesListedIn (
   return targetDirs.map((targetDir) => ({ dir: path.resolve(lockfileDir, targetDir), hoistedBinDir }))
 }
 
-/** The modules manifests that list injected copies. See `SyncInjectedDepsOptions.projectLockfiles`. */
+/**
+ * The modules manifests that list injected copies: the workspace root's, or,
+ * with `opts.projectLockfiles`, every project's, the root's included, each
+ * under the modules directory that project installs into.
+ */
 async function readModulesManifests (opts: SyncInjectedDepsOptions & { workspaceDir: string }): Promise<Array<{
   lockfileDir: string
   modules: Awaited<ReturnType<typeof readModulesManifest>>
 }>> {
-  const modulesDirs = [{ lockfileDir: opts.workspaceDir, modulesDir: path.join(opts.workspaceDir, 'node_modules') }]
+  let modulesDirs = [{ lockfileDir: opts.workspaceDir, modulesDir: path.join(opts.workspaceDir, 'node_modules') }]
   if (opts.projectLockfiles != null) {
     const { modulesDir, modulesDirsByProjectName } = opts.projectLockfiles
     const projects = await findWorkspaceProjects(opts.workspaceDir, opts.projectLockfiles)
-    for (const { rootDir, manifest } of projects) {
-      if (path.resolve(rootDir) === path.resolve(opts.workspaceDir)) continue
+    modulesDirs = projects.map(({ rootDir, manifest }) => {
       const projectModulesDir = (manifest.name != null ? modulesDirsByProjectName?.[manifest.name] : undefined) ?? modulesDir ?? 'node_modules'
-      modulesDirs.push({ lockfileDir: rootDir, modulesDir: path.resolve(rootDir, projectModulesDir) })
-    }
+      return { lockfileDir: rootDir, modulesDir: path.resolve(rootDir, projectModulesDir) }
+    })
   }
   return Promise.all(modulesDirs.map(async ({ lockfileDir, modulesDir }) => ({
     lockfileDir,

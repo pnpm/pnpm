@@ -45,3 +45,25 @@ test('injectedEditDirs reads the copies each project with its own lockfile lists
     targetDirs: [path.join(workspaceDir, 'app/deps/.pnpm/lib@file+..+lib/node_modules/lib')],
   }])
 })
+
+test('injectedEditDirs reads the root\'s copies from its configured modules directory', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  writeJson(path.join(workspaceDir, 'package.json'), { name: 'root', version: '1.0.0' })
+  writeJson(path.join(workspaceDir, 'lib/package.json'), { name: 'lib', version: '1.0.0' })
+  writeJson(path.join(workspaceDir, 'deps/.modules.yaml'), {
+    injectedDeps: { lib: ['deps/.pnpm/lib@file+lib/node_modules/lib'] },
+  })
+
+  const sources = await injectedEditDirs({
+    pkgName: 'lib',
+    pkgRootDir: 'lib',
+    workspaceDir,
+    projectLockfiles: { workspacePackagePatterns: ['.', 'lib'], modulesDir: 'deps' },
+  })
+
+  expect(sources).toEqual([{
+    sourceDir: path.join(workspaceDir, 'lib'),
+    targetDirs: [path.join(workspaceDir, 'deps/.pnpm/lib@file+lib/node_modules/lib')],
+  }])
+})
