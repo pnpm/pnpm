@@ -5439,6 +5439,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-registry-mock",
+ "pnpr-storage",
  "reqwest",
  "serde",
  "serde-saphyr",
