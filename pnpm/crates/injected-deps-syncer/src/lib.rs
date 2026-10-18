@@ -26,7 +26,9 @@ use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pnpm_package_manifest::PackageManifestError;
-use pnpm_workspace::FindWorkspaceProjectsError;
+use pnpm_workspace::{
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects_no_check,
+};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -97,6 +99,10 @@ pub struct SyncInjectedDeps<'a> {
     /// which bins they used to have: their `package.json` is hardlinked to
     /// the source, so an in-place rewrite has already reached them.
     pub manifest_before_scripts: Option<&'a serde_json::Value>,
+    /// pnpm's `sharedWorkspaceLockfile`. Without it, each project's own
+    /// `.modules.yaml` lists the copies injected into that project, so every
+    /// project's is read besides the workspace root's.
+    pub shared_workspace_lockfile: bool,
 }
 
 /// How the workspace links bins, so the shims the sync relinks match the
@@ -152,38 +158,74 @@ fn sync_workspace_injected_deps(
     // on this project bypasses that redirect, so it is tracked under the
     // project root instead, and its copy has to be patched from there.
     let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
-    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
-    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
+    let records = injection_records(opts, workspace_dir)?;
 
     let mut source_dirs = vec![content_source_dir.clone()];
     if content_source_dir != pkg_root_dir {
         source_dirs.push(pkg_root_dir);
     }
     for source_dir in &source_dirs {
-        sync_injected_deps_from_source(
-            opts,
-            workspace_dir,
-            source_dir,
-            modules.as_ref(),
-            hoisted_bin_dir.as_deref(),
-        )?;
+        for record in &records {
+            sync_injected_deps_from_source(opts, workspace_dir, source_dir, record)?;
+        }
     }
     Ok(())
 }
 
-/// Patch every injected copy of `source_dir` and relink its bins.
+/// A `.modules.yaml` and the directory its injected-copy paths are
+/// relative to: the workspace root, or a project with its own lockfile.
+struct InjectionRecord {
+    lockfile_dir: PathBuf,
+    modules: Option<pnpm_modules_yaml::Modules>,
+}
+
+/// The modules manifests that list injected copies. See
+/// [`SyncInjectedDeps::shared_workspace_lockfile`].
+fn injection_records(
+    opts: &SyncInjectedDeps<'_>,
+    workspace_dir: &Path,
+) -> Result<Vec<InjectionRecord>, SyncInjectedDepsError> {
+    let mut records = vec![InjectionRecord {
+        lockfile_dir: workspace_dir.to_path_buf(),
+        modules: read_workspace_modules(opts.workspace_modules_dir)?,
+    }];
+    if opts.shared_workspace_lockfile {
+        return Ok(records);
+    }
+    let projects = find_workspace_projects_no_check(
+        workspace_dir,
+        &FindWorkspaceProjectsOpts {
+            patterns: None,
+            ignored_directories: opts.bin_links.ignored_directories.clone(),
+        },
+    )
+    .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
+    let workspace_root = pnpm_fs::lexical_normalize(workspace_dir);
+    for project in projects {
+        if pnpm_fs::lexical_normalize(&project.root_dir) == workspace_root {
+            continue;
+        }
+        let modules =
+            read_workspace_modules(&project.root_dir.join(opts.bin_links.modules_dir_name))?;
+        records.push(InjectionRecord { lockfile_dir: project.root_dir, modules });
+    }
+    Ok(records)
+}
+
+/// Patch every injected copy of `source_dir` that `record` lists, and
+/// relink its bins.
 fn sync_injected_deps_from_source(
     opts: &SyncInjectedDeps<'_>,
     workspace_dir: &Path,
     source_dir: &Path,
-    modules: Option<&pnpm_modules_yaml::Modules>,
-    hoisted_bin_dir: Option<&Path>,
+    record: &InjectionRecord,
 ) -> Result<(), SyncInjectedDepsError> {
     let Some(resolved_targets) =
-        resolved_injected_targets(opts, workspace_dir, source_dir, modules)
+        resolved_injected_targets(opts, &record.lockfile_dir, source_dir, record.modules.as_ref())
     else {
         return Ok(());
     };
+    let hoisted_bin_dir = hoisted_bin_path(&record.lockfile_dir, record.modules.as_ref());
     if source_not_yet_built(source_dir)? {
         return Ok(());
     }
@@ -202,7 +244,7 @@ fn sync_injected_deps_from_source(
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
-        hoisted_bin_dir,
+        hoisted_bin_dir: hoisted_bin_dir.as_deref(),
         settings: &opts.bin_links,
     })
 }
@@ -266,7 +308,7 @@ pub fn injected_source_dirs<'a>(
 /// or `None` if there are none to sync.
 fn resolved_injected_targets(
     opts: &SyncInjectedDeps<'_>,
-    workspace_dir: &Path,
+    lockfile_dir: &Path,
     source_dir: &Path,
     modules: Option<&pnpm_modules_yaml::Modules>,
 ) -> Option<Vec<PathBuf>> {
@@ -279,7 +321,7 @@ fn resolved_injected_targets(
     };
 
     let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(workspace_dir, source_dir))
+        .get(&injected_dep_key(lockfile_dir, source_dir))
         .filter(|dirs| !dirs.is_empty())
     else {
         tracing::debug!(
@@ -293,7 +335,7 @@ fn resolved_injected_targets(
     Some(
         target_dirs
             .iter()
-            .map(|target_dir| workspace_dir.join(target_dir))
+            .map(|target_dir| lockfile_dir.join(target_dir))
             .collect(),
     )
 }
@@ -318,8 +360,8 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
     let (Some(_), Some(workspace_dir)) = (opts.pkg_name, opts.workspace_dir) else {
         return Vec::new();
     };
-    let modules = match read_workspace_modules(opts.workspace_modules_dir) {
-        Ok(modules) => modules,
+    let records = match injection_records(opts, workspace_dir) {
+        Ok(records) => records,
         Err(error) => {
             tracing::debug!(
                 target: "pacquet::sync_injected_deps",
@@ -337,8 +379,21 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
     sources
         .into_iter()
         .filter_map(|source| {
-            let targets =
-                resolved_injected_targets(opts, workspace_dir, &source, modules.as_ref())?;
+            let targets: Vec<PathBuf> = records
+                .iter()
+                .filter_map(|record| {
+                    resolved_injected_targets(
+                        opts,
+                        &record.lockfile_dir,
+                        &source,
+                        record.modules.as_ref(),
+                    )
+                })
+                .flatten()
+                .collect();
+            if targets.is_empty() {
+                return None;
+            }
             Some(InjectedEditSource {
                 source,
                 targets,
@@ -515,8 +570,8 @@ fn patch_targets(
 }
 
 /// The key `.modules.yaml` files an injected dependency under: the
-/// package's path relative to the workspace root, with forward slashes
-/// on every host.
-fn injected_dep_key(workspace_dir: &Path, pkg_root_dir: &Path) -> String {
-    pnpm_fs::relative_path(workspace_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
+/// package's path relative to the manifest's lockfile directory, with
+/// forward slashes on every host.
+fn injected_dep_key(lockfile_dir: &Path, pkg_root_dir: &Path) -> String {
+    pnpm_fs::relative_path(lockfile_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
 }

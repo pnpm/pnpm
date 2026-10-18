@@ -192,7 +192,7 @@ export type RunOpts =
   | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
-  & Partial<Pick<Config, 'deployAllFiles'>>
+  & Partial<Pick<Config, 'deployAllFiles' | 'sharedWorkspaceLockfile'>>
   & Partial<Pick<Config, 'filter' | 'filterProd'>>
   & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<ConfigContext, 'rawCliConfig'>>
@@ -350,6 +350,7 @@ async function runProjectScripts (opts: RunOpts, project: ProjectScripts): Promi
   const runScriptOptions: RunScriptOptions = {
     deployAllFiles: opts.deployAllFiles,
     enablePrePostScripts: opts.enablePrePostScripts ?? false,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
     workspaceDir: opts.workspaceDir,
   }

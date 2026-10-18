@@ -10,6 +10,7 @@ import {
 export interface RunScriptOptions {
   deployAllFiles?: boolean
   enablePrePostScripts: boolean
+  sharedWorkspaceLockfile?: boolean
   syncInjectedDepsAfterScripts: string[] | undefined
   workspaceDir: string | undefined
 }
@@ -37,6 +38,7 @@ export async function runScript (opts: RunScriptContext, scriptName: string): Pr
       // Read before the script ran, so a bin it drops can still be named.
       manifestBeforeScripts: opts.manifest as DependencyManifest,
       includeOnlyPackageFiles: !opts.runScriptOptions.deployAllFiles,
+      sharedWorkspaceLockfile: opts.runScriptOptions.sharedWorkspaceLockfile,
     })
   }
 }
@@ -63,6 +65,7 @@ async function startInjectedEditWatch (opts: {
     pkgName: opts.manifest.name,
     pkgRootDir: opts.lifecycleOpts.pkgRoot,
     workspaceDir: opts.runScriptOptions.workspaceDir,
+    sharedWorkspaceLockfile: opts.runScriptOptions.sharedWorkspaceLockfile,
   })
   if (located == null) return undefined
   return watchInjectedEdits(located.sourceDir, located.targetDirs, !opts.runScriptOptions.deployAllFiles)

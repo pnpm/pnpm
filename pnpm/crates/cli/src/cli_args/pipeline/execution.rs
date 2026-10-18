@@ -374,6 +374,7 @@ fn sync_injected_deps_if_configured(
         workspace_modules_dir: &config.modules_dir,
         include_only_package_files: !config.deploy_all_files,
         manifest_before_scripts: Some(manifest),
+        shared_workspace_lockfile: config.shared_workspace_lockfile,
         bin_links: BinLinkSettings {
             modules_dir_name: config.modules_dir_name(),
             extend_node_path: config.extend_node_path,

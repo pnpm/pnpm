@@ -43,6 +43,7 @@ fn injected_sync_opts<'a>(ctx: &'a RunContext<'_>) -> SyncInjectedDeps<'a> {
         include_only_package_files: !ctx.config.deploy_all_files,
         // Read before the script ran, so a bin it drops can still be named.
         manifest_before_scripts: Some(ctx.manifest.value()),
+        shared_workspace_lockfile: ctx.config.shared_workspace_lockfile,
         bin_links: BinLinkSettings {
             modules_dir_name: ctx.config.modules_dir_name(),
             extend_node_path: ctx.config.extend_node_path,

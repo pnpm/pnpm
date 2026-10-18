@@ -235,6 +235,7 @@ async function runProjectScript (
   const runScriptOptions: RunScriptOptions = {
     deployAllFiles: opts.deployAllFiles,
     enablePrePostScripts: opts.enablePrePostScripts ?? false,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
     workspaceDir: opts.workspaceDir,
   }
