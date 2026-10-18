@@ -229,9 +229,13 @@ async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>
         Err(err) if err.kind() == ErrorKind::NotFound => {}
         Err(err) => return Err(err.into()),
     }
-    let Some(mut blobs) = read_dir_if_present(&dir.join(BLOBS_DIR)).await? else {
+    let blobs_dir = dir.join(BLOBS_DIR);
+    let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
         return Ok(files);
     };
+    if !super::is_real_dir(&blobs_dir).await? {
+        return Ok(files);
+    }
     while let Some(entry) = blobs.next_entry().await? {
         let metadata = entry.metadata().await?;
         // A blob being staged sits beside its final name until it is promoted.

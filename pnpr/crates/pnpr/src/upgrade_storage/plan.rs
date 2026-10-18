@@ -83,7 +83,9 @@ fn step(
     orgs: &BTreeSet<String>,
     packages: &BTreeSet<(String, String)>,
 ) -> Option<Step> {
-    if !path.contains('/') || is_new_layout(path, orgs) {
+    if !path.contains('/')
+        || (is_new_layout(path, orgs) && !is_legacy_package_file(path, orgs, packages))
+    {
         return None;
     }
     if let Some(rest) = path
@@ -102,6 +104,19 @@ fn step(
     Some(namespace_step(&prefix, rest, |package| {
         packages.contains(&(org.to_string(), package.to_string()))
     }))
+}
+
+/// Whether `path` sits beside a legacy package document. Documents move last,
+/// so this holds for every file of a package an upgrade has yet to finish,
+/// whatever its path looks like.
+fn is_legacy_package_file(
+    path: &str,
+    orgs: &BTreeSet<String>,
+    packages: &BTreeSet<(String, String)>,
+) -> bool {
+    split_namespace(path, orgs)
+        .and_then(|(org, rest)| Some((org, rest.rsplit_once('/')?.0)))
+        .is_some_and(|(org, package)| packages.contains(&(org.to_string(), package.to_string())))
 }
 
 /// Paths an interrupted upgrade already moved: the exact shapes the new

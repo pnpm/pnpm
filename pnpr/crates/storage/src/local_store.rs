@@ -235,8 +235,7 @@ impl Store {
                 continue;
             };
             if entry.file_type().await?.is_dir()
-                && fs::symlink_metadata(entry.path().join(DOCUMENT_FILE)).await
-                    .is_ok_and(|metadata| metadata.is_file())
+                && is_regular_file(&entry.path().join(DOCUMENT_FILE)).await?
             {
                 names.push(name);
             }
@@ -345,6 +344,24 @@ impl Store {
             }
         }
         Ok(keys)
+    }
+}
+
+/// Whether `path` is a regular file, not following a symlink.
+pub(super) async fn is_regular_file(path: &Path) -> Result<bool> {
+    Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_file()))
+}
+
+/// Whether `path` is a directory, not following a symlink.
+pub(super) async fn is_real_dir(path: &Path) -> Result<bool> {
+    Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_dir()))
+}
+
+async fn symlink_metadata_if_present(path: &Path) -> Result<Option<std::fs::Metadata>> {
+    match fs::symlink_metadata(path).await {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err.into()),
     }
 }
 

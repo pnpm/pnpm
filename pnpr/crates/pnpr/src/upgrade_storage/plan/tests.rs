@@ -214,3 +214,24 @@ fn an_org_named_default_is_refused() {
     let error = plan(&[], &BTreeSet::from(["default".to_string()])).unwrap_err();
     assert!(error.contains(r#"an org named "default""#), "{error}");
 }
+
+#[test]
+fn a_legacy_repository_named_like_a_new_blob_directory_still_moves() {
+    assert_eq!(
+        steps(
+            &["default/packages/foo/blobs/package.json", "default/packages/foo/blobs/sha256-aa"],
+            &[]
+        ),
+        [
+            (
+                "default/packages/foo/blobs/package.json",
+                moved("default/packages/default!2fpackages!2ffoo!2fblobs/document.json", true),
+            ),
+            (
+                "default/packages/foo/blobs/sha256-aa",
+                moved("default/packages/default!2fpackages!2ffoo!2fblobs/blobs/sha256-aa", false),
+            ),
+        ]
+        .map(|(from, step)| (from.to_string(), step)),
+    );
+}

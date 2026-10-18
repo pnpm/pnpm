@@ -604,15 +604,20 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
     fs::symlink(outside.join("document.json"), packages.join("linked-doc"))
         .await
         .unwrap();
+    storage
+        .write_hosted_document_if_current(&pkg("other"), b"{}", None)
+        .await
+        .unwrap();
+    fs::symlink(outside.join("blobs"), packages.join("other/blobs")).await.unwrap();
 
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["real"]);
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["other", "real"]);
     let files: Vec<_> = storage
         .hosted_blob_files()
         .try_collect()
         .await
         .unwrap();
-    assert_eq!(files.len(), 1, "{files:?}");
-    assert_eq!((files[0].package.as_str(), files[0].blob.as_deref()), ("real", None));
+    assert!(files.iter().all(|file| file.blob.is_none()), "{files:?}");
+    assert_eq!(files.len(), 2, "{files:?}");
 }
 
 #[tokio::test]
