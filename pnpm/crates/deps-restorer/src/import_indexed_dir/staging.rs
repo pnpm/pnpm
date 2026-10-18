@@ -71,21 +71,55 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         cas_paths,
         preserve_symlinks,
     )?;
-    let _target_lock = target_swap_lock(dir_path)
-        .map_err(|error| {
-            let _ = fs::remove_dir_all(&paths.stage);
-            ImportIndexedDirError::AcquireSwapLock { path: dir_path.to_path_buf(), error }
-        })?;
+    // An absent target takes the staged tree in one rename, which also
+    // settles which of several importers that found it absent owns it.
+    // Only an occupied target, which has to be removed first, needs the
+    // swap lock, so a fresh forced install never pays for one. Whatever
+    // else made the rename fail, the occupied-target path inspects,
+    // removes, and renames again, and reports the step that failed.
+    if pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok() {
+        return Ok(());
+    }
+    let _target_lock = target_swap_lock(dir_path);
     let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
     swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)
 }
 
-fn target_swap_lock(dir_path: &Path) -> Result<pnpm_fs::DirLock, io::Error> {
-    let lock_path = target_swap_lock_path(dir_path)?;
-    pnpm_fs::DirLock::acquire(lock_path, TARGET_SWAP_LOCK_WAIT, TARGET_SWAP_LOCK_ABANDONED_AFTER)?
-        .ok_or_else(|| {
-            io::Error::new(io::ErrorKind::TimedOut, "timed out waiting for target swap lock")
-        })
+/// Serialize the replacement of `dir_path` with the other installs
+/// replacing it. `None` when the lock cannot be taken in time or at all,
+/// in which case the caller replaces the target unserialized: the swap
+/// tolerates a concurrent importer, the lock only keeps the two from
+/// undoing each other's work, so a lock directory this user cannot use
+/// must not fail the install.
+fn target_swap_lock(dir_path: &Path) -> Option<pnpm_fs::DirLock> {
+    let acquired = target_swap_lock_path(dir_path)
+        .and_then(|lock_path| {
+            pnpm_fs::DirLock::acquire(
+                lock_path,
+                TARGET_SWAP_LOCK_WAIT,
+                TARGET_SWAP_LOCK_ABANDONED_AFTER,
+            )
+        });
+    match acquired {
+        Ok(Some(lock)) => Some(lock),
+        Ok(None) => {
+            tracing::debug!(
+                target: "pacquet::import_indexed_dir",
+                ?dir_path,
+                "timed out waiting for the target swap lock; replacing the target unserialized",
+            );
+            None
+        }
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::import_indexed_dir",
+                ?dir_path,
+                %error,
+                "could not take the target swap lock; replacing the target unserialized",
+            );
+            None
+        }
+    }
 }
 
 fn target_swap_lock_path(dir_path: &Path) -> Result<PathBuf, io::Error> {
