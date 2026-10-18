@@ -13,12 +13,11 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, AtomicU64, Ordering},
-    time::Duration,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const TARGET_SWAP_LOCK_WAIT: Duration = Duration::from_secs(30);
-const TARGET_SWAP_LOCK_ABANDONED_AFTER: Duration = Duration::from_secs(600);
+const TARGET_SWAP_LOCK_ABANDONED_AFTER: Duration = Duration::from_mins(10);
 
 /// Place a file atomically (pnpm's `importFileAtomic`): link it into a
 /// private temp sibling, then rename onto `target` so it is never
