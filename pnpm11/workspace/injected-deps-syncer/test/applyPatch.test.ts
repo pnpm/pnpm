@@ -7,7 +7,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
-import { applyPatch, DIR, type DirDiff, publishEditsForWatchers, readPublishSource } from '../src/DirPatcher.js'
+import { applyPatch, DIR, type DirDiff, DirPatcher, publishEditsForWatchers, readPublishSource } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -362,6 +362,26 @@ testOnPosix('readPublishSource keeps a link to a listed directory as a link', as
     const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, ['link-to-a-dir', 'files']), true)
     expect(map['link-to-a-dir']).toBe('link:files/foo')
     expect(map['files/foo/bar.txt']).toEqual(expect.any(String))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('a sync copies a link to a file the packlist does not list as the file', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['link.txt'] }))
+    createFile(path.join(source, 'src/real.txt'), 'real')
+    fs.symlinkSync('src/real.txt', path.join(source, 'link.txt'))
+    fs.mkdirSync(target)
+
+    const patchers = await DirPatcher.fromMultipleTargets(source, [target], true)
+    await Promise.all(patchers.map(async (patcher) => patcher.apply()))
+
+    expect(fs.lstatSync(path.join(target, 'link.txt')).isFile()).toBe(true)
+    expect(fs.readFileSync(path.join(target, 'link.txt'), 'utf8')).toBe('real')
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

@@ -225,7 +225,7 @@ fn apply_change_with_link<Sys: FsHardLink>(
                 .map_err(|error| PatchError::CreateDir { path: target_path.clone(), error })
         }),
         Value::File(_) => {
-            let source_path = source_dir.join(&change.path);
+            let source_path = linked_file(&source_dir.join(&change.path));
             retry_over_blocking_inode(&target_path, || {
                 link_or_copy::<Sys>(&source_path, &target_path)
                     .map_err(|error| PatchError::Link {
@@ -239,6 +239,17 @@ fn apply_change_with_link<Sys: FsHardLink>(
             let source_path = source_dir.join(&change.path);
             retry_over_blocking_inode(&target_path, || place_link(&source_path, &target_path))
         }
+    }
+}
+
+/// The file at `path`, or the file it links to: a link the install imports as
+/// a file is a file in the copy, and a hardlink of the link would be another
+/// link, one the copy cannot resolve.
+fn linked_file(path: &Path) -> PathBuf {
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    } else {
+        path.to_path_buf()
     }
 }
 

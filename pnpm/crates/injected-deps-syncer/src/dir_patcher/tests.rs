@@ -414,3 +414,24 @@ fn sync_of_package_files_leaves_out_a_link_to_an_unlisted_directory() {
     assert!(fs::symlink_metadata(target.join("link-to-a-dir")).is_err());
     assert!(!target.join("escape").exists());
 }
+
+/// The install imports a link to a file it leaves out as that file, so the
+/// copy can open it.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_copies_a_link_to_an_unlisted_file_as_the_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(
+        &source.join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["link.txt"]}"#,
+    );
+    create_file(&source.join("src/real.txt"), "real");
+    std::os::unix::fs::symlink("src/real.txt", source.join("link.txt")).expect("symlink");
+
+    sync_package_files(&source, &target);
+
+    let metadata = fs::symlink_metadata(target.join("link.txt")).expect("stat the synced file");
+    assert!(metadata.file_type().is_file(), "{metadata:?}");
+    assert_eq!(fs::read_to_string(target.join("link.txt")).expect("read synced file"), "real");
+}

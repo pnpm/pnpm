@@ -105,7 +105,7 @@ export async function listFilesFromDir (
     const files = await packlist(start)
     return { filesMap: new Map<string, string>(files.map((file) => [file, path.join(start, file)])) }
   }
-  return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start, '', new Set([dirId(await fs.stat(start))]))
+  return _fetchAllFilesFromDir(await createReadFileStat(start, opts), start, '', new Set([await dirId(start, await fs.stat(start))]))
 }
 
 /** The real path of `dir`, which a walk uses so a link pointed elsewhere after this check is not followed. */
@@ -198,7 +198,7 @@ async function handleDirEntry (
   const { filePath, stat } = fileStatResult
   const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
   if (stat.isDirectory()) {
-    const id = dirId(stat)
+    const id = await dirId(filePath, stat)
     if (ancestors.has(id)) {
       directoryFetcherLogger.debug({ linkToAncestor: filePath })
       return
@@ -214,7 +214,13 @@ async function handleDirEntry (
   }
 }
 
-const dirId = (stat: Pick<Stats, 'dev' | 'ino'>): string => `${stat.dev}:${stat.ino}`
+/**
+ * A directory's identity: its device and inode, or its real path where the
+ * filesystem reports no inode, as some Windows drives do.
+ */
+async function dirId (dir: string, stat: Pick<Stats, 'dev' | 'ino'>): Promise<string> {
+  return stat.ino === 0 ? `path:${await fs.realpath(dir)}` : `${stat.dev}:${stat.ino}`
+}
 
 interface FileStatResult {
   filePath: string

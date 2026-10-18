@@ -141,8 +141,18 @@ async function addRecursive (
     await retryOverBlockingInode(targetPath, async () => placeLink({ sourcePath, targetPath, targetDir }, value))
   } else {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-    await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
+    const filePath = await linkedFile(sourcePath)
+    await retryOverBlockingInode(targetPath, async () => linkOrCopy(filePath, targetPath))
   }
+}
+
+/**
+ * The file at `filePath`, or the file it links to: a link the install imports
+ * as a file is a file in the copy, and a hardlink of the link would be another
+ * link, one the copy cannot resolve.
+ */
+async function linkedFile (filePath: string): Promise<string> {
+  return (await fs.promises.lstat(filePath)).isSymbolicLink() ? fs.promises.realpath(filePath) : filePath
 }
 
 /**
