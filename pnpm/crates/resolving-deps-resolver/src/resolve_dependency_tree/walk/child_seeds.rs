@@ -4,7 +4,8 @@ use super::{
     ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
     keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
-    real_package_name_of, resolve_node_seed, warm_children_resolutions,
+    read_recoverable, real_package_name_of, resolve_node_seed, warm_children_resolutions,
+    write_recoverable,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -52,12 +53,12 @@ pub(super) fn child_specs_of(
     peer_shadowed: &HashSet<String>,
 ) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
     let cached =
-        lock_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
+        read_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
-        lock_recoverable(&ctx.workspace.children.specs_by_id)
+        write_recoverable(&ctx.workspace.children.specs_by_id)
             .entry(Arc::clone(&pending.identity.id))
             .or_insert_with(|| Arc::clone(&specs));
         specs

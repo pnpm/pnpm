@@ -36,7 +36,7 @@ use pnpm_resolving_resolver_base::{
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use crate::{
@@ -73,6 +73,16 @@ use walk::{
 /// failure.
 fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// [`fn@lock_recoverable`] for a read guard on a [`RwLock`].
+fn read_recoverable<Inner>(lock: &RwLock<Inner>) -> RwLockReadGuard<'_, Inner> {
+    lock.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// [`fn@lock_recoverable`] for a write guard on a [`RwLock`].
+fn write_recoverable<Inner>(lock: &RwLock<Inner>) -> RwLockWriteGuard<'_, Inner> {
+    lock.write().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Options threaded into [`fn@resolve_dependency_tree`].
