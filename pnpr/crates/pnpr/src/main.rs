@@ -93,8 +93,7 @@ struct FeatureArgs {
     disable_artifacts: bool,
 }
 
-mod cli_commands;
-use cli_commands::{Command, ConfigSubcommand, run_command};
+use pnpr::cli_commands::{Command, ConfigSubcommand, run_command};
 
 impl Args {
     fn feature_overrides(&self) -> pnpr::FeatureOverrides {

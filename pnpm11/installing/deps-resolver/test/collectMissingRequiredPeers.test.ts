@@ -76,6 +76,6 @@ function createGraph (nodes: Array<{ id: string, children?: string[], peers?: Pe
     childrenByParentId: Object.fromEntries(nodes.map(({ id, children }) => [
       id, (children ?? []).map((child) => ({ alias: child, id: child as PkgResolutionId })),
     ])),
-    resolvedPkgsById: Object.fromEntries(nodes.map(({ id, peers }) => [id, { peerDependencies: peers ?? {} }])),
+    resolvedPkgsById: Object.fromEntries(nodes.map(({ id, peers }) => [id, { peers: { declared: peers ?? {}, taken: peers ?? {} } }])),
   }
 }

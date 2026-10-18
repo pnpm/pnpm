@@ -609,3 +609,5 @@ mod manifests;
 mod lockfile;
 
 mod fetch_for_resolution;
+
+mod tar_resources;

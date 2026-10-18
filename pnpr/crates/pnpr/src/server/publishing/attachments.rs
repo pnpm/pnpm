@@ -3,9 +3,22 @@ use super::{
     HostedDocumentVersion, HostedOriginalRef, Identity, Integrity, JournaledRevisionRef,
     PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget, authorize,
     cleanup_tmp_slots, create_hex_hash, extract_attachments, extract_predicate_type,
-    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest, resolve_write_target,
-    stream_decode_verify_and_write, write_sigstore_bundle,
+    hosted_storage, integrity_addressed_tarball_path, json, merge_manifest,
+    resolve_registry_source, resolve_write_target, stream_decode_verify_and_write,
+    tar_integrity_of, tgz_integrity_key, write_sigstore_bundle,
 };
+
+/// Whether a tar registry serves `name` from the hosted registry `org`, so
+/// a publish there has a tar hash worth deriving. Without `org`, any hosted
+/// registry counts.
+fn served_as_tar(state: &AppState, org: Option<&str>, name: &CanonicalPackageName) -> bool {
+    state.inner.config.routing.tar_registries
+        .iter()
+        .any(|registry| match resolve_registry_source(state, registry, name.as_str()) {
+            RegistrySource::Hosted(source) => org.is_none_or(|org| org == source),
+            _ => false,
+        })
+}
 
 /// What kind of payload an attachment carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,7 +208,8 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let written_slots = write_attachment_slots(&storage, &name, prepared).await?;
+    let derive_tars = served_as_tar(state, org, &name);
+    let written_slots = write_attachment_slots(&storage, &name, prepared, derive_tars).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
@@ -252,10 +266,11 @@ pub(super) async fn write_attachment_slots(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: Vec<PreparedAttachment>,
+    derive_tars: bool,
 ) -> Result<Vec<pnpr_storage::BlobSlot>, RegistryError> {
     let mut written_slots = Vec::with_capacity(prepared.len());
     for attachment in prepared {
-        match write_attachment_slot(storage, name, attachment).await {
+        match write_attachment_slot(storage, name, attachment, derive_tars).await {
             Ok(slot) => written_slots.push(slot),
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -272,15 +287,42 @@ pub(super) async fn write_attachment_slot(
     storage: &Storage,
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
+    derive_tars: bool,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
     let slot = storage.reserve_hosted_blob(name, &prepared.canonical).await?;
     let tmp_path = slot.tmp_path.clone();
+    let tgz_integrity = match prepared.kind {
+        AttachmentKind::Tarball if derive_tars => {
+            prepared.dist.as_object().and_then(tgz_integrity_key)
+        }
+        AttachmentKind::Tarball => None,
+        AttachmentKind::Sigstore => None,
+    };
     let result = tokio::task::spawn_blocking(move || {
-        decode_and_write_attachment(&prepared.attachment, prepared.kind, &prepared.dist, &tmp_path)
+        decode_and_write_attachment(
+            &prepared.attachment,
+            prepared.kind,
+            &prepared.dist,
+            &tmp_path,
+        )?;
+        // A tar registry describes the version by the tar this `.tgz` decodes to.
+        let tar_integrity = tgz_integrity
+            .zip(std::fs::File::open(&tmp_path).ok())
+            .and_then(|(key, tgz)| Some((key, tar_integrity_of(std::io::BufReader::new(tgz))?)));
+        Ok::<_, RegistryError>(tar_integrity)
     })
     .await;
     match result {
-        Ok(Ok(())) => Ok(slot),
+        Ok(Ok(tar_integrity)) => {
+            // The first tar response derives a hash publish failed to record.
+            if let Some((key, tar_integrity)) = tar_integrity
+                && let Err(err) =
+                    storage.record_tar_integrity(name, &key, &tar_integrity.to_string()).await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
+            }
+            Ok(slot)
+        }
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;

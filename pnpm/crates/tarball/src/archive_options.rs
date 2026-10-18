@@ -58,6 +58,14 @@ pub struct ArchiveStoreContext<'a> {
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
 }
 
+impl ArchiveStoreContext<'_> {
+    /// The part of this context a resolution-time read writes to.
+    #[must_use]
+    pub fn resolution_store(&self) -> crate::ResolutionStore {
+        crate::ResolutionStore { dir: self.dir, index_writer: self.index_writer.clone() }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ArchiveFetchOptions<'a> {
     pub http_client: &'a ThrottledClient,
@@ -78,6 +86,9 @@ pub struct ArchiveFetchOptions<'a> {
     /// with [`crate::TarballError::NoOfflineTarball`] rather than hitting
     /// the registry.
     pub offline: bool,
+    /// The decoded-output budget each archive is extracted under, before a
+    /// package's own `dist.unpackedSize` tightens it.
+    pub tar_limits: crate::TarLimits,
 }
 
 #[derive(Clone, Copy)]

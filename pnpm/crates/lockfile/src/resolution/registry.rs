@@ -13,6 +13,9 @@ use super::{
 ///   unencoded one. A faithful mirror or caching proxy of it is this.
 /// - [`RegistryServerType::Artifactory`] — repeats the scope in a scoped
 ///   package's tarball filename.
+/// - [`RegistryServerType::Pnpr`] — serves a version's tarball at the package
+///   identifier under the registry, `<registry>/<name>@<version>`. The body may
+///   be a `.tgz` or a tar; the fetcher tells them apart by content.
 ///
 /// Only layouts pnpm can rebuild a URL for belong here. A registry that serves
 /// tarballs from a content-derived path (GitHub Packages
@@ -24,6 +27,7 @@ use super::{
 pub enum RegistryServerType {
     Npm,
     Artifactory,
+    Pnpr,
 }
 
 /// Non-secret, per-registry settings from the `registries` setting.
@@ -188,11 +192,20 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
     let TarballUrlOptions { registry, server_type } = opts;
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    // The pnpr layout addresses the version by its exact key, build metadata
+    // included; `.tgz` filenames drop it.
+    if server_type == Some(RegistryServerType::Pnpr) {
+        return format!("{registry}{name}@{version}");
+    }
+    let version = version
+        .split_once('+')
+        .map(|(base, _)| base)
+        .unwrap_or(version);
     // Artifactory keeps the scope in the filename of a scoped package's tarball
     // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
     let filename_name = match server_type {
         Some(RegistryServerType::Artifactory) => name,
-        Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
+        _ => match name.strip_prefix('@') {
             Some(scoped) => scoped
                 .split_once('/')
                 .map(|(_, bare)| bare)
@@ -200,10 +213,6 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
             None => name,
         },
     };
-    let version = version
-        .split_once('+')
-        .map(|(base, _)| base)
-        .unwrap_or(version);
     format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 

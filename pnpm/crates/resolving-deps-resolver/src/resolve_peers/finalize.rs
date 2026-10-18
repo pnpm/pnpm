@@ -174,7 +174,7 @@ impl Walker<'_> {
                 edges: crate::ResolvedDependencyEdges {
                     children: graph_children,
                     optional_children: optional_child_aliases,
-                    peer_dependencies: node.pkg.peer_dependencies.clone(),
+                    peer_set: node.pkg.peer_set.clone(),
                     transitive_peer_dependencies,
                     resolved_peer_names: node.peers.resolved
                         .keys()
@@ -409,7 +409,7 @@ impl Walker<'_> {
             edges: crate::ResolvedDependencyEdges {
                 children,
                 optional_children: record.optional_child_aliases.clone(),
-                peer_dependencies: pkg.peer_dependencies.clone(),
+                peer_set: pkg.peer_set.clone(),
                 transitive_peer_dependencies: record
                     .transitive_peer_dependencies
                     .clone(),

@@ -14,7 +14,7 @@ fn tarball_provider(id: &str, tarball: &str, version: &str) -> ResolvedPackage {
     ResolvedPackage::new(ResolvedPackageInput {
         id: id.into(),
         result: Arc::new(result),
-        peer_dependencies: BTreeMap::new(),
+        peer_set: crate::PeerSet::default(),
         optional: false,
         is_leaf: true,
     })

@@ -215,10 +215,11 @@ function cacheHitMayServe (
 }
 
 async function upgradeCachedMetaForReleaseAge (
-  { ctx, spec, opts, pkgMirror, cacheKey }: PickRequest,
+  request: PickRequest,
   cachedMeta: PackageMeta
 ): Promise<{ meta: PackageMeta, upgraded: boolean }> {
-  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+  const { ctx, opts, pkgMirror, cacheKey } = request
+  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, request, cachedMeta)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
   const upgraded = upgrade.upgradedFrom != null
   if (upgraded) {
@@ -238,7 +239,7 @@ async function pickFromMirrorOrRegistry (session: MirrorSession): Promise<PickRe
     (shortcuts.exactVersion ? await pickExactVersionFromMirror(session) : undefined) ??
     (shortcuts.dominantLockfileVersion ? await pickStableRangeFromMirror(session) : undefined) ??
     (shortcuts.unvalidatedMirror ? await pickFromFreshUnvalidatedMirror(session) : undefined) ??
-    await pickFromMirrorWrittenAfterCutoff(session) ??
+    await pickFromMirrorWrittenAfterCutoff(session, shortcuts.releaseAgeApplies) ??
     pickFromRegistry(session)
   )
 }
@@ -404,9 +405,12 @@ async function pickFromFreshUnvalidatedMirror (session: MirrorSession): Promise<
   return pickFromMirrorAndPromote(session.request, diskMeta)
 }
 
-async function pickFromMirrorWrittenAfterCutoff (session: MirrorSession): Promise<PickResult | undefined> {
+async function pickFromMirrorWrittenAfterCutoff (
+  session: MirrorSession,
+  releaseAgeApplies: boolean | undefined
+): Promise<PickResult | undefined> {
   const { ctx, spec, pkgMirror } = session.request
-  const cutoff = mirrorWrittenAfter(session.request)
+  const cutoff = mirrorWrittenAfter(session.request, releaseAgeApplies)
   if (cutoff == null) return undefined
   const mtime = await session.limit(async () => getFileMtime(pkgMirror))
   if (!isWrittenAtOrAfter(mtime, cutoff)) return undefined

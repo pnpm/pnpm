@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{Config, router};
+use pnpr::{AuthState, Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -49,6 +49,12 @@ fn load_config_with(dir: &Path, yaml: &str) -> Config {
     std::fs::write(&path, format!("storage: {}\n{yaml}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap()
+}
+
+async fn app_router(config: Config) -> axum::Router {
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    auth.users.create_user("root", "secret").await.unwrap();
+    router_with_auth(config, auth)
 }
 
 async fn send(
@@ -96,7 +102,7 @@ async fn team_names(app: &axum::Router, token: &str) -> Value {
 #[tokio::test]
 async fn admin_edits_reach_team_rules_at_once() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
 
@@ -123,7 +129,7 @@ async fn admin_edits_reach_team_rules_at_once() {
 #[tokio::test]
 async fn only_admins_edit_the_roster() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let bob = add_user(&app, "bob").await;
     let create = json!({ "name": "ops" });
 
@@ -137,7 +143,7 @@ async fn only_admins_edit_the_roster() {
 #[tokio::test]
 async fn roster_edits_refuse_conflicting_state() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let create = json!({ "name": "ops" });
 
@@ -163,7 +169,7 @@ async fn roster_edits_refuse_conflicting_state() {
 #[tokio::test]
 async fn a_new_process_serves_the_stored_roster() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let create = json!({ "name": "ops" });
     assert_eq!(
@@ -171,7 +177,7 @@ async fn a_new_process_serves_the_stored_roster() {
         StatusCode::CREATED,
     );
 
-    let restarted = router(load_config(dir.path()));
+    let restarted = app_router(load_config(dir.path())).await;
     let bob = add_user(&restarted, "bob").await;
     assert_eq!(
         team_names(&restarted, &bob).await,
@@ -182,7 +188,7 @@ async fn a_new_process_serves_the_stored_roster() {
 #[tokio::test]
 async fn directory_reports_admin_and_team_management() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
     let bob = add_user(&app, "bob").await;
 
@@ -202,7 +208,7 @@ async fn directory_reports_admin_and_team_management() {
 #[tokio::test]
 async fn team_edits_refuse_oversized_bodies() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let app = app_router(load_config(dir.path())).await;
     let body = json!({ "name": "x".repeat(100 * 1024) });
 
     let (status, _) = send(&app, "PUT", "/-/org/acme/team", None, Some(body)).await;
@@ -216,7 +222,7 @@ async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
     std::fs::write(&roster, "not a roster").unwrap();
     let config = CONFIG.replace("readers: []", "readers: [bob]");
-    let app = router(load_config_with(dir.path(), &config));
+    let app = app_router(load_config_with(dir.path(), &config)).await;
 
     let bob = add_user(&app, "bob").await;
     let (status, _) = send(&app, "GET", "/@secret/thing", Some(&bob), None).await;

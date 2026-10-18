@@ -231,6 +231,37 @@ test('normal range resolution reuses a provably dominant lockfile version from d
   expect(fetchedNames).toHaveLength(0)
 })
 
+test('a package excluded from minimumReleaseAge reuses a provably dominant lockfile version from disk', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  // Old enough that neither the mirror-age nor the release-age shortcut answers.
+  utimesSync(pkgMirror, new Date(0), new Date(0))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    publishedBy: new Date(),
+    publishedByExclude: (pkgName) => pkgName === 'foo',
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
 test('a fresh mirror without an etag resolves a range without a registry request', async () => {
   const meta = fooMeta()
   const cacheDir = temporaryDirectory()

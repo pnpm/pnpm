@@ -36,7 +36,7 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
 ): PeersResolution {
   const resolvedPeers = new Map<string, NodeId>()
   const missingPeers = new Map<string, MissingPeerInfo>()
-  for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
+  for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peers.taken)) {
     const peerVersionRange = getPeerVersionRange(version)
 
     const resolved = ctx.parentPkgs[peerName]

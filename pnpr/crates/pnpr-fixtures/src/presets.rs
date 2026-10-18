@@ -69,6 +69,12 @@ pub fn registry_mock_rules() -> PackageRules {
 
 #[must_use]
 pub fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
+    registry_mock_graph_with(Vec::new())
+}
+
+fn registry_mock_graph_with(
+    extra: Vec<(String, Registry)>,
+) -> (IndexMap<String, HostedConfig>, Registries) {
     let rules = registry_mock_rules();
     let local_patterns = rules.patterns();
     let mut hosted = IndexMap::new();
@@ -76,13 +82,29 @@ pub fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
     let graph = [
         ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
         ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
-        (
-            "main".to_string(),
-            Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
-        ),
+        ("main".to_string(), Registry::Router { sources: registry_mock_sources() }),
     ];
-    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    let registries =
+        Registries::new(graph.into_iter().chain(extra).collect(), Some("main".to_string()));
     (hosted, registries)
+}
+
+fn registry_mock_sources() -> Vec<String> {
+    vec!["local".to_string(), "npmjs".to_string()]
+}
+
+/// The registry key [`with_tar_registry`] adds.
+pub const TAR_REGISTRY: &str = "zstd";
+
+/// Add a [`TAR_REGISTRY`] router over the registry-mock sources that declares
+/// `tarballs: tar`, so `/~zstd/` serves the fixtures as tars.
+pub fn with_tar_registry(config: &mut Config) {
+    let (_, registries) = registry_mock_graph_with(vec![(
+        TAR_REGISTRY.to_string(),
+        Registry::Router { sources: registry_mock_sources() },
+    )]);
+    config.routing.registries = registries;
+    config.routing.tar_registries.insert(TAR_REGISTRY.to_string());
 }
 
 /// Convenience presets for constructing test configurations without a YAML file.
@@ -122,6 +144,7 @@ pub fn proxy_config(listen: SocketAddr, storage: PathBuf) -> Config {
             route_policy: RoutePolicy::default(),
             registries,
             hosted,
+            tar_registries: std::collections::BTreeSet::new(),
         },
     )
 }
@@ -144,6 +167,7 @@ pub fn static_serve_config(listen: SocketAddr, storage: PathBuf) -> Config {
             route_policy: RoutePolicy::default(),
             registries,
             hosted,
+            tar_registries: std::collections::BTreeSet::new(),
         },
     )
 }

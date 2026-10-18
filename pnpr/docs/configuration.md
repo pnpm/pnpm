@@ -196,6 +196,7 @@ registries:
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide — `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>` — see [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules — see [above](#the-packages-map). Only these names can be served from or published to this registry. |
+| `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
 Two hosted registries cannot share an `org` namespace — that's rejected at
 config load.
@@ -245,6 +246,7 @@ registries:
 | `timeout` | Per-request upstream deadline. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
+| `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 | `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes a SHA-512 `dist.integrity` for up to 64 versions per fetched packument that omit one, caching each tarball it hashes. |
 
 Interval values accept strings such as `30s`, `5m`, `1h30m`, or a bare number
@@ -304,6 +306,48 @@ start** on an invalid router:
 - a source that is undefined, the router itself, or another router (sources
   must be hosted or upstream registries — no nesting, no cycles);
 - a router with no sources.
+
+A router also takes [`tarballs`](#tar-registries).
+
+### Tar registries
+
+A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
+
+To offer tars next to `.tgz` files, add a router over the same sources:
+
+```yaml title="pnpr.yaml"
+registries:
+  local:
+    type: hosted
+    packages:
+      '@acme/*':
+        publish: $authenticated
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  main:
+    type: router
+    sources: [local, npmjs]
+  zstd:
+    type: router
+    sources: [local, npmjs]
+    tarballs: tar
+
+defaultRegistry: main
+```
+
+npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
+
+- Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
+- pnpr keeps the published `.tgz` and derives the tar from it:
+  - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
+  - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.
+  - Any other client gets the tar uncompressed.
+- A hosted registry learns a tar's hash at publish. An upstream registry learns it the first time it serves the tar with `zstd` or no compression, after verifying the upstream `.tgz`. Until then the version's metadata carries no `dist.integrity`, and pnpm hashes the tar it downloads.
+- Tar hashes are kept in the hosted storage under `.tar-integrity/`, which every replica shares.
+- pnpr decodes at most 4.25 GiB from one `.tgz`, the most pnpm accepts by default. A version past that has no tar. Copies of tars waiting for the level-19 encoding share a 1 GiB quota, and a request makes no copy when it is full or when another request is already copying that version.
+- `tarballs` is accepted only on npm registries.
 
 ## Teams {#teams}
 

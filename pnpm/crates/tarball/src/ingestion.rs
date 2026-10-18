@@ -227,6 +227,7 @@ impl ArchiveIngestion<'_> {
                     self.package.url,
                     self.package.integrity,
                     unpacked_size,
+                    self.fetching.tar_limits,
                     download_priority(unpacked_size, file_count),
                     self.package.id,
                     self.requester,

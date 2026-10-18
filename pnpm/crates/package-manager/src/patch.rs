@@ -288,6 +288,7 @@ impl WritePackageForPatch<'_> {
                 auth_headers: &self.config.auth_headers,
                 retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
+                tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
                 integrity,

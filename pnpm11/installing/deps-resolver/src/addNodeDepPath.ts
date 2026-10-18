@@ -154,7 +154,7 @@ function addDepPathToGraph<Pkg extends PartialResolvedPackage> (
   if (ctx.depPathsByPkgId != null) {
     recordDepPathOfPkg(ctx.depPathsByPkgId, resolvedPackage.pkgIdWithPatchHash, depPath)
   }
-  const peerDependencies = { ...resolvedPackage.peerDependencies }
+  const peerDependencies = { ...resolvedPackage.peers.taken }
   if (ctx.depGraph[depPath] && ctx.depGraph[depPath].depth <= node.depth) return
   const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
   const dir = safeJoinModulesDir(modules, resolvedPackage.name)

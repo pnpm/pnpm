@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
-import { once } from 'node:events'
+import childProcess from 'node:child_process'
+import { EventEmitter, once } from 'node:events'
 import { createServer } from 'node:http'
 import { gzipSync } from 'node:zlib'
 import { closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { constants, tmpdir } from 'node:os'
+import { syncBuiltinESMExports } from 'node:module'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
@@ -92,6 +94,25 @@ test('process spawn failures propagate and shutdown kills pending children', asy
   const completion = host.dispatch({ operation: 'process.wait', handle: child.handle })
   await host.close()
   assert.deepEqual(await completion, { code: null, signal: 'SIGKILL', signalNumber: constants.signals.SIGKILL })
+})
+
+test('process spawn rejects a spawn event that arrives before the missing-executable error', async t => {
+  const spawn = t.mock.method(childProcess, 'spawn', () => {
+    const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null, stdio: [] })
+    process.nextTick(() => {
+      child.emit('spawn')
+      child.emit('error', Object.assign(new Error('spawn /pnpm-wasm-missing-executable ENOENT'), { code: 'ENOENT' }))
+    })
+    return child
+  })
+  syncBuiltinESMExports()
+  t.after(() => {
+    spawn.mock.restore()
+    syncBuiltinESMExports()
+  })
+  const host = createHostServices()
+  t.after(() => host.close())
+  await assert.rejects(host.dispatch({ operation: 'process.spawn', program: '/pnpm-wasm-missing-executable', stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' }), { code: 'ENOENT' })
 })
 
 test('invalid handles and read sizes fail without silently succeeding', async t => {

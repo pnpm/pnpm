@@ -133,7 +133,7 @@ Fix broken lockfile entries automatically.
 
 Added in: v11.4.0
 
-Refresh the locked tarball integrity values from what the registry currently serves, when a downloaded tarball's hash doesn't match the integrity recorded in `pnpm-lock.yaml`.
+Re-resolve every locked package and record the integrity the registry reports now in `pnpm-lock.yaml`. Use it when a registry rewrote its tarballs, or after a registry starts serving [tars](../registries.md#tar-registries).
 
 By default, since v11.4.0, an integrity mismatch is a hard failure: `pnpm install` exits with `ERR_PNPM_TARBALL_INTEGRITY` rather than silently re-resolving from the registry and overwriting the locked integrity. This protects projects that ship a committed lockfile from a compromised registry, proxy, or republished version substituting attacker-controlled content on a clean machine.
 

@@ -1,10 +1,11 @@
 use super::{
-    Action, AppState, CanonicalPackageName, ConcreteKind, Ecosystem, HeaderMap, Identity,
+    Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
-    ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
-    is_osv_vulnerable_packument_version, not_found, packument_bytes_response, packument_response,
-    read_source_packument, registry_endpoint, resolve_version_or_tag, revision_source_registry,
-    serve_packument_via_upstream, serve_tarball_via_upstream, tarball_response,
+    describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
+    extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
+    packument_bytes_response, packument_response, read_source_packument, registry_endpoint,
+    resolve_version_or_tag, serve_packument_via_upstream, serve_tarball_via_upstream,
+    tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
 
@@ -57,44 +58,69 @@ pub(super) async fn serve_registry_version_manifest(
     version_or_tag: &str,
     tarball_base: &str,
 ) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(name) => name,
+    let (name, resolved_source, packument) =
+        match read_version_packument(state, identity, registry, raw_name, version_or_tag).await {
+            Ok(read) => read,
+            Err(response) => return response,
+        };
+    let tar_integrities = match tar_integrities_of(state, registry, &resolved_source, &name).await {
+        Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
-        Ok(Some(bytes)) => bytes,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(packument) => packument,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    if osv_hides_version(state, &packument, name.as_str(), version_or_tag) {
-        return not_found();
-    }
-    let revision_registry = match &resolved_source {
-        RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
-        RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
-    };
-    let manifest = match revision_registry {
-        Some(source_registry) => extract_upstream_version_manifest(
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let manifest = match view {
+        DistView::Tgz {
+            revision_registry: Some(source_registry),
+        } => extract_upstream_version_manifest(
             &packument,
             &name,
             version_or_tag,
             source_registry,
             tarball_base,
         ),
-        None => extract_version_manifest(&packument, &name, version_or_tag, tarball_base),
+        DistView::Tgz { revision_registry: None } | DistView::Tar(_) => {
+            extract_version_manifest(&packument, &name, version_or_tag, tarball_base)
+        }
     };
-    let Some(manifest) = manifest else {
+    let Some(mut manifest) = manifest else {
         return not_found();
     };
+    if let DistView::Tar(table) = view {
+        describe_tar(&mut manifest, table);
+    }
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),
     }
+}
+
+/// The packument a version-manifest request reads, with the source it
+/// resolved to, or the response that ends the request.
+async fn read_version_packument(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    raw_name: &str,
+    version_or_tag: &str,
+) -> Result<(CanonicalPackageName, RegistrySource, Value), Response> {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
+        Ok(name) => name,
+        Err(err) => return Err(err.into_response()),
+    };
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return Err(not_found()),
+        Err(err) => return Err(err.into_response()),
+    };
+    let packument: Value = match serde_json::from_slice(&bytes) {
+        Ok(packument) => packument,
+        Err(err) => return Err(RegistryError::Json(err).into_response()),
+    };
+    if osv_hides_version(state, &packument, name.as_str(), version_or_tag) {
+        return Err(not_found());
+    }
+    Ok((name, resolved_source, packument))
 }
 
 pub(super) fn osv_hides_version(
@@ -249,6 +275,11 @@ pub(super) async fn serve_registry_packument(
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    let tar_integrities = match tar_integrities_of(state, registry, &resolved_source, &name).await {
+        Ok(table) => table,
+        Err(err) => return err.into_response(),
+    };
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served
@@ -260,7 +291,6 @@ pub(super) async fn serve_registry_packument(
             {
                 return err.into_response();
             }
-            let revision_registry = revision_source_registry(state, registry, source);
             serve_packument_via_upstream(
                 state,
                 identity,
@@ -268,7 +298,7 @@ pub(super) async fn serve_registry_packument(
                 source,
                 &name,
                 tarball_base,
-                revision_registry,
+                view,
             )
             .await
         }
@@ -276,7 +306,8 @@ pub(super) async fn serve_registry_packument(
         // registry-default denial is a not-found mask, an explicit
         // `packages:` entry denies loudly so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
-            serve_hosted_packument(state, identity, headers, source, &name, tarball_base).await
+            serve_hosted_packument(state, identity, headers, source, &name, tarball_base, view)
+                .await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
@@ -396,6 +427,7 @@ pub(super) async fn serve_hosted_packument(
     source: &str,
     name: &CanonicalPackageName,
     tarball_base: &str,
+    view: DistView<'_>,
 ) -> Response {
     let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
         Ok(org) => org,
@@ -409,7 +441,7 @@ pub(super) async fn serve_hosted_packument(
             name,
             &bytes,
             tarball_base,
-            None,
+            view,
             state.inner.osv_index.as_ref(),
             headers,
             max_age,
@@ -460,6 +492,10 @@ pub(super) async fn serve_tarball(
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
         return not_found();
     };
+    // A tar registry serves tars only, at `<name>@<version>`.
+    if is_tar_registry(state, &target) {
+        return not_found();
+    }
     let response = serve_registry_tarball(state, identity, &target, raw_name, filename).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }

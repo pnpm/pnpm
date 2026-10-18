@@ -223,6 +223,22 @@ pub struct InvalidTarballIntegrityError {
     pub shasum: String,
 }
 
+/// Raised when a version's metadata names no `dist.tarball` and its registry
+/// declares no layout to rebuild the URL from.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The metadata of {package} from {registry} names no tarball URL")]
+#[diagnostic(
+    code(ERR_PNPM_MISSING_TARBALL_URL),
+    help(
+        "A registry that omits dist.tarball has to declare its URL layout. For a pnpr tar registry, add `serverType: pnpr` to its entry under `registries` in pnpm-workspace.yaml."
+    )
+)]
+pub struct MissingTarballUrlError {
+    #[error(not(source))]
+    pub package: String,
+    pub registry: String,
+}
+
 /// Raised when a registry marks a tarball as a replacement revision but its
 /// revision number or integrity-addressed URL violates the metadata contract.
 #[derive(Debug, Display, Error, Diagnostic)]

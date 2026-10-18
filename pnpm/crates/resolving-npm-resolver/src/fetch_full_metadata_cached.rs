@@ -127,15 +127,23 @@ async fn refetch_damaged_mirror(
 pub(crate) async fn fetch_full_metadata_cached_lazily(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
-) -> Result<Package, FetchMetadataError> {
-    fetch_metadata_cached(pkg_name, opts, CachedFetch::MIRROR_DOCUMENT).await
+) -> Result<FetchedDocument, FetchMetadataError> {
+    fetch_document_cached(pkg_name, opts, CachedFetch::MIRROR_DOCUMENT).await
 }
 
 pub(crate) async fn fetch_full_metadata_bypassing_cache(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
-) -> Result<Package, FetchMetadataError> {
-    fetch_metadata_cached(pkg_name, opts, CachedFetch::BYPASSING_MIRROR).await
+) -> Result<FetchedDocument, FetchMetadataError> {
+    fetch_document_cached(pkg_name, opts, CachedFetch::BYPASSING_MIRROR).await
+}
+
+/// A document the cached fetcher returned, with the kind it asked the
+/// registry for. `requested` is `None` when it answered from the mirror
+/// offline.
+pub(crate) struct FetchedDocument {
+    pub(crate) meta: Package,
+    pub(crate) requested: Option<DocumentKind>,
 }
 
 /// Fetch the full document a `minimumReleaseAge` upgrade stores in the
@@ -194,12 +202,20 @@ async fn fetch_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
     fetch: CachedFetch,
 ) -> Result<Package, FetchMetadataError> {
+    fetch_document_cached(pkg_name, opts, fetch).await.map(|document| document.meta)
+}
+
+async fn fetch_document_cached(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    fetch: CachedFetch,
+) -> Result<FetchedDocument, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let mirror_path = mirror_path_for(pkg_name, opts, &url);
 
     if opts.offline {
         if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
-            return Ok(meta);
+            return Ok(FetchedDocument { meta, requested: None });
         }
         let hint = legacy_mirror_for(pkg_name, opts).await.map(|path| legacy_mirror_hint(&path));
         return Err(FetchMetadataError::NoOfflineMeta {
@@ -214,18 +230,21 @@ async fn fetch_metadata_cached(
     } else {
         load_meta_headers_async(mirror_path.as_deref()).await
     };
+    let kind = fetch.kind(opts.full_metadata, cache_headers.as_ref());
     let attempt = FetchAttempt {
         pkg_name,
         url: &url,
         opts,
         mirror_path: mirror_path.as_deref(),
-        kind: fetch.kind(opts.full_metadata, cache_headers.as_ref()),
+        kind,
         write_mirror: fetch.write_mirror,
         cache_headers,
         cache_bypass: AtomicBool::new(fetch.bypass_mirror),
     };
-    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
-        .await
+    let meta =
+        retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
+            .await?;
+    Ok(FetchedDocument { meta, requested: Some(kind) })
 }
 
 /// One conditional metadata fetch, re-entered from the top by each body

@@ -80,19 +80,19 @@ pub(super) fn install_owner_peer_dependencies(
         (NodeKind::Leaf | NodeKind::Branch, false) => return Ok(()),
         (NodeKind::Leaf | NodeKind::Branch, true) => {}
     }
-    let peer_dependencies = extract_peer_dependencies(
+    let peer_set = extract_peer_dependencies(
         &pending.result,
         &claim.peer_shadowed,
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     let Some(existing) = packages.get_mut(&pending.identity.id) else { return Ok(()) };
-    if existing.peer_dependencies == peer_dependencies {
+    if existing.peer_set == peer_set {
         return Ok(());
     }
-    existing.peer_dependencies = peer_dependencies.clone();
+    existing.peer_set = peer_set.clone();
     drop(packages);
-    register_peer_dep_names(ctx, &peer_dependencies);
+    register_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(&pending.identity.id);
     Ok(())
 }

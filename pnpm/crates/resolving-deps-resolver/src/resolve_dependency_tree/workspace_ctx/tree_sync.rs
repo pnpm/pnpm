@@ -178,7 +178,7 @@ impl super::WorkspaceTreeStorage {
                     entry.insert(pkg.clone());
                 }
                 Entry::Occupied(entry) => {
-                    if entry.get().peer_dependencies != pkg.peer_dependencies {
+                    if entry.get().peer_set.taken() != pkg.peer_set.taken() {
                         return false;
                     }
                 }

@@ -40,6 +40,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("fetch-timeout", true),
     ("fetch-warn-timeout-ms", true),
     ("fetch-min-speed-ki-bps", true),
+    ("max-tarball-unpacked-size", true),
     ("fetching-concurrency", true),
     ("filter", false),
     ("filter-prod", false),

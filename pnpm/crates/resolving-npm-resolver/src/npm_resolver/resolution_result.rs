@@ -1,9 +1,11 @@
 use super::{
-    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution, Package,
-    PackageDistribution, PackageVersion, PackageVersionPolicy, PickedFromRegistry, PkgName,
-    PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec, RegistryResponseError,
-    RegistryRevisionSelector, ResolveError, ResolveOptions, ResolveResult, TarballResolution,
-    TarballRevision, TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency,
+    Algorithm, Arc, DateTime, Integrity, InvalidTarballIntegrityError, LockfileResolution,
+    MissingTarballUrlError, Package, PackageDistribution, PackageVersion, PackageVersionPolicy,
+    PickedFromRegistry, PkgName, PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec,
+    RegistryResponseError, RegistryRevisionSelector, RegistryServerType, ResolveError,
+    ResolveOptions, ResolveResult, TarballResolution, TarballRevision, TarballUrlOptions,
+    TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency, npm_tarball_url,
+    redact_and_sanitize,
     release_policy::{
         detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
     },
@@ -32,6 +34,9 @@ pub(crate) struct RegistryResolutionSource<'a> {
     /// registry-qualified ids are enabled — the minted id then becomes
     /// `<name>@<alias>:<version>` (lockfile format 12.0).
     pub registry_name: Option<&'a str>,
+    /// The layout `registry` declares, which rebuilds a tarball URL its
+    /// metadata omits.
+    pub server_type: Option<RegistryServerType>,
 }
 
 pub(crate) struct ResolvedSpecifier<'a> {
@@ -53,7 +58,7 @@ pub(crate) fn build_resolve_result(
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let (resolution, revision) = picked_tarball_resolution(picked, args.registry.registry)?;
+    let (resolution, revision) = picked_tarball_resolution(picked, &args.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
     let id = resolution_id(args.registry.registry_name, picked, &name_ver);
@@ -343,12 +348,27 @@ pub fn normalize_tarball_url(url: &str) -> String {
 /// consumes directly without reconstructing a registry resolution.
 pub(super) fn picked_tarball_resolution(
     picked: &PackageVersion,
-    registry: &str,
+    source: &RegistryResolutionSource<'_>,
 ) -> Result<(LockfileResolution, Option<TarballRevision>), ResolveError> {
     let integrity = dist_integrity(&picked.dist)?;
-    let revision = tarball_revision(picked, integrity.as_ref(), registry)?;
+    let revision = tarball_revision(picked, integrity.as_ref(), source.registry)?;
+    let tarball = if picked.dist.tarball.is_empty() {
+        if source.server_type.is_none() {
+            return Err(Box::new(MissingTarballUrlError {
+                package: format!("{}@{}", picked.name, picked.version),
+                registry: redact_and_sanitize(source.registry),
+            }) as ResolveError);
+        }
+        npm_tarball_url(
+            &picked.name,
+            &picked.version.to_string(),
+            TarballUrlOptions { registry: source.registry, server_type: source.server_type },
+        )
+    } else {
+        normalize_tarball_url(&picked.dist.tarball)
+    };
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: normalize_tarball_url(&picked.dist.tarball),
+        tarball,
         integrity,
         revision,
         git_hosted: None,

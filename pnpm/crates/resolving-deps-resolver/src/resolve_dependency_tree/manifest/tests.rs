@@ -1,7 +1,13 @@
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 
-use super::{super::test_support::manifest_result, DependencySpec, extract_children};
+use super::{
+    super::test_support::manifest_result, DependencySpec, extract_children,
+    extract_peer_dependencies,
+};
+use crate::resolved_tree::PeerDep;
+use pnpm_catalogs_types::Catalogs;
+use rustc_hash::FxHashSet as HashSet;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -198,5 +204,42 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
     assert_eq!(
         super::deprecated_pkg_name_ver(&result(serde_json::json!({ "name": "git-pkg" }))),
         None,
+    );
+}
+
+#[test]
+fn declared_peers_are_dereferenced_from_catalogs_whether_or_not_they_are_taken() {
+    let result = manifest_result(serde_json::json!({
+        "name": "lib",
+        "version": "1.0.0",
+        "dependencies": { "foo": "catalog:" },
+        "peerDependencies": { "foo": "catalog:", "bar": "catalog:" },
+    }));
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([
+            ("foo".to_string(), "^1.0.0".to_string()),
+            ("bar".to_string(), "^2.0.0".to_string()),
+        ]),
+    )]);
+    let peer = |version: &str| PeerDep { version: version.to_string(), optional: false };
+
+    let peer_set =
+        extract_peer_dependencies(&result, &HashSet::default(), Some(&catalogs)).unwrap();
+
+    assert_eq!(
+        peer_set
+            .declared()
+            .iter()
+            .collect::<Vec<_>>(),
+        [(&"bar".to_string(), &peer("^2.0.0")), (&"foo".to_string(), &peer("^1.0.0"))],
+    );
+    assert_eq!(
+        peer_set
+            .taken()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["bar"],
+        "the unshadowed `foo` dependency supplies the package itself",
     );
 }

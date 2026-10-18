@@ -78,8 +78,10 @@ impl LoginRateLimiter {
     }
 
     fn evict_if_needed(&self, inner: &mut RateLimiterInner, now: Instant, sweep: Sweep) {
-        let off_schedule =
-            sweep == Sweep::AsSoonAsAllowed || inner.map.len() > EVICTION_MAP_THRESHOLD;
+        let off_schedule = match sweep {
+            Sweep::AsSoonAsAllowed => true,
+            Sweep::WhenLarge => inner.map.len() > EVICTION_MAP_THRESHOLD,
+        };
         let should_evict = now.duration_since(inner.last_eviction) >= EVICTION_INTERVAL
             || (off_schedule && now.duration_since(inner.last_eviction) >= FULL_EVICTION_COOLDOWN);
         if should_evict {

@@ -13,6 +13,7 @@ import { equals, partition } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
+import type { PeerDependencies } from './resolutionTypes.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
 
 export function updateLockfile (
@@ -27,7 +28,7 @@ export function updateLockfile (
   const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(registriesByPrefix)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
-      (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
+      (child) => depNode.optionalDependencies.has(child.alias) || depNode.peers.taken[child.alias]?.optional === true,
       Object.entries<DepPath>(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
     // The registry decides whether the tarball URL is canonical (and can be
@@ -101,7 +102,7 @@ function toLockfileDependency (
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  addPeerDependencies(result, pkg.declaredPeerDependencies ?? {})
+  addPeerDependencies(result, pkg.peers.declared)
   addPlatformRequirements(result, pkg.additionalInfo)
   const deprecated = getDeprecationToRecord(opts.prevSnapshot, lockfileResolution, pkg.additionalInfo.deprecated)
   if (deprecated != null) {
@@ -185,7 +186,7 @@ function shouldRecordVersion (
 
 function addPeerDependencies (
   result: PackageSnapshot,
-  peerDependencies: NonNullable<ResolvedPackage['peerDependencies']>
+  peerDependencies: PeerDependencies
 ): void {
   if (Object.keys(peerDependencies).length === 0) return
   const peerPkgs: Record<string, string> = {}

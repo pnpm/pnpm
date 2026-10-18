@@ -1,5 +1,7 @@
+use crate::resolved_tree::PeerSet;
+
 use super::{
-    Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeKind, NodeSeed, PackageRegistration, PendingNode,
+    Arc, ChildEdge, Cow, NodeId, NodeKind, NodeSeed, PackageRegistration, PendingNode,
     PkgNameVerPeer, ResolveDependencyTreeError, ResolveOptions, ResolvedPackage,
     ResolvedPackageInput, Resolver, SeededPackage, TreeCtx, UpdateBehavior, Value,
     WantedDependency, WantedKey, async_recursion, build_pkg_id_with_patch_hash,
@@ -375,15 +377,15 @@ pub(super) fn register_seeded_package(
     }
     // A workspace-link node carries no peer dependencies: peer matching is the
     // linked importer's responsibility, not the parent's.
-    let peer_dependencies = match kind {
-        NodeKind::Link => BTreeMap::new(),
+    let peer_set = match kind {
+        NodeKind::Link => PeerSet::default(),
         NodeKind::Leaf | NodeKind::Branch => extract_peer_dependencies(
             result,
             peer_shadowed,
             catalogs_for_children(ctx, resolves_children_through_catalogs),
         )?,
     };
-    register_peer_dep_names(ctx, &peer_dependencies);
+    register_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -391,7 +393,7 @@ pub(super) fn register_seeded_package(
         ResolvedPackage::new(ResolvedPackageInput {
             id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
-            peer_dependencies,
+            peer_set,
             optional: current_is_optional,
             is_leaf: kind.is_leaf(),
         }),

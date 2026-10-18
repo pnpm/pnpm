@@ -291,6 +291,7 @@ impl ResolverChainInputs<'_> {
                 full_metadata: self.registry.full_metadata,
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
+                registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),
@@ -322,6 +323,7 @@ impl ResolverChainInputs<'_> {
             store_index_writer: Some(Arc::clone(self.store.index_writer)),
             auth_headers: Arc::clone(self.fetching.auth_headers),
             retry_opts: self.retry_opts(),
+            tar_limits: self.config.tar_limits(),
             git_shallow_hosts: self.config.git_shallow_hosts.clone(),
         })
     }
@@ -341,6 +343,7 @@ impl ResolverChainInputs<'_> {
                 mem_cache: Some(Arc::clone(self.fetching.tarballs)),
                 auth_headers: Arc::clone(self.fetching.auth_headers),
                 retry_opts: self.retry_opts(),
+                tar_limits: self.config.tar_limits(),
                 prior_tarball_entries: Arc::new(prior_tarball_entries(self.project.lockfile)),
                 cache_dir: Some(self.config.cache_dir.clone()),
                 store: pnpm_tarball::ArchiveStoreContext {
@@ -393,6 +396,7 @@ impl ResolverChainInputs<'_> {
                 full_metadata: self.registry.full_metadata,
                 needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
                 filter_metadata: self.config.requires_filtered_full_metadata(),
+                registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 network: self.config.network_policy(),

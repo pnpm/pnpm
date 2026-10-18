@@ -58,8 +58,7 @@ pub struct NotModifiedResponse {
 /// `ResolveResult`.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,
-    pub store_dir: &'static StoreDir,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub store: ResolutionStore,
     /// The archive to read and what is already known about it.
     ///
     /// `id` is used for scoped auth lookup and for the store-index row
@@ -74,6 +73,8 @@ pub struct FetchTarballForResolution<'a> {
     pub package: TarballPackage<'a>,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
+    /// See [`crate::ArchiveFetchOptions::tar_limits`].
+    pub tar_limits: crate::TarLimits,
     /// Directory *within* the archive holding the package, for a
     /// git-hosted dep that points at one directory of a repo
     /// (`#path:/packages/foo`). The archive spans the whole repo, so
@@ -93,6 +94,13 @@ pub struct FetchTarballForResolution<'a> {
     /// the install pass looks the archive up by, and the install spends
     /// no second one.
     pub revision_addressed: bool,
+}
+
+/// The store a resolution-time read extracts into.
+pub struct ResolutionStore {
+    pub dir: &'static StoreDir,
+    /// Receives the store-index row of the archive, when there is one to write.
+    pub index_writer: Option<Arc<StoreIndexWriter>>,
 }
 
 struct ExtractedTarball {
@@ -285,10 +293,11 @@ impl FetchTarballForResolution<'_> {
             self.package.url,
             self.package.integrity,
             self.package.unpacked_size,
+            self.tar_limits,
             UNPRIORITIZED,
             self.package.id,
             self.package.url,
-            self.store_dir,
+            self.store.dir,
             self.retry_opts,
             self.auth_headers,
             None,
@@ -317,7 +326,7 @@ impl FetchTarballForResolution<'_> {
         let mut cas_paths = extracted.files;
         let mut pkg_files_idx = extracted.index;
         let integrity = extracted.integrity;
-        apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+        apply_placeholder_manifest(self.store.dir, &mut cas_paths, &mut pkg_files_idx)?;
         let root_manifest = pkg_files_idx.manifest.clone();
         let manifest = match self.manifest_subdir {
             Some(subdir) => read_subdir_manifest(&cas_paths, subdir).await?,
@@ -353,7 +362,7 @@ impl FetchTarballForResolution<'_> {
             return;
         }
         let index_key = store_index_key(&integrity.to_string(), self.package.id);
-        if let Some(writer) = &self.store_index_writer {
+        if let Some(writer) = &self.store.index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {
             tracing::warn!(

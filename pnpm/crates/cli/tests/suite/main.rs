@@ -184,6 +184,7 @@ mod store_pkg_content_check;
 mod store_placement;
 mod store_project_registry;
 mod sync_injected_deps_after_scripts;
+mod tar_registry;
 mod tarball_url_dependency;
 mod team;
 mod test_command;

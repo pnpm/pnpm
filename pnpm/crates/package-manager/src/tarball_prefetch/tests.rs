@@ -110,6 +110,7 @@ fn revision_download(
                 max_timeout: Duration::ZERO,
             },
             offline: false,
+            tar_limits: pnpm_tarball::TarLimits::default(),
         },
         package: crate::tarball_prefetch::TarballDownloadPackage {
             id: "revision-pkg@1.0.0".to_string(),

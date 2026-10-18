@@ -373,6 +373,13 @@ pub fn default_fetch_min_speed_ki_bps() -> u64 {
     pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
+/// Returns the shared `maxTarballUnpackedSize` default in bytes.
+///
+/// See [`pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
+pub fn default_max_tarball_unpacked_size() -> u64 {
+    pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
+}
+
 /// Default `User-Agent`, in the format
 /// `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded

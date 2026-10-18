@@ -279,7 +279,7 @@ fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
     super::ResolvedPackage::new(ResolvedPackageInput {
         id: Arc::from(pkg_id.to_string()),
         result: std::sync::Arc::new(manifest_result(serde_json::json!({}))),
-        peer_dependencies: BTreeMap::new(),
+        peer_set: crate::PeerSet::default(),
         optional: false,
         is_leaf: false,
     })
@@ -379,7 +379,7 @@ fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str)
     let package = super::ResolvedPackage::new(ResolvedPackageInput {
         id: Arc::from(pkg_id.clone()),
         result: std::sync::Arc::new(result),
-        peer_dependencies: BTreeMap::new(),
+        peer_set: crate::PeerSet::default(),
         optional: false,
         is_leaf: false,
     });
@@ -480,7 +480,7 @@ fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str
         })
         .collect();
     let mut package = snapshot_package(pkg_id);
-    package.peer_dependencies = peer_dependencies;
+    package.peer_set = crate::PeerSet::taking_all(peer_dependencies);
     lock_recoverable(&workspace.tree.packages).insert(Arc::from(pkg_id.to_string()), package);
     let mut all_peers = lock_recoverable(&workspace.tree.all_peer_dep_names);
     for name in peer_names {

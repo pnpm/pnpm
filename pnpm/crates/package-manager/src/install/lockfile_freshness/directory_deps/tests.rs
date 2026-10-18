@@ -399,7 +399,7 @@ fn a_recorded_peer_the_manifest_does_not_declare_is_stale() {
             &peers,
             "19.2.7"
         )
-        .is_err()
+        .is_err(),
     );
 }
 

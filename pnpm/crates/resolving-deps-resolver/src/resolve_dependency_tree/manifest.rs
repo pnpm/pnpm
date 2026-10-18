@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names},
-    resolved_tree::PeerDep,
+    resolved_tree::PeerSet,
 };
 
 use super::{
@@ -140,7 +140,7 @@ pub(super) fn extract_children(
 /// with the hoist-picker's output) so a peer ends up shared across
 /// every consumer, not nested under each one.
 ///
-/// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
+/// Peers are still recorded on [`ResolvedPackage::peer_set`]
 /// so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
@@ -160,7 +160,7 @@ pub(super) fn extract_children(
 /// `parent` names the package in an invalid-alias error.
 ///
 /// [`extend_tree`]: crate::extend_tree
-/// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies
+/// [`ResolvedPackage::peer_set`]: crate::ResolvedPackage::peer_set
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
 pub fn manifest_child_specs(
     manifest: &Value,
@@ -269,36 +269,36 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
     }
 }
 
-/// The [`declared_peer_dependencies`] of a resolved package that it takes
-/// as peers: a `dependencies` entry of the same name supplies the package
-/// directly unless it is `peer_shadowed` (see
-/// [`peer_shadowed_dependencies`]). When [`Catalogs`] are supplied,
-/// `catalog:` ranges are dereferenced before they enter peer resolution.
+/// The [`PeerSet`] of a resolved package: its
+/// [`declared_peer_dependencies`], taking the ones a `dependencies` entry
+/// does not supply. A same-named entry supplies the package directly
+/// unless it is `peer_shadowed` (see [`peer_shadowed_dependencies`]). When
+/// [`Catalogs`] are supplied, `catalog:` ranges are dereferenced.
 ///
 /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
-) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
+) -> Result<PeerSet, ResolveDependencyTreeError> {
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(PeerSet::default()) };
+    let mut declared = declared_peer_dependencies(manifest);
+    if let Some(catalogs) = catalogs {
+        for (name, peer) in &mut declared {
+            // A peer range names a version range, never a path, so a
+            // `file:` / `link:` entry has nothing to re-anchor.
+            peer.version = resolve_catalog_specifier(
+                name.clone(),
+                std::mem::take(&mut peer.version),
+                catalogs,
+                CatalogAnchor::AsWritten,
+            )?
+            .1;
+        }
+    }
     let own_deps: HashSet<&str> =
         own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
-    let mut peers = declared_peer_dependencies(manifest);
-    peers.retain(|name, _| !own_deps.contains(name.as_str()));
-    let Some(catalogs) = catalogs else { return Ok(peers) };
-    for (name, peer) in &mut peers {
-        // A peer range names a version range, never a path, so a
-        // `file:` / `link:` entry has nothing to re-anchor.
-        peer.version = resolve_catalog_specifier(
-            name.clone(),
-            std::mem::take(&mut peer.version),
-            catalogs,
-            CatalogAnchor::AsWritten,
-        )?
-        .1;
-    }
-    Ok(peers)
+    Ok(PeerSet::new(declared, |name| own_deps.contains(name)))
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

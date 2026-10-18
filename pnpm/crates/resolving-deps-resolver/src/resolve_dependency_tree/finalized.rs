@@ -132,7 +132,7 @@ impl Sweep<'_> {
 
     fn subtree_is_finalized(&mut self, pkg_id: &Arc<str>) -> bool {
         let Some(package) = self.packages.get(pkg_id) else { return false };
-        if !package.peer_dependencies.is_empty()
+        if !package.peer_set.taken().is_empty()
             || package
                 .result()
                 .id

@@ -64,12 +64,14 @@ struct CachedFile {
     age: Duration,
 }
 
-/// The set of active cache namespaces derived from configured upstreams.
+/// The set of active cache namespaces: one per configured upstream, plus the
+/// level-19 tar variants, which are evicted under the same limits.
 #[must_use]
 pub fn active_cache_namespaces(config: &Config) -> HashSet<String> {
     config.routing.upstreams
         .keys()
         .map(|name| crate::server::compute_upstream_cache_namespace(config, name))
+        .chain([crate::server::TAR_VARIANT_CACHE_NAMESPACE.to_string()])
         .collect()
 }
 

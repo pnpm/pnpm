@@ -144,6 +144,7 @@ fn aliasless_tarball_resolver(
             mem_cache: None,
             auth_headers: Arc::clone(&config.auth_headers),
             retry_opts: config.retry_opts(),
+            tar_limits: config.tar_limits(),
             prior_tarball_entries: Arc::new(HashMap::new()),
             cache_dir: Some(config.cache_dir.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
@@ -345,6 +346,7 @@ pub(super) fn aliasless_git_resolver(
         store_index_writer: None,
         auth_headers: Arc::clone(&config.auth_headers),
         retry_opts: config.retry_opts(),
+        tar_limits: config.tar_limits(),
         git_shallow_hosts: config.git_shallow_hosts.clone(),
     })
 }

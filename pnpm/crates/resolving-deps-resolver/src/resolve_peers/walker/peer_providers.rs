@@ -15,7 +15,7 @@ impl Walker<'_> {
     pub(super) fn resolve_node_peers(&mut self, context: NodePeersContext<'_>) -> NodePeers {
         let mut own_resolved: HashMap<String, NodeId> = HashMap::default();
         let mut own_missing: HashMap<String, MissingPeerInfo> = HashMap::default();
-        for (peer_name, peer_dep) in &context.pkg.peer_dependencies {
+        for (peer_name, peer_dep) in context.pkg.peer_set.taken() {
             self.resolve_one_peer(
                 peer_name,
                 peer_dep,
@@ -108,7 +108,7 @@ impl Walker<'_> {
         context: &LockedPinContext<'_>,
     ) -> Option<(String, ParentRef)> {
         let peer_node_id = self.providers.node_ids_by_previous_dep_path.get(previous_dep_path)?;
-        let peer_dep = context.pkg.peer_dependencies.get(peer_name)?;
+        let peer_dep = context.pkg.peer_set.taken().get(peer_name)?;
         if context.provider_paths.get(peer_node_id) != Some(previous_dep_path) {
             return None;
         }

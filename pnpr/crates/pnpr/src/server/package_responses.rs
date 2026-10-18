@@ -1,8 +1,9 @@
 use super::{
-    ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, HeaderMap, IndexMap, Integrity,
-    RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
-    declared_tarball_integrity, filter_osv_vulnerable_versions, header, private_no_cache,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
+    Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
+    declared_tarball_integrity, describe_tars, filter_osv_vulnerable_versions, header,
+    private_no_cache, rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming,
+    tarball_basename,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -41,6 +42,8 @@ pub(super) struct DistBlock {
     /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
     #[serde(default)]
     pub(super) shasum: Option<String>,
+    #[serde(default, rename = "unpackedSize")]
+    pub(super) unpacked_size: Option<u64>,
 }
 
 pub(super) fn expected_tarball_dist(
@@ -141,18 +144,23 @@ pub(super) fn packument_response(
     name: &CanonicalPackageName,
     bytes: &[u8],
     tarball_base: &str,
-    revision_registry: Option<&str>,
+    view: DistView<'_>,
     osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
     headers: &HeaderMap,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    match revision_registry {
-        Some(source_registry) => {
+    match view {
+        DistView::Tgz {
+            revision_registry: Some(source_registry),
+        } => {
             rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
         }
-        None => rewrite_tarball_urls(&mut doc, name, tarball_base),
+        DistView::Tgz { revision_registry: None } => {
+            rewrite_tarball_urls(&mut doc, name, tarball_base);
+        }
+        DistView::Tar(table) => describe_tars(&mut doc, table),
     }
     let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {

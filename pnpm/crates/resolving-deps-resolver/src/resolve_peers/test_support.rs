@@ -91,7 +91,7 @@ pub(super) fn package_with_peer_dependencies(
     ResolvedPackage::new(ResolvedPackageInput {
         id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
-        peer_dependencies,
+        peer_set: crate::PeerSet::taking_all(peer_dependencies),
         optional: false,
         is_leaf,
     })
@@ -117,7 +117,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
                 non_deprecated_alternative: None,
             },
         }),
-        peer_dependencies: BTreeMap::new(),
+        peer_set: crate::PeerSet::default(),
         optional: false,
         is_leaf: true,
     })

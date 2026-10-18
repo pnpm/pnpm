@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
-import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR } from '@pnpm/constants'
+import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
@@ -13,7 +13,8 @@ import { loadJsonFileSync } from 'load-json-file'
 import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { loadMetaHeaders } from '../src/pickPackage.js'
+import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 
@@ -1237,6 +1238,56 @@ test('the release-age upgrade of a changed full document revalidates with its ne
  * some of the versions it serves would answer, with `modified` recent enough
  * to make the release-age check ask for the full document.
  */
+// A full document is already the most complete form a registry serves, so a
+// pick that reads full metadata has nothing to upgrade to, even when the
+// registry omits `time`.
+test('a full metadata pick of a document without time revalidates its mirror on later installs', async () => {
+  const cacheDir = temporaryDirectory()
+  const cachePath = path.join(cacheDir, `${FULL_META_DIR}/https%3A+registry.npmjs.org`, 'is-positive.jsonl')
+  const withoutTime = { ...isPositiveAbbreviatedMeta, modified: isPositiveMeta.time.modified }
+  const requests: string[] = []
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply((request) => {
+      const ifNoneMatch = (request.headers as Record<string, string | undefined>)['if-none-match']
+      requests.push(ifNoneMatch ?? 'unconditional')
+      return ifNoneMatch === '"full-etag"'
+        ? { statusCode: 304, data: '' }
+        : { statusCode: 200, data: withoutTime, responseOptions: { headers: { etag: '"full-etag"' } } }
+    })
+    .persist()
+
+  for (const install of [1, 2, 3]) {
+    if (install > 1) {
+      // The mirror write and the mtime renewal after a 304 run in the
+      // background. Wait for both, then date the mirror before the cutoff so
+      // the install revalidates it.
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.etag === '"full-etag"')
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+      await waitForMtimeAfterEpoch(cachePath)
+      fs.utimesSync(cachePath, new Date(0), new Date(0))
+    }
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+      fullMetadata: true,
+      ignoreMissingTimeField: true,
+    })
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+      publishedBy: new Date('2015-07-01T00:00:00.000Z'),
+    })
+    expect(resolveResult!.id).toBe('is-positive@3.1.0')
+  }
+
+  expect(requests).toStrictEqual(['unconditional', '"full-etag"', '"full-etag"'])
+  const headers = await loadMetaHeaders(cachePath)
+  expect(headers).toMatchObject({ etag: '"full-etag"' })
+  expect(headers?.fullEtag).toBeUndefined()
+})
+
 function partialTimeMeta (): PackageMeta {
   return {
     ...isPositiveAbbreviatedMeta,
@@ -1246,4 +1297,18 @@ function partialTimeMeta (): PackageMeta {
     },
     modified: isPositiveMeta.time.modified,
   }
+}
+
+/**
+ * Resolves once the existing file's mtime has moved off the epoch the test
+ * dated it to, polling up to four times 500ms apart. Throws when it has not.
+ */
+async function waitForMtimeAfterEpoch (filePath: string): Promise<void> {
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (fs.statSync(filePath).mtimeMs > 0) return
+    await delay(500)
+  }
+  /* eslint-enable no-await-in-loop */
+  throw new Error(`The mtime of ${filePath} was not renewed`)
 }

@@ -178,6 +178,7 @@ fn create_config(
         fetch_timeout: 60_000,
         fetch_warn_timeout_ms: 10_000,
         fetch_min_speed_ki_bps: 50,
+        max_tarball_unpacked_size: pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE,
         user_agent: "pnpm".to_string(),
         npmrc_auth_file: None,
         workspace_dir: None,
@@ -308,6 +309,7 @@ async fn resolve_via_mock(
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,

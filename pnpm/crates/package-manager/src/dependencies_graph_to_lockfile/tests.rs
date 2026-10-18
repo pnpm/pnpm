@@ -176,7 +176,7 @@ fn make_node_with_optional(
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children,
             optional_children: HashSet::default(),
-            peer_dependencies,
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::taking_all(peer_dependencies),
             transitive_peer_dependencies,
             resolved_peer_names: HashSet::default(),
         },
@@ -237,7 +237,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
@@ -306,7 +306,7 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
@@ -347,7 +347,7 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
@@ -434,7 +434,7 @@ fn make_named_registry_node(
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
             children: BTreeMap::new(),
             optional_children: HashSet::default(),
-            peer_dependencies: BTreeMap::new(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
             transitive_peer_dependencies: HashSet::default(),
             resolved_peer_names: HashSet::default(),
         },
