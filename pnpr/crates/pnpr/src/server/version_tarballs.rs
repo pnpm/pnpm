@@ -243,11 +243,11 @@ impl VersionRequest<'_> {
             Ok(FetchOutcome::Ok(manifest)) => version_manifest_tgz(&manifest.bytes, self.version)
                 .map_or(ManifestRead::Unusable, ManifestRead::Dist),
             Ok(FetchOutcome::NotFound) => ManifestRead::Unusable,
-            // A status, even a 5xx, may only mean the upstream serves no
-            // manifests, so its packument is fetched.
             Err(
                 err @ (RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. }),
             ) => ManifestRead::Unreachable(err),
+            // A status, even a 5xx, may only mean the upstream serves no
+            // manifests, so its packument is fetched.
             Err(err) => {
                 tracing::debug!(
                     error = %err.log_message(),
