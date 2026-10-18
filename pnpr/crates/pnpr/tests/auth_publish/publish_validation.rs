@@ -4,6 +4,7 @@ use super::{
     static_config,
 };
 use base64::Engine;
+use pnpr_storage::layout::{local_blob_path, local_document_path, local_package_dir};
 
 #[tokio::test]
 async fn anonymous_publish_is_rejected() {
@@ -49,7 +50,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
     assert_eq!(second.status(), StatusCode::CONFLICT);
 
     // The originally published tarball must be untouched on disk.
-    let on_disk = std::fs::read(storage.join("mypkg/mypkg-1.0.0.tgz")).unwrap();
+    let on_disk = std::fs::read(local_blob_path(&storage, "", "mypkg", "mypkg-1.0.0.tgz")).unwrap();
     assert_eq!(on_disk, b"original-bytes");
 }
 
@@ -389,7 +390,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     // Force the stored dist.tarball to a basename-less URL (ends in `/`), which
     // rewrite_tarball_urls serves under the version-derived canonical name — so
     // the served basename is still well-defined and must stay pinned.
-    let packument_path = storage.join("mypkg/package.json");
+    let packument_path = local_document_path(&storage, "", "mypkg");
     let mut stored: Value =
         serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
@@ -433,7 +434,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
         StatusCode::BAD_REQUEST,
     );
 
-    assert!(!storage.join("ghost/package.json").exists());
+    assert!(!local_document_path(&storage, "", "ghost").exists());
 }
 
 #[tokio::test]
@@ -544,8 +545,8 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     );
 
     // The artifacts land in the authoritative root, not the cache.
-    assert!(storage.join("durable-pkg/package.json").exists());
-    assert!(storage.join("durable-pkg/durable-pkg-1.0.0.tgz").exists());
+    assert!(local_document_path(&storage, "", "durable-pkg").exists());
+    assert!(local_blob_path(&storage, "", "durable-pkg", "durable-pkg-1.0.0.tgz").exists());
     assert!(
         !storage.join(".pnpr-cache/durable-pkg").exists(),
         "published package must not be written into the disposable proxy cache",
@@ -653,11 +654,11 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
 
     // Neither the packument nor the tarball should have been written.
     assert!(
-        !storage.join("bad-pkg/package.json").exists(),
+        !local_document_path(&storage, "", "bad-pkg").exists(),
         "packument must not be written when integrity check fails",
     );
     assert!(
-        !storage.join("bad-pkg/bad-pkg-1.0.0.tgz").exists(),
+        !local_blob_path(&storage, "", "bad-pkg", "bad-pkg-1.0.0.tgz").exists(),
         "tarball must not be written when integrity check fails",
     );
 }
@@ -686,7 +687,7 @@ async fn publish_rejects_shasum_mismatch() {
         body_text.contains("EINTEGRITY"),
         "shasum mismatch must surface EINTEGRITY: {body_text}",
     );
-    assert!(!storage.join("shasum-pkg/package.json").exists());
+    assert!(!local_document_path(&storage, "", "shasum-pkg").exists());
 }
 
 #[tokio::test]
@@ -715,7 +716,7 @@ async fn publish_rejects_missing_integrity_field() {
         body_text.contains("EINTEGRITY") && body_text.contains("integrity"),
         "missing integrity must surface a clear EINTEGRITY message: {body_text}",
     );
-    assert!(!storage.join("no-int-pkg/package.json").exists());
+    assert!(!local_document_path(&storage, "", "no-int-pkg").exists());
 }
 
 /// Real npm clients send one attachment per publish, but the
@@ -779,25 +780,15 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     // The package dir may exist (the handler creates it while
-    // reserving paths) but it must be empty: no .tgz files, no
-    // .tmp.* leftovers, no package.json.
-    let pkg_dir = storage.join("multi-attach");
-    if pkg_dir.exists() {
-        let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
-            .unwrap()
-            .map(|entry| {
-                entry
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .to_string()
-            })
-            .collect();
-        assert!(
-            entries.is_empty(),
-            "expected no artifacts after rejected publish, found: {entries:?}",
-        );
-    }
+    // reserving paths) but it must hold no file: no .tgz files, no
+    // .tmp.* leftovers, no document.
+    let files: Vec<_> = walkdir::WalkDir::new(local_package_dir(&storage, "", "multi-attach"))
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| entry.path().to_path_buf())
+        .collect();
+    assert!(files.is_empty(), "expected no artifacts after rejected publish, found: {files:?}");
 }
 
 /// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
@@ -878,8 +869,8 @@ async fn publish_supports_scoped_packages() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    assert!(storage.join("@scope/pkg/package.json").exists());
-    assert!(storage.join("@scope/pkg/pkg-1.0.0.tgz").exists());
+    assert!(local_document_path(&storage, "", "@scope/pkg").exists());
+    assert!(local_blob_path(&storage, "", "@scope/pkg", "pkg-1.0.0.tgz").exists());
 
     // And we can read it back.
     let response = app

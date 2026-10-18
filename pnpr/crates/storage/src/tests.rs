@@ -92,10 +92,9 @@ async fn hosted_revision_ref_writes_enforce_the_read_bound() {
             .unwrap(),
         HostedRevisionRefWrite::AlreadyClaimed,
     );
-    let stray_dir = tmp
-        .path()
-        .join("storage/.revisions/sha512")
-        .join(&digest);
+    let mut stray_dir = tmp.path().join("storage");
+    stray_dir.extend(crate::layout::namespace_segments(""));
+    let stray_dir = stray_dir.join(super::HOSTED_REVISION_REFS_DIR).join(&digest);
     fs::write(stray_dir.join("not-a-reference.json"), b"stray").await.unwrap();
     fs::write(stray_dir.join("interrupted.tmp"), b"stray").await.unwrap();
     let refs = storage.read_hosted_revision_refs(&digest).await.unwrap();
@@ -145,9 +144,9 @@ async fn hosted_blob_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
-    let storage_root = tmp.path().join("storage");
-    fs::create_dir_all(&storage_root).await.unwrap();
-    fs::write(storage_root.join("foo"), b"not a directory").await.unwrap();
+    let package_dir = crate::layout::local_package_dir(&tmp.path().join("storage"), "", "foo");
+    fs::create_dir_all(package_dir.parent().unwrap()).await.unwrap();
+    fs::write(&package_dir, b"not a directory").await.unwrap();
 
     let Err(err) = storage.open_hosted_blob(&name, "foo-1.0.0.tgz").await else {
         panic!("expected hosted blob open to fail");
@@ -234,54 +233,132 @@ async fn failed_blob_finalize_removes_tmp_file() {
 }
 
 #[tokio::test]
-async fn package_index_migrates_nested_legacy_documents_and_ignores_removed_ones() {
+async fn nested_names_are_stored_as_siblings() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let root = tmp.path().join("storage");
-    fs::create_dir_all(root.join("acme/app/tool")).await.unwrap();
-    fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
-    fs::write(root.join("acme/app/tool/package.json"), b"{}").await.unwrap();
-    storage.rebuild_package_index().await.unwrap();
+    let parent =
+        CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let child =
+        CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
+    for name in [&parent, &child] {
+        storage.write_hosted_document_if_current(name, b"{}", None).await.unwrap();
+    }
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
-    fs::remove_file(root.join("acme/app/package.json")).await.unwrap();
+    storage.remove_package(&parent).await.unwrap();
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
 }
 
-#[cfg(unix)]
 #[tokio::test]
-async fn package_index_rebuild_replaces_a_symlink_planted_at_a_marker() {
+async fn packages_documents_and_blobs_have_one_path_each() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let root = tmp.path().join("storage");
-    fs::create_dir_all(root.join("acme/app")).await.unwrap();
-    fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
-    let outside = tmp.path().join("outside");
-    fs::write(&outside, b"keep").await.unwrap();
-    let marker = root.join(".package-index/acme/app/.present");
-    fs::create_dir_all(marker.parent().unwrap()).await.unwrap();
-    fs::symlink(&outside, &marker).await.unwrap();
-    storage.rebuild_package_index().await.unwrap();
-    assert_eq!(fs::read(&outside).await.unwrap(), b"keep");
-    assert!(fs::symlink_metadata(&marker).await.unwrap().is_file());
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app"]);
+    let name = pkg("@scope/App");
+    storage.write_hosted_document_if_current(&name, b"{}", None).await.unwrap();
+    let slot = storage.reserve_hosted_blob(&name, "App-1.0.0.tgz").await.unwrap();
+    fs::write(&slot.tmp_path, b"tarball").await.unwrap();
+    storage.finalize_blob_slot(slot).await.unwrap();
+    storage
+        .for_hosted("npm~internal")
+        .write_hosted_document_if_current(&name, b"{}", None)
+        .await
+        .unwrap();
+
+    let package = tmp.path().join("storage/default/packages/!40scope!2f!41pp");
+    assert!(package.join("document.json").is_file());
+    assert!(package.join("blobs/!41pp-1.0.0.tgz").is_file());
+    assert!(
+        tmp.path()
+            .join("storage/orgs/npm!7einternal/packages/!40scope!2f!41pp/document.json")
+            .is_file(),
+    );
 }
 
 #[tokio::test]
-async fn package_index_removes_deleted_and_failed_package_entries() {
+async fn an_org_named_like_a_package_is_its_own_namespace() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let name = pkg("@scope/app");
+    let org = storage.for_hosted("acme");
     storage
-        .update_hosted_document_with_retry(&name, 1, |_| Ok(Some(b"{}".to_vec())))
+        .write_hosted_document_if_current(&pkg("acme"), b"{}", None)
         .await
         .unwrap();
-    let index = tmp.path().join("storage/.package-index/@scope");
-    assert!(index.exists());
-    storage.remove_package(&name).await.unwrap();
-    assert!(!index.exists());
-    fs::create_dir_all(tmp.path().join("storage/@scope/app/package.json")).await.unwrap();
-    assert!(storage.hosted.write_document_if_current(&name, b"{}", None).await.is_err());
-    assert!(!index.exists());
+    org.write_hosted_document_if_current(&pkg("tool"), b"{}", None).await
+        .unwrap();
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme"]);
+    storage
+        .remove_package(&pkg("acme"))
+        .await
+        .unwrap();
+    assert_eq!(org.hosted_package_names().await.unwrap(), ["tool"]);
+}
+
+#[tokio::test]
+async fn a_store_without_packages_gets_the_layout_marker() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    fs::create_dir_all(tmp.path().join("storage/.team-rosters")).await.unwrap();
+    storage.ensure_hosted_layout().await.unwrap();
+    let marker = fs::read(tmp.path().join("storage/layout.json")).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<crate::layout::LayoutMarker>(&marker).unwrap(),
+        crate::layout::LayoutMarker { layout: crate::layout::LAYOUT_VERSION },
+    );
+    storage.ensure_hosted_layout().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_store_in_the_earlier_layout_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    fs::create_dir_all(tmp.path().join("storage/left-pad")).await.unwrap();
+    fs::write(tmp.path().join("storage/left-pad/package.json"), b"{}").await.unwrap();
+    let error = storage
+        .ensure_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("pnpr upgrade-storage"), "{error}");
+    assert!(
+        !tmp.path()
+            .join("storage/layout.json")
+            .exists(),
+        "no marker is written",
+    );
+}
+
+#[tokio::test]
+async fn a_store_from_a_newer_pnpr_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    fs::create_dir_all(tmp.path().join("storage")).await.unwrap();
+    let newer = crate::layout::LAYOUT_VERSION + 1;
+    fs::write(tmp.path().join("storage/layout.json"), format!(r#"{{"layout":{newer}}}"#))
+        .await
+        .unwrap();
+    let error = storage
+        .ensure_hosted_layout()
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("newer pnpr"), "{error}");
+}
+
+#[tokio::test]
+async fn a_cache_from_another_layout_is_emptied_once() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let cache = tmp.path().join("cache");
+    let stale = cache.join("~public/abc/left-pad/package.json");
+    fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+    fs::write(&stale, b"{}").await.unwrap();
+    fs::create_dir_all(cache.join("pnpr-store")).await.unwrap();
+    storage.reset_cache_from_other_layout().await.unwrap();
+    assert!(!cache.join("~public").exists());
+    assert!(cache.join("pnpr-store").exists());
+
+    fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+    storage.reset_cache_from_other_layout().await.unwrap();
+    assert!(cache.join("~public").exists());
 }
 
 /// The local backend has no `ETag`, so its claim on a staged record compares

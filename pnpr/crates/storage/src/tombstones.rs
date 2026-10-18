@@ -23,7 +23,7 @@ pub struct PackageTombstone {
 }
 
 fn tombstone_key(name: &CanonicalPackageName) -> String {
-    format!("{}.json", name.as_str())
+    format!("{}.json", crate::layout::encode_segment(name.as_str()))
 }
 
 fn merge_tombstones(

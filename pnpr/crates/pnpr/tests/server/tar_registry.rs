@@ -5,6 +5,7 @@ use super::{
     router, router_with_auth, sha512_integrity, tar_of,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::encode_segment;
 
 fn widget_tar() -> Vec<u8> {
     tar_of(&[("package/package.json", br#"{"name":"@acme/widget","version":"1.0.0"}"#)])
@@ -181,7 +182,9 @@ async fn an_upstream_version_gains_its_tar_integrity_once_its_tar_was_served() {
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tar));
     assert!(
         tmp.path()
-            .join(".tar-integrity/left-pad/package.json")
+            .join(".tar-integrity/packages")
+            .join(encode_segment("left-pad"))
+            .join("document.json")
             .is_file(),
         "the tar integrity lives in the shared hosted storage",
     );

@@ -2,7 +2,7 @@
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
-use crate::npm;
+use crate::{npm, storage::object_key};
 
 use axum::{
     body::{Body, to_bytes},
@@ -15,11 +15,12 @@ use pnpr::{
     Registries, Registry, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
+use pnpr_storage::layout::local_blob_path;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -359,7 +360,12 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
     // Another writer already published this tarball, with other bytes.
     store
         .put(
-            &ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"),
+            &ObjectPath::from(object_key(&local_blob_path(
+                Path::new(""),
+                "",
+                "mixed-pkg",
+                "mixed-pkg-1.0.0.tgz",
+            ))),
             axum::body::Bytes::from_static(b"the winning tarball").into(),
         )
         .await
@@ -410,7 +416,12 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
     assert_eq!(index.status(), StatusCode::OK, "the crate beside it stays published");
     assert_eq!(
         store
-            .get(&ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"))
+            .get(&ObjectPath::from(object_key(&local_blob_path(
+                Path::new(""),
+                "",
+                "mixed-pkg",
+                "mixed-pkg-1.0.0.tgz",
+            ))))
             .await
             .unwrap()
             .bytes()

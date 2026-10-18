@@ -37,23 +37,14 @@ pub async fn collect_oci_blobs(
         config.storage.cache_dir.clone(),
     )?
     .for_hosted(&hosted.org);
-    let excluded: HashSet<&str> = if hosted.org.is_empty() {
-        config.routing.hosted
-            .values()
-            .map(|hosted| hosted.org.as_str())
-            .filter(|org| !org.is_empty())
-            .collect()
-    } else {
-        HashSet::new()
-    };
-    collect(&storage, min_age, dry_run, &excluded, config.http.oci.max_manifest_bytes).await
+    storage.ensure_hosted_layout().await?;
+    collect(&storage, min_age, dry_run, config.http.oci.max_manifest_bytes).await
 }
 
 async fn collect(
     storage: &Storage,
     min_age: Duration,
     dry_run: bool,
-    excluded: &HashSet<&str>,
     manifest_limit: usize,
 ) -> Result<(usize, u64)> {
     let temporary = tempfile::NamedTempFile::new()?;
@@ -67,7 +58,7 @@ async fn collect(
          );
          BEGIN;",
     )?;
-    inventory_hosted_blobs(storage, &mut inventory, min_age, excluded).await?;
+    inventory_hosted_blobs(storage, &mut inventory, min_age).await?;
     inventory.execute_batch("COMMIT;")?;
     inventory.execute_batch("BEGIN;")?;
     mark_reachable_blobs(storage, &mut inventory, manifest_limit).await?;
@@ -87,25 +78,27 @@ async fn inventory_hosted_blobs(
     storage: &Storage,
     inventory: &mut Inventory,
     min_age: Duration,
-    excluded: &HashSet<&str>,
 ) -> Result<()> {
     let mut files = storage.hosted_blob_files();
     while let Some(file) = files.try_next().await? {
-        let Some((repository, filename)) = inventoried_blob_path(&file.path, excluded) else {
-            continue;
-        };
-        inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [repository])?;
-        if filename == "package.json" {
+        if CanonicalPackageName::parse(&file.package, Ecosystem::Oci).is_err() {
             continue;
         }
+        inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [&file.package])?;
+        let Some(filename) = file.blob
+            .as_deref()
+            .filter(|blob| filename_digest(blob).is_some())
+        else {
+            continue;
+        };
         let size = i64::try_from(file.size)
             .map_err(|_| RegistryError::BadRequest {
-                reason: format!("blob {} is too large to inventory", file.path),
+                reason: format!("blob {}/{filename} is too large to inventory", file.package),
             })?;
         inventory.execute(
             "INSERT INTO blobs (repository, filename, size, old) VALUES (?, ?, ?, ?)",
             params![
-                repository,
+                file.package,
                 filename,
                 size,
                 file.modified.elapsed().unwrap_or_default() >= min_age
@@ -113,30 +106,6 @@ async fn inventory_hosted_blobs(
         )?;
     }
     Ok(())
-}
-
-/// The repository and filename of a stored path the collector inventories, or
-/// `None` for an excluded registry, a path that is not a repository, or a file
-/// that is neither a document nor a digest-named blob.
-fn inventoried_blob_path<'a>(
-    path: &'a str,
-    excluded: &HashSet<&str>,
-) -> Option<(&'a str, &'a str)> {
-    if path
-        .split('/')
-        .next()
-        .is_some_and(|part| excluded.contains(part))
-    {
-        return None;
-    }
-    let (repository, filename) = path.rsplit_once('/')?;
-    if CanonicalPackageName::parse(repository, Ecosystem::Oci).is_err() {
-        return None;
-    }
-    if filename != "package.json" && filename_digest(filename).is_none() {
-        return None;
-    }
-    Some((repository, filename))
 }
 
 /// Flag every blob some manifest still reaches.

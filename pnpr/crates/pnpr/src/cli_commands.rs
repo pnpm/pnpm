@@ -85,6 +85,13 @@ pub enum Command {
         #[arg(long)]
         verify: bool,
     },
+    /// Convert the hosted store to the current storage layout. Back the store
+    /// up and stop every pnpr process that uses it first.
+    UpgradeStorage {
+        /// Report what would change without changing anything.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Import users from an existing Verdaccio or Apache htpasswd file.
     ImportHtpasswd {
         /// Path to source htpasswd file.
@@ -124,6 +131,11 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::Verify { .. } => run_verify_command(config, command).await,
         Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
+        Command::UpgradeStorage { dry_run } => {
+            let report = crate::upgrade_storage::upgrade_storage(config, dry_run).await?;
+            print!("{}", crate::upgrade_storage::format_upgrade_report(&report));
+            Ok(())
+        }
         Command::ImportHtpasswd { .. } => run_import_command(config, command),
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await

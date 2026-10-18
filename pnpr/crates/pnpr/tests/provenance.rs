@@ -9,6 +9,7 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
+use pnpr_storage::layout::local_blob_path;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -216,7 +217,7 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    assert!(storage.join("del-pkg/del-pkg-1.0.0.sigstore").exists());
+    assert!(local_blob_path(&storage, "", "del-pkg", "del-pkg-1.0.0.sigstore").exists());
 
     let del = Request::delete("/npm/del-pkg/-/del-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -231,7 +232,7 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         StatusCode::CREATED,
     );
 
-    assert!(!storage.join("del-pkg/del-pkg-1.0.0.sigstore").exists());
+    assert!(!local_blob_path(&storage, "", "del-pkg", "del-pkg-1.0.0.sigstore").exists());
 
     let get_attest = Request::get("/npm/-/npm/v1/attestations/del-pkg@1.0.0")
         .body(Body::empty())

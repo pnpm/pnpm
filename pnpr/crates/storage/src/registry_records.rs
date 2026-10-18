@@ -32,7 +32,7 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(kind.namespace(), &registry_record_key(registry)?).await
+        self.root.read_record(kind.namespace(), &registry_record_key(registry)?).await
     }
 
     /// Write the first record of `kind` for `registry`, reporting `false`
@@ -44,7 +44,7 @@ impl Storage {
         bytes: &[u8],
     ) -> Result<bool> {
         let key = registry_record_key(registry)?;
-        self.hosted.create_record(kind.namespace(), &key, bytes).await
+        self.root.create_record(kind.namespace(), &key, bytes).await
     }
 
     /// Replace the record of `kind` for `registry` only while it still holds
@@ -57,7 +57,7 @@ impl Storage {
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
         let key = registry_record_key(registry)?;
-        self.hosted.replace_record_if_current(kind.namespace(), &key, expected, bytes).await
+        self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes).await
     }
 
     pub async fn remove_registry_record(
@@ -65,7 +65,7 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<bool> {
-        self.hosted.remove_record(kind.namespace(), &registry_record_key(registry)?).await
+        self.root.remove_record(kind.namespace(), &registry_record_key(registry)?).await
     }
 }
 

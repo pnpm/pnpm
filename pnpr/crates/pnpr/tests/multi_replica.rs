@@ -190,7 +190,7 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
     let rejecting = Replica::start(&store).await;
 
     let stage_id = approving.stage("staged-pkg", "1.0.0", b"the tarball").await;
-    objects.pause("package.json".to_string());
+    objects.pause("document.json".to_string());
     let approval = tokio::spawn({
         let app = approving.app.clone();
         let token = approving.token.clone();
