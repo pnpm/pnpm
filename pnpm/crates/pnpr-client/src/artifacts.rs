@@ -1,8 +1,8 @@
 use super::{
-    ArtifactBlobRequest, ArtifactBlobSource, ArtifactCandidate, ArtifactPayload,
-    ArtifactPublication, ArtifactSubject, ArtifactVariant, BTreeMap, Duration, HashSet,
-    MAX_CANDIDATES, MAX_ERROR_BODY_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    OwnerScope, PROTOCOL_VERSION, PnprClient, PnprClientError, PublishArtifactRequest,
+    ARTIFACTS_PROTOCOL_VERSION, ArtifactBlobRequest, ArtifactBlobSource, ArtifactCandidate,
+    ArtifactPayload, ArtifactPublication, ArtifactSubject, ArtifactVariant, BTreeMap, Duration,
+    HashSet, MAX_CANDIDATES, MAX_ERROR_BODY_SIZE, MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PnprClient, PnprClientError, PublishArtifactRequest,
     ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
     blob_transfer::{blob_body, blob_timeout, read_blob, write_blob},
     compatibility_rank_prevalidated, response_body_bounded, validate_supported_tags,
@@ -249,9 +249,9 @@ impl PnprClient {
     /// Confirm that the server enabled the v0 signed-artifact `PoC`.
     pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
         let capability = self.fetch_handshake(Some(self.artifact_request_timeout)).await?;
-        if !capability.artifacts.contains(&PROTOCOL_VERSION) {
-            return Err(PnprClientError::Server(format!(
-                "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
+        if !capability.artifacts.contains(&ARTIFACTS_PROTOCOL_VERSION) {
+            return Err(PnprClientError::server(format!(
+                "pnpr server does not advertise shared artifact protocol v{ARTIFACTS_PROTOCOL_VERSION}",
             )));
         }
         Ok(())
@@ -369,7 +369,7 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::Server(format!(
+            return Err(PnprClientError::server(format!(
                 "/-/pnpr/v0/artifacts/resolve returned {status}: {}",
                 String::from_utf8_lossy(&body),
             )));
@@ -431,7 +431,7 @@ async fn check_status(
     }
     let status = response.status();
     let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-    Err(PnprClientError::Server(format!(
+    Err(PnprClientError::server(format!(
         "{request} returned {status}: {}",
         String::from_utf8_lossy(&body),
     )))

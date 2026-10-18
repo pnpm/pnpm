@@ -31,6 +31,44 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
                 "fixLockfile": [],
                 "ecosystems": [],
                 "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 1,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": [0]
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": [0]
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );

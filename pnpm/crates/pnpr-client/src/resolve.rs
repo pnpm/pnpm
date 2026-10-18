@@ -107,16 +107,18 @@ fn handle_resolve_frame(
             });
             Ok(None)
         }
-        Frame::Done { lockfile, stats } => {
+        Frame::Done { lockfile, stats, applied_policies } => {
             assert_requested_importers(&lockfile, permitted_importers)?;
             assert_transform_metadata(&lockfile, opts)?;
             assert_publish_directories(&lockfile, opts)?;
-            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
+            assert_applied_policies(applied_policies.as_ref(), opts)?;
+            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats, applied_policies }))
         }
-        Frame::Error { message } => Err(PnprClientError::Server(message)),
+        Frame::Error { message, code } => Err(PnprClientError::Server { message, code }),
         Frame::Violations { violations } => {
             Err(PnprClientError::Verification(build_verify_error(violations)))
         }
+        Frame::Ignored => Ok(None),
     }
 }
 
@@ -227,7 +229,61 @@ pub(super) fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
-/// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the
+/// The policies the server applied to a resolution, echoed in the `done`
+/// frame so the client can verify that requested verification and resolution
+/// policies were actually enforced by the server.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppliedPolicies {
+    pub auto_install_peers: bool,
+    pub dedupe_peers: bool,
+    pub exclude_links_from_lockfile: bool,
+    pub add_missing_peer_types: bool,
+    pub frozen_lockfile: bool,
+    pub resolution_mode: String,
+    #[serde(default)]
+    pub minimum_release_age: Option<u64>,
+    #[serde(default)]
+    pub trust_policy: Option<String>,
+}
+
+fn assert_applied_policies(
+    applied: Option<&AppliedPolicies>,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    let Some(applied) = applied else {
+        return Ok(());
+    };
+    if opts.verification.trust_policy == pnpm_config::TrustPolicy::NoDowngrade
+        && applied.trust_policy.as_deref() != Some("no-downgrade")
+    {
+        return Err(PnprClientError::Protocol(
+            "pnpr server ignored requested trustPolicy (expected no-downgrade)".to_string(),
+        ));
+    }
+    if opts.verification.minimum_release_age.is_some()
+        && opts.verification.minimum_release_age != applied.minimum_release_age
+    {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested minimumReleaseAge (expected {:?}, got {:?})",
+            opts.verification.minimum_release_age, applied.minimum_release_age
+        )));
+    }
+    if opts.resolution.add_missing_peer_types == Some(true) && !applied.add_missing_peer_types {
+        return Err(PnprClientError::Protocol(
+            "pnpr server ignored requested addMissingPeerTypes".to_string(),
+        ));
+    }
+    if opts.reuse.frozen_lockfile != applied.frozen_lockfile {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server did not respect frozenLockfile (expected {}, got {})",
+            opts.reuse.frozen_lockfile, applied.frozen_lockfile
+        )));
+    }
+    Ok(())
+}
+
+/// One NDJSON frame from resolve endpoint. `package` frames stream as the
 /// server resolves; exactly one terminal frame (`done` / `error` /
 /// `violations`) closes the response.
 #[derive(Deserialize)]
@@ -252,13 +308,19 @@ pub(super) enum Frame {
         lockfile: Box<Lockfile>,
         #[serde(default)]
         stats: Stats,
+        #[serde(default, rename = "appliedPolicies")]
+        applied_policies: Option<AppliedPolicies>,
     },
     Error {
         message: String,
+        #[serde(default)]
+        code: Option<String>,
     },
     Violations {
         violations: Vec<WireViolation>,
     },
+    #[serde(other)]
+    Ignored,
 }
 
 impl PnprClient {
@@ -307,8 +369,9 @@ impl PnprClient {
         // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers = permitted_importers(&opts);
         let project_transforms_requested = has_project_transforms(&opts);
+        let version = self.negotiated_resolver_version().await?;
         let mut post = self.http
-            .post(format!("{}-/pnpr/v0/resolve", self.base_url))
+            .post(format!("{}-/pnpr/v{version}/resolve", self.base_url))
             .json(&resolve_request_body(&opts));
         if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
@@ -317,8 +380,8 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {body}",
+            return Err(PnprClientError::server(format!(
+                "/-/pnpr/v{version}/resolve returned {status}: {body}",
             )));
         }
 
@@ -329,9 +392,9 @@ impl PnprClient {
         })
         .await?;
         outcome.ok_or_else(|| {
-            PnprClientError::Protocol(
-                "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
-            )
+            PnprClientError::Protocol(format!(
+                "/-/pnpr/v{version}/resolve stream ended without a terminal frame",
+            ))
         })
     }
 }

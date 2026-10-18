@@ -238,12 +238,50 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         body_json(handshake.into_body()).await,
         json!({
             "pnpr": {
-                "versions": [0],
+                "versions": [0, 1],
                 "artifacts": [],
                 "pipeline": [],
-                "fixLockfile": [0],
+                "fixLockfile": [0, 1],
                 "ecosystems": ["npm", "cargo", "pypi"],
                 "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 1,
+                        "versions": [0, 1],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": ["npm", "cargo", "pypi"]
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );
@@ -431,6 +469,44 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
                 "fixLockfile": [],
                 "ecosystems": [],
                 "publish": [0],
+                "protocols": {
+                    "resolver": {
+                        "version": 1,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [0],
+                        "pnpmPublish": [1]
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );

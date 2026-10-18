@@ -297,6 +297,20 @@ async fn resolve_via_pnpr(
         // Surface the reconstructed `VerifyError` so the abort + the
         // `ERR_PNPM_*` diagnostic code match the local gate exactly.
         Err(PnprClientError::Verification(verify_err)) => Err(miette::Report::new(verify_err)),
+        Err(PnprClientError::Server { message, code: Some(code) }) => {
+            #[derive(Debug, derive_more::Display, derive_more::Error)]
+            #[display("{message}")]
+            struct ServerErrorWithCode {
+                message: String,
+                code: String,
+            }
+            impl miette::Diagnostic for ServerErrorWithCode {
+                fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+                    Some(Box::new(&self.code))
+                }
+            }
+            Err(miette::Report::new(ServerErrorWithCode { message, code }))
+        }
         Err(err) => {
             Err(miette::miette!("{err}")).wrap_err("resolving dependencies via the pnpr server")
         }

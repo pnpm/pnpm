@@ -31,8 +31,14 @@ mod install;
 pub enum ResolveError {
     Io(std::io::Error),
     Manifest(String),
-    Install(String),
+    Install { message: String, code: Option<String> },
     NoLockfile,
+}
+
+impl ResolveError {
+    pub fn install(message: impl Into<String>) -> Self {
+        Self::Install { message: message.into(), code: None }
+    }
 }
 
 impl std::fmt::Display for ResolveError {
@@ -40,7 +46,7 @@ impl std::fmt::Display for ResolveError {
         match self {
             ResolveError::Io(err) => write!(f, "{err}"),
             ResolveError::Manifest(msg) => write!(f, "failed to read manifest: {msg}"),
-            ResolveError::Install(msg) => write!(f, "resolution failed: {msg}"),
+            ResolveError::Install { message, .. } => write!(f, "resolution failed: {message}"),
             ResolveError::NoLockfile => write!(f, "resolution produced no lockfile"),
         }
     }
@@ -92,7 +98,7 @@ pub async fn resolve(
     if let Some(lockfile) = input_lockfile {
         lockfile
             .save_to_path(&lockfile_path)
-            .map_err(|err| ResolveError::Install(err.to_string()))?;
+            .map_err(|err| ResolveError::install(err.to_string()))?;
     }
 
     let resolved_packages: ResolvedPackages = DashMap::new();
@@ -100,10 +106,13 @@ pub async fn resolve(
         .build(&resolved_packages, &manifest, &lockfile_path)
         .run::<SilentReporter>()
         .await
-        .map_err(|err| ResolveError::Install(err.to_string()))?;
+        .map_err(|err| {
+            let code = miette::Diagnostic::code(&err).map(|c| c.to_string());
+            ResolveError::Install { message: err.to_string(), code }
+        })?;
 
     let lockfile = Lockfile::load_wanted_from_dir(dir)
-        .map_err(|err| ResolveError::Install(err.to_string()))?
+        .map_err(|err| ResolveError::install(err.to_string()))?
         .ok_or(ResolveError::NoLockfile)?;
 
     Ok(lockfile)
@@ -137,7 +146,7 @@ async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<()
         // `-`, ...) stays a plain string instead of being reparsed as a
         // mapping or breaking the document.
         let quoted =
-            serde_json::to_string(member).map_err(|err| ResolveError::Install(err.to_string()))?;
+            serde_json::to_string(member).map_err(|err| ResolveError::install(err.to_string()))?;
         yaml.push_str("  - ");
         yaml.push_str(&quoted);
         yaml.push('\n');
@@ -160,7 +169,7 @@ async fn write_importer_manifests<'a>(
         // to `.`): writing the same `package.json` twice would silently
         // drop the earlier project's dependency map.
         if !seen_dirs.insert(rel) {
-            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
+            return Err(ResolveError::install(format!("duplicate importer dir: {rel:?}")));
         }
         let project_dir = if rel == "." {
             wrote_root = true;
@@ -189,7 +198,7 @@ async fn write_importer_manifest(
 ) -> Result<(), ResolveError> {
     let manifest_json = importer_manifest_json(project, rel);
     let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
+        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::install(err.to_string()))?;
     let opened = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -198,7 +207,7 @@ async fn write_importer_manifest(
     let mut file = match opened {
         Ok(file) => file,
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(ResolveError::Install(format!(
+            return Err(ResolveError::install(format!(
                 "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
             )));
         }
@@ -317,7 +326,7 @@ fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
             .split('/')
             .any(|component| component.is_empty() || component == "." || component == "..")
     {
-        return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
+        return Err(ResolveError::install(format!("unsafe importer dir: {dir:?}")));
     }
     Ok(dir)
 }

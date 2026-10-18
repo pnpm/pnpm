@@ -17,6 +17,22 @@ use crate::server::{
 pub(super) fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
     router
         .route(
+            "/-/pnpr/v1/resolve",
+            post(serve_resolve)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+        )
+        .route(
+            "/-/pnpr/v1/verify-lockfile",
+            post(serve_verify_lockfile)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+        )
+        .route(
             "/-/pnpr/v0/resolve",
             post(serve_resolve)
                 .route_layer(middleware::from_fn_with_state(

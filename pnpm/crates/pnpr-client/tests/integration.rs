@@ -155,43 +155,56 @@ async fn wait_until_ready(addr: SocketAddr) {
 /// Accept one HTTP request, return its full raw bytes (headers + body), and
 /// send the supplied raw HTTP response.
 async fn capture_one_request_with_response(listener: TcpListener, response: String) -> String {
-    let (mut socket, _) = listener.accept().await.expect("accept request");
-    let mut buffer = Vec::new();
-    let mut chunk = [0u8; 4096];
     loop {
-        let read = socket.read(&mut chunk).await.expect("read request");
-        if read == 0 {
-            break;
+        let (mut socket, _) = listener.accept().await.expect("accept request");
+        let mut buffer = Vec::new();
+        let mut chunk = [0u8; 4096];
+        loop {
+            let read = socket.read(&mut chunk).await.expect("read request");
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+            // Stop once the full body (per Content-Length) has arrived. The
+            // boundary is located in the raw bytes so the index stays aligned
+            // with `buffer.len()` below: decoding first would rewrite any
+            // non-UTF-8 byte as a longer replacement character and shift it.
+            let Some(headers_end) = buffer
+                .windows(4)
+                .position(|window| window == b"\r\n\r\n")
+            else {
+                continue;
+            };
+            let headers = String::from_utf8_lossy(&buffer[..headers_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.trim()
+                        .eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            if buffer.len() >= headers_end + 4 + content_length {
+                break;
+            }
         }
-        buffer.extend_from_slice(&chunk[..read]);
-        // Stop once the full body (per Content-Length) has arrived. The
-        // boundary is located in the raw bytes so the index stays aligned
-        // with `buffer.len()` below: decoding first would rewrite any
-        // non-UTF-8 byte as a longer replacement character and shift it.
-        let Some(headers_end) = buffer
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-        else {
+        let request_str = String::from_utf8_lossy(&buffer);
+        if request_str.starts_with("GET /-/pnpr HTTP/") {
+            let body = r#"{"pnpr":{"versions":[0,1],"fixLockfile":[0,1]}}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = socket.write_all(resp.as_bytes()).await;
+            let _ = socket.shutdown().await;
             continue;
-        };
-        let headers = String::from_utf8_lossy(&buffer[..headers_end]);
-        let content_length = headers
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                name.trim()
-                    .eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().ok())
-                    .flatten()
-            })
-            .unwrap_or(0);
-        if buffer.len() >= headers_end + 4 + content_length {
-            break;
         }
+        let _ = socket.write_all(response.as_bytes()).await;
+        let _ = socket.shutdown().await;
+        return request_str.into_owned();
     }
-    let _ = socket.write_all(response.as_bytes()).await;
-    let _ = socket.shutdown().await;
-    String::from_utf8_lossy(&buffer).into_owned()
 }
 
 async fn capture_one_request(listener: TcpListener) -> String {

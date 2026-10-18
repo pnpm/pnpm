@@ -106,7 +106,7 @@ use self::{
     },
     verdict_cache::VerdictCache,
     wire::{
-        StreamObserver, TarballRouter, done_frame, error_frame, frozen_package_frames,
+        StreamObserver, TarballRouter, done_frame, error_frame_with_code, frozen_package_frames,
         ndjson_frames, ndjson_single_frame, ndjson_stream_response, osv_violations_for_lockfile,
         verify_done_or_osv_violations, violations_frame,
     },
@@ -402,7 +402,7 @@ async fn resolve_npm_request(
     // may reuse a stored lockfile.
     let resolution_cache_key = resolution_cache_key(config, &request);
     if let Some(response) =
-        cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref())
+        cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref(), &request)
     {
         return response;
     }
@@ -486,7 +486,8 @@ fn frozen_lockfile_response(
     let mut frames = verified_dist_stats
         .map(|sizes| frozen_package_frames(config, tarball_router, &lockfile, &sizes))
         .unwrap_or_default();
-    frames.push(done_frame(&lockfile));
+    let applied = protocol::AppliedPolicies::from_request(request);
+    frames.push(done_frame(&lockfile, Some(&applied)));
     Some(ndjson_frames(&frames))
 }
 
@@ -499,6 +500,7 @@ fn cached_resolution_response(
     runtime: &Resolver,
     identity: &Identity,
     key: Option<&String>,
+    request: &ResolveRequest,
 ) -> Option<Response> {
     let lockfile = cached_resolution(
         &runtime.cache.entries,
@@ -507,7 +509,8 @@ fn cached_resolution_response(
         &runtime.route_context,
         identity,
     )?;
-    Some(ndjson_single_frame(&done_frame(&lockfile)))
+    let applied = protocol::AppliedPolicies::from_request(request);
+    Some(ndjson_single_frame(&done_frame(&lockfile, Some(&applied))))
 }
 
 /// What a finished resolution offers the resolution cache.
@@ -558,11 +561,18 @@ fn report_message(report: &miette::Report) -> String {
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
-    let body = serde_json::json!({ "error": message }).to_string();
+    json_error_with_code(status, message, None)
+}
+
+fn json_error_with_code(status: StatusCode, message: &str, code: Option<&str>) -> Response {
+    let mut val = serde_json::json!({ "error": message });
+    if let Some(code) = code {
+        val["code"] = serde_json::Value::String(code.to_string());
+    }
     Response::builder()
         .status(status)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
+        .body(Body::from(val.to_string()))
         .expect("static json error response is always valid")
 }
 

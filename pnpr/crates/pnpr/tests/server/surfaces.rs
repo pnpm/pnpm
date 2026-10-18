@@ -56,7 +56,54 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         .unwrap();
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [], "ecosystems": [], "publish": [] } }),
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [],
+                "pipeline": [0],
+                "fixLockfile": [],
+                "ecosystems": [],
+                "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 1,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": [0]
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
+            }
+        }),
     );
 
     // Reads and writes both authenticate; the viewer page is static HTML

@@ -1,5 +1,5 @@
 use super::{
-    super::wire::{error_frame, ndjson_single_frame, pypi_done_frame},
+    super::wire::{error_frame, error_frame_with_code, ndjson_single_frame, pypi_done_frame},
     IndexReader, PypiResolveRequest, Resolver, resolve,
 };
 use axum::response::Response;
@@ -29,6 +29,11 @@ pub(super) async fn resolve_request(
                 Err(err) => ndjson_single_frame(&error_frame(&super::super::report_message(&err))),
             }
         }
-        Err(err) => ndjson_single_frame(&error_frame(&err)),
+        Err(err) => {
+            let code = err
+                .contains("must be resolved by the client")
+                .then_some("ERR_PNPM_PYPI_CLIENT_RESOLVE_REQUIRED");
+            ndjson_single_frame(&error_frame_with_code(&err, code))
+        }
     }
 }

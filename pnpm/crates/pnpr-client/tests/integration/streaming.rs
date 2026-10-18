@@ -44,7 +44,7 @@ async fn a_private_package_fails_without_an_upstream() {
     let client = PnprClient::new(pnpr_url);
 
     let opts = options(registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
+    let Err(PnprClientError::Server { message, .. }) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
     assert!(message.contains("401"), "expected an auth denial without an upstream, got: {message}");

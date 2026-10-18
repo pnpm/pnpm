@@ -21,10 +21,7 @@ use pnpr_error::RegistryError;
 /// transaction.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let resolver_enabled = state.inner.config.features.resolver.enabled;
-    let versions = resolver_enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
+    let versions = if resolver_enabled { vec![0, 1] } else { Vec::new() };
     let fix_lockfile = versions.clone();
     let ecosystems: Vec<&str> = if resolver_enabled {
         crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
@@ -43,6 +40,51 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
         .then_some(0)
         .into_iter()
         .collect::<Vec<_>>();
+
+    let has_admin = !state.inner.config.identity.admins.is_empty();
+    let has_scim = state.inner.config.identity.auth.scim.is_some();
+    let has_oidc = !state.inner.config.identity.auth.oidc.is_empty();
+
+    let protocols = serde_json::json!({
+        "resolver": {
+            "version": 1,
+            "versions": &versions,
+            "features": [
+                "fixLockfile",
+                "verifyLockfile",
+                "projectTransforms",
+                "policyEcho",
+                "errorCodes",
+                "acceptedLockfileFormats"
+            ],
+            "ecosystems": &ecosystems,
+        },
+        "artifacts": {
+            "version": 0,
+            "versions": &artifacts,
+        },
+        "compilerCache": {
+            "version": 0,
+            "versions": if state.inner.config.features.artifacts.enabled { vec![0] } else { Vec::new() },
+        },
+        "pipeline": {
+            "version": 0,
+            "versions": &pipeline,
+        },
+        "publish": {
+            "version": 0,
+            "versions": &publish,
+            "pnpmPublish": if state.inner.config.features.registry.enabled { vec![1] } else { Vec::new() },
+        },
+    });
+
+    let features = serde_json::json!({
+        "registries": true,
+        "admin": has_admin,
+        "scim": has_scim,
+        "signIn": has_oidc,
+    });
+
     (
         StatusCode::OK,
         axum::Json(serde_json::json!({
@@ -53,6 +95,8 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
                 "fixLockfile": fix_lockfile,
                 "ecosystems": ecosystems,
                 "publish": publish,
+                "protocols": protocols,
+                "features": features,
             }
         })),
     )
