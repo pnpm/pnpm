@@ -7,7 +7,7 @@ use std::os::unix::fs::FileTypeExt as _;
 use std::{
     collections::HashMap,
     fs, io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, SystemTime},
 };
 use tempfile::TempDir;
@@ -383,7 +383,7 @@ fn sync_of_package_files_keeps_a_symlinked_directory_as_a_link() {
 
     assert_eq!(
         fs::read_link(target.join("link-to-a-dir")).expect("read the link"),
-        Path::new("files/foo"),
+        std::path::Path::new("files/foo"),
     );
     for (path, content) in
         [("link-to-a-dir/bar.txt", "bar"), ("link-to-a-dir/other/sibling.txt", "sibling")]
