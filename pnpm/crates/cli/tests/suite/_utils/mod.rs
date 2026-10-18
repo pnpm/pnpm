@@ -840,3 +840,34 @@ pub fn assert_merged_conflicted_lockfile(workspace: &Path, stdout: &str) {
         CONFLICTED_MERGED_VERSION,
     );
 }
+
+/// Every regular file under `root`, without following links.
+pub fn walk_files(root: &Path) -> Vec<PathBuf> {
+    walkdir::WalkDir::new(root)
+        .into_iter()
+        .map(|entry| entry.expect("walk the workspace"))
+        .filter(|entry| entry.file_type().is_file())
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
+/// Copy everything under `from` except the `node_modules` directories.
+pub fn copy_sources(from: &Path, to: &Path) {
+    for entry in walkdir::WalkDir::new(from)
+        .into_iter()
+        .filter_entry(|entry| entry.file_name() != "node_modules")
+    {
+        let entry = entry.expect("walk the workspace");
+        let target = to.join(
+            entry
+                .path()
+                .strip_prefix(from)
+                .expect("under the workspace"),
+        );
+        if entry.file_type().is_dir() {
+            fs::create_dir_all(&target).expect("create a directory in the copy");
+        } else {
+            fs::copy(entry.path(), &target).expect("copy a source file");
+        }
+    }
+}

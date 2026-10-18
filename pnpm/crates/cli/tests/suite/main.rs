@@ -81,6 +81,7 @@ mod import_yarn_patches;
 mod init;
 mod inject_workspace_packages;
 mod injected_deps_with_dedicated_lockfiles;
+mod injected_freshness_matrix;
 mod install;
 mod install_filters;
 mod install_root_engine;
