@@ -4,12 +4,12 @@ mod hosted_backend;
 
 use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BlobFinalize, BlobWrite, Body, BoxStream, CachedDocument,
-    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, Duration, ErrorKind, GetRange,
-    HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend, HostedBlobFile,
-    HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex, HostedRevisionRefWrite,
-    MAX_NAME_COMPONENTS, Path, PathBuf, RangedBlob, RegistryError, Result, SeekFrom, StreamExt,
-    SystemTime, async_trait, create_tmp_file, fs, stream, streaming, unique_tmp_path, write_atomic,
-    write_atomic_new,
+    CanonicalPackageName, DOCUMENT_FILE, DocumentStamp, DocumentWrite, Duration, ErrorKind,
+    GetRange, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
+    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
+    HostedRevisionRefWrite, MAX_NAME_COMPONENTS, Path, PathBuf, RangedBlob, RegistryError, Result,
+    SeekFrom, StreamExt, SystemTime, async_trait, create_tmp_file, fs, stream, streaming,
+    unique_tmp_path, write_atomic, write_atomic_new,
 };
 
 /// One verdaccio-shaped on-disk store rooted at a single directory.
@@ -64,6 +64,20 @@ impl Store {
             // Stale: treated as a miss so the caller refetches from the upstream
             // (there is no conditional revalidation), so the body isn't read here.
             Ok(Some(CachedDocument::Stale))
+        }
+    }
+
+    pub(super) async fn document_stamp(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<DocumentStamp>> {
+        match fs::metadata(self.document_path(name)).await {
+            Ok(metadata) => Ok(Some(DocumentStamp {
+                modified: metadata.modified().map_err(RegistryError::Io)?,
+                size: metadata.len(),
+            })),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
         }
     }
 

@@ -1,11 +1,11 @@
 //! The `<name>@<version>` tarball route every registry serves: the published
 //! `.tgz`, and on a tar registry the tar it decodes to.
 //!
-//! A `.tgz` registry serves the version's canonical `.tgz` the way the
-//! filename route does, so a warm hit loads no packument. The packument is
-//! read only for a version whose `dist.tarball` names another file, and on a
-//! tar registry, whose response needs the version's `.tgz` integrity. There
-//! the version's dist is kept in a [`VersionTgzCache`].
+//! A `.tgz` registry serves a hosted version's blob, or an upstream version's
+//! cached `.tgz`, under the canonical filename, so a warm hit loads no
+//! packument. Otherwise the route reads the version's dist from the
+//! packument, which a tar registry also needs for the `.tgz` integrity. A dist
+//! read from a cached upstream packument is kept in a [`VersionTgzCache`].
 
 pub(super) use cache::VersionTgzCache;
 
@@ -13,13 +13,17 @@ use super::{
     Action, AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, HeaderMap, Identity,
     PackumentDists, RegistryError, RegistrySource, Response, StatusCode, TarSource, TarballOrigin,
     TgzTrust, UpstreamTarball, Value, addressed_registry, authorize, authorized_upstream,
-    caller_scoped, declared_tarball_integrity, ensure_osv_allowed, hosted_read_namespace,
+    cached_upstream_tarball, caller_scoped, declared_tarball_integrity, ensure_osv_allowed,
     is_tar_registry, not_found, read_source_packument, resolve_registry_source,
     serve_bound_upstream_tarball, serve_registry_tarball, tar_decode_limit, tar_response,
     tarball_basename, tarball_cache_name, tgz_integrity_key, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
-use std::{sync::Arc, time::Duration};
+use pnpr_storage::DocumentStamp;
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 mod cache;
 
@@ -62,10 +66,10 @@ impl VersionRequest<'_> {
             return err.into_response();
         }
         let tar_registry = is_tar_registry(self.state, self.target);
-        if !tar_registry && let Some(response) = self.serve_canonical_tgz(&name).await {
+        let source = resolve_registry_source(self.state, self.target, name.as_str());
+        if !tar_registry && let Some(response) = self.serve_canonical_tgz(&name, &source).await {
             return response;
         }
-        let source = resolve_registry_source(self.state, self.target, name.as_str());
         let tgz = match self.version_tgz(&source, &name).await {
             Ok(Some(tgz)) => tgz,
             Ok(None) => return not_found(),
@@ -92,20 +96,40 @@ impl VersionRequest<'_> {
         tar_response(self.state, headers, response, source).await
     }
 
-    /// Serve the version's `.tgz` under its canonical filename, as the filename
-    /// route does. `None` when there is none, which leaves a `dist.tarball`
-    /// that names another file to the packument.
-    async fn serve_canonical_tgz(&self, name: &CanonicalPackageName) -> Option<Response> {
+    /// Serve the version's `.tgz` under its canonical filename without its
+    /// packument: a hosted blob, which publish names canonically, or a cached
+    /// upstream `.tgz`, as the filename route serves one. `None` leaves the
+    /// version to its packument, including a `dist.tarball` that names
+    /// another file.
+    async fn serve_canonical_tgz(
+        &self,
+        name: &CanonicalPackageName,
+        source: &RegistrySource,
+    ) -> Option<Response> {
         let canonical = name.tarball_name_for_version(self.version);
-        let response = serve_registry_tarball(
-            self.state,
-            self.identity,
-            self.target,
-            self.raw_name,
-            &canonical,
-        )
-        .await;
-        (response.status() != StatusCode::NOT_FOUND).then_some(response)
+        match source {
+            RegistrySource::Hosted(_) => {
+                let response = serve_registry_tarball(
+                    self.state,
+                    self.identity,
+                    self.target,
+                    self.raw_name,
+                    &canonical,
+                )
+                .await;
+                (response.status() != StatusCode::NOT_FOUND).then_some(response)
+            }
+            // With OSV screening on, the filename route binds a cached `.tgz`
+            // to the version its packument declares for it before serving it.
+            RegistrySource::Upstream(_) if self.state.inner.osv_index.is_none() => {
+                let cached = match self.cached_packument(source, name) {
+                    Ok(cached) => cached?,
+                    Err(err) => return Some(err.into_response()),
+                };
+                cached_upstream_tarball(self.state, &cached.namespace, name, &canonical).await
+            }
+            _ => None,
+        }
     }
 
     /// The requested version's dist in `source`, from the [`VersionTgzCache`]
@@ -115,9 +139,15 @@ impl VersionRequest<'_> {
         source: &RegistrySource,
         name: &CanonicalPackageName,
     ) -> Result<Option<Arc<VersionTgz>>, RegistryError> {
-        let Some((scope, ttl)) = self.packument_scope(source, name)? else { return Ok(None) };
+        let cached = self.cached_packument(source, name)?;
+        let stamp = match &cached {
+            Some(cached) => self.fresh_packument_stamp(cached, name).await?,
+            None => None,
+        };
         let cache = &self.state.inner.proxy.version_tgzs;
-        if let Some(tgz) = cache.get(&scope, name, self.version) {
+        if let (Some(cached), Some(stamp)) = (&cached, stamp)
+            && let Some(tgz) = cache.get(&cached.namespace, name, self.version, stamp)
+        {
             return Ok(Some(tgz));
         }
         let Some(packument) = read_source_packument(self.state, self.identity, source, name).await?
@@ -126,36 +156,45 @@ impl VersionRequest<'_> {
         };
         let Some(tgz) = version_tgz(&packument, self.version) else { return Ok(None) };
         let tgz = Arc::new(tgz);
-        cache.put(scope, name, self.version, Arc::clone(&tgz), ttl);
+        // The stamp was taken before the read, so a packument rewritten in
+        // between only costs the next request a miss.
+        if let (Some(cached), Some(stamp)) = (cached, stamp) {
+            cache.put(cached.namespace, name, self.version, stamp, Arc::clone(&tgz));
+        }
         Ok(Some(tgz))
     }
 
-    /// Where `source` reads `name`'s packument from, once the caller may read
-    /// it there, and how long a version dist read from it stays current: the
-    /// packument TTL of an upstream, none for a `cache: false` one, and
-    /// [`HOSTED_DIST_TTL`] for a hosted registry.
-    fn packument_scope(
+    /// The upstream cache `source` reads `name`'s packument from, once the
+    /// caller may read it there. `None` for a hosted registry and for a
+    /// `cache: false` upstream.
+    fn cached_packument(
         &self,
         source: &RegistrySource,
         name: &CanonicalPackageName,
-    ) -> Result<Option<(String, Duration)>, RegistryError> {
-        match source {
-            RegistrySource::Upstream(id) => {
-                authorize(self.state, self.identity, source, name.as_str(), Action::Access)?;
-                let upstream = authorized_upstream(self.state, self.identity, id)?;
-                let ttl = if upstream.caches() {
-                    upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
-                } else {
-                    Duration::ZERO
-                };
-                Ok(Some((format!("upstream:{}", upstream_cache_namespace(self.state, id)), ttl)))
-            }
-            RegistrySource::Hosted(id) => {
-                let org = hosted_read_namespace(self.state, self.identity, id, name.as_str())?;
-                Ok(Some((format!("hosted:{org}"), HOSTED_DIST_TTL)))
-            }
-            RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
+    ) -> Result<Option<CachedPackument>, RegistryError> {
+        let RegistrySource::Upstream(id) = source else { return Ok(None) };
+        authorize(self.state, self.identity, source, name.as_str(), Action::Access)?;
+        let upstream = authorized_upstream(self.state, self.identity, id)?;
+        if !upstream.caches() {
+            return Ok(None);
         }
+        Ok(Some(CachedPackument {
+            namespace: upstream_cache_namespace(self.state, id),
+            ttl: upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl),
+        }))
+    }
+
+    /// The stamp of the cached packument, while it is fresh enough to serve.
+    async fn fresh_packument_stamp(
+        &self,
+        cached: &CachedPackument,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<DocumentStamp>, RegistryError> {
+        let stamp =
+            self.state.inner.storage.upstream_document_stamp(&cached.namespace, name).await?;
+        Ok(stamp.filter(|stamp| {
+            SystemTime::now().duration_since(stamp.modified).unwrap_or(Duration::ZERO) <= cached.ttl
+        }))
     }
 
     async fn tar_source(
@@ -231,10 +270,11 @@ fn keeps_content(state: &AppState, source: &RegistrySource) -> bool {
     }
 }
 
-/// How long a hosted version's dist stays in the [`VersionTgzCache`]. A
-/// published version's dist does not change, so this bounds only how long an
-/// unpublished version stays servable from it.
-const HOSTED_DIST_TTL: Duration = Duration::from_secs(30);
+/// Where an upstream's cached packument lives, and how long it stays fresh.
+struct CachedPackument {
+    namespace: String,
+    ttl: Duration,
+}
 
 struct VersionTgz {
     filename: String,

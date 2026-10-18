@@ -1,57 +1,65 @@
 use super::{CanonicalPackageName, VersionTgz};
+use pnpr_storage::DocumentStamp;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
 };
 
-/// Versions kept before the cache starts over.
+/// Versions kept before the cache drops some.
 const CAPACITY: usize = 16 * 1024;
 
-/// The version dists the `name@version` route read recently, keyed by the
-/// packument scope they were read from, so a tar response does not parse the
-/// packument again. The scope keeps a dist read for one caller's hosted
-/// namespace from answering another caller's.
+/// The version dists the `name@version` route of a tar registry read from
+/// cached upstream packuments, so a tar response does not parse the packument
+/// again. Each is keyed by the packument's cache namespace and tagged with
+/// the [`DocumentStamp`] of the packument it was read from: a refetched
+/// packument has another stamp, so its old dists stop answering.
 #[derive(Default)]
 pub(in super::super) struct VersionTgzCache {
     entries: Mutex<HashMap<(String, String, String), CachedVersionTgz>>,
 }
 
 struct CachedVersionTgz {
-    expires_at: Instant,
+    stamp: DocumentStamp,
     tgz: Arc<VersionTgz>,
 }
 
 impl VersionTgzCache {
     pub(super) fn get(
         &self,
-        scope: &str,
+        namespace: &str,
         name: &CanonicalPackageName,
         version: &str,
+        stamp: DocumentStamp,
     ) -> Option<Arc<VersionTgz>> {
         let entries = self.entries.lock().expect("version dist cache lock poisoned");
-        let key = (scope.to_string(), name.as_str().to_string(), version.to_string());
+        let key = (namespace.to_string(), name.as_str().to_string(), version.to_string());
         let cached = entries.get(&key)?;
-        (Instant::now() < cached.expires_at).then(|| Arc::clone(&cached.tgz))
+        (cached.stamp == stamp).then(|| Arc::clone(&cached.tgz))
     }
 
     pub(super) fn put(
         &self,
-        scope: String,
+        namespace: String,
         name: &CanonicalPackageName,
         version: &str,
+        stamp: DocumentStamp,
         tgz: Arc<VersionTgz>,
-        ttl: Duration,
     ) {
-        if ttl.is_zero() {
-            return;
-        }
         let mut entries = self.entries.lock().expect("version dist cache lock poisoned");
         if entries.len() >= CAPACITY {
-            entries.clear();
+            // Drop a quarter of the entries, whichever the map yields first,
+            // rather than every hot one.
+            let evicted: Vec<_> = entries
+                .keys()
+                .take(CAPACITY / 4)
+                .cloned()
+                .collect();
+            for key in evicted {
+                entries.remove(&key);
+            }
         }
-        let key = (scope, name.as_str().to_string(), version.to_string());
-        entries.insert(key, CachedVersionTgz { expires_at: Instant::now() + ttl, tgz });
+        let key = (namespace, name.as_str().to_string(), version.to_string());
+        entries.insert(key, CachedVersionTgz { stamp, tgz });
     }
 }
 

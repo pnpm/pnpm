@@ -178,6 +178,16 @@ pub struct HostedBlobFile {
     pub size: u64,
 }
 
+/// When a cached document was written and how large it is, so a value
+/// derived from it can tell whether it still describes the document: any
+/// rewrite changes the stamp, save one of the same size within a timestamp
+/// tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentStamp {
+    pub modified: SystemTime,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocumentWrite {
     Written,
@@ -452,6 +462,16 @@ impl Storage {
             Some(CachedDocument::Fresh(bytes)) => Ok(Some(bytes)),
             Some(CachedDocument::Stale) | None => Ok(None),
         }
+    }
+
+    /// The [`DocumentStamp`] of the cached upstream document. `None` when
+    /// there is none.
+    pub async fn upstream_document_stamp(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<DocumentStamp>> {
+        self.cached.namespaced(namespace).document_stamp(name).await
     }
 
     /// The cached upstream document regardless of freshness (fresh or stale).

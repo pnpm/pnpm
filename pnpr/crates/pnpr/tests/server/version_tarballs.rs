@@ -91,47 +91,137 @@ async fn a_version_whose_tarball_has_another_name_is_served() {
     assert_eq!(body_bytes(response.into_body()).await, tgz);
 }
 
-/// A tar response needs the version's `.tgz` integrity. Once read, it comes
-/// from the version dist cache, so a packument that no longer parses as one
-/// listing the version does not stop the next response.
-#[tokio::test]
-async fn a_repeated_tar_request_parses_no_packument() {
-    let tgz = gzip(b"foo");
-    let mut upstream = mockito::Server::new_async().await;
-    let packument_body = packument(&upstream.url(), "foo-1.0.0.tgz", &tgz);
-    let _packument = upstream
-        .mock("GET", "/foo")
-        .with_header("content-type", "application/json")
-        .with_body(&packument_body)
-        .create_async()
-        .await;
-    let _tarball = upstream
-        .mock("GET", "/foo/-/foo-1.0.0.tgz")
-        .with_body(&tgz)
-        .create_async()
-        .await;
-    let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+/// A tar registry over the default upstream.
+fn tar_registry_app(upstream: &str, storage: &std::path::Path) -> axum::Router {
+    let mut config = config_for(upstream, storage.to_path_buf());
     let graph = vec![
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         ("zstd".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] }),
     ];
     config.routing.registries = Registries::new(graph.into_iter().collect(), None);
     config.routing.tar_registries.insert("zstd".to_string());
-    let app = router(config);
+    router(config)
+}
 
-    let first = get(&app, "/~zstd/foo@1.0.0").await;
-    assert_eq!(first.status(), StatusCode::OK);
-    assert_eq!(body_bytes(first.into_body()).await, b"foo");
+async fn mock_foo(upstream: &mut mockito::ServerGuard, tgz: &[u8]) -> String {
+    let body = packument(&upstream.url(), "foo-1.0.0.tgz", tgz);
+    upstream
+        .mock("GET", "/foo")
+        .with_header("content-type", "application/json")
+        .with_body(&body)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_body(tgz)
+        .create_async()
+        .await;
+    body
+}
+
+/// A tar response needs the version's `.tgz` integrity. While the cached
+/// packument is unchanged, it comes from the version dist cache: bytes that
+/// no longer parse, written with the packument's size and time, do not stop
+/// the next response. The first request caches the packument and the second
+/// its dist.
+#[tokio::test]
+async fn a_repeated_tar_request_parses_no_packument() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let packument_body = mock_foo(&mut upstream, &tgz).await;
+    let tmp = TempDir::new().unwrap();
+    let app = tar_registry_app(&upstream.url(), tmp.path());
+
+    for _ in 0..2 {
+        let warm = get(&app, "/~zstd/foo@1.0.0").await;
+        assert_eq!(warm.status(), StatusCode::OK);
+        assert_eq!(body_bytes(warm.into_body()).await, b"foo");
+    }
 
     let cached = cached_files_containing(tmp.path(), packument_body.as_bytes());
     assert!(!cached.is_empty(), "the upstream packument is cached on disk");
     for path in cached {
-        std::fs::write(path, br#"{"name":"foo","versions":{}}"#).unwrap();
+        let modified = std::fs::metadata(&path)
+            .unwrap()
+            .modified()
+            .unwrap();
+        std::fs::write(&path, vec![b'x'; packument_body.len()]).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
     }
     let second = get(&app, "/~zstd/foo@1.0.0").await;
     assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(body_bytes(second.into_body()).await, b"foo");
+}
+
+/// A cached dist describes the packument it was read from. Once that
+/// packument is rewritten, the route reads the new one.
+#[tokio::test]
+async fn a_rewritten_packument_replaces_its_cached_dists() {
+    let tgz = gzip(b"foo");
+    let mut upstream = mockito::Server::new_async().await;
+    let packument_body = mock_foo(&mut upstream, &tgz).await;
+    let tmp = TempDir::new().unwrap();
+    let app = tar_registry_app(&upstream.url(), tmp.path());
+
+    for _ in 0..2 {
+        assert_eq!(get(&app, "/~zstd/foo@1.0.0").await.status(), StatusCode::OK);
+    }
+    for path in cached_files_containing(tmp.path(), packument_body.as_bytes()) {
+        std::fs::write(path, br#"{"name":"foo","versions":{}}"#).unwrap();
+    }
+    assert_eq!(get(&app, "/~zstd/foo@1.0.0").await.status(), StatusCode::NOT_FOUND);
+}
+
+/// The canonical filename of one version can be the `dist.tarball` another
+/// version declares. A cold request still gets the requested version's own
+/// tarball.
+#[tokio::test]
+async fn a_cold_version_request_gets_its_own_tarball() {
+    let requested = gzip(b"requested");
+    let other = gzip(b"other");
+    let mut upstream = mockito::Server::new_async().await;
+    let url = upstream.url();
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+                "tarball": format!("{url}/foo/-/legacy_foo.tgz"),
+                "integrity": sha512_integrity(&requested),
+            } },
+            "2.0.0": { "name": "foo", "version": "2.0.0", "dist": {
+                "tarball": format!("{url}/foo/-/foo-1.0.0.tgz"),
+                "integrity": sha512_integrity(&other),
+            } },
+        },
+    });
+    upstream
+        .mock("GET", "/foo")
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/legacy_foo.tgz")
+        .with_body(&requested)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_body(&other)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&url, tmp.path().to_path_buf()));
+
+    let response = get(&app, "/foo@1.0.0").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, requested);
 }
 
 fn cached_files_containing(dir: &std::path::Path, needle: &[u8]) -> Vec<std::path::PathBuf> {
