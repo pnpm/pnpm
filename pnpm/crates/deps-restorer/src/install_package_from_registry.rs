@@ -142,6 +142,9 @@ impl InstallPackageFromRegistry<'_> {
                 tar_limits: config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: self.resolution.resolution
+                    .integrity_target(config.lockfile_integrity_target)
+                    .into(),
                 integrity: Some(integrity),
                 unpacked_size: manifest_unpacked_size(self.resolution.package.manifest.as_deref()),
                 file_count: manifest_file_count(self.resolution.package.manifest.as_deref()),

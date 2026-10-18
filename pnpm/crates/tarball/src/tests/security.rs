@@ -52,6 +52,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -66,6 +67,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,

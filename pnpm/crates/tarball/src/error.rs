@@ -261,6 +261,19 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_UNRECOGNIZED))]
     UnrecognizedArchive,
 
+    /// A `.tgz` whose integrity names its tar does not decode in full, so
+    /// it has no tar to check. Every gzip member must decode cleanly, with
+    /// nothing after the tar's end-of-archive record.
+    #[from(ignore)]
+    #[display("{} does not decode to a complete tar: {reason}", redact_url_for_display(url))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INCOMPLETE_TAR))]
+    IncompleteTar {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
     /// The decoded archive overran the decoded-output budget before its
     /// hash could be checked.
     #[from(ignore)]

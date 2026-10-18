@@ -92,6 +92,7 @@ impl StoreIndex {
             ) WITHOUT ROWID;
             ",
         )
+        .and_then(|()| conn.execute_batch(aliases::CREATE_ALIAS_TABLE))
         .map_err(|source| StoreIndexError::InitSchema { source })?;
 
         Ok(StoreIndex::sqlite(
@@ -365,6 +366,11 @@ pub struct PackageFilesIndex {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_side_effects_quarantine: Option<HashMap<String, Vec<String>>>,
+
+    /// Integrity of the tar a `.tgz` row decodes to. Present only on a row
+    /// keyed by a `.tgz` integrity whose gzip stream decoded in full.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tar_integrity: Option<String>,
 }
 
 /// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
@@ -515,6 +521,8 @@ mod tests;
 mod writer;
 
 mod queries;
+
+mod aliases;
 
 mod error;
 

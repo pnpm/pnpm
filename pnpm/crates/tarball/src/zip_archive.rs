@@ -85,6 +85,7 @@ impl ExtractedEntries {
                 files: HashMap::with_capacity(entry_count),
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         }
     }
@@ -224,7 +225,7 @@ fn zip_entry_path(
 ///
 /// Entries above [`STREAM_ENTRY_BUFFER_MAX`] go straight into the store
 /// with an incremental hash, the same shape
-/// [`crate::extract::stream_extract_gzipped_tarball`] gives a large
+/// [`crate::extract::stream_extract_gzipped_tarball_with_tar`] gives a large
 /// tar entry, so a runtime archive's biggest member never has to fit in
 /// memory.
 ///
@@ -499,6 +500,7 @@ impl IngestZipArchiveToStore<'_> {
             store: &self.store,
             fetching: self.fetching,
             package: crate::TarballPackage {
+                integrity_kind: crate::IntegrityKind::Resource,
                 integrity: Some(self.package.integrity),
                 url: self.package.url,
                 id: self.package.id,

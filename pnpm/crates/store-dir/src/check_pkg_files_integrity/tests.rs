@@ -49,6 +49,7 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
             .collect(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 
@@ -492,6 +493,7 @@ fn side_effects_overlay_with_nothing_to_restore_drops_cache_key_entry() {
             SideEffectsDiff { added: None, deleted: None, remote_origin: None },
         )])),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("a configured cache stays `Some`");
@@ -523,6 +525,7 @@ fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
             },
         )])),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let overlay = result.side_effects_maps
@@ -561,6 +564,7 @@ fn side_effects_overlay_adds_and_drops_correctly() {
         ]),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -592,6 +596,7 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
         files: HashMap::from([("collide.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let overlay = result.side_effects_maps
@@ -650,6 +655,7 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -703,6 +709,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
@@ -744,6 +751,7 @@ fn side_effects_overlay_keys_are_independent() {
         files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.unwrap();
@@ -773,6 +781,7 @@ fn index_with_one_file(path: &str, content: &[u8]) -> PackageFilesIndex {
         )]),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 

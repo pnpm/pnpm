@@ -1,26 +1,34 @@
 use super::{
-    Arc, BodyHasher, ContentCoding, ExtractedResource, HashMap, IgnoreEntryFilter, Integrity,
+    Arc, ContentCoding, ExtractedResource, HashMap, IgnoreEntryFilter,
     MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, PathBuf, StoreDir, StreamedResource,
     TarLimits, TarballError, extract_archive_bytes, extract_resource_stream,
     post_download_semaphore, spawn_extraction, verify_tarball_integrity,
 };
+use crate::{
+    ArchiveIntegrity,
+    archive_integrity::ArchiveVerification,
+    extract::{ExtractedArchiveBytes, GZIP_MAGIC},
+};
 use std::io::Read;
 
 /// A whole archive response held in memory, as it arrived.
-pub(crate) struct BufferedArchive<'a> {
+pub(crate) struct BufferedArchive {
     pub(crate) buffer: Vec<u8>,
     pub(crate) content_coding: ContentCoding,
-    pub(crate) expected_integrity: Option<&'a Integrity>,
+    pub(crate) verification: ArchiveVerification,
     pub(crate) unpacked_size: Option<usize>,
     pub(crate) tar_limits: TarLimits,
 }
 
+/// The integrities, CAFS files, and store row of one extracted archive.
+pub(crate) type ExtractedFiles = (ArchiveIntegrity, HashMap<String, PathBuf>, PackageFilesIndex);
+
 pub(crate) async fn extract_tarball_buffer(
-    archive: BufferedArchive<'_>,
+    archive: BufferedArchive,
     package_url: &str,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     let post_download_permit = post_download_semaphore()
         .acquire()
         .await
@@ -31,7 +39,7 @@ pub(crate) async fn extract_tarball_buffer(
     let extraction = BufferedExtraction {
         buffer: archive.buffer,
         content_coding: archive.content_coding,
-        expected_integrity: archive.expected_integrity.cloned(),
+        verification: archive.verification,
         unpacked_size: archive.unpacked_size,
         limits: archive.tar_limits.with_unpacked_size(archive.unpacked_size),
         package_url: package_url.to_string(),
@@ -51,7 +59,7 @@ pub(crate) async fn extract_tarball_buffer(
 struct BufferedExtraction {
     buffer: Vec<u8>,
     content_coding: ContentCoding,
-    expected_integrity: Option<Integrity>,
+    verification: ArchiveVerification,
     unpacked_size: Option<usize>,
     limits: TarLimits,
     package_url: String,
@@ -60,34 +68,52 @@ struct BufferedExtraction {
 }
 
 impl BufferedExtraction {
-    fn run(
-        mut self,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    fn run(mut self) -> Result<ExtractedFiles, TarballError> {
         let body = std::mem::take(&mut self.buffer);
         let resource = match decode_buffered_body(self.content_coding, body, self.unpacked_size) {
             Ok(resource) => resource,
-            Err(encoded) => return self.extract_encoded_stream(&encoded),
+            Err(encoded) => return self.extract_stream(self.content_coding, &encoded),
         };
-        let integrity =
-            verify_tarball_integrity(&resource, self.expected_integrity, self.package_url)?;
-        let (cas_paths, pkg_files_idx) = extract_archive_bytes(
+        // A pin that may name the tar is checked against every gzip member,
+        // which only the streaming decoder reads.
+        if self.verification.needs_tar_stream() && resource.starts_with(&GZIP_MAGIC) {
+            return self.extract_stream(ContentCoding::Identity, &resource);
+        }
+        // Here the pin, if any, names the resource: checking it first keeps a
+        // tampered archive out of the store.
+        let integrity = verify_tarball_integrity(
+            &resource,
+            self.verification.expected.clone(),
+            self.package_url.clone(),
+        )?;
+        let ExtractedArchiveBytes { files, index, tar } = extract_archive_bytes(
             &resource,
             self.unpacked_size,
             self.limits,
             self.store_dir,
             self.ignore_file_pattern.as_deref(),
         )?;
-        Ok((integrity, cas_paths, pkg_files_idx))
+        let tar = tar.map(|tar| {
+            tar.map_err(|error| match error {
+                TarballError::IncompleteTar { reason, .. } => {
+                    TarballError::IncompleteTar { url: self.package_url.clone(), reason }
+                }
+                error => error,
+            })
+        });
+        let integrity = self.verification.finish(Ok(integrity), tar, &self.package_url)?;
+        Ok((integrity, files, index))
     }
 
-    fn extract_encoded_stream(
+    fn extract_stream(
         &self,
+        content_coding: ContentCoding,
         encoded: &[u8],
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<ExtractedFiles, TarballError> {
         let (reader, watch) =
-            self.content_coding.decode(encoded).map_err(TarballError::ReadTarballEntries)?;
+            content_coding.decode(encoded).map_err(TarballError::ReadTarballEntries)?;
         let resource = StreamedResource {
-            hasher: BodyHasher::new(self.expected_integrity.as_ref()),
+            verification: self.verification.clone(),
             package_url: &self.package_url,
             limits: self.limits,
             store_dir: self.store_dir,

@@ -83,6 +83,8 @@ pub(crate) struct PrefetchHttpClient {
     pub retry_opts: RetryOpts,
     pub offline: bool,
     pub tar_limits: pnpm_tarball::TarLimits,
+    /// Which hash a lockfile integrity of a package tarball names.
+    pub integrity_target: pnpm_lockfile::IntegrityTarget,
 }
 
 pub(crate) struct TarballDownloadPackage {
@@ -110,6 +112,11 @@ async fn run_tarball_download<Reporter: self::Reporter>(
     let ingest = IngestTarballToStore {
         fetching: download.fetching.options(),
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: if download.package.revision_addressed {
+                pnpm_tarball::IntegrityKind::Tar
+            } else {
+                download.fetching.integrity_target.into()
+            },
             integrity: Some(&download.package.integrity),
             unpacked_size: download.package.unpacked_size,
             file_count: download.package.file_count,
@@ -439,6 +446,7 @@ impl PrefetchHttpClient {
             retry_opts: config.retry_opts(),
             offline: config.offline,
             tar_limits: config.tar_limits(),
+            integrity_target: config.lockfile_integrity_target,
         }
     }
 

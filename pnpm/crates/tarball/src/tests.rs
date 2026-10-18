@@ -124,6 +124,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(index_key, &entry).unwrap();
@@ -611,3 +612,5 @@ mod lockfile;
 mod fetch_for_resolution;
 
 mod tar_resources;
+
+mod tar_integrity;

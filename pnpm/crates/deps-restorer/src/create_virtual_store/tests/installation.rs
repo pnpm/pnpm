@@ -82,6 +82,7 @@ async fn shared_store_context_materializes_a_warm_package() {
                 files,
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .expect("seed context store index");

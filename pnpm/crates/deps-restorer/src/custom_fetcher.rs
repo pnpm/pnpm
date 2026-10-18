@@ -301,6 +301,7 @@ async fn load_or_fetch_registry_tarball<Reporter: self::Reporter>(
     .await?;
     Ok(Arc::new(FetchedTarball {
         integrity: integrity.clone(),
+        tar_integrity: None,
         manifest: pnpm_tarball::read_cas_package_json(&files_map, "package.json").await?,
         requires_build: crate::requires_build_from_cas_paths(&files_map),
         files_map,
@@ -315,6 +316,7 @@ async fn fetch_location<Reporter: self::Reporter>(
     let url = local_file_tarball_install_url(location.tarball.as_str().into(), lockfile_dir);
     IngestTarballToStore {
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: download.package.integrity.or_else(|| {
                 location.integrity
                     .as_ref()

@@ -2,8 +2,10 @@
 //! through the in-memory cache.
 
 use crate::{
-    CacheHeaders, CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
-    apply_placeholder_manifest, claim_cache_entry,
+    ArchiveIntegrity, CacheHeaders, CacheValue, CachedTarball, MemCache, RetryOpts, TarballError,
+    TarballPackage, apply_placeholder_manifest,
+    archive_integrity::{ArchiveVerification, IntegrityKind},
+    claim_cache_entry,
     download::{AttemptedFetch, fetch_and_extract_conditional},
     package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
     read_subdir_manifest, wait_for_cached_tarball,
@@ -23,7 +25,12 @@ use tokio::sync::{Notify, RwLock};
 /// in the lockfile, reuses them without re-downloading.
 #[derive(Debug)]
 pub struct ResolvedTarball {
+    /// The integrity [`TarballPackage::integrity_kind`] resolves to: the pinned
+    /// one, or the computed one when nothing was pinned.
     pub integrity: Integrity,
+    /// The tar's integrity, when the archive decodes in full. `None` also
+    /// when the archive came from the in-memory cache, which keeps no hash.
+    pub tar_integrity: Option<Integrity>,
     pub manifest: Option<serde_json::Value>,
     /// Caching headers of the response that produced this archive. Empty
     /// when the bytes came from the in-memory cache rather than the network.
@@ -104,7 +111,7 @@ pub struct ResolutionStore {
 }
 
 struct ExtractedTarball {
-    integrity: Integrity,
+    integrity: ArchiveIntegrity,
     files: Arc<HashMap<String, PathBuf>>,
     /// Manifest the caller asked for: the archive root, or a subdirectory.
     manifest: Option<serde_json::Value>,
@@ -120,13 +127,21 @@ struct ExtractedWithValidators {
 }
 
 impl ExtractedWithValidators {
-    fn into_resolved(self) -> ResolvedTarball {
-        ResolvedTarball {
-            integrity: self.body.integrity,
+    fn into_resolved(self, kind: IntegrityKind) -> Result<ResolvedTarball, TarballError> {
+        let integrity = self.body.integrity
+            .of(kind)
+            .cloned()
+            .ok_or_else(|| TarballError::IncompleteTar {
+                url: self.final_url.clone(),
+                reason: "the gzip stream does not decode in full".to_string(),
+            })?;
+        Ok(ResolvedTarball {
+            integrity,
+            tar_integrity: self.body.integrity.tar,
             manifest: self.body.manifest,
             cache_headers: self.cache_headers,
             final_url: self.final_url,
-        }
+        })
     }
 }
 
@@ -180,6 +195,20 @@ impl FetchTarballForResolution<'_> {
         );
         let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
         match owner_notify {
+            // A settled slot holds no hash, so it cannot say whether the pin
+            // names the resource or the tar.
+            None if self.kind() == IntegrityKind::ResourceOrTar => {
+                drop(cache_lock);
+                match self.fetch_extracted::<Reporter>(None).await? {
+                    FetchedBody::Extracted(extracted) => extracted.into_resolved(self.kind()),
+                    FetchedBody::NotModified(_) => {
+                        Err(TarballError::HttpStatus(crate::HttpStatusError {
+                            url: self.package.url.to_string(),
+                            status: 304,
+                        }))
+                    }
+                }
+            }
             None => self.take_cached(&cache_lock).await,
             Some(notify) => {
                 self.fetch_as_owner::<Reporter>(mem_cache, mem_cache_key, cache_lock, notify).await
@@ -197,6 +226,7 @@ impl FetchTarballForResolution<'_> {
         let manifest = self.manifest_from_cached(&cached).await?;
         Ok(ResolvedTarball {
             integrity,
+            tar_integrity: None,
             manifest,
             cache_headers: CacheHeaders::default(),
             final_url: self.package.url.to_owned(),
@@ -232,7 +262,7 @@ impl FetchTarballForResolution<'_> {
                     },
                 )
                 .await;
-                Ok(extracted.into_resolved())
+                extracted.into_resolved(self.kind())
             }
             Ok(FetchedBody::NotModified(_)) => {
                 Err(TarballError::HttpStatus(crate::HttpStatusError {
@@ -267,7 +297,7 @@ impl FetchTarballForResolution<'_> {
                         mem_cache,
                         package_mem_cache_key(
                             self.package.url,
-                            Some(&extracted.body.integrity),
+                            extracted.body.integrity.of(self.kind()),
                             self.revision_addressed,
                         ),
                         CachedTarball {
@@ -276,9 +306,13 @@ impl FetchTarballForResolution<'_> {
                         },
                     );
                 }
-                Ok(TarballResolutionFetch::Resolved(extracted.into_resolved()))
+                extracted.into_resolved(self.kind()).map(TarballResolutionFetch::Resolved)
             }
         }
+    }
+
+    fn kind(&self) -> IntegrityKind {
+        if self.revision_addressed { IntegrityKind::Tar } else { self.package.integrity_kind }
     }
 
     /// Resolve-time tarball fetches compute integrity from bytes and
@@ -291,7 +325,7 @@ impl FetchTarballForResolution<'_> {
         let fetched = fetch_and_extract_conditional::<Reporter>(
             self.http_client,
             self.package.url,
-            self.package.integrity,
+            &ArchiveVerification::new(self.package.integrity, self.kind()),
             self.package.unpacked_size,
             self.tar_limits,
             UNPRIORITIZED,
@@ -357,12 +391,21 @@ impl FetchTarballForResolution<'_> {
     /// key and payload disagree is worse than none: consumers that
     /// trust `PackageFilesIndex.manifest` / `files` to match the key
     /// (bin linking, file materialization) would read the repo.
-    fn record_store_index_row(&self, integrity: &Integrity, pkg_files_idx: PackageFilesIndex) {
+    fn record_store_index_row(
+        &self,
+        integrity: &ArchiveIntegrity,
+        mut pkg_files_idx: PackageFilesIndex,
+    ) {
         if self.manifest_subdir.is_some() {
             return;
         }
-        let index_key = store_index_key(&integrity.to_string(), self.package.id);
+        let index_key = store_index_key(&integrity.resource.to_string(), self.package.id);
         if let Some(writer) = &self.store.index_writer {
+            if let Some(alias) = integrity.tag_row(&mut pkg_files_idx, |tar| {
+                store_index_key(&tar.to_string(), self.package.id)
+            }) {
+                writer.queue_alias(alias, index_key.clone());
+            }
             writer.queue(index_key, pkg_files_idx);
         } else {
             tracing::warn!(

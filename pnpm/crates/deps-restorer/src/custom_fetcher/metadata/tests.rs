@@ -67,7 +67,14 @@ fn ingest<'a>(
             offline: true,
             tar_limits: pnpm_tarball::TarLimits::default(),
         },
-        package: TarballPackage { integrity, unpacked_size: None, file_count: None, url, id },
+        package: TarballPackage {
+            integrity_kind: Default::default(),
+            integrity,
+            unpacked_size: None,
+            file_count: None,
+            url,
+            id,
+        },
         store: ArchiveStoreContext {
             dir: &config.store_dir,
             index: None,

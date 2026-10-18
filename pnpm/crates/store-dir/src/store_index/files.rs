@@ -22,6 +22,10 @@ use std::{
 /// sees the same layout, whatever its own configuration says.
 pub const INDEX_DIR: &str = "index";
 
+/// Directory under the store root that holds the aliases of a per-package-file
+/// index.
+const ALIAS_DIR: &str = "index-aliases";
+
 /// Prefix of the temporary files an entry is written to before the rename.
 /// Scans skip it, so a temporary file left by a crashed writer is never
 /// read as a row.
@@ -50,6 +54,12 @@ impl FilesIndex {
         let dir = store_root.join(INDEX_DIR);
         pnpm_fs::file_mode::create_dir_all_inheriting_mode(&dir)
             .map_err(|source| StoreIndexError::CreateDir { path: dir, source })
+    }
+
+    /// The aliases of this index's rows, kept in a sibling directory so a
+    /// scan of the rows never reads one.
+    pub(super) fn aliases(&self) -> FilesIndex {
+        FilesIndex { dir: self.dir.with_file_name(ALIAS_DIR) }
     }
 
     /// The file of `key`, sharded by the first byte of the key's SHA-256 like
@@ -82,6 +92,36 @@ impl FilesIndex {
                 Err(error) => Some(Err(error)),
             })
             .collect()
+    }
+
+    /// [`Self::get`], reading the row `key` is an alias of when it has none
+    /// of its own.
+    pub(super) fn get_through_alias(&self, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        if let Some(value) = self.get(key)? {
+            return Ok(Some(value));
+        }
+        match self.alias_of(key)? {
+            Some(target) => self.get(&target),
+            None => Ok(None),
+        }
+    }
+
+    /// [`Self::contains`], following an alias like [`Self::get_through_alias`].
+    pub(super) fn contains_through_alias(&self, key: &str) -> Result<bool, StoreIndexError> {
+        if self.contains(key)? {
+            return Ok(true);
+        }
+        match self.alias_of(key)? {
+            Some(target) => self.contains(&target),
+            None => Ok(false),
+        }
+    }
+
+    fn alias_of(&self, key: &str) -> Result<Option<String>, StoreIndexError> {
+        Ok(self
+            .aliases()
+            .get(key)?
+            .and_then(|target| String::from_utf8(target).ok()))
     }
 
     /// Whether [`Self::get`] finds an entry for `key`.

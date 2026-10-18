@@ -47,6 +47,7 @@ pub struct ResolutionSettingsCheck<'a> {
     pub add_missing_peer_types: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
+    pub integrity_target: crate::IntegrityTarget,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
     /// The values `lockfile.includeResolutionSettings` records, or `None`
     /// when that setting is off and they go uncompared.
@@ -178,6 +179,13 @@ pub enum StalenessReason {
         "`injectWorkspacePackages` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
     InjectWorkspacePackagesChanged { lockfile: bool, config: bool },
+
+    /// The hash the lockfile's package tarball entries pin, its
+    /// `settings.integrityTarget`, differs from `lockfile.integrityTarget`.
+    #[display(
+        "`integrityTarget` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    IntegrityTargetChanged { lockfile: crate::IntegrityTarget, config: crate::IntegrityTarget },
 
     /// `settings.peersSuffixMaxLength` in the lockfile differs from
     /// the value the current install would use. An unset field in the
@@ -323,7 +331,8 @@ impl StalenessReason {
             | StalenessReason::AddMissingPeerTypesChanged { .. }
             | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
             | StalenessReason::PeersSuffixMaxLengthChanged { .. }
-            | StalenessReason::InjectWorkspacePackagesChanged { .. } => self.settings_block_key(),
+            | StalenessReason::InjectWorkspacePackagesChanged { .. }
+            | StalenessReason::IntegrityTargetChanged { .. } => self.settings_block_key(),
             StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
             StalenessReason::ResolutionSettingChanged { setting, .. } => {
                 Some(setting.lockfile_key())

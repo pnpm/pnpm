@@ -55,6 +55,13 @@ struct AutoDedupeWithPnpr;
 #[diagnostic(code(ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER))]
 struct ResolutionSettingsWithPnpr;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Pinning tar hashes in the lockfile requires local dependency resolution. Remove pnprServer or remove lockfile.integrityTarget."
+)]
+#[diagnostic(code(ERR_PNPM_INTEGRITY_TARGET_WITH_PNPR_SERVER))]
+struct IntegrityTargetWithPnpr;
+
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
 ///
@@ -144,6 +151,9 @@ fn validate_pnpr_config(config: &pnpm_config::Config, frozen: bool) -> miette::R
     }
     if config.lockfile_include_resolution_settings && !frozen {
         return Err(ResolutionSettingsWithPnpr.into());
+    }
+    if config.lockfile_integrity_target != pnpm_lockfile::IntegrityTarget::Resource && !frozen {
+        return Err(IntegrityTargetWithPnpr.into());
     }
     if config.frozen_store {
         return Err(FrozenStoreIncompatibleWithPnpr.into());

@@ -418,6 +418,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                     tar_limits: crate::TarLimits::default(),
                 },
                 package: crate::TarballPackage {
+                    integrity_kind: Default::default(),
                     integrity: Some(&integrity),
                     unpacked_size: None,
                     file_count: None,
@@ -496,6 +497,7 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
                     tar_limits: crate::TarLimits::default(),
                 },
                 package: crate::TarballPackage {
+                    integrity_kind: Default::default(),
                     integrity: Some(&integrity),
                     unpacked_size: None,
                     file_count: None,

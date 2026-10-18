@@ -26,7 +26,10 @@ async fn retries_other_4xx_codes() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -59,7 +62,10 @@ async fn does_not_retry_an_untrusted_certificate() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&integrity(FASTIFY_ERROR_INTEGRITY)),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&integrity(FASTIFY_ERROR_INTEGRITY)),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -97,7 +103,10 @@ async fn retry_exhaustion_returns_last_error() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -230,6 +239,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                         tar_limits: crate::TarLimits::default(),
                     },
                     package: crate::TarballPackage {
+                        integrity_kind: Default::default(),
                         integrity: Some(pkg_integrity),
                         unpacked_size: None,
                         file_count: None,
@@ -319,7 +329,10 @@ async fn zero_retries_makes_a_single_attempt() {
     fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -389,6 +402,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -488,7 +502,10 @@ async fn started_fires_for_connection_level_failures() {
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         UNREACHABLE_URL,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -586,6 +603,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -638,6 +656,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -742,7 +761,10 @@ async fn request_retry_event_fires_per_retried_attempt() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -866,6 +888,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -957,6 +980,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,

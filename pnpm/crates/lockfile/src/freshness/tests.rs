@@ -30,6 +30,7 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
         ignored_optional_dependencies: None,
         patched_dependencies: None,
         resolution: crate::freshness::ResolutionSettingsCheck {
+            integrity_target: Default::default(),
             auto_install_peers: true,
             dedupe_peers: false,
             exclude_links_from_lockfile: false,

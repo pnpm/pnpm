@@ -135,6 +135,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         files: base_files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");

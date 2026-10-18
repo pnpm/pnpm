@@ -1,6 +1,7 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
+pub use archive_integrity::{ArchiveIntegrity, IntegrityKind};
 pub use archive_options::*;
 pub use archive_request::CacheHeaders;
 pub(crate) use body_hasher::BodyHasher;
@@ -27,6 +28,7 @@ pub(crate) use prefetch::CachedCasPaths;
 pub use prefetch::*;
 pub use zip_archive::*;
 
+mod archive_integrity;
 mod archive_options;
 mod archive_request;
 mod archive_retry;
@@ -240,7 +242,10 @@ pub fn pending_progress_key(store_index_key: &str) -> String {
 /// A verified archive's CAFS files and bundled package metadata.
 #[derive(Debug, Clone)]
 pub struct FetchedTarball {
+    /// The resource's integrity.
     pub integrity: Integrity,
+    /// See [`ArchiveIntegrity::tar`].
+    pub tar_integrity: Option<Integrity>,
     pub files_map: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,

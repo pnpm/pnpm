@@ -23,6 +23,7 @@ impl StalenessReason {
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
             }
+            StalenessReason::IntegrityTargetChanged { .. } => Some("settings.integrityTarget"),
             _ => None,
         }
     }
@@ -63,6 +64,15 @@ pub(super) fn check_recorded_settings(
         return Err(StalenessReason::InjectWorkspacePackagesChanged {
             lockfile: lockfile_inject,
             config: check.inject_workspace_packages,
+        });
+    }
+
+    let lockfile_integrity_target =
+        settings.map(LockfileSettings::integrity_target).unwrap_or_default();
+    if lockfile_integrity_target != check.integrity_target {
+        return Err(StalenessReason::IntegrityTargetChanged {
+            lockfile: lockfile_integrity_target,
+            config: check.integrity_target,
         });
     }
 

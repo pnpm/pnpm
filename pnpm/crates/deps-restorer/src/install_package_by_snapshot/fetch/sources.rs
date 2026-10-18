@@ -156,6 +156,9 @@ impl InstallPackageBySnapshot<'_> {
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);
         let download = IngestTarballToStore {
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: fetch.resolution
+                    .integrity_target(config.lockfile_integrity_target)
+                    .into(),
                 integrity,
                 url: &tarball_url,
                 ..fetch.download.clone().package

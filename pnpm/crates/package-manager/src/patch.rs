@@ -291,6 +291,7 @@ impl WritePackageForPatch<'_> {
                 tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                 integrity,
                 unpacked_size: None,
                 file_count: None,

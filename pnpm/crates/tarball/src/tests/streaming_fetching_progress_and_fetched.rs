@@ -69,7 +69,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -490,7 +493,10 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         fetch_and_extract_with_retry::<Reporter>(
             &ThrottledClient::default(),
             &url,
-            None,
+            &crate::archive_integrity::ArchiveVerification::new(
+                None,
+                crate::IntegrityKind::Resource,
+            ),
             None,
             crate::TarLimits::default(),
             0,
@@ -554,7 +560,10 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     let (verified, cas_paths, files_idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -571,7 +580,11 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     .expect("a well-formed pinned tarball must download and extract");
     mock.assert_async().await;
 
-    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+    assert_eq!(
+        verified.resource.to_string(),
+        pinned.to_string(),
+        "the pinned integrity is what verifies"
+    );
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
@@ -627,7 +640,10 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
     let (verified, cas_paths, _) = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -644,7 +660,7 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
     .expect("a chunked body must download and extract");
     mock.assert_async().await;
 
-    assert_eq!(verified.to_string(), pinned.to_string());
+    assert_eq!(verified.resource.to_string(), pinned.to_string());
     assert!(cas_paths.contains_key("noise.bin"), "got {:?}", cas_paths.keys().collect::<Vec<_>>());
     drop(store_dir_keep);
 }
@@ -671,7 +687,10 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,

@@ -56,6 +56,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -107,7 +108,10 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -151,7 +155,10 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -209,7 +216,10 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,

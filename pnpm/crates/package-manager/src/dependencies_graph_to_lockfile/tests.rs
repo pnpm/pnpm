@@ -79,6 +79,7 @@ fn single_importer_opts<'a>(
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {

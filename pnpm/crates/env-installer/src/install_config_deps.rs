@@ -256,6 +256,7 @@ async fn materialize<Reporter: self::Reporter>(
     let cas_paths = IngestTarballToStore {
         fetching: opts.fetching,
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,

@@ -66,7 +66,9 @@ pub(super) async fn resolve_aliasless_local(
         return Ok(None);
     }
     let wanted = WantedLocalDependency { bare_specifier: specifier.to_string(), injected: false };
-    let ctx = LocalResolverContext { preserve_absolute_paths: false };
+    // Only the package name is read here; the install resolves the
+    // dependency again through the full chain.
+    let ctx = LocalResolverContext::default();
     let opts = LocalResolverOptions {
         project_dir: manifest
             .path()
@@ -147,6 +149,7 @@ fn aliasless_tarball_resolver(
             tar_limits: config.tar_limits(),
             prior_tarball_entries: Arc::new(HashMap::new()),
             cache_dir: Some(config.cache_dir.clone()),
+            integrity_target: config.lockfile_integrity_target,
             store: pnpm_tarball::ArchiveStoreContext {
                 strict_pkg_content_check: false,
                 prefetched_cas_paths: None,

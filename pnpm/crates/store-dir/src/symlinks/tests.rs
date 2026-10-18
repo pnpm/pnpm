@@ -100,6 +100,7 @@ fn index_with_links(
             },
         )])),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 

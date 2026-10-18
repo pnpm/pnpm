@@ -51,6 +51,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
 
     let index = StoreIndex::open_in(store_path).unwrap();
@@ -70,6 +71,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -155,6 +157,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -226,6 +229,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -278,6 +282,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -324,6 +329,7 @@ async fn prefetch_cas_paths_rereads_gypfile_for_rows_that_predate_it() {
             files,
             side_effects: None,
             remote_side_effects_quarantine: None,
+            tar_integrity: None,
         };
         StoreIndex::open_in(store_path)
             .unwrap()
@@ -383,6 +389,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -439,6 +446,7 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
             files,
             side_effects: None,
             remote_side_effects_quarantine: None,
+            tar_integrity: None,
         };
         index.set(&index_key, &entry).unwrap();
         index_keys.push(index_key);
@@ -503,6 +511,7 @@ async fn falls_through_when_cafs_file_missing() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -517,6 +526,7 @@ async fn falls_through_when_cafs_file_missing() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -583,6 +593,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -597,6 +608,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -695,6 +707,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
                 )]),
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .unwrap();
@@ -709,6 +722,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: Default::default(),
             integrity: Some(&integrity),
             unpacked_size: None,
             file_count: None,

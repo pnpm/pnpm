@@ -183,6 +183,7 @@ pub enum LockfileSetting {
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct LockfileSettings {
     pub include_resolution_settings: Option<bool>,
+    pub integrity_target: Option<pnpm_lockfile::IntegrityTarget>,
 }
 
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration

@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_lockfile::{DirectoryResolution, IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_package_manifest::{
     PackageManifestError, find_parent_publish_manifest, safe_read_package_json_from_dir,
 };
@@ -30,6 +30,8 @@ pub struct LocalResolverContext {
     /// against the project / lockfile root. Backs pnpm's
     /// `preserveAbsolutePaths` config (off by default).
     pub preserve_absolute_paths: bool,
+    /// Which hash a `file:` tarball's integrity names.
+    pub integrity_target: IntegrityTarget,
 }
 
 /// Per-call options.
@@ -197,7 +199,7 @@ pub async fn resolve_from_local_scheme(
             return Err(ResolveLocalError::Spec(LocalSpecError::PathProtocolNotSupported(err)));
         }
     };
-    resolve_spec(spec, opts, None).await
+    resolve_spec(ctx, spec, opts, None).await
 }
 
 /// Resolve a wanted dep by path shape alone — no scheme prefix.
@@ -211,7 +213,7 @@ pub async fn resolve_from_local_path(
     let parse_opts =
         ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths, ..Default::default() };
     let spec = parse_local_path(wanted_dependency, project_dir, lockfile_dir, parse_opts);
-    resolve_spec(spec, opts, Some(&wanted_dependency.bare_specifier)).await
+    resolve_spec(ctx, spec, opts, Some(&wanted_dependency.bare_specifier)).await
 }
 
 /// Latest-version companion. Claims `link:` / `file:` / `workspace:`
@@ -230,6 +232,7 @@ pub fn resolve_latest_from_local(query: &LatestQuery) -> Option<LatestInfo> {
 /// `path_shaped_specifier` is the written specifier when the spec was
 /// claimed by its path shape alone.
 async fn resolve_spec(
+    ctx: &LocalResolverContext,
     spec: Option<LocalPackageSpec>,
     opts: &LocalResolverOptions,
     path_shaped_specifier: Option<&str>,
@@ -239,7 +242,7 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        return resolve_file_spec(&spec, opts).await.map(Some);
+        return resolve_file_spec(&spec, opts, ctx.integrity_target).await.map(Some);
     }
 
     // Directory branch.
@@ -275,8 +278,9 @@ async fn resolve_spec(
 async fn resolve_file_spec(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
+    integrity_target: IntegrityTarget,
 ) -> Result<LocalResolveResult, ResolveLocalError> {
-    match resolve_local_tarball(spec).await {
+    match resolve_local_tarball(spec, integrity_target).await {
         Ok(result) => Ok(result),
         Err(ResolveLocalError::LinkedPkgDirNotFound { .. })
             if opts.update == LocalResolverUpdate::Off
@@ -308,12 +312,14 @@ async fn resolve_file_spec(
 /// Resolve a `file:` specifier that names a tarball.
 async fn resolve_local_tarball(
     spec: &LocalPackageSpec,
+    integrity_target: IntegrityTarget,
 ) -> Result<LocalResolveResult, ResolveLocalError> {
     // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
     // code the directory branch uses for a missing `file:` target, so both
     // kinds of missing `file:` target share one error code.
     let LocalTarballMetadata {
         integrity,
+        tar_integrity,
         manifest,
         has_manifest_entry,
     } = match read_local_tarball_metadata(&spec.fetch_spec).await {
@@ -334,7 +340,10 @@ async fn resolve_local_tarball(
         normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: spec.id.as_str().to_string(),
-            integrity: Some(integrity),
+            integrity: Some(match integrity_target {
+                IntegrityTarget::Resource => integrity,
+                IntegrityTarget::Tar => tar_integrity,
+            }),
             revision: None,
             git_hosted: None,
             path: None,

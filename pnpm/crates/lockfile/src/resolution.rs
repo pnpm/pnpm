@@ -6,6 +6,7 @@ pub use registry::{
     registry_supports_time_field,
 };
 
+use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
 use pipe_trait::Pipe;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
@@ -422,6 +423,23 @@ impl LockfileResolution {
     pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
         self.integrity()
             .filter(|integrity| !integrity.hashes.is_empty())
+    }
+
+    /// Which hash this resolution's `integrity` names when the lockfile's
+    /// package tarball entries pin `configured`. A registry revision always
+    /// pins its tar. Git-hosted archives, like every resolution that is not
+    /// a package tarball, keep the resource's hash.
+    #[must_use]
+    pub fn integrity_target(&self, configured: IntegrityTarget) -> IntegrityTarget {
+        match self {
+            LockfileResolution::Registry(RegistryResolution { revision: Some(_), .. })
+            | LockfileResolution::Tarball(TarballResolution { revision: Some(_), .. }) => {
+                IntegrityTarget::Tar
+            }
+            LockfileResolution::Registry(_) => configured,
+            LockfileResolution::Tarball(tarball) if !tarball.is_git_hosted() => configured,
+            _ => IntegrityTarget::Resource,
+        }
     }
 
     /// Convert an in-memory resolution into the form written to the lockfile.

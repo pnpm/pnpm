@@ -134,10 +134,15 @@ pub(super) fn resolve_registries(
 /// dependency up by. The two differ once an immutable response has
 /// redirected: the lockfile then records the post-redirect URL while the
 /// id stays the specifier the manifest asked for.
+///
+/// A lockfile whose integrities name another hash than `integrity_target`
+/// contributes nothing.
 pub(super) fn prior_tarball_entries(
     wanted_lockfile: Option<&Lockfile>,
+    integrity_target: pnpm_lockfile::IntegrityTarget,
 ) -> HashMap<String, PriorTarballEntry> {
     wanted_lockfile
+        .filter(|lockfile| lockfile.integrity_target() == integrity_target)
         .and_then(|lockfile| lockfile.packages.as_ref())
         .map(|packages| {
             packages
@@ -344,8 +349,12 @@ impl ResolverChainInputs<'_> {
                 auth_headers: Arc::clone(self.fetching.auth_headers),
                 retry_opts: self.retry_opts(),
                 tar_limits: self.config.tar_limits(),
-                prior_tarball_entries: Arc::new(prior_tarball_entries(self.project.lockfile)),
+                prior_tarball_entries: Arc::new(prior_tarball_entries(
+                    self.project.lockfile,
+                    self.config.lockfile_integrity_target,
+                )),
                 cache_dir: Some(self.config.cache_dir.clone()),
+                integrity_target: self.config.lockfile_integrity_target,
                 store: pnpm_tarball::ArchiveStoreContext {
                     strict_pkg_content_check: false,
                     prefetched_cas_paths: None,
@@ -427,7 +436,10 @@ impl ResolverChainInputs<'_> {
         );
         // Pacquet doesn't expose `preserveAbsolutePaths` yet, so absolute
         // `file:` / `link:` specs resolve as though it were off.
-        let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
+        let local_ctx = LocalResolverContext {
+            preserve_absolute_paths: false,
+            integrity_target: self.config.lockfile_integrity_target,
+        };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
             Box::new(self.git_resolver()),

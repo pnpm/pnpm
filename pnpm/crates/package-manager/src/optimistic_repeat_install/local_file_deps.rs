@@ -355,7 +355,7 @@ fn local_tarball_requires_install(
     else {
         return true;
     };
-    !file_matches_integrity(&recorded_path, integrity)
+    !file_matches_integrity(&recorded_path, integrity, lockfile.integrity_target().into())
 }
 
 /// What the lockfile records for a local tarball dependency.
@@ -398,6 +398,10 @@ fn recorded_tarball<'l>(
     }
 }
 
-fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    pnpm_tarball::verify_local_file_integrity(path, integrity).is_ok()
+fn file_matches_integrity(
+    path: &Path,
+    integrity: &Integrity,
+    kind: pnpm_tarball::IntegrityKind,
+) -> bool {
+    pnpm_tarball::verify_local_file_integrity(path, integrity, kind).is_ok()
 }

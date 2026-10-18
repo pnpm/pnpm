@@ -71,7 +71,7 @@ pub fn build_standalone_chain(
     // `preserveAbsolutePaths` isn't exposed by pacquet's `Config` yet, so
     // the local-resolver context defaults to `false` here — same as the
     // install path.
-    let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
+    let local_ctx = LocalResolverContext { preserve_absolute_paths: false, ..Default::default() };
 
     Ok(DefaultResolver::new(vec![
         Box::new(Arc::clone(&npm_resolver)),

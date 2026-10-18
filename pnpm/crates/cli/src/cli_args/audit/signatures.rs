@@ -23,6 +23,8 @@ use pnpm_network::{
     ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
     walk_reqwest_chain,
 };
+mod tar_binding;
+
 use registry::{
     PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
 };
@@ -33,6 +35,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// installed from.
 pub(super) struct SignaturePackage {
     pub integrity: Option<String>,
+    /// Whether `integrity` is the hash of the package's tar, which no
+    /// registry signature covers directly.
+    pub pins_tar: bool,
     pub name: String,
     pub registry: String,
     pub version: String,
@@ -119,12 +124,14 @@ pub(super) enum SignaturesError {
 /// packages that needed it, mirroring pnpm's per-package `catch`.
 pub(super) async fn verify_signatures(
     packages: &[SignaturePackage],
-    config: &Config,
+    config: &'static Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
     let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
     let packuments =
         fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
+    let tar_ties =
+        tar_binding::tie_tar_integrities(packages, &packuments, config, http_client).await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -141,7 +148,9 @@ pub(super) async fn verify_signatures(
             Some(Ok(None)) | None => {}
             Some(Ok(Some(packument))) => {
                 result.audited += 1;
-                process_version(pkg, packument, keys, &mut result);
+                let tie =
+                    tar_ties.get(&(pkg.registry.clone(), pkg.name.clone(), pkg.version.clone()));
+                process_version(pkg, packument, keys, tie, &mut result);
             }
         }
     }
@@ -197,10 +206,13 @@ async fn fetch_needed_packuments(
     futures_util::future::join_all(packument_fetches).await.into_iter().collect()
 }
 
+/// `tie` is the signed integrity a tar-pinning entry was tied to, or why it
+/// could not be.
 fn process_version(
     pkg: &SignaturePackage,
     packument: &Packument,
     keys: &[RegistryKey],
+    tie: Option<&Result<String, String>>,
     result: &mut SignatureVerificationResult,
 ) {
     let version = packument.versions.get(&pkg.version);
@@ -232,9 +244,17 @@ fn process_version(
         return;
     }
 
+    let signed = match tie {
+        None => integrity.clone(),
+        Some(Ok(signed)) => signed.clone(),
+        Some(Err(reason)) => {
+            result.invalid.push(issue(pkg, Some(integrity), resolved, Some(reason.clone())));
+            return;
+        }
+    };
     match verify_package_signatures(
         pkg,
-        &integrity,
+        &signed,
         published_at.as_deref(),
         resolved.as_deref(),
         &signatures,

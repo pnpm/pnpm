@@ -417,6 +417,7 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 auto_install_peers: false,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -441,6 +442,7 @@ fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
             &lockfile,
             LockfileSettingsCheck {
                 resolution: crate::freshness::ResolutionSettingsCheck {
+                    integrity_target: Default::default(),
                     auto_install_peers: false,
                     ..settings_check(&Catalogs::new()).resolution
                 },
@@ -466,6 +468,7 @@ fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 dedupe_peers: true,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -490,6 +493,7 @@ fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 exclude_links_from_lockfile: true,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -523,6 +527,7 @@ fn check_settings_reports_the_field_pnpm_reports_first() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 auto_install_peers: false,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -561,6 +566,7 @@ fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_conf
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 peers_suffix_max_length: 10,
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -592,6 +598,7 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
             &lockfile,
             LockfileSettingsCheck {
                 resolution: crate::freshness::ResolutionSettingsCheck {
+                    integrity_target: Default::default(),
                     auto_install_peers: false,
                     peers_suffix_max_length: 10,
                     ..settings_check(&Catalogs::new()).resolution
@@ -619,6 +626,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 auto_install_peers: false,
                 peers_suffix_max_length: 100,
                 ..settings_check(&Catalogs::new()).resolution
@@ -657,6 +665,7 @@ fn check_settings_passes_when_pnpmfile_checksum_matches() {
             &lockfile,
             LockfileSettingsCheck {
                 resolution: crate::freshness::ResolutionSettingsCheck {
+                    integrity_target: Default::default(),
                     pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
                     ..settings_check(&Catalogs::new()).resolution
                 },
@@ -680,6 +689,7 @@ fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-def")),
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -709,6 +719,7 @@ fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
         &lockfile,
         LockfileSettingsCheck {
             resolution: crate::freshness::ResolutionSettingsCheck {
+                integrity_target: Default::default(),
                 pnpmfile_checksum: PnpmfileChecksumCheck::Current(Some("sha256-abc")),
                 ..settings_check(&Catalogs::new()).resolution
             },
@@ -758,6 +769,7 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
             &lockfile,
             LockfileSettingsCheck {
                 resolution: crate::freshness::ResolutionSettingsCheck {
+                    integrity_target: Default::default(),
                     pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
                     ..settings_check(&Catalogs::new()).resolution
                 },

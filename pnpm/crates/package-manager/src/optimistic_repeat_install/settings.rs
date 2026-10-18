@@ -160,6 +160,11 @@ impl SettingsComparison<'_> {
             recorded.lockfile_include_resolution_settings
                 != live.lockfile_include_resolution_settings,
         );
+        return_drift_if!(
+            self,
+            "lockfile.integrityTarget",
+            recorded.lockfile_integrity_target != live.lockfile_integrity_target,
+        );
         return_drift_if!(self, "dev", recorded.dev != live.dev);
         None
     }
@@ -362,6 +367,9 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         lockfile_include_resolution_settings: config
             .lockfile_include_resolution_settings
             .then_some(true),
+        lockfile_integrity_target: (config.lockfile_integrity_target
+            != pnpm_lockfile::IntegrityTarget::Resource)
+            .then(|| "tar".to_string()),
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: Some(

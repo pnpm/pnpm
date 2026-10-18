@@ -214,7 +214,13 @@ impl<'a> MaterializationInputs<'a, '_> {
         'a: 'b,
     {
         FreshInputs {
-            update_checksums: self.install.lockfile_policy.update_checksums,
+            // Every hash of a lockfile resolved for another integrity target
+            // names the other kind, so none of them may carry forward.
+            update_checksums: self.install.lockfile_policy.update_checksums
+                || self.lockfiles.wanted.is_some_and(|lockfile| {
+                    lockfile.integrity_target()
+                        != self.install.context.config.lockfile_integrity_target
+                }),
             resolution_verifiers,
             drivers: crate::install_with_fresh_lockfile::FreshInstallDrivers {
                 http_client: self.install.context.http_client,
