@@ -45,12 +45,25 @@ pub(crate) fn plan(
     paths: &[String],
     orgs: &BTreeSet<String>,
 ) -> Result<Vec<(String, Step)>, String> {
+    let packages = legacy_packages(paths, orgs);
+    check_unambiguous(paths, orgs, &packages)?;
+    Ok(paths
+        .iter()
+        .filter_map(|path| step(path, orgs, &packages).map(|step| (path.clone(), step)))
+        .collect())
+}
+
+/// Refuse what the earlier layout cannot tell apart from the new one.
+fn check_unambiguous(
+    paths: &[String],
+    orgs: &BTreeSet<String>,
+    packages: &BTreeSet<(String, String)>,
+) -> Result<(), String> {
     if orgs.contains("default") {
         return Err("an org named \"default\" cannot be told apart from the namespace of the \
              registry without an org; rename it before upgrading"
             .to_string());
     }
-    let packages = legacy_packages(paths, orgs);
     if let Some(org) = orgs
         .iter()
         .find(|org| paths.contains(&format!("{org}/{LEGACY_DOCUMENT}")))
@@ -60,10 +73,21 @@ pub(crate) fn plan(
              move one of them aside before upgrading",
         ));
     }
-    Ok(paths
+    // Such a repository would share directories with the packages the
+    // upgrade moves into `default/packages/` or `orgs/`.
+    if let Some((_, package)) = packages
         .iter()
-        .filter_map(|path| step(path, orgs, &packages).map(|step| (path.clone(), step)))
-        .collect())
+        .find(|(org, package)| {
+            org.is_empty()
+                && (package.starts_with("default/packages/") || package.starts_with("orgs/"))
+        })
+    {
+        return Err(format!(
+            "{package:?} is named like a directory of the new layout; \
+             move it aside before upgrading",
+        ));
+    }
+    Ok(())
 }
 
 /// Every `(org, package)` the earlier layout holds a document for.
@@ -83,9 +107,7 @@ fn step(
     orgs: &BTreeSet<String>,
     packages: &BTreeSet<(String, String)>,
 ) -> Option<Step> {
-    if !path.contains('/')
-        || (is_new_layout(path, orgs) && !is_legacy_package_file(path, orgs, packages))
-    {
+    if !path.contains('/') || is_new_layout(path, orgs) {
         return None;
     }
     if let Some(rest) = path
@@ -104,19 +126,6 @@ fn step(
     Some(namespace_step(&prefix, rest, |package| {
         packages.contains(&(org.to_string(), package.to_string()))
     }))
-}
-
-/// Whether `path` sits beside a legacy package document. Documents move last,
-/// so this holds for every file of a package an upgrade has yet to finish,
-/// whatever its path looks like.
-fn is_legacy_package_file(
-    path: &str,
-    orgs: &BTreeSet<String>,
-    packages: &BTreeSet<(String, String)>,
-) -> bool {
-    split_namespace(path, orgs)
-        .and_then(|(org, rest)| Some((org, rest.rsplit_once('/')?.0)))
-        .is_some_and(|(org, package)| packages.contains(&(org.to_string(), package.to_string())))
 }
 
 /// Paths an interrupted upgrade already moved: the exact shapes the new

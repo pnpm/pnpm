@@ -192,46 +192,15 @@ fn an_org_that_is_also_a_package_is_refused() {
 }
 
 #[test]
-fn a_legacy_repository_shaped_like_the_new_layout_still_moves() {
-    assert_eq!(
-        steps(&["default/packages/foo/package.json", "default/packages/foo/sha256-aa"], &[]),
-        [
-            (
-                "default/packages/foo/package.json",
-                moved("default/packages/default!2fpackages!2ffoo/document.json", true),
-            ),
-            (
-                "default/packages/foo/sha256-aa",
-                moved("default/packages/default!2fpackages!2ffoo/blobs/sha256-aa", false),
-            ),
-        ]
-        .map(|(from, step)| (from.to_string(), step)),
-    );
-}
-
-#[test]
 fn an_org_named_default_is_refused() {
     let error = plan(&[], &BTreeSet::from(["default".to_string()])).unwrap_err();
     assert!(error.contains(r#"an org named "default""#), "{error}");
 }
 
 #[test]
-fn a_legacy_repository_named_like_a_new_blob_directory_still_moves() {
-    assert_eq!(
-        steps(
-            &["default/packages/foo/blobs/package.json", "default/packages/foo/blobs/sha256-aa"],
-            &[]
-        ),
-        [
-            (
-                "default/packages/foo/blobs/package.json",
-                moved("default/packages/default!2fpackages!2ffoo!2fblobs/document.json", true),
-            ),
-            (
-                "default/packages/foo/blobs/sha256-aa",
-                moved("default/packages/default!2fpackages!2ffoo!2fblobs/blobs/sha256-aa", false),
-            ),
-        ]
-        .map(|(from, step)| (from.to_string(), step)),
-    );
+fn a_legacy_repository_named_like_a_new_layout_directory_is_refused() {
+    for document in ["default/packages/foo/package.json", "orgs/acme/packages/tool/package.json"] {
+        let error = plan(&[document.to_string()], &BTreeSet::new()).unwrap_err();
+        assert!(error.contains("is named like a directory of the new layout"), "{error}");
+    }
 }
