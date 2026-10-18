@@ -97,6 +97,8 @@ describe('parseBareSpecifier', () => {
     ['https://example.com/npm', 'https://example.com/npm-other/foo/-/foo-1.0.0.tgz'],
     [NPM_REGISTRY, 'https://registry.npmjs.org/foo/-/bar-1.0.0.tgz'],
     [NPM_REGISTRY, 'https://registry.npmjs.org/%E0%A4%A/-/foo-1.0.0.tgz'],
+    [NPM_REGISTRY, 'https://registry.npmjs.org/foo%ZZ/-/foo%ZZ-1.0.0.tgz'],
+    [NPM_REGISTRY, 'https://registry.npmjs.org/foo%FF/-/foo%FF-1.0.0.tgz'],
   ])('declines the tarball URL %s %s', (registry, url) => {
     expect(parseBareSpecifier(url, undefined, DEFAULT_TAG, registry)).toBeNull()
   })

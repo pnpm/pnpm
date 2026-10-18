@@ -234,6 +234,16 @@ fn tarball_url_in_sibling_of_registry_path_declines() {
 }
 
 #[test]
+fn tarball_url_with_malformed_escape_declines() {
+    for url in [
+        "https://registry.npmjs.org/foo%ZZ/-/foo%ZZ-1.0.0.tgz",
+        "https://registry.npmjs.org/foo%FF/-/foo%FF-1.0.0.tgz",
+    ] {
+        assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none(), "{url}");
+    }
+}
+
+#[test]
 fn unrelated_url_declines() {
     let url = "https://example.com/foo/-/foo-1.0.0.tgz";
     assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none());
