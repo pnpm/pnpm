@@ -100,15 +100,28 @@ function importWithStaging (dirImport: IndexedDirImport): void {
     if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
-  commitStagedDir(stage, newDir)
+  commitStagedDir(stage, newDir, filenames, opts.symlinks, opts.keepModulesDir === true)
 }
 
-function commitStagedDir (stage: string, newDir: string): void {
+function commitStagedDir (
+  stage: string,
+  newDir: string,
+  filenames: Map<string, string>,
+  symlinks: Map<string, string> | undefined,
+  keepModulesDir: boolean
+): void {
   try {
     withFileLockRetry(() => {
       renameOverwriteSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
+    if (allFilesMatch(newDir, filenames) && allSymlinksMatch(newDir, symlinks)) {
+      if (keepModulesDir) {
+        moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
+      }
+      cleanStageDir(stage)
+      return
+    }
     cleanStageDir(stage)
     throw renameErr
   }

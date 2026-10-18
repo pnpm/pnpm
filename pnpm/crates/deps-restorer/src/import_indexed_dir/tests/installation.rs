@@ -239,6 +239,46 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     assert!(!target_a.join("stale.txt").exists());
     assert!(!target_b.join("stale.txt").exists());
 }
+
+#[test]
+fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"pkg\"}");
+    let code = write_source(&src_root, "index.js", b"content");
+    let cas = cas_map(&[("package.json", package_json), ("index.js", code)]);
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(target.join("node_modules")).unwrap();
+    fs::write(target.join("stale.txt"), b"stale").unwrap();
+    fs::write(target.join("node_modules/kept"), b"nested dependency").unwrap();
+    let barrier = std::sync::Barrier::new(8);
+
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            let barrier = &barrier;
+            let target = &target;
+            let cas = &cas;
+            scope.spawn(move || {
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    target,
+                    cas,
+                    FORCE_KEEP,
+                )
+                .expect("an equivalent concurrent import should succeed");
+            });
+        }
+    });
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"name\":\"pkg\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"content");
+    assert_eq!(fs::read(target.join("node_modules/kept")).unwrap(), b"nested dependency");
+    assert!(!target.join("stale.txt").exists());
+}
+
 #[test]
 fn partial_dir_without_marker_is_repaired() {
     let tmp = tempdir().unwrap();

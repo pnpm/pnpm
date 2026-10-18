@@ -2,6 +2,7 @@ use super::{
     ImportIndexedDirError, Placement, PreserveModulesFailure, PreservedModules,
     existing_dirent_kind, file_matches_store_entry, populate_dir,
 };
+mod swap;
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{FsRemoveDirent, FsRename, Host, rename_even_across_devices};
@@ -57,10 +58,26 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let paths = StagePaths::new(dir_path);
+    populate_staging_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        &paths,
+        dir_path,
+        cas_paths,
+        preserve_symlinks,
+    )?;
+    let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
+    swap::replace_target(&paths, dir_path, cas_paths, &preserved_modules)
+}
 
-    // 1. Populate the staging directory with the new contents. On
-    //    failure, the staging directory is the only thing on disk we
-    //    own — a blanket rimraf is safe.
+fn populate_staging_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    paths: &StagePaths,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    preserve_symlinks: bool,
+) -> Result<(), ImportIndexedDirError> {
     if let Err(error) = populate_dir::<Reporter>(
         logged_methods,
         import_method,
@@ -72,35 +89,9 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         let _ = fs::remove_dir_all(&paths.stage);
         return Err(error);
     }
-
-    // 2. Move the existing `node_modules/` aside so nested deps survive
-    //    the swap.
-    let preserved_modules = paths.preserve_modules(keep_modules_dir)?;
-
-    // 3. Remove the old contents. If this fails after step 2, the
-    //    staged tree and any merge backup hold the preserved data. Try
-    //    to move it back into place before bailing, and retain those
-    //    temporary paths if restoration can't run.
-    if let Err(error) = pnpm_fs::remove_dirent(dir_path) {
-        paths.cleanup_after_failure(&preserved_modules);
-        return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
-    }
-
-    // 4. Move the staged tree into place. There's a brief window
-    //    between the removal and `rename` where `dir_path` does
-    //    not exist on disk — acceptable for a slot only this install
-    //    can reach; a shared slot never enters this function.
-    if let Err(error) = pnpm_fs::rename_with_retry(&paths.stage, dir_path) {
-        paths.rescue_or_leak(&preserved_modules, dir_path);
-        return Err(ImportIndexedDirError::Swap {
-            from: paths.stage,
-            to: dir_path.to_path_buf(),
-            error,
-        });
-    }
-    discard_replaced_modules(&preserved_modules);
     Ok(())
 }
+
 /// The temporary paths a staged swap works through, and the recovery
 /// steps that put the target back together when one of its phases
 /// fails.
@@ -199,14 +190,20 @@ where
 {
     match rename_even_across_devices::<Sys>(source, destination) {
         Ok(()) => return Ok(PreservedModules::Directory),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(PreservedModules::None),
         Err(error) if is_modules_dir_collision(&error) => {}
         Err(error) => {
             return Err(PreserveModulesFailure { error, preserved: PreservedModules::None });
         }
     }
 
-    rename_even_across_devices::<Sys>(source, backup)
-        .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
+    match rename_even_across_devices::<Sys>(source, backup) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(PreservedModules::None),
+        Err(error) => {
+            return Err(PreserveModulesFailure { error, preserved: PreservedModules::None });
+        }
+    }
 
     merge_preserved_modules::<Sys>(destination, backup)
 }
