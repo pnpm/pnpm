@@ -6,6 +6,7 @@ import { globalInfo } from '@pnpm/logger'
 import { fastPathTemp as pathTemp } from 'path-temp'
 
 import { clearDirBlockingFile, clearDirentBlockingDir, makeFileMapDirs } from './dirUtils.js'
+import { fileModeForImport } from './fileMode.js'
 import { filesHaveEqualContents } from './filesHaveEqualContents.js'
 import { filesHaveSameIdentity } from './hardlinkedDirMatches.js'
 import type { ImportFile, IndexedDirImport } from './importIndexedDir.js'
@@ -103,8 +104,7 @@ export function allImportedEntriesMatchExactly ({
 }): boolean {
   if (!allFilesMatch(dir, filenames) || !allSymlinksMatch(dir, symlinks)) return false
 
-  const expectedEntries = new Set([...filenames.keys(), ...(symlinks?.keys() ?? [])]
-    .filter(entry => !keepModulesDir || entry !== 'node_modules' && !entry.startsWith('node_modules/')))
+  const expectedEntries = collectExpectedEntries(filenames, symlinks, keepModulesDir)
   const actualEntries = new Set<string>()
   try {
     collectDirectoryEntries({ root: dir, directory: dir, entries: actualEntries, preserveNodeModules: keepModulesDir })
@@ -112,6 +112,24 @@ export function allImportedEntriesMatchExactly ({
     return false
   }
   return actualEntries.size === expectedEntries.size && [...expectedEntries].every(entry => actualEntries.has(entry))
+}
+
+function collectExpectedEntries (
+  filenames: Map<string, string>,
+  symlinks: Map<string, string> | undefined,
+  preserveNodeModules: boolean
+): Set<string> {
+  const entries = new Set<string>()
+  for (const entry of [...filenames.keys(), ...(symlinks?.keys() ?? [])]) {
+    if (preserveNodeModules && (entry === 'node_modules' || entry.startsWith('node_modules/'))) continue
+    entries.add(entry)
+    let parent = path.posix.dirname(entry)
+    while (parent !== '.') {
+      entries.add(parent)
+      parent = path.posix.dirname(parent)
+    }
+  }
+  return entries
 }
 
 function collectDirectoryEntries ({
@@ -129,6 +147,7 @@ function collectDirectoryEntries ({
     const entryPath = path.join(directory, dirent.name)
     if (dirent.isDirectory()) {
       if (preserveNodeModules && directory === root && dirent.name === 'node_modules') continue
+      entries.add(path.relative(root, entryPath).split(path.sep).join('/'))
       collectDirectoryEntries({ root, directory: entryPath, entries, preserveNodeModules })
     } else {
       entries.add(path.relative(root, entryPath).split(path.sep).join('/'))
@@ -156,6 +175,8 @@ export function mismatchReason (target: string, src: string): string | undefined
     const targetStat = fs.lstatSync(target, { bigint: true })
     if (!targetStat.isFile()) return 'is not a regular file'
     const srcStat = gfs.statSync(src, { bigint: true })
+    const expectedMode = fileModeForImport(src, srcStat.mode)
+    if (expectedMode !== undefined && (targetStat.mode & 0o777n) !== BigInt(expectedMode)) return 'has a different mode'
     if (filesHaveSameIdentity(targetStat, srcStat)) return undefined
     if (targetStat.size !== srcStat.size) return 'has a different size'
     if (!filesHaveEqualContents(target, src)) return 'has different content'

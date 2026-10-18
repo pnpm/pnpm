@@ -40,9 +40,32 @@ fn exact_import_match_rejects_extra_files() {
     fs::write(&stale_file, b"stale").unwrap();
     assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
     fs::remove_file(stale_file).unwrap();
+    fs::create_dir(target.join("stale-dir")).unwrap();
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::remove_dir(target.join("stale-dir")).unwrap();
     fs::create_dir(target.join("node_modules")).unwrap();
     fs::write(target.join("node_modules/kept"), b"dependency").unwrap();
     assert!(all_imported_entries_match_exactly(&target, &cas_paths, true));
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
+
+#[cfg(unix)]
+#[test]
+fn exact_import_match_rejects_different_file_modes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    let target = root.path().join("package");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let manifest = store.join("package.json");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::copy(&manifest, target.join("package.json")).unwrap();
+    let cas_paths = HashMap::from([("package.json".to_string(), manifest)]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::set_permissions(target.join("package.json"), fs::Permissions::from_mode(0o600)).unwrap();
     assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
 }
 

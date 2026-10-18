@@ -424,6 +424,10 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     if !target_meta.is_file() {
         return false;
     }
+    #[cfg(unix)]
+    if !file_mode_matches_store_entry(&target_meta, store_path) {
+        return false;
+    }
     let Ok(store_meta) = fs::metadata(store_path) else {
         return false;
     };
@@ -432,6 +436,21 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     }
     target_meta.len() == store_meta.len()
         && files_have_equal_contents(target, store_path).unwrap_or(false)
+}
+
+#[cfg(unix)]
+fn file_mode_matches_store_entry(target_meta: &fs::Metadata, store_path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(store_meta) = fs::metadata(store_path) else { return false };
+    let expected_mode = if pnpm_fs::file_mode::is_cas_file_path(store_path) {
+        pnpm_fs::file_mode::store_entry_mode(
+            pnpm_fs::file_mode::cas_path_is_executable(store_path),
+            pnpm_fs::file_mode::current_umask(),
+        )
+    } else {
+        store_meta.permissions().mode() & 0o777
+    };
+    target_meta.permissions().mode() & 0o777 == expected_mode
 }
 
 /// Byte-compare two files without buffering either one.

@@ -254,7 +254,7 @@ test('a staged import accepts an equivalent directory installed by a concurrent 
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('content')
 })
 
-test('a staged import rejects a concurrent directory with extra files', () => {
+test('a staged import rejects a concurrent directory with extra entries', () => {
   const tmp = tempDir()
   const srcDir = path.join(tmp, 'src')
   const newDir = path.join(tmp, 'dest')
@@ -267,6 +267,7 @@ test('a staged import rejects a concurrent directory with extra files', () => {
     fs.writeFileSync(path.join(target as string, 'package.json'), '{"name":"pkg"}')
     fs.writeFileSync(path.join(target as string, 'index.js'), 'content')
     fs.writeFileSync(path.join(target as string, 'stale.js'), 'stale')
+    fs.mkdirSync(path.join(target as string, 'stale-dir'))
     throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
   })
 
@@ -277,6 +278,32 @@ test('a staged import rejects a concurrent directory with extra files', () => {
       ['package.json', path.join(srcDir, 'package.json')],
       ['index.js', path.join(srcDir, 'index.js')],
     ]),
+    {}
+  )).toThrow(/ENOTEMPTY/)
+})
+
+test('a staged import rejects a concurrent file with a different mode', () => {
+  if (process.platform === 'win32') return
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  const src = path.join(srcDir, 'package.json')
+  fs.writeFileSync(src, '{"name":"pkg"}')
+  fs.chmodSync(src, 0o644)
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    const destination = path.join(target as string, 'package.json')
+    fs.writeFileSync(destination, '{"name":"pkg"}')
+    fs.chmodSync(destination, 0o600)
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['package.json', src]]),
     {}
   )).toThrow(/ENOTEMPTY/)
 })
