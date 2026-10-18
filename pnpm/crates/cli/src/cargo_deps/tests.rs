@@ -42,43 +42,37 @@ fn rejects_a_registry_crate_slot_without_verified_store_data() {
 #[test]
 fn rejects_a_registry_crate_slot_with_a_missing_or_corrupted_file() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path();
+    let slot = temp_dir.path().join("slot");
+    fs::create_dir(&slot).unwrap();
     let cargo_toml = "[package]\n";
     fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
+    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    seed_indexed_cargo_file(
+        &store_dir,
+        checksum,
+        "demo",
+        "1.0.0",
+        "Cargo.toml",
+        cargo_toml.as_bytes(),
+    );
     fs::write(
         slot.join(".cargo-checksum.json"),
         format!(
-            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"checksum"}}"#,
+            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"{}"}}"#,
             pnpm_crypto_hash::create_hex_hash(cargo_toml),
+            checksum,
         ),
     )
     .unwrap();
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
+    assert!(slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
 
     fs::write(slot.join("Cargo.toml"), "[package]\nname = \"changed\"\n").unwrap();
 
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
+    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
     fs::remove_file(slot.join("Cargo.toml")).unwrap();
 
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
+    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
 }
 
 #[cfg(unix)]
@@ -91,23 +85,28 @@ fn rejects_a_registry_crate_slot_with_a_symlinked_parent_directory() {
     fs::create_dir_all(&external_dir).unwrap();
     let cargo_toml = "[package]\n";
     fs::write(external_dir.join("Cargo.toml"), cargo_toml).unwrap();
+    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    seed_indexed_cargo_file(
+        &store_dir,
+        checksum,
+        "demo",
+        "1.0.0",
+        "src/Cargo.toml",
+        cargo_toml.as_bytes(),
+    );
     symlink(&external_dir, slot.join("src")).unwrap();
     fs::write(
         slot.join(".cargo-checksum.json"),
         format!(
-            r#"{{"files":{{"src/Cargo.toml":"{}"}},"package":"checksum"}}"#,
+            r#"{{"files":{{"src/Cargo.toml":"{}"}},"package":"{}"}}"#,
             pnpm_crypto_hash::create_hex_hash(cargo_toml),
+            checksum,
         ),
     )
     .unwrap();
 
-    assert!(!slot_is_complete(
-        &slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
+    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
 }
 
 #[tokio::test]
@@ -143,6 +142,8 @@ async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config()
     config.store_dir.init().unwrap();
     let (cargo_toml_path, cargo_toml_digest) =
         config.store_dir.write_cas_file(cargo_toml.as_bytes(), false).unwrap();
+    fs::remove_file(slot.join("Cargo.toml")).unwrap();
+    fs::hard_link(&cargo_toml_path, slot.join("Cargo.toml")).unwrap();
     let integrity = Integrity::from_hex(&package.checksum, Algorithm::Sha256).unwrap();
     StoreIndex::open_in(&config.store_dir)
         .unwrap()
@@ -247,19 +248,18 @@ fn rejects_a_registry_crate_slot_with_a_corrupt_manifest() {
 #[test]
 fn rejects_a_registry_crate_slot_with_an_unsafe_file_path() {
     let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    fs::create_dir(&slot).unwrap();
+    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    seed_indexed_cargo_file(&store_dir, checksum, "demo", "1.0.0", "../Cargo.toml", b"[package]\n");
     fs::write(
-        temp_dir.path().join(".cargo-checksum.json"),
-        r#"{"files":{"../Cargo.toml":"hash"},"package":"checksum"}"#,
+        slot.join(".cargo-checksum.json"),
+        format!(r#"{{"files":{{"../Cargo.toml":"hash"}},"package":"{}"}}"#, checksum,),
     )
     .unwrap();
 
-    assert!(!slot_is_complete(
-        temp_dir.path(),
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
+    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir,));
 }
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
@@ -278,6 +278,42 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
     time::Duration,
 };
+
+fn seed_indexed_cargo_file(
+    store_dir: &StoreDir,
+    checksum: &str,
+    name: &str,
+    version: &str,
+    file: &str,
+    contents: &[u8],
+) {
+    store_dir.init().unwrap();
+    let (_, digest) = store_dir.write_cas_file(contents, false).unwrap();
+    let integrity = Integrity::from_hex(checksum, Algorithm::Sha256).unwrap();
+    let package_id = format!("crate:{name}@{version}");
+    StoreIndex::open_in(store_dir)
+        .unwrap()
+        .set(
+            &ArchiveStoreProjection::RawArchive.store_index_key(
+                &integrity.to_string(),
+                &package_id,
+            ),
+            &PackageFilesIndex {
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    file.to_string(),
+                    CafsFileInfo {
+                        digest: format!("{digest:x}"),
+                        mode: 0o644,
+                        size: contents.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                ..PackageFilesIndex::default()
+            },
+        )
+        .unwrap();
+}
 
 fn slot_is_complete(
     slot: &std::path::Path,

@@ -177,7 +177,9 @@ fn slot_file_contents_match_cas(
     if !cas_metadata.is_file() || cas_metadata.len() != info.size {
         return false;
     }
-    cas_file_matches_digest(&cas_path, &info.digest) && cas_file_matches_digest(&path, &info.digest)
+    cas_file_matches_digest(&cas_path, &info.digest)
+        && (same_file::is_same_file(&path, &cas_path).unwrap_or(false)
+            || cas_file_matches_digest(&path, &info.digest))
 }
 
 fn cas_file_matches_digest(path: &Path, digest: &str) -> bool {

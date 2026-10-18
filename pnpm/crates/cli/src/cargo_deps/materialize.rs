@@ -41,7 +41,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
 
 fn partition_materialized_crates(
     packages: Vec<LockedCrate>,
-    store_dir: &StoreDir,
+    store_dir: &'static StoreDir,
     index: Option<&SharedReadonlyStoreIndex>,
 ) -> (Vec<(String, PathBuf)>, Vec<LockedCrate>) {
     let (completed, pending): (Vec<_>, Vec<_>) = packages
@@ -69,15 +69,19 @@ async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<(String, PathBuf)>> {
     let store_index =
         StoreIndex::shared_for(&options.config.store_dir, options.config.frozen_store);
-    let (completed_slots, packages) = partition_materialized_crates(
-        std::mem::take(&mut options.packages),
-        &options.config.store_dir,
-        store_index.as_ref(),
-    );
+    let store_dir = options.config.store_dir;
+    let packages = std::mem::take(&mut options.packages);
+    let completed_index = store_index.clone();
+    let (completed_slots, packages) = tokio::task::spawn_blocking(move || {
+        partition_materialized_crates(packages, store_dir, completed_index.as_ref())
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("join Cargo crate slot validation task")?;
     if packages.is_empty() {
         return Ok(completed_slots);
     }
-    let mut slots = download_pending_crates::<Reporter>(&options, packages).await?;
+    let mut slots = download_pending_crates::<Reporter>(&options, packages, store_index).await?;
     slots.extend(completed_slots);
     Ok(slots)
 }
@@ -85,9 +89,9 @@ async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
 async fn download_pending_crates<Reporter: self::Reporter + 'static>(
     options: &DownloadOptions,
     packages: Vec<LockedCrate>,
+    store_index: Option<SharedReadonlyStoreIndex>,
 ) -> Result<Vec<(String, PathBuf)>> {
     let store_dir = &options.config.store_dir;
-    let store_index = StoreIndex::shared_for(store_dir, options.config.frozen_store);
     let fetching = create_crate_download(options).await?;
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
         store_dir,
