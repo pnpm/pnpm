@@ -1,6 +1,7 @@
 use crate::{
-    BinLinkSettings, SyncInjectedDeps, injected_edit_sources, injected_source_dirs,
-    sync_injected_deps, sync_injected_deps_of_modules_dir, watch_injected_edits,
+    BinLinkSettings, ProjectModulesDir, SyncInjectedDeps, injected_edit_sources,
+    injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
+    watch_injected_edits,
 };
 use pretty_assertions::assert_eq;
 use std::{
@@ -64,6 +65,7 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         workspace_modules_dir: &workspace.join("node_modules"),
         include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
+        project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
@@ -191,6 +193,7 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         workspace_modules_dir: &workspace.join("node_modules"),
         include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
+        project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
@@ -258,6 +261,7 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         workspace_modules_dir: &workspace.join("node_modules"),
         include_only_package_files: false,
         manifest_before_scripts: Some(&manifest),
+        project_modules_dirs: &[],
         bin_links: BinLinkSettings {
             modules_dir_name: OsStr::new("node_modules"),
             extend_node_path: false,
@@ -287,4 +291,58 @@ fn watch_publishes_from_the_publish_directory_once_it_exists() {
         thread::sleep(Duration::from_millis(50));
     }
     watch.stop();
+}
+
+/// Without a shared lockfile, the copies injected into a project are listed
+/// in that project's own `.modules.yaml`, relative to the project.
+#[test]
+fn edit_sources_include_the_copies_a_project_with_its_own_lockfile_lists() {
+    let dir = TempDir::new().expect("temp dir");
+    let workspace = dir.path();
+    let manifest = serde_json::json!({ "name": "project-1", "version": "1.0.0" });
+    write_file(&workspace.join("project-1/package.json"), &manifest.to_string());
+    write_file(
+        &workspace.join("project-2/package.json"),
+        &serde_json::json!({ "name": "project-2", "version": "1.0.0" }).to_string(),
+    );
+    write_file(
+        &workspace.join("project-2/node_modules/.modules.yaml"),
+        &serde_json::json!({
+            "virtualStoreDir": "node_modules/.pnpm",
+            "injectedDeps": {
+                "../project-1": ["node_modules/.pnpm/project-1@file+..+project-1/node_modules/project-1"],
+            },
+        })
+        .to_string(),
+    );
+    let project_modules_dirs = [ProjectModulesDir {
+        project_dir: workspace.join("project-2"),
+        modules_dir: workspace.join("project-2/node_modules"),
+    }];
+    let edit_targets = |project_modules_dirs: &[ProjectModulesDir]| {
+        injected_edit_sources(&SyncInjectedDeps {
+            pkg_name: Some("project-1"),
+            pkg_root_dir: Path::new("project-1"),
+            workspace_dir: Some(workspace),
+            workspace_modules_dir: &workspace.join("node_modules"),
+            include_only_package_files: true,
+            manifest_before_scripts: Some(&manifest),
+            project_modules_dirs,
+            bin_links: BinLinkSettings {
+                modules_dir_name: OsStr::new("node_modules"),
+                extend_node_path: false,
+                ignored_directories: Vec::new(),
+            },
+        })
+        .into_iter()
+        .flat_map(|source| source.targets)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        edit_targets(&project_modules_dirs),
+        vec![workspace.join(
+            "project-2/node_modules/.pnpm/project-1@file+..+project-1/node_modules/project-1"
+        )],
+    );
+    assert_eq!(edit_targets(&[]), Vec::<std::path::PathBuf>::new());
 }

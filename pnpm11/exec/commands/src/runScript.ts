@@ -3,6 +3,7 @@ import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import {
   injectedEditDirs,
   type InjectedEditWatch,
+  type ProjectLockfiles,
   syncInjectedDeps,
   watchInjectedEdits,
 } from '@pnpm/workspace.injected-deps-syncer'
@@ -10,6 +11,8 @@ import {
 export interface RunScriptOptions {
   deployAllFiles?: boolean
   enablePrePostScripts: boolean
+  /** See `SyncInjectedDepsOptions.projectLockfiles`. */
+  projectLockfiles?: ProjectLockfiles
   syncInjectedDepsAfterScripts: string[] | undefined
   workspaceDir: string | undefined
 }
@@ -37,6 +40,7 @@ export async function runScript (opts: RunScriptContext, scriptName: string): Pr
       // Read before the script ran, so a bin it drops can still be named.
       manifestBeforeScripts: opts.manifest as DependencyManifest,
       includeOnlyPackageFiles: !opts.runScriptOptions.deployAllFiles,
+      projectLockfiles: opts.runScriptOptions.projectLockfiles,
     })
   }
 }
@@ -59,13 +63,35 @@ async function startInjectedEditWatch (opts: {
   lifecycleOpts: RunLifecycleHookOptions
   runScriptOptions: RunScriptOptions
 }): Promise<InjectedEditWatch | undefined> {
-  const located = await injectedEditDirs({
+  const sources = await injectedEditDirs({
     pkgName: opts.manifest.name,
     pkgRootDir: opts.lifecycleOpts.pkgRoot,
     workspaceDir: opts.runScriptOptions.workspaceDir,
+    manifestBeforeScripts: opts.manifest as DependencyManifest,
+    projectLockfiles: opts.runScriptOptions.projectLockfiles,
   })
-  if (located == null) return undefined
-  return watchInjectedEdits(located.sourceDir, located.targetDirs, !opts.runScriptOptions.deployAllFiles)
+  if (sources.length === 0) return undefined
+  const watches = sources.map(({ sourceDir, targetDirs }) => watchInjectedEdits(sourceDir, targetDirs, !opts.runScriptOptions.deployAllFiles))
+  return {
+    stop: async () => {
+      await Promise.all(watches.map(async (watch) => watch.stop()))
+    },
+  }
+}
+
+/** `projectLockfiles` for the run's settings: set only when the workspace has no shared lockfile. */
+export function projectLockfilesOf (opts: {
+  modulesDir?: string
+  modulesDirsByProjectName?: Record<string, string>
+  sharedWorkspaceLockfile?: boolean
+  workspacePackagePatterns?: string[]
+}): ProjectLockfiles | undefined {
+  if (opts.sharedWorkspaceLockfile !== false) return undefined
+  return {
+    modulesDir: opts.modulesDir,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
+    workspacePackagePatterns: opts.workspacePackagePatterns,
+  }
 }
 
 export function getRunScriptCommands (

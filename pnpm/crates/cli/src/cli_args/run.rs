@@ -1,6 +1,7 @@
 pub(crate) use environment::script_environment;
 pub(crate) use execution::exec_scripts_prepend_node_path;
 pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
+pub(crate) use injected_sync::project_modules_dirs;
 pub(super) use listing::ScriptSelector;
 
 use super::{

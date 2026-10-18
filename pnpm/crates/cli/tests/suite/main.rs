@@ -80,6 +80,7 @@ mod import;
 mod import_yarn_patches;
 mod init;
 mod inject_workspace_packages;
+mod injected_copy_equivalence;
 mod injected_deps_with_dedicated_lockfiles;
 mod injected_freshness_matrix;
 mod install;
