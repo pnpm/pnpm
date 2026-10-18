@@ -103,3 +103,41 @@ fn concurrent_importers_of_one_shared_slot_both_succeed() {
         .collect();
     assert_eq!(strays, Vec::<String>::new(), "neither importer may leak a staging dir");
 }
+// Nothing removes a shared slot, so what one install adds to it once its own import returns
+// survives the sibling's forced import, even when both found the slot absent.
+#[test]
+fn forced_imports_into_an_absent_shared_slot_keep_what_a_sibling_install_added() {
+    use std::sync::Barrier;
+
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{\"version\":\"1.0.0\"}");
+    let index = write_source(&src_root, "index.js", b"module.exports = 1");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", index)]);
+    let target = tmp.path().join("slot");
+    let barrier = Barrier::new(2);
+
+    std::thread::scope(|scope| {
+        for importer in 0..2 {
+            let (barrier, target, cas) = (&barrier, &target, &cas);
+            scope.spawn(move || {
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    target,
+                    cas,
+                    FORCE_SHARED,
+                )
+                .expect("both importers must succeed");
+                fs::write(target.join(format!("built-by-{importer}.txt")), b"build output")
+                    .expect("the slot must still exist after the import");
+            });
+        }
+    });
+
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    assert!(target.join("built-by-0.txt").exists());
+    assert!(target.join("built-by-1.txt").exists());
+}

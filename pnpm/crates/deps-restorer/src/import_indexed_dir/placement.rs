@@ -447,7 +447,8 @@ fn file_mode_matches_store_entry(
 ) -> bool {
     use std::os::unix::fs::PermissionsExt;
     let (store_path, store_meta) = store;
-    let expected_mode = if pnpm_fs::file_mode::is_cas_file_path(store_path) {
+    let is_store_entry = pnpm_fs::file_mode::is_cas_file_path(store_path);
+    let expected_mode = if is_store_entry {
         pnpm_fs::file_mode::store_entry_mode(
             pnpm_fs::file_mode::cas_path_is_executable(store_path),
             pnpm_fs::file_mode::current_umask(),
@@ -458,7 +459,7 @@ fn file_mode_matches_store_entry(
     let target_mode = target_meta.permissions().mode() & 0o777;
     target_mode == expected_mode
         || same_identity
-            && pnpm_fs::file_mode::is_cas_file_path(store_path)
+            && is_store_entry
             && pnpm_fs::file_mode::store_inode_mode_is_linkable(target_mode, expected_mode)
 }
 

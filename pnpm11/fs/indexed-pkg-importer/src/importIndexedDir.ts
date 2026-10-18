@@ -101,22 +101,20 @@ function importWithStaging (dirImport: IndexedDirImport): void {
     if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
-  commitStagedDir(stage, newDir, filenames, opts.symlinks, opts.keepModulesDir === true)
+  commitStagedDir(stage, dirImport)
 }
 
-function commitStagedDir (
-  stage: string,
-  newDir: string,
-  filenames: Map<string, string>,
-  symlinks: Map<string, string> | undefined,
-  keepModulesDir: boolean
-): void {
+// A rename that fails because a concurrent import of the same package already
+// completed the target is a success: the target holds exactly this import, and
+// a preserved `node_modules/` moved into the stage goes back where it was.
+function commitStagedDir (stage: string, { newDir, filenames, opts }: IndexedDirImport): void {
   try {
     withFileLockRetry(() => {
       renameOverwriteSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
-    if (allImportedEntriesMatchExactly({ dir: newDir, filenames, symlinks, keepModulesDir })) {
+    const keepModulesDir = opts.keepModulesDir === true
+    if (allImportedEntriesMatchExactly({ dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir })) {
       if (keepModulesDir) {
         moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
       }

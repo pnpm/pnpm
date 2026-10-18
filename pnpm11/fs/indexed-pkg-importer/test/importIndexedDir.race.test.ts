@@ -317,7 +317,7 @@ test('a staged import accepts a linkable CAFS hardlink mode', () => {
   const src = path.join(srcDir, 'a'.repeat(40))
   fs.writeFileSync(src, '{"name":"pkg"}')
   const expectedMode = (0o666 & ~process.umask()) & 0o777
-  fs.chmodSync(src, expectedMode | 0o020)
+  fs.chmodSync(src, expectedMode ^ 0o020)
   fs.mkdirSync(newDir)
 
   renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {

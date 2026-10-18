@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Concurrent installs into one project now accept an already completed package import when its files match the requested package [pnpm/tasks#48](https://github.com/pnpm/tasks/issues/48).
+`pnpm install` no longer fails with `ENOTEMPTY` when several installs import the same package into one project at the same time. A package directory that a concurrent install already completed with the same files is kept [pnpm/tasks#48](https://github.com/pnpm/tasks/issues/48).

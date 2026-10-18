@@ -258,7 +258,12 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, true) => staging::stage_and_swap::<Reporter>(
+        // A forced import of a private target stages even when the target
+        // is absent, so that a sibling forced import's swap cannot remove a
+        // directory this one is filling in place. A shared slot is claimed
+        // in place instead, because nothing may remove it (see
+        // `import_into_shared_dir`).
+        (None, true) if !opts.safe_to_skip => staging::stage_and_swap::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
@@ -267,7 +272,7 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
             opts.preserve_symlinks,
         )
         .inspect(|()| unquarantine()),
-        (None, false) => placement::import_absent_dir::<Reporter>(
+        (None, _) => placement::import_absent_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
