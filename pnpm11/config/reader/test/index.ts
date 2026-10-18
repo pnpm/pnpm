@@ -1249,23 +1249,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     fs.mkdirSync(configDir, { recursive: true })
     writeYamlFileSync(path.join(configDir, 'config.yaml'), { pnprServer: null })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let context: { explicitlySetKeys: Set<string> }
-    let warnings: string[]
-    try {
-      ;({ context, warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { context, warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(context.explicitlySetKeys.has('pnprServer')).toBe(true)
     expect(warnings).not.toContainEqual(expect.stringContaining('pnprServer'))
@@ -1377,24 +1365,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      // Assigning `undefined` would store the string "undefined", leaving every
-      // later test in this file resolving configDir under `undefined/pnpm`.
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
     expect(aboutConfigDir).not.toEqual([])
@@ -1416,22 +1391,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
     expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
@@ -1455,22 +1419,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }
     writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let config: Config
-    try {
-      ;({ config } = await getConfig({
-        cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { config } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(config.configDir).not.toBe('/tmp/from-cli')
     // The dedicated flags and the keys the global file does take are unaffected.
@@ -2675,29 +2628,20 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
   })
 
-  // The global config dir is resolved from process.env, not from the env
-  // passed to getConfig.
-  const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-  process.env.XDG_CONFIG_HOME = path.resolve('.config')
-  let config: Config
-  try {
-    ({ config } = await getConfig({
-      cliOptions: {},
-      env: {
-        ...env,
-        XDG_CONFIG_HOME: path.resolve('.config'),
-        pnpm_config__auth: JSON.stringify({
-          'https://registry.npmjs.org': {
-            '@victim-scope': { authToken: 'secret-token' },
-          },
-        }),
-      },
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-    }))
-  } finally {
-    process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-  }
+  // `getConfigDir` reads `process.env`, not the env passed to `getConfig`.
+  const { config } = await withEnv({ XDG_CONFIG_HOME: path.resolve('.config') }, async () => getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://registry.npmjs.org': {
+          '@victim-scope': { authToken: 'secret-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  }))
 
   // `_auth` routes sit above global config.yaml in the registries merge, so a
   // user's global registry alias cannot rebind an `_auth` token's host.
@@ -7025,7 +6969,7 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
  * inherited, and the tests after it would silently run against a different
  * environment than the ones before.
  */
-async function withEnv (values: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+async function withEnv<Result> (values: Record<string, string | undefined>, run: () => Promise<Result>): Promise<Result> {
   const previous = Object.keys(values).map((name): [string, string | undefined] => [name, process.env[name]])
   for (const [name, value] of Object.entries(values)) {
     if (value === undefined) {
@@ -7035,7 +6979,7 @@ async function withEnv (values: Record<string, string | undefined>, run: () => P
     }
   }
   try {
-    await run()
+    return await run()
   } finally {
     for (const [name, value] of previous) {
       if (value === undefined) {
