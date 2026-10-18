@@ -840,16 +840,6 @@ fn peer_provided_by_a_workspace_dependency_moves() {
             project("app", &[("@pnpm.e2e/wants-peer-c-1", "1.0.0"), ("provider", "workspace:*")]),
         ],
         vec![Move { project: "provider", alias: "@pnpm.e2e/peer-c", to: "1.0.1" }],
-        vec![Divergence {
-            issue: "https://github.com/pnpm/pnpm/issues/17094",
-            check: Check::Incremental,
-            rows: |row| row.inject_workspace_packages && !row.dedupe_peer_dependents,
-            v11_only: true,
-            paths: &[
-                "importers > packages/app > dependencies > provider > version ",
-                "packages > provider@file:",
-                "snapshots > provider@file:",
-            ],
-        }],
+        vec![],
     );
 }
