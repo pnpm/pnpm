@@ -7,7 +7,7 @@ import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 
-const addFilesFromTarball = jest.fn<(opts: { buffer?: Buffer, tarballFile?: string }) => Promise<unknown>>()
+const addFilesFromTarball = jest.fn<(opts: { buffer?: Buffer, tarballFile?: string, maxTarballUnpackedSize?: number }) => Promise<unknown>>()
 jest.unstable_mockModule('@pnpm/worker', () => ({ addFilesFromTarball, finishWorkers: async () => {} }))
 const { createDownloader } = await import('../src/remoteTarballFetcher.js')
 const { createLocalTarballFetcher } = await import('../src/localTarballFetcher.js')
@@ -103,4 +103,43 @@ test('a large local tarball is extracted from its file', async () => {
   await fetch({ storeDir: '/unused' } as Cafs, { tarball: `file:${tarball}` } as never, { lockfileDir: dir, filesIndexFile: 'unused' } as never)
   expect(addFilesFromTarball).toHaveBeenCalledWith(expect.objectContaining({ tarballFile: tarball }))
   expect(addFilesFromTarball.mock.calls[0][0].buffer).toBeUndefined()
+})
+
+test('an archive that unpacks past the limit is not downloaded again', async () => {
+  addFilesFromTarball.mockReset()
+  addFilesFromTarball.mockRejectedValue(Object.assign(new Error('too large'), { code: 'ERR_PNPM_TARBALL_TOO_LARGE' }))
+  const fetch = jest.fn(async () => ({ status: 200, headers: new Headers({ 'content-length': '1' }), body: [Buffer.from('a')] }))
+  const download = createDownloader(fetch as unknown as FetchFromRegistry, { retry: { retries: 2, minTimeout: 0, maxTimeout: 0 } })
+  await expect(download('https://example.com/package.tgz', {
+    cafs: { storeDir: '/unused' } as Cafs,
+    getAuthHeaderByURI: () => undefined,
+    storeIndex: {} as StoreIndex,
+    filesIndexFile: 'unused',
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_TOO_LARGE' })
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('maxTarballUnpackedSize reaches the worker from the remote tarball downloader', async () => {
+  addFilesFromTarball.mockReset()
+  addFilesFromTarball.mockResolvedValue({ filesMap: new Map() })
+  const fetch = (async () => ({ status: 200, headers: new Headers({ 'content-length': '1' }), body: [Buffer.from('a')] })) as unknown as FetchFromRegistry
+  const download = createDownloader(fetch, { retry: { retries: 0 }, maxTarballUnpackedSize: 1234 })
+  await download('https://example.com/package.tgz', {
+    cafs: { storeDir: '/unused' } as Cafs,
+    getAuthHeaderByURI: () => undefined,
+    storeIndex: {} as StoreIndex,
+    filesIndexFile: 'unused',
+  })
+  expect(addFilesFromTarball).toHaveBeenCalledWith(expect.objectContaining({ maxTarballUnpackedSize: 1234 }))
+})
+
+test('maxTarballUnpackedSize reaches the worker from the local tarball fetcher', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-local-tarball-'))
+  const tarball = path.join(dir, 'package.tgz')
+  await fs.writeFile(tarball, 'a')
+  addFilesFromTarball.mockReset()
+  addFilesFromTarball.mockResolvedValue({ filesMap: new Map() })
+  const fetch = createLocalTarballFetcher({} as StoreIndex, { maxTarballUnpackedSize: 1234 })
+  await fetch({ storeDir: '/unused' } as Cafs, { tarball: `file:${tarball}` } as never, { lockfileDir: dir, filesIndexFile: 'unused' } as never)
+  expect(addFilesFromTarball).toHaveBeenCalledWith(expect.objectContaining({ maxTarballUnpackedSize: 1234 }))
 })

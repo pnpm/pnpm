@@ -13,6 +13,9 @@
       "path": "../../core/error"
     },
     {
+      "path": "../../store/cafs"
+    },
+    {
       "path": "../../store/index"
     },
     {

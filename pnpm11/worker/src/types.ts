@@ -33,6 +33,8 @@ export interface TarballExtractMessage {
    * segment — i.e. against the same path form that is written to `filesIndex`.
    */
   ignoreFilePattern?: string
+  /** Largest sum of the declared sizes of the archive's regular files, in bytes. */
+  maxTarballUnpackedSize: number
 }
 
 export interface LinkPkgMessage {

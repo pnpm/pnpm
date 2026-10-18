@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import gfs from '@pnpm/fs.graceful-fs'
+import { DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -16,7 +17,7 @@ interface Resolution {
   tarball: string
 }
 
-export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
+export function createLocalTarballFetcher (storeIndex: StoreIndex, { maxTarballUnpackedSize = DEFAULT_MAX_TARBALL_UNPACKED_SIZE }: { maxTarballUnpackedSize?: number } = {}): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const source = gfs.statSync(tarball).size > MAX_BUFFERED_DOWNLOAD_SIZE
@@ -33,6 +34,7 @@ export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunctio
       pkg: opts.pkg,
       appendManifest: opts.appendManifest,
       ignoreFilePattern: opts.ignoreFilePattern,
+      maxTarballUnpackedSize,
     })
     return { ...result, local: true }
   }
