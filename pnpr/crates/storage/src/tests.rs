@@ -580,3 +580,61 @@ async fn an_upstream_revision_blob_named_by_a_tgz_digest_is_not_served() {
         .unwrap();
     assert_eq!(len, 3);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn symlinks_in_the_packages_directory_are_not_followed() {
+    use futures_util::TryStreamExt as _;
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(outside.join("blobs")).await.unwrap();
+    fs::write(outside.join("document.json"), b"{}").await.unwrap();
+    fs::write(outside.join("blobs/sha256-aa"), b"keep").await.unwrap();
+    storage
+        .write_hosted_document_if_current(&pkg("real"), b"{}", None)
+        .await
+        .unwrap();
+    let packages = tmp.path().join("storage/default/packages");
+    fs::symlink(&outside, packages.join("linked")).await.unwrap();
+    fs::create_dir_all(packages.join("real/blobs")).await.unwrap();
+    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
+        .await
+        .unwrap();
+    fs::symlink(outside.join("document.json"), packages.join("linked-doc"))
+        .await
+        .unwrap();
+
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["real"]);
+    let files: Vec<_> = storage
+        .hosted_blob_files()
+        .try_collect()
+        .await
+        .unwrap();
+    assert_eq!(files.len(), 1, "{files:?}");
+    assert_eq!((files[0].package.as_str(), files[0].blob.as_deref()), ("real", None));
+}
+
+#[tokio::test]
+async fn a_blob_being_staged_is_not_listed() {
+    use futures_util::TryStreamExt as _;
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("left-pad");
+    storage.write_hosted_document_if_current(&name, b"{}", None).await.unwrap();
+    let slot = storage.reserve_hosted_blob(&name, "left-pad-1.0.0.tgz").await.unwrap();
+    fs::write(&slot.tmp_path, b"tarball").await.unwrap();
+    let files: Vec<_> = storage
+        .hosted_blob_files()
+        .try_collect()
+        .await
+        .unwrap();
+    assert_eq!(files.len(), 1, "{files:?}");
+    storage.finalize_blob_slot(slot).await.unwrap();
+    let files: Vec<_> = storage
+        .hosted_blob_files()
+        .try_collect()
+        .await
+        .unwrap();
+    assert_eq!(files.len(), 2, "{files:?}");
+}

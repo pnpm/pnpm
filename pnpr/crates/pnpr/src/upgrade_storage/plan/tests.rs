@@ -173,6 +173,7 @@ fn an_interrupted_upgrade_resumes_where_it_stopped() {
                 "default/packages/left-pad/blobs/left-pad-1.0.0.tgz",
                 "left-pad/package.json",
                 "orgs/acme/packages/tool/document.json",
+                ".tar-integrity/packages/!40scope!2fpkg/document.json",
             ],
             &["acme"],
         ),
@@ -188,4 +189,28 @@ fn an_org_that_is_also_a_package_is_refused() {
     let paths = vec!["acme/package.json".to_string(), "acme/tool/package.json".to_string()];
     let error = plan(&paths, &BTreeSet::from(["acme".to_string()])).unwrap_err();
     assert!(error.contains(r#""acme" is both an org and a package"#), "{error}");
+}
+
+#[test]
+fn a_legacy_repository_shaped_like_the_new_layout_still_moves() {
+    assert_eq!(
+        steps(&["default/packages/foo/package.json", "default/packages/foo/sha256-aa"], &[]),
+        [
+            (
+                "default/packages/foo/package.json",
+                moved("default/packages/default!2fpackages!2ffoo/document.json", true),
+            ),
+            (
+                "default/packages/foo/sha256-aa",
+                moved("default/packages/default!2fpackages!2ffoo/blobs/sha256-aa", false),
+            ),
+        ]
+        .map(|(from, step)| (from.to_string(), step)),
+    );
+}
+
+#[test]
+fn an_org_named_default_is_refused() {
+    let error = plan(&[], &BTreeSet::from(["default".to_string()])).unwrap_err();
+    assert!(error.contains(r#"an org named "default""#), "{error}");
 }

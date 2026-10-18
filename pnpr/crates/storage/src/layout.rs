@@ -88,7 +88,7 @@ pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
 pub fn encode_segment(text: &str) -> String {
     let mut encoded = String::with_capacity(text.len());
     for byte in text.bytes() {
-        if matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_' | b'-') {
+        if is_literal(byte) {
             encoded.push(char::from(byte));
         } else {
             encoded.push(char::from(ESCAPE));
@@ -109,16 +109,9 @@ pub fn decode_segment(segment: &str) -> Option<String> {
     while idx < bytes.len() {
         let byte = bytes[idx];
         if byte == ESCAPE {
-            let hex = bytes.get(idx + 1..idx + 3)?;
-            if !hex
-                .iter()
-                .all(|digit| matches!(digit, b'0'..=b'9' | b'a'..=b'f'))
-            {
-                return None;
-            }
-            decoded.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
+            decoded.push(decode_escape(bytes.get(idx + 1..idx + 3)?)?);
             idx += 3;
-        } else if matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_' | b'-') {
+        } else if is_literal(byte) {
             decoded.push(byte);
             idx += 1;
         } else {
@@ -126,6 +119,24 @@ pub fn decode_segment(segment: &str) -> Option<String> {
         }
     }
     String::from_utf8(decoded).ok()
+}
+
+/// The byte two lowercase hex digits after an escape stand for, unless
+/// [`encode_segment`] would have written that byte as it is.
+fn decode_escape(hex: &[u8]) -> Option<u8> {
+    if !hex
+        .iter()
+        .all(|digit| matches!(digit, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return None;
+    }
+    let byte = u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?;
+    (!is_literal(byte)).then_some(byte)
+}
+
+/// The bytes [`encode_segment`] keeps as they are.
+const fn is_literal(byte: u8) -> bool {
+    matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_' | b'-')
 }
 
 #[cfg(test)]

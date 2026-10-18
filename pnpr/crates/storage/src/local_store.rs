@@ -234,7 +234,10 @@ impl Store {
             let Some(name) = segment.to_str().and_then(decode_segment) else {
                 continue;
             };
-            if fs::try_exists(entry.path().join(DOCUMENT_FILE)).await? {
+            if entry.file_type().await?.is_dir()
+                && fs::symlink_metadata(entry.path().join(DOCUMENT_FILE)).await
+                    .is_ok_and(|metadata| metadata.is_file())
+            {
                 names.push(name);
             }
         }

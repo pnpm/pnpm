@@ -7,7 +7,7 @@
 //! `package.json` was a package: its other files were its blobs, and its
 //! subdirectories other packages (nested image repositories).
 
-use pnpr_storage::layout::{encode_segment, namespace_segments};
+use pnpr_storage::layout::{decode_segment, encode_segment, namespace_segments};
 use std::collections::{BTreeMap, BTreeSet};
 
 const LEGACY_DOCUMENT: &str = "package.json";
@@ -45,6 +45,11 @@ pub(crate) fn plan(
     paths: &[String],
     orgs: &BTreeSet<String>,
 ) -> Result<Vec<(String, Step)>, String> {
+    if orgs.contains("default") {
+        return Err("an org named \"default\" cannot be told apart from the namespace of the \
+             registry without an org; rename it before upgrading"
+            .to_string());
+    }
     let packages = legacy_packages(paths, orgs);
     if let Some(org) = orgs
         .iter()
@@ -99,17 +104,39 @@ fn step(
     }))
 }
 
-/// Paths an interrupted upgrade already moved.
+/// Paths an interrupted upgrade already moved: the exact shapes the new
+/// layout gives a namespace's packages and records.
 fn is_new_layout(path: &str, orgs: &BTreeSet<String>) -> bool {
-    let components: Vec<&str> = path.splitn(4, '/').collect();
-    let namespace_child = |child: &str| child == "packages" || child.starts_with('.');
+    if let Some(rest) = path
+        .strip_prefix(TAR_INTEGRITY)
+        .and_then(|rest| rest.strip_prefix('/'))
+    {
+        return is_new_package_path(rest);
+    }
+    if let Some(rest) = path.strip_prefix("default/") {
+        return is_new_namespace_path(rest);
+    }
+    let Some((org, rest)) = path
+        .strip_prefix("orgs/")
+        .and_then(|rest| rest.split_once('/'))
+    else {
+        return false;
+    };
+    orgs.iter()
+        .any(|configured| encode_segment(configured) == org)
+        && is_new_namespace_path(rest)
+}
+
+fn is_new_namespace_path(rest: &str) -> bool {
+    rest.starts_with('.') || is_new_package_path(rest)
+}
+
+fn is_new_package_path(rest: &str) -> bool {
+    let components: Vec<&str> = rest.split('/').collect();
+    let decodes = |segment: &str| decode_segment(segment).is_some();
     match components.as_slice() {
-        ["default", child, ..] => namespace_child(child),
-        ["orgs", org, child, ..] => {
-            orgs.iter()
-                .any(|configured| encode_segment(configured) == *org)
-                && namespace_child(child)
-        }
+        ["packages", package, "document.json"] => decodes(package),
+        ["packages", package, "blobs", blob] => decodes(package) && decodes(blob),
         _ => false,
     }
 }

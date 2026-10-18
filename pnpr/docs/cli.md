@@ -124,6 +124,8 @@ Converts the hosted store to the current [storage layout](storage.md#layout).
 Back the store up and stop every pnpr process that uses it first. The org of
 each configured hosted registry decides which top-level directories are org
 namespaces, so run it with the configuration the store was written with.
+It refuses an org named `default`, and a top-level directory that is both an
+org and a package, since the earlier layout cannot tell them apart.
 In-progress image uploads are discarded. Files that belong to no package are
 reported and left where they are. An interrupted conversion can be run again.
 

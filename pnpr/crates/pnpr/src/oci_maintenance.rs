@@ -37,7 +37,11 @@ pub async fn collect_oci_blobs(
         config.storage.cache_dir.clone(),
     )?
     .for_hosted(&hosted.org);
-    storage.ensure_hosted_layout().await?;
+    if dry_run {
+        storage.check_hosted_layout().await?;
+    } else {
+        storage.ensure_hosted_layout().await?;
+    }
     collect(&storage, min_age, dry_run, config.http.oci.max_manifest_bytes).await
 }
 

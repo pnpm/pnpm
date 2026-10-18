@@ -204,6 +204,11 @@ async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
         return Ok(dirs);
     };
     while let Some(entry) = entries.next_entry().await? {
+        // `file_type` does not follow a symlink, so a link cannot lead the
+        // inventory, and the deletions that act on it, out of the store.
+        if !entry.file_type().await?.is_dir() {
+            continue;
+        }
         if let Some(name) = entry
             .file_name()
             .to_str()
@@ -218,7 +223,7 @@ async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
 /// The document and blobs of the package `name` in `dir`.
 async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>> {
     let mut files = Vec::new();
-    match fs::metadata(dir.join(DOCUMENT_FILE)).await {
+    match fs::symlink_metadata(dir.join(DOCUMENT_FILE)).await {
         Ok(metadata) if metadata.is_file() => files.push(blob_file(&name, None, &metadata)?),
         Ok(_) => {}
         Err(err) if err.kind() == ErrorKind::NotFound => {}
@@ -229,9 +234,11 @@ async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>
     };
     while let Some(entry) = blobs.next_entry().await? {
         let metadata = entry.metadata().await?;
+        // A blob being staged sits beside its final name until it is promoted.
         if let Some(blob) = entry
             .file_name()
             .to_str()
+            .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
             .and_then(decode_segment)
             && metadata.is_file()
         {

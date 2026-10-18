@@ -23,7 +23,7 @@ fn names_that_differ_only_in_case_get_different_segments() {
 
 #[test]
 fn segments_the_encoding_cannot_produce_do_not_decode() {
-    for segment in ["Upper", "a/b", "a~b", "!4", "!zz", "!4A", "!ff"] {
+    for segment in ["Upper", "a/b", "a~b", "!4", "!zz", "!4A", "!ff", "!61", "!2e"] {
         assert_eq!(decode_segment(segment), None, "{segment}");
     }
 }
