@@ -213,7 +213,11 @@ impl PreferredVersionsOverlay {
             let is_direct = current.is_direct_deps;
             layer = current.parent.as_deref();
             let Some(found) = current.entries.get(name) else { continue };
-            let weight = if is_direct { DIRECT_DEP_SELECTOR_WEIGHT } else { 1 };
+            let weight = if is_direct {
+                DIRECT_DEP_SELECTOR_WEIGHT
+            } else {
+                RESOLVED_VERSION_SELECTOR_WEIGHT
+            };
             for version in found {
                 record_weighted_version(&mut versions, version.as_str(), weight);
             }
@@ -233,13 +237,45 @@ fn record_weighted_version<'a>(versions: &mut Vec<(&'a str, u32)>, version: &'a 
     }
 }
 
-/// Selector weight applied to direct dependencies.
-pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000;
+/// The weight of a version the wanted lockfile pins.
+///
+/// A selector's weight is the sum of the weights of its sources, one per
+/// tier, so the sum orders the tiers and a version with several sources
+/// outranks one with fewer. The picker takes the heaviest satisfying
+/// version, highest first on a tie. Highest tier first:
+///
+/// 1. [`REQUESTED_VERSION_SELECTOR_WEIGHT`]: a version named on the
+///    command line, or locked by the lockfile `pnpm import` reads.
+/// 2. [`DIRECT_DEP_SELECTOR_WEIGHT`]: a specifier a project manifest
+///    declares.
+/// 3. [`RESOLVED_VERSION_SELECTOR_WEIGHT`]: a version this install already
+///    resolved higher in the dependency chain, so a range dedupes onto it.
+/// 4. [`EXISTING_VERSION_SELECTOR_WEIGHT`]: a version the wanted lockfile
+///    pins. It breaks the tie against the versions nothing else prefers,
+///    so an unchanged edge keeps its pin and a re-resolved edge lands
+///    where a fresh install lands.
+///
+/// Each tier is a digit of a base-1000 number, so a tier's sources must
+/// not add up past it. [`pinned_by_lockfile`] reads the lowest digit.
+pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1;
 
-/// Selector weight applied to versions already pinned in the wanted
-/// lockfile. Must outrank [`DIRECT_DEP_SELECTOR_WEIGHT`] so that
-/// existing pins stick across an add of a fresh range.
-pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000;
+/// The weight of a version resolved higher in the dependency chain. See
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`].
+pub const RESOLVED_VERSION_SELECTOR_WEIGHT: u32 = 1_000;
+
+/// The weight of a specifier a project manifest declares. See
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`].
+pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000_000;
+
+/// The weight of a version named on the command line. See
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`].
+pub const REQUESTED_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000_000;
+
+/// Whether the wanted lockfile contributes to `weight`.
+#[must_use]
+pub const fn pinned_by_lockfile(weight: u32) -> bool {
+    !weight.is_multiple_of(RESOLVED_VERSION_SELECTOR_WEIGHT)
+}
 
 /// One project in the current workspace that resolution can satisfy
 /// `workspace:`-protocol entries from.

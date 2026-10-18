@@ -9,7 +9,7 @@ import { isError, PnpmError } from '@pnpm/error'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
 import { getLockfileImporterId, getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { type PreferredVersions, REQUESTED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import {
   createStoreController,
   type CreateStoreControllerOptions,
@@ -218,7 +218,7 @@ function checkWorkspaceCycles (
 // every workspace project contributes, as the pins of a pnpm lockfile do.
 const IMPORTED_VERSION_SELECTOR = {
   selectorType: 'version',
-  weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+  weight: REQUESTED_VERSION_SELECTOR_WEIGHT,
 } as const
 
 async function nestedYarnLockPreferredVersions (

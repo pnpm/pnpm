@@ -25,12 +25,14 @@ pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
     GuardExhaustionPolicy, LatestInfo, LatestQuery, NonDeprecatedAlternative, PackageVersionGuard,
     PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
-    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay, ResolutionPolicyOptions,
+    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay,
+    REQUESTED_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT, ResolutionPolicyOptions,
     ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, ResolvedPackageInfo, Resolver, ResolverProjectOptions, ResolverSpecifierOptions,
     SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, VersionSelectorEntry,
     VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, pinned_by_lockfile,
+    resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use unsupported_protocol::UnsupportedProtocolError;

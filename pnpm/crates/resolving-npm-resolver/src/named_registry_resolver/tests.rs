@@ -403,7 +403,7 @@ async fn update_requested_keeps_non_version_selectors() {
             pnpm_resolving_resolver_base::VersionSelectorEntry::Weighted(
                 pnpm_resolving_resolver_base::VersionSelectorWithWeight {
                     selector_type: pnpm_resolving_resolver_base::VersionSelectorType::Range,
-                    weight: 1000,
+                    weight: pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT,
                 },
             ),
         );

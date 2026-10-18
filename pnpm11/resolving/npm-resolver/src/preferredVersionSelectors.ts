@@ -2,6 +2,7 @@ import { globalWarn } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
+  pinnedByLockfile,
   type VersionSelectors,
 } from '@pnpm/resolving.resolver-base'
 
@@ -44,7 +45,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
   let kept: VersionSelectors | undefined
   for (const [selector, value] of Object.entries(selectors)) {
     let keptValue = value
-    if (typeof value !== 'string' && value.selectorType === 'version' && value.weight >= EXISTING_VERSION_SELECTOR_WEIGHT) {
+    if (typeof value !== 'string' && value.selectorType === 'version' && pinnedByLockfile(value.weight)) {
       const manifestWeight = value.weight - EXISTING_VERSION_SELECTOR_WEIGHT
       if (manifestWeight <= 0) continue
       keptValue = { selectorType: 'version', weight: manifestWeight }

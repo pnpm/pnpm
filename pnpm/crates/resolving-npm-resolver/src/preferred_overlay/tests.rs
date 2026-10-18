@@ -10,8 +10,8 @@ use pnpm_lockfile::{LockfileResolution, RegistryResolution};
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions, PreferredVersionsOverlay,
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors,
+    RESOLVED_VERSION_SELECTOR_WEIGHT, ResolveOptions, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
@@ -122,7 +122,7 @@ fn warns_when_a_manifest_pin_is_the_reason_for_the_held_back_pick() {
         "2.1.3".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     )]);
     let preferred = held_back_preferred(
@@ -141,7 +141,7 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
         "2.1.3".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     )]);
     let opts = ResolveOptions {
@@ -206,14 +206,14 @@ fn overlay_merged_selectors_bumps_weight_of_existing_version() {
         "100.0.0".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     );
     selectors.insert(
         "100.1.0".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     );
     preferred.insert("foo".to_string(), selectors);
@@ -240,14 +240,14 @@ fn overlay_merged_selectors_bumps_weight_of_existing_version() {
         foo_100_0,
         &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000 + DIRECT_DEP_SELECTOR_WEIGHT,
+            weight: 2 * DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     );
     assert_eq!(
         foo_100_1,
         &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     );
 }
@@ -330,7 +330,7 @@ fn overlay_merged_selectors_weights_root_layer_higher_than_descendant_layer() {
         bar_entry,
         &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1,
+            weight: RESOLVED_VERSION_SELECTOR_WEIGHT,
         }),
     );
 }
@@ -355,7 +355,7 @@ fn overlay_descendant_without_parent_layer_retains_descendant_weight() {
         bar_entry,
         &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1,
+            weight: RESOLVED_VERSION_SELECTOR_WEIGHT,
         }),
     );
 }

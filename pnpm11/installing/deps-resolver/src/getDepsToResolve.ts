@@ -13,9 +13,10 @@ import {
 import { logger } from '@pnpm/logger'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
-  EXISTING_VERSION_SELECTOR_WEIGHT,
+  pinnedByLockfile,
   type PkgResolutionId,
   type PreferredVersions,
+  REQUESTED_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
 } from '@pnpm/resolving.resolver-base'
 import type { RegistryContext } from '@pnpm/types'
@@ -152,10 +153,8 @@ function reuseOrRaisePinnedReference (
       preferredVersions: lookup.preferredVersions,
     })
   if (higherDirectVersion == null) return { reference: pinnedRef }
-  // `preferredVersion` (singular) overrides the
-  // EXISTING_VERSION_SELECTOR_WEIGHT stability bias that would
-  // otherwise re-pick the lower version. The lower version is then
-  // never resolved or fetched.
+  // `preferredVersion` (singular) pins the pick to the higher version, so
+  // the lower version is never resolved or fetched.
   return { proceed: true, preferredVersion: higherDirectVersion }
 }
 
@@ -309,7 +308,8 @@ function getDirectDepVersionsFromSelectors (selectors: VersionSelectors | undefi
       selector !== null &&
       selector.selectorType === 'version' &&
       selector.weight >= DIRECT_DEP_SELECTOR_WEIGHT &&
-      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT)
+      selector.weight < REQUESTED_VERSION_SELECTOR_WEIGHT &&
+      !pinnedByLockfile(selector.weight))
     .map(([candidate]) => candidate)
 }
 

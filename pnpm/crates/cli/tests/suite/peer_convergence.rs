@@ -746,35 +746,9 @@ fn peer_provided_by_a_dependency_moves() {
             alias: "provider",
             to: "npm:@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0",
         }],
-        vec![
-            Divergence {
-                issue: LOCKFILE_ONLY_VERSION_ISSUE,
-                check: Check::MoveBack,
-                rows: |row| !row.auto_dedupe,
-                paths: LOCKFILE_ONLY_VERSION_PATHS,
-            },
-            Divergence {
-                issue: LOCKFILE_ONLY_VERSION_ISSUE,
-                check: Check::Incremental,
-                rows: |row| row.auto_install_peers && !row.auto_dedupe,
-                paths: LOCKFILE_ONLY_VERSION_PATHS,
-            },
-        ],
+        vec![],
     );
 }
-
-const LOCKFILE_ONLY_VERSION_ISSUE: &str = "https://github.com/pnpm/pnpm/issues/17084";
-
-/// `requires-any-foo` resolves `*` to the version only the lockfile holds,
-/// and the peer binds to it.
-const LOCKFILE_ONLY_VERSION_PATHS: &[&str] = &[
-    "importers > packages/app > dependencies > @pnpm.e2e/has-foo100-peer > version ",
-    "packages > @pnpm.e2e/foo@100.1.0 >",
-    "snapshots > @pnpm.e2e/foo@100.1.0 ",
-    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(@pnpm.e2e/foo@100.0.0) ",
-    "snapshots > @pnpm.e2e/has-foo100-peer@1.0.0(@pnpm.e2e/foo@100.1.0) ",
-    "snapshots > @pnpm.e2e/requires-any-foo@1.0.0 > dependencies > @pnpm.e2e/foo ",
-];
 
 /// The only provider of the required peer is a workspace dependency's own
 /// dependency, so an auto-installed peer follows it (pnpm/tasks#61).

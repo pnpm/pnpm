@@ -1,6 +1,6 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import {
-  EXISTING_VERSION_SELECTOR_WEIGHT,
+  RESOLVED_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
   type VersionSelectorType,
 } from '@pnpm/resolving.resolver-base'
@@ -34,111 +34,80 @@ function isExactVersionSelectorInRange (
   return preferredSelectorInfo(value).selectorType === 'version' && semverSatisfiesLoose(selector, versionRange)
 }
 
+/**
+ * The exact selector a pick for `versionRange` is proven to land on, whatever
+ * the registry publishes after the packument was cached. Each exact selector
+ * that satisfies the range is guaranteed its own weight plus every preferred
+ * range it satisfies. The heaviest must exceed what the range and tag
+ * selectors could give any other version, and every other exact selector must
+ * stay below it even with every tag's weight added, so a tie never qualifies.
+ * `null` when no exact selector satisfies the range, a weight is not a
+ * positive safe integer, or the proof does not hold.
+ */
 export function getDominantLockfileVersion (
   versionRange: string,
   preferredVersionSelectors?: VersionSelectors
 ): string | null {
   if (preferredVersionSelectors == null) return null
-  const lockfileVersion = findSoleLockfileVersion(versionRange, preferredVersionSelectors)
-  if (lockfileVersion == null) return null
-  return lockfileVersionOutweighsOthers({ lockfileVersion, preferredVersionSelectors, versionRange })
-    ? lockfileVersion
-    : null
+  const weights = collectSelectorWeights(versionRange, preferredVersionSelectors)
+  if (weights == null) return null
+  const exact = weights.exact.map(([version, weight]): [string, number] => [
+    version,
+    weight + sumWeights(weights.ranges.filter(([range]) => semverSatisfiesLoose(version, range))),
+  ])
+  const movable = weights.tags + sumWeights(weights.ranges)
+  const winner = exact.reduce<[string, number] | null>((best, entry) => (best == null || entry[1] > best[1]) ? entry : best, null)
+  return winner != null && isProvenWinner(winner, { exact, movable, tags: weights.tags }) ? winner[0] : null
 }
 
-/**
- * The single version selector carrying the lockfile weight within
- * `versionRange`. `null` when there is none, more than one, or any selector
- * carries a weight the dominance proof cannot reason about.
- */
-function findSoleLockfileVersion (
-  versionRange: string,
-  preferredVersionSelectors: VersionSelectors
-): string | null {
-  let lockfileVersion: string | null = null
-  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+interface SelectorWeights {
+  exact: Array<[string, number]>
+  ranges: Array<[string, number]>
+  tags: number
+}
+
+function collectSelectorWeights (versionRange: string, selectors: VersionSelectors): SelectorWeights | null {
+  const weights: SelectorWeights = { exact: [], ranges: [], tags: 0 }
+  for (const [selector, value] of Object.entries(selectors)) {
     if (selector === versionRange) continue
-    const selectorInfo = preferredSelectorInfo(value)
-    if (!isPositiveSafeWeight(selectorInfo.weight)) return null
-    if (!isLockfileVersionSelector(selector, selectorInfo, versionRange)) continue
-    if (lockfileVersion != null) return null
-    lockfileVersion = selector
+    const info = preferredSelectorInfo(value)
+    if (!isPositiveSafeWeight(info.weight)) return null
+    addSelectorWeight(weights, { info, selector, versionRange })
   }
-  return lockfileVersion
+  return weights
+}
+
+function addSelectorWeight (
+  weights: SelectorWeights,
+  { info: { selectorType, weight }, selector, versionRange }: { info: PreferredSelectorInfo, selector: string, versionRange: string }
+): void {
+  switch (selectorType) {
+    case 'version':
+      if (semverSatisfiesLoose(selector, versionRange)) weights.exact.push([selector, weight])
+      break
+    case 'range':
+      weights.ranges.push([selector, weight])
+      break
+    case 'tag':
+      weights.tags += weight
+      break
+  }
+}
+
+function isProvenWinner (
+  [winner, top]: [string, number],
+  { exact, movable, tags }: { exact: Array<[string, number]>, movable: number, tags: number }
+): boolean {
+  if (!Number.isSafeInteger(top) || !Number.isSafeInteger(movable) || top <= movable) return false
+  return exact.every(([version, weight]) => version === winner || weight + tags < top)
+}
+
+function sumWeights (entries: Array<[string, number]>): number {
+  return entries.reduce((sum, [, weight]) => sum + weight, 0)
 }
 
 function isPositiveSafeWeight (weight: number): boolean {
   return Number.isSafeInteger(weight) && weight > 0
-}
-
-function isLockfileVersionSelector (
-  selector: string,
-  { selectorType, weight }: PreferredSelectorInfo,
-  versionRange: string
-): boolean {
-  return selectorType === 'version' &&
-    weight >= EXISTING_VERSION_SELECTOR_WEIGHT &&
-    semverSatisfiesLoose(selector, versionRange)
-}
-
-interface LockfileDominanceInput {
-  lockfileVersion: string
-  preferredVersionSelectors: VersionSelectors
-  versionRange: string
-}
-
-interface LockfileVersionWeights {
-  guaranteedLockfileWeight: number
-  maximumOtherVersionWeight: number
-}
-
-function lockfileVersionOutweighsOthers (input: LockfileDominanceInput): boolean {
-  const weights: LockfileVersionWeights = { guaranteedLockfileWeight: 0, maximumOtherVersionWeight: 0 }
-  for (const [selector, value] of Object.entries(input.preferredVersionSelectors)) {
-    if (selector === input.versionRange) continue
-    addSelectorWeight(weights, { input, selector, selectorInfo: preferredSelectorInfo(value) })
-    if (
-      !Number.isSafeInteger(weights.guaranteedLockfileWeight) ||
-      !Number.isSafeInteger(weights.maximumOtherVersionWeight)
-    ) return false
-  }
-  return weights.guaranteedLockfileWeight > weights.maximumOtherVersionWeight
-}
-
-function addSelectorWeight (
-  weights: LockfileVersionWeights,
-  { input: { lockfileVersion, versionRange }, selector, selectorInfo: { selectorType, weight } }: {
-    input: LockfileDominanceInput
-    selector: string
-    selectorInfo: PreferredSelectorInfo
-  }
-): void {
-  switch (selectorType) {
-    case 'version':
-      if (selector === lockfileVersion) {
-        weights.guaranteedLockfileWeight += weight
-      } else if (
-        weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
-        semverSatisfiesLoose(selector, versionRange)
-      ) {
-        weights.maximumOtherVersionWeight += weight
-      }
-      break
-    case 'range':
-      if (semverSatisfiesLoose(lockfileVersion, selector)) {
-        weights.guaranteedLockfileWeight += weight
-      }
-      // Conservatively assume an unseen version can satisfy every preferred
-      // range, even when proving range intersection would be more precise.
-      weights.maximumOtherVersionWeight += weight
-      break
-    case 'tag':
-      // A registry can move a tag between requests. Do not count its current
-      // target toward the lockfile version, and assume all tags could move to
-      // the same unseen version.
-      weights.maximumOtherVersionWeight += weight
-      break
-  }
 }
 
 interface PreferredSelectorInfo {
@@ -150,6 +119,6 @@ export function preferredSelectorInfo (
   value: VersionSelectors[string]
 ): PreferredSelectorInfo {
   return typeof value === 'string'
-    ? { selectorType: value, weight: 1 }
+    ? { selectorType: value, weight: RESOLVED_VERSION_SELECTOR_WEIGHT }
     : value
 }

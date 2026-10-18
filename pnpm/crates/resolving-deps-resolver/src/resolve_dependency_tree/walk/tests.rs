@@ -220,7 +220,8 @@ mod fallback_manifest {
 mod overlay_view {
     use super::super::locked_versions::overlay_version_view;
     use pnpm_resolving_resolver_base::{
-        DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersionsOverlay, WantedDependency,
+        DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersionsOverlay, RESOLVED_VERSION_SELECTOR_WEIGHT,
+        WantedDependency,
     };
     use std::collections::BTreeMap;
 
@@ -250,7 +251,13 @@ mod overlay_view {
             direct_view,
             vec![("foo".to_string(), vec![("1.0.0".to_string(), DIRECT_DEP_SELECTOR_WEIGHT)])],
         );
-        assert_eq!(descendant_view, vec![("foo".to_string(), vec![("1.0.0".to_string(), 1)])]);
+        assert_eq!(
+            descendant_view,
+            vec![(
+                "foo".to_string(),
+                vec![("1.0.0".to_string(), RESOLVED_VERSION_SELECTOR_WEIGHT)],
+            )],
+        );
         assert_ne!(direct_view, descendant_view);
     }
 }

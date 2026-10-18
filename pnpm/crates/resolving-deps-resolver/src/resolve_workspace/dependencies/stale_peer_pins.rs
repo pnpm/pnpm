@@ -8,7 +8,7 @@ use pnpm_lockfile::{Lockfile, PkgName};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    VersionSelectorWithWeight, VersionSelectors, pinned_by_lockfile,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::sync::Arc;
@@ -198,7 +198,7 @@ fn remove_lockfile_weight(selectors: &mut VersionSelectors, version: &str) {
     else {
         return;
     };
-    if *weight < EXISTING_VERSION_SELECTOR_WEIGHT {
+    if !pinned_by_lockfile(*weight) {
         return;
     }
     *weight -= EXISTING_VERSION_SELECTOR_WEIGHT;
