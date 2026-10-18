@@ -17,7 +17,7 @@ while read -r local_ref local_oid remote_ref remote_oid; do
     range="$remote_oid..$local_oid"
   fi
 
-  files=$(git -c core.quotePath=false log --pretty=format: --name-only $range 2>/dev/null | sort -u)
+  files=$(git -c core.quotePath=false log --no-renames --pretty=format: --name-only $range 2>/dev/null | sort -u)
   if printf '%s\n' "$files" | grep -q -E '^(pnpm|pnpr)/'; then
     rust_changed=1
   fi
