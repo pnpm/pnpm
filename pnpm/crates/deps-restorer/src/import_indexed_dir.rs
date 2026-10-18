@@ -89,6 +89,12 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to lock existing target {path:?} before swap: {error}")]
+    AcquireSwapLock {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
     #[display("failed to remove existing directory {path:?} prior to swap: {error}")]
     RemoveExisting {
         path: PathBuf,
