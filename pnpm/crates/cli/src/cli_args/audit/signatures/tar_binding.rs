@@ -114,6 +114,15 @@ impl PendingTie<'_> {
                 self.pkg.name, self.pkg.version,
             ));
         };
+        let pins_bytes = self.lockfile_integrity
+            .parse::<Integrity>()
+            .is_ok_and(|integrity| !integrity.hashes.is_empty());
+        if !pins_bytes {
+            return Err(format!(
+                "{}@{} has a lockfile integrity that pins no archive",
+                self.pkg.name, self.pkg.version,
+            ));
+        }
         let tied = signed == self.lockfile_integrity
             || stored
                 .get(&store_index_key(signed, &self.package_id()))
