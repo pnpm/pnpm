@@ -285,32 +285,12 @@ snapshots:
     )
     .expect("write lockfile");
 
-    let listed_names = |args: &[&str]| -> Vec<String> {
-        let output = pacquet_in(&workspace.path().join("bar"))
-            .args(args)
-            .output()
-            .expect("run licenses");
-        assert!(
-            output.status.success(),
-            "licenses should succeed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
-            .iter()
-            .map(|package| {
-                package["name"]
-                    .as_str()
-                    .expect("package name")
-                    .to_string()
-            })
-            .collect()
-    };
-
-    assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
-    assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
+    let project_dir = workspace.path().join("bar");
+    assert_eq!(listed_names(&project_dir, &["licenses", "list", "--json"]), ["zeta"]);
+    assert_eq!(
+        listed_names(&project_dir, &["--recursive", "licenses", "list", "--json"]),
+        ["alpha", "zeta"],
+    );
 }
 
 #[test]
@@ -357,32 +337,14 @@ snapshots:
         .expect("write package manifest");
     }
 
-    let listed_names = |args: &[&str]| -> Vec<String> {
-        let output = pacquet_in(workspace.path())
-            .args(args)
-            .output()
-            .expect("run licenses");
-        assert!(
-            output.status.success(),
-            "licenses should succeed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
-            .iter()
-            .map(|package| {
-                package["name"]
-                    .as_str()
-                    .expect("package name")
-                    .to_string()
-            })
-            .collect()
-    };
-
-    assert_eq!(listed_names(&["licenses", "list", "--json", "--prod"]), ["alpha", "native"]);
-    assert_eq!(listed_names(&["licenses", "list", "--json", "--prod", "--no-optional"]), ["alpha"]);
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod"]),
+        ["alpha", "native"],
+    );
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod", "--no-optional"]),
+        ["alpha"],
+    );
 }
 
 fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
@@ -450,9 +412,10 @@ snapshots:
     workspace
 }
 
-fn listed_paths(workspace: &tempfile::TempDir) -> Value {
-    let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+/// The `MIT` group of `pnpm licenses list --json` run with `args` in `dir`.
+fn listed_mit_packages(dir: &Path, args: &[&str]) -> Vec<Value> {
+    let output = pacquet_in(dir)
+        .args(args)
         .output()
         .expect("run licenses");
     assert!(
@@ -461,10 +424,27 @@ fn listed_paths(workspace: &tempfile::TempDir) -> Value {
         String::from_utf8_lossy(&output.stderr),
     );
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    report["MIT"]
+        .as_array()
+        .expect("MIT group")
+        .clone()
+}
+
+fn listed_names(dir: &Path, args: &[&str]) -> Vec<String> {
+    listed_mit_packages(dir, args)
+        .iter()
+        .map(|package| {
+            package["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
+}
+
+fn listed_paths(workspace: &tempfile::TempDir) -> Value {
     Value::Array(
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
+        listed_mit_packages(workspace.path(), &["licenses", "list", "--json"])
             .iter()
             .map(|package| package["paths"][0].clone())
             .collect(),
