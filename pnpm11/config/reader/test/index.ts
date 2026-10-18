@@ -2675,20 +2675,29 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
   })
 
-  const { config } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      XDG_CONFIG_HOME: path.resolve('.config'),
-      pnpm_config__auth: JSON.stringify({
-        'https://registry.npmjs.org': {
-          '@victim-scope': { authToken: 'secret-token' },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-    workspaceDir: process.cwd(),
-  })
+  // The global config dir is resolved from process.env, not from the env
+  // passed to getConfig.
+  const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = path.resolve('.config')
+  let config: Config
+  try {
+    ({ config } = await getConfig({
+      cliOptions: {},
+      env: {
+        ...env,
+        XDG_CONFIG_HOME: path.resolve('.config'),
+        pnpm_config__auth: JSON.stringify({
+          'https://registry.npmjs.org': {
+            '@victim-scope': { authToken: 'secret-token' },
+          },
+        }),
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
+  } finally {
+    process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+  }
 
   // `_auth` routes sit above global config.yaml in the registries merge, so a
   // user's global registry alias cannot rebind an `_auth` token's host.
