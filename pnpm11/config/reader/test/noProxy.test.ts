@@ -1,3 +1,4 @@
+import { expect, test } from '@jest/globals'
 import type { PnpmSettings } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../src/getOptionsFromRootManifest.js'
@@ -6,7 +7,7 @@ test.each([
   [123, 'number'],
   [['localhost'], 'array'],
   [{ host: 'localhost' }, 'object'],
-])('rejects invalid noProxy value %j', (value, receivedType) => {
+])('rejects invalid noProxy value %j', (value: unknown, receivedType: string) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     noProxy: value,
   } as unknown as PnpmSettings)).toThrow(expect.objectContaining({

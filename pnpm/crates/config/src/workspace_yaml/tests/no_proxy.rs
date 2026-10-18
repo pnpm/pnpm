@@ -6,15 +6,12 @@ fn rejects_invalid_no_proxy_types() {
         [("123", "number"), ("[]", "array"), ("{host: localhost}", "object")]
     {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(
-            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-            format!("noProxy: {value}\n"),
-        )
-        .unwrap();
+        fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), format!("noProxy: {value}\n"))
+            .unwrap();
         let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
         dbg!(&error);
-        let expected = format!("The \"noProxy\" setting should be a boolean or string, but got {expected_type}");
-        assert_eq!(error.to_string(), expected);
+        let prefix = r#"The "noProxy" setting should be a boolean or string, but got"#;
+        assert_eq!(error.to_string(), format!("{prefix} {expected_type}"));
     }
 }
 
@@ -22,11 +19,8 @@ fn rejects_invalid_no_proxy_types() {
 fn accepts_no_proxy_strings_booleans_and_null() {
     for value in ["true", "false", "''", "'null'", "'localhost,127.0.0.1'", "null"] {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(
-            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-            format!("noProxy: {value}\n"),
-        )
-        .unwrap();
+        fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), format!("noProxy: {value}\n"))
+            .unwrap();
         let settings = WorkspaceSettings::load_at(dir.path()).unwrap().unwrap();
         let expected = serde_saphyr::from_str::<Option<serde_json::Value>>(value).unwrap();
         assert_eq!(settings.no_proxy, expected);
@@ -36,7 +30,8 @@ fn accepts_no_proxy_strings_booleans_and_null() {
 #[test]
 fn skips_invalid_no_proxy_without_dropping_other_settings() {
     let mut settings: WorkspaceSettings =
-        serde_saphyr::from_str("noProxy: [localhost]\nregistry: https://registry.example/\n").unwrap();
+        serde_saphyr::from_str("noProxy: [localhost]\nregistry: https://registry.example/\n")
+            .unwrap();
     settings.validate_sections(true).unwrap();
     assert_eq!(settings.no_proxy, None);
     assert_eq!(settings.registry.as_deref(), Some("https://registry.example/"));
@@ -53,9 +48,10 @@ fn global_no_proxy_is_validated_and_can_be_skipped() {
     let error = WorkspaceSettings::load_global(dir.path()).unwrap_err();
     dbg!(&error);
     assert!(matches!(error, LoadWorkspaceYamlError::InvalidNoProxy { received_type: "array" }));
-    let settings = WorkspaceSettings::load_global_skipping_unreadable(dir.path(), true)
-        .unwrap()
-        .unwrap();
+    let settings =
+        WorkspaceSettings::load_global_reading(dir.path(), crate::SettingsRead::Readable)
+            .unwrap()
+            .unwrap();
     assert_eq!(settings.no_proxy, None);
     assert_eq!(settings.registry.as_deref(), Some("https://registry.example/"));
 }
