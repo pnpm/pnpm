@@ -340,10 +340,11 @@ that declares no teams returns an empty array.
 
 ## User and token endpoints
 
-These endpoints are **always mounted**, whichever surfaces are enabled, and
-they are global — served identically on the server root, on the npm base, and
-under any `/~<name>/` prefix of either. `pnpm login` therefore works against any pnpr URL,
-including a resolver-only server that exposes no registry surface.
+These endpoints are **always mounted** on the server root and under any
+`/~<name>/` prefix, whichever surfaces are enabled. A server with an npm
+registry also serves them under `/npm/` and `/npm/~<name>/`. `pnpm login`
+therefore works against a pnpr npm registry URL, and against the root of a
+resolver-only server that exposes no registry surface.
 
 | Method | Path | Description |
 | --- | --- | --- |

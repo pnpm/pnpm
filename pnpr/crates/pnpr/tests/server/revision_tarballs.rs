@@ -112,7 +112,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
     let redirect = upstream
         .mock("GET", format!("/{revision_path}").as_str())
         .with_status(302)
-        .with_header("location", "/npm/redirected.tgz")
+        .with_header("location", "/redirected.tgz")
         .expect(1)
         .create_async()
         .await;
