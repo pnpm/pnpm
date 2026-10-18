@@ -1,6 +1,8 @@
 use super::{
     FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
-    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, populate_dir,
+    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir,
+    exact::all_imported_entries_match_exactly,
+    file_fits_at, populate_dir,
     symlinks::{SymlinkRoots, final_link_target},
 };
 use pnpm_config::PackageImportMethod;
@@ -16,6 +18,33 @@ use tempfile::tempdir;
 /// Keyed by absolute path, so tests sharing the process only ever read
 /// their own directories.
 static DIRECTORY_WRITERS: Mutex<BTreeMap<PathBuf, DirectoryWriters>> = Mutex::new(BTreeMap::new());
+
+#[test]
+fn exact_import_match_rejects_extra_files() {
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    let target = root.path().join("package");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let manifest = store.join("package.json");
+    let source = store.join("index.js");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::write(&source, b"content").unwrap();
+    fs::copy(&manifest, target.join("package.json")).unwrap();
+    fs::copy(&source, target.join("index.js")).unwrap();
+    let cas_paths =
+        HashMap::from([("package.json".to_string(), manifest), ("index.js".to_string(), source)]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+    let stale_file = target.join("stale.js");
+    fs::write(&stale_file, b"stale").unwrap();
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::remove_file(stale_file).unwrap();
+    fs::create_dir(target.join("node_modules")).unwrap();
+    fs::write(target.join("node_modules/kept"), b"dependency").unwrap();
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, true));
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
 
 #[derive(Default)]
 pub(super) struct DirectoryWriters {

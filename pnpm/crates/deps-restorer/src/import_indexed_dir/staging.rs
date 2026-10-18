@@ -62,7 +62,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     keep_modules_dir: bool,
     preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    let paths = StagePaths::new(dir_path);
+    let paths = StagePaths::new(dir_path, keep_modules_dir);
     populate_staging_dir::<Reporter>(
         logged_methods,
         import_method,
@@ -133,15 +133,17 @@ pub(super) struct StagePaths {
     modules_backup: PathBuf,
     target_modules: PathBuf,
     stage_modules: PathBuf,
+    keep_modules_dir: bool,
 }
 impl StagePaths {
-    fn new(dir_path: &Path) -> Self {
+    fn new(dir_path: &Path, keep_modules_dir: bool) -> Self {
         let stage = pick_stage_path(dir_path);
         StagePaths {
             modules_backup: pick_stage_path(dir_path),
             target_modules: dir_path.join("node_modules"),
             stage_modules: stage.join("node_modules"),
             stage,
+            keep_modules_dir,
         }
     }
 

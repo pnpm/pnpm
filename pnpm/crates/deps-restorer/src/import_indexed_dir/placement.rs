@@ -1,3 +1,4 @@
+pub(super) mod exact;
 pub(super) mod symlinks;
 
 use super::{
@@ -405,6 +406,7 @@ pub(super) fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathB
             .filter(|(entry, _)| entry.as_str() != crate::NEEDS_BUILD_MARKER)
             .all(|(entry, store_path)| file_matches_store_entry(&dir_path.join(entry), store_path))
 }
+
 /// Whether `target` already carries `store_path`'s content. Imports that
 /// hardlink or reflink share the store file, which settles it without a
 /// read; the copy tier falls back to comparing size and then bytes, the

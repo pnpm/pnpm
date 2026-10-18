@@ -20,6 +20,7 @@ import {
 } from './fileMapUtils.js'
 import {
   allFilesMatch,
+  allImportedEntriesMatchExactly,
   allSymlinksMatch,
   repairIndexedDir,
 } from './repairIndexedDir.js'
@@ -115,7 +116,7 @@ function commitStagedDir (
       renameOverwriteSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
-    if (allFilesMatch(newDir, filenames) && allSymlinksMatch(newDir, symlinks)) {
+    if (allImportedEntriesMatchExactly({ dir: newDir, filenames, symlinks, keepModulesDir })) {
       if (keepModulesDir) {
         moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
       }

@@ -90,6 +90,52 @@ export function allSymlinksMatch (dir: string, symlinks: Map<string, string> | u
   return true
 }
 
+export function allImportedEntriesMatchExactly ({
+  dir,
+  filenames,
+  symlinks,
+  keepModulesDir,
+}: {
+  dir: string
+  filenames: Map<string, string>
+  symlinks: Map<string, string> | undefined
+  keepModulesDir: boolean
+}): boolean {
+  if (!allFilesMatch(dir, filenames) || !allSymlinksMatch(dir, symlinks)) return false
+
+  const expectedEntries = new Set([...filenames.keys(), ...(symlinks?.keys() ?? [])]
+    .filter(entry => !keepModulesDir || entry !== 'node_modules' && !entry.startsWith('node_modules/')))
+  const actualEntries = new Set<string>()
+  try {
+    collectDirectoryEntries({ root: dir, directory: dir, entries: actualEntries, preserveNodeModules: keepModulesDir })
+  } catch {
+    return false
+  }
+  return actualEntries.size === expectedEntries.size && [...expectedEntries].every(entry => actualEntries.has(entry))
+}
+
+function collectDirectoryEntries ({
+  root,
+  directory,
+  entries,
+  preserveNodeModules,
+}: {
+  root: string
+  directory: string
+  entries: Set<string>
+  preserveNodeModules: boolean
+}): void {
+  for (const dirent of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, dirent.name)
+    if (dirent.isDirectory()) {
+      if (preserveNodeModules && directory === root && dirent.name === 'node_modules') continue
+      collectDirectoryEntries({ root, directory: entryPath, entries, preserveNodeModules })
+    } else {
+      entries.add(path.relative(root, entryPath).split(path.sep).join('/'))
+    }
+  }
+}
+
 export function symlinkMatches (dest: string, target: string): boolean {
   try {
     return fs.readlinkSync(dest) === target

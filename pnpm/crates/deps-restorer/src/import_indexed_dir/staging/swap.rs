@@ -1,7 +1,8 @@
 use super::{
-    super::{ImportIndexedDirError, PreservedModules, all_files_match},
+    super::{ImportIndexedDirError, PreservedModules},
     StagePaths, discard_replaced_modules,
 };
+use crate::import_indexed_dir::placement::exact::all_imported_entries_match_exactly;
 use std::{
     collections::HashMap,
     io,
@@ -18,7 +19,12 @@ pub(super) fn replace_target(
     cas_paths: &HashMap<String, PathBuf>,
     preserved_modules: &PreservedModules,
 ) -> Result<(), ImportIndexedDirError> {
-    match remove_target_for_swap(dir_path, cas_paths, !preserved_modules.has_moved_data()) {
+    match remove_target_for_swap(
+        dir_path,
+        cas_paths,
+        !preserved_modules.has_moved_data(),
+        paths.keep_modules_dir,
+    ) {
         Ok(true) => {
             finish_concurrent_import(paths, preserved_modules);
             return Ok(());
@@ -60,7 +66,12 @@ fn swap_staged_dir(
                 "concurrent package import did not settle",
             ));
         }
-        if remove_target_for_swap(dir_path, cas_paths, !preserved_modules.has_moved_data())? {
+        if remove_target_for_swap(
+            dir_path,
+            cas_paths,
+            !preserved_modules.has_moved_data(),
+            paths.keep_modules_dir,
+        )? {
             finish_concurrent_import(paths, preserved_modules);
             return Ok(());
         }
@@ -80,7 +91,14 @@ fn try_rename(
             Ok(true)
         }
         Err(error) if !is_rename_target_collision(&error) => Err(error),
-        Err(_) if !preserved_modules.has_moved_data() && all_files_match(dir_path, cas_paths) => {
+        Err(_)
+            if !preserved_modules.has_moved_data()
+                && all_imported_entries_match_exactly(
+                    dir_path,
+                    cas_paths,
+                    paths.keep_modules_dir,
+                ) =>
+        {
             finish_concurrent_import(paths, preserved_modules);
             Ok(true)
         }
@@ -92,6 +110,7 @@ fn remove_target_for_swap(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     accept_complete: bool,
+    preserve_node_modules: bool,
 ) -> Result<bool, io::Error> {
     let retry_deadline = Instant::now() + DIRECTORY_SWAP_RETRY_BUDGET;
     loop {
@@ -101,7 +120,11 @@ fn remove_target_for_swap(
             Err(error)
                 if is_directory_swap_collision(&error)
                     && accept_complete
-                    && all_files_match(dir_path, cas_paths) =>
+                    && all_imported_entries_match_exactly(
+                        dir_path,
+                        cas_paths,
+                        preserve_node_modules,
+                    ) =>
             {
                 return Ok(true);
             }

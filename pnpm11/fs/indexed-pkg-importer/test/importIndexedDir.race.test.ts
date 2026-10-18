@@ -253,3 +253,30 @@ test('a staged import accepts an equivalent directory installed by a concurrent 
   )).not.toThrow()
   expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('content')
 })
+
+test('a staged import rejects a concurrent directory with extra files', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(srcDir, 'index.js'), 'content')
+  fs.mkdirSync(newDir)
+
+  renameOverwriteSyncMock.mockImplementationOnce((_stage, target) => {
+    fs.writeFileSync(path.join(target as string, 'package.json'), '{"name":"pkg"}')
+    fs.writeFileSync(path.join(target as string, 'index.js'), 'content')
+    fs.writeFileSync(path.join(target as string, 'stale.js'), 'stale')
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['package.json', path.join(srcDir, 'package.json')],
+      ['index.js', path.join(srcDir, 'index.js')],
+    ]),
+    {}
+  )).toThrow(/ENOTEMPTY/)
+})
