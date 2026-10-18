@@ -69,11 +69,11 @@ async fn download_unmaterialized_crates<Reporter: self::Reporter + 'static>(
 ) -> Result<Vec<(String, PathBuf)>> {
     let store_index =
         StoreIndex::shared_for(&options.config.store_dir, options.config.frozen_store);
-    let store_dir = options.config.store_dir;
+    let store_dir = &options.config.store_dir;
     let packages = std::mem::take(&mut options.packages);
     let completed_index = store_index.clone();
     let (completed_slots, packages) = tokio::task::spawn_blocking(move || {
-        partition_materialized_crates(packages, &store_dir, completed_index.as_ref())
+        partition_materialized_crates(packages, store_dir, completed_index.as_ref())
     })
     .await
     .into_diagnostic()
