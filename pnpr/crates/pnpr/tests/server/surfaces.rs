@@ -409,6 +409,24 @@ async fn readiness_and_liveness_endpoints_report_status() {
 }
 
 #[tokio::test]
+async fn npm_ping_answers_at_the_npm_registry_url() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://upstream.invalid", tmp.path().to_path_buf()));
+    for path in ["/npm/-/ping", "/npm/~hosted/-/ping"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+    }
+}
+
+#[tokio::test]
 async fn readiness_probe_fails_when_storage_is_inaccessible() {
     let tmp = TempDir::new().unwrap();
     // Create a regular file so that a child path cannot be created as a directory (ENOTDIR)
