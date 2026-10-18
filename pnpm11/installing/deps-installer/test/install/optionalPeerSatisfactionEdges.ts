@@ -177,6 +177,24 @@ test('a production install classifies an optional peer that the workspace root l
   expect(fs.existsSync(path.join(abcNodeModulesDir(), PEER_A))).toBe(true)
 })
 
+// has-optional-peer-also-in-deps keeps bravo-dep as its own dependency when
+// nothing in its scope provides the peer. A devDependency on the same package
+// under another alias does not make that dependency a peer.
+test('a production install keeps an optional peer that a package resolved as its own dependency', async () => {
+  prepareEmpty()
+  const host = '@pnpm.e2e/has-optional-peer-also-in-deps'
+  const manifest: ProjectManifest = {
+    dependencies: { [host]: '1.0.0' },
+    devDependencies: { 'bravo-alias': 'npm:@pnpm.e2e/bravo-dep@1.0.0' },
+  }
+  await installInSingleProject(manifest, { lockfileOnly: true })
+
+  await installInSingleProject(manifest, { frozenLockfile: true, include: PROD_ONLY })
+
+  const [hostDir] = virtualStoreEntries(host)
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm', hostDir, 'node_modules/@pnpm.e2e/bravo-dep'))).toBe(true)
+})
+
 function virtualStoreEntries (pkgName: string): string[] {
   const prefix = `${pkgName.replace('/', '+')}@`
   return fs.readdirSync('node_modules/.pnpm').filter((dir) => dir.startsWith(prefix))

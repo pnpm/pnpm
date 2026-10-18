@@ -234,13 +234,20 @@ function collectSnapshotOptionalPeerEntries (
   entries: OptionalPeerEntry[]
 ): void {
   if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) return
-  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.dependencies, entries)
-  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.optionalDependencies, entries)
+  const bindings = dp.parsePeerBindings(parent)
+  if (bindings == null) return
+  const site = { parent, snapshot, bindings }
+  collectDepsOptionalPeerEntries(site, snapshot.dependencies, entries)
+  collectDepsOptionalPeerEntries(site, snapshot.optionalDependencies, entries)
 }
 
+/**
+ * The entries whose alias is an optional peer of the parent and that the
+ * parent's key records as a peer binding. An entry the key does not bind is
+ * the parent's own dependency.
+ */
 function collectDepsOptionalPeerEntries (
-  parent: DepPath,
-  snapshot: PackageSnapshot,
+  { parent, snapshot, bindings }: { parent: DepPath, snapshot: PackageSnapshot, bindings: dp.PeerBindings },
   deps: ResolvedDependencies | undefined,
   entries: OptionalPeerEntry[]
 ): void {
@@ -248,8 +255,18 @@ function collectDepsOptionalPeerEntries (
   for (const [alias, ref] of Object.entries(deps)) {
     if (!isOptionalPeer(snapshot, alias)) continue
     const target = dp.refToRelative(ref, alias)
-    if (target != null) entries.push({ parent, alias, target })
+    if (target != null && bindsProvider(bindings, target)) entries.push({ parent, alias, target })
   }
+}
+
+/**
+ * A hashed suffix names no provider, so every target counts. Peer segments may
+ * omit a provider's own peers (`dedupePeers`), so the comparison ignores them.
+ */
+function bindsProvider (bindings: dp.PeerBindings, target: DepPath): boolean {
+  if (bindings.kind === 'hashed') return true
+  const targetWithoutPeers = dp.removePeersSuffix(target)
+  return dp.getPeerBindingProviders(bindings).some((provider) => dp.removePeersSuffix(provider) === targetWithoutPeers)
 }
 
 
