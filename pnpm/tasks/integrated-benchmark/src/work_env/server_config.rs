@@ -89,24 +89,12 @@ pub(super) fn write_pnpr_benchmark_config(
 /// A config for the cold mock: isolated `storage` and a single public upstream
 /// at the warm origin, so every request is a cache miss proxied through to it.
 ///
-/// The routing is expressed in *two* shapes so one file drives every
-/// benchmarked `pnpr` binary back to the mount model: the `registries:` +
-/// `defaultRegistry:` model that current `pnpr` reads, and the `mounts:` +
-/// `defaultTarget:` shape it replaced. Each server ignores the block it
-/// doesn't recognize, so both proxy every request to the same `origin`. The
-/// pre-mount `uplinks:` + `packages: proxy:` shape can no longer ride along:
-/// current `pnpr` deliberately *rejects* a top-level `packages:` block at
-/// startup (per-package rules live on each registry now, and silently
-/// dropping a formerly-enforced ACL would be a security regression), so a
-/// revision older than the mount model cannot share a config file with
-/// current ones.
+/// The routing is expressed with `registries:` + `defaultRegistry:`.
 pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
     let upstream =
         || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
-        mounts: ColdMockUpstreamTable { npmjs: upstream() },
-        default_target: "npmjs",
         registries: ColdMockUpstreamTable { npmjs: upstream() },
         default_registry: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
@@ -118,21 +106,17 @@ pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
 #[derive(Serialize)]
 pub(super) struct ColdMockConfig {
     storage: String,
-    mounts: ColdMockUpstreamTable,
-    #[serde(rename = "defaultTarget")]
-    default_target: &'static str,
     registries: ColdMockUpstreamTable,
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
     log: ColdMockLog,
 }
-/// The `mounts:` / `registries:` table — the same single-upstream entry under
-/// either key, since the registries model kept the tagged-entry shape.
+/// The `registries:` table — a single-upstream entry.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamTable {
     npmjs: ColdMockUpstreamEntry,
 }
-/// One `mounts:`/`registries:` entry: the `type:` tag selects the kind
+/// One `registries:` entry: the `type:` tag selects the kind
 /// (`upstream` here), and the kind's fields sit alongside it.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamEntry {
