@@ -21,7 +21,7 @@ import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { printProjectCommands } from './printProjectCommands.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand, type RecursiveRunOpts, runRecursive } from './runRecursive.js'
-import { getRunScriptCommands, runScript, type RunScriptOptions } from './runScript.js'
+import { getRunScriptCommands, projectLockfilesOf, runScript, type RunScriptOptions } from './runScript.js'
 
 export { getRunScriptCommands, runScript, type RunScriptOptions, suppressesScriptEcho }
 
@@ -192,7 +192,7 @@ export type RunOpts =
   | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
-  & Partial<Pick<Config, 'deployAllFiles' | 'sharedWorkspaceLockfile'>>
+  & Partial<Pick<Config, 'deployAllFiles' | 'modulesDir' | 'modulesDirsByProjectName' | 'sharedWorkspaceLockfile' | 'workspacePackagePatterns'>>
   & Partial<Pick<Config, 'filter' | 'filterProd'>>
   & Pick<ConfigContext, 'cliOptions'>
   & Partial<Pick<ConfigContext, 'rawCliConfig'>>
@@ -350,7 +350,7 @@ async function runProjectScripts (opts: RunOpts, project: ProjectScripts): Promi
   const runScriptOptions: RunScriptOptions = {
     deployAllFiles: opts.deployAllFiles,
     enablePrePostScripts: opts.enablePrePostScripts ?? false,
-    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    projectLockfiles: projectLockfilesOf(opts),
     syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
     workspaceDir: opts.workspaceDir,
   }

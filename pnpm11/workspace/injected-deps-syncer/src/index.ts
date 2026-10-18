@@ -43,21 +43,30 @@ export interface SyncInjectedDepsOptions {
   /** Selects the source files the install put in the copies, so the sync adds no file the install left out. */
   includeOnlyPackageFiles?: boolean
   /**
-   * pnpm's `sharedWorkspaceLockfile`. When `false`, each project's own
-   * `.modules.yaml` lists the copies injected into that project, so every
-   * project's is read besides the workspace root's.
+   * Set when each project has its own lockfile (`sharedWorkspaceLockfile:
+   * false`). Each project's own `.modules.yaml` then lists the copies injected
+   * into it, so every project's is read besides the workspace root's.
    */
-  sharedWorkspaceLockfile?: boolean
+  projectLockfiles?: ProjectLockfiles
 }
 
-type ModulesManifest = NonNullable<Awaited<ReturnType<typeof readModulesManifest>>>
+/** How to find the workspace projects and the modules directory each one installs into. */
+export interface ProjectLockfiles {
+  workspacePackagePatterns?: string[]
+  modulesDir?: string
+  modulesDirsByProjectName?: Record<string, string>
+}
 
-/** The copies of one source directory that one `.modules.yaml` lists, resolved against its lockfile directory. */
-interface InjectedTargets {
-  lockfileDir: string
-  modules: ModulesManifest
+/** An injected copy, and the `.bin` its install hoists the virtual store's bins into. */
+interface InjectedCopy {
+  dir: string
+  hoistedBinDir: string | undefined
+}
+
+/** A directory the install injects copies of, and those copies. */
+interface InjectedSource {
   sourceDir: string
-  targetDirs: string[]
+  copies: InjectedCopy[]
 }
 
 export interface InjectedEditWatch {
@@ -85,11 +94,7 @@ export async function injectedEditDirs (
     })
     return []
   }
-  const targetDirsBySource = new Map<string, string[]>()
-  for (const { sourceDir, targetDirs } of located?.targets ?? []) {
-    targetDirsBySource.set(sourceDir, [...targetDirsBySource.get(sourceDir) ?? [], ...targetDirs])
-  }
-  return Array.from(targetDirsBySource, ([sourceDir, targetDirs]) => ({ sourceDir, targetDirs }))
+  return (located?.sources ?? []).map(({ sourceDir, copies }) => ({ sourceDir, targetDirs: copies.map(({ dir }) => dir) }))
 }
 
 /**
@@ -155,23 +160,23 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   const located = await locateInjectedTargets(opts)
   if (located == null) return
 
-  for (const injectedTargets of located.targets) {
-    await syncTargets(opts, located.pkgRootDir, injectedTargets) // eslint-disable-line no-await-in-loop -- each relinks every project's bins
+  for (const source of located.sources) {
+    await syncSource(opts, located.pkgRootDir, source) // eslint-disable-line no-await-in-loop -- each relinks every project's bins
   }
 }
 
-async function syncTargets (opts: SyncInjectedDepsOptions, pkgRootDir: string, injectedTargets: InjectedTargets): Promise<void> {
+async function syncSource (opts: SyncInjectedDepsOptions, pkgRootDir: string, source: InjectedSource): Promise<void> {
   // A publish directory the script did not build leaves the copies alone
   // rather than emptying them.
-  if (!await dirExists(injectedTargets.sourceDir)) return
-  const patchers = await DirPatcher.fromMultipleTargets(injectedTargets.sourceDir, injectedTargets.targetDirs, opts.includeOnlyPackageFiles)
+  if (!await dirExists(source.sourceDir)) return
+  const patchers = await DirPatcher.fromMultipleTargets(source.sourceDir, source.copies.map(({ dir }) => dir), opts.includeOnlyPackageFiles)
   await Promise.all(patchers.map(patcher => patcher.apply()))
-  await syncInjectedBinLinks(opts, pkgRootDir, injectedTargets)
+  await syncInjectedBinLinks(opts, pkgRootDir, source)
 }
 
 async function locateInjectedTargets (opts: SyncInjectedDepsOptions): Promise<{
   pkgRootDir: string
-  targets: InjectedTargets[]
+  sources: InjectedSource[]
 } | undefined> {
   if (!opts.pkgName) {
     logger.debug({
@@ -185,7 +190,7 @@ async function locateInjectedTargets (opts: SyncInjectedDepsOptions): Promise<{
     throw new PnpmError('NO_WORKSPACE_DIR', 'Cannot update injected dependencies without workspace dir')
   }
   const located = await readInjectedTargets({ ...opts, workspaceDir: opts.workspaceDir })
-  if (located == null || located.targets.length === 0) {
+  if (located == null || located.sources.length === 0) {
     logger.debug({
       reason: 'no-injected-deps',
       message: located == null
@@ -201,21 +206,18 @@ async function locateInjectedTargets (opts: SyncInjectedDepsOptions): Promise<{
 async function syncInjectedBinLinks (
   opts: SyncInjectedDepsOptions,
   pkgRootDir: string,
-  { lockfileDir, modules, sourceDir, targetDirs: resolvedTargetDirs }: InjectedTargets
+  { sourceDir, copies }: InjectedSource
 ): Promise<void> {
-  const hoistedBinDir = modules.virtualStoreDir == null
-    ? undefined
-    : path.join(path.resolve(lockfileDir, modules.virtualStoreDir), 'node_modules', '.bin')
   const previousBinNames = opts.manifestBeforeScripts == null
     ? []
     : (await getBinsFromPackageManifest(opts.manifestBeforeScripts, pkgRootDir)).map(command => command.name)
 
   await syncBinLinks({
-    hoistedBinDir,
+    copies,
     pkgRootDir: sourceDir,
     previousBinNames,
-    resolvedTargetDirs,
     workspaceDir: opts.workspaceDir!,
+    workspacePackagePatterns: opts.projectLockfiles?.workspacePackagePatterns,
   })
 }
 
@@ -269,37 +271,48 @@ async function dirExists (dir: string): Promise<boolean> {
  */
 async function readInjectedTargets (opts: SyncInjectedDepsOptions & { workspaceDir: string }): Promise<{
   pkgRootDir: string
-  targets: InjectedTargets[]
+  sources: InjectedSource[]
 } | undefined> {
   const pkgRootDir = path.resolve(opts.workspaceDir, opts.pkgRootDir)
   const manifests = await readModulesManifests(opts)
   if (manifests.every(({ modules }) => modules?.injectedDeps == null)) return undefined
   const publishDir = await readPublishDir(pkgRootDir, opts.manifestBeforeScripts)
   const sourceDirs = publishDir === pkgRootDir ? [pkgRootDir] : [publishDir, pkgRootDir]
-  const targets: InjectedTargets[] = []
-  for (const sourceDir of sourceDirs) {
-    for (const { lockfileDir, modules } of manifests) {
-      const targetDirs = modules?.injectedDeps?.[normalizePath(path.relative(lockfileDir, sourceDir), true)]
-      if (modules == null || targetDirs == null || targetDirs.length === 0) continue
-      targets.push({ lockfileDir, modules, sourceDir, targetDirs: targetDirs.map(targetDir => path.resolve(lockfileDir, targetDir)) })
-    }
-  }
-  return { pkgRootDir, targets }
+  const sources = sourceDirs
+    .map((sourceDir) => ({ sourceDir, copies: manifests.flatMap((manifest) => copiesListedIn(manifest, sourceDir)) }))
+    .filter(({ copies }) => copies.length > 0)
+  return { pkgRootDir, sources }
 }
 
-/** The modules manifests that list injected copies. See `SyncInjectedDepsOptions.sharedWorkspaceLockfile`. */
+function copiesListedIn (
+  { lockfileDir, modules }: Awaited<ReturnType<typeof readModulesManifests>>[number],
+  sourceDir: string
+): InjectedCopy[] {
+  const targetDirs = modules?.injectedDeps?.[normalizePath(path.relative(lockfileDir, sourceDir), true)] ?? []
+  const hoistedBinDir = modules?.virtualStoreDir == null
+    ? undefined
+    : path.join(path.resolve(lockfileDir, modules.virtualStoreDir), 'node_modules', '.bin')
+  return targetDirs.map((targetDir) => ({ dir: path.resolve(lockfileDir, targetDir), hoistedBinDir }))
+}
+
+/** The modules manifests that list injected copies. See `SyncInjectedDepsOptions.projectLockfiles`. */
 async function readModulesManifests (opts: SyncInjectedDepsOptions & { workspaceDir: string }): Promise<Array<{
   lockfileDir: string
   modules: Awaited<ReturnType<typeof readModulesManifest>>
 }>> {
-  const lockfileDirs = [opts.workspaceDir]
-  if (opts.sharedWorkspaceLockfile === false) {
-    const projects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {})
-    lockfileDirs.push(...projects.map(({ rootDir }) => rootDir).filter((rootDir) => path.resolve(rootDir) !== path.resolve(opts.workspaceDir)))
+  const modulesDirs = [{ lockfileDir: opts.workspaceDir, modulesDir: path.join(opts.workspaceDir, 'node_modules') }]
+  if (opts.projectLockfiles != null) {
+    const { workspacePackagePatterns, modulesDir, modulesDirsByProjectName } = opts.projectLockfiles
+    const projects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, { patterns: workspacePackagePatterns })
+    for (const { rootDir, manifest } of projects) {
+      if (path.resolve(rootDir) === path.resolve(opts.workspaceDir)) continue
+      const projectModulesDir = (manifest.name != null ? modulesDirsByProjectName?.[manifest.name] : undefined) ?? modulesDir ?? 'node_modules'
+      modulesDirs.push({ lockfileDir: rootDir, modulesDir: path.resolve(rootDir, projectModulesDir) })
+    }
   }
-  return Promise.all(lockfileDirs.map(async (lockfileDir) => ({
+  return Promise.all(modulesDirs.map(async ({ lockfileDir, modulesDir }) => ({
     lockfileDir,
-    modules: await readModulesManifest(path.join(lockfileDir, 'node_modules')),
+    modules: await readModulesManifest(modulesDir),
   })))
 }
 
@@ -321,11 +334,11 @@ async function readBinNames (pkgDir: string): Promise<string[]> {
 }
 
 interface SyncBinLinksOptions {
-  hoistedBinDir: string | undefined
+  copies: InjectedCopy[]
   pkgRootDir: string
   previousBinNames: string[]
-  resolvedTargetDirs: string[]
   workspaceDir: string
+  workspacePackagePatterns: string[] | undefined
 }
 
 async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
@@ -341,11 +354,11 @@ async function syncBinLinks (opts: SyncBinLinksOptions): Promise<void> {
   const currentBinNames = new Set(await readBinNames(opts.pkgRootDir))
   const staleBinNames = opts.previousBinNames.filter(name => !currentBinNames.has(name))
 
-  const binLinkPromises = opts.resolvedTargetDirs.map(async resolvedTargetDir => {
-    await linkInjectedTargetBins(resolvedTargetDir, manifest, staleBinNames, opts.hoistedBinDir)
+  const binLinkPromises = opts.copies.map(async ({ dir, hoistedBinDir }) => {
+    await linkInjectedTargetBins(dir, manifest, staleBinNames, hoistedBinDir)
   })
 
-  const allProjects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {})
+  const allProjects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, { patterns: opts.workspacePackagePatterns })
   const consumerLinkPromises = allProjects.map(async project => {
     await relinkWorkspaceConsumerBins(project, staleBinNames)
   })

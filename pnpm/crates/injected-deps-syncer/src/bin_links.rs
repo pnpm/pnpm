@@ -10,15 +10,14 @@ use std::{
     sync::Arc,
 };
 
-use crate::{BinLinkSettings, SyncInjectedDepsError};
+use crate::{BinLinkSettings, SyncInjectedDepsError, injection_records::InjectedCopy};
 
 /// Package and workspace locations for updating binary links.
 pub(crate) struct SyncBinLinks<'a> {
     pub(crate) pkg_root_dir: &'a Path,
-    pub(crate) resolved_targets: &'a [PathBuf],
+    pub(crate) copies: &'a [InjectedCopy],
     pub(crate) workspace_dir: &'a Path,
     pub(crate) previous_bin_names: &'a [String],
-    pub(crate) hoisted_bin_dir: Option<&'a Path>,
     pub(crate) settings: &'a BinLinkSettings<'a>,
 }
 
@@ -58,27 +57,27 @@ pub(crate) fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjected
     let manifest = Arc::new(manifest);
     let link_options = workspace_link_options(opts);
 
-    for target_dir in opts.resolved_targets {
-        sync_target_bins(target_dir, &manifest, opts, &stale_bin_names, &link_options)?;
+    for copy in opts.copies {
+        sync_target_bins(copy, &manifest, &stale_bin_names, &link_options)?;
     }
 
     relink_project_bins(opts, has_bins, &stale_bin_names)
 }
 
 fn sync_target_bins(
-    target_dir: &Path,
+    copy: &InjectedCopy,
     manifest: &Arc<serde_json::Value>,
-    opts: &SyncBinLinks<'_>,
     stale_bin_names: &[&String],
     link_options: &LinkBinsOptions,
 ) -> Result<(), SyncInjectedDepsError> {
+    let target_dir = copy.dir.as_path();
     let Some(parent_modules_dir) = target_dir.parent() else {
         return Ok(());
     };
     remove_stale_bins(RemoveStaleBins {
         target_dir,
         parent_modules_dir,
-        hoisted_bin_dir: opts.hoisted_bin_dir,
+        hoisted_bin_dir: copy.hoisted_bin_dir.as_deref(),
         stale_bin_names,
     })?;
 

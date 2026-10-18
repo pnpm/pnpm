@@ -115,7 +115,7 @@ impl ProjectScriptRunner<'_> {
             manifest_before_scripts: Some(manifest.value()),
             // A project with its own lockfile has its copies synced by
             // `sync_injected_deps_of_modules_dir` once every project is installed.
-            shared_workspace_lockfile: true,
+            project_modules_dirs: &[],
             bin_links: BinLinkSettings {
                 modules_dir_name: self.config.modules_dir_name(),
                 extend_node_path: self.config.extend_node_path,
