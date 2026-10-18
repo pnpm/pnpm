@@ -142,8 +142,6 @@ async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config()
     config.store_dir.init().unwrap();
     let (cargo_toml_path, cargo_toml_digest) =
         config.store_dir.write_cas_file(cargo_toml.as_bytes(), false).unwrap();
-    fs::remove_file(slot.join("Cargo.toml")).unwrap();
-    fs::hard_link(&cargo_toml_path, slot.join("Cargo.toml")).unwrap();
     let integrity = Integrity::from_hex(&package.checksum, Algorithm::Sha256).unwrap();
     StoreIndex::open_in(&config.store_dir)
         .unwrap()
@@ -178,6 +176,24 @@ async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config()
     fs::write(slot.join("build.rs"), "fn main() {}\n").unwrap();
     assert!(!slot_is_complete(&slot, "demo", "1.0.0", &package.checksum, &config.store_dir,));
     fs::remove_file(slot.join("build.rs")).unwrap();
+    let hardlink_slot = temp_dir.path().join("hardlink-slot");
+    fs::create_dir(&hardlink_slot).unwrap();
+    fs::hard_link(&cargo_toml_path, hardlink_slot.join("Cargo.toml")).unwrap();
+    fs::write(
+        hardlink_slot.join(".cargo-checksum.json"),
+        format!(
+            r#"{{"files":{{"Cargo.toml":"untrusted-manifest-hash"}},"package":"{}"}}"#,
+            package.checksum,
+        ),
+    )
+    .unwrap();
+    assert!(slot_is_complete(
+        &hardlink_slot,
+        "demo",
+        "1.0.0",
+        &package.checksum,
+        &config.store_dir,
+    ));
 
     let slots = super::materialize::download_crates::<SilentReporter>(DownloadOptions {
         config,
