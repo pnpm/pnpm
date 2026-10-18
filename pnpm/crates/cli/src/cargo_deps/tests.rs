@@ -255,7 +255,7 @@ fn rejects_a_registry_crate_slot_with_an_unsafe_file_path() {
     seed_indexed_cargo_file(&store_dir, checksum, "demo", "1.0.0", "../Cargo.toml", b"[package]\n");
     fs::write(
         slot.join(".cargo-checksum.json"),
-        format!(r#"{{"files":{{"../Cargo.toml":"hash"}},"package":"{}"}}"#, checksum,),
+        format!(r#"{{"files":{{"../Cargo.toml":"hash"}},"package":"{checksum}"}}"#),
     )
     .unwrap();
 
