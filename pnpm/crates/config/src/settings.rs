@@ -1826,6 +1826,11 @@ pub struct Config {
     /// layer, and it is forwarded to a child pnpm the command spawns.
     pub raw_cli_config: Vec<(String, String)>,
 
+    /// The `--registry` flag's URL. [`Config::current`] pins the unscoped
+    /// credentials of [`Self::raw_cli_config`] to it, ahead of a
+    /// `--config.registry` token.
+    pub cli_registry: Option<String>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution

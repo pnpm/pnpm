@@ -137,6 +137,19 @@ fn bearer_auth_from_the_command_line_wins_over_the_project_npmrc() {
 }
 
 #[test]
+fn unscoped_auth_token_from_the_command_line_pins_to_the_registry_flag() {
+    assert_authenticated_install(
+        "private-pkg",
+        |_| String::new(),
+        |authority| {
+            vec![format!("--registry=http://{authority}/"), "--config._authToken=cli-token".into()]
+        },
+        "Bearer cli-token",
+        true,
+    );
+}
+
+#[test]
 fn username_and_password_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",

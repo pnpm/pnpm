@@ -143,6 +143,7 @@ impl CliArgs {
             self.paths.npmrc_auth_file.as_deref(),
             self.paths.ignore_workspace,
             config_overrides,
+            self.network.registry.as_deref(),
         )
         .current::<Host>(&dir)
         .ok()?;
@@ -265,6 +266,7 @@ impl CliArgs {
                 self.paths.npmrc_auth_file.as_deref(),
                 self.paths.ignore_workspace,
                 config_overrides,
+                self.network.registry.as_deref(),
             )
             .current_for_self_update::<Host>(&anchors.dir)
             .map_err(miette::Report::new)
@@ -329,6 +331,7 @@ impl CliArgs {
             self.paths.npmrc_auth_file.as_deref(),
             self.paths.ignore_workspace,
             config_overrides,
+            self.network.registry.as_deref(),
         );
         seed.skip_store_dir_resolution = !place_store;
         seed.current_keeping_warnings::<Host>(anchor)

@@ -280,6 +280,7 @@ fn create_config(
         cli_settings: Default::default(),
         cli_setting_values: Default::default(),
         raw_cli_config: Default::default(),
+        cli_registry: None,
         raw_auth_config: Default::default(),
         config_dir: None,
     }

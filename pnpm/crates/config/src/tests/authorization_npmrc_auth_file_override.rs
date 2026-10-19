@@ -301,6 +301,28 @@ pub fn unscoped_cli_config_auth_token_pins_to_the_cli_registry() {
 }
 
 #[test]
+pub fn unscoped_cli_config_auth_token_pins_to_the_registry_flag() {
+    let project = tempdir().expect("project tempdir");
+
+    let config = Config {
+        raw_cli_config: vec![
+            ("registry".to_string(), "https://cli.example.com/".to_string()),
+            ("_authToken".to_string(), "cli-token".to_string()),
+        ],
+        cli_registry: Some("https://flag.example.com/".to_string()),
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
+
+    assert_eq!(
+        config.auth_headers.for_url("https://flag.example.com/pkg").as_deref(),
+        Some("Bearer cli-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://cli.example.com/pkg"), None);
+}
+
+#[test]
 pub fn cli_config_tls_setting_outranks_project_npmrc() {
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), "strict-ssl=true\n");
