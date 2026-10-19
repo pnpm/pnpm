@@ -26,14 +26,7 @@ fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: Depl
     let DeployInstallMode::Shared { workspace_config } = mode else {
         return;
     };
-    config.workspace_dir = deploy_dir.to_path_buf().into();
-    config.inject_workspace_packages = false;
-    config.isolate_local_directory_imports = true;
-    config.overrides = None;
-    config.package_extensions = None;
-    config.config_dependencies = None;
-    config.patched_dependencies = workspace_config.patched_dependencies;
-    config.allow_builds = workspace_config.allow_builds;
+    workspace_config.apply_to_config(config, deploy_dir);
 }
 
 /// The lockfile a legacy deploy install reads and writes.

@@ -1,5 +1,5 @@
 use super::{
-    Config, Context, DependencyGroup, DeployError, DeployWorkspaceConfig, DirectoryResolution,
+    Config, Context, DependencyGroup, DeployError, DeployWorkspaceSettings, DirectoryResolution,
     HashMap, HashSet, LinkedWorkspaceProject, Lockfile, LockfileResolution, Map, PackageKey,
     PackageManifest, PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo,
     ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
@@ -15,7 +15,7 @@ pub(super) struct DeployFiles {
     pub(super) manifest: Value,
     pub(super) lockfile: Lockfile,
     pub(super) workspace_manifest: Option<Value>,
-    pub(super) workspace_config: DeployWorkspaceConfig,
+    pub(super) workspace_config: DeployWorkspaceSettings,
 }
 
 pub(super) struct ConvertCtx<'a> {
@@ -180,18 +180,6 @@ fn converted_deploy_lockfile(
     deploy_lockfile.overrides = None;
     deploy_lockfile.package_extensions_checksum = None;
     deploy_lockfile.pnpmfile_checksum = None;
-    if let Some(settings) = deploy_lockfile.settings.as_mut() {
-        settings.inject_workspace_packages = false;
-        // The deploy install turns both off (`create_deploy_install_config`),
-        // so a lockfile that records its resolution settings must agree.
-        let resolution = &mut settings.resolution;
-        if resolution.dedupe_injected_deps.is_some() {
-            resolution.dedupe_injected_deps = Some(false);
-        }
-        if resolution.dedupe_peer_dependents.is_some() {
-            resolution.dedupe_peer_dependents = Some(false);
-        }
-    }
     deploy_lockfile.importers =
         HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);

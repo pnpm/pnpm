@@ -1,5 +1,5 @@
 pub use injected_manifest::ProjectManifestsByDir;
-pub(super) use injected_manifest::{InjectedDirectory, unhooked_manifest};
+pub(super) use injected_manifest::{InjectedDirectory, is_deploy_file_url_key, unhooked_manifest};
 pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
 pub(crate) use spec::spec_target_and_range;
 
@@ -180,14 +180,39 @@ fn check_single_dep_spec_directory_freshness(
     if !visited.insert(pkg_key.clone()) {
         return Ok(());
     }
-    let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
+    check_directory_resolution(
+        check,
+        importer,
+        (&dep_str, dep_spec),
+        (&pkg_key, pkg_meta, &dir_res.directory),
+        visited,
+    )
+}
+
+fn check_directory_resolution(
+    check: &ImporterSatisfactionCheck<'_>,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    (dep_str, dep_spec): (&str, &pnpm_lockfile::ResolvedDependencySpec),
+    (pkg_key, pkg_meta, rel_path): (
+        &pnpm_lockfile::PackageKey,
+        &pnpm_lockfile::PackageMetadata,
+        &str,
+    ),
+    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+) -> Result<(), FreshnessCheckError> {
     let snapshot = check.lockfile.snapshots
         .as_ref()
-        .and_then(|s| s.get(&pkg_key));
+        .and_then(|s| s.get(pkg_key));
+    if is_deploy_file_url_key(dep_spec, pkg_key, rel_path) {
+        return snapshot
+            .map(|_| ())
+            .ok_or_else(|| local_dependency_outdated(dep_str, rel_path));
+    }
+    let local_dep_dir = check.lockfile_dir.join(rel_path);
     let dep = LocalDepContext {
-        name: &dep_str,
+        name: dep_str,
         declared_as_file: is_declared_local_directory(&dep_spec.specifier),
-        rel_path: &dir_res.directory,
+        rel_path,
         dir: &local_dep_dir,
         dirs: spec_dirs(check),
         catalogs: check.workspace.catalogs,
