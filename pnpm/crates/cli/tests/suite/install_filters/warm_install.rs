@@ -1,6 +1,7 @@
 use super::{
-    DEP, HELLO, ManifestDeps, NO_DEPS, PARENT, WorkspaceFixture, assert_eq, fs, has_snapshot,
-    importing_started_count, reports_up_to_date, set_dependency, set_version,
+    CATALOG_FOO, DEP, HELLO, ManifestDeps, NO_DEPS, PARENT, WorkspaceFixture, assert_eq, fs,
+    has_link, has_snapshot, importer_version, importing_started_count, reports_up_to_date,
+    set_dependency, set_version,
 };
 
 #[test]
@@ -135,6 +136,149 @@ fn filtered_hoisted_prod_install_preserves_unselected_dev_dependencies() {
     );
     assert!(has_snapshot(&current, PARENT, "100.0.0"));
     assert!(!has_snapshot(&current, NO_DEPS, "1.0.0"));
+}
+
+#[test]
+fn filtered_hoisted_dev_install_preserves_unselected_prod_dependencies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps {
+            prod: &[(NO_DEPS, "1.0.0")],
+            dev: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+
+    fixture.run(["--filter", "selected", "install", "--dev"]);
+
+    assert!(
+        fixture.workspace
+            .join("node_modules")
+            .join(HELLO)
+            .is_dir(),
+        "selected devDependency must remain hoisted",
+    );
+    assert!(
+        !fixture.workspace
+            .join("node_modules")
+            .join(NO_DEPS)
+            .exists(),
+        "selected prod dependency must be pruned under --dev",
+    );
+    assert!(
+        fixture.workspace
+            .join("node_modules")
+            .join(PARENT)
+            .is_dir(),
+        "unselected prior prod dependency must remain hoisted",
+    );
+    let current = fixture.current();
+    assert!(
+        current.importers["packages/selected"].dependencies.is_none(),
+        "current lockfile must strip dependencies from selected importer under --dev",
+    );
+    assert!(
+        current.importers["packages/unselected"].dependencies.is_some(),
+        "current lockfile must retain dependencies on unselected importer",
+    );
+}
+
+#[test]
+fn filtered_hoisted_no_optional_install_preserves_unselected_optional_dependencies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            optional: &[(NO_DEPS, "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { optional: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+
+    fixture.run(["--filter", "selected", "install", "--no-optional"]);
+
+    assert!(
+        !fixture.workspace
+            .join("node_modules")
+            .join(NO_DEPS)
+            .exists(),
+        "selected optionalDependency must be pruned under --no-optional",
+    );
+    assert!(
+        fixture.workspace
+            .join("node_modules")
+            .join(PARENT)
+            .is_dir(),
+        "unselected prior optionalDependency must remain hoisted",
+    );
+    let current = fixture.current();
+    assert!(
+        current.importers["packages/selected"].optional_dependencies.is_none(),
+        "current lockfile must strip optionalDependencies from selected importer",
+    );
+    assert!(
+        current.importers["packages/unselected"].optional_dependencies.is_some(),
+        "current lockfile must retain optionalDependencies on unselected importer",
+    );
+    let parent_key: pnpm_lockfile::PackageKey = format!("{PARENT}@100.0.0").parse().unwrap();
+    let parent_snapshot = current.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&parent_key))
+        .expect("retained optional snapshot");
+    assert!(parent_snapshot.optional, "retained optional snapshot must keep optional: true");
+}
+
+#[test]
+fn filtered_install_succeeds_under_sparse_checkout_when_unselected_catalog_importer_is_missing_from_disk()
+ {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!("catalog:\n  '{CATALOG_FOO}': 1.0.0\n"));
+    let selected = fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let missing = fixture.project(
+        "missing",
+        "missing",
+        ManifestDeps { prod: &[(CATALOG_FOO, "catalog:")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    fs::remove_dir_all(&missing).expect("simulate sparse checkout omitting packages/missing");
+    fixture.run(["--filter", "selected", "install"]);
+
+    assert!(has_link(&selected, HELLO), "selected project must be materialized");
+    let wanted = fixture.wanted();
+    assert_eq!(
+        importer_version(&wanted, "packages/missing", CATALOG_FOO),
+        "1.0.0",
+        "sparse-checkout missing project must remain preserved in wanted lockfile",
+    );
+    assert!(
+        wanted.catalogs
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("default"))
+            .is_some_and(|entries| entries.contains_key(CATALOG_FOO)),
+        "catalog entry referenced by sparse-checkout missing project must be preserved",
+    );
 }
 
 #[test]

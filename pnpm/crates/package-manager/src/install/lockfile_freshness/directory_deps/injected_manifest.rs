@@ -1,5 +1,6 @@
 use pnpm_package_manifest::PackageManifest;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
 };
@@ -124,4 +125,105 @@ fn manifest_of_project_publishing_from(
         }
     }
     None
+}
+
+pub(super) fn workspace_path_matches_target(
+    dirs: &super::spec::SpecDirs<'_>,
+    resolved_spec: &Path,
+    resolved_target: &Path,
+) -> bool {
+    if resolved_spec == resolved_target {
+        return true;
+    }
+    project_or_disk_manifest(dirs, resolved_spec)
+        .is_some_and(|manifest| {
+            pnpm_package_manifest::publishes_from_directory(
+                resolved_spec,
+                &manifest,
+                resolved_target,
+            )
+        })
+}
+
+/// The manifest of the workspace project at `target_dir` or publishing from
+/// `target_dir`: the one already loaded for it, else the ancestor project
+/// whose `publishConfig.directory` is `target_dir`, else its `package.json`,
+/// read only when it stays inside the workspace.
+pub(super) fn target_manifest<'a>(
+    dirs: &super::spec::SpecDirs<'a>,
+    target_dir: &Path,
+) -> Option<Cow<'a, serde_json::Value>> {
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    if dirs.manifests_by_dir.contains_key(&normalized) {
+        return project_or_disk_manifest(dirs, target_dir);
+    }
+    publishing_project_manifest(dirs, &normalized)
+        .or_else(|| project_or_disk_manifest(dirs, target_dir))
+}
+
+fn project_or_disk_manifest<'a>(
+    dirs: &super::spec::SpecDirs<'a>,
+    target_dir: &Path,
+) -> Option<Cow<'a, serde_json::Value>> {
+    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
+    let manifest_path = target_dir.join("package.json");
+    if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
+        // A project passed in memory may have no `package.json`. One that has
+        // a `package.json` linking outside the workspace is not trusted, as the
+        // disk read below does not trust it.
+        let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
+            && !std::fs::canonicalize(&manifest_path)
+                .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
+        return (!escapes).then_some(Cow::Borrowed(manifest.value()));
+    }
+    let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
+        return None;
+    }
+    let content = std::fs::read_to_string(&canonical_manifest).ok()?;
+    pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
+}
+
+fn publishing_project_manifest<'a>(
+    dirs: &super::spec::SpecDirs<'a>,
+    normalized_target: &Path,
+) -> Option<Cow<'a, serde_json::Value>> {
+    if !pnpm_fs::is_subdir(dirs.workspace_root, normalized_target) {
+        return None;
+    }
+    if std::fs::symlink_metadata(normalized_target).is_ok()
+        && target_dir_within_workspace(dirs.workspace_root, normalized_target).is_err()
+    {
+        return None;
+    }
+    for candidate in normalized_target.ancestors().skip(1) {
+        if !pnpm_fs::is_subdir(dirs.workspace_root, candidate) {
+            return None;
+        }
+        if let Some(manifest) = project_or_disk_manifest(dirs, candidate)
+            && pnpm_package_manifest::publishes_from_directory(
+                candidate,
+                &manifest,
+                normalized_target,
+            )
+        {
+            return Some(manifest);
+        }
+    }
+    None
+}
+
+/// The canonical workspace root, when `target_dir` lies inside it both as
+/// written and with symlinks resolved. A loaded project is held to this too,
+/// so a project directory that links outside the workspace is not trusted.
+fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Result<PathBuf, ()> {
+    if !pnpm_fs::is_subdir(workspace_root, target_dir) {
+        return Err(());
+    }
+    let canonical_root = std::fs::canonicalize(workspace_root).map_err(|_| ())?;
+    let canonical_target = std::fs::canonicalize(target_dir).map_err(|_| ())?;
+    if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
+        return Err(());
+    }
+    Ok(canonical_root)
 }

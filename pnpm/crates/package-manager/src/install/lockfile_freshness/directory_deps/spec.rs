@@ -1,9 +1,9 @@
-use super::ProjectManifestsByDir;
-use pnpm_resolving_deps_resolver::locked_child_admits;
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
+use super::{
+    ProjectManifestsByDir,
+    injected_manifest::{target_manifest, workspace_path_matches_target},
 };
+use pnpm_resolving_deps_resolver::locked_child_admits;
+use std::path::{Path, PathBuf};
 
 /// Where the specs of a local directory dependency resolve.
 #[derive(Clone, Copy)]
@@ -93,7 +93,7 @@ fn file_or_link_spec_satisfies(
 }
 
 fn workspace_path_spec_satisfies(
-    lockfile_dir: &Path,
+    dirs: &SpecDirs<'_>,
     local_dep_dir: &Path,
     spec: &str,
     workspace_spec: &str,
@@ -101,15 +101,21 @@ fn workspace_path_spec_satisfies(
 ) -> bool {
     let resolved_spec = resolve_local_spec_path(local_dep_dir, workspace_spec);
     if let Some(target) = lockfile_dep.as_link_target() {
-        return resolve_local_spec_path(lockfile_dir, target) == resolved_spec;
+        return workspace_path_matches_target(
+            dirs,
+            &resolved_spec,
+            &resolve_local_spec_path(dirs.lockfile_dir, target),
+        );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
         return false;
     };
     match ver_peer.version() {
-        pnpm_lockfile::VersionPart::File(recorded) => {
-            resolve_local_spec_path(lockfile_dir, recorded) == resolved_spec
-        }
+        pnpm_lockfile::VersionPart::File(recorded) => workspace_path_matches_target(
+            dirs,
+            &resolved_spec,
+            &resolve_local_spec_path(dirs.lockfile_dir, recorded),
+        ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
         _ => false,
     }
@@ -128,13 +134,7 @@ fn workspace_spec_satisfies(
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
     if is_workspace_path(workspace_spec) {
-        workspace_path_spec_satisfies(
-            dirs.lockfile_dir,
-            local_dep_dir,
-            spec,
-            workspace_spec,
-            lockfile_dep,
-        )
+        workspace_path_spec_satisfies(dirs, local_dep_dir, spec, workspace_spec, lockfile_dep)
     } else {
         workspace_range_spec_satisfies(dirs, dep_name, workspace_spec, lockfile_dep)
     }
@@ -211,8 +211,11 @@ pub(super) fn importer_link_satisfies(
         return true;
     };
     if is_workspace_path(workspace_spec) {
-        return resolve_local_spec_path(project_dir, workspace_spec)
-            == resolve_local_spec_path(project_dir, link_target);
+        return workspace_path_matches_target(
+            dirs,
+            &resolve_local_spec_path(project_dir, workspace_spec),
+            &resolve_local_spec_path(project_dir, link_target),
+        );
     }
     let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
     if crate::manifest_agreement::spec_is_distribution_tag(parsed_range_str) {
@@ -274,47 +277,6 @@ fn target_dir_satisfies(
         return false;
     };
     range.satisfies(&version)
-}
-
-/// The manifest of the workspace project at `target_dir`: the one already
-/// loaded for it, else its `package.json`, read only when it stays inside
-/// the workspace.
-fn target_manifest<'a>(
-    dirs: &SpecDirs<'a>,
-    target_dir: &Path,
-) -> Option<Cow<'a, serde_json::Value>> {
-    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
-    let manifest_path = target_dir.join("package.json");
-    if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
-        // A project passed in memory may have no `package.json`. One that has
-        // a `package.json` linking outside the workspace is not trusted, as the
-        // disk read below does not trust it.
-        let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
-            && !std::fs::canonicalize(&manifest_path)
-                .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
-        return (!escapes).then_some(Cow::Borrowed(manifest.value()));
-    }
-    let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
-    if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
-        return None;
-    }
-    let content = std::fs::read_to_string(&canonical_manifest).ok()?;
-    pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
-}
-
-/// The canonical workspace root, when `target_dir` lies inside it both as
-/// written and with symlinks resolved. A loaded project is held to this too,
-/// so a project directory that links outside the workspace is not trusted.
-fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Result<PathBuf, ()> {
-    if !pnpm_fs::is_subdir(workspace_root, target_dir) {
-        return Err(());
-    }
-    let canonical_root = std::fs::canonicalize(workspace_root).map_err(|_| ())?;
-    let canonical_target = std::fs::canonicalize(target_dir).map_err(|_| ())?;
-    if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
-        return Err(());
-    }
-    Ok(canonical_root)
 }
 
 /// The resolver's reuse gate decides a semver range or a named-registry

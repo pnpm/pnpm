@@ -280,7 +280,11 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let closure_groups = scope.groups.with_all_importer_groups();
+    let closure_groups = if install.projects.selected_ids.is_some() {
+        crate::GroupSelection::all()
+    } else {
+        scope.groups.with_all_importer_groups()
+    };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
@@ -300,12 +304,14 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
             seed: SkippedSnapshots::new(),
-            // Only a full install's `dependency_groups` carries a
-            // `--no-optional` intent: a partial run either passes
-            // every direct group (`add`, `remove`, `update`) or
-            // narrows them for its own reasons (`fetch --dev`,
-            // `rebuild`) and must keep its transitive optionals.
-            exclude_optional: !scope.include_transitive_optional_dependencies,
+            // Only an unfiltered full install's `dependency_groups` needs
+            // `compute_skip_set` to drop `optional: true` snapshots: a
+            // partial run keeps transitive optionals, and a `--filter`
+            // install's `lockfiles.initial` has already stripped optional
+            // dependencies from the selected importers while retaining
+            // prior optional dependencies on unselected hoisted projects.
+            exclude_optional: install.projects.selected_ids.is_none()
+                && !scope.include_transitive_optional_dependencies,
             skip_runtimes: install.execution.skip_runtimes,
         },
     )

@@ -119,11 +119,6 @@ fn merge_retained_snapshots(
     >,
     groups: &crate::GroupSelection,
 ) {
-    if !groups.included.optional_dependencies {
-        for snapshot in retained_snapshots.values_mut() {
-            snapshot.optional = false;
-        }
-    }
     if let Some(selected) = selected_snapshots.take() {
         retained_snapshots.extend(selected);
     }
