@@ -472,6 +472,21 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
+
+    /// `strictPeerDependencies` was requested with
+    /// `checkPeerDependencies: false`. Strict mode fails an install on
+    /// the issues the peer dependency check finds, so skipping the check
+    /// would drop that failure silently.
+    #[display(
+        "Cannot use strictPeerDependencies when checkPeerDependencies is false (the install would skip the peer dependency check that strictPeerDependencies fails on)"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_CONFLICT_STRICT_PEER_DEPENDENCIES_WITH_NO_PEER_CHECK),
+        help(
+            r#"Set checkPeerDependencies to true, or set strictPeerDependencies to false and run "pnpm peers check" to find peer dependency issues."#
+        )
+    )]
+    ConfigConflictStrictPeerDependenciesWithNoPeerCheck,
 }
 
 impl From<pnpm_hooks::HookError> for InstallError {

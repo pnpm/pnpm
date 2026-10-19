@@ -40,7 +40,7 @@ impl RunMode {
             install.execution.lockfile_only,
             options.rebuild.as_ref(),
         );
-        reject_conflicting_store_config(install.context.config)?;
+        reject_conflicting_config(install.context.config)?;
         Ok(Self {
             lockfile_only,
             // `--dry-run` resolves but never materializes, so it borrows the
@@ -132,7 +132,7 @@ fn effective_lockfile_only(
         || (rebuild.is_none() && !config.enable_modules_dir && !config.enable_global_virtual_store)
 }
 
-fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> {
+fn reject_conflicting_config(config: &Config) -> Result<(), InstallError> {
     if config.frozen_store && config.force {
         return Err(InstallError::ConfigConflictFrozenStoreWithForce);
     }
@@ -141,6 +141,9 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
         && !config.enable_global_virtual_store
     {
         return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
+    }
+    if config.strict_peer_dependencies && !config.check_peer_dependencies {
+        return Err(InstallError::ConfigConflictStrictPeerDependenciesWithNoPeerCheck);
     }
     Ok(())
 }

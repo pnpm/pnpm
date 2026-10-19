@@ -379,6 +379,7 @@ pub struct WorkspaceSettings {
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
+    pub check_peer_dependencies: Option<bool>,
     pub ignore_compatibility_db: Option<bool>,
     pub add_missing_peer_types: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,

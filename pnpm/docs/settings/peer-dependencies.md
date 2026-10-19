@@ -117,6 +117,17 @@ Changing this setting changes the lockfile.
 If this is enabled, commands will fail if there is a missing or invalid peer
 dependency in the tree.
 
+### checkPeerDependencies
+
+Added in: v12.15.0
+
+* Default: **true**
+* Type: **Boolean**
+
+When `false`, commands that resolve dependencies, such as `pnpm install` and `pnpm add`, skip the peer dependency check at the end and report no peer dependency issues. Use this when you run [`pnpm peers check`](../cli/peers.md) as a separate step, for example in CI. `pnpm peers check` still reports the issues.
+
+`checkPeerDependencies: false` cannot be combined with [`strictPeerDependencies`](#strictpeerdependencies).
+
 ### resolvePeersFromWorkspaceRoot
 
 * Default: **true**

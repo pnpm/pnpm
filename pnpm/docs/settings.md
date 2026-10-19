@@ -270,6 +270,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [dedupePeers](./settings/peer-dependencies.md#dedupepeers)
 * [addMissingPeerTypes](./settings/peer-dependencies.md#addmissingpeertypes)
 * [strictPeerDependencies](./settings/peer-dependencies.md#strictpeerdependencies)
+* [checkPeerDependencies](./settings/peer-dependencies.md#checkpeerdependencies)
 * [resolvePeersFromWorkspaceRoot](./settings/peer-dependencies.md#resolvepeersfromworkspaceroot)
 * [peerDependencyRules](./settings/peer-dependencies.md#peerdependencyrules)
   * [peerDependencyRules.ignoreMissing](./settings/peer-dependencies.md#peerdependencyrulesignoremissing)

@@ -813,6 +813,14 @@ pub struct Config {
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 
+    /// When `false`, an install that resolves skips its peer dependency
+    /// check, so it neither reports nor fails on peer dependency issues.
+    /// `pnpm peers check` still reports them. An install rejects `false`
+    /// together with [`strict_peer_dependencies`](Self::strict_peer_dependencies).
+    /// The `checkPeerDependencies` setting; default `true`.
+    #[default = true]
+    pub check_peer_dependencies: bool,
+
     /// When true, skip pnpm's built-in compatibility database from
     /// `@yarnpkg/extensions`. Default `false` so known broken package
     /// manifests are patched during resolution.

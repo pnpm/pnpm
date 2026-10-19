@@ -15,6 +15,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
         json_field!(settings, reader, dedupe_peers, "DEDUPE_PEERS");
         json_field!(settings, reader, strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
+        json_field!(settings, reader, check_peer_dependencies, "CHECK_PEER_DEPENDENCIES");
         json_field!(settings, reader, add_missing_peer_types, "ADD_MISSING_PEER_TYPES");
         json_field!(
             settings,

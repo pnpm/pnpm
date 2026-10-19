@@ -123,6 +123,7 @@ impl WorkspaceSettings {
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
+        self.check_peer_dependencies = None;
         self.ignore_compatibility_db = None;
         self.add_missing_peer_types = None;
         self.resolve_peers_from_workspace_root = None;

@@ -152,6 +152,7 @@ fn create_config(
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
+        check_peer_dependencies: true,
         ignore_compatibility_db: false,
         add_missing_peer_types: false,
         resolve_peers_from_workspace_root: false,

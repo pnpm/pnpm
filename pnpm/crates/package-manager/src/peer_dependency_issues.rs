@@ -19,7 +19,7 @@ use crate::InstallError;
 
 /// Report the peer-dependency issues of the lockfile an install just
 /// resolved. `None` — every install that skipped resolution — reports
-/// nothing.
+/// nothing, as does an install with [`Config::check_peer_dependencies`] off.
 ///
 /// `peer_issue_importer_ids` is the resolution's own verdict: the
 /// importers it left an issue under. Only those are walked, so a
@@ -43,6 +43,9 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     config: &Config,
     catalogs: Option<&Catalogs>,
 ) -> Result<(), InstallError> {
+    if !config.check_peer_dependencies {
+        return Ok(());
+    }
     let Some(lockfile) = resolved_lockfile else { return Ok(()) };
     let mut importer_ids: Vec<String> = peer_issue_importer_ids
         .iter()
