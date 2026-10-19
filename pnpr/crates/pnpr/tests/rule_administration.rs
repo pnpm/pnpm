@@ -499,3 +499,56 @@ defaultRegistry: main
         "expected unpublish error, got: {msg}",
     );
 }
+
+#[tokio::test]
+async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_registry() {
+    let dir = TempDir::new().unwrap();
+    let config_yaml = "\
+auth:
+  admins: [root]
+  htpasswd:
+    max_users: 100
+registries:
+  cargo:
+    crates:
+      type: hosted
+      rulesManagedBy: api
+      packages:
+        'foo': {}
+  main:
+    type: router
+    sources: ['cargo/crates']
+defaultRegistry: main
+";
+    let storage = dir.path().join("storage");
+    let storage_dir = storage.join(".rule-overrides/v0");
+    std::fs::create_dir_all(&storage_dir).unwrap();
+    let change_with_unpublish = json!({
+        "packages": {
+            "foo": {
+                "access": ["$authenticated"],
+                "unpublish": ["root"],
+            },
+        },
+    });
+    let target_dir = storage_dir.join("cargo");
+    std::fs::create_dir_all(&target_dir).unwrap();
+    std::fs::write(
+        target_dir.join("crates.json"),
+        serde_json::to_vec(&change_with_unpublish).unwrap(),
+    )
+    .unwrap();
+
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+    let app = app_router(config).await;
+    let root = add_user(&app, "root").await;
+
+    let (status, rules) =
+        send(&app, "GET", "/-/pnpr/v0/admin/rules/cargo/crates", Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(rules["packages"]["foo"]["access"], json!(["$authenticated"]));
+    assert_eq!(rules["packages"]["foo"]["unpublish"], serde_json::Value::Null);
+}
